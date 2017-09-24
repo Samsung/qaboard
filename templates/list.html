@@ -1,0 +1,132 @@
+{% extends "layout.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/gitlab.css') }}">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='javascript/jquery.timeago.js') }}"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+
+<div class="page-with-sidebar">
+<div class="content-wrapper page-with-layout-nav page-with-sub-nav">
+<div>
+
+<div class="content" id="content-body">
+<div class="container-fluid container-limited">
+
+<div class="row-content-block second-block content-component-block flex-container-block">
+  <div class="tree-ref-holder">
+    <form class="project-refs-form" action="/rymai/gitlab-ce/refs/switch" accept-charset="UTF-8" method="get">
+      <input type="hidden" name="destination" id="destination" value="commits">
+      <div class="dropdown">
+        <button class="dropdown-menu-toggle js-project-refs-dropdown" type="button" data-toggle="dropdown" data-selected="master" data-ref="master" data-refs-url="/commits" data-field-name="ref" data-submit-form-on-click="true"><span class="dropdown-toggle-text ">All branches</span><i aria-hidden="true" data-hidden="true" class="fa fa-chevron-down"></i></button>
+        <div class="dropdown-menu dropdown-menu-selectable git-revision-dropdown">
+        <div class="dropdown-title"><span>Switch branch/tag</span><button class="dropdown-title-button dropdown-menu-close" aria-label="Close" type="button"><i aria-hidden="true" data-hidden="true" class="fa fa-times dropdown-menu-close-icon"></i></button></div>
+        <div class="dropdown-input"><input type="search" id="" class="dropdown-input-field" placeholder="Search branches and tags" autocomplete="off" value=""><i aria-hidden="true" data-hidden="true" class="fa fa-search dropdown-input-search"></i><i role="button" aria-hidden="true" data-hidden="true" class="fa fa-times dropdown-input-clear js-dropdown-input-clear"></i></div>
+        <div class="dropdown-content"></div>
+        <div class="dropdown-loading"><i aria-hidden="true" data-hidden="true" class="fa fa-spinner fa-spin"></i></div>
+      </div>
+    </div>
+  </form>
+  </div>
+  <ul class="breadcrumb repo-breadcrumb">
+  <li><a href="/commits">mono_slam</a></li>
+  </ul>
+  <div class="block-controls hidden-xs hidden-sm">
+    <div class="control">
+    <form class="commits-search-form" action="/commits" accept-charset="UTF-8" method="GET">
+      <input type="search" name="search" id="commits-search" placeholder="Filter by anything" class="form-control search-text-input input-short" spellcheck="false" value="">
+    </form>
+    </div>
+  </div>
+</div>
+
+<ol class="list-unstyled content_list" id="commits-list">
+  {% for commits in commits_per_day %}
+  <li class="commit-header">{{commits[-1].time.strftime('%d %B, %Y')}} {{commits_per_day|length}} commits</li>
+  <li class="commits-row">
+    <ul class="content-list commit-list">
+      {% for commit in commits %}
+      <li class="commit flex-list js-toggle-container" id="commit-{{commit.id}}">
+        <div class="avatar-cell hidden-xs">
+         <a href="/{{commit.user}}"><img class="avatar has-tooltip s36 hidden-xs" alt="Fatih Acet's avatar" title="" data-container="body" src="https://robohash.org/{{commit.user}}@.jpg" data-original-title="{{commit.user}}"></a>
+        </div>
+        <div class="commit-detail">
+          <div class="commit-content">
+            <a class="commit-row-message item-title" href="/commit/{{commit.id}}">{{commit.message}}</a>
+            <span class="commit-row-message visible-xs-inline">
+            ·
+            {{commit.short_id}}
+            </span>
+            <div class="visible-xs-inline">
+              <a class="ci-status-link ci-status-icon-failed " title="Delete this commit" onclick="delete_commit('{{commit.id}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
+              </a>
+            </div>
+            <!-- <button class="text-expander hidden-xs js-toggle-button" type="button">...</button> -->
+<!--             <pre class="commit-row-description js-toggle-content">Remove unused dead singular assignee code in boards
+            See merge request <a href="/gitlab-org/gitlab-ce/merge_requests/12077" data-original="!12077" data-link="false" data-project="13083" data-merge-request="3796628" data-reference-type="merge_request" title="Remove unused dead singular assignee code in boards" class="gfm gfm-merge_request has-tooltip">!12077</a></pre> -->
+            <div class="commiter">
+              <a class="commit-author-link has-tooltip" title="" href="/{{commit.user}}" data-original-title="{{commit.user}}@samsung.com">{{commit.user}}</a> committed <time class="timeago" datetime="{{commit.time.strftime('%Y-%m-%dT%H:%M:%S')}}" data-toggle="tooltip" data-placement="top" data-container="body" data-original-title="{{commit.time.strftime('%Y-%m-%dT%H:%M:%S')}}">{{commit.time.strftime('%Y-%m-%dT%H:%M:%S')}}</time>
+            </div>
+          </div>
+          <div class="commit-results">
+            {% if not commit.outputs()%}
+            <a href="/outputs/{{commit.id}}/output/all_lsf_jobs.log">Log</a>
+            {%else%}
+            {% with height=20, width=40 %}
+              {# include 'histo.html' #}
+            {% endwith %}
+            <span>{{'{0:.0%}'.format(commit.metrics().nb_high_drift)}} high drift over {{commit.outputs()|length}} recordings</span>
+            {%endif%}
+          </div>
+          <div class="commit-actions flex-row hidden-xs">
+            <a class="ci-status-link ci-status-icon-failed " title="Delete this commit" onclick="delete_commit('{{commit.id}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
+            </a>
+            <!-- <button class="btn btn-clipboard btn-transparent" data-toggle="tooltip" data-placement="bottom" data-container="body" data-title="Copy commit SHA to clipboard" data-clipboard-text="{{commit.id}}" type="button" title="Copy commit ID to clipboard"><i aria-hidden="true" class="fa fa-clipboard"></i></button> -->
+            <!-- <a class="commit-short-id btn btn-transparent" href="/commit/{{commit.id}}">{{commit.short_id}}</a> -->            
+            <a class="commit-short-id btn btn-transparent" href="/outputs/{{commit.id}}/{%if commit['paramfile'] %}{{commit.paramfile.as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameters</a>
+            <a class="btn btn-default" href="/commit/{{commit.id}}">Browse results</a>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </li>
+  {% endfor %}
+</ol>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<script>
+var delete_commit = function(id){
+  var do_delete = confirm("Confirm you want to delete "+id);
+  if(do_delete){
+    var url = "/commit/"+id;
+    var xhr = new XMLHttpRequest();
+    xhr.open("DELETE", url, true);
+    xhr.onload = function () {
+      if (xhr.readyState == 4 && xhr.status == "200") {
+        var element = document.getElementById("commit-"+id);
+        element.outerHTML = "";
+        delete element;
+        console.log("commit deleted");
+      } else {
+        console.log("ERROR");
+      }
+    }
+    xhr.send(null); 
+  }
+}
+</script>
+
+
+<script>
+$(document).ready(function(){
+  jQuery.timeago.settings.localeTitle = true;
+  jQuery("time.timeago").timeago();
+});
+</script>
+{% endblock %}

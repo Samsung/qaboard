@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+{% block content %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<div class="section values">
+<div class="container">
+  <h3 class="section-heading"><strong><a href='/'>mono_slam</a></strong> {% if commit.type=='local'%}#{{commit.user}}{%endif%}</h3>
+<p class="section-description">Built on {{commit.time.strftime('%d %B at %H:%M')}}.<br>{{commit.message}}<br>{{outputs|length}} movies.{% if commit._pending__outputs %}<br><a href='/commit/{{commit.short_id}}/update'>Run on {{commit._pending__outputs|length}} extra recordings</a>{% endif%}<br><a href="/outputs/{{commit.short_id}}/{%if commit['paramfile'] %}{{commit['paramfile'].as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameter used</a></p>
+  <div class="row">
+    <div class="one-third column value">
+      <h2 class="value-multiplier">{{'{0:.1%}'.format(metrics.lost_pc)}}</h2>
+      <h5 class="value-heading">Failures</h5>
+      <p class="value-description">Tracking was lost >20ms.<br>Target: 0%</p>
+    </div>
+    <!--<div class="one-third column value">
+      <h2 class="value-multiplier">{{metrics.total_time_lost_pc_mean |round(1)}}%</h2>
+      <h5 class="value-heading">Time lost</h5>
+      <p class="value-description">Percentage of the time lost.<br>Target: 2%</p>
+    </div> -->
+    <div class="one-third column value">
+      <h2 class="value-multiplier">{{'{0:.0%}'.format(metrics.nb_high_drift)}}</h2>
+      <h5 class="value-heading">High-drift</h5>
+      <p class="value-description">Drift over 2%.<br>Target: 0%</p>
+    </div>
+    <div class="one-third column value">
+      <h2 class="value-multiplier">{{'x{0:.1f}'.format(metrics.compute_time_mean)}}</h2>
+      <h5 class="value-heading">Speed</h5>
+      <p class="value-description">Run-time versus real-time.<br>Target: 1.0x</p>
+    </div>
+  </div>
+</div>
+<div>
+{% with height=250 %}
+{% include 'histo.html' %}
+{% endwith %}
+</div>
+</div>
+
+<!-- <div class="container">
+{# for output in outputs #}
+<ul>
+<li><strong>{#output.rel_filepath.replace('prePOC/', '')%}:</strong> length:{@'{0:.3f}'.format(output.metrics_lost.loop_length)#}, error:{#'{0:.3f}'.format(output.metrics_lost.drift_pc*output.metrics_lost.loop_length)#}, drift:{#'{0:.3%}'.format(output.metrics_lost.drift_pc)#}</li>
+</ul>
+{# endfor #}
+</div> -->
+
+
+<div class="container-flex">
+{% for output in outputs %}
+	<div class="recording-wrapper">
+	<div class="recording">
+	  	<!-- {{file}} -->
+      {% with m = output.metrics_lost %}
+	    <h6 class='filename'>{{output.rel_filepath}} <span {%if 'loop_length' in m %}title="{{'length: {0:.3f}m'.format(m.loop_length)}}"{%endif%} class="{{'good' if m.drift_pc<0.02 else 'bad'}} badge">{{ 'drift: {0:.1%}'.format(m.drift_pc)}}</span> {%if 'jitter_sum3d_mabs' in m %}<span title="poses > diffs > high-pass 5Hz > abs > mean > L2 norm" class="{{'good' if m.jitter_sum3d_mabs<0.001 else 'bad'}} badge">{{ 'jitter: {0:.1f}mm'.format(1000*m.jitter_sum3d_mabs)}}</span>{%endif%}</h6>
+	    <video preload="none" controls loop="loop" width=300 poster="{{output.output_dir_url+'poster.jpg'}}">
+	       <source alt='please reload in a few moments' src="{{output.video_realtime_src}}">
+	    </video>
+      <img width="300px" src="{{output.tracking_over_time}}"></img>
+      {% endwith %}
+	</div>
+	</div>
+{% endfor %}
+</div>
+
+<script>
+var videos,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+this.VideoSync = (function() {
+  function VideoSync(primary, secondary) {
+    this.primary = primary;
+    this.secondary = secondary;
+    this.sync = bind(this.sync, this);
+    this.ready = false;
+    this.secondary.addEventListener('canplay', (function(_this) {
+      return function() {
+        return _this.ready = true;
+      };
+    })(this));
+    this.primary.addEventListener('play', (function(_this) {
+      return function() {
+        return _this.secondary.play();
+      };
+    })(this));
+    this.primary.addEventListener('pause', (function(_this) {
+      return function() {
+        return _this.secondary.pause();
+      };
+    })(this));
+    this.primary.addEventListener('timeupdate', this.sync);
+    this.primary.addEventListener('seeking', this.sync);
+  }
+
+  VideoSync.prototype.sync = function() {
+    if (this.ready) {
+      return this.secondary.currentTime = this.primary.currentTime;
+    }
+  };
+
+  return VideoSync;
+
+})();
+
+videos = document.getElementsByTagName('video');
+
+new VideoSync(videos[0], videos[1]);
+</script>
+
+
+{% endblock %}
