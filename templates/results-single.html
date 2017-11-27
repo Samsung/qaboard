@@ -1,11 +1,24 @@
 {% extends "layout.html" %}
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
 <div class="section values">
 <div class="container">
-  <h3 class="section-heading"><strong><a href='/'>mono_slam</a></strong> {% if commit.type=='local'%}#{{commit.user}}{%endif%}</h3>
-<p class="section-description">Built on {{commit.time.strftime('%d %B at %H:%M')}}.<br>{{commit.message}}<br>{{outputs|length}} movies.{% if commit._pending__outputs %}<br><a href='/commit/{{commit.short_id}}/update'>Run on {{commit._pending__outputs|length}} extra recordings</a>{% endif%}<br><a href="/outputs/{{commit.short_id}}/{%if commit['paramfile'] %}{{commit['paramfile'].as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameter used</a></p>
+  <h3 class="section-heading"><strong><a href="/branch/{{branch}}">{{branch}}</a></strong></h3>
+  <h3 class="section-heading"><a href='http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}'>{{commit.gitcommit.hexsha[:8]}}</a></strong># by {{commit.gitcommit.author.name}}</h3>
+<p class="section-description">Built on {{commit.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}}.<br>{{commit.gitcommit.message}}<br>{{outputs|length}} movies.{% if commit._pending__outputs %}<br><a href='/commit/{{commit.short_id}}/update'>Run on {{commit._pending__outputs|length}} extra recordings</a>{% endif%}<br><a href="/outputs/{{commit.short_id}}/{%if commit['paramfile'] %}{{commit['paramfile'].as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameter used</a></p>
+
+{%if commit.number_failures()%}
+<p>
+<strong>
+<a href="/s/{{commit.folder()}}/lsf.log">
+{{commit.number_failures()}} SLAM failures  
+</a>
+</strong>
+</p>
+{%endif%}
+
   <div class="row">
     <div class="one-third column value">
       <h2 class="value-multiplier">{{'{0:.1%}'.format(metrics.lost_pc)}}</h2>

@@ -468,7 +468,7 @@ there.
   margin-top: 1rem;
   margin-bottom: 1rem;
   font-weight: 400;
-  overflow: hidden;
+  /*overflow: hidden;*/
   direction: rtl;
   text-overflow: ellipsis;
 }

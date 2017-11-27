@@ -4,9 +4,16 @@ Debug SLAM results faster.
 ## How to run
 Install `python3` with [annaconda](https://www.continuum.io/downloads), and run:
 ```bash
+# pip install gitpython
+# git clone git@gitlab-srv:dvs/psp_swip.git
 python server.py`
 ```
 Change the `config.py` if needed.
+
+
+## How does it work?
+- it clones the git repository to get all informations about the commits
+- it 
 
 ## Expected directory structure
 SLAM outputs (metrics, curves, videos…) are expected to be organized like:
