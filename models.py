@@ -26,6 +26,9 @@ class CiCommit():
         self.commit_dir = ci_commits_directory / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
         self.output_dir = self.commit_dir / 'output'
 
+        # we use this to group commits together easily on index pages
+        self.authored_date = self.gitcommit.authored_datetime.date()
+
         self._branch = None
         self._outputs = []
         self._metrics = {}
@@ -80,21 +83,26 @@ class CiCommit():
             self._outputs = []
             self._metrics = {}
             print('getting outputs:', self.gitcommit.hexsha)
-            recordings_ = [p.parent.with_suffix('.bin').relative_to(self.output_dir) for p in self.output_dir.glob('**/camera_poses_debug.csv')]
-            for recording in recordings_:
-                output_dir = self.output_dir/str(recording)[:-4] # remove ".bin"
-                if not (output_dir/'lost-metrics.json').exists():
-                    self._pending__outputs.add(recording)
+            output_dirs = [p.parent for p in self.output_dir.glob('**/camera_poses_debug.csv')]
+            for output_dir in output_dirs:
+                rel_recording_path = output_dir.relative_to(self.output_dir).with_suffix('.bin')
+
+                metrics_file = (output_dir/'lost-metrics.json')
+                if not metrics_file.exists():
+                    self._pending__outputs.add(rel_recording_path)
                     continue
-                with (output_dir/'lost-metrics.json').open() as f:
+                with metrics_file.open() as f:
                     rel_folderpath = str(output_dir.relative_to(ci_commits_directory))
                     metrics_lost = json.load(f)
                     self._outputs.append({
                         'output_dir': output_dir,
                         'output_dir_url': f'/s/{rel_folderpath}/', # URL at which the outputs are accessible
-                        'video_realtime_src': f"/s/{rel_folderpath}/results.mpg", # ?time={os.path.getmtime(video_path)}
+                        'video_realtime_src': f"/s/{rel_folderpath}/results.mp4", # ?time={os.path.getmtime(video_path)}
                         'tracking_over_time':f'/s/{rel_folderpath}/curves.jpg',
-                        'rel_filepath': str(recording),
+                        '6dof':f'/s/{rel_folderpath}/camera_poses_debug.csv',
+                        '6dof_s8':f'/s/{rel_folderpath}/camera_poses_debug_s8.csv',
+                        '6dof_groundtruth':f'/s/{rel_folderpath}/GT_final.csv',
+                        'rel_filepath': str(rel_recording_path),
                         'metrics_lost': metrics_lost,
                     })
             self._outputs = sorted(self._outputs, key=lambda o: -o['metrics_lost']['drift_pc'])

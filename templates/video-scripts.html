@@ -1,0 +1,44 @@
+<script>
+var videos,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+this.VideoSync = (function() {
+  function VideoSync(primary, secondary) {
+    this.primary = primary;
+    this.secondary = secondary;
+    this.sync = bind(this.sync, this);
+    this.ready = false;
+    this.secondary.addEventListener('canplay', (function(_this) {
+      return function() {
+        return _this.ready = true;
+      };
+    })(this));
+    this.primary.addEventListener('play', (function(_this) {
+      return function() {
+        return _this.secondary.play();
+      };
+    })(this));
+    this.primary.addEventListener('pause', (function(_this) {
+      return function() {
+        return _this.secondary.pause();
+      };
+    })(this));
+    this.primary.addEventListener('timeupdate', this.sync);
+    this.primary.addEventListener('seeking', this.sync);
+  }
+
+  VideoSync.prototype.sync = function() {
+    if (this.ready) {
+      return this.secondary.currentTime = this.primary.currentTime;
+    }
+  };
+
+  return VideoSync;
+
+})();
+
+videos = document.getElementsByTagName('video');
+
+new VideoSync(videos[0], videos[1]);
+</script>
+

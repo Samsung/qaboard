@@ -15,19 +15,24 @@
 
   <!-- FONT
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
-  <link href="https://fonts.googleapis.com/css?family=Raleway:400,300,600,800" rel="stylesheet" type="text/css">
+  <!-- <link href="https://fonts.googleapis.com/css?family=Raleway:400,300,600,800" rel="stylesheet" type="text/css"> -->
+
+<link href="https://fonts.googleapis.com/css?family=Fira+Sans+Condensed:400,300,600,800" rel="stylesheet">
 
   <!-- CSS
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/normalize.css') }}">
   <!-- Favicon
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
-  <link rel="icon" type="image/png" href="images/favicon.png">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
 </head>
 <body>
   <!-- {% include 'header.html' %} -->
   {% block content %}{% endblock %}
+
 
 <!-- End Document
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->

@@ -1,22 +1,32 @@
 {% extends "layout.html" %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
 
 <div class="section values">
 <div class="container">
-  <h3 class="section-heading"><strong><a href="/branch/{{branch}}">{{branch}}</a></strong></h3>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul class="flashes" style="color:#11DFC7">
+      {% for message in messages %}
+        <li>{{ message }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  <h3 class="section-heading"><strong><a href="/branch/{{branch}}">{{branch|urlencode}}</a></strong></h3>
   <h3 class="section-heading"><a href='http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}'>{{commit.gitcommit.hexsha[:8]}}</a></strong># by {{commit.gitcommit.author.name}}</h3>
-<p class="section-description">Built on {{commit.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}}.<br>{{commit.gitcommit.message}}<br>{{outputs|length}} movies.{% if commit._pending__outputs %}<br><a href='/commit/{{commit.short_id}}/update'>Run on {{commit._pending__outputs|length}} extra recordings</a>{% endif%}<br><a href="/outputs/{{commit.short_id}}/{%if commit['paramfile'] %}{{commit['paramfile'].as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameter used</a></p>
+<p class="section-description">Built on {{commit.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}}.<br>{{commit.gitcommit.message}}<br>{{outputs|length}} movies.<br>
+<a href="/outputs/{{commit.short_id}}/{%if commit['paramfile'] %}{{commit['paramfile'].as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameter used</a></p>
 
 {%if commit.number_failures()%}
-<p>
-<strong>
-<a href="/s/{{commit.folder()}}/lsf.log">
-{{commit.number_failures()}} SLAM failures  
-</a>
-</strong>
-</p>
+  <p>
+  <strong>
+  <a href="/s/{{commit.folder()}}/lsf.log">
+  {{commit.number_failures()}} SLAM failures  
+  </a>
+  </strong>
+  </p>
 {%endif%}
 
   <div class="row">
@@ -49,75 +59,58 @@
 </div>
 </div>
 
-<!-- <div class="container">
-{# for output in outputs #}
-<ul>
-<li><strong>{#output.rel_filepath.replace('prePOC/', '')%}:</strong> length:{@'{0:.3f}'.format(output.metrics_lost.loop_length)#}, error:{#'{0:.3f}'.format(output.metrics_lost.drift_pc*output.metrics_lost.loop_length)#}, drift:{#'{0:.3%}'.format(output.metrics_lost.drift_pc)#}</li>
-</ul>
-{# endfor #}
-</div> -->
-
-
 <div class="container-flex">
 {% for output in outputs %}
 	<div class="recording-wrapper">
 	<div class="recording">
-	  	<!-- {{file}} -->
       {% with m = output.metrics_lost %}
 	    <h6 class='filename'>{{output.rel_filepath}} <span {%if 'loop_length' in m %}title="{{'length: {0:.3f}m'.format(m.loop_length)}}"{%endif%} class="{{'good' if m.drift_pc<0.02 else 'bad'}} badge">{{ 'drift: {0:.1%}'.format(m.drift_pc)}}</span> {%if 'jitter_sum3d_mabs' in m %}<span title="poses > diffs > high-pass 5Hz > abs > mean > L2 norm" class="{{'good' if m.jitter_sum3d_mabs<0.001 else 'bad'}} badge">{{ 'jitter: {0:.1f}mm'.format(1000*m.jitter_sum3d_mabs)}}</span>{%endif%}</h6>
-	    <video preload="none" controls loop="loop" width=300 poster="{{output.output_dir_url+'poster.jpg'}}">
-	       <source alt='please reload in a few moments' src="{{output.video_realtime_src}}">
+	    <video preload="none" controls loop="loop" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
+	       <source src="{{output.video_realtime_src}}">
 	    </video>
-      <img width="300px" src="{{output.tracking_over_time}}"></img>
+      <div class="plot-6dof" id="plotly-{{output.rel_filepath}}" data-output-url="{{output.output_dir_url}}" data-name="{{output.rel_filepath}}" style="height:600;">
+        <img id="plot-{{output.rel_filepath}}" width="300px" src="{{output.tracking_over_time}}"></img>        
+      </div>
       {% endwith %}
 	</div>
 	</div>
 {% endfor %}
 </div>
 
+<div class="container">
+<h2>Run an extra batch</h2>
+<form action='/batch/{{commit.gitcommit.hexsha}}/' method="post">
+  <div class="row">
+    <div class="six columns">
+      <label for="batch">Batch</label>
+      <input class="u-full-width" placeholder="small" name="batch" id="batch" type="text">
+    </div>
+  </div>
+  <label for="batches">Update the available batches with a new yaml</label>
+  <textarea style="height:400px" class="u-full-width" placeholder="Some yaml..." name="batches" id="batches">{{batches}}</textarea>
+  <label>
+    <input disabled="true" type="checkbox">
+    <span class="label-body">Overwrite previous runs</span>
+  </label>
+  <input class="button-primary" value="Submit" type="submit">
+</form>
+</div>
+
+{% include 'poses_viz.html' %}
 <script>
-var videos,
-  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
-
-this.VideoSync = (function() {
-  function VideoSync(primary, secondary) {
-    this.primary = primary;
-    this.secondary = secondary;
-    this.sync = bind(this.sync, this);
-    this.ready = false;
-    this.secondary.addEventListener('canplay', (function(_this) {
-      return function() {
-        return _this.ready = true;
-      };
-    })(this));
-    this.primary.addEventListener('play', (function(_this) {
-      return function() {
-        return _this.secondary.play();
-      };
-    })(this));
-    this.primary.addEventListener('pause', (function(_this) {
-      return function() {
-        return _this.secondary.pause();
-      };
-    })(this));
-    this.primary.addEventListener('timeupdate', this.sync);
-    this.primary.addEventListener('seeking', this.sync);
+  var plots_6dof =  document.getElementsByClassName('plot-6dof');
+  for (var i=0; i<plots_6dof.length; i++) {
+    let plot = plots_6dof[i];
+    let dir_url = plot.getAttribute('data-output-url');
+    let name = plot.getAttribute('data-name');
+    if (i<10)
+      render_poses(name, dir_url+'/camera_poses_debug.csv', dir_url+'/camera_poses_debug_s8.csv', dir_url+'/GT_final.csv');
+    else
+      plot.addEventListener("click", function(event) {
+        render_poses(name, dir_url+'/camera_poses_debug.csv', dir_url+'/camera_poses_debug_s8.csv', dir_url+'/GT_final.csv');
+      }, false)
   }
-
-  VideoSync.prototype.sync = function() {
-    if (this.ready) {
-      return this.secondary.currentTime = this.primary.currentTime;
-    }
-  };
-
-  return VideoSync;
-
-})();
-
-videos = document.getElementsByTagName('video');
-
-new VideoSync(videos[0], videos[1]);
 </script>
-
+{% include 'video-scripts.html' %}
 
 {% endblock %}

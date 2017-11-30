@@ -2,17 +2,18 @@
 """
 Web-app showing SLAM results in a digestible form.
 """
-from itertools import groupby
 import json
+import subprocess
+from pathlib import Path
 
 from flask import Flask
-from flask import request, render_template, send_from_directory
+from flask import request, render_template, redirect, send_from_directory, flash
 app = Flask(__name__)
-
+app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
 
 from git import Repo, Commit, RemoteProgress
 from models import CiCommit, get_users_per_name
-from config import ci_commits_directory
+from config import *
 
 
 try:
@@ -26,13 +27,12 @@ def git_pull():
     def update(self, op_code, cur_count, max_count=None, message=''):
       print(op_code, cur_count, max_count, cur_count / (max_count or 100.0), message or "NO MESSAGE")
   origin = repo.remotes.origin
-  # origin.fetch()
-  # origin.pull()
   for fetch_info in origin.fetch(progress=MyProgressPrinter()):
     print("Updated %s to %s" % (fetch_info.ref, fetch_info.commit))
 
 
 git_pull()
+
 
 @app.route('/s/<path:filename>')
 def serve_static(filename):
@@ -58,35 +58,33 @@ def gitlab_webhook():
 @app.route("/")
 @app.route("/commits")
 @app.route("/commits/")
-@app.route("/branch/<branch>")
-@app.route("/branch/<branch>/")
+@app.route("/branch/<path:branch>") # can contain slashes..!
+@app.route("/branch/<path:branch>/")
 def show_commits(branch=None, search=None):
   """ Renders an index page of the commits in the branch organized by date."""
   # this will only work nicely when displaying the commits in one branch...
   max_count = request.args.get('count', 20)
   page = request.args.get('page', 0)
 
-  ci_commits = []
+  commits = []
   branches = [branch] if branch is not None else repo.refs
   for b in branches:
     print(f'Listing <={max_count} commits in `{b}`')
     for c in repo.iter_commits(b, max_count=max_count, skip=page*max_count):
-      ci_commits.append(CiCommit(c))
+      commits.append(c)
+
+  ci_commits = [CiCommit(c) for c in commits]
 
   # we filter those who did not even start CI performance tests...
-  ci_commits = [c for c in ci_commits if c.build_succeeded()]
+  ci_commits = list(set([c for c in ci_commits if c.build_succeeded()]))
   ci_commits.sort(key=lambda c: c.gitcommit.authored_datetime, reverse=True)
 
   search = request.args.get('search', None)
   if search is not None:
     ci_commits = [c for c in ci_commits if search.lower() in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
 
-  ci_commits_per_day = []
-  keyfunc = lambda c: c.gitcommit.authored_datetime.strftime('%Y-%m-%dT')
-  for k, g in groupby(ci_commits, keyfunc):
-    ci_commits_per_day.append(list(g))
   return render_template('list.html',
-              ci_commits_per_day=ci_commits_per_day,
+              ci_commits=ci_commits,
               search=search,
               branch=branch if branch is not None else "All branches", branches=repo.refs,
               users=get_users_per_name(""))
@@ -105,61 +103,54 @@ def show_commit(hexsha, filename_filter=None, methods=["GET", "DELETE"]):
       CiCommit(gitcommit).delete()
       return "{message: 'OK'}"
 
+batches_filepath = Path('data/extra-batches.yml').resolve()
 
 def render_commit(ci_commit, filename_filter=None):
   outputs = ci_commit.outputs()
   if (filename_filter):
     outputs = [o for o in outputs if filename_filter in o['rel_filepath']]
-  return render_template('results-single.html', commit=ci_commit, outputs=outputs,  metrics=ci_commit.metrics(), branch=ci_commit.branch())
+  with batches_filepath.open() as f:
+    batches = f.read()
+  return render_template('results-single.html', commit=ci_commit, outputs=outputs,
+                         metrics=ci_commit.metrics(), branch=ci_commit.branch(),
+                         batches=batches)
 
 
 
 
-# from models import *
-# from models import aggregated_metrics
-# from plots import create_curves_comparaison_image
+@app.route("/batches/", methods=["GET","POST"])
+@app.route("/batches", methods=["GET","POST"])
+def extra_batches():
+  if request.method == 'GET':
+    with batches_filepath.open() as f:
+      return f.read()
+  if request.method == 'POST':
+    return "OK"
 
 
+@app.route("/batch/<hexsha>/", methods=['POST'])
+def run_extra_batches(hexsha):
+  commit = CiCommit(repo.commit(hexsha))
+  batch = request.form.get('batch', None)
+  batches = request.form.get('batches', None)
+  print(batch)
 
-# @app.route("/commit/<branch>/<commit_id>/update")
-# def update_commit(branch="develop", commit_id):
-#     """ Runs the SLAM on the new movies. """
-#     commit = Commit(branch, commit_id)
-#     commit.run_new_movies() 
-#     return redirect(f"/commit/{commit_id}")
+  if batches:
+    with batches_filepath.open('w') as f:
+      f.write(batches)
+      flash('Updated batches!')
 
-
-# @app.route("/compare")
-# @app.route("/compare/curves")
-# def compare_curves():
-#     latest_commit_id = latest_commit().id
-#     latest_milestone_id = '2017-06-19_13-46-30__local__sebastiend__milestone5 WithBundleAdjustment'
-#     # latest_milestone_id = [id for id in all_commit_ids() if 'ilestone' in id][0]
-
-#     commit_ref = Commit(    request.args.get('reference', latest_milestone_id))
-#     commit_new = Commit(request.args.get('new', latest_commit_id))
-  
-#     # we only compare when we have results for both commits
-#     recordings_paths = lambda outputs: [o['rel_filepath'] for o in outputs]
-#     recordings_ref = set(recordings_paths(commit_ref.outputs()))
-#     recordings_new = set(recordings_paths(commit_new.outputs()))
-#     recordings_common = recordings_ref & recordings_new
-
-#     # compare outputs
-#     outputs_ref = {o['rel_filepath']: o for o in commit_ref.outputs() if o['rel_filepath'] in recordings_common}
-#     outputs_new = {o['rel_filepath']: o for o in commit_new.outputs() if o['rel_filepath'] in recordings_common}
-#     metrics_ref = aggregated_metrics(outputs_ref.values())
-#     metrics_new = aggregated_metrics(outputs_new.values())
-
-#     metrics = {m: {'new': metrics_new[m], 'ref': metrics_ref[m]} for m in metrics_ref}
-#     outputs = [{
-#         'rel_filepath': r,
-#         'new': outputs_new[r],
-#         'ref': outputs_ref[r],
-#     } for r in recordings_common]
-#     outputs = sorted(outputs, key=lambda o: -o['new']['metrics_lost']['drift_pc'])
-
-#     for output in outputs:
-#         create_curves_comparaison_image(output['ref']['output_dir'], output['new']['output_dir'], commit_ref.id)
-#         output['compare_image_src'] = f"{output['new']['output_dir_url']}curves_vs_{commit_ref.id}.jpg"
-#     return render_template('results-compare.html', commits={'new': commit_new, 'ref': commit_ref}, outputs=outputs, metrics=metrics)
+  if batch:
+    cmd = ' '.join([
+      f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
+      f'setenv SAMSUNG_CI_COMMIT_DIR \'{commit.commit_dir}\'',
+      f'python tools/run.py batch --batchfile {str(batches_filepath)} --batch {batch}"'
+    ])
+    # it will only work with my /home/arthurf/.cshrc file
+    # it sets ENV variables as needed....
+    subprocess.run(cmd, shell=True,
+                   encoding='utf-8',
+                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    flash(cmd)
+    flash('Results should arrive soon....')
+  return redirect('commit/'+hexsha)

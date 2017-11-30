@@ -40,11 +40,11 @@
         </div>
 
         <ol class="list-unstyled content_list" id="commits-list">
-          {% for commits in ci_commits_per_day %}
-          <li class="commit-header">{{commits[-1].gitcommit.authored_datetime.strftime('%d %B, %Y')}} {{commits|length}} commits</li>
+          {% for commit_date, commits_at_date in ci_commits|groupby('authored_date')|reverse %}
+          <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} --- {{commits_at_date|length}} commits</li>
           <li class="commits-row">
             <ul class="content-list commit-list">
-              {% for commit in commits %}
+              {% for commit in commits_at_date %}
               <li class="commit flex-list js-toggle-container" id="commit-{{commit.gitcommit.hexsha}}">
                 <div class="avatar-cell hidden-xs">
                  <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36 hidden-xs" alt="avatar" title="" data-container="body" src="{{users[commit.username()]['avatar_url']}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
