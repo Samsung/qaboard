@@ -17,7 +17,7 @@
   <h3 class="section-heading"><strong><a href="/branch/{{branch}}">{{branch|urlencode}}</a></strong></h3>
   <h3 class="section-heading"><a href='http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}'>{{commit.gitcommit.hexsha[:8]}}</a></strong># by {{commit.gitcommit.author.name}}</h3>
 <p class="section-description">Built on {{commit.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}}.<br>{{commit.gitcommit.message}}<br>{{outputs|length}} movies.<br>
-<a href="/outputs/{{commit.short_id}}/{%if commit['paramfile'] %}{{commit['paramfile'].as_posix()}}{%else%}mono_slam/params_linux.json{%endif%}">Parameter used</a></p>
+<a href="{{commit.commit_dir_url / 'params.json'}}">Parameter used</a></p>
 
 {%if commit.number_failures()%}
   <p>

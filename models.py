@@ -25,6 +25,7 @@ class CiCommit():
         self.gitcommit = commit
         self.commit_dir = ci_commits_directory / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
         self.output_dir = self.commit_dir / 'output'
+        self.commit_dir_url = '/s'/self.output_dir.relative_to(ci_commits_directory)
 
         # we use this to group commits together easily on index pages
         self.authored_date = self.gitcommit.authored_datetime.date()

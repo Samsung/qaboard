@@ -10,10 +10,22 @@ var get_tsv = (tsv_url, callback) => {
   })
 }
 
-var parse_poses = (text_string) => {
-  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "good\n"].join("\t");
+
+// to be deleted ASAP...
+var get_csv = (tsv_url, callback) => {
+  // if no url is given, just callback(null, null)
+  var data = d3.text(tsv_url, (error, text_string) => {
+    if (error) {
+        callback(null, null); // OK but no data...
+    }
+    callback(null, parse_poses(text_string, seperator=","));
+  })
+}
+
+
+var parse_poses = (text_string, seperator="\t") => {
+  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "good\n"].join(seperator);
   let data = Plotly.d3.tsv.parse(headers + text_string);
-  console.log(data)
   let x=[], y=[], z=[];
   let a=[], b=[], c=[];
   let t=[], confidence=[], good=[];
@@ -40,7 +52,6 @@ var make_traces = function(poses, label) {
   let x_label = `X (${label})`;
   let y_label = `Y (${label})`;
   let z_label = `Z (${label})`;
-  console.log(poses.t)
   return [
     {
       x: poses.t, y: poses.x,
