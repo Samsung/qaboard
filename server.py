@@ -78,6 +78,7 @@ def show_commits(branch=None, search=None):
   # we filter those who did not even start CI performance tests...
   ci_commits = list(set([c for c in ci_commits if c.build_succeeded()]))
   ci_commits.sort(key=lambda c: c.gitcommit.authored_datetime, reverse=True)
+  ci_commits = ci_commits[:max_count]
 
   search = request.args.get('search', None)
   if search is not None:
@@ -109,6 +110,9 @@ def render_commit(ci_commit, filename_filter=None):
   outputs = ci_commit.outputs()
   if (filename_filter):
     outputs = [o for o in outputs if filename_filter in o['rel_filepath']]
+
+  outputs.sort(key=lambda o: o['metrics']['translation_rmse'], reverse=True)
+
   with batches_filepath.open() as f:
     batches = f.read()
   return render_template('results-single.html', commit=ci_commit, outputs=outputs,

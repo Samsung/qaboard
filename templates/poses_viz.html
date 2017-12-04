@@ -1,36 +1,30 @@
 <script>
 
-var get_tsv = (tsv_url, callback) => {
+var get_tsv = (tsv_url, gt_time_offset, callback) => {
   // if no url is given, just callback(null, null)
   var data = d3.text(tsv_url, (error, text_string) => {
-    if (error) {
+    if (error) { 
         callback(null, null); // OK but no data...
     }
-    callback(null, parse_poses(text_string));
+    callback(null, parse_poses(text_string,gt_time_offset));
   })
 }
 
 
-// to be deleted ASAP...
-var get_csv = (tsv_url, callback) => {
-  // if no url is given, just callback(null, null)
-  var data = d3.text(tsv_url, (error, text_string) => {
-    if (error) {
-        callback(null, null); // OK but no data...
-    }
-    callback(null, parse_poses(text_string, seperator=","));
-  })
-}
-
-
-var parse_poses = (text_string, seperator="\t") => {
-  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "good\n"].join(seperator);
+// time offset..
+// is_gt: timex1000
+var parse_poses = (text_string, gt_time_offset) => {
+  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "good\n"].join('\t');
   let data = Plotly.d3.tsv.parse(headers + text_string);
   let x=[], y=[], z=[];
   let a=[], b=[], c=[];
   let t=[], confidence=[], good=[];
+
+  console.log(gt_time_offset)
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
+    if (i%10!=0)
+      continue
     let row = data[i];
     a.push(row['a']);
     b.push(row['b']);
@@ -38,46 +32,75 @@ var parse_poses = (text_string, seperator="\t") => {
     x.push(row['x']);
     y.push(row['y']);
     z.push(row['z']);
-    t.push(row['t']);
+    t.push(parseFloat(row['t'])+parseFloat(gt_time_offset));
     confidence.push(row['confidence']);
     good.push(row['good']);
   };
   return {x, y, z, a, b, c, t, confidence, good};
 }
 
-var make_traces = function(poses, label) {
+var make_traces = function(poses, label, type) {
   let mode = 'lines+markers';
   let line_width = 1;
   let marker_size = 5;
   let x_label = `X (${label})`;
   let y_label = `Y (${label})`;
   let z_label = `Z (${label})`;
+
+  // colors...
+  let x_gt = '7fc97f'
+  let y_gt = 'fdc086'
+  let z_gt = 'beaed4'
+  let x_offline = ''
+  let y_offline = ''
+  let z_offline = ''
+  let x_s8 = ''
+  let y_s8 = ''
+  let z_s8 = ''
+
+  colors = {
+    gt : {
+      x: '#7fc97f',
+      y: '#fdc086',
+      z: '#beaed4',
+    },
+    offline : {
+      x: '#1b9e77',
+      y: '#d95f02',
+      z: '#7570b3',
+    },
+    s8 : {
+      x: '#1b9e77',
+      y: '#d95f02',
+      z: '#7570b3',
+    },
+  }
   return [
     {
       x: poses.t, y: poses.x,
-      line: { color: '#66c2a5', width: line_width },
-      marker: { color: '#66c2a5', size: marker_size },
+      line: { color: colors[label].x, width: line_width },
+      marker: { color: colors[label].x, size: marker_size },
       mode,
       name: x_label, legendgroup:"X"
     },
     {
       x: poses.t, y: poses.y,
-      line: { color: '#fc8d62', width: line_width },
-      marker: { color: '#fc8d62', size: marker_size },
+      line: { color: colors[label].y, width: line_width },
+      marker: { color: colors[label].y, size: marker_size },
       mode,
       name: y_label, legendgroup:"Y"
     },
     {
       x: poses.t, y: poses.z,
-      line: { color: '#8da0cb', width: line_width },
-      marker: { color: '#8da0cb', size: marker_size },
+      line: { color: colors[label].z, width: line_width },
+      marker: { color: colors[label].z, size: marker_size },
       mode,
       name: z_label, legendgroup:"Z"
     },
     {
       x: poses.t, y: poses.a,
-      line: { color: '#66c2a5', width: line_width },
-      marker: { color: '#66c2a5', size: marker_size },
+      line: { color: colors[label].x, width: line_width },
+      marker: { color: colors[label].x, size: marker_size },
       mode,
       name: x_label, legendgroup:"X",
       yaxis: 'y2',
@@ -85,8 +108,8 @@ var make_traces = function(poses, label) {
     },
     {
       x: poses.t, y: poses.b,
-      line: { color: '#fc8d62', width: line_width },
-      marker: { color: '#fc8d62', size: marker_size },
+      line: { color: colors[label].y, width: line_width },
+      marker: { color: colors[label].y, size: marker_size },
       mode,
       name: y_label, legendgroup:"Y",
       yaxis: 'y2',
@@ -94,8 +117,8 @@ var make_traces = function(poses, label) {
     },
     {
       x: poses.t, y: poses.c,
-      line: { color: '#8da0cb', width: line_width },
-      marker: { color: '#8da0cb', size: marker_size },
+      line: { color: colors[label].z, width: line_width },
+      marker: { color: colors[label].z, size: marker_size },
       mode,
       name: z_label, legendgroup:"Z",
       yaxis: 'y2',
@@ -111,31 +134,31 @@ var make_traces = function(poses, label) {
   ]
 }
 
-var render_poses = function(id, poses_offline_url, poses_s8_url, poses_gt_url) {
+var render_poses = function(id, dir_url, gt_time_offset_offline, gt_time_offset_s8) {
     var plot_img = document.getElementById('plot-'+id)
     plot_img.style.filter = 'blur(3px)';
 
     d3.queue()
-    .defer(get_tsv, poses_offline_url)
-    .defer(get_tsv, poses_s8_url)
-    .defer(get_tsv, poses_gt_url)
+    .defer(get_tsv, dir_url+'camera_poses_debug.csv', gt_time_offset_offline)
+    .defer(get_tsv, dir_url+'camera_poses_debug_s8.csv',gt_time_offset_s8)
+    .defer(get_tsv, dir_url+'GT_final.txt', 0)
     .awaitAll(function(error, poses) {
         if (error) {
             console.error(error);
         }
         else {
           traces = []
+          if (poses[2]) {
+            traces = [...traces, ...make_traces(poses[2], 'gt')]
+          }
           if (poses[0]) {
             traces = [...traces, ...make_traces(poses[0], 'offline')]
           }
           if (poses[1]) {
-            traces = [...traces, ...make_traces(poses[1], 'S8')]
-          }
-          if (poses[2]) {
-            traces = [...traces, ...make_traces(poses[2], 'GT')]
+            traces = [...traces, ...make_traces(poses[1], 's8')]
           }
           let layout = {
-            type: 'scatter', // try sc
+            type: 'scattergl', // try sc
             // height:600,
             // width:300,
             // autosize: false,

@@ -17,7 +17,7 @@
   <h3 class="section-heading"><strong><a href="/branch/{{branch}}">{{branch|urlencode}}</a></strong></h3>
   <h3 class="section-heading"><a href='http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}'>{{commit.gitcommit.hexsha[:8]}}</a></strong># by {{commit.gitcommit.author.name}}</h3>
 <p class="section-description">Built on {{commit.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}}.<br>{{commit.gitcommit.message}}<br>{{outputs|length}} movies.<br>
-<a href="{{commit.commit_dir_url / 'params.json'}}">Parameter used</a></p>
+<a href="{{commit.commit_dir_url / 'params.json'}}">Parameters used</a></p>
 
 {%if commit.number_failures()%}
   <p>
@@ -41,9 +41,9 @@
       <p class="value-description">Percentage of the time lost.<br>Target: 2%</p>
     </div> -->
     <div class="one-third column value">
-      <h2 class="value-multiplier">{{'{0:.0%}'.format(metrics.nb_high_drift)}}</h2>
-      <h5 class="value-heading">High-drift</h5>
-      <p class="value-description">Drift over 2%.<br>Target: 0%</p>
+      <h2 class="value-multiplier">{{'{0:.0%}'.format(metrics.nb_high_rmse)}}</h2>
+      <h5 class="value-heading">High-RMSE</h5>
+      <p class="value-description">RMSE over 5mm.<br>Target: 0mm</p>
     </div>
     <div class="one-third column value">
       <h2 class="value-multiplier">{{'x{0:.1f}'.format(metrics.compute_time_mean)}}</h2>
@@ -63,12 +63,15 @@
 {% for output in outputs %}
 	<div class="recording-wrapper">
 	<div class="recording">
-      {% with m = output.metrics_lost %}
-	    <h6 class='filename'>{{output.rel_filepath}} <span {%if 'loop_length' in m %}title="{{'length: {0:.3f}m'.format(m.loop_length)}}"{%endif%} class="{{'good' if m.drift_pc<0.02 else 'bad'}} badge">{{ 'drift: {0:.1%}'.format(m.drift_pc)}}</span> {%if 'jitter_sum3d_mabs' in m %}<span title="poses > diffs > high-pass 5Hz > abs > mean > L2 norm" class="{{'good' if m.jitter_sum3d_mabs<0.001 else 'bad'}} badge">{{ 'jitter: {0:.1f}mm'.format(1000*m.jitter_sum3d_mabs)}}</span>{%endif%}</h6>
+      {% with m = output.metrics %}
+	    <h6 class='filename'>{{output.rel_filepath}}
+        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.translation_rmse<0.005 else 'bad'}} badge">{{ 'RMSE: {0:.2}cm'.format(100*m.translation_rmse)}}</span>
+        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.005 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}</span>
+      </h6>
 	    <video preload="none" controls loop="loop" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
 	       <source src="{{output.video_realtime_src}}">
 	    </video>
-      <div class="plot-6dof" id="plotly-{{output.rel_filepath}}" data-output-url="{{output.output_dir_url}}" data-name="{{output.rel_filepath}}" style="height:600;">
+      <div class="plot-6dof" id="plotly-{{output.rel_filepath}}" data-output-url="{{output.output_dir_url}}" data-gt-time-offset="{{output.metrics.time_offset_to_groundtruth}}" data-name="{{output.rel_filepath}}" style="height:600;">
         <img id="plot-{{output.rel_filepath}}" width="300px" src="{{output.tracking_over_time}}"></img>        
       </div>
       {% endwith %}
@@ -103,11 +106,12 @@
     let plot = plots_6dof[i];
     let dir_url = plot.getAttribute('data-output-url');
     let name = plot.getAttribute('data-name');
-    if (i<10)
-      render_poses(name, dir_url+'/camera_poses_debug.csv', dir_url+'/camera_poses_debug_s8.csv', dir_url+'/GT_final.csv');
+    let gt_time_offset = plot.getAttribute('data-gt-time-offset');
+    if (i<1)
+      render_poses(name, dir_url, gt_time_offset);
     else
       plot.addEventListener("click", function(event) {
-        render_poses(name, dir_url+'/camera_poses_debug.csv', dir_url+'/camera_poses_debug_s8.csv', dir_url+'/GT_final.csv');
+        render_poses(name, dir_url, gt_time_offset);
       }, false)
   }
 </script>

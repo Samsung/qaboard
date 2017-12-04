@@ -1,7 +1,7 @@
 <div class="container" id="histograms-{{commit.short_id}}"></div>
 <script>
   var trace1 = {
-    x: {{ commit.drifts() | tojson }},
+    x: {{ commit.rmses() | tojson }},
     name: '{{commit.short_id}}',
     // autobinx: false, 
     histnorm: "count", 

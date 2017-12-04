@@ -1,9 +1,8 @@
 {% extends "layout.html" %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gitlab.css') }}">
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script src="{{ url_for('static', filename='javascript/jquery.timeago.js') }}"></script>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
 
 <div class="page-with-sidebar">
@@ -74,7 +73,7 @@
                     {% with height=20, width=40 %}
                       {# include 'histo.html' #}
                     {% endwith %}
-                    <span>{{'{0:.0%}'.format(commit.metrics().nb_high_drift)}} high drift over {{commit.outputs()|length}} recordings, <a style="text-decoration: underline;" href="/s/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a></span>
+                    <span>{{'{0:.0%}'.format(commit.metrics().nb_high_rmse)}} high RMSE over {{commit.outputs()|length}} recordings, <a style="text-decoration: underline;" href="/s/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a></span>
                     {%endif%}
                   </div>
                   <div class="commit-actions flex-row hidden-xs">

@@ -3,6 +3,7 @@ import json
 import shutil
 import re
 import sys
+import pickle
 
 import numpy as np
 
@@ -18,6 +19,22 @@ repo = Repo("psp_swip")
 def recordings(directory=default_recordings_directory):
     return [p.relative_to(directory) for p in directory.glob('**/*.bin')]
 
+if not Path('data/commits.pkl').exists():
+    commit_branches = {}
+    pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
+
+commit_branches = pickle.load(open('data/commits.pkl', 'rb'))
+
+def find_branch(commit_hash):
+    if commit_hash in commit_branches:
+      return commit_branches[commit_hash]
+    else:
+      std_out = repo.git.branch(contains=commit_hash, remotes=True)
+      line = std_out.splitlines()[0]
+      commit_branches[commit_hash] = line.split(' ')[-1]
+      pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
+    return commit_branches[commit_hash]
+
 
 @cache(func_skip_cache=is_new)
 class CiCommit():
@@ -25,7 +42,7 @@ class CiCommit():
         self.gitcommit = commit
         self.commit_dir = ci_commits_directory / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
         self.output_dir = self.commit_dir / 'output'
-        self.commit_dir_url = '/s'/self.output_dir.relative_to(ci_commits_directory)
+        self.commit_dir_url = '/s'/self.commit_dir.relative_to(ci_commits_directory)
 
         # we use this to group commits together easily on index pages
         self.authored_date = self.gitcommit.authored_datetime.date()
@@ -65,17 +82,7 @@ class CiCommit():
         return self.gitcommit.author.name
 
     def branch(self):
-        if not self._branch:
-          std_out = repo.git.branch(contains=self.gitcommit.hexsha, remotes=True)
-          # print(f'{self.gitcommit.hexsha}: <{std_out}>')
-          line = std_out.splitlines()[0]
-          print(line)
-          self._branch = line.split(' ')[-1]
-          # try:
-          #   _, branch = .split(' ')
-          # except:     
-          #   _, branch = std_out.split(' ')
-          # return branch
+        self._branch = find_branch(self.gitcommit.hexsha)
         return self._branch
 
     def outputs(self):
@@ -88,13 +95,16 @@ class CiCommit():
             for output_dir in output_dirs:
                 rel_recording_path = output_dir.relative_to(self.output_dir).with_suffix('.bin')
 
-                metrics_file = (output_dir/'lost-metrics.json')
+                metrics_file = (output_dir/'metrics.json')
+                if not metrics_file.exists(): 
+                    # we changed the name of the metrics file at some point... sorry!
+                    metrics_file = (output_dir/'lost-metrics.json')
                 if not metrics_file.exists():
                     self._pending__outputs.add(rel_recording_path)
                     continue
                 with metrics_file.open() as f:
                     rel_folderpath = str(output_dir.relative_to(ci_commits_directory))
-                    metrics_lost = json.load(f)
+                    metrics = json.load(f)
                     self._outputs.append({
                         'output_dir': output_dir,
                         'output_dir_url': f'/s/{rel_folderpath}/', # URL at which the outputs are accessible
@@ -104,9 +114,12 @@ class CiCommit():
                         '6dof_s8':f'/s/{rel_folderpath}/camera_poses_debug_s8.csv',
                         '6dof_groundtruth':f'/s/{rel_folderpath}/GT_final.csv',
                         'rel_filepath': str(rel_recording_path),
-                        'metrics_lost': metrics_lost,
+                        'metrics': metrics,
                     })
-            self._outputs = sorted(self._outputs, key=lambda o: -o['metrics_lost']['drift_pc'])
+            for o in self._outputs:
+                if 'translation_rmse' not in o['metrics']:
+                    o['metrics']['translation_rmse'] = 10e6
+            self._outputs = sorted(self._outputs, key=lambda o: -o['metrics']['translation_rmse'] )
 
             if self._pending__outputs:
                 self._pending__outputs = self._pending__outputs -  set([o['rel_filepath'] for o in self._outputs])
@@ -122,13 +135,13 @@ class CiCommit():
             self._metrics = aggregated_metrics(self.outputs())
         return self._metrics
 
-    def drifts(self):
-        return [100*o['metrics_lost']['drift_pc'] for o in self.outputs()]
+    def rmses(self):
+        return [o['metrics']['translation_rmse'] for o in self.outputs()]
 
-    def drift_histogram(self):
-        drifts = self.drifts()
-        bins = np.arange(start=0., stop=100., step=0.5)
-        hist = np.histogram(drifts, bins=bins) #bins='auto',
+    def rmse_histogram(self):
+        rmses = self.rmses()
+        bins = np.arange(start=0., stop=0.1, step=0.001)
+        hist = np.histogram(rmses, bins=bins) #bins='auto',
         return hist[0].tolist(), bins.tolist()
 
     def delete(self):
@@ -152,20 +165,18 @@ class CiCommit():
 # import pandas as pd
 # from utils import read_config
 
-
-
-
-
 def aggregated_metrics(outputs):
-    metrics = [o['metrics_lost'] for o in outputs]
+    metrics = [o['metrics'] for o in outputs]
     compute_times = [1000*m['compute_time']/m['duration'] for m in metrics]
     total_time_lost_pcs = [m['total_time_lost_pc'] for m in metrics]
     nb_losts = [m['nb_lost']>0 for m in metrics]
     losts = [m['nb_lost'] for m in metrics]
-    high_drifts = [m['drift_pc']>0.02 for m in metrics]
+    # high_drifts = [m['drift_pc']>0.02 for m in metrics]
+    high_rmses = [m['translation_rmse']>0.005 for m in metrics]
     return {
         'lost_pc': np.mean(nb_losts),
         'compute_time_mean': np.mean(compute_times),
         'total_time_lost_pc_mean': np.mean(total_time_lost_pcs),
-        'nb_high_drift': np.mean(high_drifts),
+        # 'nb_high_drift': np.mean(high_drifts),
+        'nb_high_rmse': np.mean(high_rmses),
     }
