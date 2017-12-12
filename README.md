@@ -12,6 +12,11 @@ flask run server.py --host 0.0.0.0 -with-threads
 ```
 Change the `config.py` if needed.
 
+## static files - nginx
+sudo apt-get install nginx
+pip install uwsgi
+check systemd file... nginx config...
+https://www.nginx.com/resources/admin-guide/serving-static-content/
 
 ## Gitlab integration
 - setup a webhook to `/gitlab_webhook` in order to update the dashboard with the new commits
