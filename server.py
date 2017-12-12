@@ -12,47 +12,53 @@ app = Flask(__name__)
 app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
 
 from git import Repo, Commit, RemoteProgress
+from utils import list_commits
 from models import CiCommit, get_users_per_name
 from config import *
 
+
+
+
+
+## syncing with git ###########################################################
+# caches recent commits - listing them is slow...
+def git_pull(repo):
+  """Updates the repo and returns the 20 last commits.."""
+  class MyProgressPrinter(RemoteProgress):
+    def update(self, op_code, cur_count, max_count=100.0, message="[No message]"):
+      print(op_code, cur_count, max_count, cur_count/max_count, message)
+  for fetch_info in repo.remotes.origin.fetch(progress=MyProgressPrinter()):
+    print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
+  return [CiCommit(c) for c in list_commits(repo, None, 0, 20)]
+
+
+# at the start of the app we trigger a manual sync
 
 try:
   repo = Repo("psp_swip")
 except:
   print("Error: First initialize with `git clone git@gitlab-srv:dvs/psp_swip.git`")
-
-
-def git_pull():
-  class MyProgressPrinter(RemoteProgress):
-    def update(self, op_code, cur_count, max_count=None, message=''):
-      print(op_code, cur_count, max_count, cur_count / (max_count or 100.0), message or "NO MESSAGE")
-  origin = repo.remotes.origin
-  for fetch_info in origin.fetch(progress=MyProgressPrinter()):
-    print("Updated %s to %s" % (fetch_info.ref, fetch_info.commit))
-
-
-git_pull()
-
-
-@app.route('/s/<path:filename>')
-def serve_static(filename):
-  """
-  Serve static files: images, csv files, videos...
-  This could (should) be done via a specialized reverse proxy (eg nginx) but we stick to simple things for now.
-  """
-  if filename.endswith('lsf.log'):
-    return send_from_directory(str(ci_commits_directory), filename, mimetype="text/plain")
-  return send_from_directory(str(ci_commits_directory), filename)
-
-
+last_20_ci_commits = git_pull(repo)
 
 
 @app.route('/gitlab_webhook', methods=['GET', 'POST'])
 def gitlab_webhook():
-  data = json.loads(request.data)
-  print(data)
-  git_pull()
+  """Gitlab calls this endpoint every push. We use it to stay in sync."""
+  print(json.loads(request.data))
+  global last_20_ci_commits
+  last_20_ci_commits = git_pull()
   return("{status:'OK'}")
+
+
+## application ################################################################
+@app.route('/s/<path:filename>')
+def serve_static(filename):
+  """Serve static files: images, csv files, videos..."""
+  # we avoid a file download, it's better to display in the browser
+  if filename.endswith('lsf.log'):
+    return send_from_directory(str(ci_commits_directory), filename, mimetype="text/plain")
+  return send_from_directory(str(ci_commits_directory), filename)
+
 
 
 @app.route("/")
@@ -65,16 +71,10 @@ def show_commits(branch=None, search=None):
   # this will only work nicely when displaying the commits in one branch...
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
-  print(page)
-
-  commits = []
-  branches = [branch] if branch is not None else repo.refs
-  for b in branches:
-    print(f'Listing <={max_count} commits in `{b}`')
-    for c in repo.iter_commits(b, max_count=max_count, skip=page*max_count):
-      commits.append(c)
-
-  ci_commits = [CiCommit(c) for c in commits]
+  if max_count==20 and page==0:
+    ci_commits = last_20_ci_commits
+  else:
+    ci_commits = list_ci_commits(repo, branch, max_count, page)
 
   # we filter those who did not even start CI performance tests...
   ci_commits = list(set([c for c in ci_commits if c.build_succeeded()]))
