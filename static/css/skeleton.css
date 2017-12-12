@@ -159,11 +159,13 @@ p {
 /* Links
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
 a {
-  color: #1EAEDB; }
+  color: #1EAEDB;
+}
 a:hover {
-  color: #0FA0CE; }
+  color: #0FA0CE;
+}
 
-.section-heading a {
+.section a {
   text-decoration: none;
   color: #fff;
 }
@@ -212,8 +214,8 @@ input[type="submit"].button-primary,
 input[type="reset"].button-primary,
 input[type="button"].button-primary {
   color: #FFF;
-  background-color: #33C3F0;
-  border-color: #33C3F0; }
+  background-color: rgb(126, 100, 224);
+  border-color: rgb(126, 100, 224); }
 .button.button-primary:hover,
 button.button-primary:hover,
 input[type="submit"].button-primary:hover,
@@ -228,7 +230,20 @@ input[type="button"].button-primary:focus {
   background-color: #1EAEDB;
   border-color: #1EAEDB; }
 
-
+.button.white-outline {
+  border: 2px solid #ffffff;
+  font-weight: 700;
+  letter-spacing: 1px
+  min-width: 220px;
+  white-space: nowrap;
+}
+.button.white-outline:hover {
+    color: #494c53;
+    background: #ffffff;
+    text-decoration: none;
+}
+element {
+}
 /* Forms
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
 input[type="email"],
@@ -272,7 +287,7 @@ input[type="url"]:focus,
 input[type="password"]:focus,
 textarea:focus,
 select:focus {
-  border: 1px solid #33C3F0;
+  border: 1px solid rgb(126, 100, 224);
   outline: 0; }
 label,
 legend {
@@ -360,7 +375,7 @@ p,
 ul,
 ol,
 form {
-  margin-bottom: 2.5rem; }
+  margin-bottom: 1.5rem; }
 
 
 /* Utilities
@@ -485,17 +500,18 @@ there.
 
 
 .values {
-  /*background-image: url('../images/background.jpg');*/
-  background-image: url('../images/samsung_gear_vr.jpg');
-  background-image: url('../images/Blog-09-03-2014-hero.jpg');
-  background-size: cover;
+  background: linear-gradient(to bottom right, #7e64e0, #1fcdc5);
   color: #fff;
-  padding-bottom: 5rem;
+  padding-bottom: 1rem;
   margin-bottom: 5rem;
 }
 .value-multiplier {
   margin-bottom: .5rem;
-  color: #11DFC7;
+  color: #ff9d00;
+  font-weight: 800;
+}
+.value-multiplier.white {
+  color: #ffffff;
 }
 .value-heading {
   margin-bottom: .3rem;
@@ -512,7 +528,7 @@ there.
 /* Bigger than 550 */
 @media (min-width: 550px) {
   .section {
-    padding: 4rem 0 4rem;
+    padding: 4rem 0 1rem;
   }
 }
 /* Bigger than 750 */
@@ -523,13 +539,13 @@ there.
     margin-right: auto;
   }
   .section {
-    padding: 5rem 0 4rem;
+    padding: 5rem 0 1rem;
   }
 }
 /* Bigger than 1000 */
 @media (min-width: 1000px) {
   .section {
-    padding: 5rem 0 4rem;
+    padding: 5rem 0 1rem;
   }
 }
 

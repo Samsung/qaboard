@@ -3,117 +3,132 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
 
 
-<div class="section values">
-<div class="container">
-  {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      <ul class="flashes" style="color:#11DFC7">
-      {% for message in messages %}
-        <li>{{ message }}</li>
-      {% endfor %}
-      </ul>
-    {% endif %}
-  {% endwith %}
-  <h3 class="section-heading"><strong><a href="/branch/{{branch}}">{{branch|urlencode}}</a></strong></h3>
-  <h3 class="section-heading"><a href='http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}'>{{commit.gitcommit.hexsha[:8]}}</a></strong># by {{commit.gitcommit.author.name}}</h3>
-<p class="section-description">Built on {{commit.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}}.<br>{{commit.gitcommit.message}}<br>{{outputs|length}} movies.<br>
-<a href="{{commit.commit_dir_url / 'params.json'}}">Parameters used</a></p>
+<div class="section values" {% if commit_ref %}style="margin-bottom: 0px;"{% endif%}>
+  <div class="container">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul class="flashes" style="color:#11DFC7">
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
 
-{%if commit.number_failures()%}
-  <p>
-  <strong>
-  <a href="/s/{{commit.folder()}}/lsf.log">
-  {{commit.number_failures()}} SLAM failures  
-  </a>
-  </strong>
-  </p>
-{%endif%}
+    {% macro info_commit(c, white_values=False) %}
+      <h3 class="section-heading">
+        <strong><a href="/branch/{{branch}}">{{branch}}:</a></strong> <a href='http://gitlab-srv/dvs/psp_swip/commit/{{c.gitcommit.hexsha}}'>{{c.gitcommit.hexsha[:8]}}</a></strong></h3>
+      <p class="section-description"><pre style="overflow: hidden; text-overflow: ellipsis;">{{c.gitcommit.message.replace('\n', ' ')}}</pre></p>
+      <p>
+        {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{outputs|length}} recordings.<br>
+        <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
+        {%if c.number_failures()%}
+        <strong><a class="button white-outline" href="/s/{{c.folder()}}/lsf.log">Logs for {{c.number_failures()}} failures</a></strong>
+        {%endif%}
+      </p>
 
-  <div class="row">
-    <div class="one-third column value">
-      <h2 class="value-multiplier">{{'{0:.1%}'.format(metrics.lost_pc)}}</h2>
-      <h5 class="value-heading">Failures</h5>
-      <p class="value-description">Tracking was lost >20ms.<br>Target: 0%</p>
-    </div>
-    <!--<div class="one-third column value">
-      <h2 class="value-multiplier">{{metrics.total_time_lost_pc_mean |round(1)}}%</h2>
-      <h5 class="value-heading">Time lost</h5>
-      <p class="value-description">Percentage of the time lost.<br>Target: 2%</p>
-    </div> -->
-    <div class="one-third column value">
-      <h2 class="value-multiplier">{{'{0:.0%}'.format(metrics.nb_high_rmse)}}</h2>
-      <h5 class="value-heading">High-RMSE</h5>
-      <p class="value-description">RMSE over 5mm.<br>Target: 0mm</p>
-    </div>
-    <div class="one-third column value">
-      <h2 class="value-multiplier">{{'x{0:.1f}'.format(metrics.compute_time_mean)}}</h2>
-      <h5 class="value-heading">Speed</h5>
-      <p class="value-description">Run-time versus real-time.<br>Target: 1.0x</p>
-    </div>
+      <div class="row">
+        <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*c.metrics().aape_median)}}</h2>
+          <h5 class="value-heading">Median AAPE</h5>
+          <p class="value-description">{{'{0:.2%}'.format(c.metrics().aape_pc_bad)}} with AAPE over 0.5cm.</p>
+        </div>
+        <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*c.metrics().rmse_median)}}</h2>
+          <h5 class="value-heading">Median RMSE</h5>
+          <p class="value-description">{{'{0:.2%}'.format(c.metrics().rmse_pc_bad)}} with RMSE over 0.5cm.</p>
+        </div>
+        <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.2%}'.format(c.metrics().final_drift_pc_median)}}</h2>
+          <h5 class="value-heading">Median Final Drift</h5>
+          <p class="value-description">{{'{0:.2%}'.format(c.metrics().final_drift_pc_bad)}} with drift over 1%.</p>
+        </div>
+<!--         <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'x{0:.2f}'.format(c.metrics().compute_time_median)}}</h2>
+          <h5 class="value-heading">Speed</h5>
+          <p class="value-description">Median Run-time versus real-time.</p>
+        </div> -->
+      </div>
+    {% endmacro %}
+
+  {{ info_commit(commit) }}
+  {% include 'histo.html' %}
+
+  {% if commit_ref %}
+  <p><em>VS</em></p>
+  {% endif%}
   </div>
 </div>
-<div>
-{% with height=250 %}
-{% include 'histo.html' %}
-{% endwith %}
+
+
+{% if commit_ref %}
+<div class="section values" style="padding: 2rem; background: linear-gradient(to bottom right, rgb(55, 126, 184), #4b6cb7);">
+  <div class="container">
+    {{ info_commit(commit_ref, white_values=True) }}
+  </div>
 </div>
+{% endif %}
+
+
+     
+<div class="container">
+  <form action='/commit/{{commit.gitcommit.hexsha}}' method="get">
+    <div class="row">
+      <div class="twelve columns">
+        <!-- <label for="reference">Compare against an other version</label> -->
+        <input class="" placeholder="Commit id (git sha1 hash)" id="reference" name="reference" type="text">
+        <input class="button-primary" value="Compare against an other version" type="submit">
+        <a class="button" href="#extra-recordings">Run on more recordings</a>
+      </div>
+    </div>
+  </form>
 </div>
 
 <div class="container-flex">
-{% for output in outputs %}
+{% for recording, output in outputs.items() %}
 	<div class="recording-wrapper">
-	<div class="recording">
+	  <div class="recording">
       {% with m = output.metrics %}
 	    <h6 class='filename'>{{output.rel_filepath}}
-        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.translation_rmse<0.005 else 'bad'}} badge">{{ 'RMSE: {0:.2}cm'.format(100*m.translation_rmse)}}</span>
-        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.005 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}</span>
+        {%if 'translation_rmse' in m %}
+        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.translation_rmse<0.005 else 'bad'}} badge">{{ 'RMSE: {0:.2}cm'.format(100*m.translation_rmse)}}{%if recording in outputs_ref %} <span class="{{'worse_perf' if output.metrics.translation_rmse>outputs_ref[recording].metrics.translation_rmse else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.translation_rmse-outputs_ref[recording].metrics.translation_rmse)}})</span>{%endif%}</span>
+        {%endif%}
+        {%if 'aape' in m %}
+        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.005 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}{%if recording in outputs_ref %} <span class="{{'worse_perf' if output.metrics.aape>outputs_ref[recording].metrics.aape else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.aape-outputs_ref[recording].metrics.aape)}})</span>{%endif%}</span>
+        {%endif%}
       </h6>
 	    <video preload="none" controls loop="loop" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
-	       <source src="{{output.video_realtime_src}}">
+	       <source src="{{output.output_dir_url+'results.mp4'}}">
 	    </video>
-      <div class="plot-6dof" id="plotly-{{output.rel_filepath}}" data-output-url="{{output.output_dir_url}}" data-gt-time-offset="{{output.metrics.time_offset_to_groundtruth}}" data-name="{{output.rel_filepath}}" style="height:600;">
-        <img id="plot-{{output.rel_filepath}}" width="300px" src="{{output.tracking_over_time}}"></img>        
+      {%if recording in outputs_ref %}
+      <video preload="none" controls loop="loop" width=300 poster="{{outputs_ref[recording].output_dir_url+'poster.jpg'}}" type="video/mp4">
+         <source src="{{outputs_ref[recording].output_dir_url+'results.mp4'}}">
+      </video>
+      {%endif%}
+      <div id="plotly-{{output.rel_filepath}}"
+           class="plot-6dof" style="height:600;"
+           data-output-url="{{output.output_dir_url}}"
+           data-offset-offline="{{output.metrics.time_offset_to_groundtruth}}"
+           data-offset-s8="{{output.metrics_s8.time_offset_to_groundtruth}}"
+           {%if recording in outputs_ref %}
+             data-vs-output-url="{{outputs_ref[recording].output_dir_url}}"
+             data-vs-offset-offline="{{outputs_ref[recording].metrics.time_offset_to_groundtruth}}"
+             data-vs-offset-s8="{{outputs_ref[recording].metrics_s8.time_offset_to_groundtruth}}"
+           {%endif%}
+           data-name="{{output.rel_filepath}}">
+        <img id="plot-{{output.rel_filepath}}" width="300px" src="{{output.output_dir_url+'curves.jpg'}}"></img>        
       </div>
       {% endwith %}
-	</div>
+	  </div>
 	</div>
 {% endfor %}
 </div>
 
-<div class="container">
-<h2>Run an extra batch</h2>
-<form action='/batch/{{commit.gitcommit.hexsha}}/' method="post">
-  <div class="row">
-    <div class="six columns">
-      <label for="batch">Batch</label>
-      <input class="u-full-width" placeholder="small" name="batch" id="batch" type="text">
-    </div>
-  </div>
-  <label for="batches">Update the available batches with a new yaml</label>
-  <textarea style="height:400px" class="u-full-width" placeholder="Some yaml..." name="batches" id="batches">{{batches}}</textarea>
-  <label>
-    <input disabled="true" type="checkbox">
-    <span class="label-body">Overwrite previous runs</span>
-  </label>
-  <input class="button-primary" value="Submit" type="submit">
-</form>
-</div>
+
+{% include 'extra-batch.html' %}
 
 {% include 'poses_viz.html' %}
 <script>
-  var plots_6dof =  document.getElementsByClassName('plot-6dof');
-  for (var i=0; i<plots_6dof.length; i++) {
-    let plot = plots_6dof[i];
-    let dir_url = plot.getAttribute('data-output-url');
-    let name = plot.getAttribute('data-name');
-    let gt_time_offset = plot.getAttribute('data-gt-time-offset');
-    if (i<1)
-      render_poses(name, dir_url, gt_time_offset);
-    else
-      plot.addEventListener("click", function(event) {
-        render_poses(name, dir_url, gt_time_offset);
-      }, false)
-  }
 </script>
 {% include 'video-scripts.html' %}
 

@@ -1,6 +1,6 @@
 <script>
-var videos,
-  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+// https://gist.github.com/bkeepers/4979576#file-video_sync-coffee
+var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
 
 this.VideoSync = (function() {
   function VideoSync(primary, secondary) {
@@ -23,8 +23,8 @@ this.VideoSync = (function() {
         return _this.secondary.pause();
       };
     })(this));
-    this.primary.addEventListener('timeupdate', this.sync);
-    this.primary.addEventListener('seeking', this.sync);
+    // this.primary.addEventListener('timeupdate', this.sync);
+    // this.primary.addEventListener('seeking', this.sync);
   }
 
   VideoSync.prototype.sync = function() {
@@ -34,11 +34,14 @@ this.VideoSync = (function() {
   };
 
   return VideoSync;
-
+  
 })();
 
-videos = document.getElementsByTagName('video');
+let recordings = document.getElementsByClassName('recording');
+for(var i=0; i<recordings.length; i++){
+  let videos = recordings[i].getElementsByTagName('video')
+  if (videos.length == 2)
+    new VideoSync(videos[0], videos[1]);
+}
 
-new VideoSync(videos[0], videos[1]);
 </script>
-

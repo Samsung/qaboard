@@ -1,4 +1,29 @@
 <script>
+class Commit {
+  constructor(rel_filepath, dir_url, offset_offline, offset_s8) {
+    this.rel_filepath = rel_filepath;
+    this.dir_url = dir_url;
+
+    this.offset_offline = parseFloat(offset_offline)||0;
+    this.offset_s8 = parseFloat(offset_s8)||0;
+  }
+  get poses_gt_url() {
+    return this.dir_url+'GT_final.txt';
+  }
+  get poses_offline_url() {
+    return this.dir_url+'camera_poses_debug.csv';
+  }
+  get poses_s8_url() {
+    return this.dir_url+'camera_poses_debug_s8.csv';
+  }
+  get poses_img_id() {
+    return 'plot-'+this.rel_filepath;
+  }
+  get poses_plotly_id() {
+    return 'plotly-'+this.rel_filepath;
+  }
+}
+
 
 var get_tsv = (tsv_url, gt_time_offset, callback) => {
   // if no url is given, just callback(null, null)
@@ -11,8 +36,6 @@ var get_tsv = (tsv_url, gt_time_offset, callback) => {
 }
 
 
-// time offset..
-// is_gt: timex1000
 var parse_poses = (text_string, gt_time_offset) => {
   let headers = ["a","b","c","x", "y", "z", "t", "confidence", "good\n"].join('\t');
   let data = Plotly.d3.tsv.parse(headers + text_string);
@@ -20,11 +43,10 @@ var parse_poses = (text_string, gt_time_offset) => {
   let a=[], b=[], c=[];
   let t=[], confidence=[], good=[];
 
-  console.log(gt_time_offset)
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
-    if (i%10!=0)
-      continue
+    // if (i%10!=0)
+    //   continue
     let row = data[i];
     a.push(row['a']);
     b.push(row['b']);
@@ -32,78 +54,50 @@ var parse_poses = (text_string, gt_time_offset) => {
     x.push(row['x']);
     y.push(row['y']);
     z.push(row['z']);
-    t.push(parseFloat(row['t'])+parseFloat(gt_time_offset));
+    t.push(parseFloat(row['t'])+gt_time_offset);
     confidence.push(row['confidence']);
     good.push(row['good']);
   };
   return {x, y, z, a, b, c, t, confidence, good};
 }
 
-var make_traces = function(poses, label, type) {
-  let mode = 'lines+markers';
-  let line_width = 1;
+var make_traces = function(poses, label, colors) {
+  let mode = 'lines';
+  let line_width = 2;
   let marker_size = 5;
-  let x_label = `X (${label})`;
-  let y_label = `Y (${label})`;
-  let z_label = `Z (${label})`;
-
-  // colors...
-  let x_gt = '7fc97f'
-  let y_gt = 'fdc086'
-  let z_gt = 'beaed4'
-  let x_offline = ''
-  let y_offline = ''
-  let z_offline = ''
-  let x_s8 = ''
-  let y_s8 = ''
-  let z_s8 = ''
-
-  colors = {
-    gt : {
-      x: '#7fc97f',
-      y: '#fdc086',
-      z: '#beaed4',
-    },
-    offline : {
-      x: '#1b9e77',
-      y: '#d95f02',
-      z: '#7570b3',
-    },
-    s8 : {
-      x: '#1b9e77',
-      y: '#d95f02',
-      z: '#7570b3',
-    },
-  }
   return [
     {
       x: poses.t, y: poses.x,
       line: { color: colors[label].x, width: line_width },
       marker: { color: colors[label].x, size: marker_size },
       mode,
-      name: x_label, legendgroup:"X"
+      name: label, legendgroup:label
     },
     {
       x: poses.t, y: poses.y,
       line: { color: colors[label].y, width: line_width },
       marker: { color: colors[label].y, size: marker_size },
       mode,
-      name: y_label, legendgroup:"Y"
+      yaxis: 'y2',
+      name: label, legendgroup:label,
+      showlegend: false
     },
     {
       x: poses.t, y: poses.z,
       line: { color: colors[label].z, width: line_width },
       marker: { color: colors[label].z, size: marker_size },
       mode,
-      name: z_label, legendgroup:"Z"
+      name: label, legendgroup:label,
+      yaxis: 'y3',
+      showlegend: false
     },
     {
       x: poses.t, y: poses.a,
       line: { color: colors[label].x, width: line_width },
       marker: { color: colors[label].x, size: marker_size },
       mode,
-      name: x_label, legendgroup:"X",
-      yaxis: 'y2',
+      name: label, legendgroup:label,
+      yaxis: 'y4',
       showlegend: false
     },
     {
@@ -111,8 +105,8 @@ var make_traces = function(poses, label, type) {
       line: { color: colors[label].y, width: line_width },
       marker: { color: colors[label].y, size: marker_size },
       mode,
-      name: y_label, legendgroup:"Y",
-      yaxis: 'y2',
+      name: label, legendgroup:label,
+      yaxis: 'y5',
       showlegend: false
     },
     {
@@ -120,66 +114,204 @@ var make_traces = function(poses, label, type) {
       line: { color: colors[label].z, width: line_width },
       marker: { color: colors[label].z, size: marker_size },
       mode,
-      name: z_label, legendgroup:"Z",
-      yaxis: 'y2',
+      name: label, legendgroup:label,
+      yaxis: 'y6',
       showlegend: false
     },
     {
       x: poses.t, y: poses.confidence,
-      line: { color: '#cccccc', width: line_width },
-      marker: { color: '#cccccc', size: marker_size },
+      line: { color: colors[label].confidence, width: line_width },
+      marker: { color: colors[label].confidence, size: marker_size },
       mode,
-      name: 'confidence', yaxis: 'y3',
+      name: label, legengroup:label,
+      yaxis: 'y7',
+      showlegend: false
     }
   ]
 }
 
-var render_poses = function(id, dir_url, gt_time_offset_offline, gt_time_offset_s8) {
-    var plot_img = document.getElementById('plot-'+id)
-    plot_img.style.filter = 'blur(3px)';
 
-    d3.queue()
-    .defer(get_tsv, dir_url+'camera_poses_debug.csv', gt_time_offset_offline)
-    .defer(get_tsv, dir_url+'camera_poses_debug_s8.csv',gt_time_offset_s8)
-    .defer(get_tsv, dir_url+'GT_final.txt', 0)
-    .awaitAll(function(error, poses) {
-        if (error) {
-            console.error(error);
-        }
-        else {
-          traces = []
-          if (poses[2]) {
-            traces = [...traces, ...make_traces(poses[2], 'gt')]
-          }
-          if (poses[0]) {
-            traces = [...traces, ...make_traces(poses[0], 'offline')]
-          }
-          if (poses[1]) {
-            traces = [...traces, ...make_traces(poses[1], 's8')]
-          }
-          let layout = {
-            type: 'scattergl', // try sc
-            // height:600,
-            // width:300,
-            // autosize: false,
-            margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
-            yaxis:  {domain: [0.0, 0.4], title:'Translation [m]'},
-            yaxis2: {domain: [0.4, 0.8], title: 'Rotation [rad]'},
-            yaxis3: {domain: [0.8, 1.0], title: '%'},
-            legend: {
-              x:0,
-              y:1,
-              bgcolor: 'rgba(255,255,255,0)',
-              traceorder:'grouped+reversed ',
-              // orientation: "h",
-              // yanchor: "bottom", 
-              tracegroupgap: 0
-            }
-          }
-          plot_img = document.getElementById('plot-'+id)
-          if (plot_img) plot_img.remove();
-          Plotly.newPlot('plotly-'+id, traces, layout);
-        }
-    });
+
+var n_yaxis = 7;
+var frac_v = 1.0/7;
+var layout = {
+  type: 'scattergl', // try sc
+  height:600,
+  // width:300,
+  // autosize: false,
+  margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
+  yaxis:  {domain: [0*frac_v, 1*frac_v], title: 'tX'},
+  yaxis2: {domain: [1*frac_v, 2*frac_v], title: 'tY'},
+  yaxis3: {domain: [2*frac_v, 3*frac_v], title: 'tZ'},
+  yaxis4: {domain: [3*frac_v, 4*frac_v], title: 'rX'},
+  yaxis5: {domain: [4*frac_v, 5*frac_v], title: 'rY'},
+  yaxis6: {domain: [5*frac_v, 6*frac_v], title: 'rZ'},
+  yaxis7: {domain: [6*frac_v, 1], title: 'Confidence [%]'},
+  legend: {
+    x:0,
+    y:1,
+    bgcolor: 'rgba(255,255,255,0.5)',
+    traceorder:'grouped',
+    tracegroupgap: 0
+    // orientation: "h",
+    // yanchor: "bottom", 
+  }
 }
+
+var colors_compare = {
+  ground_truth : {
+    x: '#4daf4a',
+    y: '#4daf4a',
+    z: '#4daf4a',
+    confidence: '#4daf4a',
+  },
+  // offline : {
+  //   x: '#a6dba0',
+  //   y: '#a6dba0',
+  //   z: '#a6dba0',
+  //   confidence: '#a6dba0',
+  // },
+  // s8...
+  offline : {
+    x: 'rgba(228, 26, 28, .9)',
+    y: 'rgba(228, 26, 28, .9)',
+    z: 'rgba(228, 26, 28, .9)',
+    confidence: 'rgba(228, 26, 28, .9)',
+  },
+  // ref_offline : {
+  //   x: '#c2a5cf',
+  //   y: '#c2a5cf',
+  //   z: '#c2a5cf',
+  //   confidence: '#c2a5cf',
+  // },
+  // ref_s8...
+  ref_offline : {
+    x: '#377eb8',
+    y: '#377eb8',
+    z: '#377eb8',
+    confidence: '#377eb8',
+  }
+}
+var render_poses_compare = function(commit, commit_ref) {
+  var plot_img = document.getElementById(commit.poses_img_id)
+  plot_img.style.filter = 'blur(3px)';
+
+  d3.queue()
+  .defer(get_tsv, commit.poses_gt_url, 0)
+  .defer(get_tsv, commit.poses_offline_url, commit.offset_offline)
+  .defer(get_tsv, commit.poses_s8_url, commit.offset_s8)
+  .defer(get_tsv, commit_ref.poses_offline_url, commit.offset_offline)
+  .defer(get_tsv, commit_ref.poses_s8_url, commit.offset_s8)
+  .awaitAll(function(error, poses) {
+    if (error) {
+      console.error(error);
+    } else {
+      traces = []
+      if (poses[0]) {
+        traces = [...traces, ...make_traces(poses[0], 'ground_truth', colors_compare)];
+      }
+      if (poses[3]) {
+        traces = [...traces, ...make_traces(poses[3], 'ref_offline', colors_compare)];
+      }
+      if (poses[4]) {
+        traces = [...traces, ...make_traces(poses[4], 'ref_s8', colors_compare)];
+      }
+      if (poses[1]) {
+        traces = [...traces, ...make_traces(poses[1], 'offline', colors_compare)];
+      }
+      if (poses[2]) {
+        traces = [...traces, ...make_traces(poses[2], 's8', colors_compare)];
+      }
+      if (plot_img) plot_img.remove();
+      Plotly.newPlot(commit.poses_plotly_id, traces, layout);
+    }
+  })
+}
+
+
+var colors_single = {
+  ground_truth : {
+    x: '#542788',
+    y: '#542788',
+    z: '#542788',
+    confidence: '#542788',
+  },
+  s8 : {
+    x: '#d73027',
+    y: '#d73027',
+    z: '#d73027',
+    confidence: '#d73027',
+  },
+  offline : {
+    x: 'rgb(255, 157, 0)',
+    y: 'rgb(255, 157, 0)',
+    z: 'rgb(255, 157, 0)',
+    confidence: 'rgb(255, 157, 0)',
+  }
+}
+var render_poses = function(commit) {
+  var plot_img = document.getElementById(commit.poses_img_id)
+  plot_img.style.filter = 'blur(3px)';
+
+  d3.queue()
+  .defer(get_tsv, commit.poses_gt_url, 0)
+  .defer(get_tsv, commit.poses_offline_url, commit.offset_offline)
+  .defer(get_tsv, commit.poses_s8_url, commit.offset_s8)
+  .awaitAll(function(error, poses) {
+    if (error) {
+        console.error(error);
+    }
+    else {
+      traces = []
+      if (poses[0]) {
+        traces = [...traces, ...make_traces(poses[0], 'ground_truth', colors_single)]
+      }
+      if (poses[1]) {
+        traces = [...traces, ...make_traces(poses[1], 'offline', colors_single)]
+      }
+      if (poses[2]) {
+        traces = [...traces, ...make_traces(poses[2], 's8', colors_single)]
+      }
+      if (plot_img) plot_img.remove();
+      Plotly.newPlot(commit.poses_plotly_id, traces, layout);
+    }
+  });
+}
+
+
+var plots_6dof =  document.getElementsByClassName('plot-6dof');
+for (var i=0; i<plots_6dof.length; i++) {
+  let plot = plots_6dof[i];
+
+  let commit = new Commit(
+    plot.getAttribute('data-name'),
+    plot.getAttribute('data-output-url'),
+    plot.getAttribute('data-offset-offline'),
+    plot.getAttribute('data-offset-s8')
+  )
+
+  if (!plot.getAttribute('data-vs-output-url')) {
+    if (i<10)
+      render_poses(commit);
+    else
+      plot.addEventListener("click", function(event) {
+        render_poses(commit);
+      }, false)
+  } else {
+    let commit_ref = new Commit(
+      plot.getAttribute('data-name'),
+      plot.getAttribute('data-vs-output-url'),
+      plot.getAttribute('data-vs-offset-offline'),
+      plot.getAttribute('data-vs-offset-s8')
+    )    
+    if (i<10)
+      render_poses_compare(commit, commit_ref);
+    else
+      plot.addEventListener("click", function(event) {
+        render_poses_compare(commit, commit_ref);
+      }, false)
+  }
+}
+
+
 </script>

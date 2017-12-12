@@ -1,65 +1,97 @@
-<div class="container" id="histograms-{{commit.short_id}}"></div>
+  <div class="row" style="heigh:100px">
+    <div class="one-half column">
+     <div id="histograms-{{commit.gitcommit.hexsha}}-rmse"></div>
+    </div>
+    <div class="one-half column">
+      <div id="histograms-{{commit.gitcommit.hexsha}}-aape"></div>
+    </div>
+  </div>
+
 <script>
-  var trace1 = {
-    x: {{ commit.rmses() | tojson }},
-    name: '{{commit.short_id}}',
-    // autobinx: false, 
-    histnorm: "count", 
+  {% if commit_ref %}
+  var color = 'rgba(255, 157, 0, 0.5)';
+  {% else %}
+  var color = 'rgba(255, 157, 0, 1)';
+  {% endif %}
+
+  var trace_rmse = {
+    x: {{ commit.rmses() | tojson }}.map(e=>100*e),
+    name: 'offline',
     marker: {
-      color: "#11DFC7", 
+      color, 
        line: {
-        color:  "#11DFC7", 
+        color, 
         width: 1
       }
-    },  
-    opacity: 0.5, 
+    },
+    opacity: 1, 
     type: "histogram", 
-    xbins: {
-      end: 100.0, 
-      size: 1, 
-      start: 0.0
-    }
   };
-  // var trace2 = {
-  //   x: x2,
-  //   y: y2, 
-  //   autobinx: false, 
-  //   marker: {
-  //           color: "rgba(100, 200, 102, 0.7)",
-  //            line: {
-  //             color:  "rgba(100, 200, 102, 1)", 
-  //             width: 1
-  //     } 
-  //        }, 
-  //   name: "reference", 
-  //   opacity: 0.75, 
-  //   type: "histogram", 
-  //   xbins: { 
-  //     end: 4, 
-  //     size: 0.06, 
-  //     start: -3.2
+  var trace_aape = {
+    x: {{ commit.aapes() | tojson }}.map(e=>100*e),
+    name: 'offline',
+    marker: {
+      color,
+       line: {
+        color, 
+        width: 1
+      }
+    },
+    opacity: 1,
+    type: "histogram", 
+  };
 
-  //   }
-  // };
-  // var data = [trace1, trace2];
-  var data = [trace1];
+  {% if commit_ref %}
+  var color_ref = 'rgba(55, 126, 184, 1)';
+  var trace_rmse_ref = {
+    x: {{ commit_ref.rmses() | tojson }}.map(e=>100*e),
+    name: 'reference',
+    marker: {
+      color: color_ref, 
+       line: {
+        color:  color_ref, 
+        width: 1
+      }
+    },
+    opacity: 1, 
+    type: "histogram", 
+  };
+  var trace_aape_ref = {
+    x: {{ commit_ref.aapes() | tojson }}.map(e=>100*e),
+    name: 'reference',
+    marker: {
+      color: color_ref,
+       line: {
+        color:  color_ref, 
+        width: 1
+      }
+    },
+    opacity: 1,
+    type: "histogram", 
+  };
+    traces_rmse = [trace_rmse_ref, trace_rmse];
+    traces_aape = [trace_aape_ref, trace_aape];
+  {% else %}
+    traces_rmse = [trace_rmse];
+    traces_aape = [trace_aape];
+  {% endif %}
+
   var layout = {
     bargap: 0., 
     bargroupgap: 0., 
-    barmode: "overlay", 
+    barmode: "overlay",
     yaxis: {title: "#", color: "rgba(244,255,255,0.8)", showgrid: false, fixedrange: true},
-    xaxis: {title: "Drift", color: "rgba(244,255,255,0.8)", fixedrange: true}, 
+    xaxis: {title: "RMSE [cm]", color: "rgba(244,255,255,0.8)", fixedrange: true}, 
     plot_bgcolor: 'rgba(0,0,0,0)',
     paper_bgcolor: 'rgba(0,0,0,0)',
-    height: {{height}},
-    margin: {
-        // l: 50,
-        // r: 50,
-        // b: 50,
-        // t: 0,
-        // pad: 4
-    },
-    {%if width%} width:{{width}},{%endif%}
+    height: 250,
+    width: 450,
+    autosize: false,
+    // margin: {t: 0, b:0},
+    // {%if width%} width:{{width}},{%endif%}
   };
-  Plotly.newPlot('histograms-{{commit.short_id}}', data, layout, {displayModeBar: false});
+
+  Plotly.newPlot('histograms-{{commit.gitcommit.hexsha}}-rmse', traces_rmse, layout, {displayModeBar: false});
+  layout.xaxis.title = 'AAPE [cm]';
+  Plotly.newPlot('histograms-{{commit.gitcommit.hexsha}}-aape', traces_aape, layout, {displayModeBar: false});
 </script>

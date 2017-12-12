@@ -63,8 +63,9 @@ def gitlab_webhook():
 def show_commits(branch=None, search=None):
   """ Renders an index page of the commits in the branch organized by date."""
   # this will only work nicely when displaying the commits in one branch...
-  max_count = request.args.get('count', 20)
-  page = request.args.get('page', 0)
+  max_count = int(request.args.get('count', 20))
+  page = int(request.args.get('page', 0))
+  print(page)
 
   commits = []
   branches = [branch] if branch is not None else repo.refs
@@ -87,57 +88,64 @@ def show_commits(branch=None, search=None):
   return render_template('list.html',
               ci_commits=ci_commits,
               search=search,
-              branch=branch if branch is not None else "All branches", branches=repo.refs,
-              users=get_users_per_name(""))
+              branch_label=branch if branch is not None else "All branches", branches=repo.refs,
+              users=get_users_per_name(""), page=page, min_page=max(0,page-2), branch=branch)
 
 
-@app.route("/commit/<hexsha>")
-@app.route("/commit/<hexsha>/")
+def latest_successful_commit(branch='origin/develop'):
+  latest_commits = repo.iter_commits(branch, max_count=10)
+  latest_commit = CiCommit(next(latest_commits))
+  print(latest_commit)
+  while not latest_commit.outputs():
+    latest_commit = CiCommit(next(latest_commits))
+  if latest_commit.outputs():
+    return latest_commit
+  else:
+    return None
+
+@app.route("/commit/<hexsha>", methods=["GET", "DELETE"])
+@app.route("/commit/<hexsha>/", methods=["GET", "DELETE"])
 @app.route("/commit/<hexsha>/<filename_filter>")
-def show_commit(hexsha, filename_filter=None, methods=["GET", "DELETE"]):
+def render_commit(hexsha, filename_filter=None):
   """ Renders a page showing the results with a given code commit. """
-  gitcommit = repo.commit(hexsha)
+  try:
+    ci_commit = CiCommit(repo.commit(hexsha))
+    hexsha_ref = request.args.get('reference', None)
+    ci_commit_ref = CiCommit(repo.commit(hexsha_ref)) if hexsha_ref else latest_successful_commit()
+  except:
+    return "Commit id not found", 404
+
   if request.method == 'GET':
-    return render_commit(CiCommit(gitcommit), filename_filter=filename_filter)
+    outputs = ci_commit.outputs()
+    outputs_ref = ci_commit_ref.outputs() if ci_commit_ref else {}
+    if (filename_filter):
+      outputs = {k:v for k,v in outputs.items() if filename_filter in k}
+      outputs_ref = {k:v for k,v in outputs_ref.items() if filename_filter in k}
+
+
+    with batches_filepath.open() as f:
+      batches = f.read()
+    return render_template('results-single.html',
+                           commit=ci_commit, commit_ref=ci_commit_ref,
+                           outputs=outputs, outputs_ref=outputs_ref,
+                           branch=ci_commit.branch(), batches=batches)
   # delete the outputs...
   if request.method == 'DELETE':
-      CiCommit(gitcommit).delete()
+      ci_commit.delete()
       return "{message: 'OK'}"
 
+
+
+
+
 batches_filepath = Path('data/extra-batches.yml').resolve()
-
-def render_commit(ci_commit, filename_filter=None):
-  outputs = ci_commit.outputs()
-  if (filename_filter):
-    outputs = [o for o in outputs if filename_filter in o['rel_filepath']]
-
-  outputs.sort(key=lambda o: o['metrics']['translation_rmse'], reverse=True)
-
-  with batches_filepath.open() as f:
-    batches = f.read()
-  return render_template('results-single.html', commit=ci_commit, outputs=outputs,
-                         metrics=ci_commit.metrics(), branch=ci_commit.branch(),
-                         batches=batches)
-
-
-
-
-@app.route("/batches/", methods=["GET","POST"])
-@app.route("/batches", methods=["GET","POST"])
-def extra_batches():
-  if request.method == 'GET':
-    with batches_filepath.open() as f:
-      return f.read()
-  if request.method == 'POST':
-    return "OK"
-
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):
   commit = CiCommit(repo.commit(hexsha))
   batch = request.form.get('batch', None)
   batches = request.form.get('batches', None)
-  print(batch)
+  overwrite = '--overwrite' if request.form.get('overwrite', 'off')=='on' else ''
 
   if batches:
     with batches_filepath.open('w') as f:
@@ -145,11 +153,13 @@ def run_extra_batches(hexsha):
       flash('Updated batches!')
 
   if batch:
+    commit.update()
     cmd = ' '.join([
-      f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
-      f'setenv SAMSUNG_CI_COMMIT_DIR \'{commit.commit_dir}\'',
-      f'python tools/run.py batch --batchfile {str(batches_filepath)} --batch {batch}"'
+      f'ssh arthurf-vdi "cd {ci_directory}/branches/feature-ci-better-time-sync/psp_swip/swip_slam/UnitTests;',
+      f'setenv SAMSUNG_CI_COMMIT_DIR \'{commit.commit_dir}\';',
+      f'python tools/run.py batch --batchfile {str(batches_filepath)} --batch {batch} {overwrite}"'
     ])
+    print(cmd)
     # it will only work with my /home/arthurf/.cshrc file
     # it sets ENV variables as needed....
     subprocess.run(cmd, shell=True,
@@ -158,3 +168,56 @@ def run_extra_batches(hexsha):
     flash(cmd)
     flash('Results should arrive soon....')
   return redirect('commit/'+hexsha)
+
+
+
+
+# @app.route("/teamcity-ci/httpAuth/app/rest/builds/<branch>,#<sha>", methods=['GET','POST', 'PUT'])
+# def build_info(branch, sha):
+#   print(f"#{sha} from {branch}")
+#   print(request.data)
+#   print(request.form)
+#   data = xmltodict.parse(request.data)['xml']
+#   print(data)
+#   return "OK"
+
+# import xml.etree.ElementTree as ET
+
+# @app.route("/viewLog.html")
+# def build_page():
+#   hexsha = request.args.get('buildId', None)
+#   build_type = request.args.get('buildTypeId', None)
+#   print(sha, build_type)
+#   redirect('/commit/'+hexsha)
+
+# @app.route("/teamcity-ci/httpAuth/app/rest/buildQueue", methods=['GET','POST', 'PUT'])
+# def build_queue():
+#   print(request.form)
+
+#   print(request.data)
+#   build = ET.fromstring(request.data)
+#   branch_name = build.attrib['branchName']
+#   print(branch_name)
+#   return "{status: 'running'}"
+
+
+#     // "failed", "canceled", "running", "pending", "success", "success_with_warnings", "skipped", "not_found"
+
+# import requests
+# project_id = 73 # or dvs%2Fpsp_swip
+
+# @app.route("/test")
+# def test():
+#   hexsha = "7da445b9896425b5f3b16b5ab511396c10e40da6"
+#   data = update_status(hexsha)
+#   return str(data)
+
+# def update_status(hexsha, state='success'):
+#   headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
+#   gitlab_api = "http://gitlab-srv/api/v4"
+#   target_url = 'http://gpu09-dt:5000/commit/{hexsha}'
+#   r = requests.post(f'{gitlab_api}/projects/{project_id}/statuses/{hexsha}',
+#     headers=headers,
+#     params={'state':state, 'target_url': target_url}
+#   )
+#   return r.json()

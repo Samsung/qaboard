@@ -48,18 +48,19 @@ class CiCommit():
         self.authored_date = self.gitcommit.authored_datetime.date()
 
         self._branch = None
-        self._outputs = []
+        self._outputs = {}
         self._metrics = {}
-        self._pending__outputs = set() # available movies not yet SLAM'ed
-        self._updating = datetime.datetime.now().astimezone()-commit.authored_datetime<datetime.timedelta(hours=1)
-        self._failed = False # build failure or else...
 
-        self.params_path = self.commit_dir / "params.json"
-        try:
-          with (self.params_path).open() as f:
-              self.params = json.load(f)
-        except FileNotFoundError:
-            self._failed = True
+        self._failed = False # build failure or else...
+        self.ci_run_datetime = commit.authored_datetime
+
+    def updating(self):
+        return datetime.datetime.now().astimezone()-self.ci_run_datetime<datetime.timedelta(hours=1)
+
+
+    def update(self):
+        self.ci_run_datetime = datetime.datetime.now().astimezone()
+
 
     def build_succeeded(self):
         lsf_logs = ci_commits_directory / self.folder() /"lsf.log"
@@ -87,44 +88,46 @@ class CiCommit():
 
     def outputs(self):
         """ Gather the available results."""
-        if not self._failed and not self._outputs or self._updating:
-            self._outputs = []
+        if not self._failed and not self._outputs or self.updating():
+            self._outputs = {}
             self._metrics = {}
             print('getting outputs:', self.gitcommit.hexsha)
             output_dirs = [p.parent for p in self.output_dir.glob('**/camera_poses_debug.csv')]
             for output_dir in output_dirs:
-                rel_recording_path = output_dir.relative_to(self.output_dir).with_suffix('.bin')
+                rel_recording_path = str(output_dir.relative_to(self.output_dir))+'.bin'
+                rel_folderpath = str(output_dir.relative_to(ci_commits_directory))
 
                 metrics_file = (output_dir/'metrics.json')
                 if not metrics_file.exists(): 
-                    # we changed the name of the metrics file at some point... sorry!
-                    metrics_file = (output_dir/'lost-metrics.json')
-                if not metrics_file.exists():
-                    self._pending__outputs.add(rel_recording_path)
+                  # we changed the name of the metrics file at some point... sorry!
+                  metrics_file = (output_dir/'lost-metrics.json')
+                  if not metrics_file.exists():
                     continue
                 with metrics_file.open() as f:
-                    rel_folderpath = str(output_dir.relative_to(ci_commits_directory))
-                    metrics = json.load(f)
-                    self._outputs.append({
-                        'output_dir': output_dir,
-                        'output_dir_url': f'/s/{rel_folderpath}/', # URL at which the outputs are accessible
-                        'video_realtime_src': f"/s/{rel_folderpath}/results.mp4", # ?time={os.path.getmtime(video_path)}
-                        'tracking_over_time':f'/s/{rel_folderpath}/curves.jpg',
-                        '6dof':f'/s/{rel_folderpath}/camera_poses_debug.csv',
-                        '6dof_s8':f'/s/{rel_folderpath}/camera_poses_debug_s8.csv',
-                        '6dof_groundtruth':f'/s/{rel_folderpath}/GT_final.csv',
-                        'rel_filepath': str(rel_recording_path),
-                        'metrics': metrics,
-                    })
-            for o in self._outputs:
-                if 'translation_rmse' not in o['metrics']:
-                    o['metrics']['translation_rmse'] = 10e6
-            self._outputs = sorted(self._outputs, key=lambda o: -o['metrics']['translation_rmse'] )
+                    try:
+                      metrics = json.load(f)
+                    except:
+                      print(f"bad json: {metrics_file}")
+                      metrics = {"compute_time": 1, "duration": 1, "nb_lost": 0, "total_time_lost_pc":0}
 
-            if self._pending__outputs:
-                self._pending__outputs = self._pending__outputs -  set([o['rel_filepath'] for o in self._outputs])
-            else:
-                self._updating = False
+                metrics_s8_file = output_dir/'metrics_s8.json'
+                if (metrics_s8_file).exists():
+                    with metrics_s9_file.open() as f:
+                        metrics_s8 = json.load(f)
+                else:
+                    metrics_s8 = {}
+
+                self._outputs[str(rel_recording_path)] = {
+                    'output_dir': output_dir,
+                    'output_dir_url': f'/s/{rel_folderpath}/', # URL at which the outputs are accessible
+                    'rel_filepath': str(rel_recording_path),
+                    'metrics': metrics,
+                    'metrics_s8': metrics_s8,
+                }
+
+            get_rmse = lambda o: -o[1]['metrics']['translation_rmse'] if 'translation_rmse' in o[1]['metrics'] else 0
+            self._outputs = {k:v for k,v in sorted(self._outputs.items(), key=get_rmse)}
+
             if not self._outputs and not is_new(self.gitcommit):
                 self._failed = True
         return self._outputs
@@ -136,47 +139,37 @@ class CiCommit():
         return self._metrics
 
     def rmses(self):
-        return [o['metrics']['translation_rmse'] for o in self.outputs()]
-
-    def rmse_histogram(self):
-        rmses = self.rmses()
-        bins = np.arange(start=0., stop=0.1, step=0.001)
-        hist = np.histogram(rmses, bins=bins) #bins='auto',
-        return hist[0].tolist(), bins.tolist()
+        return [o['metrics']['translation_rmse'] for o in self.outputs().values() if 'translation_rmse' in o['metrics']]
+    def aapes(self):
+        return [o['metrics']['aape'] for o in self.outputs().values() if 'aape' in o['metrics']]
+    def final_drifts_pc(self):
+        return [o['metrics']['final_drift_pc'] for o in self.outputs().values() if 'final_drift_pc' in o['metrics']]
 
     def delete(self):
         print(f"removing {self.commit_dir}")
         shutil.rmtree(self.commit_dir)
 
 
-# def run_new_movies(self):
-#     for recording in recordings(self.recording_dir):
-#         if not (self.output_dir/str(recording)[:-4]/'lost-metrics.json').exists():
-#             self._pending__outputs.add(recording)
-#             continue
-#     self._updating = True
-#     subprocess.Popen([sys.executable, str(self.commit_dir/'tests'/'run_tests.py'), "run_benchmark"], shell=True) # Path.cwd()/'..'/'tests'
-
-# import os
-# import sys
-# import subprocess
-# from pathlib import Path
-
-# import pandas as pd
-# from utils import read_config
-
 def aggregated_metrics(outputs):
-    metrics = [o['metrics'] for o in outputs]
-    compute_times = [1000*m['compute_time']/m['duration'] for m in metrics]
-    total_time_lost_pcs = [m['total_time_lost_pc'] for m in metrics]
-    nb_losts = [m['nb_lost']>0 for m in metrics]
-    losts = [m['nb_lost'] for m in metrics]
-    # high_drifts = [m['drift_pc']>0.02 for m in metrics]
-    high_rmses = [m['translation_rmse']>0.005 for m in metrics]
+    metrics = [o['metrics'] for o in outputs.values()]
+    rmse = [m['translation_rmse'] for m in metrics if 'translation_rmse' in m]
+    aape = [m['aape'] for m in metrics if 'aape' in m]
+    final_drift_pc = [m['final_drift_pc'] for m in metrics if 'final_drift_pc' in m]
+
+    rmse_is_bad = [m['translation_rmse']>0.005 for m in metrics if 'translation_rmse' in m]
+    aape_is_bad = [m['aape']>0.005 for m in metrics if 'aape' in m]
+    final_drift_pc_is_bad = [m['final_drift_pc']>0.01 for m in metrics if 'final_drift_pc' in m]
+
     return {
-        'lost_pc': np.mean(nb_losts),
-        'compute_time_mean': np.mean(compute_times),
-        'total_time_lost_pc_mean': np.mean(total_time_lost_pcs),
-        # 'nb_high_drift': np.mean(high_drifts),
-        'nb_high_rmse': np.mean(high_rmses),
+        'compute_time_median': np.median([1000*m['compute_time']/m['duration'] for m in metrics]),
+        'pc_where_lost_at_least_once': np.mean([m['nb_lost']>0 for m in metrics]),
+        'total_time_lost_pc_mean': np.mean([m['total_time_lost_pc'] for m in metrics]),
+
+        'rmse_median': np.median(rmse),
+        'rmse_pc_bad': np.mean(rmse_is_bad),
+        'aape_median': np.median(aape),
+        'aape_pc_bad': np.mean(aape_is_bad),
+
+        'final_drift_pc_median': np.median(final_drift_pc),
+        'final_drift_pc_bad': np.mean(final_drift_pc_is_bad),
     }
