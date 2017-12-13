@@ -30,12 +30,12 @@
       <div class="row">
         <div class="one-third column value">
           <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*c.metrics().aape_median)}}</h2>
-          <h5 class="value-heading">Median AAPE</h5>
+          <h5 class="value-heading">Median Position AAPE</h5>
           <p class="value-description">{{'{0:.2%}'.format(c.metrics().aape_pc_bad)}} with AAPE over 0.5cm.</p>
         </div>
         <div class="one-third column value">
           <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*c.metrics().rmse_median)}}</h2>
-          <h5 class="value-heading">Median RMSE</h5>
+          <h5 class="value-heading">Median Position RMSE</h5>
           <p class="value-description">{{'{0:.2%}'.format(c.metrics().rmse_pc_bad)}} with RMSE over 0.5cm.</p>
         </div>
         <div class="one-third column value">
@@ -97,11 +97,11 @@
         <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.005 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}{%if recording in outputs_ref %} <span class="{{'worse_perf' if output.metrics.aape>outputs_ref[recording].metrics.aape else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.aape-outputs_ref[recording].metrics.aape)}})</span>{%endif%}</span>
         {%endif%}
       </h6>
-	    <video preload="none" controls loop="loop" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
+	    <video preload="none" controls loop="loop" title="new commit" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
 	       <source src="{{output.output_dir_url+'results.mp4'}}">
 	    </video>
       {%if recording in outputs_ref %}
-      <video preload="none" controls loop="loop" width=300 poster="{{outputs_ref[recording].output_dir_url+'poster.jpg'}}" type="video/mp4">
+      <video preload="none" loop="loop" title="reference" width=300 poster="{{outputs_ref[recording].output_dir_url+'poster.jpg'}}" type="video/mp4">
          <source src="{{outputs_ref[recording].output_dir_url+'results.mp4'}}">
       </video>
       {%endif%}
@@ -124,6 +124,7 @@
 {% endfor %}
 </div>
 
+<!-- { % include 'output-table.html' % } -->
 
 {% include 'extra-batch.html' %}
 

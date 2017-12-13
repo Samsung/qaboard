@@ -157,7 +157,9 @@ var layout = {
     // yanchor: "bottom", 
   }
 }
-
+// 157
+var color_new = 'rgba(255, 131, 0, .9)' // Red: 'rgba(228, 26, 28, .9)'
+var color_ref = 'rgb(25,34,231)'
 var colors_compare = {
   ground_truth : {
     x: '#4daf4a',
@@ -173,10 +175,10 @@ var colors_compare = {
   // },
   // s8...
   offline : {
-    x: 'rgba(228, 26, 28, .9)',
-    y: 'rgba(228, 26, 28, .9)',
-    z: 'rgba(228, 26, 28, .9)',
-    confidence: 'rgba(228, 26, 28, .9)',
+    x: color_new,
+    y: color_new,
+    z: color_new,
+    confidence: color_new,
   },
   // ref_offline : {
   //   x: '#c2a5cf',
@@ -186,10 +188,10 @@ var colors_compare = {
   // },
   // ref_s8...
   ref_offline : {
-    x: '#377eb8',
-    y: '#377eb8',
-    z: '#377eb8',
-    confidence: '#377eb8',
+    x: color_ref,
+    y: color_ref,
+    z: color_ref,
+    confidence: color_ref,
   }
 }
 var render_poses_compare = function(commit, commit_ref) {

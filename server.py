@@ -4,16 +4,15 @@ Web-app showing SLAM results in a digestible form.
 """
 import json
 import subprocess
-from pathlib import Path
 
 from flask import Flask
 from flask import request, render_template, redirect, send_from_directory, flash
 app = Flask(__name__)
 app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
 
-from git import Repo, Commit, RemoteProgress
-from utils import list_commits
+from git import Repo
 from models import CiCommit, get_users_per_name
+from git_utils import git_pull, list_commits
 from config import *
 
 
@@ -21,32 +20,20 @@ from config import *
 
 
 ## syncing with git ###########################################################
-# caches recent commits - listing them is slow...
-def git_pull(repo):
-  """Updates the repo and returns the 20 last commits.."""
-  class MyProgressPrinter(RemoteProgress):
-    def update(self, op_code, cur_count, max_count=100.0, message="[No message]"):
-      print(op_code, cur_count, max_count, cur_count/max_count, message)
-  for fetch_info in repo.remotes.origin.fetch(progress=MyProgressPrinter()):
-    print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
-  return [CiCommit(c) for c in list_commits(repo, None, 0, 20)]
-
-
-# at the start of the app we trigger a manual sync
 
 try:
   repo = Repo("psp_swip")
 except:
   print("Error: First initialize with `git clone git@gitlab-srv:dvs/psp_swip.git`")
-last_20_ci_commits = git_pull(repo)
+
+git_pull(repo)
 
 
 @app.route('/gitlab_webhook', methods=['GET', 'POST'])
 def gitlab_webhook():
   """Gitlab calls this endpoint every push. We use it to stay in sync."""
   print(json.loads(request.data))
-  global last_20_ci_commits
-  last_20_ci_commits = git_pull()
+  git_pull()
   return("{status:'OK'}")
 
 
@@ -71,15 +58,9 @@ def show_commits(branch=None, search=None):
   # this will only work nicely when displaying the commits in one branch...
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
-  if max_count==20 and page==0:
-    ci_commits = last_20_ci_commits
-  else:
-    ci_commits = list_ci_commits(repo, branch, max_count, page)
+  ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
 
   # we filter those who did not even start CI performance tests...
-  ci_commits = list(set([c for c in ci_commits if c.build_succeeded()]))
-  ci_commits.sort(key=lambda c: c.gitcommit.authored_datetime, reverse=True)
-  ci_commits = ci_commits[:max_count]
 
   search = request.args.get('search', None)
   if search is not None:

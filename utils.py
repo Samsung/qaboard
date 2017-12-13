@@ -3,7 +3,6 @@ Small utility tools.
 """
 import os
 import datetime
-
 import requests
 
 
@@ -64,13 +63,7 @@ def get_users_per_name(search_filter):
     return users_db 
 
 
-def list_commits(repo, branch, page, max_count):
-  """Returns recent commits on a given branch. If none is chosen, go through all branches"""
-  commits = []
-  branches = [branch] if branch is not None else repo.refs
-  for b in branches:
-    print(f'Listing <={max_count} commits in `{b}`')
-    for c in repo.iter_commits(b, max_count=max_count, skip=page*max_count):
-      commits.append(c)
-  return commits
+
+
+
 
