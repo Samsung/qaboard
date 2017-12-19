@@ -1,9 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
+
 <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
 
-
 <div class="section values" {% if commit_ref %}style="margin-bottom: 0px;"{% endif%}>
+  <div style="position: absolute;  left: 10px;  top: 10px;"><strong><a href="/">Home</a></strong></div>
   <div class="container">
     {% with messages = get_flashed_messages() %}
       {% if messages %}
@@ -22,9 +23,8 @@
       <p>
         {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{outputs|length}} recordings.<br>
         <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
-        {%if c.number_failures()%}
-        <strong><a class="button white-outline" href="/s/{{c.folder()}}/lsf.log">Logs for {{c.number_failures()}} failures</a></strong>
-        {%endif%}
+        <strong><a class="button white-outline" href="/s/{{c.folder()}}/lsf.log">Logs {%if c.number_failures()%}for {{c.number_failures()}} failures{%endif%}</a></strong>
+
       </p>
 
       <div class="row">
@@ -79,15 +79,21 @@
         <input class="" placeholder="Commit id (git sha1 hash)" id="reference" name="reference" type="text">
         <input class="button-primary" value="Compare against an other version" type="submit">
         <a class="button" href="#extra-recordings">Run on more recordings</a>
+        <a class="button" href="?show_table=true">Show a summary table</a>
       </div>
     </div>
   </form>
 </div>
 
+{% if show_table %}
+{% include 'output-table.html' %}
+{% endif %}
+
+
 <div class="container-flex">
 {% for recording, output in outputs.items() %}
 	<div class="recording-wrapper">
-	  <div class="recording">
+	  <div class="recording" id="recording-{{output.rel_filepath}}">
       {% with m = output.metrics %}
 	    <h6 class='filename'>{{output.rel_filepath}}
         {%if 'translation_rmse' in m %}

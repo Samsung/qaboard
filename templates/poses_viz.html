@@ -64,6 +64,9 @@ var parse_poses = (text_string, gt_time_offset) => {
 var make_traces = function(poses, label, colors) {
   let mode = 'lines';
   let line_width = 2;
+  if (label === 'ref_offline' || label === 'ref_s8' )
+    line_width = 3;
+
   let marker_size = 5;
   return [
     {
@@ -293,7 +296,7 @@ for (var i=0; i<plots_6dof.length; i++) {
   )
 
   if (!plot.getAttribute('data-vs-output-url')) {
-    if (i<10)
+    if (i<20)
       render_poses(commit);
     else
       plot.addEventListener("click", function(event) {
@@ -306,7 +309,7 @@ for (var i=0; i<plots_6dof.length; i++) {
       plot.getAttribute('data-vs-offset-offline'),
       plot.getAttribute('data-vs-offset-s8')
     )    
-    if (i<10)
+    if (i<20)
       render_poses_compare(commit, commit_ref);
     else
       plot.addEventListener("click", function(event) {

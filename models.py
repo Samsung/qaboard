@@ -152,6 +152,7 @@ class CiCommit():
 
 def aggregated_metrics(outputs):
     metrics = [o['metrics'] for o in outputs.values()]
+    compute_time = [m['compute_time']/m['duration'] for m in metrics if 'compute_time ' in m]
     rmse = [m['translation_rmse'] for m in metrics if 'translation_rmse' in m]
     aape = [m['aape'] for m in metrics if 'aape' in m]
     final_drift_pc = [m['final_drift_pc'] for m in metrics if 'final_drift_pc' in m]
@@ -161,7 +162,7 @@ def aggregated_metrics(outputs):
     final_drift_pc_is_bad = [m['final_drift_pc']>0.01 for m in metrics if 'final_drift_pc' in m]
 
     return {
-        'compute_time_median': np.median([1000*m['compute_time']/m['duration'] for m in metrics]),
+        'compute_time_median': 1000*np.median(compute_time),
         'pc_where_lost_at_least_once': np.mean([m['nb_lost']>0 for m in metrics]),
         'total_time_lost_pc_mean': np.mean([m['total_time_lost_pc'] for m in metrics]),
 

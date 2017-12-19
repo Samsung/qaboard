@@ -14,6 +14,8 @@ def list_commits(branch, page, max_count):
   with git_cache.open('rb') as f:
     lists_hexsha = pickle.load(f)
 
+  max_count = min(max_count, 100)
+
   if (branch, page, max_count) in lists_hexsha:
     print('cached!')
     hashes = lists_hexsha[(branch, page, max_count)]
@@ -27,8 +29,9 @@ def list_commits(branch, page, max_count):
     for c in repo.iter_commits(b, max_count=max_count, skip=page*max_count):
       commits.append(c)
 
-  ci_commits = [CiCommit(c) for c in commits]
-  ci_commits = list(set([c for c in ci_commits if c.build_succeeded()]))
+  commits_set = set([c for c in commits])
+  ci_commits = [CiCommit(c) for c in commits_set]
+  ci_commits = [c for c in ci_commits if c.build_succeeded()]
   ci_commits.sort(key=lambda c: c.gitcommit.authored_datetime, reverse=True)
   ci_commits = ci_commits[:max_count]
 
@@ -40,11 +43,12 @@ def list_commits(branch, page, max_count):
   return commits
 
 # caches recent commits - listing them is slow...
-def git_pull(repo):
+def git_pull():
   """Updates the repo and returns the 20 last commits.."""
   class MyProgressPrinter(RemoteProgress):
     def update(self, op_code, cur_count, max_count=100.0, message="[No message]"):
-      print(op_code, cur_count, max_count, cur_count/max_count, message)
+      print('...')
+      # print(op_code, cur_count, max_count, (cur_count or 0)/max_count, message)
   for fetch_info in repo.remotes.origin.fetch(progress=MyProgressPrinter()):
     print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
 

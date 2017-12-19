@@ -8,110 +8,25 @@
   </div>
 
   <div class="row" style="heigh:100px">
-    <div class="one-half column">
+    <div class="one-third column">
+      <div id="boxes-{{commit.gitcommit.hexsha}}-aape"></div>
+    </div>
+    <div class="one-third column">
      <div id="boxes-{{commit.gitcommit.hexsha}}-rmse"></div>
     </div>
-    <div class="one-half column">
-      <div id="boxes-{{commit.gitcommit.hexsha}}-aape"></div>
+    <div class="one-third column">
+     <div id="boxes-{{commit.gitcommit.hexsha}}-drift"></div>
     </div>
   </div>
 
 
-
 <script>
-  // {% if commit_ref %}
-  // var color = 'rgba(255, 157, 0, 0.5)';
-  // {% else %}
-  // var color = 'rgba(255, 157, 0, 1)';
-  // {% endif %}
-
-  // var trace_rmse = {
-  //   x: {{ commit.rmses() | tojson }}.map(e=>100*e),
-  //   name: 'new (offline)',
-  //   marker: {
-  //     color, 
-  //      line: {
-  //       color, 
-  //       width: 1
-  //     }
-  //   },
-  //   opacity: 1, 
-  //   type: "histogram", 
-  // };
-  // var trace_aape = {
-  //   x: {{ commit.aapes() | tojson }}.map(e=>100*e),
-  //   name: 'new (offline)',
-  //   marker: {
-  //     color,
-  //      line: {
-  //       color, 
-  //       width: 1
-  //     }
-  //   },
-  //   opacity: 1,
-  //   type: "histogram", 
-  // };
-
-  // {% if commit_ref %}
-  // var color_ref = 'rgba(55, 126, 184, 1)';
-  // var trace_rmse_ref = {
-  //   x: {{ commit_ref.rmses() | tojson }}.map(e=>100*e),
-  //   name: 'reference',
-  //   marker: {
-  //     color: color_ref, 
-  //      line: {
-  //       color:  color_ref, 
-  //       width: 1
-  //     }
-  //   },
-  //   opacity: 1, 
-  //   type: "histogram", 
-  // };
-  // var trace_aape_ref = {
-  //   x: {{ commit_ref.aapes() | tojson }}.map(e=>100*e),
-  //   name: 'reference',
-  //   marker: {
-  //     color: color_ref,
-  //      line: {
-  //       color:  color_ref, 
-  //       width: 1
-  //     }
-  //   },
-  //   opacity: 1,
-  //   type: "histogram", 
-  // };
-  //   traces_rmse = [trace_rmse_ref, trace_rmse];
-  //   traces_aape = [trace_aape_ref, trace_aape];
-  // {% else %}
-  //   traces_rmse = [trace_rmse];
-  //   traces_aape = [trace_aape];
-  // {% endif %}
-
-  // var layout = {
-  //   bargap: 0., 
-  //   bargroupgap: 0., 
-  //   barmode: "overlay",
-  //   yaxis: {title: "#", color: "rgba(244,255,255,0.8)", showgrid: false, fixedrange: true},
-  //   xaxis: {title: "RMSE [cm]", color: "rgba(244,255,255,0.8)", fixedrange: true}, 
-  //   plot_bgcolor: 'rgba(0,0,0,0)',
-  //   paper_bgcolor: 'rgba(0,0,0,0)',
-  //   height: 250,
-  //   width: 450,
-  //   autosize: false,
-  //   // margin: {t: 0, b:0},
-  //   // {%if width%} width:{{width}},{%endif%}
-  // };
-
-  // Plotly.newPlot('histograms-{{commit.gitcommit.hexsha}}-rmse', traces_rmse, layout, {displayModeBar: false});
-  // layout.xaxis.title = 'AAPE [cm]';
-  // Plotly.newPlot('histograms-{{commit.gitcommit.hexsha}}-aape', traces_aape, layout, {displayModeBar: false});
-
-
-
-
   var color = 'rgba(255, 157, 0, 1)';
   var color_ref = 'rgba(55, 126, 184, 1)';
   var colors = [color, color_ref];
+  var color_a = 'rgba(255, 157, 0, .4)';
+  var color_ref_a = 'rgba(55, 126, 184, .4)';
+  var colors_a = [color_a, color_ref_a];
 
   var xdata = ['new (offline)', 'reference (offline)'];
   var yData_rmse = [
@@ -122,8 +37,13 @@
     {{ commit.aapes()     | tojson }}.map(e=>100*e),
     {{ commit_ref.aapes() | tojson }}.map(e=>100*e),
   ];
+  var yData_drift = [
+    {{ commit.final_drifts_pc()     | tojson }}.map(e=>100*e),
+    {{ commit_ref.final_drifts_pc() | tojson }}.map(e=>100*e),
+  ];
   var data_rmse = [];
   var data_aape = [];
+  var data_drift = [];
 
   for ( var i = 0; i < xdata.length; i ++ ) {
     var result = {
@@ -132,13 +52,15 @@
       name: xdata[i],
       boxpoints: 'all',
       jitter: 0.5,
-      whiskerwidth: 0.2,
-      fillcolor: 'cls',
+      whiskerwidth: 0.3,
+      fillcolor: colors_a[i],
       marker: {
-        size: 5
+        size: 8,
+        color: colors[i],
       },
       line: {
-        width: 1
+        width: 2,
+        color: colors[i],
       }
     };
     data_rmse.push(result);
@@ -148,16 +70,36 @@
       name: xdata[i],
       boxpoints: 'all',
       jitter: 0.5,
-      whiskerwidth: 0.2,
-      fillcolor: 'cls',
+      whiskerwidth: 0.3,
+      fillcolor: colors_a[i],
       marker: {
-        size: 5
+        size: 8,
+        color: colors[i],
       },
       line: {
-        width: 1
+        width: 2,
+        color: colors[i],
       }
     };
     data_aape.push(result);
+    var result = {
+      type: 'box',
+      y: yData_drift[i],
+      name: xdata[i],
+      boxpoints: 'all',
+      jitter: 0.5,
+      whiskerwidth: 0.3,
+      fillcolor: colors_a[i],
+      marker: {
+        size: 8,
+        color: colors[i],
+      },
+      line: {
+        width: 2,
+        color: colors[i],
+      }
+    };
+    data_drift.push(result);
   };
   layout = {
       bargap: 0., 
@@ -187,7 +129,7 @@
           t: 100
       },
       height: 400,
-      width: 600,
+      width: 300,
       autosize: false,
       plot_bgcolor: 'rgba(0,0,0,0)',
       paper_bgcolor: 'rgba(0,0,0,0)',
@@ -195,6 +137,7 @@
   Plotly.newPlot("boxes-{{commit.gitcommit.hexsha}}-rmse", data_rmse, layout, {displayModeBar: false});
   layout.xaxis.title = 'AAPE [cm]';
   Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-aape', data_aape, layout, {displayModeBar: false});
-
+  layout.xaxis.title = 'Drift [%]';
+  Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-drift', data_drift, layout, {displayModeBar: false});
 
 </script>

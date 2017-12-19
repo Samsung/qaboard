@@ -26,7 +26,7 @@ try:
 except:
   print("Error: First initialize with `git clone git@gitlab-srv:dvs/psp_swip.git`")
 
-git_pull(repo)
+git_pull()
 
 
 @app.route('/gitlab_webhook', methods=['GET', 'POST'])
@@ -69,8 +69,8 @@ def show_commits(branch=None, search=None):
   return render_template('list.html',
               ci_commits=ci_commits,
               search=search,
-              branch_label=branch if branch is not None else "All branches", branches=repo.refs,
-              users=get_users_per_name(""), page=page, min_page=max(0,page-2), branch=branch)
+              branch=repo.refs[branch] if branch else None, branches=repo.refs,
+              users=get_users_per_name(""), page=page, min_page=max(0,page-2))
 
 
 def latest_successful_commit(branch='origin/develop'):
@@ -106,7 +106,11 @@ def render_commit(hexsha, filename_filter=None):
 
     with batches_filepath.open() as f:
       batches = f.read()
+    show_table = bool(request.args.get('show_table', False))
+    print(show_table)
+    print(request.args)
     return render_template('results-single.html',
+                           show_table = show_table,
                            commit=ci_commit, commit_ref=ci_commit_ref,
                            outputs=outputs, outputs_ref=outputs_ref,
                            branch=ci_commit.branch(), batches=batches)
@@ -136,7 +140,7 @@ def run_extra_batches(hexsha):
   if batch:
     commit.update()
     cmd = ' '.join([
-      f'ssh arthurf-vdi "cd {ci_directory}/branches/feature-ci-better-time-sync/psp_swip/swip_slam/UnitTests;',
+      f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
       f'setenv SAMSUNG_CI_COMMIT_DIR \'{commit.commit_dir}\';',
       f'python tools/run.py batch --batchfile {str(batches_filepath)} --batch {batch} {overwrite}"'
     ])
@@ -151,6 +155,22 @@ def run_extra_batches(hexsha):
   return redirect('commit/'+hexsha)
 
 
+@app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
+def rerun_metric(hexsha):
+  commit = CiCommit(repo.commit(hexsha))
+  cmd = ' '.join([
+    f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
+    f'setenv SLAM_WORKING_DIRECTORY= \'{commit.commit_dir}\';',
+    f'python tools/run.py metrics_for_all"'
+  ])
+  print(cmd)
+  return(cmd)
+  # subprocess.run(cmd, shell=True,
+  #                encoding='utf-8',
+  #                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  # flash(cmd)
+  # flash('Results should arrive soon....')
+  # return redirect('commit/'+hexsha)
 
 
 # @app.route("/teamcity-ci/httpAuth/app/rest/builds/<branch>,#<sha>", methods=['GET','POST', 'PUT'])

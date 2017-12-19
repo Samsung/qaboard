@@ -13,34 +13,33 @@
 
         <div class="row-content-block second-block content-component-block flex-container-block">
           <div class="tree-ref-holder">
-            <form class="project-refs-form" action="/rymai/gitlab-ce/refs/switch" accept-charset="UTF-8" method="get">
-              <input type="hidden" name="destination" id="destination" value="commits">
-              <div class="dropdown">
-                <button class="dropdown-menu-toggle js-project-refs-dropdown" type="button" data-toggle="dropdown" data-selected="master" data-ref="master" data-refs-url="/commits" data-field-name="ref" data-submit-form-on-click="true"><span class="dropdown-toggle-text ">{{branch_label}}</span><i aria-hidden="true" data-hidden="true" class="fa fa-chevron-down"></i></button>
-                <div class="dropdown-menu dropdown-menu-selectable git-revision-dropdown">
-                <div class="dropdown-title"><span>Switch branch/tag</span><button class="dropdown-title-button dropdown-menu-close" aria-label="Close" type="button"><i aria-hidden="true" data-hidden="true" class="fa fa-times dropdown-menu-close-icon"></i></button></div>
-                <div class="dropdown-input"><input type="search" id="" class="dropdown-input-field" placeholder="Search branches and tags" autocomplete="off" value=""><i aria-hidden="true" data-hidden="true" class="fa fa-search dropdown-input-search"></i><i role="button" aria-hidden="true" data-hidden="true" class="fa fa-times dropdown-input-clear js-dropdown-input-clear"></i></div>
-                <div class="dropdown-content">{{branches}}</div>
-                <div class="dropdown-loading"><i aria-hidden="true" data-hidden="true" class="fa fa-spinner fa-spin"></i></div>
-              </div>
-            </div>
+            <form class="project-refs-form"  action="/branch" accept-charset="UTF-8" method="get">
+              <select name="branch" onChange="console.log(this); window.document.location.href=this.options[this.selectedIndex].value;">
+              {% if not branch%}
+              <option value="/" selected>All branches</option>
+              {%endif%}
+              {%for b in branches if 'origin' in b.name %}
+                <option value="/branch/{{b.name}}" {% if branch and b.name==branch.name %}selected{% endif %}>{{b}}</option>
+              {%endfor%}
+              </select>
           </form>
           </div>
-          <ul class="breadcrumb repo-breadcrumb">
-          <li><a href="/commits">psp_swip</a></li>
-          </ul>
           <div class="block-controls hidden-xs hidden-sm">
             <div class="control">
-            <form class="commits-search-form" action="/commits" accept-charset="UTF-8" method="GET">
-              <input type="search" name="search" id="commits-search" placeholder="{{'Filter by anything' if not search else 'Filter: '+search}}" class="form-control search-text-input input-short" spellcheck="false" value="">
+            <form class="commits-search-form" action="" accept-charset="UTF-8" method="GET">
+              <input type="search" name="search" id="commits-list-search" placeholder="{{'Filter by author, message...' if not search else 'Filter: '+search}}" class="form-control search-text-input input-short" spellcheck="false" value="">
             </form>
             </div>
           </div>
         </div>
 
+        {%macro svg_commit()%}
+        <svg style="fill: rgba(0,0,0,0.55); height: 10px; width: 10px text-align: center; display: inline-block; box-sizing: border-box; vertical-align: middle;"xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 18" enable-background="new 0 0 36 18"><path d="m34 7h-7.2c-.9-4-4.5-7-8.8-7s-7.9 3-8.8 7h-7.2c-1.1 0-2 .9-2 2 0 1.1.9 2 2 2h7.2c.9 4 4.5 7 8.8 7s7.9-3 8.8-7h7.2c1.1 0 2-.9 2-2 0-1.1-.9-2-2-2m-16 7c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5"></path></svg>
+        {%endmacro%}
+
         <ol class="list-unstyled content_list" id="commits-list">
           {% for commit_date, commits_at_date in ci_commits|groupby('authored_date')|reverse %}
-          <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} --- {{commits_at_date|length}} commits</li>
+          <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} &#8212; {{commits_at_date|length}} commits</li>
           <li class="commits-row">
             <ul class="content-list commit-list">
               {% for commit in commits_at_date %}
@@ -56,33 +55,33 @@
                     {{commit.gitcommit.hexsha}}
                     </span>
                     <div class="visible-xs-inline">
-                      <a class="ci-status-link ci-status-icon-failed " title="Delete this commit" onclick="delete_commit('{{commit.gitcommit.hexsha}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
+                      <a class="ci-status-link ci-status-icon-canceled " title="Delete this commit's outputs" onclick="delete_commit('{{commit.gitcommit.hexsha}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
                       </a>
                     </div>
-                    <!-- <button class="text-expander hidden-xs js-toggle-button" type="button">...</button> -->
-        <!--             <pre class="commit-row-description js-toggle-content">Remove unused dead singular assignee code in boards
-                    See merge request <a href="/gitlab-org/gitlab-ce/merge_requests/12077" data-original="!12077" data-link="false" data-project="13083" data-merge-request="3796628" data-reference-type="merge_request" title="Remove unused dead singular assignee code in boards" class="gfm gfm-merge_request has-tooltip">!12077</a></pre> -->
                     <div class="commiter">
-                      <a class="commit-author-link has-tooltip" title="" href="{{users[commit.username()]['web_url']}}" data-original-title="commit.gitcommit.committer.name">{{commit.gitcommit.committer.name}}</a> committed <time class="timeago" datetime="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}" data-toggle="tooltip" data-placement="top" data-container="body" data-original-title="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}">{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}</time> on <em><a href="/branch/{{commit.branch()}}">{{commit.branch()}}</a></em>
+                      <a class="commit-author-link has-tooltip" title="" href="{{users[commit.username()]['web_url']}}" data-original-title="commit.gitcommit.committer.name">
+                      {{svg_commit()}}
+                      <a style="color: #1b69b6;"class="commit-short-id" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}"> {{commit.gitcommit.hexsha[:8]}}</a></a>
+                      <i aria-hidden="true" class="fa fa-code-fork"></i><span><a href="/branch/{{commit.branch()}}">{{commit.branch()}}</a></span>
+                      <span style="color: rgba(0,0,0,0.55); white-space: nowrap; box-sizing: border-box;" class="finished-at hidden-xs hidden-sm"><i aria-hidden="true" class="fa fa-calendar"></i> <time class="timeago" datetime="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}" data-placement="top" data-container="body" title="" data-original-title="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}">{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}</time> by {{commit.gitcommit.committer.name}}</span>
                     </div>
                   </div>
-                  <div class="commit-results">
+                  <div class="commit-results" style="margin-left: auto;">
+                    <span>
                     {% if not commit.outputs()%}
-                    <a href="/s/{{commit.folder()}}/lsf.log">Failure! Check the LSF logs</a>
+                      <a style="color:red" href="/s/{{commit.folder()}}/lsf.log">Failure! Check the LSF logs</a>
                     {%else%}
-                    {% with height=20, width=40 %}
-                      {# include 'histo.html' #}
-                    {% endwith %}
-                    <span>{%if commit.metrics().rmse_median>0%}{{'{0:.2}cm'.format(100*commit.metrics().rmse_median)}} median RMSE over {%endif%}{{commit.outputs()|length}} recordings, <a style="text-decoration: underline;" href="/s/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a></span>
+                      {% if commit.number_failures() %}
+                        <a style="color: red; text-decoration: underline;" href="/s/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
+                      {% if commit.metrics().rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.metrics().rmse_median)}}</strong> RMSE {%endif%}
+                    </span>
                     {%endif%}
                   </div>
                   <div class="commit-actions flex-row hidden-xs">
-                    <a class="ci-status-link ci-status-icon-failed " title="Delete this commit" onclick="delete_commit('{{commit.gitcommit.hexsha}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
+<!--                     <a class="ci-status-link ci-status-icon-canceled " title="Delete this commit's outputs" onclick="delete_commit('{{commit.gitcommit.hexsha}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
                     </a>
-                    <!-- <button class="btn btn-clipboard btn-transparent" data-toggle="tooltip" data-placement="bottom" data-container="body" data-title="Copy commit SHA to clipboard" data-clipboard-text="{{commit.gitcommit.hexsha}}" type="button" title="Copy commit ID to clipboard"><i aria-hidden="true" class="fa fa-clipboard"></i></button> -->
-                    <!-- <a class="commit-short-id btn btn-transparent" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.short_id}}</a> -->            
-                    <a class="commit-short-id btn" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}">{{commit.gitcommit.hexsha[:8]}}</a>
-                    <a class="btn btn-default" href="/commit/{{commit.gitcommit.hexsha}}">Browse results</a>
+                    <a class="btn btn-warning" href="/commit/{{commit.gitcommit.hexsha}}">delete results</a>
+ -->                    <a style="margin-left: 10px" class="btn btn-primary" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.outputs()|length}} results</a>
                   </div>
                 </div>
               </li>
@@ -93,6 +92,7 @@
         </ol>
 
         <ul class="pagination clearfix">
+        {%if not branch%}<p><strong>The pagination is not accurate unless you only list commits from a <em>single branch</em>.</strong></p>{%endif%}
           <li class="prev {%if page==0%}disabled{%endif%}">{% if page>0 %}<a href="?page={{page-1}}">Prev</a>{%endif%}</li>
           <li class="page {%if min_page==page%}active{%endif%}"><a href="?page={{min_page}}">{{min_page}}</a></li>
           <li class="page {%if min_page+1==page%}active{%endif%}"><a href="?page={{min_page+1}}">{{min_page+1}}</a></li>
