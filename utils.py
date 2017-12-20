@@ -6,11 +6,9 @@ import datetime
 import requests
 
 
-# until we get a proper database, we cache things a bit
-# to understand the code, there is no need to read the following
-# it should be replaced by a proper database :) 
+# Until we get a proper database, we need to cache things a bit
 def cache(minutes=1440, func_skip_cache=None):
-    """Cache decorator with
+    """Cache function decorator with
     - minutes: time-to-live until the cache is expired. (default: 1day)
     - func_skip_cache: called on args[0], decides if we should skip the cache.
     """
@@ -30,29 +28,26 @@ def cache(minutes=1440, func_skip_cache=None):
     return cache_ttl_decorator
 
 
-
-
 def is_new(commit, hours=1):
     return datetime.datetime.now().astimezone()-commit.authored_datetime < datetime.timedelta(hours=hours)
 
 
-
 @cache(minutes=60)
 def get_users_per_name(search_filter):
+    """Retrievies users from Gitlab"""
     headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
     gitlab_api = "http://gitlab-srv/api/v4"
     r = requests.get(f'{gitlab_api}/users/?{search_filter}', headers=headers, params={'per_page':1000})
     users = r.json()
-    # we try to match via anything...
-    users_db = {}
+    # sadly we don't have access to email adresses since we are not gitlab admins
+    # and git authors are identified by emails...
+    users_db = {} # tries to matche a name/fullname/firstname/id to a gitlab user
     for u in users:
         users_db[u['name']] = u
         users_db[u['username']] = u
-        # print(u['name'])
         try:
             first_name, family_name = u['name'].lower().split(' ')
             user_id = first_name[0] + family_name[:5]
-            # print("user_id: "+user_id)
             users_db[user_id] = u
             if first_name not in users_db:
                 users_db[first_name] = u

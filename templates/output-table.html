@@ -1,11 +1,12 @@
 <div class="container">
+  <h2>Quality report</h2>
   <table class="u-full-width" sortable>
     <thead>
       <tr>
         <th></th>
-        <th colspan=3>RMSE [cm]</th>
-        <th colspan=3>AAPE [cm]</th>
-        <th colspan=3>Drift [%]</th>
+        <th colspan=2>RMSE [cm]</th>
+        <th colspan=2>AAPE [cm]</th>
+        <th colspan=2>Drift [%]</th>
 
       </tr>
       <tr>
@@ -13,14 +14,65 @@
 
         <th scope="col">new</th>
         <th scope="col">reference</th>
-        <th scope="col">improvement</th>
 
         <th scope="col">new</th>
         <th scope="col">reference</th>
-        <th scope="col">improvement</th>
 
         <th scope="col">new</th>
         <th scope="col">reference</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for recording, output in outputs.items() %}
+    {% with m = output.metrics %}
+      <tr>
+        <th scope="row"><a href="#recording-{{output.rel_filepath}}">{{recording}}</td>
+
+        {% macro qa_metric_columns(metric, ok_treshold) %}
+          <!-- Value for current commit -->
+          {%if metric in m%}
+            <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{'{0:.2}'.format(100*m[metric])}}</td>
+          {%else%}
+            <td>na</td>
+          {%endif%}
+
+          {%if recording in outputs_ref %}
+            {% with m_ref = outputs_ref[recording].metrics %}
+              <!-- Value for last commit -->
+              {%if metric in m_ref%}
+                <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{'{0:.2}'.format(100*m_ref[metric])}}</td>
+              {%else%}
+                <td>na</td>
+              {%endif%}
+            {%endwith%}
+          {%else%}
+            <td>na</td>
+          {%endif%}
+        {% endmacro%}
+
+        {{ qa_metric_columns('translation_rmse', 0.01) }}
+        {{ qa_metric_columns('aape', 0.01) }}
+        {{ qa_metric_columns('final_drift_pc', 0.01) }}
+
+      </tr>
+    {% endwith %}
+    {%endfor%}
+    </tbody>
+  </table>
+
+  <h2>Improvement report</h2>
+  <table class="u-full-width" sortable>
+    <thead>
+      <tr>
+        <th></th>
+        <th>RMSE [cm]</th>
+        <th>AAPE [cm]</th>
+        <th>Drift [%]</th>
+      </tr>
+      <tr>
+        <th scope="col"></th>
+        <th scope="col">improvement</th>
+        <th scope="col">improvement</th>
         <th scope="col">improvement</th>
       </tr>
     </thead>
@@ -30,23 +82,9 @@
       <tr>
         <th scope="row"><a href="#recording-{{output.rel_filepath}}">{{recording}}</td>
 
-        {% macro metric_columns(metric, ok_treshold) %}
-          <!-- Value for current commit -->
-          {%if metric in m%}
-            <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{'{0:.2}'.format(100*m[metric])}}</td>
-          {%else%}
-            <td/>
-          {%endif%}
-
+        {% macro delta_metric_columns(metric, ok_treshold) %}
           {%if recording in outputs_ref %}
             {% with m_ref = outputs_ref[recording].metrics %}
-              <!-- Value for last commit -->
-              {%if metric in m_ref%}
-                <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{'{0:.2}'.format(100*m_ref[metric])}}</td>
-              {%else%}
-                <td/>
-              {%endif%}
-
               <!-- Delta -->
               {%if metric in m and metric in m_ref%}
                 <td style="background: #{% if m[metric] <= m_ref[metric]%}91cf60{%else%}fc8d59{%endif%}">{{'{0:+.2}'.format(100*(m[metric]-m_ref[metric]))}}</td>
@@ -55,14 +93,13 @@
               {%endif%}
             {%endwith%}
           {%else%}
-            <td/>
-            <td/>
+            <td>na</td>
           {%endif%}
         {% endmacro%}
 
-        {{ metric_columns('translation_rmse', 0.01) }}
-        {{ metric_columns('aape', 0.01) }}
-        {{ metric_columns('final_drift_pc', 0.01) }}
+        {{ delta_metric_columns('translation_rmse') }}
+        {{ delta_metric_columns('aape') }}
+        {{ delta_metric_columns('final_drift_pc') }}
 
       </tr>
     {% endwith %}

@@ -1,3 +1,5 @@
+"""
+"""
 import datetime
 import json
 import shutil
@@ -9,31 +11,13 @@ import numpy as np
 
 from utils import cache, is_new
 from utils import get_users_per_name
+from git_utils import find_branch, list_commits
 from config import *
-
-from git import Repo
-repo = Repo("psp_swip")
 
 
 @cache(minutes=5)
 def recordings(directory=default_recordings_directory):
     return [p.relative_to(directory) for p in directory.glob('**/*.bin')]
-
-if not Path('data/commits.pkl').exists():
-    commit_branches = {}
-    pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
-
-commit_branches = pickle.load(open('data/commits.pkl', 'rb'))
-
-def find_branch(commit_hash):
-    if commit_hash in commit_branches:
-      return commit_branches[commit_hash]
-    else:
-      std_out = repo.git.branch(contains=commit_hash, remotes=True)
-      line = std_out.splitlines()[0]
-      commit_branches[commit_hash] = line.split(' ')[-1]
-      pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
-    return commit_branches[commit_hash]
 
 
 @cache(func_skip_cache=is_new)
@@ -174,3 +158,22 @@ def aggregated_metrics(outputs):
         'final_drift_pc_median': np.median(final_drift_pc),
         'final_drift_pc_bad': np.mean(final_drift_pc_is_bad),
     }
+
+
+def latest_successful_commit(branch='origin/develop'):
+  """Returns the latest commit on a given branch where we got outputs."""
+  # one of those should be successful
+  ci_commits = [CiCommit(c) for c in list_commits(branch, page=0, max_count=20)]
+  print(ci_commits)
+  # likely we fetched the outputs before so it should be fast
+  ci_commits = [c for c in ci_commits if c.outputs()]
+  return ci_commits[0] if ci_commits else None 
+
+def parent_successful_commit(ci_commit):
+  """Returns a commit's latest successful parent."""
+  # we don't handle merges that well
+  parent = CiCommit(commit.gitcommit.parents[0])
+  while not parent.outputs():
+    parent = CiCommit(parent.gitcommit.parents[0])
+  return parent
+

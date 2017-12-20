@@ -76,10 +76,16 @@
     <div class="row">
       <div class="twelve columns">
         <!-- <label for="reference">Compare against an other version</label> -->
-        <input class="" placeholder="Commit id (git sha1 hash)" id="reference" name="reference" type="text">
-        <input class="button-primary" value="Compare against an other version" type="submit">
+        <a class="button button-primary" href="?reference={{commit.gitcommit.parents[0].hexsha}}{%if show_table%}&show_table=true{%endif%}">Compare to previous commit</a>
+        <input class="button" value="Compare against an other version" type="submit">
+        <input class="" placeholder="e.g. {{commit.gitcommit.parents[0].hexsha[:12]}}" id="reference" name="reference" type="text">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="twelve columns">
+        <a class="button button-primary" href="?show_table=true&reference={{commit_ref.gitcommit.hexsha}}">Show a summary table</a>
         <a class="button" href="#extra-recordings">Run on more recordings</a>
-        <a class="button" href="?show_table=true">Show a summary table</a>
       </div>
     </div>
   </form>

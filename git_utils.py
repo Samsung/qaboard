@@ -1,50 +1,56 @@
-from pathlib import Path
 import pickle
-from models import CiCommit
+from pathlib import Path
 
 from git import Repo, Commit, RemoteProgress
 
-
+# it needs to be cloned beforehand
 repo = Repo("psp_swip")
+
 # we cache the lists of recent commits, it's very slow otherwise...
 git_cache = Path('data/list_commits.pkl')
 
+
+
 def list_commits(branch, page, max_count):
-  """Returns recent commits on a given branch. If none is chosen, go through all branches"""
+  """Returns recent commits on a given branch.
+  If None is chosen, it goes through all branches, but currently the count """
   with git_cache.open('rb') as f:
     lists_hexsha = pickle.load(f)
 
   max_count = min(max_count, 100)
 
   if (branch, page, max_count) in lists_hexsha:
-    print('cached!')
     hashes = lists_hexsha[(branch, page, max_count)]
-    print(hashes)
     return [repo.commit(c) for c in hashes]
 
-  commits = []
-  branches = [branch] if branch is not None else repo.refs
-  for b in branches:
-    # print(f'Listing <={max_count} commits in `{b}`')
-    for c in repo.iter_commits(b, max_count=max_count, skip=page*max_count):
-      commits.append(c)
+  if branch is not None:
+    commits = repo.iter_commits(branch, max_count=max_count, skip=page*max_count)
+    return list(commits)
+  else:
+    # this is not accurate
+    commits = []
+    for ref in repo.refs:
+      for c in repo.iter_commits(ref, max_count=max_count, skip=page*max_count):
+        commits.append(c)
 
-  commits_set = set([c for c in commits])
-  ci_commits = [CiCommit(c) for c in commits_set]
-  ci_commits = [c for c in ci_commits if c.build_succeeded()]
-  ci_commits.sort(key=lambda c: c.gitcommit.authored_datetime, reverse=True)
-  ci_commits = ci_commits[:max_count]
+  # remove duplicates
+  commits = list(set(commits))
 
-  print(f"found {len(commits)} commits in {len(branches)}")
+  commits.sort(key=lambda c: c.authored_datetime, reverse=True)
+  commits = commits[:max_count]
+
+  print(f"found {len(commits)} commits")
   with git_cache.open('wb') as f:
-    lists_hexsha[(branch, page, max_count)] = [c.gitcommit.hexsha for c in ci_commits]
+    lists_hexsha[(branch, page, max_count)] = [c.hexsha for c in commits]
     print(f'saving..{list(lists_hexsha.keys())}')
     pickle.dump(lists_hexsha, f)
   return commits
 
-# caches recent commits - listing them is slow...
+
+
+
 def git_pull():
-  """Updates the repo and returns the 20 last commits.."""
+  """Updates the repo and warms the cache listing the latests commits.."""
   class MyProgressPrinter(RemoteProgress):
     def update(self, op_code, cur_count, max_count=100.0, message="[No message]"):
       print('...')
@@ -57,5 +63,25 @@ def git_pull():
     pickle.dump({}, f)
   list_commits(None, 0, 20)
   list_commits(None, 1, 20)
-  # list_commits('develop', 0, 20)
-  # list_commits('develop', 1, 20)
+  list_commits('origin/develop', 0, 20)
+  list_commits('origin/develop', 1, 20)
+
+
+# find_branch below is slow, so we cache results
+# we save to a file to avoid threading isses
+if not Path('data/commits.pkl').exists():
+    commit_branches = {}
+    pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
+
+commit_branches = pickle.load(open('data/commits.pkl', 'rb'))
+
+def find_branch(commit_hash):
+  """Tries to get from which branch a commit comes from. It's a *guess*."""
+  if commit_hash in commit_branches:
+    return commit_branches[commit_hash]
+  else:
+    std_out = repo.git.branch(contains=commit_hash, remotes=True)
+    line = std_out.splitlines()[0]
+    commit_branches[commit_hash] = line.split(' ')[-1]
+    pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
+  return commit_branches[commit_hash]
