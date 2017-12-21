@@ -39,9 +39,12 @@ def serve_static(filename):
   """Serve static files: images, csv files, videos..."""
   # without changing the MIME, logs are downloaded and not displayed in the browser
   # note: if we serve static assets with a reverse proxy (eg nginx) we also have to set this
-  options = {mimetype: "text/plain"} if filename.endswith('lsf.log') else {}
-  return send_from_directory(str(ci_commits_directory), filename, **options)
+  options = {"mimetype": "text/plain"} if filename.endswith('lsf.log') else {}
+  return send_from_directory(str(ci_directory), filename, **options)
 
+@app.route("/coverage")
+def coverage_report():
+  return redirect('/s/branches/develop/coverage/index.html')
 
 @app.route("/")
 @app.route("/commits")

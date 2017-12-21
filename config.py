@@ -12,4 +12,4 @@ if os.name == 'nt':
 	default_recordings_directory  = Path('//netapp/algo_data/Sebastien/DVS_SLAM/Database/')
 
 
-ci_commits_directory = ci_directory / 'commits'
+ci_commits_directory = ci_directory

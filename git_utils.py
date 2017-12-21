@@ -25,7 +25,6 @@ def list_commits(branch, page, max_count):
 
   if branch is not None:
     commits = repo.iter_commits(branch, max_count=max_count, skip=page*max_count)
-    return list(commits)
   else:
     # this is not accurate
     commits = []

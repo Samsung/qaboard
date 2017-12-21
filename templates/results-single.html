@@ -18,12 +18,12 @@
 
     {% macro info_commit(c, white_values=False) %}
       <h3 class="section-heading">
-        <strong><a href="/branch/{{branch}}">{{branch}}:</a></strong> <a href='http://gitlab-srv/dvs/psp_swip/commit/{{c.gitcommit.hexsha}}'>{{c.gitcommit.hexsha[:8]}}</a></strong></h3>
+        <strong><a href="/branch/{{branch}}">{{branch}}:</a></strong> <a href='http://gitlab-srv/dvs/psp_swip/commits/{{c.gitcommit.hexsha}}'>{{c.gitcommit.hexsha[:8]}}</a></strong></h3>
       <p class="section-description"><pre style="overflow: hidden; text-overflow: ellipsis;">{{c.gitcommit.message.replace('\n', ' ')}}</pre></p>
       <p>
         {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{outputs|length}} recordings.<br>
         <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
-        <strong><a class="button white-outline" href="/s/{{c.folder()}}/lsf.log">Logs {%if c.number_failures()%}for {{c.number_failures()}} failures{%endif%}</a></strong>
+        <strong><a class="button white-outline" href="/s/commits/{{c.folder()}}/lsf.log">Logs {%if c.number_failures()%}for {{c.number_failures()}} failures{%endif%}</a></strong>
 
       </p>
 

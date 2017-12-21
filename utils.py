@@ -49,6 +49,7 @@ def get_users_per_name(search_filter):
             first_name, family_name = u['name'].lower().split(' ')
             user_id = first_name[0] + family_name[:5]
             users_db[user_id] = u
+            users_db[f'{first_name}.{family_name}'] = u
             if first_name not in users_db:
                 users_db[first_name] = u
             else:

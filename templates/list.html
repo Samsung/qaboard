@@ -37,6 +37,10 @@
         <svg style="fill: rgba(0,0,0,0.55); height: 10px; width: 10px text-align: center; display: inline-block; box-sizing: border-box; vertical-align: middle;"xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 18" enable-background="new 0 0 36 18"><path d="m34 7h-7.2c-.9-4-4.5-7-8.8-7s-7.9 3-8.8 7h-7.2c-1.1 0-2 .9-2 2 0 1.1.9 2 2 2h7.2c.9 4 4.5 7 8.8 7s7.9-3 8.8-7h7.2c1.1 0 2-.9 2-2 0-1.1-.9-2-2-2m-16 7c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5"></path></svg>
         {%endmacro%}
 
+        <a href="/s/branches/develop/coverage/index.html"><img alt="coverage report on develop" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a>
+        
+
+
         <ol class="list-unstyled content_list" id="commits-list">
           {% for commit_date, commits_at_date in ci_commits|groupby('authored_date')|reverse %}
           <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} &#8212; {{commits_at_date|length}} commits</li>
@@ -45,7 +49,7 @@
               {% for commit in commits_at_date %}
               <li class="commit flex-list js-toggle-container" id="commit-{{commit.gitcommit.hexsha}}">
                 <div class="avatar-cell hidden-xs">
-                 <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36 hidden-xs" alt="{{commit.gitcommit.committer.name}}" title="" data-container="body" src="{{users[commit.username()]['avatar_url']}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
+                 <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36 hidden-xs" alt="{{commit.gitcommit.committer.name}}" title="" data-container="body" src="{{users[commit.username()]['avatar_url'] if commit.username() in users else ''}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
                 </div>
                 <div class="commit-detail">
                   <div class="commit-content">
@@ -59,20 +63,20 @@
                       </a>
                     </div>
                     <div class="commiter">
-                      <a class="commit-author-link has-tooltip" title="" href="{{users[commit.username()]['web_url']}}" data-original-title="commit.gitcommit.committer.name">
+                      <a class="commit-author-link has-tooltip" title="" href="{{users[commit.username()]['web_url'] if commit.username() in users else ''}}" data-original-title="commit.gitcommit.committer.name">
                       {{svg_commit()}}
                       <a style="color: #1b69b6;"class="commit-short-id" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}"> {{commit.gitcommit.hexsha[:8]}}</a></a>
                       <i aria-hidden="true" class="fa fa-code-fork"></i><span><a href="/branch/{{commit.branch()}}">{{commit.branch()}}</a></span>
                       <span style="color: rgba(0,0,0,0.55); white-space: nowrap; box-sizing: border-box;" class="finished-at hidden-xs hidden-sm"><i aria-hidden="true" class="fa fa-calendar"></i> <time class="timeago" datetime="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}" data-placement="top" data-container="body" title="" data-original-title="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}">{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}</time> by {{commit.gitcommit.committer.name}}</span>
-                    </div>
+                      </div>
                   </div>
                   <div class="commit-results" style="margin-left: auto;">
                     <span>
                     {% if not commit.outputs()%}
-                      <a style="color:red" href="/s/{{commit.folder()}}/lsf.log">Failure! Check the LSF logs</a>
+                      <a style="color:red" href="/s/commits/{{commit.folder()}}/lsf.log">Failure! Check the LSF logs</a>
                     {%else%}
                       {% if commit.number_failures() %}
-                        <a style="color: red; text-decoration: underline;" href="/s/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
+                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
                       {% if commit.metrics().rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.metrics().rmse_median)}}</strong> RMSE {%endif%}
                     </span>
                     {%endif%}

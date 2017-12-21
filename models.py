@@ -24,9 +24,9 @@ def recordings(directory=default_recordings_directory):
 class CiCommit():
     def __init__(self, commit):
         self.gitcommit = commit
-        self.commit_dir = ci_commits_directory / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
+        self.commit_dir = ci_directory / 'commits' / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
         self.output_dir = self.commit_dir / 'output'
-        self.commit_dir_url = '/s'/self.commit_dir.relative_to(ci_commits_directory)
+        self.commit_dir_url = '/s/'/self.commit_dir.relative_to(ci_directory)
 
         # we use this to group commits together easily on index pages
         self.authored_date = self.gitcommit.authored_datetime.date()
@@ -47,11 +47,11 @@ class CiCommit():
 
 
     def build_succeeded(self):
-        lsf_logs = ci_commits_directory / self.folder() /"lsf.log"
+        lsf_logs = ci_directory / 'commits' / self.folder() /"lsf.log"
         return lsf_logs.exists()
 
     def number_failures(self):
-        lsf_logs = ci_commits_directory / self.folder() /"lsf.log"
+        lsf_logs = ci_directory / 'commits' / self.folder() /"lsf.log"
         with lsf_logs.open('r') as f:
             failures = 0
             for line in f:
