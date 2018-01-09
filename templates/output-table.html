@@ -1,76 +1,18 @@
 <div class="container">
-  <h2>Quality report</h2>
-  <table class="u-full-width" sortable>
-    <thead>
-      <tr>
-        <th></th>
-        <th colspan=2>RMSE [cm]</th>
-        <th colspan=2>AAPE [cm]</th>
-        <th colspan=2>Drift [%]</th>
-
-      </tr>
-      <tr>
-        <th scope="col"></th>
-
-        <th scope="col">new</th>
-        <th scope="col">reference</th>
-
-        <th scope="col">new</th>
-        <th scope="col">reference</th>
-
-        <th scope="col">new</th>
-        <th scope="col">reference</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for recording, output in outputs.items() %}
-    {% with m = output.metrics %}
-      <tr>
-        <th scope="row"><a href="#recording-{{output.rel_filepath}}">{{recording}}</td>
-
-        {% macro qa_metric_columns(metric, ok_treshold) %}
-          <!-- Value for current commit -->
-          {%if metric in m%}
-            <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{'{0:.2}'.format(100*m[metric])}}</td>
-          {%else%}
-            <td>na</td>
-          {%endif%}
-
-          {%if recording in outputs_ref %}
-            {% with m_ref = outputs_ref[recording].metrics %}
-              <!-- Value for last commit -->
-              {%if metric in m_ref%}
-                <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{'{0:.2}'.format(100*m_ref[metric])}}</td>
-              {%else%}
-                <td>na</td>
-              {%endif%}
-            {%endwith%}
-          {%else%}
-            <td>na</td>
-          {%endif%}
-        {% endmacro%}
-
-        {{ qa_metric_columns('translation_rmse', 0.01) }}
-        {{ qa_metric_columns('aape', 0.01) }}
-        {{ qa_metric_columns('final_drift_pc', 0.01) }}
-
-      </tr>
-    {% endwith %}
-    {%endfor%}
-    </tbody>
-  </table>
 
   <h2>Improvement report</h2>
   <table class="u-full-width" sortable>
     <thead>
       <tr>
         <th></th>
-        <th>RMSE [cm]</th>
-        <th>AAPE [cm]</th>
-        <th>Drift [%]</th>
+        <th>tRMSE</th>
+        <th>AAPE</th>
+        <th>Drift</th>
+        <th>r_error</th>
       </tr>
       <tr>
         <th scope="col"></th>
+        <th scope="col">improvement</th>
         <th scope="col">improvement</th>
         <th scope="col">improvement</th>
         <th scope="col">improvement</th>
@@ -87,23 +29,102 @@
             {% with m_ref = outputs_ref[recording].metrics %}
               <!-- Delta -->
               {%if metric in m and metric in m_ref%}
-                <td style="background: #{% if m[metric] <= m_ref[metric]%}91cf60{%else%}fc8d59{%endif%}">{{'{0:+.2}'.format(100*(m[metric]-m_ref[metric]))}}</td>
+                {% with delta =  m[metric]-m_ref[metric] %}
+                <td style="background: rgba{{palette_deltas.to_rgba(delta/m_ref[metric], bytes=True)}}">{{'{0:+.2}'.format(100*(m[metric]-m_ref[metric]))}}</td>
+                {%endwith%}
               {%else%}
-                <td/>
+                <td style="background:#aaa;">na</td>
               {%endif%}
             {%endwith%}
           {%else%}
-            <td>na</td>
+            <td style="background:#aaa;">na</td>
           {%endif%}
         {% endmacro%}
 
         {{ delta_metric_columns('translation_rmse') }}
         {{ delta_metric_columns('aape') }}
         {{ delta_metric_columns('final_drift_pc') }}
+        {{ delta_metric_columns('rotation_mean') }}
 
       </tr>
     {% endwith %}
     {%endfor%}
     </tbody>
   </table>
+
+
+  <h2>Quality report</h2>
+  <table class="u-full-width" sortable>
+    <thead>
+      <tr>
+        <th></th>
+        <th colspan=2>t_RMSE [cm]</th>
+        <th colspan=2>AAPE [cm]</th>
+        <th colspan=2>Drift [%]</th>
+        <th colspan=2>r_error [°]</th>
+
+      </tr>
+      <tr>
+        <th scope="col"></th>
+
+        <th scope="col">new</th>
+        <th scope="col">reference</th>
+
+        <th scope="col">new</th>
+        <th scope="col">reference</th>
+
+        <th scope="col">new</th>
+        <th scope="col">reference</th>
+
+        <th scope="col">new</th>
+        <th scope="col">reference</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for recording, output in outputs.items() %}
+    {% with m = output.metrics %}
+      <tr>
+        <th scope="row"><a href="#recording-{{output.rel_filepath}}">{{recording}}</td>
+
+        {% macro qa_metric_columns(metric, ok_treshold, formatter='') %}
+          <!-- Value for current commit -->
+          {%if metric in m%}
+            {%if metric not in ['rotation_mean', 'final_drift_pc'] %}
+            <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(100*m[metric])}}</td>
+            {%else%}
+            <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(m[metric])}}</td>
+            {%endif%}
+          {%else%}
+            <td style="background:#aaa;">na</td>
+          {%endif%}
+
+          {%if recording in outputs_ref %}
+            {% with m_ref = outputs_ref[recording].metrics %}
+              <!-- Value for last commit -->
+              {%if metric in m_ref%}
+                {%if metric not in ['rotation_mean', 'final_drift_pc'] %}
+                <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(100*m_ref[metric])}}</td>
+                {%else%}
+                <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(m_ref[metric])}}</td>
+                {%endif%}
+              {%else%}
+                <td>na</td>
+              {%endif%}
+            {%endwith%}
+          {%else%}
+            <td style="background:#aaa;">na</td>
+          {%endif%}
+        {% endmacro%}
+
+        {{ qa_metric_columns('translation_rmse', 0.01, '{0:0.2}') }}
+        {{ qa_metric_columns('aape', 0.01, '{0:0.2}') }}
+        {{ qa_metric_columns('final_drift_pc', 0.01, '{0:0.2%}') }}
+        {{ qa_metric_columns('rotation_mean', 1.5, '{0:.2}') }}
+
+      </tr>
+    {% endwith %}
+    {%endfor%}
+    </tbody>
+  </table>
+
 </div>

@@ -46,22 +46,33 @@ class CiCommit():
         self.ci_run_datetime = datetime.datetime.now().astimezone()
 
 
+    def run_parameters(self):
+        lsf_logs = ci_directory / 'commits' / self.folder() /"params.json"
+        print(lsf_logs)
+        if lsf_logs.exists():
+            with lsf_logs.open() as f:
+                return json.load(f)
+        else:
+            return {}
+
+    def folder(self):
+        short_hash = self.gitcommit.hexsha[:8]
+        return f"{self.gitcommit.authored_date}__git__{short_hash}"
+
     def build_succeeded(self):
         lsf_logs = ci_directory / 'commits' / self.folder() /"lsf.log"
         return lsf_logs.exists()
 
     def number_failures(self):
         lsf_logs = ci_directory / 'commits' / self.folder() /"lsf.log"
+        if not lsf_logs.exists():
+            return '[ALL]'
         with lsf_logs.open('r') as f:
             failures = 0
             for line in f:
                 if re.search("Exited with exit code", line):
                     failures += 1
         return failures
-
-    def folder(self):
-        short_hash = self.gitcommit.hexsha[:8]
-        return f"{self.gitcommit.authored_date}__git__{short_hash}"
 
     def username(self):
         return self.gitcommit.author.name
@@ -70,8 +81,16 @@ class CiCommit():
         self._branch = find_branch(self.gitcommit.hexsha)
         return self._branch
 
-    def outputs(self):
+    def outputs(self, filename_filter='', filename_exclude=''):
         """ Gather the available results."""
+        if (filename_filter or filename_exclude) and self._outputs:
+            outputs = self._outputs
+            if filename_filter:
+                outputs = {k:v for k,v in outputs.items() if filename_filter in k}
+            if filename_exclude:
+                outputs = {k:v for k,v in outputs.items() if not filename_exclude in k}
+            return outputs
+
         if not self._failed and not self._outputs or self.updating():
             self._outputs = {}
             self._metrics = {}
@@ -117,17 +136,20 @@ class CiCommit():
         return self._outputs
 
 
-    def metrics(self):
+    def aggregated_metrics(self, filename_filter='', filename_exclude=''):
+        # in this case we avoid any caching
+        if filename_filter or filename_exclude:
+            outputs = self.outputs(filename_filter, filename_exclude)
+            return aggregated_metrics(outputs)
+
         if not self._metrics:
             self._metrics = aggregated_metrics(self.outputs())
         return self._metrics
 
-    def rmses(self):
-        return [o['metrics']['translation_rmse'] for o in self.outputs().values() if 'translation_rmse' in o['metrics']]
-    def aapes(self):
-        return [o['metrics']['aape'] for o in self.outputs().values() if 'aape' in o['metrics']]
-    def final_drifts_pc(self):
-        return [o['metrics']['final_drift_pc'] for o in self.outputs().values() if 'final_drift_pc' in o['metrics']]
+    def metrics(self, metric, outputs=None):
+        if not outputs:
+            outputs = self.outputs()
+        return [o['metrics'][metric] for o in outputs.values() if metric in o['metrics']]
 
     def delete(self):
         print(f"removing {self.commit_dir}")
@@ -136,22 +158,39 @@ class CiCommit():
 
 def aggregated_metrics(outputs):
     metrics = [o['metrics'] for o in outputs.values()]
-    compute_time = [m['compute_time']/m['duration'] for m in metrics if 'compute_time ' in m]
-    rmse = [m['translation_rmse'] for m in metrics if 'translation_rmse' in m]
-    aape = [m['aape'] for m in metrics if 'aape' in m]
-    final_drift_pc = [m['final_drift_pc'] for m in metrics if 'final_drift_pc' in m]
 
-    rmse_is_bad = [m['translation_rmse']>0.005 for m in metrics if 'translation_rmse' in m]
-    aape_is_bad = [m['aape']>0.005 for m in metrics if 'aape' in m]
+    compute_time = [m['compute_time']/m['duration'] for m in metrics if 'compute_time ' in m]
+
+    translation_rmse = [m['translation_rmse'] for m in metrics if 'translation_rmse' in m]
+    rotation_rmse = [m['rotation_rmse'] for m in metrics if 'rotation_rmse' in m]
+    rotation_mean = [m['rotation_mean'] for m in metrics if 'rotation_mean' in m]
+    final_drift_pc = [m['final_drift_pc'] for m in metrics if 'final_drift_pc' in m]
+    aape = [m['aape'] for m in metrics if 'aape' in m]
+
+    translation_rmse_is_bad = [m['translation_rmse']>0.01 for m in metrics if 'translation_rmse' in m]
+    rotation_rmse_is_bad = [m['rotation_rmse']>1.5 for m in metrics if 'rotation_rmse' in m]
+    rotation_mean_is_bad = [m['rotation_mean']>1.5 for m in metrics if 'rotation_mean' in m]
     final_drift_pc_is_bad = [m['final_drift_pc']>0.01 for m in metrics if 'final_drift_pc' in m]
+    aape_is_bad = [m['aape']>0.01 for m in metrics if 'aape' in m]
 
     return {
         'compute_time_median': 1000*np.median(compute_time),
         'pc_where_lost_at_least_once': np.mean([m['nb_lost']>0 for m in metrics]),
         'total_time_lost_pc_mean': np.mean([m['total_time_lost_pc'] for m in metrics]),
 
-        'rmse_median': np.median(rmse),
-        'rmse_pc_bad': np.mean(rmse_is_bad),
+        'translation_rmse_median': np.median(translation_rmse),
+        'translation_rmse_average': np.mean(translation_rmse),
+        'translation_rmse_pc_bad': np.mean(translation_rmse_is_bad),
+
+        'rotation_rmse_median': np.median(rotation_rmse),
+        'rotation_rmse_average': np.mean(rotation_rmse),
+        'rotation_rmse_pc_bad': np.mean(rotation_rmse_is_bad),
+
+
+        'rotation_mean_median': np.median(rotation_mean),
+        'rotation_mean_average': np.mean(rotation_mean),
+        'rotation_mean_pc_bad': np.mean(rotation_mean_is_bad),
+
         'aape_median': np.median(aape),
         'aape_pc_bad': np.mean(aape_is_bad),
 
@@ -163,11 +202,14 @@ def aggregated_metrics(outputs):
 def latest_successful_commit(branch='origin/develop'):
   """Returns the latest commit on a given branch where we got outputs."""
   # one of those should be successful
-  ci_commits = [CiCommit(c) for c in list_commits(branch, page=0, max_count=20)]
-  print(ci_commits)
-  # likely we fetched the outputs before so it should be fast
-  ci_commits = [c for c in ci_commits if c.outputs()]
-  return ci_commits[0] if ci_commits else None 
+  page = 0
+  while page<10:
+    ci_commits = [CiCommit(c) for c in list_commits(branch, page=page, max_count=20)]
+    # likely we fetched the outputs before so it should be fast
+    ci_commits = [c for c in ci_commits if len(c.outputs())>10]
+    if ci_commits:
+      return ci_commits[0]  
+    page = page + 1
 
 def parent_successful_commit(ci_commit):
   """Returns a commit's latest successful parent."""

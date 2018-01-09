@@ -1,19 +1,14 @@
   <div class="row" style="heigh:100px">
-    <div class="one-half column">
-     <div id="histograms-{{commit.gitcommit.hexsha}}-rmse"></div>
-    </div>
-    <div class="one-half column">
-      <div id="histograms-{{commit.gitcommit.hexsha}}-aape"></div>
-    </div>
-  </div>
-
-  <div class="row" style="heigh:100px">
     <div class="one-third column">
       <div id="boxes-{{commit.gitcommit.hexsha}}-aape"></div>
     </div>
+<!--     <div class="one-third column">
+     <div id="boxes-{{commit.gitcommit.hexsha}}-translation-rmse"></div>
+    </div> -->
     <div class="one-third column">
-     <div id="boxes-{{commit.gitcommit.hexsha}}-rmse"></div>
+      <div id="boxes-{{commit.gitcommit.hexsha}}-rotation-mean"></div>
     </div>
+
     <div class="one-third column">
      <div id="boxes-{{commit.gitcommit.hexsha}}-drift"></div>
     </div>
@@ -29,26 +24,50 @@
   var colors_a = [color_a, color_ref_a];
 
   var xdata = ['new (offline)', 'reference (offline)'];
-  var yData_rmse = [
-    {{ commit.rmses()     | tojson }}.map(e=>100*e),
-    {{ commit_ref.rmses() | tojson }}.map(e=>100*e),
+  // var yData_translation_rmse = [
+  //   {{ commit.metrics('translation_rmse', outputs)     | tojson }}.map(e=>100*e),
+  //   {{ commit_ref.metrics('translation_rmse',outputs_ref) | tojson }}.map(e=>100*e),
+  // ];
+  var yData_rotation_mean = [
+    {{ commit.metrics('rotation_mean', outputs)     | tojson }}.map(e=>e),
+    {{ commit_ref.metrics('rotation_mean',outputs_ref) | tojson }}.map(e=>e),
   ];
   var yData_aape = [
-    {{ commit.aapes()     | tojson }}.map(e=>100*e),
-    {{ commit_ref.aapes() | tojson }}.map(e=>100*e),
+    {{ commit.metrics('aape', outputs)     | tojson }}.map(e=>100*e),
+    {{ commit_ref.metrics('aape', outputs_ref) | tojson }}.map(e=>100*e),
   ];
   var yData_drift = [
-    {{ commit.final_drifts_pc()     | tojson }}.map(e=>100*e),
-    {{ commit_ref.final_drifts_pc() | tojson }}.map(e=>100*e),
+    {{ commit.metrics('final_drift_pc', outputs)     | tojson }}.map(e=>100*e),
+    {{ commit_ref.metrics('final_drift_pc', outputs_ref) | tojson }}.map(e=>100*e),
   ];
-  var data_rmse = [];
+  // var data_translation_rmse = [];
+  var data_rotation_mean = [];
   var data_aape = [];
   var data_drift = [];
 
   for ( var i = 0; i < xdata.length; i ++ ) {
+    // var result = {
+    //   type: 'box',
+    //   y: yData_translation_rmse[i],
+    //   name: xdata[i],
+    //   boxpoints: 'all',
+    //   jitter: 0.5,
+    //   whiskerwidth: 0.3,
+    //   fillcolor: colors_a[i],
+    //   marker: {
+    //     size: 8,
+    //     color: colors[i],
+    //   },
+    //   line: {
+    //     width: 2,
+    //     color: colors[i],
+    //   }
+    // };
+    // data_translation_rmse.push(result);
+
     var result = {
       type: 'box',
-      y: yData_rmse[i],
+      y: yData_rotation_mean[i],
       name: xdata[i],
       boxpoints: 'all',
       jitter: 0.5,
@@ -63,7 +82,8 @@
         color: colors[i],
       }
     };
-    data_rmse.push(result);
+    data_rotation_mean.push(result);
+
     var result = {
       type: 'box',
       y: yData_aape[i],
@@ -82,6 +102,7 @@
       }
     };
     data_aape.push(result);
+
     var result = {
       type: 'box',
       y: yData_drift[i],
@@ -120,7 +141,7 @@
           gridcolor: 'rgb(255, 255, 255)',
           gridwidth: 1,
       },
-      xaxis: {title: "RMSE [cm]", color: "rgba(244,255,255,0.8)", fixedrange: true},
+      xaxis: {color: "rgba(244,255,255,0.8)", fixedrange: true},
       showlegend: false,
       margin: {
           l: 40,
@@ -134,10 +155,16 @@
       plot_bgcolor: 'rgba(0,0,0,0)',
       paper_bgcolor: 'rgba(0,0,0,0)',
   };
-  Plotly.newPlot("boxes-{{commit.gitcommit.hexsha}}-rmse", data_rmse, layout, {displayModeBar: false});
+
+  // layout.xaxis.title = 'RMSE [cm]';
+  // Plotly.newPlot("boxes-{{commit.gitcommit.hexsha}}-translation-rmse", data_translation_rmse, layout, {displayModeBar: false});
+
   layout.xaxis.title = 'AAPE [cm]';
   Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-aape', data_aape, layout, {displayModeBar: false});
-  layout.xaxis.title = 'Drift [%]';
+
+  layout.xaxis.title = 'Final relative drift [%]';
   Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-drift', data_drift, layout, {displayModeBar: false});
 
+  layout.xaxis.title = 'Rotation RMSE [°]';
+  Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-rotation-mean', data_rotation_mean, layout, {displayModeBar: false});
 </script>

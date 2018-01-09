@@ -6,7 +6,8 @@ Debug SLAM results faster.
 - The only package dependency is `gitpython`; if you don't have it:
 
 ```bash
-pip install gitpython
+conda install gitpython # use -k if behind Samsung's firewall..
+# pip install gitpython
 ```
 
 - You need to make a copy of the repository, it is used as the database of commit information:
@@ -21,6 +22,12 @@ pip install gitpython
 
 
 - *If needed*, tweak `config.py` to specify where to look for CI outputs, etc.
+
+Tuning: Install [https://nodejs.org/en/download/package-manager/#debian-and-ubuntu-based-linux-distributions](install nodejs)
+
+```
+sudo apt-get install nodejs npm
+```
 
 ## How to run
 ```bash
@@ -41,6 +48,7 @@ The application expects SLAM results to be saved like so:
 1511696118__git__07de8585/
   lsf.log
   params.json
+  app_params.json
   swip_slam_tests
   output/
          my/recording1/                        # from $database/my/recording1.bin
@@ -49,6 +57,19 @@ The application expects SLAM results to be saved like so:
                        results.mp4             # rendering of the results
                        metrics.json            # all the metrics, time offset vs ground-truth...
 
+  tuning.json
+    "batchfile": 
+    "batch":
+    "manual" : {
+      radius: {explicit [0.1, 0.2]}
+      radius: {from, to, step, number}
+    }
+    "automated" : {
+      iterations: 300
+
+    }
+  tuning/hash(params)
+  tuning.db
 ```
 
 ## Architecture overview

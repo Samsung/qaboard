@@ -5,6 +5,43 @@
 <script src="{{ url_for('static', filename='javascript/jquery.timeago.js') }}"></script>
 
 
+
+{%macro badge(title, message, color) %}
+<svg xmlns="http://www.w3.org/2000/svg" width="98" height="20">
+  <linearGradient id="b" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+
+  <mask id="a">
+    <rect width="98" height="20" rx="3" fill="#fff"/>
+  </mask>
+
+  <g mask="url(#a)">
+    <path fill="#555" d="M0 0 h62 v20 H0 z"/>
+    <path fill="{{color}}" d="M62 0 h36 v20 H62 z"/>
+    <path fill="url(#b)" d="M0 0 h98 v20 H0 z"/>
+  </g>
+
+  <g fill="#fff" text-anchor="middle">
+    <g font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+      <text x="31" y="15" fill="#010101" fill-opacity=".3">
+        {{title}}
+      </text>
+      <text x="31" y="14">
+        {{title}}
+      </text>
+      <text x="80" y="15" fill="#010101" fill-opacity=".3">
+        {{message}}
+      </text>
+      <text x="80" y="14">
+        {{message}}
+      </text>
+    </g>
+  </g>
+</svg>
+{%endmacro%}
+
 <div class="page-with-sidebar">
   <div class="content-wrapper page-with-layout-nav page-with-sub-nav">
     <div>
@@ -37,10 +74,15 @@
         <svg style="fill: rgba(0,0,0,0.55); height: 10px; width: 10px text-align: center; display: inline-block; box-sizing: border-box; vertical-align: middle;"xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 18" enable-background="new 0 0 36 18"><path d="m34 7h-7.2c-.9-4-4.5-7-8.8-7s-7.9 3-8.8 7h-7.2c-1.1 0-2 .9-2 2 0 1.1.9 2 2 2h7.2c.9 4 4.5 7 8.8 7s7.9-3 8.8-7h7.2c1.1 0 2-.9 2-2 0-1.1-.9-2-2-2m-16 7c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5"></path></svg>
         {%endmacro%}
 
-        <a href="/s/branches/develop/coverage/index.html"><img alt="coverage report on develop" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a>
+        {% if not branch or branch.name=='origin/develop' %}
+        <h3>Reports for branch <code>develop</code></h3>
+        <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
+        <p>{{badge('ba-daily', 'na', 'grey')}} {{badge('cppcheck', 'na', 'grey')}} {{badge('valgrind', 'na', 'grey')}}</p>
+        {%endif%}
         
 
-
+        <h3 style="margin-top: 50px">Recent commits</h3>
+	<p style="color:red">Please <code>git pull origin develop</code> from to avoid CI crashes.</p>
         <ol class="list-unstyled content_list" id="commits-list">
           {% for commit_date, commits_at_date in ci_commits|groupby('authored_date')|reverse %}
           <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} &#8212; {{commits_at_date|length}} commits</li>
@@ -77,7 +119,7 @@
                     {%else%}
                       {% if commit.number_failures() %}
                         <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
-                      {% if commit.metrics().rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.metrics().rmse_median)}}</strong> RMSE {%endif%}
+                      {% if commit.aggregated_metrics().translation_rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.aggregated_metrics().translation_rmse_median)}}</strong> RMSE {%endif%}
                     </span>
                     {%endif%}
                   </div>

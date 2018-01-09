@@ -56,9 +56,14 @@ def show_commits(branch=None, search=None):
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
   # warning: list_commits only works 100% when displaying the commits in a single branch...
-  ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
+  try:
+    ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
+    print(f'{len(ci_commits)} commits')
+  except:
+    return "please retry in a few moments. Someone likely just pushed a commit."
   # we filter out commits without LSF logs
   ci_commits = [c for c in ci_commits if c.build_succeeded()]
+  print(f'{len(ci_commits)} with LSF logs')
 
   # to get max_count results per page we should do this within list_commits
   search = request.args.get('search', None)
@@ -73,33 +78,55 @@ def show_commits(branch=None, search=None):
 
 
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
 @app.route("/commit/<hexsha>", methods=["GET", "DELETE"])
 @app.route("/commit/<hexsha>/", methods=["GET", "DELETE"])
-@app.route("/commit/<hexsha>/<filename_filter>")
-def render_commit(hexsha, filename_filter=None):
+def render_commit(hexsha):
   """ Renders a page showing the results with a given code commit. """
   try:
     ci_commit = CiCommit(repo.commit(hexsha))
-    # we compare versus the latest success commit on origin/develop
-    # we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
-    hexsha_ref = request.args.get('reference', None)
-    ci_commit_ref = CiCommit(repo.commit(hexsha_ref)) if hexsha_ref else latest_successful_commit('origin/develop')
   except:
     return "Sorry, the commit id was not found", 404
 
+  # try:
+  # we compare versus the latest success commit on origin/develop
+  # we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
+  hexsha_ref = request.args.get('reference', None)
+  ci_commit_ref = CiCommit(repo.commit(hexsha_ref)) if hexsha_ref else latest_successful_commit('origin/develop')
+  if not ci_commit_ref:
+    return "sorry there is an issue with the commit used for comparaison..."
+  # except:
+    # return "Sorry, the commit id used for reference was not found", 404
+
   if request.method == 'GET':
     outputs = ci_commit.outputs()
-    outputs_ref = ci_commit_ref.outputs() if ci_commit_ref else {}
+    outputs_ref = ci_commit_ref.outputs()
 
-    if (filename_filter):
+    filename_filter = request.args.get('filter', '')
+    if filename_filter:
       outputs = {k:v for k,v in outputs.items() if filename_filter in k}
       outputs_ref = {k:v for k,v in outputs_ref.items() if filename_filter in k}
+    filename_exclude = request.args.get('exclude', '')
+    if filename_exclude:
+      print(filename_exclude)
+      outputs = {k:v for k,v in outputs.items() if filename_exclude not in k}
+      outputs_ref = {k:v for k,v in outputs_ref.items() if filename_exclude not in k}
+
 
     with batches_filepath.open() as f:
       batches = f.read()
 
+
+    norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2)
+    m = cm.ScalarMappable(norm=norm, cmap=plt.get_cmap('RdYlGn').reversed() )
+
     return render_template('results-single.html',
                            show_table = bool(request.args.get('show_table', False)),
+                           palette_deltas = m,
+                           filename_filter=filename_filter, filename_exclude=filename_exclude,
                            commit=ci_commit, commit_ref=ci_commit_ref,
                            outputs=outputs, outputs_ref=outputs_ref,
                            branch=ci_commit.branch(),
@@ -111,8 +138,11 @@ def render_commit(hexsha, filename_filter=None):
       return "{message: 'OK'}"
 
 
-
-
+@app.route("/tuning/<hexsha>")
+@app.route("/tuning/<hexsha>/")
+def tuning_view(hexsha):
+    ci_commit = CiCommit(repo.commit(hexsha))
+    return render_template('tuning.html', ci_commit=ci_commit)
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):
