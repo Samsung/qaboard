@@ -6,6 +6,15 @@ import datetime
 import requests
 
 
+def filter_dict(d, include, exclude):
+    """Filters a dictionnary based on strings its keys should include or not include."""
+    if include:
+      d = {k:v for k,v in d.items() if include in k}
+    if exclude:
+      d = {k:v for k,v in d.items() if exclude not in k}
+    return d
+
+
 # Until we get a proper database, we need to cache things a bit
 def cache(minutes=1440, func_skip_cache=None):
     """Cache function decorator with
@@ -28,8 +37,6 @@ def cache(minutes=1440, func_skip_cache=None):
     return cache_ttl_decorator
 
 
-def is_new(commit, hours=1):
-    return datetime.datetime.now().astimezone()-commit.authored_datetime < datetime.timedelta(hours=hours)
 
 
 @cache(minutes=60)
@@ -57,9 +64,3 @@ def get_users_per_name(search_filter):
         except:
             pass
     return users_db 
-
-
-
-
-
-

@@ -91,7 +91,7 @@
               {% for commit in commits_at_date %}
               <li class="commit flex-list js-toggle-container" id="commit-{{commit.gitcommit.hexsha}}">
                 <div class="avatar-cell hidden-xs">
-                 <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36 hidden-xs" alt="{{commit.gitcommit.committer.name}}" title="" data-container="body" src="{{users[commit.username()]['avatar_url'] if commit.username() in users else ''}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
+                 <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36 hidden-xs" alt="{{commit.gitcommit.committer.name}}" title="" data-container="body" src="{{users[commit.gitcommit.committer.name]['avatar_url'] if commit.gitcommit.committer.name in users else ''}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
                 </div>
                 <div class="commit-detail">
                   <div class="commit-content">
@@ -105,7 +105,7 @@
                       </a>
                     </div>
                     <div class="commiter">
-                      <a class="commit-author-link has-tooltip" title="" href="{{users[commit.username()]['web_url'] if commit.username() in users else ''}}" data-original-title="commit.gitcommit.committer.name">
+                      <a class="commit-author-link has-tooltip" title="" href="{{users[commit.gitcommit.committer.name]['web_url'] if commit.gitcommit.committer.name in users else ''}}" data-original-title="commit.gitcommit.committer.name">
                       {{svg_commit()}}
                       <a style="color: #1b69b6;"class="commit-short-id" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}"> {{commit.gitcommit.hexsha[:8]}}</a></a>
                       <i aria-hidden="true" class="fa fa-code-fork"></i><span><a href="/branch/{{commit.branch()}}">{{commit.branch()}}</a></span>
@@ -115,10 +115,10 @@
                   <div class="commit-results" style="margin-left: auto;">
                     <span>
                     {% if not commit.outputs()%}
-                      <a style="color:red" href="/s/commits/{{commit.folder()}}/lsf.log">Failure! Check the LSF logs</a>
+                      <a style="color:red" href="/s/commits/{{commit.folder}}/lsf.log">Failure! Check the LSF logs</a>
                     {%else%}
                       {% if commit.number_failures() %}
-                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.folder()}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
+                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.folder}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
                       {% if commit.aggregated_metrics().translation_rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.aggregated_metrics().translation_rmse_median)}}</strong> RMSE {%endif%}
                     </span>
                     {%endif%}

@@ -9,7 +9,7 @@ import pickle
 
 import numpy as np
 
-from utils import cache, is_new
+from utils import cache
 from utils import get_users_per_name
 from git_utils import find_branch, list_commits
 from config import *
@@ -20,15 +20,25 @@ def recordings(directory=default_recordings_directory):
     return [p.relative_to(directory) for p in directory.glob('**/*.bin')]
 
 
+def is_new(commit, hours=1):
+    return datetime.datetime.now().astimezone()-commit.authored_datetime < datetime.timedelta(hours=hours)
+
+
 @cache(func_skip_cache=is_new)
 class CiCommit():
+    """Represents a commit on which we ran the CI."""
     def __init__(self, commit):
+        # gitpython Commit
         self.gitcommit = commit
-        self.commit_dir = ci_directory / 'commits' / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
+
+        # Other members provide a way to know on which movies we ran the SLAM, get metrics...
+        self.folder = f'{commit.authored_date}__git__{commit.hexsha[:8]}'
+        self.commit_dir = ci_directory / 'commits' / self.folder
+        self.lsf_logs = self.commit_dir / 'lsf.log'
         self.output_dir = self.commit_dir / 'output'
+        # URL when we want to read specific files from the web
         self.commit_dir_url = '/s/'/self.commit_dir.relative_to(ci_directory)
 
-        # we use this to group commits together easily on index pages
         self.authored_date = self.gitcommit.authored_datetime.date()
 
         self._branch = None
@@ -38,73 +48,59 @@ class CiCommit():
         self._failed = False # build failure or else...
         self.ci_run_datetime = commit.authored_datetime
 
-    def updating(self):
-        return datetime.datetime.now().astimezone()-self.ci_run_datetime<datetime.timedelta(hours=1)
 
-
-    def update(self):
-        self.ci_run_datetime = datetime.datetime.now().astimezone()
 
 
     def run_parameters(self):
-        lsf_logs = ci_directory / 'commits' / self.folder() /"params.json"
-        print(lsf_logs)
-        if lsf_logs.exists():
-            with lsf_logs.open() as f:
+        parameter_file = self.commit_dir /"params.json"
+        if parameter_file.exists():
+            with parameter_file.open() as f:
                 return json.load(f)
         else:
             return {}
 
-    def folder(self):
-        short_hash = self.gitcommit.hexsha[:8]
-        return f"{self.gitcommit.authored_date}__git__{short_hash}"
-
-    def build_succeeded(self):
-        lsf_logs = ci_directory / 'commits' / self.folder() /"lsf.log"
-        return lsf_logs.exists()
-
     def number_failures(self):
-        lsf_logs = ci_directory / 'commits' / self.folder() /"lsf.log"
-        if not lsf_logs.exists():
+        """Returns an estimate of the number of failed runs from the LSF logs"""
+        if not self.lsf_logs.exists():
             return '[ALL]'
-        with lsf_logs.open('r') as f:
+        with self.lsf_logs.open('r') as f:
             failures = 0
             for line in f:
                 if re.search("Exited with exit code", line):
                     failures += 1
         return failures
 
-    def username(self):
-        return self.gitcommit.author.name
-
+    # Finding to branch to which a commit belongs is ... a guess
+    # and it can be slow, so we cache the results
     def branch(self):
         self._branch = find_branch(self.gitcommit.hexsha)
         return self._branch
 
-    def outputs(self, filename_filter='', filename_exclude=''):
-        """ Gather the available results."""
-        if (filename_filter or filename_exclude) and self._outputs:
-            outputs = self._outputs
-            if filename_filter:
-                outputs = {k:v for k,v in outputs.items() if filename_filter in k}
-            if filename_exclude:
-                outputs = {k:v for k,v in outputs.items() if not filename_exclude in k}
-            return outputs
+    # Without a database, listing the recordings for which we have outputs (metrics, etc) is slow
+    def updating(self):
+        """If there is no SLAM run currently being computed, we can safely cache the results."""
+        return datetime.datetime.now().astimezone()-self.ci_run_datetime<datetime.timedelta(hours=1)
 
+    def outputs(self, filename_filter='', filename_exclude=''):
+        """ Gather the available results for this commit."""
+        # if we ask a specific filter, we don't use the cache
+        if (filename_filter or filename_exclude) and self._outputs:
+            return filter_dict(self._outputs, filename_filter, filename_exclude)
+
+        # if we haven't already cached results, or we're still computing them, or we gave up hope
         if not self._failed and not self._outputs or self.updating():
+            print('getting outputs:', self.gitcommit.hexsha)
             self._outputs = {}
             self._metrics = {}
-            print('getting outputs:', self.gitcommit.hexsha)
-            output_dirs = [p.parent for p in self.output_dir.glob('**/camera_poses_debug.csv')]
+
+            # Those files are the SLAM results
+            output_dirs = [p.parent for p in self.output_dir.rglob('camera_poses_debug.csv')]
             for output_dir in output_dirs:
                 rel_recording_path = str(output_dir.relative_to(self.output_dir))+'.bin'
                 rel_folderpath = str(output_dir.relative_to(ci_commits_directory))
 
                 metrics_file = (output_dir/'metrics.json')
                 if not metrics_file.exists(): 
-                  # we changed the name of the metrics file at some point... sorry!
-                  metrics_file = (output_dir/'lost-metrics.json')
-                  if not metrics_file.exists():
                     continue
                 with metrics_file.open() as f:
                     try:
@@ -128,7 +124,8 @@ class CiCommit():
                     'metrics_s8': metrics_s8,
                 }
 
-            get_rmse = lambda o: -o[1]['metrics']['translation_rmse'] if 'translation_rmse' in o[1]['metrics'] else 0
+            # we sort the dict by success
+            get_rmse = lambda o: -o[1]['metrics']['aape'] if 'aape' in o[1]['metrics'] else 0
             self._outputs = {k:v for k,v in sorted(self._outputs.items(), key=get_rmse)}
 
             if not self._outputs and not is_new(self.gitcommit):
@@ -147,18 +144,18 @@ class CiCommit():
         return self._metrics
 
     def metrics(self, metric, outputs=None):
+        """Returns a list of results - for a chosen metric - over the commit's outputs.
+        The optionnal `outputs` parameter makes it almost like a static method. It helps with scope issues in the templates.
+        """
         if not outputs:
             outputs = self.outputs()
         return [o['metrics'][metric] for o in outputs.values() if metric in o['metrics']]
 
-    def delete(self):
-        print(f"removing {self.commit_dir}")
-        shutil.rmtree(self.commit_dir)
 
 
+# this is so ugly
 def aggregated_metrics(outputs):
     metrics = [o['metrics'] for o in outputs.values()]
-
     compute_time = [m['compute_time']/m['duration'] for m in metrics if 'compute_time ' in m]
 
     translation_rmse = [m['translation_rmse'] for m in metrics if 'translation_rmse' in m]

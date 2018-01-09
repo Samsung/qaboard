@@ -2,6 +2,7 @@
 """
 Flask web-app showing SLAM results in a digestible form.
 """
+import datetime
 import json
 import subprocess
 
@@ -12,9 +13,13 @@ app = Flask(__name__)
 # needed to use flask sessions and eg display flash messages after redirects
 app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
 from models import CiCommit, latest_successful_commit, parent_successful_commit
 from git_utils import repo, git_pull, list_commits
-from utils import get_users_per_name
+from utils import get_users_per_name, filter_dict
 from config import *
 
 
@@ -42,9 +47,11 @@ def serve_static(filename):
   options = {"mimetype": "text/plain"} if filename.endswith('lsf.log') else {}
   return send_from_directory(str(ci_directory), filename, **options)
 
+
 @app.route("/coverage")
 def coverage_report():
   return redirect('/s/branches/develop/coverage/index.html')
+
 
 @app.route("/")
 @app.route("/commits")
@@ -58,12 +65,9 @@ def show_commits(branch=None, search=None):
   # warning: list_commits only works 100% when displaying the commits in a single branch...
   try:
     ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
-    print(f'{len(ci_commits)} commits')
+    ci_commits = [c for c in ci_commits if c.lsf_logs.exists()]
   except:
     return "please retry in a few moments. Someone likely just pushed a commit."
-  # we filter out commits without LSF logs
-  ci_commits = [c for c in ci_commits if c.build_succeeded()]
-  print(f'{len(ci_commits)} with LSF logs')
 
   # to get max_count results per page we should do this within list_commits
   search = request.args.get('search', None)
@@ -78,9 +82,7 @@ def show_commits(branch=None, search=None):
 
 
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
+
 
 @app.route("/commit/<hexsha>", methods=["GET", "DELETE"])
 @app.route("/commit/<hexsha>/", methods=["GET", "DELETE"])
@@ -101,29 +103,28 @@ def render_commit(hexsha):
   # except:
     # return "Sorry, the commit id used for reference was not found", 404
 
+  filename_filter = request.args.get('filter', '')
+  filename_exclude = request.args.get('exclude', '')
   if request.method == 'GET':
-    outputs = ci_commit.outputs()
-    outputs_ref = ci_commit_ref.outputs()
+    outputs = filter_dict(
+      ci_commit.outputs(),
+      filename_filter ,
+      filename_exclude
+    )
+    outputs_ref = filter_dict(
+      ci_commit_ref.outputs(),
+      filename_filter ,
+      filename_exclude
+    )
 
-    filename_filter = request.args.get('filter', '')
-    if filename_filter:
-      outputs = {k:v for k,v in outputs.items() if filename_filter in k}
-      outputs_ref = {k:v for k,v in outputs_ref.items() if filename_filter in k}
-    filename_exclude = request.args.get('exclude', '')
-    if filename_exclude:
-      print(filename_exclude)
-      outputs = {k:v for k,v in outputs.items() if filename_exclude not in k}
-      outputs_ref = {k:v for k,v in outputs_ref.items() if filename_exclude not in k}
-
-
+    # we display the batches used when re-running on more movies
     with batches_filepath.open() as f:
       batches = f.read()
-
-
+    # we prepare a color palette to for the summary table
     norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2)
     m = cm.ScalarMappable(norm=norm, cmap=plt.get_cmap('RdYlGn').reversed() )
-
-    return render_template('results-single.html',
+    # a lot of stuff needs to be in the template's scope...
+    return render_template('commit-results.html',
                            show_table = bool(request.args.get('show_table', False)),
                            palette_deltas = m,
                            filename_filter=filename_filter, filename_exclude=filename_exclude,
@@ -132,17 +133,6 @@ def render_commit(hexsha):
                            branch=ci_commit.branch(),
                            batches=batches)
 
-  # delete the outputs to save storage
-  if request.method == 'DELETE':
-      ci_commit.delete()
-      return "{message: 'OK'}"
-
-
-@app.route("/tuning/<hexsha>")
-@app.route("/tuning/<hexsha>/")
-def tuning_view(hexsha):
-    ci_commit = CiCommit(repo.commit(hexsha))
-    return render_template('tuning.html', ci_commit=ci_commit)
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):
@@ -158,7 +148,7 @@ def run_extra_batches(hexsha):
       flash('Updated batches!')
 
   if batch:
-    commit.update()
+    commit.ci_run_datetime = datetime.datetime.now().astimezone()
     cmd = ' '.join([
       f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
       f'setenv SAMSUNG_CI_COMMIT_DIR \'{commit.commit_dir}\';',
@@ -176,20 +166,27 @@ def run_extra_batches(hexsha):
 
 
 
-# it works but it is not enabled until we recompute metrics
-# while keeping the time it took to run the SLAM
-# @app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
-# def rerun_metric(hexsha):
-#   commit = CiCommit(repo.commit(hexsha))
-#   cmd = ' '.join([
-#     f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
-#     f'setenv SLAM_WORKING_DIRECTORY= \'{commit.commit_dir}\';',
-#     f'python tools/run.py metrics_for_all"'
-#   ])
-#   print(cmd)
-#   subprocess.run(cmd, shell=True,
-#                  encoding='utf-8',
-#                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-#   flash(cmd)
-#   flash('Results should arrive soon....')
-#   return redirect('commit/'+hexsha)
+@app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
+def rerun_metric(hexsha):
+  commit = CiCommit(repo.commit(hexsha))
+  # we could imagine something cleaner... eg as part of CiCommit
+  cmd = ' '.join([
+    f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
+    f'setenv SLAM_WORKING_DIRECTORY= \'{commit.commit_dir}\';',
+    f'python tools/run.py metrics_for_all"'
+  ])
+  print(cmd)
+  subprocess.run(cmd, shell=True,
+                 encoding='utf-8',
+                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  flash(cmd)
+  flash('Results should arrive soon....')
+  return redirect('commit/'+hexsha)
+
+
+@app.route("/tuning/<hexsha>")
+@app.route("/tuning/<hexsha>/")
+def tuning_view(hexsha):
+    ci_commit = CiCommit(repo.commit(hexsha))
+    return render_template('tuning.html', ci_commit=ci_commit)
+
