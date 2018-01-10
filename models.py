@@ -35,6 +35,7 @@ class CiCommit():
         self.folder = f'{commit.authored_date}__git__{commit.hexsha[:8]}'
         self.commit_dir = ci_directory / 'commits' / self.folder
         self.lsf_logs = self.commit_dir / 'lsf.log'
+        print(self.lsf_logs)
         self.output_dir = self.commit_dir / 'output'
         # URL when we want to read specific files from the web
         self.commit_dir_url = '/s/'/self.commit_dir.relative_to(ci_directory)
@@ -97,7 +98,7 @@ class CiCommit():
             output_dirs = [p.parent for p in self.output_dir.rglob('camera_poses_debug.csv')]
             for output_dir in output_dirs:
                 rel_recording_path = str(output_dir.relative_to(self.output_dir))+'.bin'
-                rel_folderpath = str(output_dir.relative_to(ci_commits_directory))
+                rel_folderpath = str(output_dir.relative_to(ci_directory))
 
                 metrics_file = (output_dir/'metrics.json')
                 if not metrics_file.exists(): 

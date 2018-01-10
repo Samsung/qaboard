@@ -2,12 +2,12 @@ import pickle
 from pathlib import Path
 
 from git import Repo, Commit, RemoteProgress
-
+from config import *
 # it needs to be cloned beforehand
-repo = Repo("psp_swip")
+repo = Repo(str(app_data_directory/'psp_swip'))
 
 # we cache the lists of recent commits, it's very slow otherwise...
-git_cache = Path('data/list_commits.pkl')
+git_cache = app_data_directory/'list_commits.pkl'
 
 
 
@@ -68,11 +68,11 @@ def git_pull():
 
 # find_branch below is slow, so we cache results
 # we save to a file to avoid threading isses
-if not Path('data/commits.pkl').exists():
+if not (app_data_directory/'commits.pkl').exists():
     commit_branches = {}
-    pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
+    pickle.dump(commit_branches, open(str(app_data_directory/'commits.pkl'), 'wb'))
 
-commit_branches = pickle.load(open('data/commits.pkl', 'rb'))
+commit_branches = pickle.load(open(str(app_data_directory/'commits.pkl'), 'rb'))
 
 def find_branch(commit_hash):
   """Tries to get from which branch a commit comes from. It's a *guess*."""
@@ -82,5 +82,5 @@ def find_branch(commit_hash):
     std_out = repo.git.branch(contains=commit_hash, remotes=True)
     line = std_out.splitlines()[0]
     commit_branches[commit_hash] = line.split(' ')[-1]
-    pickle.dump(commit_branches, open('data/commits.pkl', 'wb'))
+    pickle.dump(commit_branches, open(str(app_data_directory/'commits.pkl'), 'wb'))
   return commit_branches[commit_hash]

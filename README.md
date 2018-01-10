@@ -10,9 +10,11 @@ conda install gitpython # use -k if behind Samsung's firewall..
 # pip install gitpython
 ```
 
-- You need to make a copy of the repository, it is used as the database of commit information:
+- You need to make a copy of the *psp_swip* repository. It is used as the database of commit information:
 
 ```bash
+# this app's data is saved at SLAMVVIZAPP_APP_DATA_PATH, defaulting to the current working directory
+# cd /etc/slamvizapp
 # git clone git@gitlab-srv:dvs/psp_swip.git
 ```
 
@@ -31,9 +33,12 @@ sudo apt-get install nodejs npm
 
 ## How to run
 ```bash
-# you may want to source ~/.secrets 
-export GITLAB_ACCESS_TOKEN=XXXXXXXXXXX 
-export FLASK_DEBUG=1    
+# you may want to source ~/.secrets
+export GITLAB_ACCESS_TOKEN=XXXXXXXXXXX
+# on my computer
+export SLAMVVIZAPP_APP_DATA_PATH=/etc/slamvizapp
+
+export FLASK_DEBUG=1
 export FLASK_APP=server.py
 flask run server.py --host 0.0.0.0 --with-threads
 ```

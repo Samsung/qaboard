@@ -23,9 +23,8 @@ from utils import get_users_per_name, filter_dict
 from config import *
 
 
-# users can request to run on new recordings - we keep the list of available batches
-batches_filepath = Path('data/extra-batches.yml').resolve()
-
+# users can request to run on new recordings - here we keep the list of available batches
+batches_filepath = (app_data_directory/'extra-batches.yml').resolve()
 
 # we fetch the latest commits at startup
 git_pull()
@@ -62,17 +61,17 @@ def show_commits(branch=None, search=None):
   """ Renders an index page of the commits in the branch organized by date."""
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
-  # warning: list_commits only works 100% when displaying the commits in a single branch...
+  # Warning: list_commits only works 100% when displaying the commits in a single branch...
+  # To get exactly max_count results per page we should do this within list_commits
   try:
     ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
     ci_commits = [c for c in ci_commits if c.lsf_logs.exists()]
   except:
     return "please retry in a few moments. Someone likely just pushed a commit."
 
-  # to get max_count results per page we should do this within list_commits
-  search = request.args.get('search', None)
-  if search is not None:
-    ci_commits = [c for c in ci_commits if search.lower() in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
+  search = request.args.get('search', '').lower()
+  if search:
+    ci_commits = [c for c in ci_commits if search in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
 
   return render_template('list.html',
               ci_commits=ci_commits,
@@ -84,8 +83,8 @@ def show_commits(branch=None, search=None):
 
 
 
-@app.route("/commit/<hexsha>", methods=["GET", "DELETE"])
-@app.route("/commit/<hexsha>/", methods=["GET", "DELETE"])
+@app.route("/commit/<hexsha>")
+@app.route("/commit/<hexsha>/")
 def render_commit(hexsha):
   """ Renders a page showing the results with a given code commit. """
   try:
@@ -93,16 +92,15 @@ def render_commit(hexsha):
   except:
     return "Sorry, the commit id was not found", 404
 
-  # try:
-  # we compare versus the latest success commit on origin/develop
-  # we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
+
+  # We compare versus the latest success commit on origin/develop
+  # Note: we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
   hexsha_ref = request.args.get('reference', None)
   ci_commit_ref = CiCommit(repo.commit(hexsha_ref)) if hexsha_ref else latest_successful_commit('origin/develop')
   if not ci_commit_ref:
     return "sorry there is an issue with the commit used for comparaison..."
-  # except:
-    # return "Sorry, the commit id used for reference was not found", 404
 
+  # the user can exlude/filter specific recordings with URL query parameters
   filename_filter = request.args.get('filter', '')
   filename_exclude = request.args.get('exclude', '')
   if request.method == 'GET':
@@ -120,9 +118,11 @@ def render_commit(hexsha):
     # we display the batches used when re-running on more movies
     with batches_filepath.open() as f:
       batches = f.read()
+
     # we prepare a color palette to for the summary table
     norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2)
     m = cm.ScalarMappable(norm=norm, cmap=plt.get_cmap('RdYlGn').reversed() )
+
     # a lot of stuff needs to be in the template's scope...
     return render_template('commit-results.html',
                            show_table = bool(request.args.get('show_table', False)),
@@ -132,7 +132,6 @@ def render_commit(hexsha):
                            outputs=outputs, outputs_ref=outputs_ref,
                            branch=ci_commit.branch(),
                            batches=batches)
-
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):
@@ -166,10 +165,16 @@ def run_extra_batches(hexsha):
 
 
 
+## Work in progress ###########################################################
+@app.route("/tuning/<hexsha>")
+@app.route("/tuning/<hexsha>/")
+def tuning_view(hexsha):
+    ci_commit = CiCommit(repo.commit(hexsha))
+    return render_template('tuning.html', ci_commit=ci_commit)
+
 @app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
 def rerun_metric(hexsha):
   commit = CiCommit(repo.commit(hexsha))
-  # we could imagine something cleaner... eg as part of CiCommit
   cmd = ' '.join([
     f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
     f'setenv SLAM_WORKING_DIRECTORY= \'{commit.commit_dir}\';',
@@ -182,11 +187,3 @@ def rerun_metric(hexsha):
   flash(cmd)
   flash('Results should arrive soon....')
   return redirect('commit/'+hexsha)
-
-
-@app.route("/tuning/<hexsha>")
-@app.route("/tuning/<hexsha>/")
-def tuning_view(hexsha):
-    ci_commit = CiCommit(repo.commit(hexsha))
-    return render_template('tuning.html', ci_commit=ci_commit)
-
