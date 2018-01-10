@@ -111,15 +111,15 @@
 	    <h6 class='filename'>{{output.rel_filepath}}
 
 <!--         {%if 'translation_rmse' in m %}
-        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.translation_rmse<0.005 else 'bad'}} badge">{{ 'tRMSE: {0:.2}cm'.format(100*m.translation_rmse)}}{%if recording in outputs_ref %} <span class="{{'worse_perf' if output.metrics.translation_rmse>outputs_ref[recording].metrics.translation_rmse else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.translation_rmse-outputs_ref[recording].metrics.translation_rmse)}})</span>{%endif%}</span>
+        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.translation_rmse<0.005 else 'bad'}} badge">{{ 'tRMSE: {0:.2}cm'.format(100*m.translation_rmse)}}{%if recording in outputs_ref  and 'translation_rmse' in outputs_ref[recording].metrics %} <span class="{{'worse_perf' if output.metrics.translation_rmse>outputs_ref[recording].metrics.translation_rmse else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.translation_rmse-outputs_ref[recording].metrics.translation_rmse)}})</span>{%endif%}</span>
         {%endif%}
  -->
         {%if 'rotation_mean' in m %}
-        <span class="{{'good' if m.rotation_mean<1 else 'bad'}} badge">{{ 'rRMSE: {0:.2}'.format(m.rotation_mean)}}{%if recording in outputs_ref %} <span class="{{'worse_perf' if output.metrics.rotation_mean>outputs_ref[recording].metrics.rotation_mean else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.rotation_mean-outputs_ref[recording].metrics.rotation_mean)}})</span>{%endif%}</span>
+        <span class="{{'good' if m.rotation_mean<1 else 'bad'}} badge">{{ 'rRMSE: {0:.2}'.format(m.rotation_mean)}}{%if recording in outputs_ref and 'rotation_mean' in outputs_ref[recording].metrics %} <span class="{{'worse_perf' if output.metrics.rotation_mean>outputs_ref[recording].metrics.rotation_mean else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.rotation_mean-outputs_ref[recording].metrics.rotation_mean)}})</span>{%endif%}</span>
         {%endif%}
 
         {%if 'aape' in m %}
-        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.01 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}{%if recording in outputs_ref %} <span class="{{'worse_perf' if output.metrics.aape>outputs_ref[recording].metrics.aape else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.aape-outputs_ref[recording].metrics.aape)}})</span>{%endif%}</span>
+        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.01 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}{%if recording in outputs_ref  and 'aape' in outputs_ref[recording].metrics  %} <span class="{{'worse_perf' if output.metrics.aape>outputs_ref[recording].metrics.aape else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.aape-outputs_ref[recording].metrics.aape)}})</span>{%endif%}</span>
         {%endif%}
       </h6>
 	    <video preload="none" controls loop="loop" title="new commit" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
