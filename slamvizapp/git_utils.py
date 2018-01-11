@@ -1,15 +1,13 @@
 import pickle
 from pathlib import Path
+from git import RemoteProgress
 
-from git import Repo, Commit, RemoteProgress
-from config import *
-# it needs to be cloned beforehand
-repo = Repo(str(app_data_directory/'psp_swip'))
+from slamvizapp import repo
+from .config import *
+
 
 # we cache the lists of recent commits, it's very slow otherwise...
 git_cache = app_data_directory/'list_commits.pkl'
-
-
 
 def list_commits(branch, page, max_count):
   """Returns recent commits on a given branch.

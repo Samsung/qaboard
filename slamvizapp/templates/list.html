@@ -115,10 +115,10 @@
                   <div class="commit-results" style="margin-left: auto;">
                     <span>
                     {% if not commit.outputs()%}
-                      <a style="color:red" href="/s/commits/{{commit.folder}}/lsf.log">Failure! Check the LSF logs</a>
+                      <a style="color:red" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">Failure! Check the LSF logs</a>
                     {%else%}
                       {% if commit.number_failures() %}
-                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.folder}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
+                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
                       {% if commit.aggregated_metrics().translation_rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.aggregated_metrics().translation_rmse_median)}}</strong> RMSE {%endif%}
                     </span>
                     {%endif%}

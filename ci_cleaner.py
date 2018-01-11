@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Removes old commits from the CI database...
 This saves a lot of disk space!
@@ -8,12 +9,8 @@ import subprocess
 import shutil
 from git import Repo
 
-from models import CiCommit
-from config import *
-
-repo = Repo(str(app_data_directory/'psp_swip'))
-
-
+from slamvizapp import repo, CiCommit
+from slamvizapp.config import *
 
 now = datetime.datetime.now().astimezone()
 def is_old(commit):

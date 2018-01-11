@@ -24,7 +24,7 @@
       <p>
         {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{c.outputs()|length}} recordings.<br>
         <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
-        <strong><a class="button white-outline" href="/s/commits/{{c.folder}}/lsf.log">Logs {%if c.number_failures()%}for {{c.number_failures()}} failures{%endif%}</a></strong>
+        <strong><a class="button white-outline" href="/s/commits/{{c.commit_dir.name}}/lsf.log">Logs {%if c.number_failures()%}for {{c.number_failures()}} failures{%endif%}</a></strong>
 
       </p>
 

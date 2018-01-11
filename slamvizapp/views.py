@@ -6,28 +6,20 @@ import datetime
 import json
 import subprocess
 
-from flask import Flask
 from flask import request, render_template, send_from_directory
 from flask import redirect, flash
-app = Flask(__name__)
-# needed to use flask sessions and eg display flash messages after redirects
-app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-from models import CiCommit, latest_successful_commit, parent_successful_commit
-from git_utils import repo, git_pull, list_commits
-from utils import get_users_per_name, filter_dict
-from config import *
 
+from slamvizapp import app, repo
+from .models import CiCommit, latest_successful_commit, parent_successful_commit
+from .git_utils import git_pull, list_commits
+from .utils import get_users_per_name, filter_dict
+from .config import *
 
-# users can request to run on new recordings - here we keep the list of available batches
-batches_filepath = (app_data_directory/'extra-batches.yml').resolve()
-
-# we fetch the latest commits at startup
-git_pull()
 
 @app.route('/gitlab_webhook', methods=['GET', 'POST'])
 def gitlab_webhook():
@@ -67,6 +59,7 @@ def show_commits(branch=None, search=None):
     ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
     ci_commits = [c for c in ci_commits if c.lsf_logs.exists()]
   except:
+    raise
     return "please retry in a few moments. Someone likely just pushed a commit."
 
   search = request.args.get('search', '').lower()
@@ -92,7 +85,9 @@ def render_commit(hexsha):
   except:
     return "Sorry, the commit id was not found", 404
 
-
+  #.one()
+  # session.query(User).\
+  # ... filter_by(name='jack')
   # We compare versus the latest success commit on origin/develop
   # Note: we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
   hexsha_ref = request.args.get('reference', None)
@@ -104,6 +99,7 @@ def render_commit(hexsha):
   filename_filter = request.args.get('filter', '')
   filename_exclude = request.args.get('exclude', '')
   if request.method == 'GET':
+    # FIXME: do it with an sql query
     outputs = filter_dict(
       ci_commit.outputs(),
       filename_filter ,
@@ -114,6 +110,11 @@ def render_commit(hexsha):
       filename_filter ,
       filename_exclude
     )
+
+    # FIXME: sort outputs by success in views.py..
+    # get_rmse = lambda o: -o[1]['metrics']['aape'] if 'aape' in o[1]['metrics'] else 0
+    # self._outputs = {k:v for k,v in sorted(self._outputs.items(), key=get_rmse)}
+
 
     # we display the batches used when re-running on more movies
     with batches_filepath.open() as f:
@@ -132,6 +133,7 @@ def render_commit(hexsha):
                            outputs=outputs, outputs_ref=outputs_ref,
                            branch=ci_commit.branch(),
                            batches=batches)
+
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):

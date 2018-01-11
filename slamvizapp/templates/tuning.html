@@ -25,7 +25,7 @@
 
 
     <a class="button white-outline" href="{{ci_commit.commit_dir_url / 'params.json'}}">Parameters used</a>
-    <a class="button white-outline" href="/s/commits/{{ci_commit.folder()}}/lsf.log">Logs {%if ci_commit.number_failures()%}for {{ci_commit.number_failures()}} failures{%endif%}</a>
+    <a class="button white-outline" href="/s/commits/{{ci_commit.commit_dir.name}}/lsf.log">Logs {%if ci_commit.number_failures()%}for {{ci_commit.number_failures()}} failures{%endif%}</a>
 
     <h2>Starting parameters</h2>
     <div id="editor-start" style="width: 400px; height: 400px;"></div>

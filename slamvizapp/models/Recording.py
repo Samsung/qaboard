@@ -5,9 +5,11 @@ Describes the recordings from the DVS:
 """
 import re
 import enum
-from sqlalchemy.ext.declarative import declarative_base
+
+from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, Boolean, Enum
-Base = declarative_base()
+
+from slamvizapp.models import Base
 
 
 class Axis(enum.Enum):
@@ -19,41 +21,51 @@ class Axis(enum.Enum):
 
 class Recording(Base):
   __tablename__ = 'recordings'
-  id = Column(Integer, primary_key=True)
+  id = Column(Integer(), primary_key=True)
 
-  # relative to the root of the database folder
-  path = Column(String, index=True, unique=True)
-  print(path)
+  # Relative to the root of the database folder
+  path = Column(String(), index=True, unique=True)
+
+  cascade="all, delete, delete-orphan"
+  slam_outputs = relationship("SlamOutput", back_populates="recording",
+    # If we delete a recording, the corresponding outputs are kept,
+    # and their recording_id is set to NULL.
+    # To change this behaviour, uncomment
+    # cascade="all, delete, delete-orphan"
+  )
+
+
 
   ### HOW we recorded #########
    # we could store the sensorID...
-  # sensor_generation(Integer, default=3)
-  stereo_baseline = Column(Integer, default=None) # cm
-  is_wide_angle = Column(Boolean, default=True)
-  # has_imu(Boolean, default=True)
-  # has_ground_truth(Boolean)
+  # sensor_generation(Integer(), default=3)
+  stereo_baseline = Column(Integer(), default=None) # cm
+  is_wide_angle = Column(Boolean(), default=True)
+  # has_imu(Boolean(), default=True)
+  # has_ground_truth(Boolean())
   # the calibration will be found in the parent directories
 
   ### WHAT we recorded ########
-  duration = Column(Integer, default=None) # seconds?
+  duration = Column(Integer(), default=None) # seconds?
 
   # what the camera sees
-  # has_dynamic_objects = Column(Integer, default=False) # in the scene, graded from 0-10?
-  # scene_name = Column(String, default=None) # desk, checkerboard...
-  is_calibration = Column(Boolean, default=False)
+  is_dynamic = Column(Boolean(), default=False)
+  is_static = Column(Boolean(), default=False)
+  # scene_name = Column(String(), default=None) # desk, checkerboard...
+  is_calibration = Column(Boolean(), default=False)
 
-  is_low_light = Column(Boolean, default=False)
-  # illumination = Column(Integer) # lux?
-  is_hdr = Column(Boolean, default=False)
-  # is_hdr = Column(Integer) # log-constrast?
-  # light_type = Column(String) # outdoor, neon, light temperature...
+  is_low_light = Column(Boolean(), default=False)
+  # illumination = Column(Integer()) # lux?
+  is_hdr = Column(Boolean(), default=False)
+  # is_hdr = Column(Integer()) # log-constrast?
+  # light_type = Column(String()) # outdoor, neon, light temperature...
 
   # how the camera moves
-  motion_is_translation = Column(Integer, default=False)
-  motion_is_rotation = Column(Integer, default=False)
+  motion_is_translation = Column(Integer(), default=False)
+  motion_is_rotation = Column(Integer(), default=False)
   motion_axis = Column(Enum(Axis), default=Axis.mixed)
-  # motion_axis = Column(Integer, default=Axis.mixed)
-  motion_speed = Column(Integer, default=None) # of the camera, for the robot in deg/s?
+  # motion_axis = Column(Integer(), default=Axis.mixed)
+  motion_speed = Column(Integer(), default=None) # of the camera, for the robot in deg/s?
 
 
 
@@ -90,6 +102,8 @@ class Recording(Base):
     self.is_calibration = True if 'calibration' in path else False
     self.is_low_light = True if 'LL' in path else False
     self.is_hdr = True if 'HDR' in path else False
+    self.is_dynamic = True if 'dynamic' in path else False
+    self.is_static = True if 'static' in path else False
 
 
   def __repr__(self):
