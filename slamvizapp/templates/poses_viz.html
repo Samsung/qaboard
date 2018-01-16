@@ -8,13 +8,13 @@ class Commit {
     this.offset_s8 = parseFloat(offset_s8)||0;
   }
   get poses_gt_url() {
-    return this.dir_url+'GT_final.txt';
+    return this.dir_url+'/GT_final.txt';
   }
   get poses_offline_url() {
-    return this.dir_url+'camera_poses_debug.csv';
+    return this.dir_url+'/camera_poses_debug.csv';
   }
   get poses_s8_url() {
-    return this.dir_url+'camera_poses_debug_s8.csv';
+    return this.dir_url+'/camera_poses_debug_s8.csv';
   }
   get poses_img_id() {
     return 'plot-'+this.rel_filepath;
@@ -37,11 +37,12 @@ var get_tsv = (tsv_url, gt_time_offset, callback) => {
 
 
 var parse_poses = (text_string, gt_time_offset) => {
-  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "good\n"].join('\t');
+  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "tracking_state\n"].join('\t');
   let data = Plotly.d3.tsv.parse(headers + text_string);
   let x=[], y=[], z=[];
   let a=[], b=[], c=[];
-  let t=[], confidence=[], good=[];
+  let t=[];
+  let confidence=[], tracking_state=[];
 
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
@@ -55,15 +56,16 @@ var parse_poses = (text_string, gt_time_offset) => {
     y.push(row['y']);
     z.push(row['z']);
     t.push(parseFloat(row['t'])+gt_time_offset);
-    confidence.push(row['confidence']);
-    good.push(row['good']);
+    confidence.push(row['confidence']/100);
+    tracking_state.push(row['tracking_state']);
   };
-  return {x, y, z, a, b, c, t, confidence, good};
+  return {x, y, z, a, b, c, t, confidence, tracking_state};
 }
 
 var make_traces = function(poses, label, colors) {
   let mode = 'lines';
   let line_width = 2;
+  // we make the reference wider to highlight bit accuracy
   if (label === 'ref_offline' || label === 'ref_s8' )
     line_width = 3;
 
@@ -129,6 +131,15 @@ var make_traces = function(poses, label, colors) {
       name: label, legengroup:label,
       yaxis: 'y7',
       showlegend: false
+    },
+    {
+      x: poses.t, y: poses.tracking_state,
+      line: { color: colors[label].tracking_state, width: line_width },
+      marker: { color: colors[label].tracking_state, size: marker_size },
+      mode,
+      name: label, legengroup:label,
+      yaxis: 'y7',
+      showlegend: false
     }
   ]
 }
@@ -149,7 +160,7 @@ var layout = {
   yaxis4: {domain: [3*frac_v, 4*frac_v], title: 'rX'},
   yaxis5: {domain: [4*frac_v, 5*frac_v], title: 'rY'},
   yaxis6: {domain: [5*frac_v, 6*frac_v], title: 'rZ'},
-  yaxis7: {domain: [6*frac_v, 1], title: 'Confidence [%]'},
+  yaxis7: {domain: [6*frac_v, 1], title: 'Tracking'},
   legend: {
     x:0,
     y:1,
@@ -169,32 +180,37 @@ var colors_compare = {
     y: '#4daf4a',
     z: '#4daf4a',
     confidence: '#4daf4a',
+    tracking_state: '#4daf4a',
   },
   // offline : {
   //   x: '#a6dba0',
   //   y: '#a6dba0',
   //   z: '#a6dba0',
   //   confidence: '#a6dba0',
+  //   tracking_state: '#a6dba0',
   // },
   // s8...
   offline : {
     x: color_new,
     y: color_new,
     z: color_new,
-    confidence: color_new,
+    confidence: '#d8b365',
+    tracking_state: color_new,
   },
   // ref_offline : {
   //   x: '#c2a5cf',
   //   y: '#c2a5cf',
   //   z: '#c2a5cf',
   //   confidence: '#c2a5cf',
+  //   tracking_state: '#c2a5cf',
   // },
   // ref_s8...
   ref_offline : {
     x: color_ref,
     y: color_ref,
     z: color_ref,
-    confidence: color_ref,
+    confidence: '#5ab4ac',
+    tracking_state: color_ref,
   }
 }
 var render_poses_compare = function(commit, commit_ref) {
@@ -240,18 +256,21 @@ var colors_single = {
     y: '#542788',
     z: '#542788',
     confidence: '#542788',
+    tracking_state: '#542788',
   },
   s8 : {
     x: '#d73027',
     y: '#d73027',
     z: '#d73027',
     confidence: '#d73027',
+    tracking_state: '#d73027',
   },
   offline : {
     x: 'rgb(255, 157, 0)',
     y: 'rgb(255, 157, 0)',
     z: 'rgb(255, 157, 0)',
     confidence: 'rgb(255, 157, 0)',
+    tracking_state: 'rgb(255, 157, 0)',
   }
 }
 var render_poses = function(commit) {

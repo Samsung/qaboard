@@ -12,25 +12,25 @@
       </tr>
       <tr>
         <th scope="col"></th>
-        <th scope="col">improvement</th>
-        <th scope="col">improvement</th>
-        <th scope="col">improvement</th>
-        <th scope="col">improvement</th>
+        <th scope="col">new-ref</th>
+        <th scope="col">new-ref</th>
+        <th scope="col">new-ref</th>
+        <th scope="col">new-ref</th>
       </tr>
     </thead>
     <tbody>
     {% for recording, output in outputs.items() %}
-    {% with m = output.metrics %}
+    {% with m = output %}
       <tr>
-        <th scope="row"><a href="#recording-{{output.rel_filepath}}">{{recording}}</td>
+        <th scope="row"><a href="#recording-{{output.recording.name}}">{{recording}}</td>
 
         {% macro delta_metric_columns(metric, ok_treshold) %}
           {%if recording in outputs_ref %}
-            {% with m_ref = outputs_ref[recording].metrics %}
+            {% with m_ref = outputs_ref[recording] %}
               <!-- Delta -->
-              {%if metric in m and metric in m_ref%}
+              {%if m[metric] and m_ref[metric] %}
                 {% with delta =  m[metric]-m_ref[metric] %}
-                <td style="background: rgba{{palette_deltas.to_rgba(delta/m_ref[metric], bytes=True)}}">{{'{0:+.2}'.format(100*(m[metric]-m_ref[metric]))}}</td>
+                <td style="background: rgba{{palette_deltas.to_rgba(-delta/m_ref[metric], bytes=True)}}">{{'{0:+.2}'.format(100*(delta))}}</td>
                 {%endwith%}
               {%else%}
                 <td style="background:#aaa;">na</td>
@@ -42,8 +42,8 @@
         {% endmacro%}
 
         {{ delta_metric_columns('translation_rmse') }}
-        {{ delta_metric_columns('aape') }}
-        {{ delta_metric_columns('final_drift_pc') }}
+        {{ delta_metric_columns('translation_aape') }}
+        {{ delta_metric_columns('translation_drift_pc') }}
         {{ delta_metric_columns('rotation_mean') }}
 
       </tr>
@@ -82,13 +82,13 @@
     </thead>
     <tbody>
     {% for recording, output in outputs.items() %}
-    {% with m = output.metrics %}
+    {% with m = output %}
       <tr>
-        <th scope="row"><a href="#recording-{{output.rel_filepath}}">{{recording}}</td>
+        <th scope="row"><a href="#recording-{{output.recording.name}}">{{recording}}</td>
 
         {% macro qa_metric_columns(metric, ok_treshold, formatter='') %}
           <!-- Value for current commit -->
-          {%if metric in m%}
+          {%if m[metric] %}
             {%if metric not in ['rotation_mean', 'final_drift_pc'] %}
             <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(100*m[metric])}}</td>
             {%else%}
@@ -99,16 +99,16 @@
           {%endif%}
 
           {%if recording in outputs_ref %}
-            {% with m_ref = outputs_ref[recording].metrics %}
+            {% with m_ref = outputs_ref[recording] %}
               <!-- Value for last commit -->
-              {%if metric in m_ref%}
+              {%if m_ref[metric] %}
                 {%if metric not in ['rotation_mean', 'final_drift_pc'] %}
                 <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(100*m_ref[metric])}}</td>
                 {%else%}
                 <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(m_ref[metric])}}</td>
                 {%endif%}
               {%else%}
-                <td>na</td>
+                <td style="background:#aaa;">na</td>
               {%endif%}
             {%endwith%}
           {%else%}
@@ -117,8 +117,8 @@
         {% endmacro%}
 
         {{ qa_metric_columns('translation_rmse', 0.01, '{0:0.2}') }}
-        {{ qa_metric_columns('aape', 0.01, '{0:0.2}') }}
-        {{ qa_metric_columns('final_drift_pc', 0.01, '{0:0.2%}') }}
+        {{ qa_metric_columns('translation_aape', 0.01, '{0:0.2}') }}
+        {{ qa_metric_columns('translation_drift_pc', 0.01, '{0:0.2%}') }}
         {{ qa_metric_columns('rotation_mean', 1.5, '{0:.2}') }}
 
       </tr>

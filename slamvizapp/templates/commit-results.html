@@ -22,39 +22,50 @@
         <strong><a href="/branch/{{branch}}">{{branch}}:</a></strong> <a href='http://gitlab-srv/dvs/psp_swip/commits/{{c.gitcommit.hexsha}}'>{{c.gitcommit.hexsha[:8]}}</a></strong></h3>
       <p class="section-description"><pre style="overflow: hidden; text-overflow: ellipsis;">{{c.gitcommit.message.replace('\n', ' ')}}</pre></p>
       <p>
-        {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{c.outputs()|length}} recordings.<br>
+        {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{c.slam_outputs|length}} recordings.<br>
         <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
-        <strong><a class="button white-outline" href="/s/commits/{{c.commit_dir.name}}/lsf.log">Logs {%if c.number_failures()%}for {{c.number_failures()}} failures{%endif%}</a></strong>
-
+        <strong><a class="button white-outline" href="/s/commits/{{c.commit_dir.name}}/lsf.log">Logs {%if c.failures_count()%}for {{c.failures_count()}} failures{%endif%}</a></strong>
       </p>
 
       <div class="row">
         <div class="one-third column value">
-          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*metrics.aape_median)}}</h2>
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*metrics.translation_aape_median)}}</h2>
           <h5 class="value-heading">Median Position AAPE</h5>
-          <p class="value-description">{{'{0:.2%}'.format(metrics.aape_pc_bad)}} with AAPE over 1cm.</p>
+          <p class="value-description">{{'{0:.2%}'.format(metrics.translation_aape_pc_bad)}} with AAPE over 1cm.</p>
         </div>
-<!--         <div class="one-third column value">
-          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*metrics.translation_rmse_median)}}</h2>
-          <h5 class="value-heading">Median Translation RMSE</h5>
-          <p class="value-description">{{'{0:.2%}'.format(metrics.translation_rmse_pc_bad)}} with RMSE over 0.5cm.</p>
-        </div> -->
         <div class="one-third column value">
           <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}°'.format(metrics.rotation_mean_median)}}</h2>
           <h5 class="value-heading">Median Mean Rotation Error</h5>
           <p class="value-description">{{'{0:.2%}'.format(metrics.rotation_mean_pc_bad)}} with error over 1.5°.</p>
         </div>
         <div class="one-third column value">
-          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.2%}'.format(metrics.final_drift_pc_median)}}</h2>
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.2%}'.format(metrics.translation_drift_pc_median)}}</h2>
           <h5 class="value-heading">Median Final Drift</h5>
-          <p class="value-description">{{'{0:.2%}'.format(metrics.final_drift_pc_bad)}} with drift over 1%.</p>
+          <p class="value-description">{{'{0:.2%}'.format(metrics.translation_drift_pc_pc_bad)}} with drift over 1%.</p>
         </div>
-<!--         <div class="one-third column value">
-          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'x{0:.2f}'.format(metrics.compute_time_median)}}</h2>
-          <h5 class="value-heading">Speed</h5>
-          <p class="value-description">Median Run-time versus real-time.</p>
-        </div> -->
       </div>
+
+      <div class="row">
+        <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*metrics.translation_aape_when_good_median)}}</h2>
+          <h5 class="value-heading">Median Translation AAPE while GOOD</h5>
+          <p class="value-description">{{'{0:.2%}'.format(metrics.translation_aape_when_good_pc_bad)}} with AAPE over 1cm.</p>
+        </div>
+        <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">
+          {{'{0:.3}°'.format(metrics.rotation_mean_when_good_median)}}</h2>
+          <h5 class="value-heading">Median Mean Rotation Error when GOOD</h5>
+          <p class="value-description">{{'{0:.2%}'.format(metrics.rotation_mean_when_good_pc_bad)}} with error over 1.5°.</p>
+        </div>
+        <div class="one-third column value">
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">
+          {{'{0:.3%}'.format(metrics.frac_tracking_state_good_average)}}</h2>
+          <h5 class="value-heading">Tracking is GOOD</h5>
+          <p class="value-description">Percentage of the outpout poses</p>
+        </div>
+      </div>
+
+
       {% endwith %}
     {% endmacro %}
 
@@ -93,6 +104,7 @@
       <div class="twelve columns">
         <a class="button button-primary" href="?show_table=true&reference={{commit_ref.gitcommit.hexsha}}">Show a summary table</a>
         <a class="button" href="#extra-recordings">Run on more recordings</a>
+        <a class="button button-warning" href="/metrics/{{commit.gitcommit.hexsha}}">Recompute metrics</a>
       </div>
     </div>
   </form>
@@ -106,56 +118,53 @@
 <div class="container-flex">
 {% for recording, output in outputs.items() %}
 	<div class="recording-wrapper">
-	  <div class="recording" id="recording-{{output.rel_filepath}}">
-      {% with m = output.metrics %}
-	    <h6 class='filename'>{{output.rel_filepath}}
+	  <div class="recording" id="recording-{{output.recording.path}}">
+	    <h6 class='filename'>{{output.recording.path}}
 
-<!--         {%if 'translation_rmse' in m %}
-        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.translation_rmse<0.005 else 'bad'}} badge">{{ 'tRMSE: {0:.2}cm'.format(100*m.translation_rmse)}}{%if recording in outputs_ref  and 'translation_rmse' in outputs_ref[recording].metrics %} <span class="{{'worse_perf' if output.metrics.translation_rmse>outputs_ref[recording].metrics.translation_rmse else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.translation_rmse-outputs_ref[recording].metrics.translation_rmse)}})</span>{%endif%}</span>
+        {% macro badge(label, metric, good_threshold, formatter) %}
+        {%if output[metric] %}
+          <span {%if output.trajectory_length %}title="{{'length: {0:.3f}m'.format(output.trajectory_length)}}"{%endif%} class="{{'good' if output[metric]<good_threshold else 'bad'}} badge">
+            {{ formatter.format(label, output[metric])}}
+            {%if recording in outputs_ref and outputs_ref[recording][metric] %}
+              <span class="{{'worse_perf' if output[metric]>outputs_ref[recording][metric] else 'better_perf'}}">
+                ({{'{0:+.2%}'.format(output[metric] - outputs_ref[recording][metric])}})
+              </span>
+            {%endif%}
+          </span>
         {%endif%}
- -->
-        {%if 'rotation_mean' in m %}
-        <span class="{{'good' if m.rotation_mean<1 else 'bad'}} badge">{{ 'rRMSE: {0:.2}'.format(m.rotation_mean)}}{%if recording in outputs_ref and 'rotation_mean' in outputs_ref[recording].metrics %} <span class="{{'worse_perf' if output.metrics.rotation_mean>outputs_ref[recording].metrics.rotation_mean else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.rotation_mean-outputs_ref[recording].metrics.rotation_mean)}})</span>{%endif%}</span>
-        {%endif%}
+        {% endmacro %}
+        {{ badge('tAAPE', 'translation_rmse', 0.01, '{0}: {1:.2}m') }}
+        {{ badge('rAvgE', 'rotation_mean', 1, '{0}: {1:.2}°') }}
 
-        {%if 'aape' in m %}
-        <span {%if 'trajectory_length' in m %}title="{{'length: {0:.3f}m'.format(m.trajectory_length)}}"{%endif%} class="{{'good' if m.aape<0.01 else 'bad'}} badge">{{ 'AAPE: {0:.2}cm'.format(100*m.aape)}}{%if recording in outputs_ref  and 'aape' in outputs_ref[recording].metrics  %} <span class="{{'worse_perf' if output.metrics.aape>outputs_ref[recording].metrics.aape else 'better_perf'}}">({{'{0:+.2%}'.format(output.metrics.aape-outputs_ref[recording].metrics.aape)}})</span>{%endif%}</span>
-        {%endif%}
       </h6>
-	    <video preload="none" controls loop="loop" title="new commit" width=300 poster="{{output.output_dir_url+'poster.jpg'}}" type="video/mp4">
-         <source src="{{output.output_dir_url+'results.mp4'}}">
+	    <video preload="none" controls loop="loop" title="new commit" width=300 poster="{{output.output_dir_url/'poster.jpg'}}" type="video/mp4">
+         <source src="{{output.output_dir_url/'results.mp4'}}">
 	    </video>
       {%if recording in outputs_ref %}
-      <video preload="none" loop="loop" title="reference" width=300 poster="{{outputs_ref[recording].output_dir_url+'poster.jpg'}}" type="video/mp4">
-         <source src="{{outputs_ref[recording].output_dir_url+'results.mp4'}}">
+      <video preload="none" loop="loop" title="reference" width=300 poster="{{outputs_ref[recording].output_dir_url/'poster.jpg'}}" type="video/mp4">
+         <source src="{{outputs_ref[recording].output_dir_url/'results.mp4'}}">
       </video>
       {%endif%}
-      <div id="plotly-{{output.rel_filepath}}"
+      <div id="plotly-{{output.recording.path}}"
            class="plot-6dof" style="height:600;"
            data-output-url="{{output.output_dir_url}}"
-           data-offset-offline="{{output.metrics.time_offset_to_groundtruth}}"
-           data-offset-s8="{{output.metrics_s8.time_offset_to_groundtruth}}"
+           data-offset-offline="{{output.time_offset_to_groundtruth}}"
+           _data-offset-s8="{.{output.metrics_s8.time_offset_to_groundtruth}.}"
            {%if recording in outputs_ref %}
              data-vs-output-url="{{outputs_ref[recording].output_dir_url}}"
-             data-vs-offset-offline="{{outputs_ref[recording].metrics.time_offset_to_groundtruth}}"
-             data-vs-offset-s8="{{outputs_ref[recording].metrics_s8.time_offset_to_groundtruth}}"
+             data-vs-offset-offline="{{outputs_ref[recording].time_offset_to_groundtruth}}"
+             _data-vs-offset-s8="{.{outputs_ref[recording].metrics_s8.time_offset_to_groundtruth}.}"
            {%endif%}
-           data-name="{{output.rel_filepath}}">
-        <img id="plot-{{output.rel_filepath}}" width="300px" src="{{output.output_dir_url+'curves.jpg'}}"></img>        
+           data-name="{{output.recording.path}}">
+        <img id="plot-{{output.recording.path}}" width="300px" src="{{output.output_dir_url/'curves.jpg'}}"></img>        
       </div>
-      {% endwith %}
 	  </div>
 	</div>
 {% endfor %}
 </div>
 
-<!-- { % include 'output-table.html' % } -->
-
 {% include 'extra-batch.html' %}
-
 {% include 'poses_viz.html' %}
-<script>
-</script>
 {% include 'video-scripts.html' %}
 
 {% endblock %}

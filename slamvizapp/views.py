@@ -8,26 +8,12 @@ import subprocess
 
 from flask import request, render_template, send_from_directory
 from flask import redirect, flash
+from sqlalchemy.orm.exc import NoResultFound
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-
-
-from slamvizapp import app, repo
-from .models import CiCommit, latest_successful_commit, parent_successful_commit
-from .git_utils import git_pull, list_commits
-from .utils import get_users_per_name, filter_dict
+from slamvizapp import app, repo, db_session
+from .models import CiCommit, latest_successful_commit
+from .utils import get_users_per_name, filter_slam_outputs, palette
 from .config import *
-
-
-@app.route('/gitlab_webhook', methods=['GET', 'POST'])
-def gitlab_webhook():
-  """Gitlab calls this endpoint every push, it garantees we stay synced."""
-  # in the future we may want to remember the commit-branch/tag association
-  # json.loads(request.data)
-  git_pull()
-  return "{status:'OK'}"
 
 
 @app.route('/s/<path:filename>')
@@ -53,19 +39,13 @@ def show_commits(branch=None, search=None):
   """ Renders an index page of the commits in the branch organized by date."""
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
-  # Warning: list_commits only works 100% when displaying the commits in a single branch...
-  # To get exactly max_count results per page we should do this within list_commits
-  try:
-    ci_commits = [CiCommit(c) for c in list_commits(branch, page, max_count)]
-    ci_commits = [c for c in ci_commits if c.lsf_logs.exists()]
-  except:
-    raise
-    return "please retry in a few moments. Someone likely just pushed a commit."
-
+  if not branch:
+    ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
+  else: 
+    ci_commits = CiCommit.query.filter(CiCommit.branch==branch).limit(max_count).offset(page*max_count)
   search = request.args.get('search', '').lower()
   if search:
     ci_commits = [c for c in ci_commits if search in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
-
   return render_template('list.html',
               ci_commits=ci_commits,
               search=search,
@@ -73,72 +53,97 @@ def show_commits(branch=None, search=None):
               users=get_users_per_name(""), page=page, min_page=max(0,page-2))
 
 
-
-
-
 @app.route("/commit/<hexsha>")
 @app.route("/commit/<hexsha>/")
 def render_commit(hexsha):
   """ Renders a page showing the results with a given code commit. """
   try:
-    ci_commit = CiCommit(repo.commit(hexsha))
-  except:
+    commit = repo.commit(hexsha)
+    ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+  except NoResultFound:
     return "Sorry, the commit id was not found", 404
 
-  #.one()
-  # session.query(User).\
-  # ... filter_by(name='jack')
   # We compare versus the latest success commit on origin/develop
   # Note: we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
   hexsha_ref = request.args.get('reference', None)
-  ci_commit_ref = CiCommit(repo.commit(hexsha_ref)) if hexsha_ref else latest_successful_commit('origin/develop')
-  if not ci_commit_ref:
+  try:
+    if hexsha_ref: 
+      commit_ref = repo.commit(hexsha_ref)
+      ci_commit_ref = CiCommit.query.filter(CiCommit.id==commit_ref.hexsha).one()
+    else:
+      ci_commit_ref = latest_successful_commit('origin/develop')
+  except:
     return "sorry there is an issue with the commit used for comparaison..."
 
   # the user can exlude/filter specific recordings with URL query parameters
   filename_filter = request.args.get('filter', '')
   filename_exclude = request.args.get('exclude', '')
-  if request.method == 'GET':
-    # FIXME: do it with an sql query
-    outputs = filter_dict(
-      ci_commit.outputs(),
-      filename_filter ,
-      filename_exclude
-    )
-    outputs_ref = filter_dict(
-      ci_commit_ref.outputs(),
-      filename_filter ,
-      filename_exclude
-    )
+  outputs = filter_slam_outputs(ci_commit.slam_outputs, filename_filter, filename_exclude)
+  outputs_ref = filter_slam_outputs(ci_commit_ref.slam_outputs, filename_filter, filename_exclude)
+  # for the display it's easier to have a dict of recording.name => output
+  outputs = {o.recording.path: o for o in outputs}
+  outputs_ref = {o.recording.path: o for o in outputs_ref}
+  # we want it sorted (we could do it from SQL,,,)
+  get_rmse = lambda o: -o[1].translation_aape if o[1].translation_aape else 0
+  outputs = {k:v for k,v in sorted(outputs.items(), key=get_rmse)}
+  outputs_ref = {k:v for k,v in sorted(outputs_ref.items(), key=get_rmse)}
 
-    # FIXME: sort outputs by success in views.py..
-    # get_rmse = lambda o: -o[1]['metrics']['aape'] if 'aape' in o[1]['metrics'] else 0
-    # self._outputs = {k:v for k,v in sorted(self._outputs.items(), key=get_rmse)}
+  # we display the batches used when re-running on more movies
+  with batches_filepath.open() as f:
+    batches = f.read()
+
+  # a lot of stuff needs to be in the template's scope...
+  return render_template('commit-results.html',
+                         show_table = bool(request.args.get('show_table', False)),
+                         palette_deltas = palette,
+                         filename_filter=filename_filter, filename_exclude=filename_exclude,
+                         commit=ci_commit, commit_ref=ci_commit_ref,
+                         outputs=outputs,
+                         outputs_ref=outputs_ref,
+                         branch=ci_commit.branch,
+                         batches=batches)
 
 
-    # we display the batches used when re-running on more movies
-    with batches_filepath.open() as f:
-      batches = f.read()
 
-    # we prepare a color palette to for the summary table
-    norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2)
-    m = cm.ScalarMappable(norm=norm, cmap=plt.get_cmap('RdYlGn').reversed() )
-
-    # a lot of stuff needs to be in the template's scope...
-    return render_template('commit-results.html',
-                           show_table = bool(request.args.get('show_table', False)),
-                           palette_deltas = m,
-                           filename_filter=filename_filter, filename_exclude=filename_exclude,
-                           commit=ci_commit, commit_ref=ci_commit_ref,
-                           outputs=outputs, outputs_ref=outputs_ref,
-                           branch=ci_commit.branch(),
-                           batches=batches)
+@app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
+@app.route("/metrics/<hexsha>/", methods=['POST', 'GET'])
+def rerun_metric(hexsha):
+  """
+  Re-computes the SLAM metrics for the specified commit using the latest scripts from develop.
+  TODO: it should be one of CiCommit's methods.
+  """
+  try:
+    commit = repo.commit(hexsha)
+    ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+  except NoResultFound:
+    return "Sorry, the commit id was not found", 404
+  cmd = ' '.join([
+    f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
+    f'setenv SLAM_WORKING_DIRECTORY \'{ci_commit.commit_dir}\';',
+    f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
+    f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
+    f'python tools/performance-evaluation/run.py metrics_for_all"'
+  ])
+  print(cmd)
+  flash(cmd)
+  out = subprocess.run(cmd, shell=True,
+                 encoding='utf-8',
+                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  print(out.stdout)
+  print(out.stderr)
+  flash(out.stdout)
+  flash(out.stderr)
+  return redirect('commit/'+hexsha)
 
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):
   """Allows users to run the SLAM on new recordings."""
-  commit = CiCommit(repo.commit(hexsha))
+  try:
+    commit = repo.commit(hexsha)
+    ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+  except NoResultFound:
+    return "Sorry, the commit id was not found", 404
   batch = request.form.get('batch', None)
   batches = request.form.get('batches', None)
   overwrite = '--overwrite' if request.form.get('overwrite', 'off')=='on' else ''
@@ -149,19 +154,24 @@ def run_extra_batches(hexsha):
       flash('Updated batches!')
 
   if batch:
-    commit.ci_run_datetime = datetime.datetime.now().astimezone()
-    cmd = ' '.join([
-      f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
-      f'setenv SAMSUNG_CI_COMMIT_DIR \'{commit.commit_dir}\';',
-      f'python tools/run.py batch --batchfile {str(batches_filepath)} --batch {batch} {overwrite}"'
+    ci_commit.time_of_last_slam_job = datetime.datetime.now().astimezone()
+    db_session.add(ci_commit)
+    db_session.commit()
+    cmd = ' '.join([  
+      f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
+      f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
+      f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
+      f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {batch} {overwrite}"'
     ])
     print(cmd)
     # it will only work with my /home/arthurf/.cshrc file
     # it sets ENV variables as needed....
-    subprocess.run(cmd, shell=True,
+    out = subprocess.run(cmd, shell=True,
                    encoding='utf-8',
                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     flash(cmd)
+    flash(out.stdout)
+    flash(out.stderr)
     flash('Results should arrive soon....')
   return redirect('commit/'+hexsha)
 
@@ -173,19 +183,3 @@ def run_extra_batches(hexsha):
 def tuning_view(hexsha):
     ci_commit = CiCommit(repo.commit(hexsha))
     return render_template('tuning.html', ci_commit=ci_commit)
-
-@app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
-def rerun_metric(hexsha):
-  commit = CiCommit(repo.commit(hexsha))
-  cmd = ' '.join([
-    f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip/swip_slam/UnitTests;',
-    f'setenv SLAM_WORKING_DIRECTORY= \'{commit.commit_dir}\';',
-    f'python tools/run.py metrics_for_all"'
-  ])
-  print(cmd)
-  subprocess.run(cmd, shell=True,
-                 encoding='utf-8',
-                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  flash(cmd)
-  flash('Results should arrive soon....')
-  return redirect('commit/'+hexsha)

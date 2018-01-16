@@ -1,0 +1,23 @@
+---
+# list of pre-selected movie batches
+# we'll work on all the bin files found in those folders
+# note: this file is NOT the one used by the regular CI.
+
+tough-for-sync:
+- DualGen3_WideAngle_IMU_BL15cm/Demo_set/2017-11-29-Scene_1.0
+
+small:
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set
+
+# small:
+#   - DualGen3_WideAngle_IMU_BL15cm
+#   - DualGen3_WideAngle_IMU_BL2cm
+
+full:
+  - DualGen3_IMU_BL2cm/RobotMovies
+  - DualGen3_IMU_BL2cm/ManualMotions
+
+Demo_set_full:
+- DualGen3_WideAngle_IMU_BL15cm/Demo_set
+
+...

@@ -2,10 +2,11 @@ import os
 from pathlib import Path
 
 # we clone our psp_swip repo here
-app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '.'))
+app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '.')).resolve()
 
 # users can request to run on new recordings - here we keep the list of available batches
-batches_filepath = (app_data_directory/'extra-batches.yml').resolve()
+# it must be available from LSF
+batches_filepath = Path('/home/arthurf/dvs/slamvizapp/data/extra-batches.yml')
 
 
 # unix config

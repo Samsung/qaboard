@@ -35,6 +35,11 @@ class Recording(Base):
   )
 
 
+  @property
+  def output_folder(self):
+    """The path without .bin"""
+    return self.path[:-4]
+
 
   ### HOW we recorded #########
    # we could store the sensorID...
@@ -55,14 +60,15 @@ class Recording(Base):
   is_calibration = Column(Boolean(), default=False)
 
   is_low_light = Column(Boolean(), default=False)
+  is_flickering = Column(Boolean(), default=False)
   # illumination = Column(Integer()) # lux?
   is_hdr = Column(Boolean(), default=False)
   # is_hdr = Column(Integer()) # log-constrast?
   # light_type = Column(String()) # outdoor, neon, light temperature...
 
   # how the camera moves
-  motion_is_translation = Column(Integer(), default=False)
-  motion_is_rotation = Column(Integer(), default=False)
+  motion_is_translation = Column(Boolean(), default=False)
+  motion_is_rotation = Column(Boolean(), default=False)
   motion_axis = Column(Enum(Axis), default=Axis.mixed)
   # motion_axis = Column(Integer(), default=Axis.mixed)
   motion_speed = Column(Integer(), default=None) # of the camera, for the robot in deg/s?
@@ -79,6 +85,7 @@ class Recording(Base):
     if 'Rx' in path or 'Ry' in path or 'Rz' in path:
       self.motion_is_rotation = True
 
+    # we don't handle multiple axis of motion....
     if 'Tx' in path or 'Rx' in path:
       self.motion_axis = Axis.x
     if 'Ty' in path or 'Ry' in path:
@@ -99,11 +106,12 @@ class Recording(Base):
     m = re.match(r"(?P<stereo_baseline>\d+)cm", path)
     if m: self.stereo_baseline = m.group('stereo_baseline')
 
-    self.is_calibration = True if 'calibration' in path else False
+    self.is_calibration = True if '[cC]alibration' in path else False
     self.is_low_light = True if 'LL' in path else False
     self.is_hdr = True if 'HDR' in path else False
-    self.is_dynamic = True if 'dynamic' in path else False
-    self.is_static = True if 'static' in path else False
+    self.is_dynamic = True if '[dD]ynamic' in path else False
+    self.is_static = True if '[sS]tatic' in path else False
+    self.is_flickering = True if '[fF]licker' in path else False
 
 
   def __repr__(self):

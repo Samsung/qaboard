@@ -61,7 +61,7 @@
               </select>
           </form>
           </div>
-          <div class="block-controls hidden-xs hidden-sm">
+          <div class="block-controls">
             <div class="control">
             <form class="commits-search-form" action="" accept-charset="UTF-8" method="GET">
               <input type="search" name="search" id="commits-list-search" placeholder="{{'Filter by author, message...' if not search else 'Filter: '+search}}" class="form-control search-text-input input-short" spellcheck="false" value="">
@@ -82,7 +82,8 @@
         
 
         <h3 style="margin-top: 50px">Recent commits</h3>
-	<p style="color:red">Please <code>git pull origin develop</code> from to avoid CI crashes.</p>
+        <p style="color:red">To see your new commits, please <code>git checkout origin/develop tools/performance-evaluation</code></p>
+        <p style="color:darkorange">Otherwise the list will be updated every minute. And less often next week ;)</p>
         <ol class="list-unstyled content_list" id="commits-list">
           {% for commit_date, commits_at_date in ci_commits|groupby('authored_date')|reverse %}
           <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} &#8212; {{commits_at_date|length}} commits</li>
@@ -90,44 +91,41 @@
             <ul class="content-list commit-list">
               {% for commit in commits_at_date %}
               <li class="commit flex-list js-toggle-container" id="commit-{{commit.gitcommit.hexsha}}">
-                <div class="avatar-cell hidden-xs">
-                 <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36 hidden-xs" alt="{{commit.gitcommit.committer.name}}" title="" data-container="body" src="{{users[commit.gitcommit.committer.name]['avatar_url'] if commit.gitcommit.committer.name in users else ''}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
+                <div class="avatar-cell">
+                 <a href="/{{commit.gitcommit.committer.name}}"><img class="avatar has-tooltip s36" alt="{{commit.gitcommit.committer.name}}" title="" data-container="body" src="{{users[commit.gitcommit.committer.name]['avatar_url'] if commit.gitcommit.committer.name in users else ''}}" data-original-title="{{commit.gitcommit.committer.name}}"></a>
                 </div>
                 <div class="commit-detail">
                   <div class="commit-content">
                     <a class="commit-row-message item-title" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.gitcommit.message[:80]}}</a>
-                    <span class="commit-row-message visible-xs-inline">
-                    ·
-                    {{commit.gitcommit.hexsha}}
-                    </span>
-                    <div class="visible-xs-inline">
-                      <a class="ci-status-link ci-status-icon-canceled " title="Delete this commit's outputs" onclick="delete_commit('{{commit.gitcommit.hexsha}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
-                      </a>
-                    </div>
                     <div class="commiter">
                       <a class="commit-author-link has-tooltip" title="" href="{{users[commit.gitcommit.committer.name]['web_url'] if commit.gitcommit.committer.name in users else ''}}" data-original-title="commit.gitcommit.committer.name">
                       {{svg_commit()}}
                       <a style="color: #1b69b6;"class="commit-short-id" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}"> {{commit.gitcommit.hexsha[:8]}}</a></a>
-                      <i aria-hidden="true" class="fa fa-code-fork"></i><span><a href="/branch/{{commit.branch()}}">{{commit.branch()}}</a></span>
-                      <span style="color: rgba(0,0,0,0.55); white-space: nowrap; box-sizing: border-box;" class="finished-at hidden-xs hidden-sm"><i aria-hidden="true" class="fa fa-calendar"></i> <time class="timeago" datetime="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}" data-placement="top" data-container="body" title="" data-original-title="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}">{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}</time> by {{commit.gitcommit.committer.name}}</span>
+                      <i aria-hidden="true" class="fa fa-code-fork"></i><span><a href="/branch/{{commit.branch}}">{{commit.branch}}</a></span>
+                      <span style="color: rgba(0,0,0,0.55); white-space: nowrap; box-sizing: border-box;" class="finished-at hidden-sm"><i aria-hidden="true" class="fa fa-calendar"></i> <time class="timeago" datetime="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}" data-placement="top" data-container="body" title="" data-original-title="{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}">{{commit.gitcommit.authored_datetime.strftime('%Y-%m-%dT%H:%M:%S')}}</time> by {{commit.gitcommit.committer.name}}</span>
                       </div>
                   </div>
                   <div class="commit-results" style="margin-left: auto;">
                     <span>
-                    {% if not commit.outputs()%}
-                      <a style="color:red" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">Failure! Check the LSF logs</a>
+                    {% if not commit.slam_outputs%}
+                      {% if (commit.commit_dir/'lsf.log').exists()%}
+                       <a style="color:darkred" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">Failure! Check the LSF logs</a>
+                      {% else %}
+                      <a style="color:grey" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}">check the pipeline status..</span>
+                      {%endif%}
                     {%else%}
-                      {% if commit.number_failures() %}
-                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">{{commit.number_failures()}} failures</a>    {%endif%}
+
+                      {% if commit.failures_count() %}
+                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">{{commit.failures_count()}} failures</a>
+                      {%endif%}
                       {% if commit.aggregated_metrics().translation_rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.aggregated_metrics().translation_rmse_median)}}</strong> RMSE {%endif%}
                     </span>
                     {%endif%}
                   </div>
-                  <div class="commit-actions flex-row hidden-xs">
-<!--                     <a class="ci-status-link ci-status-icon-canceled " title="Delete this commit's outputs" onclick="delete_commit('{{commit.gitcommit.hexsha}}')"><svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><g fill-rule="evenodd"><path d="M0 7a7 7 0 1 1 14 0A7 7 0 0 1 0 7z"></path><path d="M13 7A6 6 0 1 0 1 7a6 6 0 0 0 12 0z" fill="#FFF"></path><path d="M7 5.969L5.599 4.568a.29.29 0 0 0-.413.004l-.614.614a.294.294 0 0 0-.004.413L5.968 7l-1.4 1.401a.29.29 0 0 0 .004.413l.614.614c.113.114.3.117.413.004L7 8.032l1.401 1.4a.29.29 0 0 0 .413-.004l.614-.614a.294.294 0 0 0 .004-.413L8.032 7l1.4-1.401a.29.29 0 0 0-.004-.413l-.614-.614a.294.294 0 0 0-.413-.004L7 5.968z"></path></g></svg>
-                    </a>
-                    <a class="btn btn-warning" href="/commit/{{commit.gitcommit.hexsha}}">delete results</a>
- -->                    <a style="margin-left: 10px" class="btn btn-primary" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.outputs()|length}} results</a>
+                  <div class="commit-actions flex-row">
+                        {% if commit.slam_outputs%}
+                        <a style="margin-left: 10px" class="btn btn-primary" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.slam_outputs|length}} results</a>
+                        {%endif%}
                   </div>
                 </div>
               </li>

@@ -1,16 +1,24 @@
   <div class="row" style="heigh:100px">
     <div class="one-third column">
-      <div id="boxes-{{commit.gitcommit.hexsha}}-aape"></div>
+      <div id="boxes-{{commit.gitcommit.hexsha}}-translation_aape_when_good"></div>
     </div>
-<!--     <div class="one-third column">
-     <div id="boxes-{{commit.gitcommit.hexsha}}-translation-rmse"></div>
-    </div> -->
     <div class="one-third column">
-      <div id="boxes-{{commit.gitcommit.hexsha}}-rotation-mean"></div>
+      <div id="boxes-{{commit.gitcommit.hexsha}}-rotation_mean_when_good"></div>
     </div>
+    <div class="one-third column">
+      <div id="boxes-{{commit.gitcommit.hexsha}}-frac_tracking_state_good"></div>
+    </div>
+  </div>
 
+  <div class="row" style="heigh:100px">
     <div class="one-third column">
-     <div id="boxes-{{commit.gitcommit.hexsha}}-drift"></div>
+      <div id="boxes-{{commit.gitcommit.hexsha}}-translation_aape"></div>
+    </div>
+    <div class="one-third column">
+      <div id="boxes-{{commit.gitcommit.hexsha}}-rotation_mean"></div>
+    </div>
+    <div class="one-third column">
+     <div id="boxes-{{commit.gitcommit.hexsha}}-translation_drift_pc"></div>
     </div>
   </div>
 
@@ -19,109 +27,12 @@
   var color = 'rgba(255, 157, 0, 1)';
   var color_ref = 'rgba(55, 126, 184, 1)';
   var colors = [color, color_ref];
+
   var color_a = 'rgba(255, 157, 0, .4)';
   var color_ref_a = 'rgba(55, 126, 184, .4)';
   var colors_a = [color_a, color_ref_a];
 
   var xdata = ['new (offline)', 'reference (offline)'];
-  // var yData_translation_rmse = [
-  //   {{ commit.metrics('translation_rmse', outputs)     | tojson }}.map(e=>100*e),
-  //   {{ commit_ref.metrics('translation_rmse',outputs_ref) | tojson }}.map(e=>100*e),
-  // ];
-  var yData_rotation_mean = [
-    {{ commit.metrics('rotation_mean', outputs)     | tojson }}.map(e=>e),
-    {{ commit_ref.metrics('rotation_mean',outputs_ref) | tojson }}.map(e=>e),
-  ];
-  var yData_aape = [
-    {{ commit.metrics('aape', outputs)     | tojson }}.map(e=>100*e),
-    {{ commit_ref.metrics('aape', outputs_ref) | tojson }}.map(e=>100*e),
-  ];
-  var yData_drift = [
-    {{ commit.metrics('final_drift_pc', outputs)     | tojson }}.map(e=>100*e),
-    {{ commit_ref.metrics('final_drift_pc', outputs_ref) | tojson }}.map(e=>100*e),
-  ];
-  // var data_translation_rmse = [];
-  var data_rotation_mean = [];
-  var data_aape = [];
-  var data_drift = [];
-
-  for ( var i = 0; i < xdata.length; i ++ ) {
-    // var result = {
-    //   type: 'box',
-    //   y: yData_translation_rmse[i],
-    //   name: xdata[i],
-    //   boxpoints: 'all',
-    //   jitter: 0.5,
-    //   whiskerwidth: 0.3,
-    //   fillcolor: colors_a[i],
-    //   marker: {
-    //     size: 8,
-    //     color: colors[i],
-    //   },
-    //   line: {
-    //     width: 2,
-    //     color: colors[i],
-    //   }
-    // };
-    // data_translation_rmse.push(result);
-
-    var result = {
-      type: 'box',
-      y: yData_rotation_mean[i],
-      name: xdata[i],
-      boxpoints: 'all',
-      jitter: 0.5,
-      whiskerwidth: 0.3,
-      fillcolor: colors_a[i],
-      marker: {
-        size: 8,
-        color: colors[i],
-      },
-      line: {
-        width: 2,
-        color: colors[i],
-      }
-    };
-    data_rotation_mean.push(result);
-
-    var result = {
-      type: 'box',
-      y: yData_aape[i],
-      name: xdata[i],
-      boxpoints: 'all',
-      jitter: 0.5,
-      whiskerwidth: 0.3,
-      fillcolor: colors_a[i],
-      marker: {
-        size: 8,
-        color: colors[i],
-      },
-      line: {
-        width: 2,
-        color: colors[i],
-      }
-    };
-    data_aape.push(result);
-
-    var result = {
-      type: 'box',
-      y: yData_drift[i],
-      name: xdata[i],
-      boxpoints: 'all',
-      jitter: 0.5,
-      whiskerwidth: 0.3,
-      fillcolor: colors_a[i],
-      marker: {
-        size: 8,
-        color: colors[i],
-      },
-      line: {
-        width: 2,
-        color: colors[i],
-      }
-    };
-    data_drift.push(result);
-  };
   layout = {
       bargap: 0., 
       bargroupgap: 0., 
@@ -156,15 +67,42 @@
       paper_bgcolor: 'rgba(0,0,0,0)',
   };
 
-  // layout.xaxis.title = 'RMSE [cm]';
-  // Plotly.newPlot("boxes-{{commit.gitcommit.hexsha}}-translation-rmse", data_translation_rmse, layout, {displayModeBar: false});
+  {% macro build_histogram(metric, label, scale=1) %}
+    var ydata = [
+      {{ commit.metrics(metric, outputs.values())     | tojson }}.map(e=>{{scale}}*e),
+      {{ commit_ref.metrics(metric,outputs_ref.values()) | tojson }}.map(e=>{{scale}}*e),
+    ];
+    var data = [];
+    for ( var i = 0; i < xdata.length; i ++ ) {
+      var result = {
+        type: 'box',
+        y: ydata[i],
+        name: xdata[i],
+        boxpoints: 'all',
+        jitter: 0.5,
+        whiskerwidth: 0.3,
+        fillcolor: colors_a[i],
+        marker: {
+          size: 8,
+          color: colors[i],
+        },
+        line: {
+          width: 2,
+          color: colors[i],
+        }
+      };
+      data.push(result);
+    }
+    layout.xaxis.title = "{{label}}";
+    Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-{{metric}}', data, layout, {displayModeBar: false});
+  {% endmacro %}
 
-  layout.xaxis.title = 'AAPE [cm]';
-  Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-aape', data_aape, layout, {displayModeBar: false});
+  {{build_histogram('translation_aape', 'AAPE [cm]', scale=100)}}
+  {{build_histogram('rotation_mean', 'Avg Rotation error [°]')}}
+  {{build_histogram('translation_drift_pc', 'Final relative drift [%]', scale=100)}}
 
-  layout.xaxis.title = 'Final relative drift [%]';
-  Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-drift', data_drift, layout, {displayModeBar: false});
+  {{build_histogram('translation_aape_when_good', 'AAPE when GOOD [cm]', scale=100)}}
+  {{build_histogram('rotation_mean_when_good', 'Avg Rotation error when GOOD [°]')}}
+  {{build_histogram('frac_tracking_state_good', 'GOOD tracking [%]', scale=100)}}
 
-  layout.xaxis.title = 'Rotation RMSE [°]';
-  Plotly.newPlot('boxes-{{commit.gitcommit.hexsha}}-rotation-mean', data_rotation_mean, layout, {displayModeBar: false});
 </script>

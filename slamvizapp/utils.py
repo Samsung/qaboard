@@ -6,13 +6,26 @@ import datetime
 import requests
 
 
-def filter_dict(d, include, exclude):
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+# we prepare a color palette to for the summary table
+norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2) #FIXME
+cmap = plt.get_cmap('RdYlGn')
+palette = cm.ScalarMappable(norm=norm, cmap=cmap)
+
+
+
+def filter_slam_outputs(slam_outputs, include, exclude):
     """Filters a dictionnary based on strings its keys should include or not include."""
     if include:
-      d = {k:v for k,v in d.items() if include in k}
+      slam_outputs = [o for o in slam_outputs if include in o.recording.path]
     if exclude:
-      d = {k:v for k,v in d.items() if exclude not in k}
-    return d
+      slam_outputs = [o for o in slam_outputs if exclude not in o.recording.path]
+    return slam_outputs
+
+
 
 
 # Until we get a proper database, we need to cache things a bit
@@ -36,9 +49,6 @@ def cache(minutes=1440, func_skip_cache=None):
         return func_wrapper
     return cache_ttl_decorator
 
-
-
-
 @cache(minutes=60)
 def get_users_per_name(search_filter):
     """Retrievies users from Gitlab"""
@@ -60,7 +70,8 @@ def get_users_per_name(search_filter):
             if first_name not in users_db:
                 users_db[first_name] = u
             else:
-                print(f'warning: {u}')
+                pass
+                # print(f'warning: {u}')
         except:
             pass
     return users_db 
