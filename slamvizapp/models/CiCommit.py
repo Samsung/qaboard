@@ -195,8 +195,8 @@ def aggregated_metrics(slam_outputs):
     for metric, treshold in metrics_to_aggregate:
       values = np.array([getattr(o, metric) for o in slam_outputs if getattr(o, metric)])
       aggregated[metric+'_median'] = np.median(values)
-      aggregated[metric+'_average']= np.median(values)
-      aggregated[metric+'_pc_bad'] = np.mean(values<treshold)
+      aggregated[metric+'_average']= np.average(values)
+      aggregated[metric+'_pc_bad'] = np.mean(values>treshold)
     return aggregated
 
 
