@@ -3,15 +3,6 @@
 - Keeps in sync with gitlab and listens for notifications when a SLAM run is completed. Keeps the data in a database other tools can connect to.
 
 
-
-
-
-
-
-http://docs.sqlalchemy.org/en/latest/orm/query.html
-http://www.ergo.io/blog/sqlalchemy-relationships-from-beginner-to-advanced/
-http://docs.sqlalchemy.org/en/latest/orm/mapped_sql_expr.html
-
 ## Setup
 - You will need a database accessible. Since we work with `sqlalchemy` as ORM, we can pick almost anyone we like.
   * The default configuration expects a `postgreSQL` database available on *localhost* ([download](https://www.postgresql.org/download)).
@@ -111,41 +102,12 @@ The application expects SLAM results to be saved like so:
   app_params.json
   swip_slam_tests
   output/
+        $PLATFORM_PREFIX                       # default='' for lsf
+        $MODE_PREFIX                           # default='' for serial-stereo
          my/recording1/                        # from $database/my/recording1.bin
                        camera_poses_debug.csv  # 6dof and more...
                        curves.jpg              # 6dof plots
                        results.mp4             # rendering of the results
                        metrics.json            # all the metrics, time offset vs ground-truth...
                        # TODO: specify the platform via subfolders or suffixes *_$PLATFORM*
-
-  # WORK IN PROGRESS
-  tuning.json
-    "batchfile": 
-    "batch":
-    "manual" : {
-      radius: {explicit [0.1, 0.2]}
-      radius: {from, to, step, number}
-    }
-    "automated" : {
-      iterations: 300
-
-    }
-  tuning/hash(params)
-  tuning.db
-```
-
-## TODO
-- Use the database with a third-party BI tool to show performance over time, for specific movies, types of movies... https://github.com/apache/incubator-superset or metabase
-- Support for tuning
-- VR rendering via webVR
-
-
-## WIP: Serving via uwsgi-nginx
-> You *may* want this for http2/ssl support.
-
-```
-sudo apt-get install nginx
-pip install uwsgi
-# TODO: commit the systemd file and nginx config...
-# ... the server then works as a service
 ```
