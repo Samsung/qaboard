@@ -2,58 +2,48 @@
 - Provides a web dashboard to show and compare SLAM results.
 - Keeps in sync with gitlab and listens for notifications when a SLAM run is completed. Keeps the data in a database other tools can connect to.
 
+## Database setup
+You will need a database accessible. Since we work with `sqlalchemy` as ORM, we can pick almost any we like.
+* The default configuration expects a `postgreSQL` database available on *localhost* ([download](https://www.postgresql.org/download)).
+* You can change the database user, password, host... using environment variables like `SLAMVIZAPP_DB_USER`.
+* To know more, read *database.py*.
+* Common configuration issues:
+  - setup user passwords with something like `$ sudo -postgres psql -U postgres`, `sql> \password`.
+  - listen to remote hosts with `sudo nano /etc/postgresql/9.6/main/postgresql.conf`, `listen_addresses = '*'`.
+  - allow connections from remote hosts by tweaking [`pg_hba.conf`](https://blog.bigbinary.com/2016/01/23/configure-postgresql-to-allow-remote-connection.html)
 
 ## Setup
-- You will need a database accessible. Since we work with `sqlalchemy` as ORM, we can pick almost anyone we like.
-  * The default configuration expects a `postgreSQL` database available on *localhost* ([download](https://www.postgresql.org/download)).
-  * You can change the database user, password, host... using environment variables like `SLAMVIZAPP_DB_USER`.
-  * To know more, read *database.py*.
-  * Common configuration issues:
-    1. setup user passwords with something like `$ sudo -postgres psql -U postgres`, `sql> \password`.
-    2. listen to remote hosts with `sudo nano /etc/postgresql/9.6/main/postgresql.conf`, `listen_addresses = '*'`.
-    3. allow connections from remote hosts by tweaking [`pg_hba.conf`](https://blog.bigbinary.com/2016/01/23/configure-postgresql-to-allow-remote-connection.html)
-
 - Install `python3.6`. The [annaconda distribution](https://www.continuum.io/downloads) is the easiest way.
-- Install this application:
+- Install this application and its dependencies as a python package:
 
 ```bash
-# Installs the application and its dependencies as a python package
-# with '--editable', change to the code will be seen upon re-import
-pip install --editable .
-# if you have issues with PATH or multiple pip versions,
-#  create a dedicated python conda/virtualenv environment
-#  virtualenv venv
-#  . venv/bin/activate
-# With pip and the SIRC's firewall,
-#  you may need to specify --proxy http://dlp-wcg01:8080
-#  or ask pip to trust the certificates... whatever
+pip install --editable .                  # edits to the code will be seen
+#           --proxy http://dlp-wcg01:8080 # from LSF/vdi
+#            -k                           # to trust Samsung's SSL certificate
+
+# If you want a clean python environment, consider
+# pip install virtualenv; virtualenv venv; . venv/bin/activate 
 ```
 
-- Clone the `psp_swip` repository in the working directory or at a location specified in `SLAMVIZAPP_DATA`.
+- Clone the `psp_swip` repository in the working directory or at a location specified in the `SLAMVIZAPP_DATA` environment variable.
 
 ```bash
-# on linux with normal POSIX shells
-export SLAMVIZAPP_DATA=/etc/slamvizapp
-# on linux with tcshell
-setenv SLAMVIZAPP_DATA /etc/slamvizapp
-# on windows
-set slamvizapp=XXXXXXXXXXX
-
 cd $SLAMVIZAPP_DATA
 git clone git@gitlab-srv:dvs/psp_swip.git
 ```
 
-- To initialize the database, run the following script.
+- To initialize the database, run:
 
 ```
 ./slamvizapp_init_database
-# --loop : keeps updating every minue
-# --drop-all : drop all the tables before the import
+# --help
+# --loop       Keep updating every minute.
+# --drop-all   Drop all the tables before the import.
 ```
 
 - Make sure the app receives notifications (aka webhooks) whenever someone pushes changes to [gitlab](http://gitlab-srv/dvs/psp_swip):
     1. In `psp_swip`'s project  *Settings*, in the [*Integrations*](http://gitlab-srv/dvs/psp_swip/settings/integrations) setup a webhook to `$YOUR_HOSTNAME/webhook/gitlab`.
-    2. In your [user setting](http://gitlab-srv/profile/personal_access_tokens), get an API access tokens for your user.
+    2. In your [user setting](http://gitlab-srv/profile/personal_access_tokens), get an API access tokens for your user and export as:
 
 ```bash
 # to avoid a line like this in your shell history, you may want to
