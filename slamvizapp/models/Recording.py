@@ -8,6 +8,7 @@ import enum
 
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, Boolean, Enum
+from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp.models import Base
 
@@ -115,4 +116,13 @@ class Recording(Base):
 
 
   def __repr__(self):
-    return f"<Recording(path='{self.path}' speed={self.motion_speed}>"
+    return f"<Recording(id='{self.id}' path='{self.path}' speed={self.motion_speed}>"
+
+
+  @staticmethod
+  def get_or_create(session, **kwargs):
+    try:
+      recording = session.query(Recording).filter_by(**kwargs).one()
+    except NoResultFound:
+      recording = Recording(**kwargs)
+    return recording

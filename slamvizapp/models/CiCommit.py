@@ -10,8 +10,8 @@ import pickle
 
 import numpy as np
 from sqlalchemy.orm import relationship, reconstructor
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy import Column, ForeignKey, and_
 from sqlalchemy import String, Integer, DateTime
 
 from slamvizapp import repo
@@ -104,16 +104,8 @@ class CiCommit(Base):
     self.gitcommit = repo.commit(self.id)
 
 
-  # def add_slam_output(self, recording, session):
-  #   output_dir = 
-  #   platform='lsf', mode='serial'
-  #   rec
-  #   try:
-  #     with (output_dir/'metrics.json').open() as f:
-  #       metrics = json.load(f)
-  #   except:
-  #     metrics = {'is_failed': True}
-
+  def add_slam_output_from_dir(self, session, output_dir):
+    pass
 
   def discover_slam_outputs(self, session):
     """Find outputs saved on the disk to initialize the database"""
@@ -121,35 +113,58 @@ class CiCommit(Base):
     #        and different modes...
     slam_outputs = []
 
+    # FIXME: we should also look for unsuccessful runs
+    #   we could look into lsf.log and parse it for recoring names
+    #   then check whether we have them of not...
     # we look for successful runs
     output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
     for output_dir in output_dirs:
       rel_recording_path = str(output_dir.relative_to(self.output_dir))+'.bin'
+      recording = Recording.get_or_create(session, path=rel_recording_path)
+      if not recording:
+        continue
+
+      try:
+        slam_output = session.query(SlamOutput).filter(
+          and_(
+            SlamOutput.recording_id==recording.id,
+            SlamOutput.platform=='lsf_serial',
+            SlamOutput.configuration=='serial-stereo',
+            SlamOutput.parameters_set_id == self.default_parameters_set.id,
+            SlamOutput.ci_commit_id == self.id,
+          )
+        ).one()
+        # print(f'found {slam_output}')
+      except MultipleResultsFound:
+        print('WARNING: MultipleResultsFound')
+        continue
+      except NoResultFound:
+        slam_output = SlamOutput(
+          recording=recording,
+          platform='lsf_serial',
+          configuration='serial-stereo',
+          parameters_set = self.default_parameters_set,
+          ci_commit = self,
+        )
+        # slam_outputs.append(slam_output)
+        session.add(slam_output)
+        session.commit()
+      # we find the metrics,
       try:
         with (output_dir/'metrics.json').open() as f:
           metrics = json.load(f)
       except:
         metrics = {'is_failed': True}
+      # and use them to update the slam_output
+      for m in metrics:
+        setattr(slam_output, m, metrics[m]) 
 
-      try:
-        recording = session.query(Recording).filter_by(path=rel_recording_path).one()
-      except NoResultFound:
-        recording = Recording(path=rel_recording_path)
-  
-      slam_output = SlamOutput(
-        recording=recording,
-        platform='lsf_serial',
-        parameters_set = self.default_parameters_set,
-        **metrics,
-      )
-      slam_outputs.append(slam_output)
+    # self.slam_outputs = slam_outputs
 
-    # FIXME: we should also look for unsuccessful runs
-    # we could look into lsf.log and parse it for recoring names
-    # then check whether we have them of not...
 
-    self.slam_outputs = slam_outputs
-
+  @property
+  def valid_slam_outputs(self):
+    return [o for o in self.slam_outputs if not o.is_failed]
 
   def failures_count(self):
       """Returns an estimate of the number of failed runs"""
@@ -165,14 +180,14 @@ class CiCommit(Base):
 
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
-      return aggregated_metrics(filter_slam_outputs(self.slam_outputs, filename_filter, filename_exclude))
+      return aggregated_metrics(filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude))
 
   def metrics(self, metric, outputs=None):
       """Returns a list of results - for a chosen metric - over the commit's outputs.
       The optionnal `outputs` parameter makes it almost like a static method. It helps with scope issues in the templates.
       """
       if not outputs:
-        outputs = self.outputs
+        outputs = self.slam_outputs
       return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
 
@@ -182,6 +197,7 @@ def aggregated_metrics(slam_outputs):
         'pc_where_lost_at_least_once': np.mean([m.nb_lost>0 for m in slam_outputs if m.nb_lost]),
         'total_time_lost_pc_mean': np.mean([m.total_time_lost_pc for m in slam_outputs if m.total_time_lost_pc]),
     }
+    # metric_name, threshold_good 
     metrics_to_aggregate = [
       ('translation_rmse', 0.01),
       ('translation_aape', 0.01),
@@ -194,9 +210,9 @@ def aggregated_metrics(slam_outputs):
     ]
     for metric, treshold in metrics_to_aggregate:
       values = np.array([getattr(o, metric) for o in slam_outputs if getattr(o, metric)])
-      aggregated[metric+'_median'] = np.median(values)
-      aggregated[metric+'_average']= np.average(values)
-      aggregated[metric+'_pc_bad'] = np.mean(values>treshold)
+      aggregated[f'{metric}_median'] = np.median(values)
+      aggregated[f'{metric}_average']= np.average(values)
+      aggregated[f'{metric}_pc_bad'] = np.mean(values<treshold)
     return aggregated
 
 
@@ -206,12 +222,16 @@ def latest_successful_commit(branch='origin/develop'):
   # one of those should be successful
   page = 0
   while page<10:
-    ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(20).offset(page*20)
+    commits = repo.iter_commits(branch, max_count=20, skip=20*page)
+    commit_ids = [c.hexsha for c in commits]
+    ci_commits = CiCommit.query.filter(CiCommit.id.in_(commit_ids)).order_by(CiCommit.authored_datetime.desc())
+    # ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(20).offset(page*20)
     # likely we fetched the outputs before so it should be fast
     ci_commits = [c for c in ci_commits if len(c.slam_outputs)>10]
     if ci_commits:
       return ci_commits[0]  
     page = page + 1
+
 
 
 def parent_successful_commit(ci_commit):

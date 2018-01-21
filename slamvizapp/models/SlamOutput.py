@@ -86,7 +86,7 @@ class SlamOutput(Base):
     # We remove attributes our model doesn't know.
     # There should be a better way to do this...
     columns = set(c.name for c in Base.metadata.tables['slam_outputs'].columns)
-    relationships = set(['recording', 'ci_commit'])
+    relationships = set(['recording', 'ci_commit', 'parameters_set'])
     columns = columns | relationships
 
     # We change the name of a few metrics
@@ -102,11 +102,11 @@ class SlamOutput(Base):
     super(SlamOutput, self).__init__(**kwargs)
 
 
-  def __repr__(self):
-    #  tuning_set_id={self.tuning_set_id}
-    return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path} translation_aape={self.translation_aape}>"
-
   @property
   def output_dir_url(self):
     return self.ci_commit.commit_dir_url / 'output' / self.recording.output_folder
 
+
+  def __repr__(self):
+    # parameter_set_id={self.parameter_set_id}
+    return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path}"
