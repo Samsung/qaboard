@@ -1,0 +1,12 @@
+[Unit]
+Description=Cleans the disk of old CI results.
+PartOf=slamvizapp.service
+After=slamvizapp.service
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=slamvizapp.service
+# WantedBy=timers.target

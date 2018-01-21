@@ -1,0 +1,31 @@
+[Unit]
+Description=Watch changes on the CI's results folder to update the database
+PartOf=slamvizapp.service
+After=slamvizapp.service
+
+[Service]
+StartLimitInterval=5
+StartLimitBurst=10
+Restart=always
+RestartSec=10
+
+User=arthurf
+Group=www-data
+WorkingDirectory=/home/arthurf/dvs/slamvizapp       
+
+ExecStart=/opt/anaconda3/bin/slamvizapp_init_database --loop
+
+# Restart the service on non-zero exit code when terminated by a signal other than SIGHUP, SIGINT, SIGTERM or SIGPIPE
+Restart=on-failure
+
+
+
+Environment="PATH=/opt/anaconda3/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "SLAMVIZAPP_DATA=/etc/slamvizapp" "FLASK_DEBUG=1" "FLASK_APP=slamvizapp"
+EnvironmentFile=/home/arthurf/.tokens_systemd_envfile
+
+
+
+[Install]
+# This unit should start when app.service is starting
+WantedBy=slamvizapp.service
+
