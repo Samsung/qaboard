@@ -2,17 +2,16 @@
 - Provides a web dashboard to show and compare SLAM results.
 - Keeps in sync with gitlab and listens for notifications when a SLAM run is completed. Keeps the data in a database other tools can connect to.
 
-## Database setup
-You will need a database accessible. Since we work with `sqlalchemy` as ORM, we can pick almost any we like.
-* The default configuration expects a `postgreSQL` database available on *localhost* ([download](https://www.postgresql.org/download)).
-* You can change the database user, password, host... using environment variables like `SLAMVIZAPP_DB_USER`.
-* To know more, read *database.py*.
-* Common configuration issues:
-  - setup user passwords with something like `$ sudo -postgres psql -U postgres`, `sql> \password`.
-  - listen to remote hosts with `sudo nano /etc/postgresql/9.6/main/postgresql.conf`, `listen_addresses = '*'`.
-  - allow connections from remote hosts by tweaking [`pg_hba.conf`](https://blog.bigbinary.com/2016/01/23/configure-postgresql-to-allow-remote-connection.html)
+## How to run
+Assuming you want through the [setup instructions](#setup), you should be able to: 
+```bash
+FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads
+```
+
+To run the app as a linux service and use fancier tools (HTTP2, SSL, wsgi and reverse proxies...), read the [deployment instructions](deployment/README.md), but it's 100% optionnal.*
 
 ## Setup
+## Application
 - Install `python3.6`. The [annaconda distribution](https://www.continuum.io/downloads) is the easiest way.
 - Install this application and its dependencies as a python package:
 
@@ -25,20 +24,33 @@ pip install --editable .                  # edits to the code will be seen
 # pip install virtualenv; virtualenv venv; . venv/bin/activate 
 ```
 
-- Clone the `psp_swip` repository in the working directory or at a location specified in the `SLAMVIZAPP_DATA` environment variable.
 
-```bash
-cd $SLAMVIZAPP_DATA
-git clone git@gitlab-srv:dvs/psp_swip.git
-```
+## Database
+You will need a database accessible. Since we work with `sqlalchemy` as ORM, we can pick almost any we like.
+* The default configuration expects a `postgreSQL` database available on *localhost* ([download](https://www.postgresql.org/download)).
+* You can change the database user, password, host... using environment variables like `SLAMVIZAPP_DB_USER`.
+* To know more, read *database.py*.
+* Common configuration issues:
+  - setup user passwords with something like `$ sudo -postgres psql -U postgres`, `sql> \password`.
+  - listen to remote hosts with `sudo nano /etc/postgresql/9.6/main/postgresql.conf`, `listen_addresses = '*'`.
+  - allow connections from remote hosts by tweaking [`pg_hba.conf`](https://blog.bigbinary.com/2016/01/23/configure-postgresql-to-allow-remote-connection.html)
 
-- To initialize the database, run:
+To initialize the database on the , run:
 
 ```
 ./slamvizapp_init_database
 # --help
 # --loop       Keep updating every minute.
 # --drop-all   Drop all the tables before the import.
+```
+
+
+## Keeping in sync with `psp_swip` git repository
+- Clone the `psp_swip` repository in the working directory or at a location specified in the `SLAMVIZAPP_DATA` environment variable.
+
+```bash
+cd $SLAMVIZAPP_DATA
+git clone git@gitlab-srv:dvs/psp_swip.git
 ```
 
 - Make sure the app receives notifications (aka webhooks) whenever someone pushes changes to [gitlab](http://gitlab-srv/dvs/psp_swip):
@@ -51,15 +63,6 @@ git clone git@gitlab-srv:dvs/psp_swip.git
 export GITLAB_ACCESS_TOKEN=XXXXXXXXXXX
 ```
 
-## How to run
-Assuming all the `SLAM_VIZAPP_DATA_*` environment variables are set, you should be able to: 
-```bash
-export FLASK_DEBUG=1
-export FLASK_APP=slamvizapp
-flask run --host 0.0.0.0 --with-threads
-```
-
-*If you want a more robust deployment, as a linux service, with HTTP2, SSL, wsgi and reverse proxies... read the [deployment instructions](slamvizapp/deployment/README.md), but it's 100% optionnal.*
 
 ## Architecture overview
 - `__init__.py`: [Flask](https://flask.pocoo.org) application that handle all our HTTP needs.
@@ -80,10 +83,10 @@ flask run --host 0.0.0.0 --with-threads
 
 
 ## How should the SLAM results be saved?
-The application expects SLAM results to be saved like so:
+We don't store all the data in a database (eg 6dof results, DVS recordings); we store them on the filesystem with this structure:
 - Default base folder: `/home/arthurf/ci/commits/`
 - Per commit output folder: `${GIT_AUTHORED_TIMESTAMPCOMMIT}__git__${CI_COMMIT_SHA:0:8}`
-- Example:
+- Then....
 
 ```
 1511696118__git__07de8585/
@@ -96,8 +99,7 @@ The application expects SLAM results to be saved like so:
         $MODE_PREFIX                           # default='' for serial-stereo
          my/recording1/                        # from $database/my/recording1.bin
                        camera_poses_debug.csv  # 6dof and more...
-                       curves.jpg              # 6dof plots
-                       results.mp4             # rendering of the results
                        metrics.json            # all the metrics, time offset vs ground-truth...
-                       # TODO: specify the platform via subfolders or suffixes *_$PLATFORM*
+                       results.mp4             # rendering of the results
+                       curves.jpg              # 6dof plots
 ```
