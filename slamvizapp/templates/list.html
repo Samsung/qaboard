@@ -68,18 +68,28 @@
             </form>
             </div>
           </div>
+          <form method="GET" action="/clean"><button class="btn btn-warning" type="submit" onClick='this.disabled=true; this.value="removing..."; this.form.submit();'>Remove 7-day-old ouputs</button></form>
         </div>
 
         {%macro svg_commit()%}
         <svg style="fill: rgba(0,0,0,0.55); height: 10px; width: 10px text-align: center; display: inline-block; box-sizing: border-box; vertical-align: middle;"xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 18" enable-background="new 0 0 36 18"><path d="m34 7h-7.2c-.9-4-4.5-7-8.8-7s-7.9 3-8.8 7h-7.2c-1.1 0-2 .9-2 2 0 1.1.9 2 2 2h7.2c.9 4 4.5 7 8.8 7s7.9-3 8.8-7h7.2c1.1 0 2-.9 2-2 0-1.1-.9-2-2-2m-16 7c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5"></path></svg>
         {%endmacro%}
 
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <ul class="flashes" style="color:#11DFC7">
+            {% for message in messages %}
+              <li>{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
         {% if not branch or branch.name=='origin/develop' %}
         <h3>Reports for branch <code>develop</code></h3>
         <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
         <p>{{badge('ba-daily', 'na', 'grey')}} {{badge('cppcheck', 'na', 'grey')}} {{badge('valgrind', 'na', 'grey')}}</p>
         {%endif%}
-        
 
         <h3 style="margin-top: 50px">Recent commits</h3>
         <p style="color:red">To see your new commits, please <code>git checkout origin/develop tools/performance-evaluation</code></p>
@@ -123,8 +133,8 @@
                     {%endif%}
                   </div>
                   <div class="commit-actions flex-row">
-                        {% if commit.slam_outputs%}
-                        <a style="margin-left: 10px" class="btn btn-primary" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.slam_outputs|length}} results</a>
+                        {% if commit.valid_slam_outputs%}
+                        <a style="margin-left: 10px" class="btn btn-primary" href="/commit/{{commit.gitcommit.hexsha}}">{{commit.valid_slam_outputs|length}} results</a>
                         {%endif%}
                   </div>
                 </div>
@@ -136,7 +146,6 @@
         </ol>
 
         <ul class="pagination clearfix">
-        {%if not branch%}<p><strong>The pagination is not accurate unless you only list commits from a <em>single branch</em>.</strong></p>{%endif%}
           <li class="prev {%if page==0%}disabled{%endif%}">{% if page>0 %}<a href="?page={{page-1}}">Prev</a>{%endif%}</li>
           <li class="page {%if min_page==page%}active{%endif%}"><a href="?page={{min_page}}">{{min_page}}</a></li>
           <li class="page {%if min_page+1==page%}active{%endif%}"><a href="?page={{min_page+1}}">{{min_page+1}}</a></li>

@@ -315,7 +315,7 @@ for (var i=0; i<plots_6dof.length; i++) {
   )
 
   if (!plot.getAttribute('data-vs-output-url')) {
-    if (i<20)
+    if (i<40)
       render_poses(commit);
     else
       plot.addEventListener("click", function(event) {
@@ -328,7 +328,7 @@ for (var i=0; i<plots_6dof.length; i++) {
       plot.getAttribute('data-vs-offset-offline'),
       plot.getAttribute('data-vs-offset-s8')
     )    
-    if (i<20)
+    if (i<40)
       render_poses_compare(commit, commit_ref);
     else
       plot.addEventListener("click", function(event) {

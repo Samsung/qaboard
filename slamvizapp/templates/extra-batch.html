@@ -13,7 +13,7 @@
     <input name="overwrite" id="overwrite" type="checkbox">
     <span class="label-body">Overwrite previous runs</span>
   </label>
-  <input class="button-primary" value="Submit" type="submit">
+  <input class="button-primary" value="Submit" type="submit" onClick='this.disabled=true; this.value="Thanks for waiting..."; this.form.submit();'>
 </form>
 </div>
 

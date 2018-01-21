@@ -47,7 +47,7 @@
 
       <div class="row">
         <div class="one-third column value">
-          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*metrics.translation_aape_when_good_median)}}</h2>
+          <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.2}cm'.format(100*metrics.translation_aape_when_good_median)}}</h2>
           <h5 class="value-heading">Median Translation AAPE while GOOD</h5>
           <p class="value-description">{{'{0:.2%}'.format(metrics.translation_aape_when_good_pc_bad)}} with AAPE over 1cm.</p>
         </div>
@@ -99,15 +99,17 @@
         <input class="" placeholder="e.g. {{commit.gitcommit.parents[0].hexsha[:12]}}" id="reference" name="reference" type="text">
       </div>
     </div>
+  </form>
 
     <div class="row">
       <div class="twelve columns">
         <a class="button button-primary" href="?show_table=true&reference={{commit_ref.gitcommit.hexsha}}">Show a summary table</a>
         <a class="button" href="#extra-recordings">Run on more recordings</a>
-        <a class="button button-warning" href="/metrics/{{commit.gitcommit.hexsha}}">Recompute metrics</a>
+        <form method="get" action="/metrics/{{commit.gitcommit.hexsha}}/">
+          <button style="background-color: #fc9403; color: #ffffff;" class="button" type="submit" onClick='this.disabled=true; this.value="computing..."; this.form.submit();'>Recompute metrics</button>
+        </form>
       </div>
     </div>
-  </form>
 </div>
 
 {% if show_table %}
