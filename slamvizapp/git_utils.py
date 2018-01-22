@@ -10,10 +10,12 @@ def git_pull():
   """Updates the repo and warms the cache listing the latests commits.."""
   class MyProgressPrinter(RemoteProgress):
     def update(self, op_code, cur_count, max_count=100.0, message="[No message]"):
-      print('...')
+      # print('...')
       # print(op_code, cur_count, max_count, (cur_count or 0)/max_count, message)
+      pass
   for fetch_info in repo.remotes.origin.fetch(progress=MyProgressPrinter()):
-    print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
+    # print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
+    pass
 
 
 def find_branch(commit_hash):
