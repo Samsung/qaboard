@@ -36,6 +36,13 @@ class ParametersSet(Base):
   slam_outputs = relationship("SlamOutput", back_populates="parameters_set")
 
 
+  def to_dict(self):
+    if not self.ci_commits_for_which_default:
+      return {}
+    parameters_file = self.ci_commits_for_which_default[0].commit_dir/"params.json"
+    with parameters_file.open() as f:
+      return json.load(f)
+
   def __init__(self, parameters_file):
     """Constructor with a pathlib Path to the parameters.
     Expect this to fail with FileNotFoundError!
