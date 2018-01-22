@@ -7,6 +7,7 @@ from .models import CiCommit
 from .git_utils import git_pull
 from .config import *
 
+
 @app.route('/webhook/slam_output', methods=['POST'])
 def new_slam_output_webhook():
   print(request.form)
@@ -25,13 +26,13 @@ def new_slam_output_webhook():
   except NoResultFound:
     try:
       ci_commit = CiCommit(commit, project='dvs/psp_swip', session=db_session)
+      db_session.add(ci_commit)
+      db_session.commit()
     except ValueError:
       print(f'WARNING: could not create a commit for {commit.hexsha}')
       return '404', 404
     if ci_commit is None: # something is wrong, maybe an error opening param.json
       return '404', 404
-  db_session.add(ci_commit)
-  db_session.commit()
 
   ci_commit.discover_slam_outputs(db_session)
   db_session.add(ci_commit)
