@@ -17,7 +17,7 @@ db_type = 'postgresql'
 
 engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
 # engine_url = f'sqlite:///{app_data_directory}/slamvizapp.db'
-engine = create_engine(engine_url, echo=False)
+engine = create_engine(engine_url, echo=False, pool_size=100, max_overflow=10)
 
 from sqlalchemy_utils import database_exists, create_database
 if not database_exists(engine.url):
@@ -35,3 +35,11 @@ db_session = scoped_session(
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base() # prints (no name)
 Base.query = db_session.query_property()
+
+# We don't handle migrations *for now*
+# It's easier to just drop-create the tables and re-import the results
+# Of course, the second people update things manually, we'll need to work better
+# 
+# For references look at
+# https://github.com/miguelgrinberg/Flask-Migrate
+# https://github.com/tobiasandtobias/flask-alembic
