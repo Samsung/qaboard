@@ -20,10 +20,8 @@ admin = Admin(app, name='slamvizapp',
 # we don't want to display those
 one_to_many_columns = ['slam_outputs',]
 editable_columns = set(c.name for c in Recording.metadata.tables['recordings'].columns) - set(['path'])
-print(editable_columns)
 
-
-class CustomModelView(ModelView):
+class RecordingModelView(ModelView):
   page_size = 50
 
   # can_create = False
@@ -42,8 +40,7 @@ class CustomModelView(ModelView):
 
 
 
-admin.add_view(CustomModelView(Recording, db_session))
+admin.add_view(RecordingModelView(Recording, db_session))
 # admin.add_view(CustomModelView(CiCommit, db_session))
 # admin.add_view(CustomModelView(ParametersSet, db_session))
 # admin.add_view(CustomModelView(SlamOutput, db_session))
-
