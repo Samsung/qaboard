@@ -22,3 +22,5 @@ def shutdown_session(exception=None):
 
 import slamvizapp.views
 import slamvizapp.webhooks
+import slamvizapp.admin
+import slamvizapp.api
