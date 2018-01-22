@@ -15,6 +15,7 @@ default_recordings_directory  = Path('/net/f2/algo_archive/DVS_SLAM_Database/')
 # default_recordings_directory  = Path('/stage/algo_archive/DVS_SLAM_Database/')
 
 # windows config
-if os.name == 'nt':
+is_windows = os.name == 'nt'
+if is_windows:
 	ci_directory = Path('//mars/homes/arthurf/ci/dvs/psp_swip')
 	default_recordings_directory  = Path('//f2/algo_archive/DVS_SLAM_Database/')
