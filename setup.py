@@ -21,6 +21,8 @@ setup(
     'psycopg2',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     # 'flask-sqlalchemy', # actually optionnal
+    'flask-admin',
+    'Flask-Restless',
   ],
 
   entry_points= {
