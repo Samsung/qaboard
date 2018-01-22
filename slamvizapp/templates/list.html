@@ -85,10 +85,17 @@
           {% endif %}
         {% endwith %}
 
+        <h3>Useful links</h3>
+        <ul>
+          <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines
+          <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?
+          <li><a href="/admin/recording/">List of all available recordings</a>
+        </ul>
+
         {% if not branch or branch.name=='origin/develop' %}
         <h3>Reports for branch <code>develop</code></h3>
         <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
-        <p>{{badge('ba-daily', 'na', 'grey')}} {{badge('cppcheck', 'na', 'grey')}} {{badge('valgrind', 'na', 'grey')}}</p>
+        <!-- <p>{{badge('ba-daily', 'na', 'grey')}} {{badge('cppcheck', 'na', 'grey')}} {{badge('valgrind', 'na', 'grey')}}</p> -->
         {%endif%}
 
         <h3 style="margin-top: 50px">Recent commits</h3>

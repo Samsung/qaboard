@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% block content %}
 
+<!-- <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"> -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
 <link href="/static/nodes_modules/jsoneditor/dist/jsoneditor.min.css" rel="stylesheet" type="text/css">
 <script src="/static/nodes_modules/jsoneditor/dist/jsoneditor.min.js"></script>
@@ -16,7 +17,7 @@
   <div class="row">
 
 	<h1>
-    <strong><a href="/branch/{{ci_commit.branch()}}">{{ci_commit.branch()}}:</a></strong>
+    <strong><a href="/branch/{{ci_commit.branch}}">{{ci_commit.branch}}</a></strong>
     <a href='http://gitlab-srv/dvs/psp_swip/commits/{{ci_commit.gitcommit.hexsha}}'>{{ci_commit.gitcommit.hexsha[:8]}}</a>
   </h1>
 
@@ -24,8 +25,8 @@
     <p><pre>Message: {{ci_commit.gitcommit.message.replace('\n', ' ')}}</pre></p>
 
 
-    <a class="button white-outline" href="{{ci_commit.commit_dir_url / 'params.json'}}">Parameters used</a>
-    <a class="button white-outline" href="/s/commits/{{ci_commit.commit_dir.name}}/lsf.log">Logs {%if ci_commit.number_failures()%}for {{ci_commit.number_failures()}} failures{%endif%}</a>
+    <a class="button" href="{{ci_commit.commit_dir_url / 'params.json'}}">Parameters used</a>
+    <a class="button" href="/s/commits/{{ci_commit.commit_dir.name}}/lsf.log">Logs {%if ci_commit.failures_count()%}for {{ci_commit.failures_count()}} failures{%endif%}</a>
 
     <h2>Starting parameters</h2>
     <div id="editor-start" style="width: 400px; height: 400px;"></div>
@@ -44,7 +45,7 @@
 var container_start = document.getElementById("editor-start");
 var options_start = {};
 var editor_start = new JSONEditor(container_start, options_start);
-var run_parameters = {{ci_commit.run_parameters()|tojson}};
+var run_parameters = {{ci_commit.default_parameters_set.to_dict() | tojson}};
 editor_start.set(run_parameters);
 
 // tuning
