@@ -11,7 +11,8 @@ from flask import redirect, flash
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repo, db_session
-from .models import CiCommit, latest_successful_commit
+from .models import CiCommit
+from .models import latest_successful_commit
 from .utils import get_users_per_name, filter_slam_outputs, palette
 from .config import *
 
@@ -41,8 +42,10 @@ def show_commits(branch=None, search=None):
   page = int(request.args.get('page', 0))
   if not branch:
     ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
-  else: 
-    ci_commits = CiCommit.query.filter(CiCommit.branch==branch).limit(max_count).offset(page*max_count)
+  else:
+    commits = repo.iter_commits(branch, max_count=max_count, skip=max_count*page)
+    commit_ids = [c.hexsha for c in commits]
+    ci_commits = CiCommit.query.filter(CiCommit.id.in_(commit_ids)).order_by(CiCommit.authored_datetime.desc())
   search = request.args.get('search', '').lower()
   if search:
     ci_commits = [c for c in ci_commits if search in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
@@ -81,8 +84,8 @@ def render_commit(hexsha):
   outputs = filter_slam_outputs(ci_commit.slam_outputs, filename_filter, filename_exclude)
   outputs_ref = filter_slam_outputs(ci_commit_ref.slam_outputs, filename_filter, filename_exclude)
   # for the display it's easier to have a dict of recording.name => output
-  outputs = {o.recording.path: o for o in outputs}
-  outputs_ref = {o.recording.path: o for o in outputs_ref}
+  outputs = {o.recording.path: o for o in outputs if o.recording}
+  outputs_ref = {o.recording.path: o for o in outputs_ref if o.recording}
   # we want it sorted (we could do it from SQL,,,)
   get_rmse = lambda o: -o[1].translation_aape if o[1].translation_aape else 0
   outputs = {k:v for k,v in sorted(outputs.items(), key=get_rmse)}
@@ -133,8 +136,21 @@ def rerun_metric(hexsha):
   print(out.stderr)
   flash(out.stdout)
   flash(out.stderr)
-  return redirect('commit/'+hexsha)
+  return redirect('/commit/'+hexsha)
 
+
+# quick and dirty
+@app.route("/clean")
+def clean():
+  """Gets rid of old commits to save disk space."""
+  out = subprocess.run('slamvizapp_clean', shell=True,
+                       encoding='utf-8',
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  print(out.stdout)
+  print(out.stderr)
+  flash(out.stdout)
+  flash(out.stderr)
+  return redirect('/')
 
 @app.route("/batch/<hexsha>/", methods=['POST'])
 def run_extra_batches(hexsha):
@@ -181,5 +197,9 @@ def run_extra_batches(hexsha):
 @app.route("/tuning/<hexsha>")
 @app.route("/tuning/<hexsha>/")
 def tuning_view(hexsha):
-    ci_commit = CiCommit(repo.commit(hexsha))
-    return render_template('tuning.html', ci_commit=ci_commit)
+  try:
+    commit = repo.commit(hexsha)
+    ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+  except NoResultFound:
+    return "Sorry, the commit id was not found", 404
+  return render_template('tuning.html', ci_commit=ci_commit)
