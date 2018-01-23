@@ -2,6 +2,7 @@
   "name": "slamvizapp-tuning",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:5000",
   "dependencies": {
     "material-ui": "^1.0.0-beta.30",
     "react": "^16.2.0",
