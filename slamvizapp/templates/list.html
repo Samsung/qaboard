@@ -125,17 +125,23 @@
                   <div class="commit-results" style="margin-left: auto;">
                     <span>
                     {% if not commit.slam_outputs%}
-                      {% if (commit.commit_dir/'lsf.log').exists()%}
+                      {% if (commit.commit_dir/'lsf.log').exists() and not commit.pending_slam_outputs %}
                        <a style="color:darkred" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">Failure! Check the LSF logs</a>
                       {% else %}
                       <a style="color:grey" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}">check the pipeline status..</span>
                       {%endif%}
                     {%else%}
 
+                      {% if commit.pending_slam_outputs %}
+                      <span style="color: grey;">{{commit.pending_slam_outputs | length}} pending...</span>
+                      {% endif%}
+
                       {% if commit.failures_count() %}
                         <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">{{commit.failures_count()}} failures</a>
                       {%endif%}
+
                       {% if commit.aggregated_metrics().translation_rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.aggregated_metrics().translation_rmse_median)}}</strong> RMSE {%endif%}
+
                     </span>
                     {%endif%}
                   </div>

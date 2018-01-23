@@ -2,7 +2,6 @@
 A version of the code on which we ran SLAM performance test.
 """
 import datetime
-import json
 import shutil
 import re
 import sys
@@ -10,8 +9,8 @@ import pickle
 
 import numpy as np
 from sqlalchemy.orm import relationship, reconstructor
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import Column, ForeignKey, and_
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, Integer, DateTime
 
 from slamvizapp import repo
@@ -57,7 +56,7 @@ class CiCommit(Base):
   # - add .gitcommit.authored_date, etc
 
   @property
-  def output_dir(self):
+  def   output_dir(self):
     """Returns the folder where outputs are stored"""
     return self.commit_dir / 'output'
 
@@ -79,7 +78,7 @@ class CiCommit(Base):
     self.gitcommit = commit
     self.id = commit.hexsha
     self.project = project
-    if False:#branch:
+    if branch:
       self.branch = branch
     else: # this is a wild guess..
       self.branch = find_branch(self.gitcommit.hexsha) # this is a wild guess..
@@ -89,7 +88,10 @@ class CiCommit(Base):
     # to access easily the id of this set of parameters, we create a dummy object
     # we'll re-use it if it doesn't exist already in the database
     try:
-      parameter_set = ParametersSet(self.commit_dir /"params.json")
+      file_contents = repo.git.show('{}:{}'.format(commit.hexsha, 'swip_slam/UnitTests/RunningTime/params.json'))
+      print(file_contents)
+      self.default_parameters_set = ParametersSet(parameters_text=file_contents)
+      # self.default_parameters_set = ParametersSet(parameters_file=self.commit_dir /"params.json")
     except FileNotFoundError:
       raise ValueError
 
@@ -103,9 +105,6 @@ class CiCommit(Base):
   def init_on_load(self):
     self.gitcommit = repo.commit(self.id)
 
-
-  def add_slam_output_from_dir(self, session, output_dir):
-    pass
 
   def discover_slam_outputs(self, session):
     """Find outputs saved on the disk to initialize the database"""
@@ -124,60 +123,29 @@ class CiCommit(Base):
       if not recording:
         continue
 
-      try:
-        slam_output = session.query(SlamOutput).filter(
-          and_(
-            SlamOutput.recording_id==recording.id,
-            SlamOutput.platform=='lsf_serial',
-            SlamOutput.configuration=='serial-stereo',
-            SlamOutput.parameters_set_id == self.default_parameters_set.id,
-            SlamOutput.ci_commit_id == self.id,
-          )
-        ).one()
-        # print(f'found {slam_output}')
-      except MultipleResultsFound:
-        print('WARNING: MultipleResultsFound')
-        continue
-      except NoResultFound:
-        slam_output = SlamOutput(
-          recording=recording,
-          platform='lsf_serial',
-          configuration='serial-stereo',
-          parameters_set = self.default_parameters_set,
-          ci_commit = self,
-        )
-        # slam_outputs.append(slam_output)
-        session.add(slam_output)
-        session.commit()
-      # we find the metrics,
-      try:
-        with (output_dir/'metrics.json').open() as f:
-          metrics = json.load(f)
-      except:
-        metrics = {'is_failed': True}
-      # and use them to update the slam_output
-      for m in metrics:
-        setattr(slam_output, m, metrics[m]) 
+      slam_output = SlamOutput.get_or_create(session,
+        recording=recording,
+        platform='lsf',
+        configuration='serial-stereo',
+        default_parameters_set=self.default_parameters_set,
+        ci_commit=self,
+      )
 
-    # self.slam_outputs = slam_outputs
+      # we find the metrics,
+      slam_output.update_metrics_from_file(output_dir/'metrics.json')
 
 
   @property
   def valid_slam_outputs(self):
     return [o for o in self.slam_outputs if not o.is_failed]
 
+  @property
+  def pending_slam_outputs(self):
+    return [o for o in self.slam_outputs if o.is_pending]
+
   def failures_count(self):
       """Returns an estimate of the number of failed runs"""
       return len([o for o in self.slam_outputs if o.is_failed])
-
-
-  # @property
-  # def compute_time_vs_realtime(self):
-  #   """Returns the computation time as multile of real-time (1x = real-time)"""
-  #   if not m.computation_time or not m.duration:
-  #     return None
-  #   return 1000*m.computation_time/m.duration
-
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
       return aggregated_metrics(filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude))
@@ -189,6 +157,33 @@ class CiCommit(Base):
       if not outputs:
         outputs = self.slam_outputs
       return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
+
+  @staticmethod
+  def get_or_create(session, hexsha, **kwargs):
+    try:
+      commit = repo.commit(hexsha)
+    except:
+      raise (ValueError, f'ERROR: could not create a commit for {commit.hexsha}')      
+    try:
+      return session.query(CiCommit).filter_by(id=commit.hexsha).one()
+    except NoResultFound:
+      try:
+        ci_commit = CiCommit(commit, project='dvs/psp_swip', session=session)
+        session.add(ci_commit)
+        session.commit()
+        return ci_commit
+      except ValueError:
+        raise (ValueError, f'ERROR: could not create a commit for {commit.hexsha}')
+      if ci_commit is None: 
+        raise (ValueError, f'ERROR: something is wrong, maybe an error opening param.json for {commit.hexsha}')
+
+  # @property
+  # def compute_time_vs_realtime(self):
+  #   """Returns the computation time as multile of real-time (1x = real-time)"""
+  #   if not m.computation_time or not m.duration:
+  #     return None
+  #   return 1000*m.computation_time/m.duration
+
 
 
 # this is so ugly, it should be refactored into sql
@@ -246,3 +241,5 @@ def parent_successful_commit(ci_commit):
       continue
     if parent_ci_commit.slam_outputs>10:
       return parent_ci_commit
+
+

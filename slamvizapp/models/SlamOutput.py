@@ -8,10 +8,12 @@ Describes an output from a SLAM run:
 - quality metrics: drift, RMSE, AAPE...
 - what assets are available (debug movies...)
 """
+import json
 
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy import Integer, String, Float, Boolean #, Enum
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy import and_, Integer, String, Float, Boolean #, Enum
 
 from slamvizapp.models import Base#, Platform
 
@@ -42,6 +44,7 @@ class SlamOutput(Base):
 
   # How good we ran
   is_failed  = Column(Boolean(), default=False)
+  is_pending  = Column(Boolean(), default=False)
   latency  = Column(Float(), default=None) # 1x = realtime
   computation_time  = Column(Float(), default=None) # 1x = realtime
   duration = Column(Float(), default=None) # [seconds] Redundant, but...
@@ -82,24 +85,26 @@ class SlamOutput(Base):
   # jitter_sum_std = Column(Float(), default=None)
 
 
-  def __init__(self, **kwargs):
-    # We remove attributes our model doesn't know.
-    # There should be a better way to do this...
-    columns = set(c.name for c in Base.metadata.tables['slam_outputs'].columns)
-    relationships = set(['recording', 'ci_commit', 'parameters_set'])
-    columns = columns | relationships
 
+  def __init__(self, **kwargs):
     # We change the name of a few metrics
-    remapped_names = {
-      'aape':'translation_aape',
-      'final_drift': 'final_drift',
-      'final_drift_pc':'translation_drift_pc',
-    }
-    for old, new in remapped_names.items():
-      if old in kwargs:
-        kwargs[new] = kwargs[old]
-    kwargs = {k:v for k,v in kwargs.items() if k in columns}
+    kwargs = remap_metrics(kwargs)
     super(SlamOutput, self).__init__(**kwargs)
+
+
+  
+  def update_metrics_from_file(self, filepath):
+    """Updates the metrics from a file"""
+    try:
+      with filepath.open() as f:
+        metrics = json.load(f)
+    except:
+      print(f'failed {filepath}')
+      metrics = {'is_failed': True}
+    metrics = remap_metrics(metrics)
+    for m in metrics:
+      setattr(self, m, metrics[m]) 
+    self.is_pending = False
 
 
   @property
@@ -110,3 +115,74 @@ class SlamOutput(Base):
   def __repr__(self):
     # parameter_set_id={self.parameter_set_id}
     return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path}"
+
+  @staticmethod
+  def get_or_create(session, **kwargs):
+    # print(kwargs['recording'].id, kwargs['platform'], kwargs['configuration'], kwargs['default_parameters_set'].id, kwargs['ci_commit'].id)
+    try:
+      return session.query(SlamOutput).filter(
+        and_(
+          SlamOutput.recording_id==kwargs['recording'].id,
+          SlamOutput.platform==kwargs['platform'],
+          SlamOutput.configuration==kwargs['configuration'],
+          SlamOutput.parameters_set_id == kwargs['default_parameters_set'].id,
+          SlamOutput.ci_commit_id == kwargs['ci_commit'].id,
+        )
+      ).one()
+    except NoResultFound:
+      slam_output = SlamOutput(
+        recording=kwargs['recording'],
+        platform=kwargs['platform'],
+        configuration=kwargs['configuration'],
+        parameters_set = kwargs['default_parameters_set'],
+        ci_commit = kwargs['ci_commit'],
+      )
+      # slam_outputs.append(slam_output)
+      session.add(slam_output)
+      session.commit()
+      return slam_output
+
+    except MultipleResultsFound:
+      print('WARNING: MultipleResultsFound')
+      # this should not happen. Quick and dirty fix:
+      slam_output = session.query(SlamOutput).filter(
+        and_(
+          SlamOutput.recording_id==kwargs['recording'].id,
+          SlamOutput.platform==kwargs['platform'],
+          SlamOutput.configuration==kwargs['configuration'],
+          SlamOutput.parameters_set_id == kwargs['default_parameters_set'].id,
+          SlamOutput.ci_commit_id == kwargs['ci_commit'].id,
+        )
+      ).delete()
+      slam_output = SlamOutput(
+        recording=kwargs['recording'],
+        platform=kwargs['platform'],
+        configuration=kwargs['configuration'],
+        parameters_set = kwargs['default_parameters_set'],
+        ci_commit = kwargs['ci_commit'],
+      )
+      # slam_outputs.append(slam_output)
+      session.add(slam_output)
+      session.commit()
+      return slam_output
+
+
+
+
+def remap_metrics(metrics):
+  """Use the newer names of a number of metrics"""
+  # We remove attributes our model doesn't know.
+  # There should be a better way to do this...
+  columns = set(c.name for c in Base.metadata.tables['slam_outputs'].columns)
+  relationships = set(['recording', 'ci_commit', 'parameters_set'])
+  columns = columns | relationships
+
+  remapped_names = {
+    'aape':'translation_aape',
+    'final_drift': 'final_drift',
+    'final_drift_pc':'translation_drift_pc',
+  }
+  for old, new in remapped_names.items():
+    if old in metrics:
+      metrics[new] = metrics[old]
+  return {k:v for k,v in metrics.items() if k in columns}

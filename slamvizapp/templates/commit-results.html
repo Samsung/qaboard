@@ -26,7 +26,14 @@
         <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
         <strong><a class="button white-outline" href="/s/commits/{{c.commit_dir.name}}/lsf.log">Logs {%if c.failures_count()%}for {{c.failures_count()}} failures{%endif%}</a></strong>
       </p>
-
+      {% if commit.pending_slam_outputs %}
+        <h3>{{c.pending_slam_outputs | length}} pending</h3>
+        <ul style="text-align: left;">
+        {% for o in c.pending_slam_outputs %}
+        <li> {{o.recording.path}}
+        {% endfor %}
+        <ul>
+      {% endif%}
       <div class="row">
         <div class="one-third column value">
           <h2 class="value-multiplier {%if white_values%}white{%endif%}">{{'{0:.3}cm'.format(100*metrics.translation_aape_median)}}</h2>

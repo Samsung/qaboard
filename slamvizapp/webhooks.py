@@ -3,7 +3,7 @@ from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repo, db_session
-from .models import CiCommit
+from .models import CiCommit, SlamOutput, Recording
 from .git_utils import git_pull
 from .config import *
 
@@ -11,31 +11,33 @@ from .config import *
 @app.route('/webhook/slam_output', methods=['POST'])
 def new_slam_output_webhook():
   print(request.form)
-  if request.form['job_type'] != 'ci':
+  if request.form['job_type'] != 'ci': # we do nothing for now with local runs
     print(request.form['base_output_directory'])
-    return "OK" # we do nothing for now with local runs
+    return "OK"
 
+  hexsha = request.form['git_commit_sha']
   try:
-    hexsha = request.form['git_commit_sha']
-    commit = repo.commit(hexsha)
+    ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha)
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
-  try:
-    ci_commit = db_session.query(CiCommit).filter_by(id=commit.hexsha).one()
-  except NoResultFound:
-    try:
-      ci_commit = CiCommit(commit, project='dvs/psp_swip', session=db_session)
-      db_session.add(ci_commit)
-      db_session.commit()
-    except ValueError:
-      print(f'WARNING: could not create a commit for {commit.hexsha}')
-      return '404', 404
-    if ci_commit is None: # something is wrong, maybe an error opening param.json
-      return '404', 404
+  recording = Recording.get_or_create(db_session, path=request.form['recording'])
+  if not recording: return "KO", 404
 
-  ci_commit.discover_slam_outputs(db_session)
-  db_session.add(ci_commit)
+  slam_output = SlamOutput.get_or_create(db_session,
+    recording=recording,
+    ci_commit=ci_commit,
+    platform='lsf', # request.form['platform'],
+    configuration='serial-stereo', #request.form['mode'],
+    default_parameters_set=ci_commit.default_parameters_set,
+  )
+  if request.form.get('is_pending', False):
+    slam_output.is_pending = True
+  else:
+    metrics_filepath = ci_commit.output_dir / recording.output_folder / 'metrics.json'
+    slam_output.update_metrics_from_file(metrics_filepath)
+
+  db_session.add(slam_output)
   db_session.commit()
   return "OK"
 
@@ -47,7 +49,6 @@ def gitlab_webhook():
   print(data)
 
   git_pull()
-  return '{status: "OK"}'
 
   # we can't create a commit now as we're missing default params.json
   # we should look into the commit data etc...
@@ -62,7 +63,7 @@ def gitlab_webhook():
     try: # the commit might have failed (eg no params.json available)
       ci_commit = CiCommit(
         commit,
-        branch='origin/'+data['ref'][7:],
+        branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
         project='dvs/psp_swip',
         session=db_session
       )

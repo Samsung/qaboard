@@ -43,15 +43,22 @@ class ParametersSet(Base):
     with parameters_file.open() as f:
       return json.load(f)
 
-  def __init__(self, parameters_file):
+  def __init__(self, parameters_text=None, parameters_file=None):
     """Constructor with a pathlib Path to the parameters.
     Expect this to fail with FileNotFoundError!
     """
-    self.path = str(parameters_file)
-    with parameters_file.open() as f:
-      parameters_text = f.read()
-      self.id = hashlib.md5(parameters_text.encode()).hexdigest()
-      # self.parameters = parameters_text
+    # self.path = str(parameters_file)
+    if parameters_text:
+        self.id = hashlib.md5(parameters_text.encode()).hexdigest()      
+        # self.parameters = parameters_text
+        return
+    if parameters_file:
+      with parameters_file.open() as f:
+        parameters_text = f.read()
+        self.id = hashlib.md5(parameters_text.encode()).hexdigest()
+        # self.parameters = parameters_text
+        return
+    return None
 
   def __repr__(self):
     # n_parameters={len(self.default_parameters)}
