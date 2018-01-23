@@ -8,7 +8,9 @@ git_pull()
 
 # We configure the flask application
 from flask import Flask
+from flask_cors import CORS
 app = Flask(__name__)
+CORS(app)
 # This is needed to use flask's sessions
 # and eg display flash messages after redirects
 app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
@@ -24,3 +26,6 @@ import slamvizapp.views
 import slamvizapp.webhooks
 import slamvizapp.admin
 import slamvizapp.api
+
+# cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app)
