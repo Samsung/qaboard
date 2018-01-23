@@ -89,7 +89,7 @@
         {% macro qa_metric_columns(metric, ok_treshold, formatter='') %}
           <!-- Value for current commit -->
           {%if m[metric] %}
-            {%if metric not in ['rotation_mean', 'final_drift_pc'] %}
+            {%if metric not in ['rotation_mean', 'translation_drift_pc'] %}
             <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(100*m[metric])}}</td>
             {%else%}
             <td style="background: #{% if m[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(m[metric])}}</td>
@@ -102,7 +102,7 @@
             {% with m_ref = outputs_ref[recording] %}
               <!-- Value for last commit -->
               {%if m_ref[metric] %}
-                {%if metric not in ['rotation_mean', 'final_drift_pc'] %}
+                {%if metric not in ['rotation_mean', 'translation_drift_pc'] %}
                 <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(100*m_ref[metric])}}</td>
                 {%else%}
                 <td style="background: #{% if m_ref[metric] <= ok_treshold%}91cf60{%else%}fc8d59{%endif%}">{{formatter.format(m_ref[metric])}}</td>
