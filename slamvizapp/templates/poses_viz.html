@@ -44,6 +44,8 @@ var parse_poses = (text_string, gt_time_offset) => {
   let t=[];
   let confidence=[], tracking_state=[];
 
+  let t0 = data[0]['t'];
+
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
     // if (i%10!=0)
@@ -55,7 +57,9 @@ var parse_poses = (text_string, gt_time_offset) => {
     x.push(row['x']);
     y.push(row['y']);
     z.push(row['z']);
-    t.push(parseFloat(row['t'])+gt_time_offset);
+    t.push(parseFloat(row['t']-t0));
+    // we don't rely on per-commit-sync anymore
+    // t.push(parseFloat(row['t'])+gt_time_offset);
     confidence.push(row['confidence']/100);
     tracking_state.push(row['tracking_state']);
   };
