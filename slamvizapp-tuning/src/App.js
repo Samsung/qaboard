@@ -1,5 +1,9 @@
 import React, { Component } from 'react';
-import { BrowserRouter, Route, Link } from 'react-router-dom'
+import {
+  BrowserRouter as Router,
+  Route,
+  Link
+} from 'react-router-dom'
 
 import Reboot from 'material-ui/Reboot';
 import 'typeface-roboto'
@@ -32,22 +36,45 @@ get(`${ci_api}ci_commits`, {
     console.error(error);
   });
 
+
 class App extends Component {
   render() {
     return (
-      <div className="App">
-        <Reboot />
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <h1 className="App-title">SLAM Tuning</h1>
-        </header>
-        <p className="App-intro">
-          Edit <code>src/some-code.js</code> and save to reload.
-        </p>
-        <Button raised color="primary">try that</Button>
-      </div>
+      <Router>
+        <div className="App">
+          <Reboot />
+          <ul>
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/about">About</Link></li>
+            <li><Link to="/topics">Topics</Link></li>
+          </ul>
+          <header className="App-header">
+            <img src={logo} className="App-logo" alt="logo" />
+            <h1 className="App-title">SLAM Tuning</h1>
+          </header>
+
+          <hr/>
+
+          <Route exact path="/" component={Home}/>
+        </div>
+      </Router>
+
     );
   }
 }
+
+// <Route path="/about" component={About}/>
+// <Route path="/topics" component={Topics}/>
+
+
+const Home = () => (
+  <div>
+    <h2>Home</h2>
+    <p className="App-intro">
+      Edit <code>src/some-code.js</code> and save to reload.
+    </p>
+    <Button raised color="primary">try that</Button>
+  </div>
+)
 
 export default App;
