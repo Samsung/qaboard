@@ -56,7 +56,7 @@ class CiCommit(Base):
   # - add .gitcommit.authored_date, etc
 
   @property
-  def   output_dir(self):
+  def output_dir(self):
     """Returns the folder where outputs are stored"""
     return self.commit_dir / 'output'
 
@@ -88,17 +88,17 @@ class CiCommit(Base):
     # to access easily the id of this set of parameters, we create a dummy object
     # we'll re-use it if it doesn't exist already in the database
     try:
-      file_contents = repo.git.show('{}:{}'.format(commit.hexsha, 'swip_slam/UnitTests/RunningTime/params.json'))
-      print(file_contents)
-      self.default_parameters_set = ParametersSet(parameters_text=file_contents)
+      parameters_text = repo.git.show('{}:{}'.format(commit.hexsha, 'swip_slam/UnitTests/RunningTime/params.json'))
+      # print(parameters_text)
+      parameters_set = ParametersSet(parameters_text=parameters_text)
       # self.default_parameters_set = ParametersSet(parameters_file=self.commit_dir /"params.json")
     except FileNotFoundError:
       raise ValueError
 
     try:
-      self.default_parameters_set = session.query(ParametersSet).filter_by(id=parameter_set.id).one()
+      self.default_parameters_set = session.query(ParametersSet).filter_by(id=parameters_set.id).one()
     except NoResultFound:
-        self.default_parameters_set = parameter_set
+        self.default_parameters_set = parameters_set
 
 
   @reconstructor
@@ -133,15 +133,21 @@ class CiCommit(Base):
 
       # we find the metrics,
       slam_output.update_metrics_from_file(output_dir/'metrics.json')
-
+      session.add(slam_output)
+      session.commit()
 
   @property
   def valid_slam_outputs(self):
-    return [o for o in self.slam_outputs if not o.is_failed]
+    return [o for o in self.slam_outputs if not o.is_failed and not o.is_pending]
 
   @property
   def pending_slam_outputs(self):
     return [o for o in self.slam_outputs if o.is_pending]
+
+  @property
+  def failed_slam_outputs(self):
+    return [o for o in self.slam_outputs if o.is_failed]
+
 
   def failures_count(self):
       """Returns an estimate of the number of failed runs"""

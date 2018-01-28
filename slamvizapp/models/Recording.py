@@ -125,4 +125,6 @@ class Recording(Base):
       recording = session.query(Recording).filter_by(**kwargs).one()
     except NoResultFound:
       recording = Recording(**kwargs)
+      session.add(recording)
+      session.commit()
     return recording

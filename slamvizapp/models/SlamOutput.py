@@ -99,8 +99,8 @@ class SlamOutput(Base):
       with filepath.open() as f:
         metrics = json.load(f)
     except:
-      print(f'failed {filepath}')
-      metrics = {'is_failed': True}
+      print(f'WARNING: failed to read {filepath}')
+      # metrics = {'is_failed': True}
     metrics = remap_metrics(metrics)
     for m in metrics:
       setattr(self, m, metrics[m]) 
@@ -137,7 +137,6 @@ class SlamOutput(Base):
         parameters_set = kwargs['default_parameters_set'],
         ci_commit = kwargs['ci_commit'],
       )
-      # slam_outputs.append(slam_output)
       session.add(slam_output)
       session.commit()
       return slam_output
@@ -161,7 +160,6 @@ class SlamOutput(Base):
         parameters_set = kwargs['default_parameters_set'],
         ci_commit = kwargs['ci_commit'],
       )
-      # slam_outputs.append(slam_output)
       session.add(slam_output)
       session.commit()
       return slam_output
