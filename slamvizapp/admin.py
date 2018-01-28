@@ -41,6 +41,6 @@ class RecordingModelView(ModelView):
 
 
 admin.add_view(RecordingModelView(Recording, db_session))
-# admin.add_view(CustomModelView(CiCommit, db_session))
-# admin.add_view(CustomModelView(ParametersSet, db_session))
-# admin.add_view(CustomModelView(SlamOutput, db_session))
+admin.add_view(ModelView(CiCommit, db_session))
+admin.add_view(ModelView(ParametersSet, db_session))
+admin.add_view(ModelView(SlamOutput, db_session))
