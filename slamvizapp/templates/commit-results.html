@@ -19,20 +19,28 @@
     {% macro info_commit(c, white_values=False) %}
       {% with metrics = c.aggregated_metrics(filename_filter, filename_exclude) %}
       <h3 class="section-heading">
-        <strong><a href="/branch/{{branch}}">{{branch}}:</a></strong> <a href='http://gitlab-srv/dvs/psp_swip/commits/{{c.gitcommit.hexsha}}'>{{c.gitcommit.hexsha[:8]}}</a></strong></h3>
+        <strong><a href="/branch/{{c.branch}}">{{c.branch}}:</a></strong> <a href='http://gitlab-srv/dvs/psp_swip/commits/{{c.gitcommit.hexsha}}'>{{c.gitcommit.hexsha[:8]}}</a></strong></h3>
       <p class="section-description"><pre style="overflow: hidden; text-overflow: ellipsis;">{{c.gitcommit.message.replace('\n', ' ')}}</pre></p>
       <p>
         {{c.gitcommit.authored_datetime.strftime('%d %B at %H:%M')}} by {{c.gitcommit.author.name}}. Ran on {{c.slam_outputs|length}} recordings.<br>
         <a class="button white-outline" href="{{c.commit_dir_url / 'params.json'}}">Parameters used</a>
         <strong><a class="button white-outline" href="/s/commits/{{c.commit_dir.name}}/lsf.log">Logs {%if c.failures_count()%}for {{c.failures_count()}} failures{%endif%}</a></strong>
       </p>
+      {% if commit.failed_slam_outputs %}
+        <h3>{{c.failed_slam_outputs | length}} failed</h3>
+        <ul style="text-align: left;">
+        {% for o in c.failed_slam_outputs %}
+        <li> {{o.recording.path}}
+        {% endfor %}
+        </ul>
+      {% endif%}
       {% if commit.pending_slam_outputs %}
         <h3>{{c.pending_slam_outputs | length}} pending</h3>
         <ul style="text-align: left;">
         {% for o in c.pending_slam_outputs %}
         <li> {{o.recording.path}}
         {% endfor %}
-        <ul>
+        </ul>
       {% endif%}
       <div class="row">
         <div class="one-third column value">

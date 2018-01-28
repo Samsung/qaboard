@@ -98,9 +98,25 @@
         <!-- <p>{{badge('ba-daily', 'na', 'grey')}} {{badge('cppcheck', 'na', 'grey')}} {{badge('valgrind', 'na', 'grey')}}</p> -->
         {%endif%}
 
+        <h3>New: viewing S8's output folders in the CI</h3>
+        <ul>
+          <li><strong><a href="http://gpu09-dt:5000/commit/?commit_folder=\\f2_algo_archive\\PTAM_Results/2018-01-25_14-13-19__local__elad__DEC_DEMO_Android_RT\StandardConfiguration\output">Example here</a></strong>
+          <li>Use with the <code>commit_folder</code> and <code>commit_ref_folder</code> URL query parameters.
+          <li>Folder names can be windows/unix style and should begin with <emph>f2_algo_archive</emph>. Tell me whatever is easiest for you.
+          <li>You can compare against git commits using the <code>reference</code> URL query parameter.
+          <li>It will do the job but:
+            <ol>
+              <li>It's not integrated with the database...
+              <li>You can't ask to run on more recordings...
+              <li>I haven't checked if you can recompute the metrics...
+              <li>It's not robust, I've experienced dreaded "too many numbers of symbolic links" errors
+            </ol>
+        </ul>
+
         <h3 style="margin-top: 50px">Recent commits</h3>
-        <p style="color:red">To see your new commits, please <code>git checkout origin/develop tools/performance-evaluation</code></p>
-        <p style="color:darkorange">Otherwise the list will be updated every minute. And less often next week ;)</p>
+        <!-- <p style="color:darkblue">It seems some of the newer recordings fail and don't even appear in the LSF logs...</p> -->
+
+        <p style="color:darkblue">To enable recording names containing spaces, please <code style="color:blue">git checkout origin/develop tools/performance-evaluation</code></p>
         <ol class="list-unstyled content_list" id="commits-list">
           {% for commit_date, commits_at_date in ci_commits|groupby('authored_date')|reverse %}
           <li class="commit-header">{{commit_date.strftime('%d, %b %Y')}} &#8212; {{commits_at_date|length}} commits</li>
@@ -125,7 +141,7 @@
                   <div class="commit-results" style="margin-left: auto;">
                     <span>
                     {% if not commit.slam_outputs%}
-                      {% if (commit.commit_dir/'lsf.log').exists() and not commit.pending_slam_outputs %}
+                      {% if commit.failed_slam_outputs and not commit.pending_slam_outputs %}
                        <a style="color:darkred" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">Failure! Check the LSF logs</a>
                       {% else %}
                       <a style="color:grey" href="http://gitlab-srv/dvs/psp_swip/commit/{{commit.gitcommit.hexsha}}">check the pipeline status..</span>
@@ -137,7 +153,7 @@
                       {% endif%}
 
                       {% if commit.failures_count() %}
-                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">{{commit.failures_count()}} failures</a>
+                        <a style="color: red; text-decoration: underline;" href="/s/commits/{{commit.commit_dir.name}}/lsf.log">{{commit.failures_count()}} crashed</a>
                       {%endif%}
 
                       {% if commit.aggregated_metrics().translation_rmse_median>0 %}<strong>{{'{0:.2}cm'.format(100*commit.aggregated_metrics().translation_rmse_median)}}</strong> RMSE {%endif%}
