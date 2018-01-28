@@ -12,9 +12,16 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repo, db_session
 from .models import CiCommit
+from .models.LocalCommit import LocalCommit 
 from .models import latest_successful_commit
 from .utils import get_users_per_name, filter_slam_outputs, palette
 from .config import *
+
+
+# @app.before_request
+# def maintenance():
+#   if not request.args.get('dev', False):
+#     return "<body><h2>Sorry</h2><p>Please wait 5 minutes - I am removing false SLAM crash reports! ~Arthur <a href="?dev=true">Try anyway</a></p></body>"
 
 
 @app.route('/s/<path:filename>')
@@ -46,9 +53,11 @@ def show_commits(branch=None, search=None):
     commits = repo.iter_commits(branch, max_count=max_count, skip=max_count*page)
     commit_ids = [c.hexsha for c in commits]
     ci_commits = CiCommit.query.filter(CiCommit.id.in_(commit_ids)).order_by(CiCommit.authored_datetime.desc())
+
   search = request.args.get('search', '').lower()
   if search:
     ci_commits = [c for c in ci_commits if search in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
+
   return render_template('list.html',
               ci_commits=ci_commits,
               search=search,
@@ -56,15 +65,24 @@ def show_commits(branch=None, search=None):
               users=get_users_per_name(""), page=page, min_page=max(0,page-2))
 
 
+@app.route("/commit")
+@app.route("/commit/")
 @app.route("/commit/<hexsha>")
 @app.route("/commit/<hexsha>/")
-def render_commit(hexsha):
+def render_commit(hexsha=None):
   """ Renders a page showing the results with a given code commit. """
-  try:
-    commit = repo.commit(hexsha)
-    ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
-  except NoResultFound:
-    return "Sorry, the commit id was not found", 404
+  commit_folder = request.args.get('commit_folder', None)
+  commit_ref_folder = request.args.get('commit_ref_folder', None)
+  if hexsha:
+    try:
+      commit = repo.commit(hexsha)
+      ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+    except NoResultFound:
+      return "Sorry, the commit id was not found", 404
+  elif commit_folder:
+    ci_commit = LocalCommit(commit_folder)
+  else:
+    return "Please specify a commit", 404
 
   # We compare versus the latest success commit on origin/develop
   # Note: we could compare versus a parent instead: parent_successful_commit(ci_commit.gitcommit)
@@ -73,6 +91,8 @@ def render_commit(hexsha):
     if hexsha_ref: 
       commit_ref = repo.commit(hexsha_ref)
       ci_commit_ref = CiCommit.query.filter(CiCommit.id==commit_ref.hexsha).one()
+    elif commit_ref_folder:
+      ci_commit_ref = LocalCommit(commit_ref_folder)
     else:
       ci_commit_ref = latest_successful_commit('origin/develop')
   except:
@@ -81,11 +101,11 @@ def render_commit(hexsha):
   # the user can exlude/filter specific recordings with URL query parameters
   filename_filter = request.args.get('filter', '')
   filename_exclude = request.args.get('exclude', '')
-  outputs = filter_slam_outputs(ci_commit.slam_outputs, filename_filter, filename_exclude)
-  outputs_ref = filter_slam_outputs(ci_commit_ref.slam_outputs, filename_filter, filename_exclude)
+  outputs = filter_slam_outputs(ci_commit.valid_slam_outputs, filename_filter, filename_exclude)
+  outputs_ref = filter_slam_outputs(ci_commit_ref.valid_slam_outputs, filename_filter, filename_exclude)
   # for the display it's easier to have a dict of recording.name => output
-  outputs = {o.recording.path: o for o in outputs if o.recording}
-  outputs_ref = {o.recording.path: o for o in outputs_ref if o.recording}
+  outputs = {o.recording.path: o for o in outputs}
+  outputs_ref = {o.recording.path: o for o in outputs_ref}
   # we want it sorted (we could do it from SQL,,,)
   get_rmse = lambda o: -o[1].translation_aape if o[1].translation_aape else 0
   outputs = {k:v for k,v in sorted(outputs.items(), key=get_rmse)}
