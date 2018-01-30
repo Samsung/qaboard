@@ -118,7 +118,7 @@
 
     <div class="row">
       <div class="twelve columns">
-        <a class="button button-primary" href="?show_table=true&reference={{commit_ref.gitcommit.hexsha}}">Show a summary table</a>
+        <a class="button button-primary" href="?{{query_string.decode('utf-8', 'ignore')}}&show_table=true">Show a summary table</a>
         <a class="button" href="#extra-recordings">Run on more recordings</a>
         <form method="get" action="/metrics/{{commit.gitcommit.hexsha}}/">
           <button style="background-color: #fc9403; color: #ffffff;" class="button" type="submit" onClick='this.disabled=true; this.value="computing..."; this.form.submit();'>Recompute metrics</button>
