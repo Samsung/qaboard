@@ -7,7 +7,7 @@ import json
 import subprocess
 
 from flask import request, render_template, send_from_directory
-from flask import redirect, flash
+from flask import redirect, flash, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repo, db_session
@@ -58,11 +58,16 @@ def show_commits(branch=None, search=None):
   if search:
     ci_commits = [c for c in ci_commits if search in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
 
+  users_db = get_users_per_name("")
+  if bool(request.args.get('json', False)):
+    return jsonify([c.to_dict(users_db=users_db) for c in ci_commits])
+
   return render_template('list.html',
               ci_commits=ci_commits,
               search=search,
               branch=repo.refs[branch] if branch else None, branches=repo.refs,
-              users=get_users_per_name(""), page=page, min_page=max(0,page-2))
+              users=users_db,
+              page=page, min_page=max(0,page-2))
 
 
 @app.route("/commit")
@@ -124,6 +129,7 @@ def render_commit(hexsha=None):
                          outputs=outputs,
                          outputs_ref=outputs_ref,
                          branch=ci_commit.branch,
+                         query_string=request.query_string,
                          batches=batches)
 
 
@@ -197,17 +203,18 @@ def run_extra_batches(hexsha):
       f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
       f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
       f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
-      f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {batch} {overwrite}"'
+      f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {batch} {overwrite} &"'
     ])
     print(cmd)
     # it will only work with my /home/arthurf/.cshrc file
     # it sets ENV variables as needed....
-    out = subprocess.run(cmd, shell=True,
-                   encoding='utf-8',
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    flash(cmd)
-    flash(out.stdout)
-    flash(out.stderr)
+    # out = subprocess.run(cmd, shell=True,
+    #                encoding='utf-8',
+    #                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(cmd, shell=True, encoding='utf-8')
+    # flash(cmd)
+    # flash(out.stdout)
+    # flash(out.stderr)
     flash('Results should arrive soon....')
   return redirect('commit/'+hexsha)
 

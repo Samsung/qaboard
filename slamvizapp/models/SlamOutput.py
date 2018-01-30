@@ -98,10 +98,11 @@ class SlamOutput(Base):
     try:
       with filepath.open() as f:
         metrics = json.load(f)
+        metrics = remap_metrics(metrics)
     except:
       print(f'WARNING: failed to read {filepath}')
       # metrics = {'is_failed': True}
-    metrics = remap_metrics(metrics)
+      metrics = {}
     for m in metrics:
       setattr(self, m, metrics[m]) 
     self.is_pending = False

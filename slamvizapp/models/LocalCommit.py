@@ -64,9 +64,12 @@ id_parser = re.compile(r'^(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-
 class LocalCommit():
   def __init__(self, commit_dir):
     print('getting local commit: ', commit_dir)
-    commit_dir = '\\f2_algo_archive\\PTAM_Results/2018-01-25_14-13-19__local__elad__DEC_DEMO_Android_RT\StandardConfiguration\output'
+    commit_dir = str(commit_dir)
     commit_dir = commit_dir.replace('\\', '/')
     commit_dir = commit_dir.replace('//', '/')
+    commit_dir = commit_dir.replace('/f2_algo_archive','/net/f2/algo_archive')
+    if commit_dir.startswith('/f2'):
+      commit_dir = '/net'+commit_dir
     commit_dir = commit_dir.replace('/f2_algo_archive','/net/f2/algo_archive')
     commit_dir = commit_dir.replace('/output', '')
     commit_dir = Path(commit_dir)

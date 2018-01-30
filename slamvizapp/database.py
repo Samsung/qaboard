@@ -15,6 +15,10 @@ db_name = os.getenv('SLAMVIZAPP_DB_NAME', 'slamvizapp')
 # For other databases read http://docs.sqlalchemy.org/en/latest/core/engines.html
 db_type = 'postgresql'
 
+# http://docs.sqlalchemy.org/en/latest/dialects/mysql.html
+# http://docs.sqlalchemy.org/en/latest/core/engines.html
+# https://github.com/PyMySQL/mysqlclient-python
+engine_url = 'mysql+mysqldb://mysql@web1:3306/vra_slamvizapp'
 engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
 # engine_url = f'sqlite:///{app_data_directory}/slamvizapp.db'
 engine = create_engine(engine_url, echo=False, pool_size=100, max_overflow=10)
@@ -23,14 +27,17 @@ from sqlalchemy_utils import database_exists, create_database
 if not database_exists(engine.url):
   create_database(engine.url)
 
+
+from flask import _app_ctx_stack
 Session = sessionmaker(bind=engine)
 db_session = scoped_session(
 	sessionmaker(
 		autocommit=False,
         autoflush=False,
-        bind=engine)
+        bind=engine),
+	scopefunc=_app_ctx_stack.__ident_func__
 )
-
+# self.create_session
 
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base() # prints (no name)

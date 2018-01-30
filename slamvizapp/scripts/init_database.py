@@ -36,8 +36,8 @@ def init_database(drop_all, loop):
 
   while loop:
     print('sleeping...')
-    time.sleep(10)
-    # time.sleep(60*12)
+    # time.sleep(10)
+    time.sleep(60*12)
     init_cicommits()
     print_summary()
 
@@ -71,6 +71,7 @@ def init_cicommits():
   # ? it would be more complete, but maybe wasteful? we only care about results.
 
   # go over all folders and look for results
+  # reverse@
   for cicommit_dir in cicommits_dir.glob('*__git__*'):
     commit_short_id = str(cicommit_dir)[-8:]
     try: # we get the corresponding git commit
@@ -85,19 +86,20 @@ def init_cicommits():
       try: # the commit might have failed (eg no params.json available)
         ci_commit = CiCommit(commit, project='dvs/psp_swip', session=session)
       except ValueError:
-        # print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
-        continue
+          print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
+          continue
       if ci_commit is None: # something is wrong, maybe an error opening param.json
-        # print('[InitDatabase] WARNING: ci_commit is None')
+        print('[InitDatabase] WARNING: ci_commit is None')
         continue
 
     session.add(ci_commit)
     session.commit()
 
-    could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_slam_job < datetime.timedelta(hours=1)
-    if could_be_pending_results or not ci_commit.slam_outputs:
+    # could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_slam_job < datetime.timedelta(hours=3)
+    # if could_be_pending_results or not ci_commit.slam_outputs:
+    if not ci_commit.slam_outputs or ci_commit.failed_slam_outputs or ci_commit.pending_slam_outputs:
       ci_commit.discover_slam_outputs(session)
-      if ci_commit.slam_outputs: print(ci_commit)
+      if ci_commit.pending_slam_outputs: print(ci_commit)
       session.add(ci_commit)
       session.commit()
 

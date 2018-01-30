@@ -190,6 +190,28 @@ class CiCommit(Base):
   #     return None
   #   return 1000*m.computation_time/m.duration
 
+  def to_dict(self, users_db=None):
+    committer_avatar_url = ''
+    if users_db:
+      name = self.gitcommit.committer.name
+      if name in users_db:
+        committer_avatar_url= users_db[name]['avatar_url']
+    return {
+      'id': self.id,
+      'branch': self.branch,
+      'message': self.gitcommit.message,
+      'committer_name': self.gitcommit.committer.name,
+      'committer_avatar_url': committer_avatar_url,
+      'authored_datetime': self.authored_datetime.isoformat(),
+      'authored_date': self.authored_date,
+      'commit_dir_url': str(self.commit_dir_url),
+      'time_of_last_slam_job': self.time_of_last_slam_job,
+
+      'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
+      'valid_slam_outputs': [o.recording.path for o in self.valid_slam_outputs],
+      'pending_slam_outputs': [o.recording.path for o in self.pending_slam_outputs],
+      'failed_slam_outputs': [o.recording.path for o in self.failed_slam_outputs],
+    }
 
 
 # this is so ugly, it should be refactored into sql
