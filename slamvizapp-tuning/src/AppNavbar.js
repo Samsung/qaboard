@@ -34,8 +34,7 @@ class AppNavbar extends Component {
   }
 
   componentDidMount() {
-    var ci_api = "http://gpu09-dt:5000/";
-    get(`${ci_api}branches`)
+    get("http://gpu09-dt:5000/api/v1/branches")
     .then(response=>{
        this.setState({
          branches: response.data,
@@ -58,7 +57,7 @@ class AppNavbar extends Component {
 	  <Navbar className="pt-dark">
 	    <NavbarGroup>
 	      <NavbarHeading>SLAM</NavbarHeading>
-	      <Button disabled className="pt-minimal" iconName="fork"></Button>
+	      <Button disabled className="pt-minimal" iconName="git-branch"></Button>
 	      <Suggest
 	        itemPredicate={filterBranch}
 	        items={this.state.branches}

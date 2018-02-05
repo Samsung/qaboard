@@ -5,7 +5,10 @@ import AppNavbar from "./AppNavbar"
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 
-import "./App.css";
+import '../node_modules/@blueprintjs/core/lib/css/blueprint.css';
+import '../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css';
+import '../node_modules/@blueprintjs/select/lib/css/blueprint-select.css';
+
 
 class App extends Component {
   render() {
@@ -15,7 +18,7 @@ class App extends Component {
           <AppNavbar />
           <Route exact path="/" component={CiCommitList} />
           <Route path="/branch/(.*)" component={CiCommitList} />
-          <Route path="/commit" component={CiCommitDetails} />
+          <Route path="/commit/(.*)" component={CiCommitDetails} />
           <Route path="/tuning" component={CiCommitTuning} />
         </div>
       </Router>
@@ -23,8 +26,8 @@ class App extends Component {
   }
 }
 
-const CiCommitTuning = () => <p>todo</p>;
 const CiCommitDetails = () => <CiCommitResults/>;
 // ci_commit=this.state.ci_commits[this.state.]
+const CiCommitTuning = () => <p>todo</p>;
 
 export default App;

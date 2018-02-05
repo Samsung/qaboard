@@ -1,10 +1,15 @@
 import React, { Fragment } from "react";
+import { withRouter } from 'react-router'
 import { Link } from "react-router-dom";
+import queryString from "query-string";
 
 import { get } from "axios";
 import styled from "styled-components";
 
-import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner } from "@blueprintjs/core";
+import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, ButtonGroup, Tag, Callout } from "@blueprintjs/core";
+import { Container, Section } from "./Common";
+import Avatar from "./Avatar";
+import { DoneAtTag } from "./DoneAtTag";
 
 import Moment from 'react-moment';
 import 'moment-timezone';
@@ -19,27 +24,6 @@ const groupBy = (array, prop) => {
   }, {});
 };
 
-const Container = styled.div`
-  padding-left: 0;
-  list-style: none;
-  margin-top: 20px;
-  margin-bottom: 10px;
-  box-sizing: border-box;
-
-  padding-right: 15px;
-  padding-left: 15px;
-  margin-right: auto;
-  margin-left: auto;
-  @media (min-width: 768px) {
-    width: 750px;
-  }
-  @media (min-width: 992px) {
-    width: 970px;
-  }
-  @media (min-width: 1200px) {
-    width: 1170px;
-  }
-`;
 
 const HeaderDay = styled.li`
   border-top-width: 0;
@@ -68,24 +52,6 @@ const CommitRowWrapper = styled.li`
   margin: 0;
 `;
 
-const AvatarCell = styled.div`
-  width: 46px;
-  padding-left: 10px;
-  color: rgba(0,0,0,0.85);
-`
-
-const Avatar = styled.img`
-  width: 36px;
-  height: 36px;
-  margin-right: 10px;
-  padding: 0;
-
-  border-radius: 50%;
-  border: 1px solid rgba(0,0,0,0.1);
-  float: left;
-  transition: border-color 100ms linear
-  vertical-align: middle;
-`
 
 const Message = styled.span`
   font-weight: 600;
@@ -108,23 +74,26 @@ const CommitContent = styled.div`
 
 class CommitResults extends React.Component {
   render() {
-    const {ci_commit, className} = this.props;
-    const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${ci_commit.id}`;
-    if (ci_commit.failed_slam_outputs.length > 0 && ci_commit.pending_slam_outputs.length === 0)
-      return (<a style={{color:'darkred'}} href={`${ci_commit.commit_dir_url}}/lsf.log`}>Check the LSF logs</a>)
-    if (ci_commit.valid_slam_outputs.length === 0 && ci_commit.pending_slam_outputs.length === 0)
-      return (<span className={className}><a style={{color:'grey'}} href={gitlab_commit_url}>Check the pipeline status..</a></span>);
+    const {commit} = this.props;
+    const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
+    if (commit.valid_slam_outputs.length === 0 && commit.pending_slam_outputs.length === 0)
+      return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
-    let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:3, maximumFractionDigits:3});
+    let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
     let status_messages = (
       <Fragment>
-         {ci_commit.pending_slam_outputs.length>0 &&
-            <span style={{color: 'grey', marginRight: '10px'}}>{ci_commit.pending_slam_outputs.length} pending...</span>}
-         {ci_commit.failed_slam_outputs.length>0 &&
-            <a style={{color: "red", textDecoration: "underline", marginRight: '10px'}} href={`${ci_commit.commit_dir_url}/lsf.log`}>{ci_commit.failed_slam_outputs.length} crashed</a>}
-         {ci_commit.aggregated_metrics.translation_rmse_median>0 &&
-            <Tooltip content={JSON.stringify(ci_commit.aggregated_metrics, null, '\t')}>
-              <span><strong>{formatter.format(100*ci_commit.aggregated_metrics.translation_rmse_median)}cm</strong> RMSE</span>
+         {commit.pending_slam_outputs.length>0 &&
+            <Tag className="pt-minimal">{commit.pending_slam_outputs.length} pending...</Tag>}
+         {commit.failed_slam_outputs.length>0 &&
+            <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{commit.failed_slam_outputs.length} crashed</Button></a>}
+         {commit.valid_slam_outputs.length>0 && commit.aggregated_metrics.translation_rmse_median>0 &&
+            <Tooltip>
+              <Tag className="pt-minimal"><strong>{formatter.format(100*commit.aggregated_metrics.translation_aape_average)}cm</strong> AAPE</Tag>
+              <ul>
+              { Object.entries(commit.aggregated_metrics).map( ([k,v]) =>
+                <li k={v}><strong>{k}:</strong> {formatter.format(v)}</li>
+              )}
+              </ul>
             </Tooltip>
             }
       </Fragment>
@@ -132,9 +101,9 @@ class CommitResults extends React.Component {
     return (
       <div>
       {status_messages}
-      {ci_commit.valid_slam_outputs.length>0 &&
-          <Link style={{marginLeft: '10px'}} to={`/commit/${ci_commit.id}`}>
-            <Button intent={Intent.SUCCESS} text={`${ci_commit.valid_slam_outputs.length} results`}/>
+      {commit.valid_slam_outputs.length>0 &&
+          <Link style={{marginLeft: '10px'}} to={`/commit/${commit.id}`}>
+            <Button intent={Intent.SUCCESS} text={`${commit.valid_slam_outputs.length} results`}/>
           </Link>
       }
       </div>
@@ -145,23 +114,6 @@ const CommitResultsStyled = styled(CommitResults)`
   margin-left: auto;
 `;
 
-class WhenFinished extends React.Component {
-  render() {
-    const {ci_commit, className} = this.props;
-    return (
-      <span className={className}>
-        <Icon style={{color:'#999'}} iconName="pt-icon-calendar"/> 
-        <Tooltip content={ci_commit.authored_datetime}><Moment fromNow tz='Asia/Jerusalem' date={ci_commit.authored_datetime} /></Tooltip> by {ci_commit.committer_name}
-      </span>
-    )
-  }
-}
-const WhenFinishedStyled = styled(WhenFinished)`
-  color: rgba(0,0,0,0.55);
-  white-space: nowrap;
-  box-sizing: border-box;
-  margin-left: 5px;
-`;
 
 
 const CommitShortId = styled.a`
@@ -170,32 +122,27 @@ const CommitShortId = styled.a`
   color: #1b69b6;
 `
 
-
 class CommitRow extends React.Component {
   render() {
-    const {ci_commit, className} = this.props;
-    const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${ci_commit.id}`;
+    const {commit, className} = this.props;
+    const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
     return (
       <CommitRowWrapper className={className}>
-        <AvatarCell>
-          <a href={`http://gitlab-srv/${ci_commit.author}`}>
-            <Avatar alt={ci_commit.committer_name} src={ci_commit.committer_avatar_url}/>
-          </a>
-        </AvatarCell>
+        <Avatar alt={commit.committer_name} href={`http://gitlab-srv/${commit.committer_name}`} src={commit.committer_avatar_url} />
 
         <CommitDetails>
           <CommitContent>
-            <Message>{ci_commit.message}</Message>
+            <Message>{commit.message}</Message>
             <div>
               <Icon iconName="pt-icon-git-commit" /> 
-              <CommitShortId href={gitlab_commit_url}>{ci_commit.id.substring(0,8)} </CommitShortId> 
+              <CommitShortId href={gitlab_commit_url}>{commit.id.substring(0,8)} </CommitShortId> 
               <Icon iconName="pt-icon-fork"/> 
-              <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${ci_commit.branch}`}>{ci_commit.branch} </Link>
-              <WhenFinishedStyled ci_commit={ci_commit}/>
+              <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${commit.branch}`}>{commit.branch} </Link>
+              <DoneAtTag commit={commit}/>
             </div>
           </CommitContent>
 
-          <CommitResultsStyled ci_commit={ci_commit} />
+          <CommitResultsStyled commit={commit} />
         </CommitDetails>
       </CommitRowWrapper>);
 
@@ -207,12 +154,12 @@ class CommitRow extends React.Component {
 
 
 
-const CommitRows = ({ ci_commits, className }) => (
+const CommitRows = ({ commits, className }) => (
   <div className={className}>
     <DayRows>
       <WrapperCommitRows>
-        {ci_commits.map(ci_commit => (
-          <CommitRow ci_commit={ci_commit} key={ci_commit.id} />
+        {commits.map(commit => (
+          <CommitRow commit={commit} key={commit.id} />
         ))}
       </WrapperCommitRows>
     </DayRows>
@@ -223,47 +170,41 @@ class CiCommitList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
+      page: 0,
       error: null,
       isLoaded: false,
-      ci_commits: []
+      commits: []
     };
   }
 
   componentWillReceiveProps(nextProps) {
-    const { match } = this.props;
-    if (match.url!==nextProps.match.url)
+    if (this.props.location.pathname!==nextProps.location.pathname || this.props.location.search!==nextProps.location.search) {
       this.getData(nextProps);
+    }
   }
 
   getData(props) {
-    const {page, max_count, match} = props;
-    // if (match.path === '/')
-    var uri = `commits`;
-    if (match.params[0]) {
-      var branch = match.params[0]
-      uri = `branch/${branch}`;      
-    }
-    // else
-    //   var uri = `branch/${branch}`;
-    var ci_api = "http://gpu09-dt:5000/";
+    const { match } = props;
+    const params = new URLSearchParams(props.location.search);
+    const count = params.get('count') || 20;
+    const page = parseFloat(params.get('page')) || 0;
+    this.setState({page});
 
 
-    get(`${ci_api}${uri}`, {
+    var branch = ''
+    if (match.params[0])
+      branch = `/${match.params[0]}`
+
+    get(`http://gpu09-dt:5000/api/v1/commits${branch}`, {
       params: {
-        json: true,
-        page,
-        max_count,
+        page, count,
       },
-      headers: {
-        "Content-Type": "application/vnd.api+json",
-        Accept: "application/vnd.api+json"
-      }
     })
       .then(response => {
         // console.log(response.data);
         this.setState({
           isLoaded: true,
-          ci_commits: response.data
+          commits: response.data
         });
       })
       .catch(error => {
@@ -292,44 +233,82 @@ class CiCommitList extends React.Component {
 
   componentDidMount() {
     this.getData(this.props);
+    this.interval = setInterval(x=>this.getData(this.props), 60*1000);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.interval);
+  }
+
+  paginatorOnClick = (event) => {
+    const page = event.target.value;
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: queryString.stringify(Object.assign({}, queryString.parse(this.props.location.search), { page }))
+    })
   }
 
   render() {
-    const { error, isLoaded, ci_commits } = this.state;
+    const { error, isLoaded, commits, page } = this.state;
 
     let information = (
       <Fragment>
-        <h3>Useful links</h3>
-        <ul>
-          <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines</a></li>
-          <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?</a></li>
-          <li><a href="/admin/recording/">List of all available recordings</a></li>
-        </ul>
-        <h3>Reports for branch <code>develop</code></h3>
-        <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
+        <Section>
+          <Callout iconName="info-sign" intent={Intent.PRIMARY} title="Useful links" style={{marginBottom:'20px'}}>
+          <ul>
+            <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines</a></li>
+            <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?</a></li>
+            <li><a href="/admin/recording/">List of all available recordings</a></li>
+          </ul>
+          </Callout>
+        </Section>
+        <Section>
+          <h3>Reports for branch <code>develop</code></h3>
+          <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
+        </Section>
       </Fragment>
     );
+
 
     var list;
     if (error) {
       list = <NonIdealState description={error.message} visual="pt-icon-error"/>;
     } else if (!isLoaded) {
       list = <NonIdealState title="Loading" visual={<Spinner/>} />;
-    } else if (ci_commits.length===0) {
+    } else if (commits.length===0) {
       list = <NonIdealState title="No results" description="Your search didn't return any commit." visual="pt-icon-folder-open" />;      
     } else {
-      let ci_commits_by_day = groupBy(ci_commits, "authored_date");
+      let commits_by_day = groupBy(commits, "authored_date");
+      // we should do something like this instead.
+      // https://github.com/bvaughn/react-virtualized/blob/master/source/InfiniteLoader/InfiniteLoader.example.js
+      //  active ? Link
+      let paginator =  (
+        <ButtonGroup large style={{marginTop: '25px'}} onClick={this.paginatorOnClick}>
+          {page>0 && <Button value={page-1} iconName="pt-icon-arrow-left">Previous</Button>}
+          {page>0 && <Button value={page-1}>{page-1}</Button>}
+          {page>1 && <Button value={page-2}>{page-2}</Button>}
+          <Button value={page} disabled intent={Intent.PRIMARY} >{page}</Button>
+          <Button value={page+1}>{page+1}</Button>
+          <Button value={page+2}>{page+2}</Button>
+          <Button value={page+3}>{page+3}</Button>
+          <Button value={page+1} iconName="pt-icon-arrow-right">Next</Button>
+        </ButtonGroup>
+      )
+
       list = (
         <Fragment>
           <h3>Recent commits</h3>
-          {Object.keys(ci_commits_by_day).map(day => (
+          {Object.keys(commits_by_day).map(day => (
             <Fragment key={day}>
               <HeaderDay>
-                <Moment calendar={calendarStrings} tz='Asia/Jerusalem' date={day}></Moment> &#8212; {ci_commits_by_day[day].length} commits
+                <Moment calendar={calendarStrings} tz='Asia/Jerusalem' date={day}></Moment> &#8212; {commits_by_day[day].length} commits
               </HeaderDay>
-              <CommitRows ci_commits={ci_commits_by_day[day]} />
+              <CommitRows commits={commits_by_day[day]} />
+
+
             </Fragment>
           ))}
+          {paginator}
         </Fragment>
       );
     }
@@ -352,4 +331,4 @@ const calendarStrings = {
     sameElse : 'L'
 };
 
-export default CiCommitList;
+export default withRouter(CiCommitList);
