@@ -3,11 +3,10 @@
 Flask web-app showing SLAM results in a digestible form.
 """
 import datetime
-import json
 import subprocess
 
 from flask import request, render_template, send_from_directory
-from flask import redirect, flash, jsonify
+from flask import redirect, flash
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repo, db_session
@@ -43,7 +42,7 @@ def coverage_report():
 @app.route("/commits/")
 @app.route("/branch/<path:branch>")  # Branch names can contain slashes..
 @app.route("/branch/<path:branch>/") # we may want to be OK with the branch name's URL slug
-def show_commits(branch=None, search=None):
+def show_commits(branch=None):
   """ Renders an index page of the commits in the branch organized by date."""
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
@@ -59,9 +58,6 @@ def show_commits(branch=None, search=None):
     ci_commits = [c for c in ci_commits if search in c.gitcommit.message.lower()+c.gitcommit.author.name.lower()]
 
   users_db = get_users_per_name("")
-  if bool(request.args.get('json', False)):
-    return jsonify([c.to_dict(users_db=users_db) for c in ci_commits])
-
   return render_template('list.html',
               ci_commits=ci_commits,
               search=search,
@@ -112,9 +108,9 @@ def render_commit(hexsha=None):
   outputs = {o.recording.path: o for o in outputs}
   outputs_ref = {o.recording.path: o for o in outputs_ref}
   # we want it sorted (we could do it from SQL,,,)
-  get_rmse = lambda o: -o[1].translation_aape if o[1].translation_aape else 0
-  outputs = {k:v for k,v in sorted(outputs.items(), key=get_rmse)}
-  outputs_ref = {k:v for k,v in sorted(outputs_ref.items(), key=get_rmse)}
+  get_aape = lambda o: -o[1].translation_aape if (hasattr(o[1], 'translation_aape') and o[1].translation_aape) else 0
+  outputs = {k:v for k,v in sorted(outputs.items(), key=get_aape)}
+  outputs_ref = {k:v for k,v in sorted(outputs_ref.items(), key=get_aape)}
 
   # we display the batches used when re-running on more movies
   with batches_filepath.open() as f:
@@ -134,8 +130,8 @@ def render_commit(hexsha=None):
 
 
 
-@app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
 @app.route("/metrics/<hexsha>/", methods=['POST', 'GET'])
+@app.route("/metrics/<hexsha>", methods=['POST', 'GET'])
 def rerun_metric(hexsha):
   """
   Re-computes the SLAM metrics for the specified commit using the latest scripts from develop.
@@ -178,7 +174,9 @@ def clean():
   flash(out.stderr)
   return redirect('/')
 
+
 @app.route("/batch/<hexsha>/", methods=['POST'])
+@app.route("/batch/<hexsha>", methods=['POST'])
 def run_extra_batches(hexsha):
   """Allows users to run the SLAM on new recordings."""
   try:
@@ -186,7 +184,7 @@ def run_extra_batches(hexsha):
     ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
   except NoResultFound:
     return "Sorry, the commit id was not found", 404
-  batch = request.form.get('batch', None)
+  batch = request.form.get('selected_batch', None)
   batches = request.form.get('batches', None)
   overwrite = '--overwrite' if request.form.get('overwrite', 'off')=='on' else ''
 
@@ -216,6 +214,7 @@ def run_extra_batches(hexsha):
     # flash(out.stdout)
     # flash(out.stderr)
     flash('Results should arrive soon....')
+    # return 'OK'
   return redirect('commit/'+hexsha)
 
 

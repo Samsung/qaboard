@@ -190,27 +190,35 @@ class CiCommit(Base):
   #     return None
   #   return 1000*m.computation_time/m.duration
 
-  def to_dict(self, users_db=None):
+  def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''
     if users_db:
       name = self.gitcommit.committer.name
       if name in users_db:
         committer_avatar_url= users_db[name]['avatar_url']
+    if with_details:
+      details = {
+        'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs}
+      }
+    else:
+      details = {}
     return {
       'id': self.id,
       'branch': self.branch,
+      'type': 'git',
       'message': self.gitcommit.message,
       'committer_name': self.gitcommit.committer.name,
       'committer_avatar_url': committer_avatar_url,
       'authored_datetime': self.authored_datetime.isoformat(),
-      'authored_date': self.authored_date,
+      'authored_date': self.authored_date.isoformat(),
       'commit_dir_url': str(self.commit_dir_url),
-      'time_of_last_slam_job': self.time_of_last_slam_job,
+      'time_of_last_slam_job': self.time_of_last_slam_job.isoformat(),
 
       'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
       'valid_slam_outputs': [o.recording.path for o in self.valid_slam_outputs],
       'pending_slam_outputs': [o.recording.path for o in self.pending_slam_outputs],
       'failed_slam_outputs': [o.recording.path for o in self.failed_slam_outputs],
+      **details,
     }
 
 
@@ -232,10 +240,11 @@ def aggregated_metrics(slam_outputs):
       # ('compute_time_vs_realtime', 1), # FIXME: it's not an attribute so the call will fail
     ]
     for metric, treshold in metrics_to_aggregate:
-      values = np.array([getattr(o, metric) for o in slam_outputs if getattr(o, metric)])
+      values = np.array([getattr(o, metric) for o in slam_outputs if (hasattr(o, metric) and getattr(o, metric))])
       aggregated[f'{metric}_median'] = np.median(values)
       aggregated[f'{metric}_average']= np.average(values)
       aggregated[f'{metric}_pc_bad'] = np.mean(values<treshold)
+      aggregated[f'{metric}_threshold_bad'] = treshold
     return aggregated
 
 

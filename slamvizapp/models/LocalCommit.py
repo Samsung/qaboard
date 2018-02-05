@@ -17,6 +17,7 @@ from ..utils import filter_slam_outputs
 
 class LocalGitCommit():
   def __init__(self, hexsha, message, author, authored_datetime):
+    self.id = hexsha
     self.hexsha = hexsha
     self.message = message
     self.author = author
@@ -64,6 +65,7 @@ id_parser = re.compile(r'^(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-
 class LocalCommit():
   def __init__(self, commit_dir):
     print('getting local commit: ', commit_dir)
+    self.type = 'local'
     commit_dir = str(commit_dir)
     commit_dir = commit_dir.replace('\\', '/')
     commit_dir = commit_dir.replace('//', '/')

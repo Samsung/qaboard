@@ -117,6 +117,14 @@ class SlamOutput(Base):
     # parameter_set_id={self.parameter_set_id}
     return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path}"
 
+  def to_dict(self):
+    as_dict = {c.name:getattr(self, c.name) for c in SlamOutput.metadata.tables['slam_outputs'].columns}
+    return {
+      **as_dict,
+      'output_dir_url': str(self.output_dir_url),
+      'recording_path': str(self.recording.path),
+    }
+
   @staticmethod
   def get_or_create(session, **kwargs):
     # print(kwargs['recording'].id, kwargs['platform'], kwargs['configuration'], kwargs['default_parameters_set'].id, kwargs['ci_commit'].id)
