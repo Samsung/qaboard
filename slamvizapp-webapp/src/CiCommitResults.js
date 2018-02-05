@@ -266,9 +266,9 @@ class CiCommitResults extends Component {
   }
 
   updateState() {
-    const new_commit_id = this.props.match.params[0]
     const params = new URLSearchParams(this.props.location.search);
-    const ref_commit_id = this.state.ref_commit_id || params.get('reference') || 'default';
+    const new_commit_id = params.get('commit_folder') || this.props.match.params[0]
+    const ref_commit_id = this.state.ref_commit_id || params.get('reference') || params.get('commit_ref_folder') || 'default';
     this.setState({
         new_commit_id,
         ref_commit_id,
@@ -278,10 +278,10 @@ class CiCommitResults extends Component {
           [ref_commit_id]:{isLoaded:false},
         }
     });
-    this.getCiCommit(new_commit_id);
-    this.getCiCommit(ref_commit_id);
-    this.interval_new = setInterval(x=>this.getCiCommit(new_commit_id), 60*1000);
-    this.interval_ref = setInterval(x=>this.getCiCommit(ref_commit_id), 60*1000);
+    this.getCiCommit(new_commit_id, 'new_commit_id');
+    this.getCiCommit(ref_commit_id, 'ref_commit_id');
+    this.interval_new = setInterval(x=>this.getCiCommit(new_commit_id, 'new_commit_id'), 60*1000);
+    this.interval_ref = setInterval(x=>this.getCiCommit(ref_commit_id, 'ref_commit_id'), 60*1000);
   }
 
   componentDidMount() {
@@ -300,14 +300,14 @@ class CiCommitResults extends Component {
     }
   }
 
-  getCiCommit(commit_id) {
+  getCiCommit(commit_id, to_update) {
     // the API defaults to the latest commit on develop
     // we want to use this default 
     let query = commit_id==='default' ? '' : `/${commit_id}`;
     get(`http://gpu09-dt:5000/api/v1/commit${query}`, {params: {}})
       .then(response => {
         this.setState({
-          ref_commit_id: commit_id==='default' ? response.data.id : this.state.ref_commit_id,
+          [to_update]: response.data.id,
           commits: {
             ...this.state.commits,
             [response.data.id]: {
@@ -413,11 +413,11 @@ class CiCommitResults extends Component {
     var { commits, new_commit_id, ref_commit_id } = this.state;
 
     if (!new_commit_id || !new_commit_id)
-      return <NonIdealState
+      return <Section><NonIdealState
         title="No commit selected"
         description="Please first select a commit."
         visual="pt-icon-folder-open"
-      />
+      /></Section>
 
     var new_commit_ = commits[new_commit_id];
     var ref_commit_ = commits[ref_commit_id];

@@ -10,8 +10,8 @@ import re
 import json
 from pathlib import Path
 
-from .CiCommit import aggregated_metrics
-from .SlamOutput import remap_metrics
+from .CiCommit import CiCommit, aggregated_metrics
+from .SlamOutput import SlamOutput, remap_metrics
 from ..utils import filter_slam_outputs
 
 
@@ -21,8 +21,11 @@ class LocalGitCommit():
     self.hexsha = hexsha
     self.message = message
     self.author = author
+    self.committer = {'name': author}
+    self.committer_name = author
     self.authored_datetime = authored_datetime
     self.parents = [self]
+
 
 class LocalRecording():
   def __init__(self, path):
@@ -35,12 +38,16 @@ class LocalRecording():
 
 class LocalSlamOutput():
   def __init__(self, recording, platform, configuration, ci_commit):
+    self.id = str(recording.path)
     self.recording = recording
+    self.recording_id = 0
     self.platform = platform
     self.configuration = configuration
     self.is_pending = False
     self.is_failed = False
     self.ci_commit = ci_commit
+    self.ci_commit_id = 0
+    self.parameters_set_id = 0
 
   def update_metrics_from_file(self, filepath):
     """Updates the metrics from a file"""
@@ -59,16 +66,27 @@ class LocalSlamOutput():
   def output_dir_url(self):
     return self.ci_commit.commit_dir_url / 'output' / self.recording.output_folder
 
+  def to_dict(self):
+    # return {}
+    as_dict = {c.name:getattr(self, c.name) for c in SlamOutput.metadata.tables['slam_outputs'].columns if hasattr(self, c.name)}
+    return {
+      **as_dict,
+      'output_dir_url': str(self.output_dir_url),
+      'recording_path': str(self.recording.path),
+    }
 
 id_parser = re.compile(r'^(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2})__local__(?P<author>[A-Za-z0-9]*)(?:__(?P<message>.*))*')
 
 class LocalCommit():
   def __init__(self, commit_dir):
-    print('getting local commit: ', commit_dir)
+    # print('getting local commit: ', commit_dir)
     self.type = 'local'
     commit_dir = str(commit_dir)
     commit_dir = commit_dir.replace('\\', '/')
     commit_dir = commit_dir.replace('//', '/')
+    if not commit_dir.startswith('/'):
+      commit_dir='/'+commit_dir
+      print('+++')
     commit_dir = commit_dir.replace('/f2_algo_archive','/net/f2/algo_archive')
     if commit_dir.startswith('/f2'):
       commit_dir = '/net'+commit_dir
@@ -77,7 +95,7 @@ class LocalCommit():
     commit_dir = Path(commit_dir)
 
     self.commit_dir = commit_dir
-    self.id = self.commit_dir.relative_to('/net/f2/algo_archive/PTAM_Results')    
+    self.id = str(self.commit_dir.relative_to('/net/f2/algo_archive/PTAM_Results'))    
 
     matches = id_parser.match(str(self.id)).groupdict()
     time = matches['time']
@@ -108,6 +126,10 @@ class LocalCommit():
       slam_output.update_metrics_from_file(output_dir/'metrics.json')
       self.slam_outputs.append(slam_output)
 
+  @property
+  def output_dir(self):
+    """Returns the folder where outputs are stored"""
+    return self.commit_dir / 'output'
 
   @property
   def commit_dir_url(self):
@@ -115,7 +137,37 @@ class LocalCommit():
     # FIXME: have nginx server from /net/f2/algo_archive/PTAM_RESULTS
     return '/ss/'/self.commit_dir.relative_to('/net/f2/algo_archive/PTAM_Results')
 
+  def to_dict(self, with_details=False, users_db=None):
+    committer_avatar_url = ''
+    if users_db:
+      name = self.gitcommit.committer['name']
+      if name in users_db:
+        committer_avatar_url= users_db[name]['avatar_url']
+    if with_details:
+      print({o.id: o.to_dict() for o in self.slam_outputs})
+      details = {
+        'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs}
+      }
+    else:
+      details = {}
+    return {
+      'id': self.id,
+      'branch': self.branch,
+      'type': 'git',
+      'message': self.gitcommit.message,
+      'committer_name': self.gitcommit.committer['name'],
+      'committer_avatar_url': committer_avatar_url,
+      'authored_datetime': self.authored_datetime.isoformat(),
+      'authored_date': self.authored_date.isoformat(),
+      'commit_dir_url': str(self.commit_dir_url),
+      'time_of_last_slam_job': self.time_of_last_slam_job.isoformat(),
 
+      'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
+      'valid_slam_outputs': [o.recording.path for o in self.valid_slam_outputs],
+      'pending_slam_outputs': [o.recording.path for o in self.pending_slam_outputs],
+      'failed_slam_outputs': [o.recording.path for o in self.failed_slam_outputs],
+      **details,
+    }
 
 
 

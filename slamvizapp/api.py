@@ -88,6 +88,7 @@ def get_ci_commit(id=None):
       commit = repo.commit(id)
       ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
     except BadName:
+      ci_commit = LocalCommit(id)
       try:
         ci_commit = LocalCommit(id)
       except:
