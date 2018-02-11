@@ -56,15 +56,6 @@ def clean(days):
   subprocess.Popen("find /home/arthurf/ci/dvs/psp_swip/branches -maxdepth 3 -name '*core*' -delete", shell=True)
 
 
-def remove_outputs(commit):
-  pass
-
-
-def remove_videos(commit):
-  pass
-
-
-
 
 if __name__ == '__main__':
     clean()

@@ -71,8 +71,9 @@ def init_cicommits():
   # ? it would be more complete, but maybe wasteful? we only care about results.
 
   # go over all folders and look for results
-  # reverse@
-  for cicommit_dir in cicommits_dir.glob('*__git__*'):
+  cicommit_directories = list(cicommits_dir.glob('*__git__*'))
+  cicommit_directories.reverse() # update the most recent first
+  for cicommit_dir in cicommit_directories:
     commit_short_id = str(cicommit_dir)[-8:]
     try: # we get the corresponding git commit
       commit = repo.commit(commit_short_id)

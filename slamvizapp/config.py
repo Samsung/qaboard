@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 # we clone our psp_swip repo here
-app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '.')).resolve()
+app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '/var/slamvizapp')).resolve()
 
 # users can request to run on new recordings - here we keep the list of available batches
 # it must be available from LSF

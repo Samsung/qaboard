@@ -7,8 +7,8 @@ import subprocess
 from gitdb.exc import BadName
 
 from flask import request, jsonify
-from flask_restless import APIManager
-from flask_restless.serialization import DefaultSerializer
+# from flask_restless import APIManager
+# from flask_restless.serialization import DefaultSerializer
 
 from slamvizapp import app, repo, db_session
 from .models import CiCommit, SlamOutput, Recording, ParametersSet
@@ -48,8 +48,9 @@ def new_batches(hexsha):
       f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
       f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
       f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
-      f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {data["selected_batch"]} {overwrite}"'
+      f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {data["selected_batch"]} {overwrite} --no_wait"'
     ])
+    print(cmd)
     subprocess.run(cmd, shell=True, encoding='utf-8')
     return(jsonify(cmd))
   return jsonify('OK')

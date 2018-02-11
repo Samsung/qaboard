@@ -153,7 +153,7 @@ class LocalCommit():
     return {
       'id': self.id,
       'branch': self.branch,
-      'type': 'git',
+      'type': 'local',
       'message': self.gitcommit.message,
       'committer_name': self.gitcommit.committer['name'],
       'committer_avatar_url': committer_avatar_url,
