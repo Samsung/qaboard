@@ -6,7 +6,7 @@ import { get, post } from "axios";
 
 import brace from 'brace';
 import AceEditor from 'react-ace';
-import { EditableText, Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Checkbox, FormGroup, Switch, EditableText, Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
 
 import Avatar from "./Avatar";
@@ -77,7 +77,7 @@ class AddRecordings extends Component {
     })
     .catch( error => {
       this.setState({submitted: false})
-      OurToaster.show({ message: "Something wrong happened", intent: Intent.DANGER});
+      OurToaster.show({ message: `Something wrong happened ${JSON.stringify(error.response)}`, intent: Intent.DANGER});
     })
     e.preventDefault();
   }
@@ -122,7 +122,7 @@ class AddRecordings extends Component {
           </label>
           <div className="pt-form-helper-text">By default we won't run the SLAM twice on the same recordings </div>
         </div>
-        <Button onClick={this.recomputeMetrics} disabled={this.state.submitted} type='button'>Recompute all metrics</Button>
+        <Button onClick={this.recomputeMetrics} disabled={this.state.submitted} type='button'>Recompute metrics</Button>
         <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
       </div>
 
@@ -144,6 +144,116 @@ class AddRecordings extends Component {
         enableBasicAutocompletion={true}
         enableLiveAutocompletion={true}
       />    
+    </form>)
+  }
+
+}
+
+
+class Tuning extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      submitted: false,
+      clear_experiment: false,
+      experiment_name: null,
+      selected_batch: null,
+      tuning_set: `{\n  \n}\n`,
+    };
+  }
+
+  updateExperimentName = e => {this.setState({experiment_name: e.target.value})};
+  updateClear = e => {this.setState({clear_experiment: !this.state.clear_experiment})};
+  updateSelectedBatch = e => {this.setState({selected_batch: e.target.value})};
+  updateTuningSet = new_tuning_set => {this.setState({tuning_set: new_tuning_set})};
+
+  onSubmit = e => {
+    const { experiment_name, selected_batch, clear_experiment, tuning_set} = this.state;
+    console.log(experiment_name, selected_batch, clear_experiment, tuning_set)
+    // this.setState({submitted: true})
+    // OurToaster.show({ message: "The experiment was sent!", intent: Intent.PRIMARY});
+    // post(`/api/v1/experiment/${this.props.commit.id}`, {
+    //   selected_batch, new_tuning_set, clear_experiment,
+    // })
+    // .then(response => {
+    //   this.setState({submitted: false})
+    //   OurToaster.show({ message: "...acknowledged! Now wait...", intent: Intent.SUCCESS});
+    // })
+    // .catch( error => {
+    //   this.setState({submitted: false})
+    //   OurToaster.show({ message: `Something wrong happened ${JSON.stringify(error.response)}`, intent: Intent.DANGER});
+    // })
+    e.preventDefault();
+  }
+
+  render() {
+    return (
+    <form onSubmit={this.onSubmit}>
+      <FormGroup
+          helperText="Choose a name that describes well the experiment"
+          label="Experiment name"
+          labelFor="experiment-name"
+          intent={Intent.PRIMARY}
+          requiredLabel={true}
+      >
+          <input id="experiment-name" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" onChange={this.updateExperimentName}  type="text" dir="auto" />
+      </FormGroup>
+
+      <FormGroup
+          helperText="Choose a small batch if you want results quickly."
+          label="Selected batch"
+          labelFor="selected-batch"
+          requiredLabel={true}
+      >
+          <input id="selected-batch" className="pt-input" style={{width: '300px'}} placeholder="small" onChange={this.updateSelectedBatch}  type="text" dir="auto" />
+      </FormGroup>
+
+      <FormGroup
+          helperText="If unchecked, all past results of this experiment will be deleted."
+          labelFor="delete-experiment"
+          requiredLabel={false}
+          inline
+          intent={Intent.WARNING}
+      >
+          <Switch id="delete-experiment" checked={!this.state.clear_experiment} label="Keep previous SLAM results" onChange={this.updateClear} />
+      </FormGroup>
+
+      <div style={{display: 'flex'}}>
+        <FormGroup style={{flex: '1 1 auto', marginRight:'15px'}} label={<strong>Platform</strong>} helperText="Only LSF is available">
+          <Checkbox disabled checked={true} label="LSF - Linux" />
+          <Checkbox disabled checked={false} label="S8 - Android" />
+        </FormGroup>
+
+        <FormGroup style={{flex: '1 1 auto'}} label={<strong>Configuration</strong>} helperText="Only serial runs are available at the moment.">
+          <Checkbox disabled checked={true} label="stereo-serial" />
+          <Checkbox disabled checked={false} label="mono-serial" />
+        </FormGroup>
+      </div>
+
+      <h3>Tuning set</h3>
+      <p>Use arrays of values, eg <code>radius: [1, 2, 3]</code></p>
+      <AceEditor
+        mode="json"
+        theme="github"
+        onChange={this.updateTuningSet}
+        width='100%'
+        height='200px'
+        name="editor-tuning-set"
+        value={this.state.tuning_set}
+        editorProps={{$blockScrolling: true}}
+        setOptions={{
+          enableBasicAutocompletion: true,
+          enableLiveAutocompletion: true,
+          tabSize: 2,
+        }}
+        enableBasicAutocompletion={true}
+        enableLiveAutocompletion={true}
+      />
+
+      <Callout iconName="time" intent={Intent.PRIMARY}>Estimated time: TBD</Callout>
+      <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
+
+  
     </form>)
   }
 
@@ -413,42 +523,50 @@ class CiCommitResults extends Component {
     var { commits, new_commit_id, ref_commit_id } = this.state;
 
     if (!new_commit_id || !new_commit_id)
-      return <Section><NonIdealState
-        title="No commit selected"
-        description="Please first select a commit."
-        visual="pt-icon-folder-open"
-      /></Section>
+      return (
+        <Container>
+          <Section>
+            <NonIdealState
+              title="No commit selected"
+              description="Please first select a commit."
+              visual="pt-icon-folder-open"
+            />
+          </Section>
+        </Container>)
 
     var new_commit_ = commits[new_commit_id];
     var ref_commit_ = commits[ref_commit_id];
-    if (!new_commit_.isLoaded || !ref_commit_.isLoaded)
-      return (
-        <Container>
-          <NonIdealState
-            title="Loading"
-            visual={<Spinner/>}
-          />              
-        </Container>
-      )
 
+    var warning_messages;
     if (new_commit_.error || ref_commit_.error) {
       var error_description = <span>
         {new_commit_.error && <span><strong>{new_commit_id}:</strong> {new_commit_.error}</span>}
         {new_commit_.error && ref_commit_.error && <br/>}
         {ref_commit_.error && <span><strong>{ref_commit_id}:</strong> {ref_commit_.error}</span>}
       </span>
-      return (
-        <Container>
+      warning_messages = (
+        <Section>
           <NonIdealState
             title="Network Error"
             description={error_description} visual="pt-icon-error"
           />
-        </Container>
-      )
+        </Section>)
     }
+
+    if (!new_commit_.isLoaded || !ref_commit_.isLoaded)
+      warning_messages = (
+          <Section>
+            <NonIdealState
+              title="Loading"
+              visual={<Spinner/>}
+            />
+          </Section>)
 
     var new_commit = new_commit_.data;
     var ref_commit = ref_commit_.data;
+
+    if (new_commit===undefined || ref_commit===undefined)
+      return <Container>{warning_messages}</Container>
 
     let status_messages = (
       <Section>
@@ -458,7 +576,7 @@ class CiCommitResults extends Component {
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>Still waiting for some ({new_commit.pending_slam_outputs.length}) SLAM</span>
+              <span>Still waiting for {new_commit.pending_slam_outputs.length} SLAM</span>
               <ul>{new_commit.pending_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
               </Tooltip>
           }>
@@ -484,9 +602,11 @@ class CiCommitResults extends Component {
 
     var result = (
       <Container>
+        {warning_messages}
         <CommitCompareCard new_commit={new_commit_filtered} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
         {status_messages}
 
+        { new_commit!==undefined && ref_commit!==undefined && <Fragment>
         <Section>
           <Card elevation={2}>
           <Tabs id="tabs-summary">
@@ -494,6 +614,7 @@ class CiCommitResults extends Component {
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
               <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordings commit={new_commit} />} />
+              <Tab id="tuning" title="Create tuning experiment" panel={<Tuning commit={new_commit} />} />
           </Tabs>
           </Card>
         </Section>
@@ -520,6 +641,7 @@ class CiCommitResults extends Component {
             </div>
           </Tabs>
         </Section>
+        </Fragment>}
 
       </Container>
     );
@@ -535,19 +657,18 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => (
     <Card elevation={4}>
       <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <div style={{flex:'1 1 auto'}}>
-          <h1><Avatar alt={new_commit.committer_name} src={new_commit.committer_avatar_url} />{new_commit.type==='git' ? new_commit.id.substring(0,8) : new_commit.id} </h1>
+          <h1 style={{display: 'flex', alignItems: 'baseline'}}><Avatar alt={new_commit.committer_name} src={new_commit.committer_avatar_url} />{new_commit.type==='git' ? new_commit.id.substring(0,8) : new_commit.id} </h1>
             <Link to={`/branch/${new_commit.branch}`}><Button className="pt-minimal" iconName="git-branch">{new_commit.branch}</Button></Link>
             <br/>
             <DoneAtTag commit={new_commit} /> <Tag>{new_commit.valid_slam_outputs.length} LSF outputs</Tag> <Tag intent={Intent.WARNING}>New</Tag>
             <p style={{marginTop: '10px', maxWidth:'450px'}} className="pt-monospace-text">{new_commit.message}</p>
           </div>
         <div><Icon iconName="small-cross"></Icon></div>
-        <div style={{flex:'1 1 auto', float:'right', textAlign: 'right'}}>
-          <h1><EditableText onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /></h1>
-            <Link to={`/branch/${ref_commit.branch}`}><Button className="pt-minimal" iconName="git-branch">{ref_commit.branch}</Button></Link>
-            <br/>
-            <DoneAtTag commit={ref_commit} /> <Tag>{ref_commit.valid_slam_outputs.length} LSF outputs</Tag> {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{ref_commit.failed_slam_outputs.length} crashed</Tag>} {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{ref_commit.pending_slam_outputs.length} pending</Tag>} <Tag>Reference</Tag>
-            <p style={{marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
+        <div style={{flex:'1 1 auto'}}>
+            <h1 style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline'}}><EditableText style={{flex: '1 1 auto', margin:'auto', borderBottom: '2px solid rgb(100,100,100)'}} onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /><Avatar alt={ref_commit.committer_name} src={ref_commit.committer_avatar_url} /></h1>
+            <span style={{display: 'flex', justifyContent: 'flex-end'}}><Link to={`/branch/${ref_commit.branch}`}><Button style={{flex: '1 1 auto', margin:'auto'}} className="pt-minimal" iconName="git-branch">{ref_commit.branch}</Button></Link></span>
+            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_commit.valid_slam_outputs.length} LSF outputs</Tag> {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{ref_commit.failed_slam_outputs.length} crashed</Tag>} {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{ref_commit.pending_slam_outputs.length} pending</Tag>} <Tag>Reference</Tag></div>
+            <p style={{display: 'flex', justifyContent: 'flex-end', marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
         </div>
       </div>
     </Card>

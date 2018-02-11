@@ -1239,10 +1239,6 @@ boom@5.x.x:
   dependencies:
     hoek "4.x.x"
 
-bootstrap@4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/bootstrap/-/bootstrap-4.0.0.tgz#ceb03842c145fcc1b9b4e15da2a05656ba68469a"
-
 bops@0.0.6:
   version "0.0.6"
   resolved "https://registry.yarnpkg.com/bops/-/bops-0.0.6.tgz#082d1d55fa01e60dbdc2ebc2dba37f659554cf3a"
@@ -1645,7 +1641,7 @@ clap@^1.0.9:
   dependencies:
     chalk "^1.1.3"
 
-classnames@^2.2, classnames@^2.2.3, classnames@^2.2.5:
+classnames@^2.2, classnames@^2.2.5:
   version "2.2.5"
   resolved "https://registry.yarnpkg.com/classnames/-/classnames-2.2.5.tgz#fb3801d453467649ef3603c7d61a02bd129bde6d"
 
@@ -1944,6 +1940,12 @@ cookie-signature@1.0.6:
 cookie@0.3.1:
   version "0.3.1"
   resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.3.1.tgz#e7e0a1f9ef43b4c8ba925c5c5a96e806d16873bb"
+
+copy-to-clipboard@^3:
+  version "3.0.8"
+  resolved "https://registry.yarnpkg.com/copy-to-clipboard/-/copy-to-clipboard-3.0.8.tgz#f4e82f4a8830dce4666b7eb8ded0c9bcc313aba9"
+  dependencies:
+    toggle-selection "^1.0.3"
 
 core-js@^1.0.0:
   version "1.2.7"
@@ -2437,7 +2439,7 @@ dom-converter@~0.1:
   dependencies:
     utila "~0.3"
 
-"dom-helpers@^2.4.0 || ^3.0.0", dom-helpers@^3.2.0:
+dom-helpers@^3.2.0:
   version "3.3.1"
   resolved "https://registry.yarnpkg.com/dom-helpers/-/dom-helpers-3.3.1.tgz#fc1a4e15ffdf60ddde03a480a9c0fece821dd4a6"
 
@@ -5316,14 +5318,6 @@ lodash.isequal@^4.1.1:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/lodash.isequal/-/lodash.isequal-4.5.0.tgz#415c4478f2bcc30120c22ce10ed3226f7d3e18e0"
 
-lodash.isfunction@^3.0.8:
-  version "3.0.8"
-  resolved "https://registry.yarnpkg.com/lodash.isfunction/-/lodash.isfunction-3.0.8.tgz#4db709fc81bc4a8fd7127a458a5346c5cdce2c6b"
-
-lodash.isobject@^3.0.2:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/lodash.isobject/-/lodash.isobject-3.0.2.tgz#3c8fb8d5b5bf4bf90ae06e14f2a530a4ed935e1d"
-
 lodash.istypedarray@^3.0.0:
   version "3.0.6"
   resolved "https://registry.yarnpkg.com/lodash.istypedarray/-/lodash.istypedarray-3.0.6.tgz#c9a477498607501d8e8494d283b87c39281cef62"
@@ -5353,10 +5347,6 @@ lodash.templatesettings@^4.0.0:
   dependencies:
     lodash._reinterpolate "~3.0.0"
 
-lodash.tonumber@^4.0.3:
-  version "4.0.3"
-  resolved "https://registry.yarnpkg.com/lodash.tonumber/-/lodash.tonumber-4.0.3.tgz#0b96b31b35672793eb7f5a63ee791f1b9e9025d9"
-
 lodash.uniq@^4.5.0:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/lodash.uniq/-/lodash.uniq-4.5.0.tgz#d0225373aeb652adc1bc82e4945339a842754773"
@@ -5373,7 +5363,7 @@ longest@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/longest/-/longest-1.0.1.tgz#30a0b2da38f73770e8294a0d22e6625ed77d0097"
 
-loose-envify@^1.0.0, loose-envify@^1.1.0, loose-envify@^1.2.0, loose-envify@^1.3.0, loose-envify@^1.3.1:
+loose-envify@^1.0.0, loose-envify@^1.1.0, loose-envify@^1.2.0, loose-envify@^1.3.1:
   version "1.3.1"
   resolved "https://registry.yarnpkg.com/loose-envify/-/loose-envify-1.3.1.tgz#d1a8ad33fa9ce0e713d65fdd0ac8b748d478c848"
   dependencies:
@@ -7060,6 +7050,13 @@ react-autowhatever@^10.1.0:
     react-themeable "^1.1.0"
     section-iterator "^2.0.0"
 
+react-copy-to-clipboard@^5.0.1:
+  version "5.0.1"
+  resolved "https://registry.yarnpkg.com/react-copy-to-clipboard/-/react-copy-to-clipboard-5.0.1.tgz#8eae107bb400be73132ed3b6a7b4fb156090208e"
+  dependencies:
+    copy-to-clipboard "^3"
+    prop-types "^15.5.8"
+
 react-dev-utils@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/react-dev-utils/-/react-dev-utils-5.0.0.tgz#425ac7c9c40c2603bc4f7ab8836c1406e96bb473"
@@ -7108,7 +7105,7 @@ react-plotly.js@^1.3.0:
     object-assign "^4.1.1"
     prop-types "^15.5.10"
 
-react-popper@^0.7.2, react-popper@~0.7.4:
+react-popper@~0.7.4:
   version "0.7.5"
   resolved "https://registry.yarnpkg.com/react-popper/-/react-popper-0.7.5.tgz#71c25946f291db381231281f6b95729e8b801596"
   dependencies:
@@ -7198,7 +7195,7 @@ react-transition-group@^1.2.0:
     prop-types "^15.5.6"
     warning "^3.0.0"
 
-react-transition-group@^2.2.0, react-transition-group@^2.2.1:
+react-transition-group@^2.2.1:
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/react-transition-group/-/react-transition-group-2.2.1.tgz#e9fb677b79e6455fd391b03823afe84849df4a10"
   dependencies:
@@ -7209,16 +7206,6 @@ react-transition-group@^2.2.0, react-transition-group@^2.2.1:
     prop-types "^15.5.8"
     warning "^3.0.0"
 
-react-virtualized@^9.18.5:
-  version "9.18.5"
-  resolved "https://registry.yarnpkg.com/react-virtualized/-/react-virtualized-9.18.5.tgz#42dd390ebaa7ea809bfcaf775d39872641679b89"
-  dependencies:
-    babel-runtime "^6.26.0"
-    classnames "^2.2.3"
-    dom-helpers "^2.4.0 || ^3.0.0"
-    loose-envify "^1.3.0"
-    prop-types "^15.6.0"
-
 react@^16.2.0:
   version "16.2.0"
   resolved "https://registry.yarnpkg.com/react/-/react-16.2.0.tgz#a31bd2dab89bff65d42134fa187f24d054c273ba"
@@ -7227,18 +7214,6 @@ react@^16.2.0:
     loose-envify "^1.1.0"
     object-assign "^4.1.1"
     prop-types "^15.6.0"
-
-reactstrap@^5.0.0-alpha.4:
-  version "5.0.0-alpha.4"
-  resolved "https://registry.yarnpkg.com/reactstrap/-/reactstrap-5.0.0-alpha.4.tgz#1de9cf3b16344ca99120c2a20e0efd4aaaebc1d8"
-  dependencies:
-    classnames "^2.2.3"
-    lodash.isfunction "^3.0.8"
-    lodash.isobject "^3.0.2"
-    lodash.tonumber "^4.0.3"
-    prop-types "^15.5.8"
-    react-popper "^0.7.2"
-    react-transition-group "^2.2.0"
 
 read-all-stream@^3.0.0:
   version "3.1.0"
@@ -8610,6 +8585,10 @@ to-px@^1.0.1:
 to-utf8@0.0.1:
   version "0.0.1"
   resolved "https://registry.yarnpkg.com/to-utf8/-/to-utf8-0.0.1.tgz#d17aea72ff2fba39b9e43601be7b3ff72e089852"
+
+toggle-selection@^1.0.3:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/toggle-selection/-/toggle-selection-1.0.6.tgz#6e45b1263f2017fa0acc7d89d78b15b8bf77da32"
 
 topojson-client@^2.1.0:
   version "2.1.0"

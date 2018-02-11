@@ -7,31 +7,24 @@ import { available_metrics, metric_formatter, percent_formatter } from "./Metric
 // import { Table, Column, Row } from "@blueprintjs/core";
 
 
-const ColumnsMetricImprovement = ({v_new, v_ref}) => {
-  if (!v_new || !v_ref)
+const ColumnsMetricImprovement = ({output_new, output_ref, metric}) => {
+  if (!output_new || !output_ref || output_new[metric]===undefined || output_ref[metric]===undefined || output_new[metric]===null || output_ref[metric]===null)
     return <td style={{background:'#bbb'}}>na</td>
-  let delta = v_new - v_ref;
-  let delta_relative = delta / v_ref;
+  let delta = output_new[metric] - output_ref[metric];
+  let delta_relative = delta / output_ref[metric];
   return <td style={{background: interpolateRdYlGn(.5-delta_relative)}}>{metric_formatter.format(delta)} ({percent_formatter.format(100*delta_relative)}%)</td>
 }
 
 
-const QualityCell = ({metric, value}) => {
-  if (!value)
+const QualityCell = ({metric, output}) => {
+  if (output===undefined || output[metric]===undefined || output[metric]===null)
     return <td style={{background:'#bbb'}}>na</td>
+  let value = output[metric];
   const threshold = available_metrics[metric].threshold
   const quality = 0.5 + (threshold - value) / threshold
   return <td style={{background: interpolateRdYlGn(quality)}}>{metric_formatter.format(value)}</td>
 }
 
-const ColumnsMetricQuality = ({metric, v_new, v_ref}) => {
-  return (
-    <Fragment>
-      <QualityCell metric={metric} value={v_new} />
-      <QualityCell metric={metric} value={v_ref} />
-    </Fragment>
-  )
-}
 
 const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
   const displayed_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc'];
@@ -70,7 +63,7 @@ const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
             <tr key={id}>
               <th scope="row">{output.recording_path}</th>
               {displayed_metrics.map( m =>
-                <ColumnsMetricImprovement key={m}v_new={output[m]} v_ref={output_ref[m]} />
+                <ColumnsMetricImprovement key={m} metric={m} output_new={output} output_ref={output_ref} />
               )}
             </tr>)
       })}
@@ -107,14 +100,15 @@ const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
           // and display lsf/s8 curves serparately,,,
           let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
                                            .filter(o => o.recording_path===output.recording_path)
-          console.log(matching_ref_outputs)
           let output_ref = matching_ref_outputs[0];
-          console.log(output_ref)
           return (
             <tr key={id}>
               <th scope="row">{output.recording_path}</th>
               {displayed_metrics.map( m =>
-                <ColumnsMetricQuality key={m} metric={m} v_new={output[m]} v_ref={output_ref[m]} />
+                <Fragment key={m}>
+                  <QualityCell metric={m} output={output} />
+                  <QualityCell metric={m} output={output_ref} />
+                </Fragment>
               )}
             </tr>)
       })}

@@ -27,23 +27,28 @@ class OutputCard extends Component {
 
   componentDidMount() {
     const { output_new, output_ref} = this.props;
-    let get_gt = () => {
+    var get_gt = () => {
       return get(`${output_new.output_dir_url}/GT_final.txt`)
         .then(response => this.setState({
           '6dof_groudtruth': parse_poses(response.data, output_new.time_offset_to_groundtruth)
-        })).catch()
+        })).catch(e=>{})
     }
-    let get_new = () => {
+    var get_new = () => {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
         .then(response => this.setState({
           '6dof_new': parse_poses(response.data, output_new.time_offset_to_groundtruth)
-        })).catch()
+        })).catch(e=>{})
     }
-    let get_ref = () => {
-      return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
-        .then(response => this.setState({
-          '6dof_ref': parse_poses(response.data, output_ref.time_offset_to_groundtruth)
-        })).catch()
+    var get_ref;
+    if (output_ref!==undefined) {
+      get_ref = () => {
+        return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
+          .then(response => this.setState({
+            '6dof_ref': parse_poses(response.data, output_ref.time_offset_to_groundtruth)
+          })).catch(e=>{})
+      }      
+    } else {
+      get_ref = () => {};
     }
 
     all([
@@ -53,7 +58,7 @@ class OutputCard extends Component {
     ])
      .then(spread((req_gt, req_new, req_ref) => {
         this.setState({isLoaded: true})
-      }))
+      })).catch(()=>{this.setState({isLoaded: true})})
     }
 
   render() {
@@ -80,9 +85,9 @@ class OutputCard extends Component {
                   </div>
                   <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
-                    src_ref={`${output_ref.output_dir_url}/results.mp4`}
+                    src_ref={output_ref && `${output_ref.output_dir_url}/results.mp4`}
                     poster_new={`${output_new.output_dir_url}/poster.jpg`}
-                    poster_ref={`${output_ref.output_dir_url}/poster.jpg`}
+                    poster_ref={output_ref && `${output_ref.output_dir_url}/poster.jpg`}
                   />
                   {!this.state.isLoaded && <ProgressBar/>}
                   {this.state.isLoaded && <Plot revision={0} data={traces} layout={layout}></Plot>}

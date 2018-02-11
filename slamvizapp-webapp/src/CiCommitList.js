@@ -8,6 +8,7 @@ import styled from "styled-components";
 
 import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, ButtonGroup, Tag, Callout } from "@blueprintjs/core";
 import { Container, Section } from "./Common";
+import {CopyToClipboard} from 'react-copy-to-clipboard';
 import Avatar from "./Avatar";
 import { DoneAtTag } from "./DoneAtTag";
 
@@ -87,14 +88,18 @@ class CommitResults extends React.Component {
          {commit.failed_slam_outputs.length>0 &&
             <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{commit.failed_slam_outputs.length} crashed</Button></a>}
          {commit.valid_slam_outputs.length>0 && commit.aggregated_metrics.translation_rmse_median>0 &&
-            <Tooltip>
-              <Tag className="pt-minimal"><strong>{formatter.format(100*commit.aggregated_metrics.translation_aape_average)}cm</strong> AAPE</Tag>
-              <ul>
-              { Object.entries(commit.aggregated_metrics).map( ([k,v]) =>
-                <li k={v}><strong>{k}:</strong> {formatter.format(v)}</li>
-              )}
-              </ul>
-            </Tooltip>
+            <Fragment>
+              <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(100*commit.aggregated_metrics.translation_aape_median)}cm</strong> median </Tag>
+              <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(100*commit.aggregated_metrics.translation_aape_average)}cm</strong> avg AAPE</Tag>
+              <Tooltip modifiers>
+                <Tag style={{marginTop:'3px'}} className="pt-minimal pt-round">...</Tag>
+                <ul>
+                { Object.entries(commit.aggregated_metrics).map( ([k,v]) =>
+                  <li k={v}><strong>{k}:</strong> {formatter.format(v)}</li>
+                )}
+                </ul>
+              </Tooltip>
+            </Fragment>
             }
       </Fragment>
     );
@@ -134,10 +139,12 @@ class CommitRow extends React.Component {
           <CommitContent>
             <Message>{commit.message}</Message>
             <div>
-              <Icon iconName="pt-icon-git-commit" /> 
-              <CommitShortId href={gitlab_commit_url}>{commit.id.substring(0,8)} </CommitShortId> 
-              <Icon iconName="pt-icon-fork"/> 
-              <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${commit.branch}`}>{commit.branch} </Link>
+              <CommitShortId href={gitlab_commit_url}>{commit.id.substring(0,8)}</CommitShortId> 
+              <CopyToClipboard text={commit.id} onCopy={() => {}}>
+                <Icon title="copy to clipboard" style={{color:'rgba(27, 105, 182, .8)', marginRight: '3px'}} iconName="pt-icon-clipboard" />
+              </CopyToClipboard>
+              <Icon iconName="pt-icon-git-branch"/> 
+              <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${commit.branch}`}>{commit.branch}</Link> 
               <DoneAtTag commit={commit}/>
             </div>
           </CommitContent>
@@ -263,7 +270,7 @@ class CiCommitList extends React.Component {
           </Callout>
         </Section>
         <Section>
-          <h3>Reports for branch <code>develop</code></h3>
+          <h3>Reports for branch <code><Icon iconName="git-branch"/>develop</code></h3>
           <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
         </Section>
       </Fragment>
@@ -271,51 +278,52 @@ class CiCommitList extends React.Component {
 
 
     var list;
-    if (error) {
-      list = <NonIdealState description={error.message} visual="pt-icon-error"/>;
-    } else if (!isLoaded) {
-      list = <NonIdealState title="Loading" visual={<Spinner/>} />;
-    } else if (commits.length===0) {
-      list = <NonIdealState title="No results" description="Your search didn't return any commit." visual="pt-icon-folder-open" />;      
-    } else {
-      let commits_by_day = groupBy(commits, "authored_date");
-      // we should do something like this instead.
-      // https://github.com/bvaughn/react-virtualized/blob/master/source/InfiniteLoader/InfiniteLoader.example.js
-      //  active ? Link
-      let paginator =  (
-        <ButtonGroup large style={{marginTop: '25px'}} onClick={this.paginatorOnClick}>
-          {page>0 && <Button value={page-1} iconName="pt-icon-arrow-left">Previous</Button>}
-          {page>0 && <Button value={page-1}>{page-1}</Button>}
-          {page>1 && <Button value={page-2}>{page-2}</Button>}
-          <Button value={page} disabled intent={Intent.PRIMARY} >{page}</Button>
-          <Button value={page+1}>{page+1}</Button>
-          <Button value={page+2}>{page+2}</Button>
-          <Button value={page+3}>{page+3}</Button>
-          <Button value={page+1} iconName="pt-icon-arrow-right">Next</Button>
-        </ButtonGroup>
-      )
+    var warning_messages;
+    if (error)
+      warning_messages = <NonIdealState description={error.message} visual="pt-icon-error"/>;
+    if (!isLoaded)
+      warning_messages = <NonIdealState title="Loading" visual={<Spinner/>} />;
+    if (commits.length===0 && isLoaded)
+      warning_messages = <NonIdealState title="No results" description="Your search didn't return any commit." visual="pt-icon-folder-open" />; 
 
-      list = (
-        <Fragment>
-          <h3>Recent commits</h3>
-          {Object.keys(commits_by_day).map(day => (
-            <Fragment key={day}>
-              <HeaderDay>
-                <Moment calendar={calendarStrings} tz='Asia/Jerusalem' date={day}></Moment> &#8212; {commits_by_day[day].length} commits
-              </HeaderDay>
-              <CommitRows commits={commits_by_day[day]} />
+    let commits_by_day = groupBy(commits, "authored_date");
+    // we should do something like this instead.
+    // https://github.com/bvaughn/react-virtualized/blob/master/source/InfiniteLoader/InfiniteLoader.example.js
+    //  active ? Link
+    let paginator =  (
+      <ButtonGroup large style={{marginTop: '25px'}} onClick={this.paginatorOnClick}>
+        {page>0 && <Button value={page-1} iconName="pt-icon-arrow-left">Previous</Button>}
+        {page>0 && <Button value={page-1}>{page-1}</Button>}
+        {page>1 && <Button value={page-2}>{page-2}</Button>}
+        <Button value={page} disabled intent={Intent.PRIMARY} >{page}</Button>
+        <Button value={page+1}>{page+1}</Button>
+        <Button value={page+2}>{page+2}</Button>
+        <Button value={page+3}>{page+3}</Button>
+        <Button value={page+1} iconName="pt-icon-arrow-right">Next</Button>
+      </ButtonGroup>
+    )
+
+    list = (
+      <Fragment>
+        <h3>Recent commits</h3>
+        {Object.keys(commits_by_day).map(day => (
+          <Fragment key={day}>
+            <HeaderDay>
+              <Moment calendar={calendarStrings} tz='Asia/Jerusalem' date={day}></Moment> &#8212; {commits_by_day[day].length} commits
+            </HeaderDay>
+            <CommitRows commits={commits_by_day[day]} />
 
 
-            </Fragment>
-          ))}
-          {paginator}
-        </Fragment>
-      );
-    }
+          </Fragment>
+        ))}
+        {paginator}
+      </Fragment>
+    );
     return (
       <Container>
         {information}
-        {list}
+        {warning_messages}
+        {isLoaded && list}
       </Container>
     );
   }
