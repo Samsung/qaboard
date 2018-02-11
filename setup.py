@@ -14,13 +14,16 @@ setup(
   license="Samsung SIRC - all rights reserved",
 
   install_requires=[
+    'pandas>=0.22',
     'gitpython', # manipulate git repositories
     'Click',     # build CLI tools easily
     'flask',     # HTTP server
+    'flask_cors',
     'sqlalchemy',# ORM
     'psycopg2',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
+    'uwsgi'
   ],
 
   entry_points= {
