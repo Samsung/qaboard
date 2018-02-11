@@ -1,3 +1,13 @@
+# Slamvizapp-webapp
+- **How to get into the code**:
+  * start from the entrypoint, `./src/App.js`
+  * Everything should be clear-ish and encapsulated into clean classes/components.
+  * it's best to skim through [`react`'documentation](http://reactjs.org/)
+- In the end the app is compiled into a `build` folder that you can server via any means.
+- **Documentation from `create-react-app`**: Below you'll find the answer to most questions. In short, get `yarn`, `nodejs` and everything is smooth.
+
+---
+
 This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app).
 
 Below you will find some information on how to perform common tasks.<br>
