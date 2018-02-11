@@ -8,8 +8,8 @@ DOCKER_VOLUMES=""
 
 # SSH access
 DOCKER_VOLUMES+=" --volume=$HOME/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa"
-SSH_PASSPHRASE="DVSgitlabDVS***"
 DOCKER_SSH_PASSPHRASE="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
+DOCKER_GITLAB_ACCESS_TOKEN="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
 
 # SIRC network access
 DOCKER_VOLUMES+=" --volume=/home:/home"
@@ -56,6 +56,6 @@ DOCKER_VOLUMES+=" --volume=$HOME/dvs/slamvizapp/deployment/init.sh:/slamvizapp/d
 # -i interactive
 # -t pseudo tty
 
-command="docker run --detach --restart always $DOCKER_VOLUMES $DOCKER_SSH_PASSPHRASE -p0.0.0.0:5000:5000 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443 $DOCKER_IMAGE ${@}"
+command="docker run --name slamvizapp --detach --restart always $DOCKER_VOLUMES $DOCKER_SSH_PASSPHRASE $DOCKER_GITLAB_ACCESS_TOKEN -p0.0.0.0:5000:5000 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443 $DOCKER_IMAGE ${@}"
 echo $command
 exec $command

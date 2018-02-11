@@ -5,6 +5,8 @@
 
 ## How to run (with Docker, recommended)
 ```bash
+# export $GITLAB_ACCESS_TOKEN and $SSH_PASSPHRASE
+./source secrets.sh
 # We use a few persistent storage volumes
 docker volume create slamvizapp
 docker volume create slamvizapp-postgresql
@@ -50,7 +52,6 @@ You need to install:
   * install this application and its dependencies as a python package:
 
 ```bash
-pip install https://github.com/jfinkels/flask-restless/archive/1.0.0b1.zip
 pip install --editable .                  # edits to the code will be seen
 #           --proxy http://dlp-wcg01:8080 # from LSF/vdi
 #            -k                           # to trust Samsung's SSL certificate
