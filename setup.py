@@ -19,8 +19,8 @@ setup(
     'Click',     # build CLI tools easily
     'flask',     # HTTP server
     'flask_cors',
-    'sqlalchemy',# ORM
-    'psycopg2',  # postgresql driver used by sqlalchemy
+    'sqlalchemy',       # ORM
+    'psycopg2-binary',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
     'uwsgi'
