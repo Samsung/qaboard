@@ -414,7 +414,7 @@ class CiCommitResults extends Component {
     // the API defaults to the latest commit on develop
     // we want to use this default 
     let query = commit_id==='default' ? '' : `/${commit_id}`;
-    get(`http://gpu09-dt:5000/api/v1/commit${query}`, {params: {}})
+    get(`/api/v1/commit${query}`, {params: {}})
       .then(response => {
         this.setState({
           [to_update]: response.data.id,

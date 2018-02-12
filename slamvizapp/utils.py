@@ -54,7 +54,7 @@ def get_users_per_name(search_filter):
     """Retrievies users from Gitlab"""
     headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
     gitlab_api = "http://gitlab-srv/api/v4"
-    r = requests.get(f'{gitlab_api}/users/?{search_filter}', headers=headers, params={'per_page':1000})
+    r = requests.get(f'{gitlab_api}/users/?{search_filter}', headers=headers, params={'per_page':1000}, proxies={})
     users = r.json()
     # sadly we don't have access to email adresses since we are not gitlab admins
     # and git authors are identified by emails...

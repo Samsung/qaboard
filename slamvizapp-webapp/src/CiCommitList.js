@@ -202,7 +202,7 @@ class CiCommitList extends React.Component {
     if (match.params[0])
       branch = `/${match.params[0]}`
 
-    get(`http://gpu09-dt:5000/api/v1/commits${branch}`, {
+    get(`/api/v1/commits${branch}`, {
       params: {
         page, count,
       },

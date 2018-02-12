@@ -34,7 +34,7 @@ class AppNavbar extends Component {
   }
 
   componentDidMount() {
-    get("http://gpu09-dt:5000/api/v1/branches")
+    get("/api/v1/branches")
     .then(response=>{
        this.setState({
          branches: response.data,
