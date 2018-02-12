@@ -10,6 +10,7 @@ ENV HTTP_PROXY 'http://dlp-wcg01:8080'
 ENV http_proxy 'http://dlp-wcg01:8080'
 ENV HTTPS_PROXY 'http://dlp-wcg01:8080'
 ENV https_proxy 'http://dlp-wcg01:8080'
+ENV NO_PROXY 'gitlab-srv'
 
 RUN apt-get update
 RUN apt-get install -y git wget
@@ -51,6 +52,9 @@ COPY deployment/nginx /etc/nginx
 # more certificate stuff
 COPY deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
 RUN update-ca-certificates
+# COPY deployment/DLP-TRITON.crt /etc/ssl/certs/samsung/DLP-TRITON.crt
+# RUN cat /etc/ssl/certs/samsung/DLP-TRITON.crt >> /etc/ssl/certs/ca-certificates.crt
+# RUN yes | dpkg-reconfigure ca-certificates --
 
 # nodejs
 RUN curl -ksL https://deb.nodesource.com/setup_9.x | bash -
@@ -76,7 +80,9 @@ RUN yarn build
 WORKDIR /slamvizapp
 # uwsgi and matplotlib dependencies
 RUN apt-get install -y build-essential libgl1-mesa-glx
-RUN pip install .
+RUN pip install --editable .
+ENV LANG 'C.UTF-8'
+ENV LC_ALL 'C.UTF-8'
 
 VOLUME /var/slamvizapp
 
@@ -84,10 +90,4 @@ EXPOSE 5000
 EXPOSE 80
 EXPOSE 443
 
-# COPY deployment/DLP-TRITON.crt /etc/ssl/certs/samsung/DLP-TRITON.crt
-# RUN cat /etc/ssl/certs/samsung/DLP-TRITON.crt >> /etc/ssl/certs/ca-certificates.crt
-# RUN yes | dpkg-reconfigure ca-certificates --
-
-ENV LANG 'C.UTF-8'
-ENV LC_ALL 'C.UTF-8'
 CMD deployment/init.sh
