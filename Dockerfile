@@ -25,6 +25,9 @@ RUN bash Anaconda3-5.0.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 RUN conda install pandas
 
+# uwsgi and matplotlib dependencies
+RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
+
 # postgresql database
 RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' > /etc/apt/sources.list.d/pgdg.list
 RUN wget --quiet --no-check-certificate -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
@@ -78,8 +81,6 @@ RUN yarn build
 
 # our API
 WORKDIR /slamvizapp
-# uwsgi and matplotlib dependencies
-RUN apt-get install -y build-essential libgl1-mesa-glx
 RUN pip install --editable .
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
