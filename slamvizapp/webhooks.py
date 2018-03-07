@@ -27,14 +27,14 @@ def new_slam_output_webhook():
   slam_output = SlamOutput.get_or_create(db_session,
     recording=recording,
     ci_commit=ci_commit,
-    platform='lsf', # request.form['platform'],
-    configuration='serial-stereo', #request.form['mode'],
-    default_parameters_set=ci_commit.default_parameters_set,
+    platform=request.form['platform'],
+    configuration=request.form['configuration'],
+    parameters_set=ci_commit.default_parameters_set,
   )
   if request.form.get('is_pending', False):
     slam_output.is_pending = True
   else:
-    metrics_filepath = ci_commit.output_dir / recording.output_folder / 'metrics.json'
+    metrics_filepath = ci_commit.output_dir / request.form['platform'] / request.form['configuration'] / recording.output_folder / 'metrics.json'
     slam_output.update_metrics_from_file(metrics_filepath)
 
   db_session.add(slam_output)
