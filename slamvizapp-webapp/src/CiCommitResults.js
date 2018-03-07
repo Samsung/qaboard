@@ -2,11 +2,11 @@ import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import { get, post } from "axios";
+import queryString from "query-string";
 
 
-import brace from 'brace';
 import AceEditor from 'react-ace';
-import { Checkbox, FormGroup, Switch, EditableText, Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Checkbox, TagInput, FormGroup, Switch, EditableText, Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
 
 import Avatar from "./Avatar";
@@ -20,12 +20,13 @@ import { OutputTable } from "./Tables";
 
 
 /*eslint-disable no-alert, no-console */
+import brace from 'brace';
 import 'brace/mode/json';
-import 'brace/mode/diff';
 import 'brace/mode/yaml';
 import 'brace/theme/github';
 import 'brace/ext/searchbox';
-import 'brace/ext/language_tools';
+// import 'brace/mode/diff';
+// import 'brace/ext/language_tools';
 
 export const OurToaster = Toaster.create();
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
@@ -137,17 +138,15 @@ class AddRecordings extends Component {
         value={batches || ''}
         editorProps={{$blockScrolling: true}}
         setOptions={{
-          enableBasicAutocompletion: true,
-          enableLiveAutocompletion: true,
           tabSize: 2,
         }}
-        enableBasicAutocompletion={true}
-        enableLiveAutocompletion={true}
       />    
     </form>)
   }
 
 }
+        // enableBasicAutocompletion={true}
+        // enableLiveAutocompletion={true}
 
 
 class Tuning extends Component {
@@ -242,12 +241,8 @@ class Tuning extends Component {
         value={this.state.tuning_set}
         editorProps={{$blockScrolling: true}}
         setOptions={{
-          enableBasicAutocompletion: true,
-          enableLiveAutocompletion: true,
           tabSize: 2,
         }}
-        enableBasicAutocompletion={true}
-        enableLiveAutocompletion={true}
       />
 
       <Callout iconName="time" intent={Intent.PRIMARY}>Estimated time: TBD</Callout>
@@ -363,11 +358,13 @@ class CiCommitResults extends Component {
     this.state = {
       new_commit_id: null, // current commit to display
       ref_commit_id: null, // reference commit to display
+
       commits: { // store of commit information
         'default': {isLoaded: false}
       },
 
-      filter: '',
+      filter_values: [],
+      filter_input: '',
       sort_by: 'translation_aape',
       order: -1,
 
@@ -390,8 +387,6 @@ class CiCommitResults extends Component {
     });
     this.getCiCommit(new_commit_id, 'new_commit_id');
     this.getCiCommit(ref_commit_id, 'ref_commit_id');
-    this.interval_new = setInterval(x=>this.getCiCommit(new_commit_id, 'new_commit_id'), 60*1000);
-    this.interval_ref = setInterval(x=>this.getCiCommit(ref_commit_id, 'ref_commit_id'), 60*1000);
   }
 
   componentDidMount() {
@@ -399,8 +394,6 @@ class CiCommitResults extends Component {
   }
 
   componentWillUnmount() {
-    clearInterval(this.interval_new);
-    clearInterval(this.interval_ref);
   }
 
 
@@ -416,6 +409,20 @@ class CiCommitResults extends Component {
     let query = commit_id==='default' ? '' : `/${commit_id}`;
     get(`/api/v1/commit${query}`, {params: {}})
       .then(response => {
+        // we want to keep updated
+        // we could use setInterval and update the reference but it makes the logic more complicated...
+        if (to_update ==='new_commit_id')
+          setTimeout(x=>this.getCiCommit(response.data.id, to_update), 60*1000)
+
+        if (to_update ==='ref_commit_id') {
+          let query = queryString.parse(this.props.location.search)
+          if (query.reference && query.reference!==response.data.id) {
+            this.props.history.push({
+              pathname: this.props.location.pathname,
+              search: queryString.stringify({...query, reference: response.data.id})
+            })
+          }
+        }
         this.setState({
           [to_update]: response.data.id,
           commits: {
@@ -471,31 +478,37 @@ class CiCommitResults extends Component {
      // console.log(new_ref_commit_id.substring(0,8))
     // console.log(ref_commit_id.substring(0,8))
     if (
-      ( is_git && new_ref_commit_id !== ref_commit_id.substring(0,8)) || 
-      (!is_git && new_ref_commit_id !== ref_commit_id)
-    )
-    this.setState({
-      ref_commit_id: new_ref_commit_id,
-      commits: {
-        ...this.state.commits,
-        [new_ref_commit_id]:{isLoaded:false},
-      }
-    }, this.updateState);
-  }
-
-  handleFilterChange = (event) => {
-    this.setState({
-      filter: event.target.value,
-    });
+      ( is_git && new_ref_commit_id.substring(0,8) !== ref_commit_id.substring(0,8)) || 
+      (!is_git && new_ref_commit_id !== ref_commit_id) ) {
+      let query = queryString.parse(this.props.location.search);
+      this.props.history.push({
+        pathname: this.props.location.pathname,
+        search: queryString.stringify({...query, reference: new_ref_commit_id})
+      })
+      this.setState({
+        ref_commit_id: new_ref_commit_id,
+        commits: {
+          ...this.state.commits,
+          [new_ref_commit_id]:{isLoaded:false},
+        }
+      }, this.updateState);      
+    }
   }
 
   filter_commit = commit => {
+    if (this.state.filter_values.length===0 && this.state.filter_input.length===0)
+      return commit;
     let commit_filtered = Object.create(commit)
     commit_filtered.slam_outputs = {}
     Object.entries(commit.slam_outputs).forEach( ([id, output])=> {
-      if (`${output.recording_path} ${output.platform} ${output.configuration}`.includes(this.state.filter)) {
-        commit_filtered.slam_outputs[id] = output;
+      let searched = `${output.recording_path} ${output.platform} ${output.configuration}`
+      for (var i in this.state.filter_values) {
+        if (!searched.includes(this.state.filter_values[i])) {
+          return;
+        }    
       }
+      if (!searched.includes(this.state.filter_input)) return;
+      commit_filtered.slam_outputs[id] = output;      
     });
     return commit_filtered;
   }
@@ -592,7 +605,7 @@ class CiCommitResults extends Component {
               </Tooltip>
             }>
             <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.
-            <br/>Consider adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
+            <br/>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
           </Callout>}
       </Section>
     );
@@ -624,9 +637,19 @@ class CiCommitResults extends Component {
             <Tab id="output-table" title="Summary Table" panel={<OutputTable output_sort={this.sortOutputs} new_commit={new_commit_filtered} ref_commit={ref_commit_filtered}/>} />
             <Tab id="output-list" title="Details" panel={<OutputList output_sort={this.sortOutputs} new_commit={new_commit_filtered} ref_commit={ref_commit_filtered} />} />
             <Tabs.Expander />
-            <div className="pt-input-group .modifier">
-              <span className="pt-icon pt-icon-search"></span>
-              <input onChange={this.handleFilterChange} className="pt-input" type="search" placeholder="Filter outputs" dir="auto" />
+            <div style={{width: '200px'}} className="pt-input-group">
+            <span className="pt-icon pt-icon-search"></span>
+            <TagInput
+              className="pt-input" type="search"
+              style={{width: '100px'}}
+              leftIcon='user'
+              placeholder="Filter outputs by recording, platform or configuration"
+              values={this.state.filter_values}
+              inputValue={this.state.filter_input}
+              onChange={filter_values => this.setState({ filter_values })}
+              onInputChange={e => this.setState({ filter_input: e.target.value })}
+              tagProps={{className:"pt-minimal"}}
+            />
             </div>
             <div className="pt-select">
               <select defaultValue="translation_aape" onChange={this.selectSortBy}>
@@ -651,31 +674,29 @@ class CiCommitResults extends Component {
 }
 
 
-
 const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => (
   <Section>
     <Card elevation={4}>
       <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <div style={{flex:'1 1 auto'}}>
-          <h1 style={{display: 'flex', alignItems: 'baseline'}}><Avatar alt={new_commit.committer_name} src={new_commit.committer_avatar_url} />{new_commit.type==='git' ? new_commit.id.substring(0,8) : new_commit.id} </h1>
+          <h1 style={{display: 'flex', alignItems: 'baseline'}}><Avatar href={`/committer/${new_commit.committer_name}`} alt={new_commit.committer_name} src={new_commit.committer_avatar_url} />{new_commit.type==='git' ? new_commit.id.substring(0,8) : new_commit.id} </h1>
+            <Icon iconName='git-commit'/> {new_commit.parents.length>1 ? 'parents' : 'parent'}: {new_commit.parents.map(p => <Button key={p} onClick={e=>{console.log(p); onConfirmReference(p)}} className="pt-minimal">{p.substring(0,8)}</Button>)}
             <Link to={`/branch/${new_commit.branch}`}><Button className="pt-minimal" iconName="git-branch">{new_commit.branch}</Button></Link>
             <br/>
-            <DoneAtTag commit={new_commit} /> <Tag>{new_commit.valid_slam_outputs.length} LSF outputs</Tag> <Tag intent={Intent.WARNING}>New</Tag>
+            <DoneAtTag commit={new_commit} /> <Tag>{new_commit.valid_slam_outputs.length} outputs</Tag> {new_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{new_commit.failed_slam_outputs.length} crashed</Tag>} {new_commit.pending_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{new_commit.pending_slam_outputs.length} pending</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
             <p style={{marginTop: '10px', maxWidth:'450px'}} className="pt-monospace-text">{new_commit.message}</p>
           </div>
         <div><Icon iconName="small-cross"></Icon></div>
         <div style={{flex:'1 1 auto'}}>
-            <h1 style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline'}}><EditableText style={{flex: '1 1 auto', margin:'auto', borderBottom: '2px solid rgb(100,100,100)'}} onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /><Avatar alt={ref_commit.committer_name} src={ref_commit.committer_avatar_url} /></h1>
+            <h1 style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline'}}><EditableText style={{flex: '1 1 auto', margin:'auto', borderBottom: '2px solid rgb(100,100,100)'}} onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /><Avatar href={`/committer/${ref_commit.committer_name}`} alt={ref_commit.committer_name} src={ref_commit.committer_avatar_url} /></h1>
             <span style={{display: 'flex', justifyContent: 'flex-end'}}><Link to={`/branch/${ref_commit.branch}`}><Button style={{flex: '1 1 auto', margin:'auto'}} className="pt-minimal" iconName="git-branch">{ref_commit.branch}</Button></Link></span>
-            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_commit.valid_slam_outputs.length} LSF outputs</Tag> {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{ref_commit.failed_slam_outputs.length} crashed</Tag>} {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{ref_commit.pending_slam_outputs.length} pending</Tag>} <Tag>Reference</Tag></div>
-            <p style={{display: 'flex', justifyContent: 'flex-end', marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
+            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_commit.valid_slam_outputs.length} outputs</Tag> {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{ref_commit.failed_slam_outputs.length} crashed</Tag>} {ref_commit.pending_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{ref_commit.pending_slam_outputs.length} pending</Tag>} <Tag>Reference</Tag></div>
+            <p style={{display: 'flex', justifyContent: 'flex-end', textAlign: 'right', marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
         </div>
       </div>
     </Card>
   </Section>
 )
-
-
 
 class OutputList extends React.Component {
   render() {
@@ -691,6 +712,8 @@ class OutputList extends React.Component {
                         // and display lsf/s8 curves serparately,,,
                         let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
                           .filter(o => o.recording_path===output.recording_path)
+                          .filter(o => o.platform===output.platform)
+                          .filter(o => o.configuration===output.configuration)
                         let output_ref = matching_ref_outputs[0];
                         return <OutputCard
                           key={id}
