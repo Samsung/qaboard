@@ -2,8 +2,9 @@
 // import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
 import { get, all, spread } from "axios";
+import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
-import { Card, ProgressBar } from "@blueprintjs/core";
+import { Card, Icon, Tag, Button, Intent } from "@blueprintjs/core";
 import { MetricTag } from "./Metrics";
 import { SyncedVideos } from "./SyncedVideos";
 
@@ -22,16 +23,23 @@ class OutputCard extends Component {
     super(props);
     this.state = {
       isLoaded: false,
+      showDebug: false,
+      isLoadedDebug: false,
+      plotRevision: 0,
     };
   }
 
   componentDidMount() {
     const { output_new, output_ref} = this.props;
-    var get_gt = () => {
-      return get(`${output_new.output_dir_url}/GT_final.txt`)
-        .then(response => this.setState({
-          '6dof_groudtruth': parse_poses(response.data, output_new.time_offset_to_groundtruth)
-        })).catch(e=>{})
+    if (output_new.translation_aape!==null) {
+      var get_gt = () => {
+        return get(`${output_new.output_dir_url}/GT_final.txt`)
+          .then(response => this.setState({
+            '6dof_groudtruth': parse_poses(response.data, output_new.time_offset_to_groundtruth)
+          })).catch(e=>{})
+      }
+    } else {
+      get_gt = () => {}; 
     }
     var get_new = () => {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
@@ -61,25 +69,64 @@ class OutputCard extends Component {
       })).catch(()=>{this.setState({isLoaded: true})})
     }
 
-  render() {
-    const {output_new, output_ref} = this.props;
-    var traces = []
-    if (this.state['6dof_groudtruth']) {
-      traces = [...traces, ...make_traces(this.state['6dof_groudtruth'], 'ground_truth', colors_compare)]
+  toogleShowDebug = () => {
+    this.setState({showDebug:!this.state.showDebug})
+    if (!this.state.isLoadedDebug)
+      this.loadDebug()
+    else {
+        this.setState({plotRevision: this.state.plotRevision+1})
     }
-    if (this.state['6dof_ref']) {
-      traces = [...traces, ...make_traces(this.state['6dof_ref'], 'reference', colors_compare)]
-    }
-    if (this.state['6dof_new']) {
-      traces = [...traces, ...make_traces(this.state['6dof_new'], 'new', colors_compare)]
-    }
+  }
 
+  loadDebug() {
+    const { output_new, output_ref} = this.props;
+    var get_new_debug = () => {
+      return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
+        .then(response => this.setState({
+          'debug_new': parse_debug(response.data, output_new.time_offset_to_groundtruth)
+        })).catch(e=>{})
+    }
+    var get_ref_debug = () => {
+      return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
+        .then(response => this.setState({
+          'debug_ref': parse_debug(response.data, output_ref.time_offset_to_groundtruth)
+        })).catch(e=>{})
+    }
+    all([
+      get_new_debug(),
+      get_ref_debug(),
+    ])
+     .then(spread((req_new, req_ref) => {
+        this.setState({isLoadedDebug: true, plotRevision: this.state.plotRevision+1})
+      })).catch(()=>{this.setState({isLoadedDebug: true})})
+  }
+
+  render() {
+    const { output_new, output_ref } = this.props;
+    var traces = [];
+    if (this.state['6dof_groudtruth'])
+      traces = [...traces, ...make_traces(this.state['6dof_groudtruth'], 'ground_truth')];
+    if (this.state['6dof_ref'])
+      traces = [...traces, ...make_traces(this.state['6dof_ref'], 'reference')];
+    if (this.state['6dof_new'])
+      traces = [...traces, ...make_traces(this.state['6dof_new'], 'new')];
+    if (this.state['debug_new'])
+      traces = [...traces, ...make_traces_debug(this.state['debug_new'], 'new')];
+    if (this.state['debug_ref'])
+      traces = [...traces, ...make_traces_debug(this.state['debug_ref'], 'reference')];
+
+    let tags = <span>
+      <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.platform}</Tag>
+      <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.configuration}</Tag>
+      <Button onClick={this.toogleShowDebug} className="pt-minimal" style={{paddingLeft: '12px'}} text="toogle debug plots" intent={this.state.showDebug ? Intent.PRIMARY : Intent.NONE} iconName="series-add" />
+      <a title="Show output files" style={{paddingLeft: '8px'}} target="_blank" href={output_new.output_dir_url}><Icon iconName="folder-shared"/></a>
+    </span>
 
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&
               <div style={{flex: '0 0 auto', width: '350px', marginBottom: '20px'}}>
                 <SlimCard className="output-card">
                   <div style={{padding:'  '}}>
-                    <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path}</h5>
+                    <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
                     {output_new.translation_rmse>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='translation_aape'/></p>}
                     {output_new.rotation_mean>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='rotation_mean'/></p>}
                   </div>
@@ -89,20 +136,35 @@ class OutputCard extends Component {
                     poster_new={`${output_new.output_dir_url}/poster.jpg`}
                     poster_ref={output_ref && `${output_ref.output_dir_url}/poster.jpg`}
                   />
-                  {!this.state.isLoaded && <ProgressBar/>}
-                  {this.state.isLoaded && <Plot revision={0} data={traces} layout={layout}></Plot>}
+                  {!this.state.isLoaded}
+                  {this.state.isLoaded && <Plot revision={this.state.plotRevision} data={traces} layout={make_layout(this.state.debug_new)}></Plot>}
                 </SlimCard>
               </div>}
             </Fragment>
   }
 }
 
+const parse_debug = (text_string, gt_time_offset) => {
+  let data = tsvParse(text_string);
+  var output = {}
+  data.columns.forEach(c=>output[c]=[])
+
+  let t0 = data[0]['t'];
+  for (let i=1; i<data.length; i++) { // we don't plot the 1st point, often far away in time...
+    let row = data[i];
+    row['t'] = parseFloat(row['t']-t0);
+    data.columns.forEach(c=>output[c].push(parseFloat(row[c])));
+  };
+  return output;
+}
+
+
 
 const parse_poses = (text_string, gt_time_offset) => {
-  let headers = ["a","b","c","x", "y", "z", "t", "confidence", "tracking_state\n"].join('\t');
-  let data = Plotly.d3.tsv.parse(headers + text_string);
-  let x=[], y=[], z=[];
-  let a=[], b=[], c=[];
+  let headers = ["rX","rY","rZ","tX", "tY", "tZ", "t", "confidence", "tracking_state\n"].join('\t');
+  let data = tsvParse(headers + text_string);
+  let tX=[], tY=[], tZ=[];
+  let rX=[], rY=[], rZ=[];
   let t=[];
   let confidence=[], tracking_state=[];
 
@@ -113,154 +175,109 @@ const parse_poses = (text_string, gt_time_offset) => {
     // if (i%10!=0)
     //   continue
     let row = data[i];
-    a.push(row['a']);
-    b.push(row['b']);
-    c.push(row['c']);
-    x.push(row['x']);
-    y.push(row['y']);
-    z.push(row['z']);
+    rX.push(row['rX']);
+    rY.push(row['rY']);
+    rZ.push(row['rZ']);
+    tX.push(row['tX']);
+    tY.push(row['tY']);
+    tZ.push(row['tZ']);
     t.push(parseFloat(row['t']-t0));
     // we don't rely on per-commit-sync anymore
     // t.push(parseFloat(row['t'])+gt_time_offset);
     confidence.push(row['confidence']/100);
     tracking_state.push(row['tracking_state']);
   };
-  return {x, y, z, a, b, c, t, confidence, tracking_state};
+  return {rX, rY, rZ, tX, tY, tZ, t, confidence, tracking_state};
 }
 
 
-var make_traces = function(poses, label, colors) {
-  let mode = 'lines';
-  let line_width = 2;
-  // we make the reference wider to highlight bit accuracy
-  if (label === 'reference')
-    line_width = 3;
-
-  let marker_size = 5;
-  return [
-    {
-      x: poses.t, y: poses.x,
-      line: { color: colors[label].x, width: line_width },
-      marker: { color: colors[label].x, size: marker_size },
-      mode,
-      name: label, legendgroup:label
-    },
-    {
-      x: poses.t, y: poses.y,
-      line: { color: colors[label].y, width: line_width },
-      marker: { color: colors[label].y, size: marker_size },
-      mode,
-      yaxis: 'y2',
+var make_traces = function(poses, label) {
+  let columns = ["tZ", "tY", "tX", "rZ", "rY","rX", "confidence", "tracking_state"];
+  return columns.map((c,index)=> {
+    return {
+      x: poses.t,
+      y: poses[c],
+      line: {
+        color: colors[label].tracking_state,
+        width: label === 'reference' ? 3 : 2, // ref wider to highlight bit accuracy
+      },
+      marker: { color: colors[label].x, size: 5 },
       name: label, legendgroup:label,
-      showlegend: false
-    },
-    {
-      x: poses.t, y: poses.z,
-      line: { color: colors[label].z, width: line_width },
-      marker: { color: colors[label].z, size: marker_size },
-      mode,
-      name: label, legendgroup:label,
-      yaxis: 'y3',
-      showlegend: false
-    },
-    {
-      x: poses.t, y: poses.a,
-      line: { color: colors[label].x, width: line_width },
-      marker: { color: colors[label].x, size: marker_size },
-      mode,
-      name: label, legendgroup:label,
-      yaxis: 'y4',
-      showlegend: false
-    },
-    {
-      x: poses.t, y: poses.b,
-      line: { color: colors[label].y, width: line_width },
-      marker: { color: colors[label].y, size: marker_size },
-      mode,
-      name: label, legendgroup:label,
-      yaxis: 'y5',
-      showlegend: false
-    },
-    {
-      x: poses.t, y: poses.c,
-      line: { color: colors[label].z, width: line_width },
-      marker: { color: colors[label].z, size: marker_size },
-      mode,
-      name: label, legendgroup:label,
-      yaxis: 'y6',
-      showlegend: false
-    },
-    {
-      x: poses.t, y: poses.confidence,
-      line: { color: colors[label].confidence, width: line_width },
-      marker: { color: colors[label].confidence, size: marker_size },
-      mode,
-      name: label, legengroup:label,
-      yaxis: 'y7',
-      showlegend: false
-    },
-    {
-      x: poses.t, y: poses.tracking_state,
-      line: { color: colors[label].tracking_state, width: line_width },
-      marker: { color: colors[label].tracking_state, size: marker_size },
-      mode,
-      name: label, legengroup:label,
-      yaxis: 'y7',
-      showlegend: false
+      mode: 'lines',
+      yaxis: `y${Math.min(index+1, 7)}`,
+      showlegend: index===0?true:false,
     }
-  ]
+  })
+}
+
+const make_traces_debug = (data, label) => {
+  var traces = Object.keys(data).map( (c, index) => {
+    return {
+      x: data.t, y: data[c],
+      line: {
+        color: colors[label].x,
+        width: label === 'reference' ? 3 : 2, // reference wider to highlight bit accuracy
+      },
+      marker: {
+        color: colors[label].x,
+        size: 5
+      },
+      mode: 'lines',
+      yaxis: `yaxis${8+index}`,
+      name: label, legendgroup:label,
+      showlegend: false,
+    }
+  })
+  console.log(traces);
+  return traces;
 }
 
 
-
-
-
-var n_yaxis = 7;
-var frac_v = 1.0/n_yaxis;
-var layout = {
-  type: 'scattergl', // try sc
-  height:600,
-  width:350,
-  // autosize: false,
-  margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
-  yaxis:  {domain: [0*frac_v, 1*frac_v], title: 'tX'},
-  yaxis2: {domain: [1*frac_v, 2*frac_v], title: 'tY'},
-  yaxis3: {domain: [2*frac_v, 3*frac_v], title: 'tZ'},
-  yaxis4: {domain: [3*frac_v, 4*frac_v], title: 'rX'},
-  yaxis5: {domain: [4*frac_v, 5*frac_v], title: 'rY'},
-  yaxis6: {domain: [5*frac_v, 6*frac_v], title: 'rZ'},
-  yaxis7: {domain: [6*frac_v, 1], title: 'Tracking'},
-  legend: {
-    x:0,
-    y:1,
-    bgcolor: 'rgba(255,255,255,0.5)',
-    traceorder:'grouped',
-    tracegroupgap: 0
-    // orientation: "h",
-    // yanchor: "bottom", 
+const make_layout = (debug_data) => {
+  // 6dof+confidence and the debug info
+  var n_yaxis = debug_data !== undefined ? 7 + Object.keys(debug_data).length : 7;
+  // if (debug_data !== undefined) console.log(debug_data)
+  var frac_v = 1.0/n_yaxis;
+  var layout = {
+    type: 'scattergl', // try scatter
+    height:Math.min(85*n_yaxis, 800),
+    width:350,
+    // autosize: false,
+    margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
+    legend: {
+      x:0,
+      y:1,
+      bgcolor: 'rgba(255,255,255,0.5)',
+      traceorder:'grouped',
+      tracegroupgap: 0
+    }
   }
+  var axes = ["tZ", "tY", "tX", "rZ", "rY", "rX", "Tracking"];
+  if (debug_data !== undefined)
+    axes = axes.concat(Object.keys(debug_data))
+  axes.forEach( (title, index) => {
+    let yaxis = `yaxis${index===0 ? '' : index+1}`;
+    layout[yaxis] = {
+      domain: [index*frac_v, (index+1)*frac_v],
+      title
+    };
+  });
+
+  if (debug_data !== undefined) console.log(layout)
+  return layout;
 }
 
-
-// 157
-var color_new = 'rgba(255, 131, 0, .9)' // Red: 'rgba(228, 26, 28, .9)'
-var color_ref = 'rgb(25,34,231)'
-var colors_compare = {
+var color_new = 'rgba(255, 131, 0, .9)';
+var color_ref = 'rgb(25,34,231)';
+var color_gt = '#4daf4a';
+var colors = {
   ground_truth : {
-    x: '#4daf4a',
-    y: '#4daf4a',
-    z: '#4daf4a',
-    confidence: '#4daf4a',
-    tracking_state: '#4daf4a',
+    x: color_gt,
+    y: color_gt,
+    z: color_gt,
+    confidence: color_gt,
+    tracking_state: color_gt,
   },
-  // offline : {
-  //   x: '#a6dba0',
-  //   y: '#a6dba0',
-  //   z: '#a6dba0',
-  //   confidence: '#a6dba0',
-  //   tracking_state: '#a6dba0',
-  // },
-  // s8...
   new : {
     x: color_new,
     y: color_new,
@@ -268,14 +285,6 @@ var colors_compare = {
     confidence: '#d8b365',
     tracking_state: color_new,
   },
-  // ref_offline : {
-  //   x: '#c2a5cf',
-  //   y: '#c2a5cf',
-  //   z: '#c2a5cf',
-  //   confidence: '#c2a5cf',
-  //   tracking_state: '#c2a5cf',
-  // },
-  // ref_s8...
   reference : {
     x: color_ref,
     y: color_ref,
