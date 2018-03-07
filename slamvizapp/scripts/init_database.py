@@ -25,9 +25,13 @@ def print_summary():
 @click.command()
 @click.option('--drop-all', is_flag=True)
 @click.option('--loop', is_flag=True)
-def init_database(drop_all, loop):
+@click.option('--sleep', default=600)
+@click.option('--verbose', is_flag=True)
+def init_database(drop_all, loop, sleep, verbose):
   if drop_all:
+    if verbose: print('dropping all data')
     Base.metadata.drop_all(engine)
+  if verbose: print('creating schema...')
   Base.metadata.create_all(engine)
   # this is optionnal as Recordings will be created as needed when importing CiCommits
   # init_recordings()
@@ -35,10 +39,9 @@ def init_database(drop_all, loop):
   print_summary()
 
   while loop:
-    print('sleeping...')
-    # time.sleep(10)
-    time.sleep(60*12)
-    init_cicommits()
+    if verbose: print('sleeping...')
+    time.sleep(sleep)
+    init_cicommits(verbose=verbose)
     print_summary()
 
 def init_recordings():
@@ -59,7 +62,7 @@ def init_recordings():
   session.commit()
 
 
-def init_cicommits():
+def init_cicommits(verbose=False):
   """
   Initializes the database with ci commits.
   We don't delete the old recordings.... and we don't replace either.
@@ -71,21 +74,23 @@ def init_cicommits():
   # ? it would be more complete, but maybe wasteful? we only care about results.
 
   # go over all folders and look for results
+  if verbose: print('import...')
   cicommit_directories = list(cicommits_dir.glob('*__git__*'))
   cicommit_directories.reverse() # update the most recent first
   for cicommit_dir in cicommit_directories:
+    if verbose: print(cicommit_dir)
     commit_short_id = str(cicommit_dir)[-8:]
     try: # we get the corresponding git commit
       commit = repo.commit(commit_short_id)
     except BadName:
-      # print(f'[InitDatabase] WARNING: git failed for {cicommit_dir}')
+      if verbose: print(f'[InitDatabase] WARNING: git failed for {cicommit_dir}')
       continue
 
     try:
       ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
     except NoResultFound:
       try: # the commit might have failed (eg no params.json available)
-        ci_commit = CiCommit(commit, project='dvs/psp_swip', session=session)
+        ci_commit = CiCommit(commit, session=session)
       except ValueError:
           print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
           continue
@@ -100,7 +105,7 @@ def init_cicommits():
     # if could_be_pending_results or not ci_commit.slam_outputs:
     if not ci_commit.slam_outputs or ci_commit.failed_slam_outputs or ci_commit.pending_slam_outputs:
       ci_commit.discover_slam_outputs(session)
-      if ci_commit.pending_slam_outputs: print(ci_commit)
+      if verbose or ci_commit.pending_slam_outputs: print(ci_commit)
       session.add(ci_commit)
       session.commit()
 
