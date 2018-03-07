@@ -18,6 +18,7 @@ class App extends Component {
           <AppNavbar />
           <Route exact path="/" component={CiCommitList} />
           <Route path="/branch/(.*)" component={CiCommitList} />
+          <Route path="/committer/(.*)" component={CiCommitList} />
           <Route path="/commit/(.*)" component={CiCommitDetails} />
           <Route path="/tuning" component={CiCommitTuning} />
         </div>

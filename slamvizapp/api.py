@@ -45,7 +45,7 @@ def new_batches(hexsha):
   if data['selected_batch']:
     overwrite = '--overwrite' if data['overwrite']=='on' else ''
     cmd = ' '.join([  
-      f'ssh arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
+      f'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
       f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
       f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
       f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {data["selected_batch"]} {overwrite} --no_wait"'
@@ -61,9 +61,13 @@ def new_batches(hexsha):
 def get_commits(branch=None):
   max_count = int(request.args.get('count', 20))
   page = int(request.args.get('page', 0))
+  committer_name = request.args.get('committer', None)
 
   if not branch:
-    ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
+    if committer_name is None:
+      ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
+    else:
+      ci_commits = CiCommit.query.filter_by(committer_name=committer_name).order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
   else:
     commits = repo.iter_commits(branch, max_count=max_count, skip=max_count*page)
     commit_ids = [c.hexsha for c in commits]

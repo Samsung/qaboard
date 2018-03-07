@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import styled from "styled-components";
   
 const AvatarCell = styled.div`
@@ -25,7 +26,7 @@ const AvatarImg = styled.img`
 
 const Avatar = ({src, href, alt}) => (
 	<AvatarCell>
-	    <AvatarImg alt={alt} src={src}/>
+	    <Link to={href}><AvatarImg alt={alt} src={src}/></Link>
 	</AvatarCell>
 )
 

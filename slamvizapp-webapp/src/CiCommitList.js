@@ -95,7 +95,7 @@ class CommitResults extends React.Component {
                 <Tag style={{marginTop:'3px'}} className="pt-minimal pt-round">...</Tag>
                 <ul>
                 { Object.entries(commit.aggregated_metrics).map( ([k,v]) =>
-                  <li k={v}><strong>{k}:</strong> {formatter.format(v)}</li>
+                  <li key={k}><strong>{k}:</strong> {formatter.format(v)}</li>
                 )}
                 </ul>
               </Tooltip>
@@ -133,7 +133,7 @@ class CommitRow extends React.Component {
     const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
     return (
       <CommitRowWrapper className={className}>
-        <Avatar alt={commit.committer_name} href={`http://gitlab-srv/${commit.committer_name}`} src={commit.committer_avatar_url} />
+        <Avatar alt={commit.committer_name} href={`/committer/${commit.committer_name}`} src={commit.committer_avatar_url} />
 
         <CommitDetails>
           <CommitContent>
@@ -197,12 +197,17 @@ class CiCommitList extends React.Component {
     const page = parseFloat(params.get('page')) || 0;
     this.setState({page});
 
+    var url;
+    if (match.path.startsWith('/committer')) {
+      url = `/api/v1/commits?committer=${match.params[0]}`;      
+    } else {
+      var branch = ''
+      if (match.params[0])
+        branch = `/${match.params[0]}`
+      url = `/api/v1/commits${branch}`;
+    }
 
-    var branch = ''
-    if (match.params[0])
-      branch = `/${match.params[0]}`
-
-    get(`/api/v1/commits${branch}`, {
+    get(url, {
       params: {
         page, count,
       },
@@ -265,13 +270,12 @@ class CiCommitList extends React.Component {
           <ul>
             <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines</a></li>
             <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?</a></li>
-            <li><a href="/admin/recording/">List of all available recordings</a></li>
           </ul>
           </Callout>
         </Section>
         <Section>
           <h3>Reports for branch <code><Icon iconName="git-branch"/>develop</code></h3>
-          <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a></p>
+          <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
         </Section>
       </Fragment>
     );
