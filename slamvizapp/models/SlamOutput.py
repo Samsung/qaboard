@@ -36,7 +36,7 @@ class SlamOutput(Base):
   ci_commit = relationship("CiCommit", back_populates="slam_outputs")
 
   # How we ran
-  configuration = Column(String()) # mono/stereo/whatever
+  configuration = Column(String()) # mono/stereo/serial/whatever
   parameters_set_id = Column(String(), ForeignKey('parameters_sets.id'))
   parameters_set = relationship("ParametersSet", back_populates="slam_outputs")
 
@@ -76,6 +76,8 @@ class SlamOutput(Base):
   median_lost_duration = Column(Float(), default=None)
   translation_aape_when_good = Column(Float(), default=None)
   rotation_mean_when_good = Column(Float(), default=None)
+  time_before_first_lost = Column(Float(), default=None)
+  time_pc_before_first_lost = Column(Float(), default=None)
 
   # ...
 
@@ -110,12 +112,11 @@ class SlamOutput(Base):
 
   @property
   def output_dir_url(self):
-    return self.ci_commit.commit_dir_url / 'output' / self.recording.output_folder
+    return self.ci_commit.commit_dir_url / 'output' / self.platform / self.configuration / self.recording.output_folder
 
 
   def __repr__(self):
-    # parameter_set_id={self.parameter_set_id}
-    return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path}"
+    return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path} platform={self.platform} config={self.configuration}"
 
   def to_dict(self):
     as_dict = {c.name:getattr(self, c.name) for c in SlamOutput.metadata.tables['slam_outputs'].columns}
@@ -134,7 +135,7 @@ class SlamOutput(Base):
           SlamOutput.recording_id==kwargs['recording'].id,
           SlamOutput.platform==kwargs['platform'],
           SlamOutput.configuration==kwargs['configuration'],
-          SlamOutput.parameters_set_id == kwargs['default_parameters_set'].id,
+          SlamOutput.parameters_set_id == kwargs['parameters_set'].id,
           SlamOutput.ci_commit_id == kwargs['ci_commit'].id,
         )
       ).one()
@@ -143,7 +144,7 @@ class SlamOutput(Base):
         recording=kwargs['recording'],
         platform=kwargs['platform'],
         configuration=kwargs['configuration'],
-        parameters_set = kwargs['default_parameters_set'],
+        parameters_set = kwargs['parameters_set'],
         ci_commit = kwargs['ci_commit'],
       )
       session.add(slam_output)
@@ -158,7 +159,7 @@ class SlamOutput(Base):
           SlamOutput.recording_id==kwargs['recording'].id,
           SlamOutput.platform==kwargs['platform'],
           SlamOutput.configuration==kwargs['configuration'],
-          SlamOutput.parameters_set_id == kwargs['default_parameters_set'].id,
+          SlamOutput.parameters_set_id == kwargs['parameters_set'].id,
           SlamOutput.ci_commit_id == kwargs['ci_commit'].id,
         )
       ).delete()
@@ -166,7 +167,7 @@ class SlamOutput(Base):
         recording=kwargs['recording'],
         platform=kwargs['platform'],
         configuration=kwargs['configuration'],
-        parameters_set = kwargs['default_parameters_set'],
+        parameters_set = kwargs['parameters_set'],
         ci_commit = kwargs['ci_commit'],
       )
       session.add(slam_output)
