@@ -1,5 +1,6 @@
 import React, { Fragment } from "react";
 import { interpolateRdYlGn } from 'd3-scale-chromatic'
+import { Tag } from "@blueprintjs/core";
 
 
 import { Section } from "./Common";
@@ -53,15 +54,14 @@ const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
       {Object.entries(new_commit.slam_outputs)
              .sort(output_sort)
              .map( ([id, output]) => {
-          // we need to find a matching output - by path name for now...
-          // ideally we'd split the list of outputs by recording name and not id, 
-          // and display lsf/s8 curves serparately,,,
           let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
                                            .filter(o => o.recording_path===output.recording_path)
+                                           .filter(o => o.platform===output.platform)
+                                           .filter(o => o.configuration===output.configuration)
           let output_ref = matching_ref_outputs[0];
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path}</th>
+              <th scope="row">{output.recording_path} <Tag className="pt-round pt-minimal" iconName={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" iconName={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
               {displayed_metrics.map( m =>
                 <ColumnsMetricImprovement key={m} metric={m} output_new={output} output_ref={output_ref} />
               )}
@@ -95,15 +95,14 @@ const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
       {Object.entries(new_commit.slam_outputs)
              .sort(this.sortOutputs)
              .map( ([id, output]) => {
-          // we need to find a matching output - by path name for now...
-          // ideally we'd split the list of outputs by recording name and not id, 
-          // and display lsf/s8 curves serparately,,,
           let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
                                            .filter(o => o.recording_path===output.recording_path)
+                                           .filter(o => o.platform===output.platform)
+                                           .filter(o => o.configuration===output.configuration)
           let output_ref = matching_ref_outputs[0];
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path}</th>
+              <th scope="row">{output.recording_path} <Tag className="pt-round pt-minimal" iconName={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" iconName={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
               {displayed_metrics.map( m =>
                 <Fragment key={m}>
                   <QualityCell metric={m} output={output} />
