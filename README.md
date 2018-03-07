@@ -13,9 +13,16 @@ docker volume create slamvizapp-postgresql
 docker volume create slamvizapp-postgresql-log
 docker volume create slamvizapp-postgresql-lib
 
+# FYI, delete them with
+# docker volume rm -f slamvizapp-postgresql
+# docker volume rm -f slamvizapp-postgresql-log
+# docker volume rm -f slamvizapp-postgresql-lib
+
 # This short script wraps `docker run`
-# by default it will enable "--restart always", so adapt to your needs!
-./start-docker.sh #  now serving http://dvs:5000
+# by default it will enable "--restart always"
+# Adapt to your needs - some commands useful for debugging are commented-out
+./start-docker.sh
+# => now serving http://dvs:5000
 ```
 
 
