@@ -11,6 +11,8 @@ eval `ssh-agent`
 DISPLAY= setsid ssh-add /root/.ssh/id_rsa
 ssh-keyscan gitlab-srv >> ~/.ssh/known_hosts
 
+nginx &
+
 echo '...cloning dvs/psp_swip'
 cd /var/slamvizapp
 git clone -q git@gitlab-srv:dvs/psp_swip || cd psp_swip && git fetch origin
@@ -23,10 +25,12 @@ echo '...starting the database'
 
 echo '...initializing the database'
 slamvizapp_init_database --loop &
+# slamvizapp_init_database --verbose
 
 echo '...starting the application'
+sleep 5
 cd /slamvizapp && /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
-nginx &
+# cd /slamvizapp && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002
 
 # command
 # status=$?
