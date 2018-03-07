@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import styled from "styled-components";
 
 import Moment from 'react-moment';
@@ -14,7 +15,7 @@ class DoneAtTagUnstyled extends React.Component {
     return (
       <span className={className}>
         <Icon style={{color:'#999', marginRight: '4px'}} iconName="pt-icon-calendar"/> 
-        <Tooltip content={commit.authored_datetime}><Moment fromNow tz='Asia/Jerusalem' date={commit.authored_datetime} /></Tooltip> by {commit.committer_name}
+        <Tooltip content={commit.authored_datetime}><Moment fromNow tz='Asia/Jerusalem' date={commit.authored_datetime} /></Tooltip> by <Link to={`/committer/${commit.committer_name}`}>{commit.committer_name}</Link>
       </span>
     )
   }
