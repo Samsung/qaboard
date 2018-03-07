@@ -28,7 +28,7 @@ const MetricTag = ({output, output_ref, metric}) => {
   let intent = output[metric]>metric_info.threshold? Intent.DANGER : Intent.SUCCESS;
   let metric_tag = <Tag className="pt-minimal" intent={intent}>{formatted_valued}</Tag>
 
-  if (output_ref[metric]) {
+  if (output_ref!==undefined && output_ref[metric]) {
     let delta = output[metric] - output_ref[metric];
     let delta_relative = delta / output_ref[metric];
     var intent_compare;
@@ -143,8 +143,11 @@ class MetricsSummary extends Component {
     const average = array => {
       return array.reduce( (a,b) => (a+b) , 0) / array.length;
     }
-    const pc_bad = (array, threshold) => {
-      return array.filter( x => x<threshold).length / array.length;
+    const pc_under_threshold = (array, threshold) => {
+      return array.filter( x => x<=threshold).length / array.length;
+    }
+    const pc_over_threshold = (array, threshold) => {
+      return array.filter( x => x>=threshold).length / array.length;
     }
 
     return <div>
@@ -153,23 +156,32 @@ class MetricsSummary extends Component {
           let ref_values = Object.values(ref_commit.slam_outputs).map(o=>o[m.key]).filter(x => x);
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
-          let new_pc_bad = pc_bad(new_values)
+          let new_pc_good = m.smaller_is_better? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)
           let delta = new_avg - ref_avg;
           let delta_relative = delta / ref_avg;
 
           var intent;
-          if (delta_relative>0.01)
-            intent = Intent.DANGER;
-          else if (delta_relative<-0.01)
-            intent = Intent.SUCCESS;
-          else
-            intent = Intent.DEFAULT;
+          if (m.smaller_is_better) {
+            if (delta_relative>0.01)
+              intent = Intent.DANGER;
+            else if (delta_relative<-0.01)
+              intent = Intent.SUCCESS;
+            else
+              intent = Intent.DEFAULT;
+          } else {
+            if (delta_relative<-0.01)
+              intent = Intent.DANGER;
+            else if (delta_relative>0.01)
+              intent = Intent.SUCCESS;
+            else
+              intent = Intent.DEFAULT;            
+          }
           return (
             <MetricRow key={m.key}>
               <MetricTile>
                <h3>{metric_formatter.format(m.scale*new_avg)}{m.suffix}</h3>
                <h5>{m.label}</h5>
-               <p className="pt-text-muted">{percent_formatter.format(100*new_pc_bad)}% over {metric_formatter.format(m.scale*m.threshold)}{m.suffix}</p>
+               <p className="pt-text-muted">{percent_formatter.format(100*new_pc_good)}% { m.smaller_is_better? 'under': 'over'} {metric_formatter.format(m.scale*m.threshold)}{m.suffix}</p>
               </MetricTile>
 
               <MetricTile>
@@ -198,6 +210,7 @@ const available_metrics = {
     scale: 100,
     suffix: 'cm',
     threshold: 0.01,
+    smaller_is_better: true,
   },
 
   translation_aape:{
@@ -207,6 +220,7 @@ const available_metrics = {
     scale: 100,
     suffix: 'cm',
     threshold: 0.01,
+    smaller_is_better: true,
   },
 
 
@@ -217,6 +231,7 @@ const available_metrics = {
     scale: 100,
     suffix: '%',
     threshold: 0.01,
+    smaller_is_better: true,
   },
 
   translation_aape_when_good:{
@@ -226,6 +241,7 @@ const available_metrics = {
     scale: 100,	
     suffix: 'cm',
     threshold: 0.01,
+    smaller_is_better: true,
   },
 
   frac_tracking_state_good:{
@@ -235,6 +251,7 @@ const available_metrics = {
     scale: 100,
     suffix: '%',
     threshold: 0.99,
+    smaller_is_better: false,
   },
 
   rotation_mean:{
@@ -244,6 +261,7 @@ const available_metrics = {
     scale: 1,
     suffix: '°',
     threshold: 1.5,
+    smaller_is_better: true,
   },
 
   rotation_mean_when_good:{
@@ -253,7 +271,19 @@ const available_metrics = {
     scale: 1,
     suffix: '°',
     threshold: 1.5,
+    smaller_is_better: true,
   },
+
+  time_pc_before_first_lost:{
+    key:'time_pc_before_first_lost',
+    label: 'Time before first failure',
+    short_label: 'Time before KO',
+    scale: 100,
+    suffix: '%',
+    threshold: .99,
+    smaller_is_better: false,
+  },
+
  };
 
 export { available_metrics, HistogramComparaison, MetricsSummary, MetricTag, percent_formatter, metric_formatter};
