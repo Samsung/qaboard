@@ -108,7 +108,9 @@ class LocalCommit():
       author = matches['author'],
       authored_datetime = self.authored_datetime,
     )
+    self.committer_name = matches['author']
     self.discover_slam_outputs()
+    self.latest_gitlab_pipeline = ''
 
   def discover_slam_outputs(self):
     self.slam_outputs = []
@@ -155,6 +157,7 @@ class LocalCommit():
       'branch': self.branch,
       'type': 'local',
       'message': self.gitcommit.message,
+      'parents': [],
       'committer_name': self.gitcommit.committer['name'],
       'committer_avatar_url': committer_avatar_url,
       'authored_datetime': self.authored_datetime.isoformat(),

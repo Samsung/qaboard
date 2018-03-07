@@ -26,6 +26,7 @@ class CiCommit(Base):
   """
   __tablename__ = 'ci_commits'
   id = Column(String, primary_key=True) # git commit id
+  committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True))
   # this helps us understand if we expect pending SLAM results
   time_of_last_slam_job = Column(DateTime(timezone=True))
@@ -36,12 +37,15 @@ class CiCommit(Base):
   )
 
   branch = Column(String()) # first added as.. we ignore tags?
-  project = Column(String()) # dvs/psp_swip
+  project = Column(String(), default='dvs/psp_swip')
 
   default_parameters_set_id = Column(String(), ForeignKey('parameters_sets.id'), nullable=False)
   default_parameters_set = relationship("ParametersSet", back_populates="ci_commits_for_which_default")
 
   # failed = Column(Boolean) # build failure or else...
+
+  latest_gitlab_pipeline = Column(String())
+
 
 
   @property
@@ -74,17 +78,16 @@ class CiCommit(Base):
 
 
 
-  def __init__(self, commit, project, session, branch=None):
+  def __init__(self, commit, session, branch=None):
     self.gitcommit = commit
     self.id = commit.hexsha
-    self.project = project
     if branch:
       self.branch = branch
     else: # this is a wild guess..
       self.branch = find_branch(self.gitcommit.hexsha) # this is a wild guess..
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_slam_job = commit.authored_datetime
-
+    self.committer_name = commit.committer.name
     # to access easily the id of this set of parameters, we create a dummy object
     # we'll re-use it if it doesn't exist already in the database
     try:
@@ -98,7 +101,7 @@ class CiCommit(Base):
     try:
       self.default_parameters_set = session.query(ParametersSet).filter_by(id=parameters_set.id).one()
     except NoResultFound:
-        self.default_parameters_set = parameters_set
+      self.default_parameters_set = parameters_set
 
 
   @reconstructor
@@ -108,30 +111,33 @@ class CiCommit(Base):
 
   def discover_slam_outputs(self, session):
     """Find outputs saved on the disk to initialize the database"""
-    # FIXME: enable discovering outputs from the s8 or other plateforms...
-    #        and different modes...
     slam_outputs = []
-
     # FIXME: we should also look for unsuccessful runs
     #   we could look into lsf.log and parse it for recoring names
     #   then check whether we have them of not...
     # we look for successful runs
     output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
     for output_dir in output_dirs:
-      rel_recording_path = str(output_dir.relative_to(self.output_dir))+'.bin'
+      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
+      rel_recording_path = Path(*rel_recording_path)
+      # let's be backwards compatible
+      if platform not in set(['lsf', 's8']):
+        platform, configuration, rel_recording_path = 'lsf', 'serial-stereo', output_dir.relative_to(self.output_dir)
+      rel_recording_path = f'{rel_recording_path}.bin'
       recording = Recording.get_or_create(session, path=rel_recording_path)
       if not recording:
         continue
 
+      # FIXME: we should use the actual parameters used
+      # not just the default, but also configuration.json
       slam_output = SlamOutput.get_or_create(session,
         recording=recording,
-        platform='lsf',
-        configuration='serial-stereo',
-        default_parameters_set=self.default_parameters_set,
+        platform=platform,
+        configuration=configuration,
+        parameters_set=self.default_parameters_set,
         ci_commit=self,
       )
 
-      # we find the metrics,
       slam_output.update_metrics_from_file(output_dir/'metrics.json')
       session.add(slam_output)
       session.commit()
@@ -174,7 +180,7 @@ class CiCommit(Base):
       return session.query(CiCommit).filter_by(id=commit.hexsha).one()
     except NoResultFound:
       try:
-        ci_commit = CiCommit(commit, project='dvs/psp_swip', session=session)
+        ci_commit = CiCommit(commit, session=session)
         session.add(ci_commit)
         session.commit()
         return ci_commit
@@ -196,6 +202,8 @@ class CiCommit(Base):
       name = self.gitcommit.committer.name
       if name in users_db:
         committer_avatar_url= users_db[name]['avatar_url']
+      elif name.replace('.','') in users_db:
+        committer_avatar_url= users_db[name.replace('.','')]['avatar_url']        
     if with_details:
       details = {
         'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs}
@@ -207,6 +215,7 @@ class CiCommit(Base):
       'branch': self.branch,
       'type': 'git',
       'message': self.gitcommit.message,
+      'parents': [p.hexsha for p in self.gitcommit.parents],
       'committer_name': self.gitcommit.committer.name,
       'committer_avatar_url': committer_avatar_url,
       'authored_datetime': self.authored_datetime.isoformat(),
