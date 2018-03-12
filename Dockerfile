@@ -76,6 +76,7 @@ RUN yarn config set http-proxy  $HTTP_PROXY
 # our app
 COPY . /slamvizapp 
 WORKDIR /slamvizapp/slamvizapp-webapp
+ENV NODE_ENV production
 RUN yarn install
 RUN yarn build
 
