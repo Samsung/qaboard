@@ -64,7 +64,7 @@ class LocalSlamOutput():
 
   @property
   def output_dir_url(self):
-    return self.ci_commit.commit_dir_url / 'output' / self.recording.output_folder
+    return self.ci_commit.commit_dir_url / 'output' / self.platform / self.configuration / self.recording.output_folder
 
   def to_dict(self):
     # return {}
@@ -92,6 +92,8 @@ class LocalCommit():
       commit_dir = '/net'+commit_dir
     commit_dir = commit_dir.replace('/f2_algo_archive','/net/f2/algo_archive')
     commit_dir = commit_dir.replace('/output', '')
+    if not commit_dir.startswith('/net'):
+      commit_dir = '/net/f2/algo_archive/PTAM_Results'+commit_dir
     commit_dir = Path(commit_dir)
 
     self.commit_dir = commit_dir
@@ -116,22 +118,18 @@ class LocalCommit():
     self.slam_outputs = []
     output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
     for output_dir in output_dirs:
-      print(output_dir)
-      rel_recording_path = str(output_dir.relative_to(self.output_dir))+'.bin'
+      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
+      rel_recording_path = Path(*rel_recording_path)
+      rel_recording_path = f'{rel_recording_path}.bin'
       recording = LocalRecording(rel_recording_path)
       slam_output = LocalSlamOutput(
         recording=recording,
-        platform='s8' if 'Android' in str(self.commit_dir.parent.name) else 'lsf',
-        configuration=self.commit_dir.name,
+        platform=platform,
+        configuration=configuration,
         ci_commit=self,
       )
       slam_output.update_metrics_from_file(output_dir/'metrics.json')
       self.slam_outputs.append(slam_output)
-
-  @property
-  def output_dir(self):
-    """Returns the folder where outputs are stored"""
-    return self.commit_dir / 'output'
 
   @property
   def commit_dir_url(self):
