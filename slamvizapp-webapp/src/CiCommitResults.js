@@ -701,6 +701,8 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => (
 class OutputList extends React.Component {
   render() {
     const {new_commit, ref_commit, output_sort} = this.props;
+    // FIXME: workaround to compare local commits versus git-ci commits
+    const overwrite_filters = new_commit.type==='local' && ref_commit.type==='git';
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return <Fragment>
             <div style={{display:'flex', justifyContent: 'space-between', flexFlow: 'row wrap'}}>
@@ -712,8 +714,8 @@ class OutputList extends React.Component {
                         // and display lsf/s8 curves serparately,,,
                         let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
                           .filter(o => o.recording_path===output.recording_path)
-                          .filter(o => o.platform===output.platform)
-                          .filter(o => o.configuration===output.configuration)
+                          .filter(o => o.platform===output.platform || overwrite_filters)
+                          .filter(o => o.configuration===output.configuration || overwrite_filters)
                         let output_ref = matching_ref_outputs[0];
                         return <OutputCard
                           key={id}
