@@ -22,12 +22,13 @@ server {
  location ^~ /s/ {
   alias /home/arthurf/ci/dvs/psp_swip/;
   access_log off;
-
+  autoindex on;
  }
 
  location ^~ /ss/ {
   alias /net/f2/algo_archive/PTAM_Results/; 
   access_log off;
+  autoindex on;
  }
 
 }

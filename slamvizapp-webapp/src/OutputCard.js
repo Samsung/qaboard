@@ -13,6 +13,12 @@ const Plot = createPlotlyComponent(Plotly);
 
 
 
+var colors = {
+  ground_truth : '#4daf4a',
+  new : 'rgba(255, 131, 0, .9)',
+  reference : 'rgb(25,34,231)',
+}
+
 const SlimCard = styled(Card)`
   padding: 0px !important;
   overflow: 'auto';
@@ -30,13 +36,14 @@ class OutputCard extends Component {
   }
 
   componentDidMount() {
-    const { output_new, output_ref} = this.props;
+    const { output_new, output_ref } = this.props;
     if (output_new.translation_aape!==null) {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`)
           .then(response => this.setState({
-            '6dof_groudtruth': parse_poses(response.data, output_new.time_offset_to_groundtruth)
-          })).catch(e=>{})
+            '6dof_groudtruth': make_traces(parse_poses(response.data, output_new.time_offset_to_groundtruth), 'ground_truth')
+          })
+          ).catch(e=>{})
       }
     } else {
       get_gt = () => {}; 
@@ -44,7 +51,7 @@ class OutputCard extends Component {
     var get_new = () => {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
         .then(response => this.setState({
-          '6dof_new': parse_poses(response.data, output_new.time_offset_to_groundtruth)
+          '6dof_new': make_traces(parse_poses(response.data, output_new.time_offset_to_groundtruth), 'new')
         })).catch(e=>{})
     }
     var get_ref;
@@ -52,7 +59,7 @@ class OutputCard extends Component {
       get_ref = () => {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
           .then(response => this.setState({
-            '6dof_ref': parse_poses(response.data, output_ref.time_offset_to_groundtruth)
+            '6dof_ref': make_traces(parse_poses(response.data, output_ref.time_offset_to_groundtruth), 'reference')
           })).catch(e=>{})
       }      
     } else {
@@ -79,17 +86,17 @@ class OutputCard extends Component {
   }
 
   loadDebug() {
-    const { output_new, output_ref} = this.props;
+    const { output_new, output_ref } = this.props;
     var get_new_debug = () => {
       return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
         .then(response => this.setState({
-          'debug_new': parse_debug(response.data, output_new.time_offset_to_groundtruth)
+          'debug_new': make_traces_debug(parse_debug(response.data, output_new.time_offset_to_groundtruth), 'new')
         })).catch(e=>{})
     }
     var get_ref_debug = () => {
       return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
         .then(response => this.setState({
-          'debug_ref': parse_debug(response.data, output_ref.time_offset_to_groundtruth)
+          'debug_ref': make_traces_debug(parse_debug(response.data, output_ref.time_offset_to_groundtruth), 'reference')
         })).catch(e=>{})
     }
     all([
@@ -105,15 +112,15 @@ class OutputCard extends Component {
     const { output_new, output_ref } = this.props;
     var traces = [];
     if (this.state['6dof_groudtruth'])
-      traces = [...traces, ...make_traces(this.state['6dof_groudtruth'], 'ground_truth')];
+      traces = [...traces, ...this.state['6dof_groudtruth']];
     if (this.state['6dof_ref'])
-      traces = [...traces, ...make_traces(this.state['6dof_ref'], 'reference')];
+      traces = [...traces, ...this.state['6dof_ref']];
     if (this.state['6dof_new'])
-      traces = [...traces, ...make_traces(this.state['6dof_new'], 'new')];
-    if (this.state['debug_new'])
-      traces = [...traces, ...make_traces_debug(this.state['debug_new'], 'new')];
-    if (this.state['debug_ref'])
-      traces = [...traces, ...make_traces_debug(this.state['debug_ref'], 'reference')];
+      traces = [...traces, ...this.state['6dof_new']];
+    if (showDebug && this.state['debug_ref'])
+      traces = [...traces, ...this.state['debug_ref']];
+    if (showDebug && this.state['debug_new'])
+      traces = [...traces, ...this.state['debug_new']];
 
     let tags = <span>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.platform}</Tag>
@@ -136,8 +143,11 @@ class OutputCard extends Component {
                     poster_new={`${output_new.output_dir_url}/poster.jpg`}
                     poster_ref={output_ref && `${output_ref.output_dir_url}/poster.jpg`}
                   />
-                  {!this.state.isLoaded}
-                  {this.state.isLoaded && <Plot revision={this.state.plotRevision} data={traces} layout={make_layout(this.state.debug_new)}></Plot>}
+                  {this.state.isLoaded && <Plot
+                    revision={this.state.plotRevision}
+                    data={traces}
+                    layout={make_layout(this.state.debug_new)}
+                  />}
                 </SlimCard>
               </div>}
             </Fragment>
@@ -195,40 +205,43 @@ var make_traces = function(poses, label) {
   let columns = ["tZ", "tY", "tX", "rZ", "rY","rX", "confidence", "tracking_state"];
   return columns.map((c,index)=> {
     return {
-      x: poses.t,
-      y: poses[c],
+      x: poses.t, y: poses[c],
       line: {
-        color: colors[label].tracking_state,
+        color: colors[label],
         width: label === 'reference' ? 3 : 2, // ref wider to highlight bit accuracy
       },
-      marker: { color: colors[label].x, size: 5 },
-      name: label, legendgroup:label,
+      marker: {
+        color: colors[label],
+        size: 5
+      },
       mode: 'lines',
+      name: label, legendgroup:label,
       yaxis: `y${Math.min(index+1, 7)}`,
-      showlegend: index===0?true:false,
+      showlegend: index===0 ? true : false,
     }
   })
 }
 
 const make_traces_debug = (data, label) => {
-  var traces = Object.keys(data).map( (c, index) => {
-    return {
-      x: data.t, y: data[c],
-      line: {
-        color: colors[label].x,
-        width: label === 'reference' ? 3 : 2, // reference wider to highlight bit accuracy
-      },
-      marker: {
-        color: colors[label].x,
-        size: 5
-      },
-      mode: 'lines',
-      yaxis: `yaxis${8+index}`,
-      name: label, legendgroup:label,
-      showlegend: false,
-    }
+  let traces = Object.keys(data)
+    .filter(c=>c!=='t')
+    .map( (c, index) => {
+      return {
+        x: data.t, y: data[c],
+        line: {
+          color: colors[label],
+          width: label === 'reference' ? 3 : 2, // reference wider to highlight bit accuracy
+        },
+        marker: {
+          color: colors[label],
+          size: 5
+        },
+        mode: 'lines',
+        name: c, legendgroup:label,
+        yaxis: `y${8+index}`,
+        showlegend: false,
+      }
   })
-  console.log(traces);
   return traces;
 }
 
@@ -236,11 +249,10 @@ const make_traces_debug = (data, label) => {
 const make_layout = (debug_data) => {
   // 6dof+confidence and the debug info
   var n_yaxis = debug_data !== undefined ? 7 + Object.keys(debug_data).length : 7;
-  // if (debug_data !== undefined) console.log(debug_data)
   var frac_v = 1.0/n_yaxis;
   var layout = {
     type: 'scattergl', // try scatter
-    height:Math.min(85*n_yaxis, 800),
+    height:Math.min(85*n_yaxis, 1200),
     width:350,
     // autosize: false,
     margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
@@ -253,46 +265,19 @@ const make_layout = (debug_data) => {
     }
   }
   var axes = ["tZ", "tY", "tX", "rZ", "rY", "rX", "Tracking"];
-  if (debug_data !== undefined)
-    axes = axes.concat(Object.keys(debug_data))
+  if (debug_data !== undefined) {
+    let debug_axes = Object.values(debug_data).map(t=>t.name);
+    axes = axes.concat(debug_axes)
+  }
   axes.forEach( (title, index) => {
     let yaxis = `yaxis${index===0 ? '' : index+1}`;
     layout[yaxis] = {
       domain: [index*frac_v, (index+1)*frac_v],
+      titlefont: {size: index>8 ? 10 : 12},
       title
     };
   });
-
-  if (debug_data !== undefined) console.log(layout)
   return layout;
 }
-
-var color_new = 'rgba(255, 131, 0, .9)';
-var color_ref = 'rgb(25,34,231)';
-var color_gt = '#4daf4a';
-var colors = {
-  ground_truth : {
-    x: color_gt,
-    y: color_gt,
-    z: color_gt,
-    confidence: color_gt,
-    tracking_state: color_gt,
-  },
-  new : {
-    x: color_new,
-    y: color_new,
-    z: color_new,
-    confidence: '#d8b365',
-    tracking_state: color_new,
-  },
-  reference : {
-    x: color_ref,
-    y: color_ref,
-    z: color_ref,
-    confidence: '#5ab4ac',
-    tracking_state: color_ref,
-  }
-}
-
 
 export { OutputCard };
