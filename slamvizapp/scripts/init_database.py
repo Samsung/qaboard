@@ -108,24 +108,3 @@ def init_cicommits(verbose=False):
       if verbose or ci_commit.pending_slam_outputs: print(ci_commit)
       session.add(ci_commit)
       session.commit()
-
-# when we init the app, we should backfill the missing data
-# - query the latest commit in the DB and look for new commits/outputs in cicommits_dir
-# - sort commits by ci_date, and update those in the last hour
-
-# when we are notified of a result
-# - create a CiCommit/parameterSet if needed
-# - add the results (don't forget to check if it failed)
-
-# when git send us a webhook, we should
-# - only update the git repo
-# - create a CiCommit object if needed (with the correct branch if there is one!)
-
-
-
-# to display data
-# - we only query the DB
-# - when needed, we fill the details with the git repo!
-
-
-# find tuning data?
