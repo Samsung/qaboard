@@ -1,0 +1,11 @@
+image:gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+
+install-backend:
+  script:
+    - pip install .
+
+build-frontend:
+  script:
+    - cd slamvizapp-webapp
+    - yarn install
+    - yarn build
