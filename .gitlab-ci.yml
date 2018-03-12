@@ -1,4 +1,4 @@
-image:gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+image: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
 
 install-backend:
   script:
