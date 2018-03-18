@@ -1,7 +1,7 @@
 import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
-import { get, post } from "axios";
+import { get, post, all } from "axios";
 import queryString from "query-string";
 
 
@@ -18,9 +18,8 @@ import { DoneAtTag } from "./DoneAtTag";
 import { MetricsSummary } from "./Metrics";
 import { OutputTable } from "./Tables";
 
-
 /*eslint-disable no-alert, no-console */
-import brace from 'brace';
+import brace from 'brace'; // eslint-disable-line no-unused-vars
 import 'brace/mode/json';
 import 'brace/mode/yaml';
 import 'brace/theme/github';
@@ -303,14 +302,15 @@ class CommitLogs extends Component {
 
 
 
-
+var configurations = ['params', 'mono_mode'];
 class CommitParameters extends Component {
   constructor(props) {
     super(props);
     this.state = {
       isLoaded: false,
-      default_parameters: null,
+      parameters: {},
     };
+    configurations.forEach(c=> { this.setState({parameters: {...this.state.parameters, [c]: null}}) })
   }
 
   componentDidMount() {
@@ -318,35 +318,45 @@ class CommitParameters extends Component {
   }
 
   getParameters() {
-   get(`${this.props.new_commit.commit_dir_url}/params.json`,
-       {transformResponse: response=>response}) // avoid json parsing
-    .then(response => {
-      this.setState({
-        isLoaded: true,
-        default_parameters: response.data
-      })
-    })
-    .catch( error => {
-      this.setState({isLoaded: true, error})
-    })
+   all([
+     configurations.forEach( c=> {
+       get(`${this.props.new_commit.commit_dir_url}/${c}.json`,
+           {transformResponse: response=>response}) // avoid json parsing
+        .then(response => {
+          this.setState({
+            parameters: {...this.state.parameters, [c]: response.data},
+          })
+        })
+     })
+   ])
+   .then( () => this.setState({isLoaded: true}))
+   .catch( error => {this.setState({isLoaded: true, error})})
   }
 
   render() {
-    const { isLoaded, error, default_parameters } = this.state;
-    if (!isLoaded)
-      return <Spinner />
-    if (error)
-      return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
-    return <AceEditor
-      mode="json"
-      theme="github"
-      readOnly
-      onChange={()=>{}}
-      width='100%'
-      name="default-parameters"
-      value={default_parameters || ''}
-      editorProps={{$blockScrolling: true}}
-    />    
+    const { isLoaded, error, parameters } = this.state;
+    if (!isLoaded) return <Spinner />
+    if (error) return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
+    let configuration_parameters = configurations.map( c =>
+      <Fragment>
+        <h4>{c}.json</h4>
+        <AceEditor
+          mode="json"
+          theme="github"
+          readOnly
+          onChange={()=>{}}
+          width='100%'
+          maxLines={40}
+          name={`${c}-json`}
+          value={parameters[c] || ''}
+          editorProps={{$blockScrolling: true}}
+        />    
+      </Fragment>
+    )
+    return <Fragment>
+      {configuration_parameters}
+      Adding more files is easy, talk to Arthur 
+    </Fragment>
   }
 }
 
