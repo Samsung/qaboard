@@ -110,6 +110,7 @@ class OutputCard extends Component {
 
   render() {
     const { output_new, output_ref } = this.props;
+    const { isLoaded, showDebug, plotRevision, debug_new } = this.state;
     var traces = [];
     if (this.state['6dof_groudtruth'])
       traces = [...traces, ...this.state['6dof_groudtruth']];
@@ -125,7 +126,7 @@ class OutputCard extends Component {
     let tags = <span>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.platform}</Tag>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.configuration}</Tag>
-      <Button onClick={this.toogleShowDebug} className="pt-minimal" style={{paddingLeft: '12px'}} text="toogle debug plots" intent={this.state.showDebug ? Intent.PRIMARY : Intent.NONE} iconName="series-add" />
+      <Button onClick={this.toogleShowDebug} className="pt-minimal" style={{paddingLeft: '12px'}} text="toogle debug plots" intent={showDebug ? Intent.PRIMARY : Intent.NONE} iconName="series-add" />
       <a title="Show output files" style={{paddingLeft: '8px'}} target="_blank" href={output_new.output_dir_url}><Icon iconName="folder-shared"/></a>
     </span>
 
@@ -143,10 +144,10 @@ class OutputCard extends Component {
                     poster_new={`${output_new.output_dir_url}/poster.jpg`}
                     poster_ref={output_ref && `${output_ref.output_dir_url}/poster.jpg`}
                   />
-                  {this.state.isLoaded && <Plot
-                    revision={this.state.plotRevision}
+                  {isLoaded && <Plot
+                    revision={plotRevision}
                     data={traces}
-                    layout={make_layout(this.state.debug_new)}
+                    layout={make_layout(showDebug, debug_new)}
                   />}
                 </SlimCard>
               </div>}
@@ -246,9 +247,9 @@ const make_traces_debug = (data, label) => {
 }
 
 
-const make_layout = (debug_data) => {
+const make_layout = (showDebug, debug_data) => {
   // 6dof+confidence and the debug info
-  var n_yaxis = debug_data !== undefined ? 7 + Object.keys(debug_data).length : 7;
+  var n_yaxis = showDebug && debug_data !== undefined ? 7 + Object.keys(debug_data).length : 7;
   var frac_v = 1.0/n_yaxis;
   var layout = {
     type: 'scattergl', // try scatter
@@ -265,7 +266,7 @@ const make_layout = (debug_data) => {
     }
   }
   var axes = ["tZ", "tY", "tX", "rZ", "rY", "rX", "Tracking"];
-  if (debug_data !== undefined) {
+  if (showDebug && debug_data !== undefined) {
     let debug_axes = Object.values(debug_data).map(t=>t.name);
     axes = axes.concat(debug_axes)
   }
