@@ -77,7 +77,7 @@ class CommitResults extends React.Component {
   render() {
     const {commit} = this.props;
     const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
-    if (commit.valid_slam_outputs.length === 0 && commit.pending_slam_outputs.length === 0)
+    if (commit.failed_slam_outputs.length===0 && commit.valid_slam_outputs.length === 0 && commit.pending_slam_outputs.length === 0)
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
