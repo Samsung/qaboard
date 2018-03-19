@@ -1,11 +1,31 @@
 image: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
 
-install-backend:
+stages:
+  - build
+  - test
+  - deploy
+
+# only tests that the syntax is OK
+test-backend:
+  stage: test
   script:
     - pip install .
 
-build-frontend:
+test-frontend:
+  stage: test
   script:
     - cd slamvizapp-webapp
     - yarn install
     - yarn build
+# we could run more tests with: 
+#    - CI=true yarn test
+
+deploy:
+  stage: deploy
+  script:
+    - docker build -t gitlab-srv:4567/dvs/slamresultsvizapp . && docker push gitlab-srv:4567/dvs/slamresultsvizapp
+    - ssh planet31 docker pull gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+    - ssh planet31 'docker stop slamvizapp && docker rm slamvizapp && ./deployment/start-docker.sh'
+  environment:
+    name: production
+    url: http://dvs:5000
