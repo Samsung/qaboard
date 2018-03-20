@@ -2,7 +2,10 @@
 # `docker run` wrapper
 # TODO: define everything in a `docker-compose` file
 set -ex
-DOCKER_IMAGE=gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+DOCKER_IMAGE=gitlab-srv.transchip.com:4567/dvs/slamvizapp
+
+# ENVIRONMENT=
+# SUFFIX
 
 # useful for debug
 # STAGING='-staging'
@@ -13,8 +16,6 @@ POLICY="--restart always --detach"
 PORTS="-p0.0.0.0:5002:5002 -p0.0.0.0:5000:5000 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
 # PORTS="-p0.0.0.0:8002:5002 -p0.0.0.0:8000:5000 -p0.0.0.0:6432:5432 -p0.0.0.0:8001:443"
 
-# helps avoid mount errors...
-HOME_DOCKER=/opt/dockermounts$HOME
 
 DOCKER_VOLUMES=""
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
@@ -27,10 +28,21 @@ DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/PTAM_Results:/net/f2/algo_archiv
 # DOCKER_VOLUMES+=" --volume=/net/f2:/net/f2"
 
 
+# helps avoid mount errors...
+HOME_DOCKER=/opt/dockermounts$HOME
 # SSH access
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa"
-DOCKER_SSH_PASSPHRASE="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
-DOCKER_GITLAB_ACCESS_TOKEN="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
+# if [[ ! -z "$GITHUB_ACCESS_TOKEN" ]]; then
+  DOCKER_SSH_PASSPHRASE="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
+# else
+#   echo "[Error] \$SSH_PASSPHRASE is not defined : the app won't be able to use git"; exit
+# fi
+
+# if [[ ! -z "$GITHUB_ACCESS_TOKEN" ]]; then
+  DOCKER_GITLAB_ACCESS_TOKEN="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
+# else
+#   echo "[Error] \$GITLAB_ACCESS_TOKEN is not defined: create one at http://gitlab-srv/profile/personal_access_tokens"; exit
+# fi
 
 
 # Git clone configuration
