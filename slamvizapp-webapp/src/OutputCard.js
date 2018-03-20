@@ -14,7 +14,7 @@ const Plot = createPlotlyComponent(Plotly);
 
 
 var colors = {
-  ground_truth : '#4daf4a',
+  groundtruth : '#4daf4a',
   new : 'rgba(255, 131, 0, .9)',
   reference : 'rgb(25,34,231)',
 }
@@ -29,38 +29,56 @@ class OutputCard extends Component {
     super(props);
     this.state = {
       isLoaded: false,
-      showDebug: false,
       isLoadedDebug: false,
+      showDebug: false,
+
+      traces_6dof: {},
+      traces_3d: {},
+      traces_debug: {},
+
       plotRevision: 0,
     };
   }
 
   componentDidMount() {
     const { output_new, output_ref } = this.props;
-    if (output_new.translation_aape!==null) {
+    let has_groundtruth = output_new.translation_aape!==null;
+    if (has_groundtruth) {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`)
-          .then(response => this.setState({
-            '6dof_groudtruth': make_traces(parse_poses(response.data, output_new.time_offset_to_groundtruth), 'ground_truth')
-          })
-          ).catch(e=>{})
+            .then(response => {
+              let poses = parse_poses(response.data, output_new.time_offset_to_groundtruth);
+              this.setState({
+                traces_6dof: {...this.state.traces_6dof, groundtruth: make_traces(poses, 'groundtruth')},
+                traces_3d: {...this.state.traces_3d, groundtruth: make_traces3d(poses, 'groundtruth')},
+              })
+            })
+            .catch(e=>{})
       }
     } else {
       get_gt = () => {}; 
     }
     var get_new = () => {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
-        .then(response => this.setState({
-          '6dof_new': make_traces(parse_poses(response.data, output_new.time_offset_to_groundtruth), 'new')
-        })).catch(e=>{})
+        .then(response => {
+          let poses = parse_poses(response.data, output_new.time_offset_to_groundtruth);
+          this.setState({
+             traces_6dof: {...this.state.traces_6dof, new: make_traces(poses, 'new')},
+             traces_3d: {...this.state.traces_3d, new: make_traces3d(poses, 'new')},
+          })
+        }).catch(e=>{})
     }
     var get_ref;
     if (output_ref!==undefined) {
       get_ref = () => {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
-          .then(response => this.setState({
-            '6dof_ref': make_traces(parse_poses(response.data, output_ref.time_offset_to_groundtruth), 'reference')
-          })).catch(e=>{})
+          .then(response => {
+            let poses = parse_poses(response.data, output_ref.time_offset_to_groundtruth)
+            this.setState({
+              traces_6dof: {...this.state.traces_6dof, reference: make_traces(poses, 'reference')},
+              traces_3d: {...this.state.traces_3d, reference: make_traces3d(poses, 'reference')},
+            })
+          }).catch(e=>{})
       }      
     } else {
       get_ref = () => {};
@@ -72,56 +90,82 @@ class OutputCard extends Component {
       get_ref()
     ])
      .then(spread((req_gt, req_new, req_ref) => {
-        this.setState({isLoaded: true})
-      })).catch(()=>{this.setState({isLoaded: true})})
+        this.setState({
+          isLoaded: true
+        })
+      }))
+     .catch(()=>{ this.setState({isLoaded: true})} )
     }
 
   toogleShowDebug = () => {
-    this.setState({showDebug:!this.state.showDebug})
+    this.setState({
+      showDebug: !this.state.showDebug,
+    })
     if (!this.state.isLoadedDebug)
       this.loadDebug()
-    else {
-        this.setState({plotRevision: this.state.plotRevision+1})
-    }
+    else
+      this.setState({plotRevision: this.state.plotRevision+1})
   }
 
   loadDebug() {
     const { output_new, output_ref } = this.props;
     var get_new_debug = () => {
       return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
-        .then(response => this.setState({
-          'debug_new': make_traces_debug(parse_debug(response.data, output_new.time_offset_to_groundtruth), 'new')
-        })).catch(e=>{})
+        .then(response => {
+          let poses = parse_debug(response.data, output_new.time_offset_to_groundtruth)
+          this.setState({
+            traces_debug: {...this.state.traces_debug, new: make_traces_debug(poses, 'new')},
+          })
+        }).catch(e=>{})
     }
     var get_ref_debug = () => {
       return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
-        .then(response => this.setState({
-          'debug_ref': make_traces_debug(parse_debug(response.data, output_ref.time_offset_to_groundtruth), 'reference')
-        })).catch(e=>{})
+        .then(response => {
+          let poses = parse_debug(response.data, output_ref.time_offset_to_groundtruth)
+          this.setState({
+            traces_debug: {...this.state.traces_debug, reference: make_traces_debug(poses, 'reference')},
+          })
+        }).catch(e=>{})
     }
     all([
       get_new_debug(),
       get_ref_debug(),
     ])
      .then(spread((req_new, req_ref) => {
-        this.setState({isLoadedDebug: true, plotRevision: this.state.plotRevision+1})
+        this.setState({
+          isLoadedDebug: true,
+          plotRevision: this.state.plotRevision+1,
+        })
       })).catch(()=>{this.setState({isLoadedDebug: true})})
   }
 
   render() {
-    const { output_new, output_ref } = this.props;
-    const { isLoaded, showDebug, plotRevision, debug_new } = this.state;
+    const { output_new, output_ref, show3d, showVideos } = this.props;
+    const { isLoaded, showDebug, plotRevision } = this.state;
+  
     var traces = [];
-    if (this.state['6dof_groudtruth'])
-      traces = [...traces, ...this.state['6dof_groudtruth']];
-    if (this.state['6dof_ref'])
-      traces = [...traces, ...this.state['6dof_ref']];
-    if (this.state['6dof_new'])
-      traces = [...traces, ...this.state['6dof_new']];
-    if (showDebug && this.state['debug_ref'])
-      traces = [...traces, ...this.state['debug_ref']];
-    if (showDebug && this.state['debug_new'])
-      traces = [...traces, ...this.state['debug_new']];
+    if (this.state.traces_6dof.groundtruth)
+      traces = [...traces, ...this.state.traces_6dof.groundtruth];
+    if (this.state.traces_6dof.reference)
+      traces = [...traces, ...this.state.traces_6dof.reference];
+    if (this.state.traces_6dof.new)
+      traces = [...traces, ...this.state.traces_6dof.new];
+    if (showDebug) {
+      if (this.state.traces_debug.reference)
+        traces = [...traces, ...this.state.traces_debug.reference];
+      if (this.state.traces_debug.new)
+        traces = [...traces, ...this.state.traces_debug.new];      
+    }
+
+    if (show3d) {
+      var traces3d = [];
+      if (this.state.traces_3d.groundtruth)
+        traces3d = [...traces3d, this.state.traces_3d.groundtruth];
+      if (this.state.traces_3d.reference)
+        traces3d = [...traces3d, this.state.traces_3d.reference];
+      if (this.state.traces_3d.new)
+        traces3d = [...traces3d, this.state.traces_3d.new];
+    }
 
     let tags = <span>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.platform}</Tag>
@@ -138,16 +182,21 @@ class OutputCard extends Component {
                     {output_new.translation_rmse>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='translation_aape'/></p>}
                     {output_new.rotation_mean>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='rotation_mean'/></p>}
                   </div>
-                  <SyncedVideos
+                  {showVideos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
                     src_ref={output_ref && `${output_ref.output_dir_url}/results.mp4`}
                     poster_new={`${output_new.output_dir_url}/poster.jpg`}
                     poster_ref={output_ref && `${output_ref.output_dir_url}/poster.jpg`}
-                  />
-                  {isLoaded && <Plot
+                  />}
+                  {show3d && isLoaded && <Plot
+                    data={traces3d}
+                    layout={layout3d}
                     revision={plotRevision}
+                  />}
+                  {isLoaded && <Plot
                     data={traces}
-                    layout={make_layout(showDebug, debug_new)}
+                    layout={make_layout(showDebug, this.state.traces_debug.new)}
+                    revision={plotRevision}
                   />}
                 </SlimCard>
               </div>}
@@ -183,24 +232,21 @@ const parse_poses = (text_string, gt_time_offset) => {
 
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
-    // if (i%10!=0)
-    //   continue
     let row = data[i];
-    rX.push(row['rX']);
-    rY.push(row['rY']);
-    rZ.push(row['rZ']);
-    tX.push(row['tX']);
-    tY.push(row['tY']);
-    tZ.push(row['tZ']);
+    rX.push(parseFloat(row['rX']));
+    rY.push(parseFloat(row['rY']));
+    rZ.push(parseFloat(row['rZ']));
+    tX.push(parseFloat(row['tX']));
+    tY.push(parseFloat(row['tY']));
+    tZ.push(parseFloat(row['tZ']));
     t.push(parseFloat(row['t']-t0));
     // we don't rely on per-commit-sync anymore
     // t.push(parseFloat(row['t'])+gt_time_offset);
-    confidence.push(row['confidence']/100);
-    tracking_state.push(row['tracking_state']);
+    confidence.push(parseFloat(row['confidence']/100));
+    tracking_state.push(parseFloat(row['tracking_state']));
   };
   return {rX, rY, rZ, tX, tY, tZ, t, confidence, tracking_state};
 }
-
 
 var make_traces = function(poses, label) {
   let columns = ["tZ", "tY", "tX", "rZ", "rY","rX", "confidence", "tracking_state"];
@@ -221,6 +267,24 @@ var make_traces = function(poses, label) {
       showlegend: index===0 ? true : false,
     }
   })
+}
+
+var make_traces3d = function(poses, label) {
+  const sample = (x,i) => i%5===0;
+  return {
+      type: 'scatter3d',
+      x: poses.tX.filter(sample),
+      y: poses.tY.filter(sample),
+      z: poses.tZ.filter(sample),
+      mode: 'lines',
+      line: {
+        width: label === 'reference' ? 2 : 1,
+        color: colors[label],
+        opacity: 0.8,
+      },
+      name: label, legendgroup:label,
+      showlegend: true,
+  }
 }
 
 const make_traces_debug = (data, label) => {
@@ -279,6 +343,19 @@ const make_layout = (showDebug, debug_data) => {
     };
   });
   return layout;
+}
+
+const layout3d = {
+  width: 350,
+  height: 350,
+  margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
+  legend: {
+    x:0,
+    y:1,
+    bgcolor: 'rgba(255,255,255,0.5)',
+    traceorder:'grouped',
+    tracegroupgap: 0
+  }
 }
 
 export { OutputCard };

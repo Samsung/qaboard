@@ -6,7 +6,8 @@ import queryString from "query-string";
 
 
 import AceEditor from 'react-ace';
-import { Checkbox, TagInput, FormGroup, Switch, EditableText, Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Checkbox, TagInput, FormGroup, Switch, EditableText } from "@blueprintjs/core";
+import { Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
 
 import Avatar from "./Avatar";
@@ -144,8 +145,6 @@ class AddRecordings extends Component {
   }
 
 }
-        // enableBasicAutocompletion={true}
-        // enableLiveAutocompletion={true}
 
 
 class Tuning extends Component {
@@ -310,7 +309,6 @@ class CommitParameters extends Component {
       isLoaded: false,
       parameters: {},
     };
-    configurations.forEach(c=> { this.setState({parameters: {...this.state.parameters, [c]: null}}) })
   }
 
   componentDidMount() {
@@ -338,7 +336,7 @@ class CommitParameters extends Component {
     if (!isLoaded) return <Spinner />
     if (error) return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
     let configuration_parameters = configurations.map( c =>
-      <Fragment>
+      <Fragment key={c}>
         <h4>{c}.json</h4>
         <AceEditor
           mode="json"
@@ -377,6 +375,8 @@ class CiCommitResults extends Component {
       filter_input: '',
       sort_by: 'translation_aape',
       order: -1,
+      showVideos: false,
+      show3d: false,
 
       commit_logs: {},
     };
@@ -529,6 +529,16 @@ class CiCommitResults extends Component {
   selectOrder = e => {
     this.setState({order: e.target.value})
   }
+  toogleShowVideos = () => {
+    this.setState({
+      showVideos: !this.state.showVideos,
+    })
+  }
+  toogleShow3d = () => {
+    this.setState({
+      show3d: !this.state.show3d,
+    })
+  }
 
   sortOutputs = ([ka,a], [kb,b]) => {
     const { sort_by } = this.state;
@@ -644,22 +654,44 @@ class CiCommitResults extends Component {
 
         <Section>
           <Tabs renderActiveTabPanelOnly id="tabs-outputs">
-            <Tab id="output-table" title="Summary Table" panel={<OutputTable output_sort={this.sortOutputs} new_commit={new_commit_filtered} ref_commit={ref_commit_filtered}/>} />
-            <Tab id="output-list" title="Details" panel={<OutputList output_sort={this.sortOutputs} new_commit={new_commit_filtered} ref_commit={ref_commit_filtered} />} />
+            <Tab
+              id="output-table"
+              title="Summary Table"
+              panel={
+                <OutputTable
+                  output_sort={this.sortOutputs}
+                  new_commit={new_commit_filtered}
+                  ref_commit={ref_commit_filtered}
+                />}
+              />
+            <Tab
+              id="output-list"
+              title="Details"
+              panel={
+                <OutputList
+                  output_sort={this.sortOutputs}
+                  new_commit={new_commit_filtered}
+                  ref_commit={ref_commit_filtered}
+                  showVideos={this.state.showVideos}
+                  show3d={this.state.show3d}
+                />}
+              />
             <Tabs.Expander />
+            <Switch checked={this.state.showVideos} label="Videos" onChange={this.toogleShowVideos} />
+            <Switch checked={this.state.show3d} label="3d" onChange={this.toogleShow3d} />
             <div style={{width: '200px'}} className="pt-input-group">
-            <span className="pt-icon pt-icon-search"></span>
-            <TagInput
-              className="pt-input" type="search"
-              style={{width: '100px'}}
-              leftIcon='user'
-              placeholder="Filter outputs by recording, platform or configuration"
-              values={this.state.filter_values}
-              inputValue={this.state.filter_input}
-              onChange={filter_values => this.setState({ filter_values })}
-              onInputChange={e => this.setState({ filter_input: e.target.value })}
-              tagProps={{className:"pt-minimal"}}
-            />
+              <span className="pt-icon pt-icon-search"></span>
+              <TagInput
+                className="pt-input" type="search"
+                style={{width: '100px'}}
+                leftIcon='user'
+                placeholder="Filter outputs by recording, platform or configuration"
+                values={this.state.filter_values}
+                inputValue={this.state.filter_input}
+                onChange={filter_values => this.setState({ filter_values })}
+                onInputChange={e => this.setState({ filter_input: e.target.value })}
+                tagProps={{className:"pt-minimal"}}
+              />
             </div>
             <div className="pt-select">
               <select defaultValue="translation_aape" onChange={this.selectSortBy}>
@@ -710,7 +742,7 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => (
 
 class OutputList extends React.Component {
   render() {
-    const {new_commit, ref_commit, output_sort} = this.props;
+    const {new_commit, ref_commit, output_sort, showVideos, show3d} = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     const overwrite_filters = new_commit.type==='local' && ref_commit.type==='git';
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
@@ -731,6 +763,8 @@ class OutputList extends React.Component {
                           key={id}
                           output_new={output}
                           output_ref={output_ref}
+                          showVideos={showVideos}
+                          show3d={show3d}
                         />;
               })}
             </div>
