@@ -1,5 +1,8 @@
 image: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
 
+variables:
+  DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+
 stages:
   - build
   - test
@@ -20,7 +23,19 @@ test-frontend:
 # we could run more tests with: 
 #    - CI=true yarn test
 
-deploy:
+deploy_staging:
+  stage: deploy
+  script:
+    - docker build -t gitlab-srv:4567/dvs/slamresultsvizapp:staging . && docker push gitlab-srv:4567/dvs/slamresultsvizapp:staging
+    - ssh planet31 docker pull gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp:staging
+    - ssh planet31 'docker stop slamvizapp-staging && docker rm slamvizapp && ./deployment/start-docker.sh'
+  environment:
+    name: staging
+    url: http://dvs:6000
+  only:
+    - master
+
+deploy_production:
   stage: deploy
   script:
     - docker build -t gitlab-srv:4567/dvs/slamresultsvizapp . && docker push gitlab-srv:4567/dvs/slamresultsvizapp
@@ -29,3 +44,6 @@ deploy:
   environment:
     name: production
     url: http://dvs:5000
+  only:
+    - master
+  when: manual
