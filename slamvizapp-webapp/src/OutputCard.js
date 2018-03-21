@@ -278,7 +278,7 @@ var make_traces3d = function(poses, label) {
       z: poses.tZ.filter(sample),
       mode: 'lines',
       line: {
-        width: label === 'reference' ? 2 : 1,
+        width: label === 'reference' ? 3 : 2,
         color: colors[label],
         opacity: 0.8,
       },
