@@ -2,10 +2,6 @@
 A version of the code on which we ran SLAM performance test.
 """
 import datetime
-import shutil
-import re
-import sys
-import pickle
 
 import numpy as np
 from sqlalchemy.orm import relationship, reconstructor
@@ -14,8 +10,8 @@ from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, Integer, DateTime
 
 from slamvizapp import repo
-from slamvizapp.models import Base, Recording, ParametersSet, SlamOutput
-from ..utils import filter_slam_outputs, get_users_per_name
+from slamvizapp.models import Base, Batch
+# from ..utils import get_users_per_name
 from ..git_utils import find_branch
 from ..config import *
 
@@ -26,26 +22,28 @@ class CiCommit(Base):
   """
   __tablename__ = 'ci_commits'
   id = Column(String, primary_key=True) # git commit id
+
+  project = Column(String(), default='dvs/psp_swip')
+  branch = Column(String()) # first added as.. we ignore tags?
   committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True))
+
+
+  batches = relationship("Batch", order_by=Batch.created_date, back_populates="ci_commit")
+  # what we care about for quality summaries
+  # ci_batch_id = Column(Integer(), ForeignKey('batches.id'))
+  # ci_batch = relationship("Batch", foreign_keys=[ci_batch_id])
+  # we hope it's the first built :)
+  @property
+  def ci_batch(self):
+    if self.batches: return self.batches[0]
+    return Batch(ci_commit=self, label='default')
+
   # this helps us understand if we expect pending SLAM results
-  time_of_last_slam_job = Column(DateTime(timezone=True))
-  slam_outputs = relationship("SlamOutput", back_populates="ci_commit",
-    # if we delete a cicommit, no need to save its results
-    # but let's be careful for now....
-    # cascade="all, delete, delete-orphan"
-  )
-
-  branch = Column(String()) # first added as.. we ignore tags?
-  project = Column(String(), default='dvs/psp_swip')
-
-  default_parameters_set_id = Column(String(), ForeignKey('parameters_sets.id'), nullable=False)
-  default_parameters_set = relationship("ParametersSet", back_populates="ci_commits_for_which_default")
-
-  # failed = Column(Boolean) # build failure or else...
+  time_of_last_batch = Column(DateTime(timezone=True))
 
   latest_gitlab_pipeline = Column(String())
-
+  # failed = Column(Boolean) # build failure or else...
 
 
   @property
@@ -53,16 +51,6 @@ class CiCommit(Base):
     """Returns the folder in all the data for this commit is stored."""
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
     return ci_directory / 'commits' / commit_dir_name
-
-  # for a fake CiCommit, we must
-  # - change commit_dir to a hardcoded value
-  # - add all the self.properties
-  # - add .gitcommit.authored_date, etc
-
-  @property
-  def output_dir(self):
-    """Returns the folder where outputs are stored"""
-    return self.commit_dir / 'output'
 
   @property
   def authored_date(self):
@@ -74,7 +62,7 @@ class CiCommit(Base):
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
-    return f"<CiCommit(id='{self.id}' slam_outputs={len(self.slam_outputs)} default_parameters_set_id={self.default_parameters_set_id}>"
+    return f"<CiCommit(id='{self.id}' ci_batch.slam_outputs={len(self.ci_batch.slam_outputs)}>"
 
 
 
@@ -84,91 +72,16 @@ class CiCommit(Base):
     if branch:
       self.branch = branch
     else: # this is a wild guess..
-      self.branch = find_branch(self.gitcommit.hexsha) # this is a wild guess..
+      self.branch = find_branch(self.gitcommit.hexsha)
     self.authored_datetime = commit.authored_datetime
-    self.time_of_last_slam_job = commit.authored_datetime
+    self.time_of_last_batch = commit.authored_datetime
     self.committer_name = commit.committer.name
-    # to access easily the id of this set of parameters, we create a dummy object
-    # we'll re-use it if it doesn't exist already in the database
-    try:
-      parameters_text = repo.git.show('{}:{}'.format(commit.hexsha, 'swip_slam/UnitTests/RunningTime/params.json'))
-      # print(parameters_text)
-      parameters_set = ParametersSet(parameters_text=parameters_text)
-      # self.default_parameters_set = ParametersSet(parameters_file=self.commit_dir /"params.json")
-    except FileNotFoundError:
-      raise ValueError
-
-    try:
-      self.default_parameters_set = session.query(ParametersSet).filter_by(id=parameters_set.id).one()
-    except NoResultFound:
-      self.default_parameters_set = parameters_set
 
 
   @reconstructor
   def init_on_load(self):
     self.gitcommit = repo.commit(self.id)
 
-
-  def discover_slam_outputs(self, session):
-    """Find outputs saved on the disk to initialize the database"""
-    slam_outputs = []
-    # FIXME: we should also look for unsuccessful runs
-    #   we could look into lsf.log and parse it for recoring names
-    #   then check whether we have them of not...
-    # we look for successful runs
-    output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
-    for output_dir in output_dirs:
-      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
-      rel_recording_path = Path(*rel_recording_path)
-      # let's be backwards compatible
-      if platform not in set(['lsf', 's8']):
-        platform, configuration, rel_recording_path = 'lsf', 'serial-stereo', output_dir.relative_to(self.output_dir)
-      rel_recording_path = f'{rel_recording_path}.bin'
-      recording = Recording.get_or_create(session, path=rel_recording_path)
-      if not recording:
-        continue
-
-      # FIXME: we should use the actual parameters used
-      # not just the default, but also configuration.json
-      slam_output = SlamOutput.get_or_create(session,
-        recording=recording,
-        platform=platform,
-        configuration=configuration,
-        parameters_set=self.default_parameters_set,
-        ci_commit=self,
-      )
-
-      slam_output.update_metrics_from_file(output_dir/'metrics.json')
-      session.add(slam_output)
-      session.commit()
-
-  @property
-  def valid_slam_outputs(self):
-    return [o for o in self.slam_outputs if not o.is_failed and not o.is_pending]
-
-  @property
-  def pending_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_pending]
-
-  @property
-  def failed_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_failed]
-
-
-  def failures_count(self):
-      """Returns an estimate of the number of failed runs"""
-      return len([o for o in self.slam_outputs if o.is_failed])
-
-  def aggregated_metrics(self, filename_filter='', filename_exclude=''):
-      return aggregated_metrics(filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude))
-
-  def metrics(self, metric, outputs=None):
-      """Returns a list of results - for a chosen metric - over the commit's outputs.
-      The optionnal `outputs` parameter makes it almost like a static method. It helps with scope issues in the templates.
-      """
-      if not outputs:
-        outputs = self.slam_outputs
-      return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
   @staticmethod
   def get_or_create(session, hexsha, **kwargs):
@@ -189,12 +102,6 @@ class CiCommit(Base):
       if ci_commit is None: 
         raise (ValueError, f'ERROR: something is wrong, maybe an error opening param.json for {commit.hexsha}')
 
-  # @property
-  # def compute_time_vs_realtime(self):
-  #   """Returns the computation time as multile of real-time (1x = real-time)"""
-  #   if not m.computation_time or not m.duration:
-  #     return None
-  #   return 1000*m.computation_time/m.duration
 
   def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''
@@ -206,7 +113,7 @@ class CiCommit(Base):
         committer_avatar_url= users_db[name.replace('.','')]['avatar_url']        
     if with_details:
       details = {
-        'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs}
+        'slam_outputs': {o.id: o.to_dict() for o in self.ci_batch.slam_outputs}
       }
     else:
       details = {}
@@ -221,40 +128,17 @@ class CiCommit(Base):
       'authored_datetime': self.authored_datetime.isoformat(),
       'authored_date': self.authored_date.isoformat(),
       'commit_dir_url': str(self.commit_dir_url),
-      'time_of_last_slam_job': self.time_of_last_slam_job.isoformat(),
+      'batches': [{'id': :b.id} for b in self.batches],
+      'time_of_last_batch': self.time_of_last_batch.isoformat(),
 
-      'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
-      'valid_slam_outputs': [o.recording.path for o in self.valid_slam_outputs],
-      'pending_slam_outputs': [o.recording.path for o in self.pending_slam_outputs],
-      'failed_slam_outputs': [o.recording.path for o in self.failed_slam_outputs],
+      'aggregated_metrics': {k:v for k,v in self.ci_batch.aggregated_metrics().items() if v==v}, # => is not NaN
+      'valid_slam_outputs': [o.recording.path for o in self.ci_batch.valid_slam_outputs],
+      'pending_slam_outputs': [o.recording.path for o in self.ci_batch.pending_slam_outputs],
+      'failed_slam_outputs': [o.recording.path for o in self.ci_batch.failed_slam_outputs],
       **details,
     }
 
 
-# this is so ugly, it should be refactored into sql
-def aggregated_metrics(slam_outputs):
-    aggregated = {
-        'pc_where_lost_at_least_once': np.mean([m.nb_lost>0 for m in slam_outputs if m.nb_lost]),
-        'total_time_lost_pc_mean': np.mean([m.total_time_lost_pc for m in slam_outputs if m.total_time_lost_pc]),
-    }
-    # metric_name, threshold_good 
-    metrics_to_aggregate = [
-      ('translation_rmse', 0.01),
-      ('translation_aape', 0.01),
-      ('translation_drift_pc', 0.01),
-      ('rotation_mean', 1.5),
-      ('rotation_mean_when_good', 1.5),
-      ('translation_aape_when_good', 0.01),
-      ('frac_tracking_state_good', .99),
-      # ('compute_time_vs_realtime', 1), # FIXME: it's not an attribute so the call will fail
-    ]
-    for metric, treshold in metrics_to_aggregate:
-      values = np.array([getattr(o, metric) for o in slam_outputs if (hasattr(o, metric) and getattr(o, metric))])
-      aggregated[f'{metric}_median'] = np.median(values)
-      aggregated[f'{metric}_average']= np.average(values)
-      aggregated[f'{metric}_pc_bad'] = np.mean(values<treshold)
-      aggregated[f'{metric}_threshold_bad'] = treshold
-    return aggregated
 
 
 
@@ -268,7 +152,7 @@ def latest_successful_commit(branch='origin/develop'):
     ci_commits = CiCommit.query.filter(CiCommit.id.in_(commit_ids)).order_by(CiCommit.authored_datetime.desc())
     # ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(20).offset(page*20)
     # likely we fetched the outputs before so it should be fast
-    ci_commits = [c for c in ci_commits if len(c.slam_outputs)>10]
+    ci_commits = [c for c in ci_commits if len(c.ci_batch.slam_outputs)>10]
     if ci_commits:
       return ci_commits[0]  
     page = page + 1
@@ -285,7 +169,7 @@ def parent_successful_commit(ci_commit):
       parent_ci_commit = CiCommit.query.filter(CiCommit.id==parent_id).one()
     except:
       continue
-    if parent_ci_commit.slam_outputs>10:
+    if parent_ci_commit.ci_batch.slam_outputs>10:
       return parent_ci_commit
 
 

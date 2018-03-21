@@ -10,7 +10,7 @@ import re
 import json
 from pathlib import Path
 
-from .CiCommit import CiCommit, aggregated_metrics
+from .Batch import aggregated_metrics
 from .SlamOutput import SlamOutput, remap_metrics
 from ..utils import filter_slam_outputs
 
@@ -36,8 +36,14 @@ class LocalRecording():
     """The path without .bin"""
     return self.path[:-4]
 
+  @property
+  def filename(self):
+    """The path without .bin"""
+    return self.path.split('/')[-1]
+
+
 class LocalSlamOutput():
-  def __init__(self, recording, platform, configuration, ci_commit):
+  def __init__(self, recording, platform, configuration, batch):
     self.id = str(recording.path)
     self.recording = recording
     self.recording_id = 0
@@ -45,9 +51,9 @@ class LocalSlamOutput():
     self.configuration = configuration
     self.is_pending = False
     self.is_failed = False
-    self.ci_commit = ci_commit
-    self.ci_commit_id = 0
-    self.parameters_set_id = 0
+    self.batch = batch
+    self.batch_id = 0
+    self.parameters = {}
 
   def update_metrics_from_file(self, filepath):
     """Updates the metrics from a file"""
@@ -64,7 +70,7 @@ class LocalSlamOutput():
 
   @property
   def output_dir_url(self):
-    return self.ci_commit.commit_dir_url / 'output' / self.platform / self.configuration / self.recording.output_folder
+    return self.batch.output_dir_url / self.platform / self.configuration / self.recording.output_folder
 
   def to_dict(self):
     # return {}
@@ -74,6 +80,60 @@ class LocalSlamOutput():
       'output_dir_url': str(self.output_dir_url),
       'recording_path': str(self.recording.path),
     }
+
+class LocalBatch():
+  def __init__(self, ci_commit, label='default'):
+    self.ci_commit = ci_commit
+    self.ci_commit_id = 0
+    self.label = label
+
+  def discover_slam_outputs(self):
+    self.slam_outputs = []
+    output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
+    for output_dir in output_dirs:
+      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
+      rel_recording_path = Path(*rel_recording_path)
+      rel_recording_path = f'{rel_recording_path}.bin'
+      recording = LocalRecording(rel_recording_path)
+      slam_output = LocalSlamOutput(
+        recording=recording,
+        platform=platform,
+        configuration=configuration,
+        batch=self,
+      )
+      slam_output.update_metrics_from_file(output_dir/'metrics.json')
+      self.slam_outputs.append(slam_output)
+
+  @property
+  def valid_slam_outputs(self):
+    return [o for o in self.slam_outputs if not o.is_failed and not o.is_pending]
+
+  @property
+  def pending_slam_outputs(self):
+    return [o for o in self.slam_outputs if o.is_pending]
+
+  @property
+  def failed_slam_outputs(self):
+    return [o for o in self.slam_outputs if o.is_failed]
+
+
+  def failures_count(self):
+      """Returns an estimate of the number of failed runs"""
+      return len([o for o in self.slam_outputs if o.is_failed])
+
+  def aggregated_metrics(self, filename_filter='', filename_exclude=''):
+      return aggregated_metrics(filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude))
+
+  def metrics(self, metric, outputs=None):
+      """Returns a list of results - for a chosen metric - over the commit's outputs.
+      The optionnal `outputs` parameter makes it almost like a static method. It helps with scope issues in the templates.
+      """
+      if not outputs:
+        outputs = self.slam_outputs
+      return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
+
+
+
 
 id_parser = re.compile(r'^(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2})__local__(?P<author>[A-Za-z0-9]*)(?:__(?P<message>.*))*')
 
@@ -102,7 +162,7 @@ class LocalCommit():
     matches = id_parser.match(str(self.id)).groupdict()
     time = matches['time']
     self.authored_datetime = datetime.datetime.strptime(time, '%Y-%m-%d_%H-%M-%S')
-    self.time_of_last_slam_job = self.authored_datetime
+    self.time_of_last_batch = self.authored_datetime
     self.branch = f"{matches['author']}'s LOCAL COMMIT"
     self.gitcommit = LocalGitCommit(
       hexsha = str(self.id),
@@ -111,25 +171,10 @@ class LocalCommit():
       authored_datetime = self.authored_datetime,
     )
     self.committer_name = matches['author']
-    self.discover_slam_outputs()
-    self.latest_gitlab_pipeline = ''
 
-  def discover_slam_outputs(self):
-    self.slam_outputs = []
-    output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
-    for output_dir in output_dirs:
-      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
-      rel_recording_path = Path(*rel_recording_path)
-      rel_recording_path = f'{rel_recording_path}.bin'
-      recording = LocalRecording(rel_recording_path)
-      slam_output = LocalSlamOutput(
-        recording=recording,
-        platform=platform,
-        configuration=configuration,
-        ci_commit=self,
-      )
-      slam_output.update_metrics_from_file(output_dir/'metrics.json')
-      self.slam_outputs.append(slam_output)
+    self.ci_batch = LocalBatch(self, 'default')
+    self.ci_batch.discover_slam_outputs()
+    self.latest_gitlab_pipeline = ''
 
   @property
   def commit_dir_url(self):
@@ -161,22 +206,14 @@ class LocalCommit():
       'authored_datetime': self.authored_datetime.isoformat(),
       'authored_date': self.authored_date.isoformat(),
       'commit_dir_url': str(self.commit_dir_url),
-      'time_of_last_slam_job': self.time_of_last_slam_job.isoformat(),
+      'time_of_last_batch': self.time_of_last_batch.isoformat(),
 
-      'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
-      'valid_slam_outputs': [o.recording.path for o in self.valid_slam_outputs],
-      'pending_slam_outputs': [o.recording.path for o in self.pending_slam_outputs],
-      'failed_slam_outputs': [o.recording.path for o in self.failed_slam_outputs],
+      'aggregated_metrics': {k:v for k,v in self.ci_batch.aggregated_metrics().items() if v==v}, # => is not NaN
+      'valid_slam_outputs': [o.recording.path for o in self.ci_batch.valid_slam_outputs],
+      'pending_slam_outputs': [o.recording.path for o in self.ci_batch.pending_slam_outputs],
+      'failed_slam_outputs': [o.recording.path for o in self.ci_batch.failed_slam_outputs],
       **details,
     }
-
-
-
-
-
-  #############################################################################
-  # Straight from CiCommit - maybe we should inherit...
-  #############################################################################
 
   @property
   def output_dir(self):
@@ -187,32 +224,4 @@ class LocalCommit():
   @property
   def authored_date(self):
     return self.authored_datetime.date()
-
-  @property
-  def valid_slam_outputs(self):
-    return [o for o in self.slam_outputs if not o.is_failed and not o.is_pending]
-
-  @property
-  def pending_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_pending]
-
-  @property
-  def failed_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_failed]
-
-
-  def failures_count(self):
-      """Returns an estimate of the number of failed runs"""
-      return len([o for o in self.slam_outputs if o.is_failed])
-
-  def aggregated_metrics(self, filename_filter='', filename_exclude=''):
-      return aggregated_metrics(filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude))
-
-  def metrics(self, metric, outputs=None):
-      """Returns a list of results - for a chosen metric - over the commit's outputs.
-      The optionnal `outputs` parameter makes it almost like a static method. It helps with scope issues in the templates.
-      """
-      if not outputs:
-        outputs = self.slam_outputs
-      return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 

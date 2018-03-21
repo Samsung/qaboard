@@ -7,8 +7,7 @@ from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 
 from slamvizapp import app, db_session
-from slamvizapp.models import Recording
-from slamvizapp.models import CiCommit, ParametersSet, SlamOutput
+from slamvizapp.models import Recording, CiCommit, Batch, SlamOutput, Parameters
 
 admin = Admin(app, name='slamvizapp',
               template_mode='bootstrap3',
@@ -42,5 +41,6 @@ class RecordingModelView(ModelView):
 
 admin.add_view(RecordingModelView(Recording, db_session))
 admin.add_view(ModelView(CiCommit, db_session))
-admin.add_view(ModelView(ParametersSet, db_session))
-admin.add_view(ModelView(SlamOutput, db_session))
+# admin.add_view(ModelView(SlamOutput, db_session))
+admin.add_view(ModelView(Batch, db_session))
+admin.add_view(ModelView(Parameters, db_session))

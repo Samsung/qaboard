@@ -19,6 +19,7 @@ def print_summary():
   session = Session()
   print(f'total Recordings: {session.query(Recording).count()}')
   print(f'total CiCommits: {session.query(CiCommit).count()}')
+  print(f'total Batches: {session.query(Batch).count()}')
   print(f'total SlamOutputs: {session.query(SlamOutput).count()}')
 
 
@@ -29,13 +30,15 @@ def print_summary():
 @click.option('--verbose', is_flag=True)
 def init_database(drop_all, loop, sleep, verbose):
   if drop_all:
+    # for tbl in reversed(Base.metadata.sorted_tables):
+    # engine.execute(tbl.delete())
     if verbose: print('dropping all data')
-    Base.metadata.drop_all(engine)
+    # Base.metadata.drop_all(engine)
   if verbose: print('creating schema...')
   Base.metadata.create_all(engine)
-  # this is optionnal as Recordings will be created as needed when importing CiCommits
+  # Recordings will be created already when importing CiCommits
   # init_recordings()
-  init_cicommits()
+  init_cicommits(verbose=verbose)
   print_summary()
 
   while loop:
@@ -101,10 +104,12 @@ def init_cicommits(verbose=False):
     session.add(ci_commit)
     session.commit()
 
-    # could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_slam_job < datetime.timedelta(hours=3)
-    # if could_be_pending_results or not ci_commit.slam_outputs:
-    if not ci_commit.slam_outputs or ci_commit.failed_slam_outputs or ci_commit.pending_slam_outputs:
-      ci_commit.discover_slam_outputs(session)
-      if verbose or ci_commit.pending_slam_outputs: print(ci_commit)
-      session.add(ci_commit)
+    ci_batch = ci_commit.ci_batch
+    # could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_batch < datetime.timedelta(hours=3)
+    # if could_be_pending_results or not ci_batch.slam_outputs:
+    if not ci_batch.slam_outputs or ci_batch.failed_slam_outputs or ci_batch.pending_slam_outputs:
+      ci_batch.discover_slam_outputs(session)
+      if verbose or ci_batch.pending_slam_outputs: print(ci_commit)
+      session.add(ci_batch)
       session.commit()
+    if verbose: print(ci_commit)

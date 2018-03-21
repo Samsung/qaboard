@@ -8,43 +8,47 @@ Describes an output from a SLAM run:
 - quality metrics: drift, RMSE, AAPE...
 - what assets are available (debug movies...)
 """
+import datetime
+import hashlib
 import json
 
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import and_, Integer, String, Float, Boolean #, Enum
+from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
+from sqlalchemy import cast, type_coerce
 
-from slamvizapp.models import Base#, Platform
-
+from slamvizapp.models import Base, Batch
 
 
 class SlamOutput(Base):
   __tablename__ = 'slam_outputs'
   id = Column(Integer, primary_key=True)
-
-  # We could do something like
-  #   metrics = Column(JSON)
-  # But we want stuff like sorting etc.. and we know the metrics in advance
+  created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
   # What we ran
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
   recording = relationship("Recording", back_populates="slam_outputs")
   trajectory_length  = Column(Float()) # it's not normalized to store it here but..
 
-  ci_commit_id = Column(String(), ForeignKey('ci_commits.id'))
-  ci_commit = relationship("CiCommit", back_populates="slam_outputs")
+  batch_id = Column(Integer(), ForeignKey('batches.id'))
+  batch = relationship("Batch", back_populates="slam_outputs")
 
   # How we ran
-  configuration = Column(String()) # mono/stereo/serial/whatever
-  parameters_set_id = Column(String(), ForeignKey('parameters_sets.id'))
-  parameters_set = relationship("ParametersSet", back_populates="slam_outputs")
+  recording_id = Column(Integer(), ForeignKey('recordings.id'))
+  recording = relationship("Recording", back_populates="slam_outputs")
 
-  platform = Column(String())
+  platform = Column(String()) # lsf/s8/...
+  # SLAM runs use params.json, $configuration.json, and the extra parameters for tuning
+  configuration = Column(String()) # mono/stereo/serial/...
+  # If we ever want to re-import outputs,
+  # we will need to save the association parameters<->hash
+  extra_parameters = Column(JSON(), default={})
 
   # How good we ran
   is_failed  = Column(Boolean(), default=False)
   is_pending  = Column(Boolean(), default=False)
+  # We could imaging stuffing all the columns below into a JSON column named metrics
   latency  = Column(Float(), default=None) # 1x = realtime
   computation_time  = Column(Float(), default=None) # 1x = realtime
   duration = Column(Float(), default=None) # [seconds] Redundant, but...
@@ -112,14 +116,19 @@ class SlamOutput(Base):
 
   @property
   def output_dir_url(self):
-    return self.ci_commit.commit_dir_url / 'output' / self.platform / self.configuration / self.recording.output_folder
+    if self.batch.label!='default':
+      parameters_s = json.dumps(parameters, sort_keys=True)
+      parameters = hashlib.md5(parameters_s).hexdigest()
+    else:
+      parameters = ''
+    return self.batch.output_dir_url / parameters / self.platform / self.configuration / self.recording.output_folder
 
 
   def __repr__(self):
-    return f"<SlamOutput(ci_commit_id='{self.ci_commit_id}' path={self.recording.path} platform={self.platform} config={self.configuration}"
+    return f"<SlamOutput(ci_commit_id='{self.batch.ci_commit_id}' batch='{self.batch.label}' platform='{self.platform}' config='{self.configuration}' filename='{self.recording.filename}'"
 
   def to_dict(self):
-    as_dict = {c.name:getattr(self, c.name) for c in SlamOutput.metadata.tables['slam_outputs'].columns}
+    as_dict = {c.name:getattr(self, c.name) for c in Base.metadata.tables['slam_outputs'].columns}
     return {
       **as_dict,
       'output_dir_url': str(self.output_dir_url),
@@ -128,24 +137,24 @@ class SlamOutput(Base):
 
   @staticmethod
   def get_or_create(session, **kwargs):
-    # print(kwargs['recording'].id, kwargs['platform'], kwargs['configuration'], kwargs['default_parameters_set'].id, kwargs['ci_commit'].id)
+    extra_parameters_JSON = type_coerce(kwargs['extra_parameters'], JSON)
     try:
       return session.query(SlamOutput).filter(
         and_(
+          SlamOutput.batch_id == kwargs['batch'].id,
           SlamOutput.recording_id==kwargs['recording'].id,
           SlamOutput.platform==kwargs['platform'],
           SlamOutput.configuration==kwargs['configuration'],
-          SlamOutput.parameters_set_id == kwargs['parameters_set'].id,
-          SlamOutput.ci_commit_id == kwargs['ci_commit'].id,
+          cast(SlamOutput.extra_parameters, String) == extra_parameters_JSON,
         )
       ).one()
     except NoResultFound:
       slam_output = SlamOutput(
+        batch = kwargs['batch'],
         recording=kwargs['recording'],
         platform=kwargs['platform'],
         configuration=kwargs['configuration'],
-        parameters_set = kwargs['parameters_set'],
-        ci_commit = kwargs['ci_commit'],
+        extra_parameters = kwargs['extra_parameters'],
       )
       session.add(slam_output)
       session.commit()
@@ -156,19 +165,19 @@ class SlamOutput(Base):
       # this should not happen. Quick and dirty fix:
       slam_output = session.query(SlamOutput).filter(
         and_(
+          SlamOutput.batch_id == kwargs['batch'].id,
           SlamOutput.recording_id==kwargs['recording'].id,
           SlamOutput.platform==kwargs['platform'],
           SlamOutput.configuration==kwargs['configuration'],
-          SlamOutput.parameters_set_id == kwargs['parameters_set'].id,
-          SlamOutput.ci_commit_id == kwargs['ci_commit'].id,
+          cast(SlamOutput.extra_parameters, String) == extra_parameters_JSON,
         )
       ).delete()
       slam_output = SlamOutput(
+        batch = kwargs['batch'],
         recording=kwargs['recording'],
         platform=kwargs['platform'],
         configuration=kwargs['configuration'],
-        parameters_set = kwargs['parameters_set'],
-        ci_commit = kwargs['ci_commit'],
+        extra_parameters = kwargs['extra_parameters'],
       )
       session.add(slam_output)
       session.commit()
@@ -182,7 +191,7 @@ def remap_metrics(metrics):
   # We remove attributes our model doesn't know.
   # There should be a better way to do this...
   columns = set(c.name for c in Base.metadata.tables['slam_outputs'].columns)
-  relationships = set(['recording', 'ci_commit', 'parameters_set'])
+  relationships = set(['recording', 'batch', 'parameters_set'])
   columns = columns | relationships
 
   remapped_names = {

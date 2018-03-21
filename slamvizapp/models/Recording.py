@@ -41,6 +41,12 @@ class Recording(Base):
     """The path without .bin"""
     return self.path[:-4]
 
+  @property
+  def filename(self):
+    """The path without .bin"""
+    return self.path.split('/')[-1]
+
+
 
   ### HOW we recorded #########
    # we could store the sensorID...
