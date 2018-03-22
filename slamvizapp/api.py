@@ -1,18 +1,18 @@
 # we expose a simple REST API
 # https://flask-restless.readthedocs.io/en/stable/customizing.html
 # for now we don't use it, but it could be convenient
-import json
 import datetime
 import subprocess
 from gitdb.exc import BadName
 
 from flask import request, jsonify
+from sqlalchemy.orm.exc import NoResultFound
 # from flask_restless import APIManager
 # from flask_restless.serialization import DefaultSerializer
 
 from slamvizapp import app, repo, db_session
-from .models import CiCommit, SlamOutput, Recording, Parameters
-from .models.LocalCommit import LocalCommit 
+from .models import CiCommit
+from .models.LocalMocks import LocalCommit
 from .models import latest_successful_commit
 
 from .utils import get_users_per_name
@@ -25,12 +25,12 @@ def get_groups():
     return f.read()
 
 
-@app.route("/api/v1/commit/<hexsha>", methods=['POST'])
-@app.route("/api/v1/commit/<hexsha>", methods=['POST'])
-def new_recordings(hexsha):
+@app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
+@app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
+def add_batch(hexsha):
   try:
     commit = repo.commit(hexsha)
-    ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+    ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
   except NoResultFound:
     return jsonify("Sorry, the commit id was not found"), 404
 
@@ -43,16 +43,26 @@ def new_recordings(hexsha):
     ci_commit.time_of_last_batch = datetime.datetime.now().astimezone()
     db_session.add(ci_commit)
     db_session.commit()
-    overwrite = '--overwrite' if data['overwrite']=='on' else ''
-    cmd = ' '.join([  
-      f'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
-      f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
-      f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
-      f'python tools/performance-evaluation/run.py batch --batchfile {str(recording_groups_filepath)} --batch {data["selected_group"]} {overwrite} --no_wait"'
+    overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
+    cmd = ' '.join([
+        'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi',
+        '"',
+        f'cd {ci_directory}/branches/develop/psp_swip;',
+        f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
+        f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
+        'python tools/performance-evaluation/run.py batch',
+        f'--batchfile {recording_groups_filepath}',
+        f'--batch {data["selected_group"]}',
+        # => expanded in run.py, with different queues, submitted wide first
+        f'--extra_parameters {s}'
+        f'{overwrite}',
+        f'--no_wait'
+        '"',
     ])
     print(cmd)
+    # we could bsub the submission :)
     subprocess.run(cmd, shell=True, encoding='utf-8')
-    return(jsonify(cmd))
+    return jsonify(cmd)
   return jsonify('OK')
 
 
@@ -65,13 +75,22 @@ def get_commits(branch=None):
 
   if not branch:
     if committer_name is None:
-      ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
+      ci_commits = CiCommit.query\
+        .order_by(CiCommit.authored_datetime.desc())\
+        .limit(max_count)\
+        .offset(page*max_count)
     else:
-      ci_commits = CiCommit.query.filter_by(committer_name=committer_name).order_by(CiCommit.authored_datetime.desc()).limit(max_count).offset(page*max_count)
+      ci_commits = CiCommit.query\
+        .filter_by(committer_name=committer_name)\
+        .order_by(CiCommit.authored_datetime.desc())\
+        .limit(max_count)\
+        .offset(page*max_count)
   else:
     commits = repo.iter_commits(branch, max_count=max_count, skip=max_count*page)
     commit_ids = [c.hexsha for c in commits]
-    ci_commits = CiCommit.query.filter(CiCommit.id.in_(commit_ids)).order_by(CiCommit.authored_datetime.desc())
+    ci_commits = CiCommit.query\
+      .filter(CiCommit.id.in_(commit_ids))\
+      .order_by(CiCommit.authored_datetime.desc())
 
   users_db = get_users_per_name("")
   return jsonify([c.to_dict(users_db=users_db) for c in ci_commits])
@@ -84,18 +103,18 @@ def list_branches():
 
 @app.route("/api/v1/commit")
 @app.route("/api/v1/commit/")
-@app.route("/api/v1/commit/<path:id>")
-def get_ci_commit(id=None):
-  if not id:
+@app.route("/api/v1/commit/<path:commit_id>")
+def get_ci_commit(commit_id=None):
+  if not commit_id:
     ci_commit = latest_successful_commit('origin/develop')
   else:
     try: # we try a commit from git
-      commit = repo.commit(id)
-      ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
+      commit = repo.commit(commit_id)
+      ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
     except BadName:
-      ci_commit = LocalCommit(id)
+      ci_commit = LocalCommit(commit_id)
       try:
-        ci_commit = LocalCommit(id)
+        ci_commit = LocalCommit(commit_id)
       except:
         return jsonify({'error': 'Sorry, we could not find the commit folder.'}), 404
     except NoResultFound:
@@ -119,7 +138,7 @@ def get_ci_commit(id=None):
 
  # https://flask-restless.readthedocs.io/en/latest/serialization.html
 # class CiCommitSerializer(DefaultSerializer):
-#   def serialize(self): 
+#   def serialize(self):
 #     return {
 #       'id': self.id,
 #       'branch': self.branch,
@@ -131,8 +150,6 @@ def get_ci_commit(id=None):
 #       'failure_count': self.failure_count(),
 #       'valid_slam_outputs': [o.id for o in self.valid_slam_outputs],
 #     }
-
-# @app.route("/commits_json")
 
 
 # manager.create_api(CiCommit,

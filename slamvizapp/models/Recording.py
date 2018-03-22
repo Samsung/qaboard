@@ -14,10 +14,10 @@ from slamvizapp.models import Base
 
 
 class Axis(enum.Enum):
-    mixed = 0
-    x = 1
-    y = 2
-    z = 3
+  mixed = 0
+  x = 1
+  y = 2
+  z = 3
 
 
 class Recording(Base):
@@ -27,12 +27,11 @@ class Recording(Base):
   # Relative to the root of the database folder
   path = Column(String(), index=True, unique=True)
 
-  cascade="all, delete, delete-orphan"
   slam_outputs = relationship("SlamOutput", back_populates="recording",
-    # If we delete a recording, the corresponding outputs are kept,
-    # and their recording_id is set to NULL.
-    # To change this behaviour, uncomment
-    # cascade="all, delete, delete-orphan"
+                              # If we delete a recording, the corresponding outputs are kept,
+                              # and their recording_id is set to NULL.
+                              # To change this behaviour, uncomment
+                              # cascade="all, delete, delete-orphan"
   )
 
 

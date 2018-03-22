@@ -5,7 +5,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from slamvizapp import app, repo, db_session
 from .models import CiCommit, SlamOutput, Recording
 from .git_utils import git_pull
-from .config import *
+# from .config import *
 
 
 @app.route('/webhook/slam_output', methods=['POST'])
@@ -25,16 +25,20 @@ def new_slam_output_webhook():
   if not recording: return "KO", 404
 
   slam_output = SlamOutput.get_or_create(db_session,
-    recording=recording,
-    ci_commit=ci_commit,
-    platform=request.form['platform'],
-    configuration=request.form['configuration'],
-    parameters_set=ci_commit.default_parameters_set,
-  )
+                                         recording=recording,
+                                         ci_commit=ci_commit,
+                                         platform=request.form['platform'],
+                                         configuration=request.form['configuration'],
+                                         parameters_set=ci_commit.default_parameters_set,
+                                        )
   if request.form.get('is_pending', False):
     slam_output.is_pending = True
   else:
-    metrics_filepath = ci_commit.output_dir / request.form['platform'] / request.form['configuration'] / recording.output_folder / 'metrics.json'
+    metrics_filepath = ci_commit.output_dir\
+      / request.form['platform']\
+      / request.form['configuration']\
+      / recording.output_folder\
+      / 'metrics.json'
     slam_output.update_metrics_from_file(metrics_filepath)
 
   db_session.add(slam_output)
@@ -62,10 +66,9 @@ def gitlab_webhook():
 
     try: # the commit might have failed (eg no params.json available)
       ci_commit = CiCommit(
-        commit,
-        branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
-        project='dvs/psp_swip',
-        session=db_session
+          commit,
+          branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
+          project='dvs/psp_swip',
       )
       print(ci_commit)
     except ValueError:
@@ -76,5 +79,3 @@ def gitlab_webhook():
   db_session.add(ci_commit)
   db_session.commit()
   return "{status:'OK'}"
-
-

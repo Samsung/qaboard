@@ -7,18 +7,19 @@ from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 
 from slamvizapp import app, db_session
-from slamvizapp.models import Recording, CiCommit, Batch, SlamOutput, Parameters
+from slamvizapp.models import Recording, CiCommit, Batch, Parameters #, SlamOutput 
 
 admin = Admin(app, name='slamvizapp',
               template_mode='bootstrap3',
               # index_view=ModelView(Recording, db_session),
               endpoint='admin',
-)
+             )
 
 
 # we don't want to display those
 one_to_many_columns = ['slam_outputs',]
-editable_columns = set(c.name for c in Recording.metadata.tables['recordings'].columns) - set(['path'])
+editable_columns = set(c.name for c in Recording.metadata.tables['recordings'].columns
+                      ) - set(['path'])
 
 class RecordingModelView(ModelView):
   page_size = 50

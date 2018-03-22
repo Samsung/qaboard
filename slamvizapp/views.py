@@ -11,7 +11,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repo, db_session
 from .models import CiCommit
-from .models.LocalCommit import LocalCommit 
+from .models.LocalMocks import LocalCommit 
 from .models import latest_successful_commit
 from .utils import get_users_per_name, filter_slam_outputs, palette
 from .config import *

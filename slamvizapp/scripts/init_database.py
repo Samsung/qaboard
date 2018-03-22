@@ -2,16 +2,16 @@
 """
 Initializes or updates the database using information from the filesystem.
 """
-import datetime
-import click
 import time
+
+import click
 from git.exc import BadName
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import repo
 from slamvizapp.database import engine, Session
-from slamvizapp.models import *
-from slamvizapp.config import *
+from slamvizapp.models import Base, CiCommit, Recording
+from slamvizapp.config import default_recordings_directory
 
 
 
@@ -54,7 +54,7 @@ def init_recordings():
   """
   session = Session()
   for absolute_path in default_recordings_directory.rglob('*bin'):
-    path= str(absolute_path.relative_to(default_recordings_directory))
+    path = str(absolute_path.relative_to(default_recordings_directory))
 
     # it's a complete re-import, so I guess we should just drop the table...
     session.query(Recording).filter_by(path=path).delete()
@@ -93,10 +93,10 @@ def init_cicommits(verbose=False):
       ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
     except NoResultFound:
       try: # the commit might have failed (eg no params.json available)
-        ci_commit = CiCommit(commit, session=session)
+        ci_commit = CiCommit(commit)
       except ValueError:
-          print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
-          continue
+        print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
+        continue
       if ci_commit is None: # something is wrong, maybe an error opening param.json
         print('[InitDatabase] WARNING: ci_commit is None')
         continue

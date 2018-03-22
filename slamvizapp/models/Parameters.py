@@ -4,8 +4,7 @@ Describes the parameters used to run the SLAM (params.json)
 import json
 import hashlib
 
-from sqlalchemy.orm import relationship
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy import Column
 from sqlalchemy import String, JSON
 
 from slamvizapp.models import Base
@@ -22,13 +21,12 @@ class Parameters(Base):
   def to_dict(self):
     return self.parameters
 
-  def __init__(self, parameters_text=None, parameters_file=None):
+  def __init__(self, parameters):
     """Constructor with a pathlib Path to the parameters.
     Expect this to fail with FileNotFoundError!
     """
     parameters_s = json.dumps(parameters, sort_keys=True)
-    self.id = hashlib.md5(parameters_s).hexdigest()      
+    self.id = hashlib.md5(parameters_s).hexdigest()
 
   def __repr__(self):
-    # n_parameters={len(self.default_parameters)}
-    return f"<ParameterSet(id='{self.id}'>"
+    return f"<Parameter(id='{self.id}'>"
