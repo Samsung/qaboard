@@ -1,9 +1,7 @@
 """
-Hacky-soon-to-be-removed version of CiCommit that lets you display the content of a folder.
-It's 
-- slow
-- not integrate into the database
-- missing lots of good date
+Hacky-soon-to-be-removed version of our models that lets us
+display results computed outside of the CI.
+It's slow, not integrated into the database, missing some data, but it does the job.
 """
 import datetime
 import re
