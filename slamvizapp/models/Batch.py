@@ -102,6 +102,25 @@ class Batch(Base):
         outputs = self.slam_outputs
       return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
+  def to_dict(self, with_details=False):
+    if with_details:
+      details = {
+        'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs},
+      }
+    else:
+      details = {}
+    return {
+      'id': self.id,
+      'commit_id': self.ci_commit_id,
+      'label': self.label,
+      'created_date': self.created_date.isoformat(),
+
+      'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
+      'valid_slam_outputs': len(self.valid_slam_outputs),
+      'pending_slam_outputs': len(self.pending_slam_outputs),
+      'failed_slam_outputs': len(self.failed_slam_outputs),
+      **details,
+    }
 
   def __repr__(self):
     return f"<Batch(commmit='{self.ci_commit.id}' label='{self.label}' slam_outputs={len(self.slam_outputs)}>"

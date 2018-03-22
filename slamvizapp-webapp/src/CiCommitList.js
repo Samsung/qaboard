@@ -77,24 +77,25 @@ class CommitResults extends React.Component {
   render() {
     const {commit} = this.props;
     const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
-    if (commit.failed_slam_outputs.length===0 && commit.valid_slam_outputs.length === 0 && commit.pending_slam_outputs.length === 0)
+    if (commit.failed_slam_outputs===0 && commit.valid_slam_outputs===0 && commit.pending_slam_outputs===0)
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
+    let ci_batch = commit.batches[0];
     let status_messages = (
       <Fragment>
-         {commit.pending_slam_outputs.length>0 &&
-            <Tag className="pt-minimal">{commit.pending_slam_outputs.length} pending...</Tag>}
-         {commit.failed_slam_outputs.length>0 &&
-            <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{commit.failed_slam_outputs.length} crashed</Button></a>}
-         {commit.valid_slam_outputs.length>0 && commit.aggregated_metrics.translation_rmse_median>0 &&
+         {ci_batch.pending_slam_outputs>0 &&
+            <Tag className="pt-minimal">{ci_batch.pending_slam_outputs} pending...</Tag>}
+         {ci_batch.failed_slam_outputs>0 &&
+            <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_slam_outputs} crashed</Button></a>}
+         {ci_batch.valid_slam_outputs>0 && ci_batch.aggregated_metrics.translation_rmse_median>0 &&
             <Fragment>
-              <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(100*commit.aggregated_metrics.translation_aape_median)}cm</strong> median </Tag>
-              <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(100*commit.aggregated_metrics.translation_aape_average)}cm</strong> avg AAPE</Tag>
+              <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_aape_median)}cm</strong> median </Tag>
+              <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_aape_average)}cm</strong> avg AAPE</Tag>
               <Tooltip modifiers>
                 <Tag style={{marginTop:'3px'}} className="pt-minimal pt-round">...</Tag>
                 <ul>
-                { Object.entries(commit.aggregated_metrics).map( ([k,v]) =>
+                { Object.entries(ci_batch.aggregated_metrics).map( ([k,v]) =>
                   <li key={k}><strong>{k}:</strong> {formatter.format(v)}</li>
                 )}
                 </ul>
@@ -106,9 +107,9 @@ class CommitResults extends React.Component {
     return (
       <div>
       {status_messages}
-      {commit.valid_slam_outputs.length>0 &&
+      {ci_batch.valid_slam_outputs>0 &&
           <Link style={{marginLeft: '10px'}} to={`/commit/${commit.id}`}>
-            <Button intent={Intent.SUCCESS} text={`${commit.valid_slam_outputs.length} results`}/>
+            <Button intent={Intent.SUCCESS} text={`${ci_batch.valid_slam_outputs} results`}/>
           </Link>
       }
       </div>

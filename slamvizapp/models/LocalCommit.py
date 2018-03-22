@@ -55,6 +55,14 @@ class LocalSlamOutput():
     self.batch_id = 0
     self.parameters = {}
 
+  @property
+  def output_dir(self):
+    return self.batch.output_dir / self.platform / self.configuration / self.recording.output_folder
+
+  @property
+  def output_dir_url(self):
+    return self.batch.output_dir_url / self.platform / self.configuration / self.recording.output_folder
+
   def update_metrics_from_file(self, filepath):
     """Updates the metrics from a file"""
     try:
@@ -68,10 +76,6 @@ class LocalSlamOutput():
       setattr(self, m, metrics[m]) 
     self.is_pending = False
 
-  @property
-  def output_dir_url(self):
-    return self.batch.output_dir_url / self.platform / self.configuration / self.recording.output_folder
-
   def to_dict(self):
     # return {}
     as_dict = {c.name:getattr(self, c.name) for c in SlamOutput.metadata.tables['slam_outputs'].columns if hasattr(self, c.name)}
@@ -82,10 +86,20 @@ class LocalSlamOutput():
     }
 
 class LocalBatch():
-  def __init__(self, ci_commit, label='default'):
+  def __init__(self, ci_commit, label='default', created_date=datetime.datetime.now()):
     self.ci_commit = ci_commit
     self.ci_commit_id = 0
+    self.id = 0
     self.label = label
+    self.created_date = created_date
+
+  @property
+  def output_dir(self):
+    return self.ci_commit.commit_dir / 'output'
+
+  @property
+  def output_dir_url(self):
+    return self.ci_commit.commit_dir_url / 'output'
 
   def discover_slam_outputs(self):
     self.slam_outputs = []
@@ -103,6 +117,25 @@ class LocalBatch():
       )
       slam_output.update_metrics_from_file(output_dir/'metrics.json')
       self.slam_outputs.append(slam_output)
+
+  def to_dict(self, with_details=False):
+    if with_details:
+      details = {
+        'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs},
+      }
+    else:
+      details = {}
+    return {
+      'id': self.id,
+      'commit_id': self.ci_commit_id,
+      'label': self.label,
+      'created_date': self.created_date.isoformat(),
+      'aggregated_metrics': {k:v for k,v in self.aggregated_metrics().items() if v==v}, # => is not NaN
+      'valid_slam_outputs': len(self.valid_slam_outputs),
+      'pending_slam_outputs': len(self.pending_slam_outputs),
+      'failed_slam_outputs': len(self.failed_slam_outputs),
+      **details,
+    }
 
   @property
   def valid_slam_outputs(self):
@@ -172,8 +205,8 @@ class LocalCommit():
     )
     self.committer_name = matches['author']
 
-    self.ci_batch = LocalBatch(self, 'default')
-    self.ci_batch.discover_slam_outputs()
+    self.batches = [LocalBatch(self, 'default', self.authored_datetime)]
+    self.batches[0].discover_slam_outputs()
     self.latest_gitlab_pipeline = ''
 
   @property
@@ -188,13 +221,6 @@ class LocalCommit():
       name = self.gitcommit.committer['name']
       if name in users_db:
         committer_avatar_url= users_db[name]['avatar_url']
-    if with_details:
-      print({o.id: o.to_dict() for o in self.slam_outputs})
-      details = {
-        'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs}
-      }
-    else:
-      details = {}
     return {
       'id': self.id,
       'branch': self.branch,
@@ -207,19 +233,8 @@ class LocalCommit():
       'authored_date': self.authored_date.isoformat(),
       'commit_dir_url': str(self.commit_dir_url),
       'time_of_last_batch': self.time_of_last_batch.isoformat(),
-
-      'aggregated_metrics': {k:v for k,v in self.ci_batch.aggregated_metrics().items() if v==v}, # => is not NaN
-      'valid_slam_outputs': [o.recording.path for o in self.ci_batch.valid_slam_outputs],
-      'pending_slam_outputs': [o.recording.path for o in self.ci_batch.pending_slam_outputs],
-      'failed_slam_outputs': [o.recording.path for o in self.ci_batch.failed_slam_outputs],
-      **details,
+      'batches': [b.to_dict(with_details=with_details) for b in self.batches],
     }
-
-  @property
-  def output_dir(self):
-    """Returns the folder where outputs are stored"""
-    return self.commit_dir / 'output'
-
 
   @property
   def authored_date(self):

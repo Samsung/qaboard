@@ -27,10 +27,8 @@ const QualityCell = ({metric, output}) => {
 }
 
 
-const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
+const OutputTable = ({ new_batch, ref_batch, output_sort, compare_cross_runtype }) => {
   const displayed_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc'];
-
-
   return (
   <Fragment>
     <Section>
@@ -51,13 +49,13 @@ const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
         </tr>
       </thead>
       <tbody>
-      {Object.entries(new_commit.slam_outputs)
+      {Object.entries(new_batch.slam_outputs)
              .sort(output_sort)
              .map( ([id, output]) => {
-          let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
+          let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
                                            .filter(o => o.recording_path===output.recording_path)
-                                           .filter(o => o.platform===output.platform)
-                                           .filter(o => o.configuration===output.configuration)
+                                           .filter(o => o.platform===output.platform || compare_cross_runtype)
+                                           .filter(o => o.configuration===output.configuration || compare_cross_runtype)
           let output_ref = matching_ref_outputs[0];
           return (
             <tr key={id}>
@@ -92,10 +90,10 @@ const OutputTable = ({ new_commit, ref_commit, output_sort }) => {
         </tr>
       </thead>
       <tbody>
-      {Object.entries(new_commit.slam_outputs)
+      {Object.entries(new_batch.slam_outputs)
              .sort(this.sortOutputs)
              .map( ([id, output]) => {
-          let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
+          let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
                                            .filter(o => o.recording_path===output.recording_path)
                                            .filter(o => o.platform===output.platform)
                                            .filter(o => o.configuration===output.configuration)

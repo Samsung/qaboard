@@ -136,24 +136,35 @@ const HistogramComparaison = ({new_values, ref_values, metric}) => {
 }
 
 
+const run_type = output => `${output.recording_path}-${output.platform}-${output.configuration}`;
+
+const average = array => {
+  return array.reduce( (a,b) => (a+b) , 0) / array.length;
+}
+const pc_under_threshold = (array, threshold) => {
+  return array.filter( x => x<=threshold).length / array.length;
+}
+const pc_over_threshold = (array, threshold) => {
+  return array.filter( x => x>=threshold).length / array.length;
+}
+
 class MetricsSummary extends Component {
   render() {
-    const { new_commit, ref_commit } = this.props;
-
-    const average = array => {
-      return array.reduce( (a,b) => (a+b) , 0) / array.length;
+    const { new_batch, ref_batch, compare_cross_runtype } = this.props;
+    let slam_outputs_new = Object.values(new_batch.slam_outputs);
+    if (!compare_cross_runtype) {
+      var run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
+      var slam_outputs_ref = Object.values(ref_batch.slam_outputs)
+                                   .filter(o => run_types_new.has(run_type(o)));
+    } else {
+      run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
+      slam_outputs_ref = Object.values(ref_batch.slam_outputs)
+                                   .filter(o => run_types_new.has(o.recording_path));
     }
-    const pc_under_threshold = (array, threshold) => {
-      return array.filter( x => x<=threshold).length / array.length;
-    }
-    const pc_over_threshold = (array, threshold) => {
-      return array.filter( x => x>=threshold).length / array.length;
-    }
-
     return <div>
       {Object.entries(available_metrics).map(([key, m]) => {
-          let new_values = Object.values(new_commit.slam_outputs).map(o=>o[m.key]).filter(x => x);
-          let ref_values = Object.values(ref_commit.slam_outputs).map(o=>o[m.key]).filter(x => x);
+          let new_values = slam_outputs_new.map(o=>o[m.key]).filter(x => x);
+          let ref_values = slam_outputs_ref.map(o=>o[m.key]).filter(x => x);
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
           let new_pc_good = m.smaller_is_better? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)
@@ -179,7 +190,7 @@ class MetricsSummary extends Component {
           return (
             <MetricRow key={m.key}>
               <MetricTile>
-               <h3>{metric_formatter.format(m.scale*new_avg)}{m.suffix}</h3>
+               <h3>{metric_formatter.format(m.scale*new_avg)}{m.suffix}<span style={{color: '#ccc'}}> avg</span></h3>
                <h5>{m.label}</h5>
                <p className="pt-text-muted">{percent_formatter.format(100*new_pc_good)}% { m.smaller_is_better? 'under': 'over'} {metric_formatter.format(m.scale*m.threshold)}{m.suffix}</p>
               </MetricTile>

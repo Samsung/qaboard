@@ -15,7 +15,6 @@ from slamvizapp.models import Base, Batch
 from ..git_utils import find_branch
 from ..config import *
 
-
 class CiCommit(Base):
   """Refers to a git commit of the code on which we ran some SLAM performance test (likely in the CI).
   We keep some useful data in the database, but for the rest it used gitpython.
@@ -28,22 +27,22 @@ class CiCommit(Base):
   committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True))
 
-
   batches = relationship("Batch", order_by=Batch.created_date, back_populates="ci_commit")
-  # what we care about for quality summaries
-  # ci_batch_id = Column(Integer(), ForeignKey('batches.id'))
-  # ci_batch = relationship("Batch", foreign_keys=[ci_batch_id])
-  # we hope it's the first built :)
+
+  def get_or_create_batch(self, label):
+    matching_batches = [b for b in self.batches if b.label==label]
+    if matching_batches: return matching_batches[0]
+    return Batch(ci_commit=self, label=label)
+
   @property
   def ci_batch(self):
-    if self.batches: return self.batches[0]
-    return Batch(ci_commit=self, label='default')
+    return self.get_or_create_batch('default')
 
   # this helps us understand if we expect pending SLAM results
   time_of_last_batch = Column(DateTime(timezone=True))
 
   latest_gitlab_pipeline = Column(String())
-  # failed = Column(Boolean) # build failure or else...
+  # pipeline_failed = Column(Boolean)
 
 
   @property
@@ -71,7 +70,7 @@ class CiCommit(Base):
     self.id = commit.hexsha
     if branch:
       self.branch = branch
-    else: # this is a wild guess..
+    else: # a commit belong to many branches, so this is a guess..
       self.branch = find_branch(self.gitcommit.hexsha)
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_batch = commit.authored_datetime
@@ -111,31 +110,19 @@ class CiCommit(Base):
         committer_avatar_url= users_db[name]['avatar_url']
       elif name.replace('.','') in users_db:
         committer_avatar_url= users_db[name.replace('.','')]['avatar_url']        
-    if with_details:
-      details = {
-        'slam_outputs': {o.id: o.to_dict() for o in self.ci_batch.slam_outputs}
-      }
-    else:
-      details = {}
     return {
       'id': self.id,
-      'branch': self.branch,
       'type': 'git',
-      'message': self.gitcommit.message,
+      'branch': self.branch,
       'parents': [p.hexsha for p in self.gitcommit.parents],
+      'message': self.gitcommit.message,
       'committer_name': self.gitcommit.committer.name,
       'committer_avatar_url': committer_avatar_url,
       'authored_datetime': self.authored_datetime.isoformat(),
       'authored_date': self.authored_date.isoformat(),
       'commit_dir_url': str(self.commit_dir_url),
-      'batches': [{'id': :b.id} for b in self.batches],
+      'batches': [b.to_dict(with_details=with_details) for b in self.batches],
       'time_of_last_batch': self.time_of_last_batch.isoformat(),
-
-      'aggregated_metrics': {k:v for k,v in self.ci_batch.aggregated_metrics().items() if v==v}, # => is not NaN
-      'valid_slam_outputs': [o.recording.path for o in self.ci_batch.valid_slam_outputs],
-      'pending_slam_outputs': [o.recording.path for o in self.ci_batch.pending_slam_outputs],
-      'failed_slam_outputs': [o.recording.path for o in self.ci_batch.failed_slam_outputs],
-      **details,
     }
 
 
@@ -150,11 +137,8 @@ def latest_successful_commit(branch='origin/develop'):
     commits = repo.iter_commits(branch, max_count=20, skip=20*page)
     commit_ids = [c.hexsha for c in commits]
     ci_commits = CiCommit.query.filter(CiCommit.id.in_(commit_ids)).order_by(CiCommit.authored_datetime.desc())
-    # ci_commits = CiCommit.query.order_by(CiCommit.authored_datetime.desc()).limit(20).offset(page*20)
-    # likely we fetched the outputs before so it should be fast
-    ci_commits = [c for c in ci_commits if len(c.ci_batch.slam_outputs)>10]
-    if ci_commits:
-      return ci_commits[0]  
+    ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.slam_outputs)>10]
+    if ci_commits_successful: return ci_commits_successful[0]
     page = page + 1
 
 

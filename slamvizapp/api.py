@@ -11,21 +11,23 @@ from flask import request, jsonify
 # from flask_restless.serialization import DefaultSerializer
 
 from slamvizapp import app, repo, db_session
-from .models import CiCommit, SlamOutput, Recording, ParametersSet
+from .models import CiCommit, SlamOutput, Recording, Parameters
 from .models.LocalCommit import LocalCommit 
 from .models import latest_successful_commit
 
 from .utils import get_users_per_name
-from .config import batches_filepath, ci_directory
+from .config import recording_groups_filepath, ci_directory
 
-@app.route("/api/v1/batches")
-def get_batches():
-  with batches_filepath.open() as f:
+
+@app.route("/api/v1/recordings/groups")
+def get_groups():
+  with recording_groups_filepath.open() as f:
     return f.read()
 
-@app.route("/api/v1/batch/<hexsha>/", methods=['POST'])
-@app.route("/api/v1/batch/<hexsha>", methods=['POST'])
-def new_batches(hexsha):
+
+@app.route("/api/v1/commit/<hexsha>", methods=['POST'])
+@app.route("/api/v1/commit/<hexsha>", methods=['POST'])
+def new_recordings(hexsha):
   try:
     commit = repo.commit(hexsha)
     ci_commit = CiCommit.query.filter(CiCommit.id==commit.hexsha).one()
@@ -33,22 +35,20 @@ def new_batches(hexsha):
     return jsonify("Sorry, the commit id was not found"), 404
 
   data = request.get_json()
+  if data['groups']:
+    with recording_groups_filepath.open('w') as f:
+      f.write(data['groups'])
 
-  if data['batches']:
-    with batches_filepath.open('w') as f:
-      f.write(data['batches'])
-
-  ci_commit.time_of_last_slam_job = datetime.datetime.now().astimezone()
-  db_session.add(ci_commit)
-  db_session.commit()
-
-  if data['selected_batch']:
+  if data['selected_group']:
+    ci_commit.time_of_last_batch = datetime.datetime.now().astimezone()
+    db_session.add(ci_commit)
+    db_session.commit()
     overwrite = '--overwrite' if data['overwrite']=='on' else ''
     cmd = ' '.join([  
       f'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi "cd {ci_directory}/branches/develop/psp_swip;',
       f'setenv SAMSUNG_CI_COMMIT_DIR \'{ci_commit.commit_dir}\';',
       f'setenv CI_COMMIT_SHA \'{ci_commit.gitcommit.hexsha}\';',
-      f'python tools/performance-evaluation/run.py batch --batchfile {str(batches_filepath)} --batch {data["selected_batch"]} {overwrite} --no_wait"'
+      f'python tools/performance-evaluation/run.py batch --batchfile {str(recording_groups_filepath)} --batch {data["selected_group"]} {overwrite} --no_wait"'
     ])
     print(cmd)
     subprocess.run(cmd, shell=True, encoding='utf-8')

@@ -37,24 +37,24 @@ class AddRecordings extends Component {
     this.state = {
       isLoaded: true,
       error: null,
-      batches: null,
+      groups: null,
 
       submitted: false,
       overwrite: false,
-      selected_batch: null,
+      selected_group: null,
     };
   }
 
   componentDidMount() {
-    this.getBatches()
+    this.getGroups()
   }
 
-  getBatches() {
-   get('/api/v1/batches')
+  getGroups() {
+   get('/api/v1/recordings/groups')
     .then(response => {
       this.setState({
         isLoaded: true,
-        batches: response.data,
+        groups: response.data,
       })
     })
     .catch( error => {
@@ -62,15 +62,15 @@ class AddRecordings extends Component {
     })
   }
 
-  updateBatches = newBatches => {this.setState({batches: newBatches})}
+  updateGroups = newGroups => {this.setState({groups: newGroups})}
   updateOverwrite = e => {this.setState({overwrite: e.target.checked? 'on' : 'off'})}
-  updateSelectedBatch = e => {this.setState({selected_batch: e.target.value})}
+  updateSelectedGroup = e => {this.setState({selected_group: e.target.value})}
   onSubmit = e => {
-    const { selected_batch, overwrite, batches } = this.state;
+    const { selected_group, overwrite, groups } = this.state;
     this.setState({submitted: true})
     OurToaster.show({ message: "The request was sent!", intent: Intent.PRIMARY});
-    post(`/api/v1/batch/${this.props.commit.id}`, {
-      selected_batch, batches, overwrite,
+    post(`/api/v1/commit/${this.props.commit.id}`, {
+      selected_group, groups, overwrite, batch_label: 'default',
     })
     .then(response => {
       this.setState({submitted: false})
@@ -98,7 +98,7 @@ class AddRecordings extends Component {
   }
 
   render() {
-    const { isLoaded, error, batches } = this.state;
+    const { isLoaded, error, groups } = this.state;
     if (!isLoaded)
       return <Spinner />
     if (error)
@@ -106,13 +106,13 @@ class AddRecordings extends Component {
     return (
     <form onSubmit={this.onSubmit}>
       <div className="pt-form-group pt-inline">
-        <label className="pt-label" htmlFor="selected-batch">
-          Requested Batch
+        <label className="pt-label" htmlFor="selected-group">
+          Requested Group
           <span className="pt-text-muted">(optionnal)</span>
         </label>
         <div className="pt-form-content">
-          <input onChange={this.updateSelectedBatch} id="selected-batch" className="pt-input" style={{width: '300px'}} placeholder="Go_around_set" type="text" dir="auto" />
-          <div className="pt-form-helper-text">Select a batch name from the list below:</div>
+          <input onChange={this.updateSelectedGroup} id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Go_around_set" type="text" dir="auto" />
+          <div className="pt-form-helper-text">Select a group of recordings from the list below:</div>
         </div>
         <label className="pt-label" htmlFor="overwrite-old-outputs"></label>
         <div className="pt-form-content">
@@ -132,10 +132,10 @@ class AddRecordings extends Component {
       <AceEditor
         mode="yaml"
         theme="github"
-        onChange={this.updateBatches}
+        onChange={this.updateGroups}
         width='100%'
-        name="batches"
-        value={batches || ''}
+        name="groups"
+        value={groups || ''}
         editorProps={{$blockScrolling: true}}
         setOptions={{
           tabSize: 2,
@@ -154,23 +154,23 @@ class Tuning extends Component {
       submitted: false,
       clear_experiment: false,
       experiment_name: null,
-      selected_batch: null,
+      selected_group: null,
       tuning_set: `{\n  \n}\n`,
     };
   }
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value})};
   updateClear = e => {this.setState({clear_experiment: !this.state.clear_experiment})};
-  updateSelectedBatch = e => {this.setState({selected_batch: e.target.value})};
+  updateSelectedGroup = e => {this.setState({selected_group: e.target.value})};
   updateTuningSet = new_tuning_set => {this.setState({tuning_set: new_tuning_set})};
 
   onSubmit = e => {
-    const { experiment_name, selected_batch, clear_experiment, tuning_set} = this.state;
-    console.log(experiment_name, selected_batch, clear_experiment, tuning_set)
+    const { experiment_name, selected_group, clear_experiment, tuning_set} = this.state;
+    console.log(experiment_name, selected_group, clear_experiment, tuning_set)
     // this.setState({submitted: true})
     // OurToaster.show({ message: "The experiment was sent!", intent: Intent.PRIMARY});
-    // post(`/api/v1/experiment/${this.props.commit.id}`, {
-    //   selected_batch, new_tuning_set, clear_experiment,
+    // post(`/api/v1/commit/${this.props.commit.id}`, {
+    //   selected_group, new_tuning_set, clear_experiment, batch_label: 'default',
     // })
     // .then(response => {
     //   this.setState({submitted: false})
@@ -197,12 +197,12 @@ class Tuning extends Component {
       </FormGroup>
 
       <FormGroup
-          helperText="Choose a small batch if you want results quickly."
-          label="Selected batch"
-          labelFor="selected-batch"
+          helperText="Choose a small group of recordings if you want results quickly."
+          label="Selected group"
+          labelFor="selected-group"
           requiredLabel={true}
       >
-          <input id="selected-batch" className="pt-input" style={{width: '300px'}} placeholder="small" onChange={this.updateSelectedBatch}  type="text" dir="auto" />
+          <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="small" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
       </FormGroup>
 
       <FormGroup
@@ -505,22 +505,23 @@ class CiCommitResults extends Component {
     }
   }
 
-  filter_commit = commit => {
+  filter_batch = batch => {
     if (this.state.filter_values.length===0 && this.state.filter_input.length===0)
-      return commit;
-    let commit_filtered = Object.create(commit)
-    commit_filtered.slam_outputs = {}
-    Object.entries(commit.slam_outputs).forEach( ([id, output])=> {
-      let searched = `${output.recording_path} ${output.platform} ${output.configuration}`
+      return batch;
+    let batch_filtered = Object.create(batch)
+    batch_filtered.slam_outputs = {}
+    Object.entries(batch.slam_outputs).forEach( ([id, output])=> {
+      let searched = `${output.recording_path} ${output.platform} ${output.configuration}`.toLowerCase()
       for (var i in this.state.filter_values) {
-        if (!searched.includes(this.state.filter_values[i])) {
+        let search = this.state.filter_values[i].toLowerCase();
+        if (!searched.includes(search)) {
           return;
         }    
       }
       if (!searched.includes(this.state.filter_input)) return;
-      commit_filtered.slam_outputs[id] = output;      
+      batch_filtered.slam_outputs[id] = output;      
     });
-    return commit_filtered;
+    return batch_filtered;
   }
 
   selectSortBy = e => {
@@ -603,7 +604,7 @@ class CiCommitResults extends Component {
 
     let status_messages = (
       <Section>
-       {new_commit.pending_slam_outputs.length>0 &&
+       {new_commit.pending_slam_outputs>0 &&
           <Callout
             iconName="info-sign"
             intent={Intent.WARNING}
@@ -614,13 +615,13 @@ class CiCommitResults extends Component {
               </Tooltip>
           }>
           </Callout>}
-       {new_commit.failed_slam_outputs.length>0 &&
+       {new_commit.failed_slam_outputs>0 &&
           <Callout
             iconName="error"
             intent={Intent.DANGER}
             title={
               <Tooltip>
-                <span>{new_commit.failed_slam_outputs.length} crashed in this commit</span>
+                <span>{new_commit.failed_slam_outputs} crashed in this commit</span>
                 <ul>{new_commit.failed_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
               </Tooltip>
             }>
@@ -630,20 +631,22 @@ class CiCommitResults extends Component {
       </Section>
     );
 
-    let new_commit_filtered = this.filter_commit(new_commit)
-    let ref_commit_filtered = this.filter_commit(ref_commit)
+    let new_batch_filtered = this.filter_batch(new_commit.batches[0])
+    let ref_batch_filtered = this.filter_batch(ref_commit.batches[0])
+
+    let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
     var result = (
       <Container>
         {warning_messages}
-        <CommitCompareCard new_commit={new_commit_filtered} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
+        <CommitCompareCard new_commit={new_commit} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
         {status_messages}
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
         <Section>
           <Card elevation={2}>
           <Tabs id="tabs-summary">
-              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_commit={new_commit_filtered} ref_commit={ref_commit_filtered} />} />
+              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} compare_cross_runtype={compare_cross_runtype} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
               <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordings commit={new_commit} />} />
@@ -660,8 +663,9 @@ class CiCommitResults extends Component {
               panel={
                 <OutputTable
                   output_sort={this.sortOutputs}
-                  new_commit={new_commit_filtered}
-                  ref_commit={ref_commit_filtered}
+                  new_batch={new_batch_filtered}
+                  ref_batch={ref_batch_filtered}
+                  compare_cross_runtype={compare_cross_runtype}
                 />}
               />
             <Tab
@@ -670,10 +674,11 @@ class CiCommitResults extends Component {
               panel={
                 <OutputList
                   output_sort={this.sortOutputs}
-                  new_commit={new_commit_filtered}
-                  ref_commit={ref_commit_filtered}
+                  new_batch={new_batch_filtered}
+                  ref_batch={ref_batch_filtered}
                   showVideos={this.state.showVideos}
                   show3d={this.state.show3d}
+                  compare_cross_runtype={compare_cross_runtype}
                 />}
               />
             <Tabs.Expander />
@@ -716,8 +721,10 @@ class CiCommitResults extends Component {
 }
 
 
-const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => (
-  <Section>
+const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
+  let new_ci_batch = new_commit.batches[0];
+  let ref_ci_batch = ref_commit.batches[0];
+  return <Section>
     <Card elevation={4}>
       <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <div style={{flex:'1 1 auto'}}>
@@ -725,39 +732,38 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => (
             <Icon iconName='git-commit'/> {new_commit.parents.length>1 ? 'parents' : 'parent'}: {new_commit.parents.map(p => <Button key={p} onClick={e=>{console.log(p); onConfirmReference(p)}} className="pt-minimal">{p.substring(0,8)}</Button>)}
             <Link to={`/branch/${new_commit.branch}`}><Button className="pt-minimal" iconName="git-branch">{new_commit.branch}</Button></Link>
             <br/>
-            <DoneAtTag commit={new_commit} /> <Tag>{new_commit.valid_slam_outputs.length} outputs</Tag> {new_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{new_commit.failed_slam_outputs.length} crashed</Tag>} {new_commit.pending_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{new_commit.pending_slam_outputs.length} pending</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
+            <DoneAtTag commit={new_commit} /> <Tag>{new_ci_batch.valid_slam_outputs} outputs</Tag> {new_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{new_ci_batch.failed_slam_outputs} crashed</Tag>} {new_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{new_ci_batch.pending_slam_outputs} pending</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
             <p style={{marginTop: '10px', maxWidth:'450px'}} className="pt-monospace-text">{new_commit.message}</p>
           </div>
         <div><Icon iconName="small-cross"></Icon></div>
         <div style={{flex:'1 1 auto'}}>
             <h1 style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline'}}><EditableText style={{flex: '1 1 auto', margin:'auto', borderBottom: '2px solid rgb(100,100,100)'}} onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /><Avatar href={`/committer/${ref_commit.committer_name}`} alt={ref_commit.committer_name} src={ref_commit.committer_avatar_url} /></h1>
             <span style={{display: 'flex', justifyContent: 'flex-end'}}><Link to={`/branch/${ref_commit.branch}`}><Button style={{flex: '1 1 auto', margin:'auto'}} className="pt-minimal" iconName="git-branch">{ref_commit.branch}</Button></Link></span>
-            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_commit.valid_slam_outputs.length} outputs</Tag> {ref_commit.failed_slam_outputs.length>0 && <Tag intent={Intent.DANGER}>{ref_commit.failed_slam_outputs.length} crashed</Tag>} {ref_commit.pending_slam_outputs.length>0 && <Tag intent={Intent.WARNING}>{ref_commit.pending_slam_outputs.length} pending</Tag>} <Tag>Reference</Tag></div>
+            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_ci_batch.valid_slam_outputs} outputs</Tag> {ref_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{ref_ci_batch.failed_slam_outputs} crashed</Tag>} {ref_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{ref_ci_batch.pending_slam_outputs} pending</Tag>} <Tag>Reference</Tag></div>
             <p style={{display: 'flex', justifyContent: 'flex-end', textAlign: 'right', marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
         </div>
       </div>
     </Card>
   </Section>
-)
+}
 
 class OutputList extends React.Component {
   render() {
-    const {new_commit, ref_commit, output_sort, showVideos, show3d} = this.props;
+    const {new_batch, ref_batch, output_sort, showVideos, show3d, compare_cross_runtype } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
-    const overwrite_filters = new_commit.type==='local' && ref_commit.type==='git';
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return <Fragment>
             <div style={{display:'flex', justifyContent: 'space-between', flexFlow: 'row wrap'}}>
-              {Object.entries(new_commit.slam_outputs)
+              {Object.entries(new_batch.slam_outputs)
                      .sort(output_sort)
                      .map( ([id, output]) => {
                         // we need to find a matching output - by path name for now...
                         // ideally we'd split the list of outputs by recording name and not id, 
                         // and display lsf/s8 curves serparately,,,
-                        let matching_ref_outputs = Object.values(ref_commit.slam_outputs)
+                        let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
                           .filter(o => o.recording_path===output.recording_path)
-                          .filter(o => o.platform===output.platform || overwrite_filters)
-                          .filter(o => o.configuration===output.configuration || overwrite_filters)
+                          .filter(o => o.platform===output.platform || compare_cross_runtype)
+                          .filter(o => o.configuration===output.configuration || compare_cross_runtype)
                         let output_ref = matching_ref_outputs[0];
                         return <OutputCard
                           key={id}
