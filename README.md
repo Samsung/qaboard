@@ -38,8 +38,6 @@ docker volume create slamvizapp-postgresql-lib
     * and the results obtained...
   - `/api.py`: exposes the data through a minimal API
 
-  - `/templates/*`: HTML templates that describe how content is to be displayed.
-  - `views.py`: [deprecated] Renders templates displaying our data.
 
 * `slamvizapp-webapp`: web application that consumes this API to display results.
   - previously all the frontend was done server-side through html templates (`flask`+`jinja`)
