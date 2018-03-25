@@ -97,8 +97,10 @@ class SlamOutput(Base):
     kwargs = remap_metrics(kwargs)
     super(SlamOutput, self).__init__(**kwargs)
 
-  def update_metrics_from_file(self, filepath):
+  def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""
+    if not filepath:
+      filepath = self.output_dir / 'metrics.json'
     try:
       with filepath.open() as f:
         metrics = json.load(f)
@@ -113,16 +115,21 @@ class SlamOutput(Base):
 
 
   @property
-  def output_dir_url(self):
+  def output_folder(self):
     if self.batch.label != 'default':
       parameters_s = json.dumps(self.extra_parameters, sort_keys=True)
-      parameters_folder = hashlib.md5(parameters_s).hexdigest()
+      parameters_folder = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_folder = ''
-    return self.batch.output_dir_url \
-           / parameters_folder / self.platform / self.configuration \
-           / self.recording.output_folder
+    return self.platform / self.configuration / parameters_folder / self.recording.output_folder
 
+  @property
+  def output_dir(self):
+    return self.batch.output_dir / self.output_folder
+
+  @property
+  def output_dir_url(self):
+    return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):
     return f"<SlamOutput \

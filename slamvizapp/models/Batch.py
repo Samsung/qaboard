@@ -67,7 +67,7 @@ class Batch(Base):
                                              configuration=configuration,
                                              extra_parameters={},
                                             )
-      slam_output.update_metrics_from_file(output_dir/'metrics.json')
+      slam_output.update_metrics(output_dir/'metrics.json')
       session.add(slam_output)
       session.commit()
 
@@ -163,3 +163,4 @@ def slugify(s):
   s_slugified = s
   for c in ' /': # baaaaad
     s_slugified = s_slugified.replace(c, '-')
+  return s_slugified

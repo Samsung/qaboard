@@ -65,7 +65,7 @@ class LocalSlamOutput():
   def output_dir_url(self):
     return self.batch.output_dir_url / self.foldername
 
-  def update_metrics_from_file(self, filepath):
+  def update_metrics(self, filepath):
     """Updates the metrics from a file"""
     try:
       with filepath.open() as f:
@@ -120,7 +120,7 @@ class LocalBatch():
           configuration=configuration,
           batch=self,
       )
-      slam_output.update_metrics_from_file(output_dir/'metrics.json')
+      slam_output.update_metrics(output_dir/'metrics.json')
       self.slam_outputs.append(slam_output)
 
   def to_dict(self, with_details=False):
