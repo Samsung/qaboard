@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # todo: https://docs.docker.com/compose/overview/
 set -ev
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 
 echo 'starting'
 
@@ -40,7 +42,7 @@ cd /slamvizapp && /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamviza
 # fi
 
 while sleep 1800; do
-	slamvizapp_clean
+  slamvizapp_clean
 done
 
 # quid: check access permissions
