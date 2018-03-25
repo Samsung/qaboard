@@ -17,24 +17,26 @@ DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/PTAM_Results:/net/f2/algo_archiv
 # --volume=/home/arthurf/ci/dvs:/home/arthurf/ci/dvs
 
 
-if [ -z ${CI_ENVIRONMENT+x} ]; then
-  echo "[Error] \$CI_ENVIRONMENT is not defined."; exit
+if [ -z ${CI_ENVIRONMENT_SLUG+x} ]; then
+  echo "[Error] \$CI_ENVIRONMENT_SLUG is not defined."; exit
 else
-	if [ $CI_ENVIRONMENT = "production" ]; then
+	DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
 		#                 frontend               debug            database     https-frontend
 		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
 	else
-		if [ $CI_ENVIRONMENT = "staging" ]; then
-		  PORTS="-p0.0.0.0:6000:5000 -p0.0.0.0:6002:5002 -p0.0.0.0:6001:443"			
+		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
+		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"			
 		else
 			PORTS=""
-			DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT
-			DOCKER_VOLUMES+=" --volume=slamvizapp:/var/slamvizapp"
+			# or we could yse a dummy port and change the host's nginx config to point to the correct port..
+			# DOCKER_VOLUMES+=" --volume=slamvizapp:/var/slamvizapp"
 			# this would replace using port 5000, but we need to update some nginx configurations before it works... 
-			# --volume=/tmp/slamvizapp/slamvizapp-$CI_ENVIRONMENT.sock:/slamvizapp/socks/slamvizapp.sock
+			# --volume=/tmp/slamvizapp/slamvizapp-$CI_ENVIRONMENT_SLUG.sock:/slamvizapp/socks/slamvizapp.sock
   	fi
 	fi
 fi
+
 
 
 if [ -z ${SSH_PASSPHRASE+x} ]; then
@@ -43,7 +45,7 @@ else
   DOCKER_SSH_PASSPHRASE="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
 fi
 
-if [ -z ${GITHUB_ACCESS_TOKEN+x} ]; then
+if [ -z ${GITLAB_ACCESS_TOKEN+x} ]; then
   echo "[Error] \$GITLAB_ACCESS_TOKEN is not defined: create one at http://gitlab-srv/profile/personal_access_tokens"; exit
 else
   DOCKER_GITLAB_ACCESS_TOKEN="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
@@ -53,14 +55,19 @@ fi
 # Git clone configuration
 DOCKER_VOLUMES+=" --volume=slamvizapp:/var/slamvizapp"
 # Database configuration
-DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-$CI_ENVIRONMENT:/etc/postgresql"
-DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT:/var/log/postgresql"
-DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT:/var/lib/postgresql"
+DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
+DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
+DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
 
 # Custom configuration
-# DOCKER_VOLUMES+=" --volume=$HOME/.zshrc:/root/.zshrc"
-# DOCKER_VOLUMES+=" --volume=$HOME/.oh-my-zsh:/root/.oh-my-zsh"
-# DOCKER_VOLUMES+=" --volume=$HOME/.zsh_history:/root/.zsh_history"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zshrc:/root/.zshrc"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.oh-my-zsh:/root/.oh-my-zsh"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zsh_history:/root/.zsh_history"
+if [ -z ${SLAMVIZAPP_DEBUG_WITH_MOUNTS+x} ]; then
+	echo 'reading source from container'
+else
+	DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
+fi
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/init.sh:/slamvizapp/deployment/init.sh"
 
 # Networking:
@@ -76,6 +83,6 @@ POLICY="--restart always --detach"
 # -i interactive
 # -t pseudo tty
 
-command="docker run --name slamvizapp-$CI_ENVIRONMENT $POLICY $DOCKER_VOLUMES $DOCKER_SSH_PASSPHRASE $DOCKER_GITLAB_ACCESS_TOKEN $PORTS $DOCKER_IMAGE ${@}"
+command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG $POLICY $DOCKER_VOLUMES $DOCKER_SSH_PASSPHRASE $DOCKER_GITLAB_ACCESS_TOKEN $PORTS $DOCKER_IMAGE ${@}"
 echo $command
 exec $command
