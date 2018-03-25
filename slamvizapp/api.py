@@ -46,21 +46,23 @@ def add_batch(hexsha):
     overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
     cmd = ' '.join([
         'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi',
+        # add bsub somewhere here to return quickly without waiting for finished submission
         '"',
         f'cd {ci_directory}/branches/develop/psp_swip;',
         f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
         f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
-        'python tools/performance-evaluation/run.py batch',
-        f'--batchfile {recording_groups_filepath}',
-        f'--batch {data["selected_group"]}',
-        # => expanded in run.py, with different queues, submitted wide first
-        f'--extra_parameters {s}'
+        'python tools/performance-evaluation/run.py',
+        f'--platform {data["platform"]}',
+        f'--configuration {data["configuration"]}',
+        'batch',
+        f'--recording-groups-file {recording_groups_filepath}',
+        f'--recording-groups {data["selected_group"]}',
+        f'--tuning-search "{json.dumps(data["tuning_search"])}"'
         f'{overwrite}',
-        f'--no_wait'
+        f'--no-wait'
         '"',
     ])
     print(cmd)
-    # we could bsub the submission :)
     subprocess.run(cmd, shell=True, encoding='utf-8')
     return jsonify(cmd)
   return jsonify('OK')
