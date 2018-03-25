@@ -1,4 +1,4 @@
-image: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+image: gitlab-srv.transchip.com:4567/dvs/slamvizapp
 
 variables:
   DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
@@ -26,9 +26,11 @@ test-frontend:
 deploy_staging:
   stage: deploy
   script:
-    - docker build -t gitlab-srv:4567/dvs/slamresultsvizapp:staging . && docker push gitlab-srv:4567/dvs/slamresultsvizapp:staging
-    - ssh planet31 docker pull gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp:staging
-    - ssh planet31 'docker stop slamvizapp-staging && docker rm slamvizapp && ./deployment/start-docker.sh'
+    - ssh gpu09-dt "docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 zsh --login -c "docker stop "slamvizapp-$CI_ENVIRONMENT_SLUG\"" || true
+    - ssh planet31 zsh --login -c "docker rm "slamvizapp-$CI_ENVIRONMENT_SLUG\"" || true
+    - ssh planet31 zsh --login -c "CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh"
   environment:
     name: staging
     url: http://dvs:6000
@@ -38,9 +40,11 @@ deploy_staging:
 deploy_production:
   stage: deploy
   script:
-    - docker build -t gitlab-srv:4567/dvs/slamresultsvizapp . && docker push gitlab-srv:4567/dvs/slamresultsvizapp
-    - ssh planet31 docker pull gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
-    - ssh planet31 'docker stop slamvizapp && docker rm slamvizapp && ./deployment/start-docker.sh'
+    - ssh gpu09-dt "docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 "zsh --login -c \"docker stop \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
+    - ssh planet31 "zsh --login -c \"docker rm \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
+    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: production
     url: http://dvs:5000
