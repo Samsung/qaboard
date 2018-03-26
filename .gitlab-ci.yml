@@ -15,7 +15,7 @@ before_script:
       $SSH_LSF "mkdir -p $SAMSUNG_CI_BRANCH_DIR"
       export TRY_CLONE="git clone --depth=10 -b $CI_COMMIT_REF_NAME git@gitlab-srv:dvs/slamvizapp.git"
       export TRY_PULL="cd slamvizapp && git fetch origin --depth=10 $CI_COMMIT_REF_NAME && git reset --hard HEAD"
-      cmd="$SSH_LSF zsh --login -c 'cd $SAMSUNG_CI_BRANCH_DIR; $TRY_CLONE || $TRY_PULL; git checkout $CI_COMMIT_SHA'"
+      cmd="cd $SAMSUNG_CI_BRANCH_DIR; $TRY_CLONE || $TRY_PULL; git checkout $CI_COMMIT_SHA"
       echo '> ' $cmd;
       eval $cmd;
     }
@@ -46,8 +46,8 @@ deploy_staging:
     - update_lsf
     - ssh gpu09-dt "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh planet31 "zsh --login -c \"docker stop \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
-    - ssh planet31 "zsh --login -c \"docker rm \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: staging
@@ -61,8 +61,8 @@ deploy_production:
     - update_lsf
     - ssh gpu09-dt "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh planet31 "zsh --login -c \"docker stop \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
-    - ssh planet31 "zsh --login -c \"docker rm \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: production
