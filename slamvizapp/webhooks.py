@@ -9,9 +9,9 @@ from .git_utils import git_pull
 
 @app.route('/webhook/slam_output', methods=['POST'])
 def new_slam_output_webhook():
-  print(request.json)
-  if request.json['job_type'] != 'ci': # we do nothing for now with local runs
-    print(request.json['output_directory'])
+  data = request.get_json()
+  if data['job_type'] != 'ci': # we do nothing for now with local runs
+    print(data['output_directory'])
     return "OK"
 
   hexsha = request.json['git_commit_sha']
@@ -20,15 +20,16 @@ def new_slam_output_webhook():
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
-  recording = Recording.get_or_create(db_session, path=request.json['recording_path'])
+  recording = Recording.get_or_create(db_session, path=data['recording_path'])
   if not recording: return "KO", 404
 
+  batch = ci_commit.get_or_create_batch(data['batch_label'])
   slam_output = SlamOutput.get_or_create(db_session,
+                                         batch=batch,
+                                         platform=data['platform'],
+                                         configuration=data['configuration'],
+                                         extra_parameters=json.load(data['extra_parameters']),
                                          recording=recording,
-                                         ci_commit=ci_commit,
-                                         platform=request.json['platform'],
-                                         configuration=request.json['configuration'],
-                                         extra_parameters=json.load(request.json['extra_parameters']),
                                         )
   if request.json.get('is_pending', False):
     slam_output.is_pending = True
