@@ -1,7 +1,7 @@
 image: gitlab-srv.transchip.com:4567/dvs/slamvizapp
 
 variables:
-  DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+  DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamvizapp
     
 before_script:
   # Our CI needs to access the LSF cluster. We do it via SSH
