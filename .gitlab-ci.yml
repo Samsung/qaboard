@@ -13,7 +13,7 @@ before_script:
   # clone/fetch and checkout the commit on LSF
   - >
     function update_lsf() {
-      cmd="$SSH_LSF \"mkdir -p $SAMSUNG_CI_BRANCH_DIR; cd $SAMSUNG_CI_BRANCH_DIR; git clone --depth=10 -b '$CI_COMMIT_REF_NAME' git@gitlab-srv:dvs/slamvizapp.git || (cd slamvizapp; git fetch origin --depth=10 '$CI_COMMIT_REF_NAME'; git reset --hard HEAD; git checkout $CI_COMMIT_SHA)\""
+      cmd="$SSH_LSF \"zsh --login -c \"mkdir -p $SAMSUNG_CI_BRANCH_DIR; cd $SAMSUNG_CI_BRANCH_DIR; git clone --depth=10 -b '$CI_COMMIT_REF_NAME' git@gitlab-srv:dvs/slamvizapp.git || (cd slamvizapp; git fetch origin --depth=10 '$CI_COMMIT_REF_NAME'; git reset --hard HEAD; git checkout $CI_COMMIT_SHA)\"\""
       echo '> ' $cmd;
       eval $cmd;
     }
