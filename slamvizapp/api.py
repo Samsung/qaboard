@@ -44,14 +44,16 @@ def add_batch(hexsha):
     db_session.add(ci_commit)
     db_session.commit()
     overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
+    main_branch = 'feature-parameter-tuning' # FIXME develop
     cmd = ' '.join([
         'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi',
         # add bsub somewhere here to return quickly without waiting for finished submission
         '"',
-        f'cd {ci_directory}/branches/develop/psp_swip;',
+        f'cd {ci_directory}/branches/{main_branch}/psp_swip;',
         f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
         f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
         'python tools/performance-evaluation/run.py',
+        f'--batch-label {data["batch_label"]}',
         f'--platform {data["platform"]}',
         f'--configuration {data["configuration"]}',
         'batch',
