@@ -17,7 +17,7 @@ import { Container, Section } from "./Common";
 import { OutputCard } from "./OutputCard";
 import { DoneAtTag } from "./DoneAtTag";
 import { MetricsSummary } from "./Metrics";
-import { OutputTable } from "./Tables";
+import { TableCompare, TableKpi } from "./Tables";
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars

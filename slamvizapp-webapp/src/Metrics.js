@@ -122,7 +122,7 @@ const HistogramComparaison = ({new_values, ref_values, metric}) => {
         fillcolor: colors_a[i],
         marker: {
           size: 8,
-          color: colors[i],
+          color: colors_a[i],
         },
         line: {
           width: 2,
