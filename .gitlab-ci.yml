@@ -15,7 +15,7 @@ before_script:
       $SSH_LSF "mkdir -p $SAMSUNG_CI_BRANCH_DIR"
       export TRY_CLONE="git clone --depth=10 -b '$CI_COMMIT_REF_NAME' git@gitlab-srv:dvs/slamvizapp.git"
       export TRY_PULL="cd slamvizapp && git fetch origin --depth=10 '$CI_COMMIT_REF_NAME' && git reset --hard HEAD"
-      cmd="$SSH_LSF \"zsh --login -c \"cd $SAMSUNG_CI_BRANCH_DIR; $TRY_CLONE || $TRY_PULL; git checkout $CI_COMMIT_SHA\"\""
+      cmd="$SSH_LSF 'zsh --login -c 'cd $SAMSUNG_CI_BRANCH_DIR; $TRY_CLONE || $TRY_PULL; git checkout $CI_COMMIT_SHA''"
       echo '> ' $cmd;
       eval $cmd;
     }
