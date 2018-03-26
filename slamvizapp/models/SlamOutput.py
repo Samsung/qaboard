@@ -11,6 +11,7 @@ Describes an output from a SLAM run:
 import datetime
 import hashlib
 import json
+from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.orm import relationship
@@ -121,7 +122,7 @@ class SlamOutput(Base):
       parameters_folder = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_folder = ''
-    return self.platform / self.configuration / parameters_folder / self.recording.output_folder
+    return Path(self.platform) / self.configuration / parameters_folder / self.recording.output_folder
 
   @property
   def output_dir(self):
