@@ -2,14 +2,13 @@ image: gitlab-srv.transchip.com:4567/dvs/slamvizapp
 
 variables:
   DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
-  # Our CI needs to access the LSF cluster. We do it via SSH
-  SAMSUNG_LSF_BRIDGE: arthurf@planet31
-  SSH_LSF: ssh -o StrictHostKeyChecking=no $SAMSUNG_LSF_BRIDGE
-  # manually managed build cache on LSF
-  SAMSUNG_CI_ROOT_DIR: "/home/arthurf/ci/$CI_PROJECT_PATH"  
-  SAMSUNG_CI_BRANCH_DIR: "$SAMSUNG_CI_ROOT_DIR/branches/$CI_COMMIT_REF_SLUG"
-
+    
 before_script:
+  # Our CI needs to access the LSF cluster. We do it via SSH
+  - export SSH_LSF="ssh -o StrictHostKeyChecking=no arthurf@planet31"
+  # manually managed build cache on LSF
+  - export SAMSUNG_CI_ROOT_DIR="/home/arthurf/ci/$CI_PROJECT_PATH"
+  - export SAMSUNG_CI_BRANCH_DIR="$SAMSUNG_CI_ROOT_DIR/branches/$CI_COMMIT_REF_SLUG"
   # clone/fetch and checkout the commit on LSF
   - >
     function update_lsf() {
