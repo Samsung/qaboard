@@ -2,6 +2,21 @@ image: gitlab-srv.transchip.com:4567/dvs/slamvizapp
 
 variables:
   DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamresultsvizapp
+  # Our CI needs to access the LSF cluster. We do it via SSH
+  SAMSUNG_LSF_BRIDGE: arthurf@planet31
+  SSH_LSF: ssh -o StrictHostKeyChecking=no $SAMSUNG_LSF_BRIDGE
+  # manually managed build cache on LSF
+  SAMSUNG_CI_ROOT_DIR: "/home/arthurf/ci/$CI_PROJECT_PATH"  
+  SAMSUNG_CI_BRANCH_DIR: "$SAMSUNG_CI_ROOT_DIR/branches/$CI_COMMIT_REF_SLUG"
+
+before_script:
+  # clone/fetch and checkout the commit on LSF
+  - >
+    function update_lsf() {
+      cmd="$SSH_LSF \"mkdir -p $SAMSUNG_CI_BRANCH_DIR; cd $SAMSUNG_CI_BRANCH_DIR; git clone --depth=10 -b '$CI_COMMIT_REF_NAME' git@gitlab-srv:dvs/slamvizapp.git || (cd slamvizapp; git fetch origin --depth=10 '$CI_COMMIT_REF_NAME'; git reset --hard HEAD; git checkout $CI_COMMIT_SHA)\""
+      echo '> ' $cmd;
+      eval $cmd;
+    }
 
 stages:
   - build
@@ -26,7 +41,8 @@ test-frontend:
 deploy_staging:
   stage: deploy
   script:
-    - ssh gpu09-dt "docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - update_lsf
+    - ssh gpu09-dt "cd $SAMSUNG_CI_BRANCH_DIR; docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "zsh --login -c \"docker stop \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
     - ssh planet31 "zsh --login -c \"docker rm \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
@@ -40,6 +56,8 @@ deploy_staging:
 deploy_production:
   stage: deploy
   script:
+    - update_lsf
+    - ssh gpu09-dt "cd $SAMSUNG_CI_BRANCH_DIR; docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh gpu09-dt "docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "zsh --login -c \"docker stop \"slamvizapp-$CI_ENVIRONMENT_SLUG\"\"" || true
