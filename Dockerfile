@@ -74,11 +74,13 @@ RUN yarn config set https-proxy $HTTP_PROXY
 RUN yarn config set http-proxy  $HTTP_PROXY
 
 # our app
-COPY . /slamvizapp 
 WORKDIR /slamvizapp/slamvizapp-webapp
+COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/yarn.lock ./
 ENV NODE_ENV production
-RUN yarn install
+RUN yarn install --pure-lockfile
+COPY . /slamvizapp/
 RUN yarn build
+
 
 # our API
 WORKDIR /slamvizapp
