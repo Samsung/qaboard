@@ -75,13 +75,13 @@ const CommitContent = styled.div`
 
 class CommitResults extends React.Component {
   render() {
-    const {commit} = this.props;
+    const { commit } = this.props;
     const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
-    if (commit.failed_slam_outputs===0 && commit.valid_slam_outputs===0 && commit.pending_slam_outputs===0)
+    let ci_batch = commit.batches[0];
+    if (ci_batch===undefined || (ci_batch.failed_slam_outputs===0 && ci_batch.valid_slam_outputs===0 && ci_batch.pending_slam_outputs===0))
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
-    let ci_batch = commit.batches[0];
     let status_messages = (
       <Fragment>
          {ci_batch.pending_slam_outputs>0 &&
