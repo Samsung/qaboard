@@ -27,10 +27,9 @@ const QualityCell = ({metric, output}) => {
 }
 
 
-const OutputTable = ({ new_batch, ref_batch, output_sort, compare_cross_runtype }) => {
+const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype }) => {
   const displayed_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc'];
   return (
-  <Fragment>
     <Section>
       <h2>Improvement report</h2>
       <table className="pt-html-table pt-small">
@@ -68,7 +67,13 @@ const OutputTable = ({ new_batch, ref_batch, output_sort, compare_cross_runtype 
       </tbody>
       </table>
     </Section>
+  )
+}
 
+
+const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype }) => {
+  const displayed_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc'];
+  return (
     <Section>
       <h2>Quality report</h2>
       <table className="pt-html-table pt-small">
@@ -112,8 +117,8 @@ const OutputTable = ({ new_batch, ref_batch, output_sort, compare_cross_runtype 
       </tbody>
       </table>
     </Section>
-  </Fragment>)
+  )
 }
 
 
-export { OutputTable };
+export { TableKpi, TableCompare };

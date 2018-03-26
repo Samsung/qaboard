@@ -658,10 +658,21 @@ class CiCommitResults extends Component {
         <Section>
           <Tabs renderActiveTabPanelOnly id="tabs-outputs">
             <Tab
-              id="output-table"
-              title="Summary Table"
+              id="output-table-compare"
+              title="Improvement"
               panel={
-                <OutputTable
+                <TableCompare
+                  output_sort={this.sortOutputs}
+                  new_batch={new_batch_filtered}
+                  ref_batch={ref_batch_filtered}
+                  compare_cross_runtype={compare_cross_runtype}
+                />}
+              />
+            <Tab
+              id="output-table-kpi"
+              title="KPI report"
+              panel={
+                <TableKpi
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
