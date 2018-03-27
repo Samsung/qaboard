@@ -3,6 +3,7 @@
 # for now we don't use it, but it could be convenient
 import datetime
 import subprocess
+import json
 from gitdb.exc import BadName
 
 from flask import request, jsonify
