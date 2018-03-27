@@ -70,7 +70,11 @@ class AddRecordings extends Component {
     this.setState({submitted: true})
     OurToaster.show({ message: "The request was sent!", intent: Intent.PRIMARY});
     post(`/api/v1/commit/${this.props.commit.id}/batch`, {
-      selected_group, groups, overwrite, batch_label: 'default',
+      batch_label: 'default',
+      platform: 'lsf', configuration: 'serial-stereo',
+      tuning_search: {},
+      selected_group, groups,
+      overwrite,
     })
     .then(response => {
       this.setState({submitted: false})
