@@ -28,7 +28,7 @@ def new_slam_output_webhook():
                                          batch=batch,
                                          platform=data['platform'],
                                          configuration=data['configuration'],
-                                         extra_parameters=json.loads(data['extra_parameters']),
+                                         extra_parameters=data['extra_parameters'],
                                          recording=recording,
                                         )
   if request.json.get('is_pending', False):
