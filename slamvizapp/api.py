@@ -49,7 +49,7 @@ def add_batch(hexsha):
     cmd = ' '.join([
         'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi',
         '"',
-        'bsub -o /home/arthur/slamvizapp/data/lsf.log \\"'
+        'bsub -o /home/arthur/dvs/slamvizapp/data/lsf.log \\"'
         f'cd {ci_directory}/branches/{main_branch}/psp_swip;',
         f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
         f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
@@ -60,7 +60,7 @@ def add_batch(hexsha):
         'batch',
         f'--recording-groups-file {recording_groups_filepath}',
         f'--recording-group {data["selected_group"]}',
-        f'--tuning-search "{json.dumps(data["tuning_search"])}"'
+        f"--tuning-search '{json.dumps(data['tuning_search'])}'"
         f'{overwrite}',
         f'--no-wait'
         '\\"',
