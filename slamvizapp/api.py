@@ -51,8 +51,8 @@ def add_batch(hexsha):
         '"',
         'bsub -o /home/arthurf/dvs/slamvizapp/data/lsf.log \\"'
         f'cd {ci_directory}/branches/{main_branch}/psp_swip;',
-        f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
-        f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
+        f"export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';",
+        f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';",
         'python tools/performance-evaluation/run.py',
         f'--batch-label {data["batch_label"]}',
         f'--platform {data["platform"]}',
