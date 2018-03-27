@@ -47,9 +47,9 @@ def add_batch(hexsha):
     overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
     main_branch = 'feature-parameter-tuning' # FIXME develop
     cmd = ' '.join([
-        'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi',
+        'ssh -o StrictHostKeyChecking=no arthurf@planet31',
         '"',
-        'bsub -o /home/arthur/dvs/slamvizapp/data/lsf.log \\"'
+        'bsub -o /home/arthurf/dvs/slamvizapp/data/lsf.log \\"'
         f'cd {ci_directory}/branches/{main_branch}/psp_swip;',
         f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
         f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
