@@ -60,7 +60,7 @@ def add_batch(hexsha):
         'batch',
         f'--recording-groups-file {recording_groups_filepath}',
         f'--recording-group {data["selected_group"]}',
-        f"--tuning-search '{json.dumps(data['tuning_search'])}'"
+        f"--tuning-search '{json.dumps(data['tuning_search'])}'",
         f'{overwrite}',
         f'--no-wait'
         '\\"',
