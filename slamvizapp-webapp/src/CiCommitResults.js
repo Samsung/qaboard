@@ -157,31 +157,38 @@ class Tuning extends Component {
     this.state = {
       submitted: false,
       experiment_name: null,
+      configuration: 'serial-stereo',
+      platform: 'lsf',
+
       selected_group: null,
-      tuning_set: `{\n  \n}\n`,
+      tuning_search: `{\n  "search_type": "grid",\n  "parameter_search": {\n    "frame_duration": [10.0, 20.0, 30.0]\n  }\n}\n`,
     };
   }
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value})};
   updateSelectedGroup = e => {this.setState({selected_group: e.target.value})};
-  updateTuningSet = new_tuning_set => {this.setState({tuning_set: new_tuning_set})};
+  updateTuningSearch = new_tuning_search => {this.setState({tuning_search: new_tuning_search})};
+
 
   onSubmit = e => {
-    const { experiment_name, selected_group, clear_experiment, tuning_set} = this.state;
-    console.log(experiment_name, selected_group, clear_experiment, tuning_set)
-    // this.setState({submitted: true})
-    // OurToaster.show({ message: "The experiment was sent!", intent: Intent.PRIMARY});
-    // post(`/api/v1/commit/${this.props.commit.id}`, {
-    //   selected_group, new_tuning_set, clear_experiment, batch_label: 'default',
-    // })
-    // .then(response => {
-    //   this.setState({submitted: false})
-    //   OurToaster.show({ message: "...acknowledged! Now wait...", intent: Intent.SUCCESS});
-    // })
-    // .catch( error => {
-    //   this.setState({submitted: false})
-    //   OurToaster.show({ message: `Something wrong happened ${JSON.stringify(error.response)}`, intent: Intent.DANGER});
-    // })
+    const { experiment_name, groups, selected_group, tuning_search, platform, configuration, overwrite } = this.state;
+    this.setState({ submitted: true })
+    OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
+    post(`/api/v1/commit/${this.props.commit.id}/batch`, {
+      batch_label: experiment_name,
+      platform, configuration,
+      tuning_search: JSON.parse(tuning_search),
+      selected_group, groups,
+      overwrite,
+    })
+    .then(response => {
+      this.setState({submitted: false})
+      OurToaster.show({ message: "...Acknowledged!", intent: Intent.SUCCESS});
+    })
+    .catch( error => {
+      this.setState({submitted: false})
+      OurToaster.show({ message: `Something wrong happened ${JSON.stringify(error.response)}`, intent: Intent.DANGER});
+    })
     e.preventDefault();
   }
 
@@ -213,7 +220,7 @@ class Tuning extends Component {
           <Checkbox disabled checked={false} label="S8 - Android" />
         </FormGroup>
 
-        <FormGroup style={{flex: '1 1 auto'}} label={<strong>Configuration</strong>} helperText="Only serial runs are available at the moment.">
+        <FormGroup style={{flex: '1 1 auto'}} label={<strong>Configuration</strong>} helperText="Only stereo-serial runs are available at the moment.">
           <Checkbox disabled checked={true} label="stereo-serial" />
           <Checkbox disabled checked={false} label="mono-serial" />
         </FormGroup>
@@ -224,11 +231,11 @@ class Tuning extends Component {
       <AceEditor
         mode="json"
         theme="github"
-        onChange={this.updateTuningSet}
+        onChange={this.updateTuningSearch}
         width='100%'
         height='200px'
         name="editor-tuning-set"
-        value={this.state.tuning_set}
+        value={this.state.tuning_search}
         editorProps={{$blockScrolling: true}}
         setOptions={{
           tabSize: 2,
