@@ -591,7 +591,7 @@ class CiCommitResults extends Component {
     var new_commit = new_commit_.data;
     var ref_commit = ref_commit_.data;
 
-    if (new_commit===undefined || ref_commit===undefined)
+    if (new_commit===undefined || ref_commit===undefined || new_commit.batches[0] || ref_commit.batches[0])
       return <Container>{warning_messages}</Container>
 
     let status_messages = (
