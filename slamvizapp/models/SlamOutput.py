@@ -118,11 +118,14 @@ class SlamOutput(Base):
   @property
   def output_folder(self):
     if self.batch.label != 'default':
-      parameters_s = json.dumps(self.extra_parameters, sort_keys=True)
-      parameters_folder = hashlib.md5(parameters_s.encode()).hexdigest()
+      if len(self.extra_parameters) == 0:
+        parameters_folder = Path('default') / 'default'
+      else:
+        parameters_s = json.dumps(self.extra_parameters, sort_keys=True)
+        parameters_folder = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_folder = ''
-    return Path(self.platform) / self.configuration / parameters_folder / self.recording.output_folder
+    return Path(self.platform) / self.configuration / parameters_folder[:2] / parameters_folder / self.recording.output_folder
 
   @property
   def output_dir(self):
