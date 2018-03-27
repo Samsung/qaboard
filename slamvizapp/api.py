@@ -36,7 +36,7 @@ def add_batch(hexsha):
     return jsonify("Sorry, the commit id was not found"), 404
 
   data = request.get_json()
-  if data['groups']:
+  if 'groups' in data:
     with recording_groups_filepath.open('w') as f:
       f.write(data['groups'])
 
