@@ -3,6 +3,7 @@
 Initializes or updates the database using information from the filesystem.
 """
 import time
+import datetime
 
 import click
 from git.exc import BadName
@@ -10,7 +11,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import repo
 from slamvizapp.database import engine, Session
-from slamvizapp.models import Base, CiCommit, Recording
+from slamvizapp.models import Base, CiCommit, Recording, Batch
 from slamvizapp.config import default_recordings_directory, ci_directory
 
 
@@ -104,9 +105,8 @@ def init_cicommits(verbose=False):
     session.commit()
 
     ci_batch = ci_commit.ci_batch
-    # could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_batch < datetime.timedelta(hours=3)
-    # if could_be_pending_results or not ci_batch.slam_outputs:
-    if not ci_batch.slam_outputs or ci_batch.failed_slam_outputs or ci_batch.pending_slam_outputs:
+    could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_batch < datetime.timedelta(hours=3)
+    if not ci_batch.slam_outputs or ci_batch.failed_slam_outputs or ci_batch.pending_slam_outputs or could_be_pending_results:
       ci_batch.discover_slam_outputs(session)
       if verbose or ci_batch.pending_slam_outputs: print(ci_commit)
       session.add(ci_batch)
