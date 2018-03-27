@@ -48,8 +48,8 @@ def add_batch(hexsha):
     main_branch = 'feature-parameter-tuning' # FIXME develop
     cmd = ' '.join([
         'ssh -o StrictHostKeyChecking=no arthurf@arthurf-vdi',
-        # add bsub somewhere here to return quickly without waiting for finished submission
         '"',
+        'bsub -o /home/arthur/slamvizapp/data/lsf.log \\"'
         f'cd {ci_directory}/branches/{main_branch}/psp_swip;',
         f"setenv SAMSUNG_CI_COMMIT_DIR '{ci_commit.commit_dir}';",
         f"setenv CI_COMMIT_SHA '{ci_commit.gitcommit.hexsha}';",
@@ -59,10 +59,11 @@ def add_batch(hexsha):
         f'--configuration {data["configuration"]}',
         'batch',
         f'--recording-groups-file {recording_groups_filepath}',
-        f'--recording-groups {data["selected_group"]}',
+        f'--recording-group {data["selected_group"]}',
         f'--tuning-search "{json.dumps(data["tuning_search"])}"'
         f'{overwrite}',
         f'--no-wait'
+        '\\"',
         '"',
     ])
     print(cmd)
