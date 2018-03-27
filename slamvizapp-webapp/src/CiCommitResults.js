@@ -156,7 +156,6 @@ class Tuning extends Component {
     super(props);
     this.state = {
       submitted: false,
-      clear_experiment: false,
       experiment_name: null,
       selected_group: null,
       tuning_set: `{\n  \n}\n`,
@@ -164,7 +163,6 @@ class Tuning extends Component {
   }
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value})};
-  updateClear = e => {this.setState({clear_experiment: !this.state.clear_experiment})};
   updateSelectedGroup = e => {this.setState({selected_group: e.target.value})};
   updateTuningSet = new_tuning_set => {this.setState({tuning_set: new_tuning_set})};
 
@@ -207,16 +205,6 @@ class Tuning extends Component {
           requiredLabel={true}
       >
           <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="small" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
-      </FormGroup>
-
-      <FormGroup
-          helperText="If unchecked, all past results of this experiment will be deleted."
-          labelFor="delete-experiment"
-          requiredLabel={false}
-          inline
-          intent={Intent.WARNING}
-      >
-          <Switch id="delete-experiment" checked={!this.state.clear_experiment} label="Keep previous SLAM results" onChange={this.updateClear} />
       </FormGroup>
 
       <div style={{display: 'flex'}}>
@@ -737,8 +725,9 @@ class CiCommitResults extends Component {
 
 
 const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
-  let new_ci_batch = new_commit.batches[0];
-  let ref_ci_batch = ref_commit.batches[0];
+  const empty_batch = {failed_slam_outputs: 0, valid_slam_outputs: 0, pending_slam_outputs: 0};
+  let new_ci_batch = new_commit.batches[0] || empty_batch;
+  let ref_ci_batch = ref_commit.batches[0] || empty_batch;
   return <Section>
     <Card elevation={4}>
       <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
