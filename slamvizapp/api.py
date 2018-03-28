@@ -48,14 +48,7 @@ def add_batch(hexsha):
     overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
     main_branch = 'feature-parameter-tuning' # FIXME develop
     # to avoid issues with quoting, we create a temporary file to describe the job
-    batch_script = ' '.join([
-      '#!/bin/bash\n',
-      'bsub',
-      # '-o /home/arthurf/dvs/slamvizapp/data/lsf.log',
-      '<< EOF\n'
-      f'cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
-      f"export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
-      f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+    batch_command = ' '.join([
       'python tools/performance-evaluation/run.py',
       f'--batch-label {data["batch_label"]}',
       f'--platform {data["platform"]}',
@@ -65,18 +58,28 @@ def add_batch(hexsha):
       f'--recording-group {data["selected_group"]}',
       f"--tuning-search '{json.dumps(data['tuning_search'])}'",
       f'{overwrite}',
-      f'--no-wait'
-      '\nEOF',
+      f'--no-wait'      
+    ])
+    print(batch_command)
+    batch_script = ''.join([
+      '#!/bin/bash\n',
+      'bsub ',
+      # '-o /home/arthurf/dvs/slamvizapp/data/lsf.log ',
+      '<< EOF\n'
+      f'  cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
+      f"  export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
+      f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+      'EOF',
     ])
     print(batch_script)
-    now = datetime.datetime.now()
-    batch_script_filepath = Path(f'/home/arthurf/dvs/slamvizapp/data/batches/{ci_commit.gitcommit.hexsha}__{now}.sh')
+    now = datetime.datetime.now().timestamp()
+    batch_script_filepath = Path(f'/home/arthurf/dvs/slamvizapp/data/batches/{ci_commit.gitcommit.hexsha}_{now}.sh')
     with batch_script_filepath.open('w') as f:
       f.write(batch_script)
     cmd = f'ssh -o StrictHostKeyChecking=no arthurf@planet31 bash {batch_script_filepath}',
     print(cmd)
     subprocess.run(cmd, shell=True, encoding='utf-8')
-    return jsonify(cmd)
+    return jsonify({'command': batch_script})
   return jsonify('OK')
 
 
