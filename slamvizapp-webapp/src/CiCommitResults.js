@@ -227,7 +227,6 @@ class Tuning extends Component {
       </div>
 
       <h3>Tuning set</h3>
-      <p>Use arrays of values, eg <code>radius: [1, 2, 3]</code></p>
       <AceEditor
         mode="json"
         theme="github"
