@@ -4,6 +4,7 @@
 import datetime
 import subprocess
 import json
+from pathlib import Path
 from gitdb.exc import BadName
 
 from flask import request, jsonify
@@ -46,26 +47,33 @@ def add_batch(hexsha):
     db_session.commit()
     overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
     main_branch = 'feature-parameter-tuning' # FIXME develop
-    cmd = ' '.join([
-        'ssh -o StrictHostKeyChecking=no arthurf@planet31',
-        '"',
-        'bsub -o /home/arthurf/dvs/slamvizapp/data/lsf.log \\"'
-        f'cd {ci_directory}/branches/{main_branch}/psp_swip;',
-        f"export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';",
-        f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';",
-        'python tools/performance-evaluation/run.py',
-        f'--batch-label {data["batch_label"]}',
-        f'--platform {data["platform"]}',
-        f'--configuration {data["configuration"]}',
-        'batch',
-        f'--recording-groups-file {recording_groups_filepath}',
-        f'--recording-group {data["selected_group"]}',
-        f"--tuning-search '{json.dumps(data['tuning_search'])}'",
-        f'{overwrite}',
-        f'--no-wait'
-        '\\"',
-        '"',
+    # to avoid issues with quoting, we create a temporary file to describe the job
+    batch_script = ' '.join([
+      '#!/bin/bash\n',
+      'bsub',
+      # '-o /home/arthurf/dvs/slamvizapp/data/lsf.log',
+      '<< EOF\n'
+      f'cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
+      f"export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
+      f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+      'python tools/performance-evaluation/run.py',
+      f'--batch-label {data["batch_label"]}',
+      f'--platform {data["platform"]}',
+      f'--configuration {data["configuration"]}',
+      'batch',
+      f'--recording-groups-file {recording_groups_filepath}',
+      f'--recording-group {data["selected_group"]}',
+      f"--tuning-search '{json.dumps(data['tuning_search'])}'",
+      f'{overwrite}',
+      f'--no-wait'
+      '\nEOF',
     ])
+    print(batch_script)
+    now = datetime.datetime.now()
+    batch_script_filepath = Path(f'/home/arthurf/dvs/slamvizapp/data/batches/{ci_commit.gitcommit.hexsha}__{now}.sh')
+    with batch_script_filepath.open('w') as f:
+      f.write(batch_script)
+    cmd = f'ssh -o StrictHostKeyChecking=no arthurf@planet31 bash {batch_script_filepath}',
     print(cmd)
     subprocess.run(cmd, shell=True, encoding='utf-8')
     return jsonify(cmd)
