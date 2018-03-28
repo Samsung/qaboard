@@ -121,7 +121,7 @@ class SlamOutput(Base):
       parameters_s = json.dumps(self.extra_parameters, sort_keys=True)
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
-      parameters_folder = ''
+      parameters_hash = ''
     return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.recording.output_folder
 
   @property
