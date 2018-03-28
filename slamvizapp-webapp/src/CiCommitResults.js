@@ -171,7 +171,7 @@ class Tuning extends Component {
 
 
   onSubmit = e => {
-    const { experiment_name, groups, selected_group, tuning_search, platform, configuration, overwrite } = this.state;
+    const { experiment_name, groups, selected_group, tuning_search, platform, configuration } = this.state;
     this.setState({ submitted: true })
     OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
     post(`/api/v1/commit/${this.props.commit.id}/batch`, {
