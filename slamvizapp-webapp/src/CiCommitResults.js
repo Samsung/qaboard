@@ -161,7 +161,7 @@ class Tuning extends Component {
       platform: 'lsf',
 
       selected_group: null,
-      tuning_search: `{\n  "search_type": "grid",\n  "parameter_search": {\n    "frame_duration": [10.0, 20.0, 30.0],\n  }\n}\n`,
+      tuning_search: `{\n  "search_type": "grid",\n  "parameter_search": {\n    "frame_duration": [10.0, 20.0, 30.0]\n  }\n}\n`,
     };
   }
 
