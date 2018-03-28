@@ -120,7 +120,7 @@ class CiCommit(Base):
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'commit_dir_url': str(self.commit_dir_url),
-        'batches': [b.to_dict(with_details=with_details) for b in self.batches],
+        'batches': {b.label: b.to_dict(with_details=with_details) for b in self.batches},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
 

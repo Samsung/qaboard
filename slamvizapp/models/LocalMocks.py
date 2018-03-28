@@ -239,7 +239,7 @@ class LocalCommit():
         'authored_date': self.authored_date.isoformat(),
         'commit_dir_url': str(self.commit_dir_url),
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
-        'batches': [b.to_dict(with_details=with_details) for b in self.batches],
+        'batches': {b.label: b.to_dict(with_details=with_details) for b in self.batches},
     }
 
   @property
