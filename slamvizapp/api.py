@@ -58,17 +58,19 @@ def add_batch(hexsha):
       f'--recording-group {data["selected_group"]}',
       f"--tuning-search '{json.dumps(data['tuning_search'])}'",
       f'{overwrite}',
-      f'--no-wait'      
+      f'--no-wait',
+      '\n',
     ])
     print(batch_command)
     batch_script = ''.join([
       '#!/bin/bash\n',
       'bsub ',
-      # '-o /home/arthurf/dvs/slamvizapp/data/lsf.log ',
+      '-o /home/arthurf/dvs/slamvizapp/data/lsf.log ',
       '<< EOF\n'
       f'  cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
       f"  export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
       f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+      batch_command,
       'EOF',
     ])
     print(batch_script)

@@ -31,7 +31,8 @@ class Batch(Base):
 
   @property
   def output_folder(self):
-    return 'output' if self.label == 'default' else 'tuning' / slugify(self.label)
+    print
+    return Path('output') if self.label == 'default' else Path('tuning') / slugify(self.label)
 
   @property
   def output_dir(self):
