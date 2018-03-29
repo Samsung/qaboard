@@ -11,7 +11,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import repo
 from slamvizapp.database import engine, Session
-from slamvizapp.models import Base, CiCommit, Recording, Batch
+from slamvizapp.models import Base, CiCommit, Recording, Batch, SlamOutput
 from slamvizapp.config import default_recordings_directory, ci_directory
 
 
