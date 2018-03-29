@@ -32,6 +32,8 @@ import 'brace/ext/searchbox';
 export const OurToaster = Toaster.create();
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
 
+const TuningResults = <p/>
+
 class AddRecordings extends Component {
   constructor(props) {
     super(props);
@@ -719,7 +721,7 @@ class CiCommitResults extends Component {
               />
             <Tab
               id="output-list"
-              title="Details"
+              title="6dof Details"
               panel={
                 <OutputList
                   output_sort={this.sortOutputs}
@@ -729,6 +731,12 @@ class CiCommitResults extends Component {
                   show3d={this.state.show3d}
                   compare_cross_runtype={compare_cross_runtype}
                 />}
+              />
+            <Tab
+              id="tuning-results"
+              title="Tuning results"
+              panel={
+                <TuningResults new_batch={new_batch_filtered}/>}
               />
             <Tabs.Expander />
             <Switch checked={this.state.showVideos} label="Videos" onChange={this.toogleShowVideos} />

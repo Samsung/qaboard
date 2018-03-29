@@ -58,7 +58,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype
           let output_ref = matching_ref_outputs[0];
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path} <Tag className="pt-round pt-minimal" iconName={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" iconName={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
+              <th scope="row">{output.recording_path} {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} <Tag className="pt-round pt-minimal" iconName={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" iconName={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
               {displayed_metrics.map( m =>
                 <ColumnsMetricImprovement key={m} metric={m} output_new={output} output_ref={output_ref} />
               )}
