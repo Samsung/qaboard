@@ -619,8 +619,8 @@ class CiCommitResults extends Component {
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>Still waiting for {new_commit.batches[selected_batch_new].pending_slam_outputs.length} SLAM</span>
-              <ul>{new_commit.batches[selected_batch_new].pending_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
+              <span>Still waiting for {new_commit.batches[selected_batch_new].pending_slam_outputs} result{new_commit.batches[selected_batch_new].pending_slam_outputs>1 ? 's' : ''}</span>
+              <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_pending===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
@@ -649,20 +649,21 @@ class CiCommitResults extends Component {
       <Container>
         {warning_messages}
         <CommitCompareCard new_commit={new_commit} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
-        {status_messages}
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
 
         {Object.values(new_commit.batches).length>1 && <Section>
-          <Card elevation={4}>
+          <Card elevation={2}>
             <p>Select batch</p>
             <div className="pt-select">
               <select defaultValue="default" onChange={this.selectBatchNew}>
-                {Object.keys(new_commit.batches).map( label=> <option key={label} value={label}>{label} [{new_commit.batches[label].slam_outputs.length} outputs]</option>)}
+                {Object.keys(new_commit.batches).map( label=> <option key={label} value={label}>{label} • {Object.keys(new_commit.batches[label].slam_outputs).length} outputs</option>)}
               </select>
             </div>
           </Card>
          </Section>}
+
+        {status_messages}
 
         <Section>
           <Card elevation={2}>
