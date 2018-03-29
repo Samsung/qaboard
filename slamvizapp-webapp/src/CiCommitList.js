@@ -77,7 +77,7 @@ class CommitResults extends React.Component {
   render() {
     const { commit } = this.props;
     const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
-    let ci_batch = commit.batches[0];
+    let ci_batch = commit.batches.default;
     if (ci_batch===undefined || (ci_batch.failed_slam_outputs===0 && ci_batch.valid_slam_outputs===0 && ci_batch.pending_slam_outputs===0))
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 

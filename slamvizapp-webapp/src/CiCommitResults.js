@@ -369,6 +369,9 @@ class CiCommitResults extends Component {
         'default': {isLoaded: false}
       },
 
+      selected_batch_new: 'default',
+      selected_batch_ref: 'default',
+
       filter_values: [],
       filter_input: '',
       sort_by: 'translation_aape',
@@ -528,6 +531,14 @@ class CiCommitResults extends Component {
   selectOrder = e => {
     this.setState({order: e.target.value})
   }
+
+  selectBatchNew = e => {
+    this.setState({selected_batch_new: e.target.value})
+  }
+  selectBatchRef = e => {
+    this.setState({selected_batch_ref: e.target.value})
+  }
+
   toogleShowVideos = () => {
     this.setState({
       showVideos: !this.state.showVideos,
@@ -552,7 +563,7 @@ class CiCommitResults extends Component {
 
   render() {
     // console.log(this.state);
-    var { commits, new_commit_id, ref_commit_id } = this.state;
+    var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref } = this.state;
 
     if (!new_commit_id || !new_commit_id)
       return (
@@ -597,30 +608,30 @@ class CiCommitResults extends Component {
     var new_commit = new_commit_.data;
     var ref_commit = ref_commit_.data;
 
-    if (new_commit===undefined || ref_commit===undefined || new_commit.batches[0]===undefined || ref_commit.batches[0]===undefined)
+    if (new_commit===undefined || ref_commit===undefined || new_commit.batches[selected_batch_new]===undefined || ref_commit.batches[selected_batch_ref]===undefined)
       return <Container>{warning_messages}</Container>
 
     let status_messages = (
       <Section>
-       {new_commit.pending_slam_outputs>0 &&
+       {new_commit.batches[selected_batch_new].pending_slam_outputs>0 &&
           <Callout
             iconName="info-sign"
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>Still waiting for {new_commit.pending_slam_outputs.length} SLAM</span>
-              <ul>{new_commit.pending_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
+              <span>Still waiting for {new_commit.batches[selected_batch_new].pending_slam_outputs.length} SLAM</span>
+              <ul>{new_commit.batches[selected_batch_new].pending_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
-       {new_commit.failed_slam_outputs>0 &&
+       {new_commit.batches[selected_batch_new].failed_slam_outputs>0 &&
           <Callout
             iconName="error"
             intent={Intent.DANGER}
             title={
               <Tooltip>
-                <span>{new_commit.failed_slam_outputs} crashed in this commit</span>
-                <ul>{new_commit.failed_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
+                <span>{new_commit.batches[selected_batch_new].failed_slam_outputs} crashed in this commit</span>
+                <ul>{new_commit.batches[selected_batch_new].failed_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
               </Tooltip>
             }>
             <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.
@@ -629,8 +640,8 @@ class CiCommitResults extends Component {
       </Section>
     );
 
-    let new_batch_filtered = this.filter_batch(new_commit.batches[0])
-    let ref_batch_filtered = this.filter_batch(ref_commit.batches[0])
+    let new_batch_filtered = this.filter_batch(new_commit.batches[selected_batch_new])
+    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref])
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
@@ -641,6 +652,18 @@ class CiCommitResults extends Component {
         {status_messages}
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
+
+        {Object.values(new_commit.batches).length>1 && <Section>
+          <Card elevation={4}>
+            <p>Select batch</p>
+            <div className="pt-select">
+              <select defaultValue="default" onChange={this.selectBatchNew}>
+                {Object.keys(new_commit.batches).map( label=> <option key={label} value={label}>{label} [{new_commit.batches[label].slam_outputs.length} outputs]</option>)}
+              </select>
+            </div>
+          </Card>
+         </Section>}
+
         <Section>
           <Card elevation={2}>
           <Tabs id="tabs-summary">
@@ -732,8 +755,8 @@ class CiCommitResults extends Component {
 
 const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
   const empty_batch = {failed_slam_outputs: 0, valid_slam_outputs: 0, pending_slam_outputs: 0};
-  let new_ci_batch = new_commit.batches[0] || empty_batch;
-  let ref_ci_batch = ref_commit.batches[0] || empty_batch;
+  let new_ci_batch = new_commit.batches.default || empty_batch;
+  let ref_ci_batch = ref_commit.batches.default || empty_batch;
   return <Section>
     <Card elevation={4}>
       <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
@@ -742,7 +765,7 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
             <Icon iconName='git-commit'/> {new_commit.parents.length>1 ? 'parents' : 'parent'}: {new_commit.parents.map(p => <Button key={p} onClick={e=>{console.log(p); onConfirmReference(p)}} className="pt-minimal">{p.substring(0,8)}</Button>)}
             <Link to={`/branch/${new_commit.branch}`}><Button className="pt-minimal" iconName="git-branch">{new_commit.branch}</Button></Link>
             <br/>
-            <DoneAtTag commit={new_commit} /> <Tag>{new_ci_batch.valid_slam_outputs} outputs</Tag> {new_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{new_ci_batch.failed_slam_outputs} crashed</Tag>} {new_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{new_ci_batch.pending_slam_outputs} pending</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
+            <DoneAtTag commit={new_commit} /> <Tag>{new_ci_batch.valid_slam_outputs} CI outputs</Tag> {new_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{new_ci_batch.failed_slam_outputs} crashed</Tag>} {new_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{new_ci_batch.pending_slam_outputs} pending</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
             <p style={{marginTop: '10px', maxWidth:'450px'}} className="pt-monospace-text">{new_commit.message}</p>
           </div>
         <div><Icon iconName="small-cross"></Icon></div>
