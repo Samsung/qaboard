@@ -6,8 +6,9 @@ import queryString from "query-string";
 
 
 import AceEditor from 'react-ace';
-import { Checkbox, TagInput, FormGroup, Switch, EditableText } from "@blueprintjs/core";
-import { Tooltip, Callout, Icon, Button, Tag, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Checkbox, FormGroup, Switch, EditableText } from "@blueprintjs/core";
+import { Tooltip, Callout, Icon, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Button, Tag, InputGroup } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
 
 import Avatar from "./Avatar";
@@ -372,8 +373,7 @@ class CiCommitResults extends Component {
       selected_batch_new: 'default',
       selected_batch_ref: 'default',
 
-      filter_values: [],
-      filter_input: '',
+      filter_values: '',
       sort_by: 'translation_aape',
       order: -1,
       showVideos: false,
@@ -507,20 +507,26 @@ class CiCommitResults extends Component {
   }
 
   filter_batch = batch => {
-    if (this.state.filter_values.length===0 && this.state.filter_input.length===0)
+    const { filter_values } = this.state;
+    if (filter_values.length===0)
       return batch;
+    let filter_tokens = filter_values.split(' ');
+
     let batch_filtered = Object.create(batch)
     batch_filtered.slam_outputs = {}
     Object.entries(batch.slam_outputs).forEach( ([id, output])=> {
       let searched = `${output.recording_path} ${output.platform} ${output.configuration}`.toLowerCase()
-      for (var i in this.state.filter_values) {
-        let search = this.state.filter_values[i].toLowerCase();
-        if (!searched.includes(search)) {
-          return;
+      let found = false;
+      for (var i in filter_tokens) {
+        let search = filter_tokens[i].toLowerCase();
+        console.log(search)
+        if (searched.includes(search)) {
+          found=true;
+          break
         }    
       }
-      if (!searched.includes(this.state.filter_input)) return;
-      batch_filtered.slam_outputs[id] = output;      
+      if (found)
+        batch_filtered.slam_outputs[id] = output;      
     });
     return batch_filtered;
   }
@@ -652,16 +658,26 @@ class CiCommitResults extends Component {
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
 
-        {Object.values(new_commit.batches).length>1 && <Section>
-          <Card elevation={2}>
-            <p>Select batch</p>
-            <div className="pt-select">
-              <select defaultValue="default" onChange={this.selectBatchNew}>
-                {Object.keys(new_commit.batches).map( label=> <option key={label} value={label}>{label} • {Object.keys(new_commit.batches[label].slam_outputs).length} outputs</option>)}
-              </select>
-            </div>
+        <Section>
+          <Card elevation={0}>
+            {Object.values(new_commit.batches).length>1 && <FormGroup label="You can view results from different tuning experiments" labelFor="batch-select" helperText="The CI results use the default parameters.">
+              <div className="pt-select pt-minimal">
+                <select id='batch-select' defaultValue="default" onChange={this.selectBatchNew}>
+                  {Object.keys(new_commit.batches).map( label=> <option key={label} value={label}>{label==='default' ? 'CI results' : label} • {Object.keys(new_commit.batches[label].slam_outputs).length} outputs</option>)}
+                </select>
+              </div>
+            </FormGroup>}
+            <FormGroup label="Filter results" labelFor="batch-select" helperText="All the data on this page will update.">
+              <InputGroup
+                value={this.state.filter_values}
+                placeholder="Recording name, platform or configuration"
+                onChange={e => this.setState({ filter_values: e.target.value })}
+                type="search"
+                leftIcon="search"
+              />
+            </FormGroup>
           </Card>
-         </Section>}
+         </Section>
 
         {status_messages}
 
@@ -717,20 +733,6 @@ class CiCommitResults extends Component {
             <Tabs.Expander />
             <Switch checked={this.state.showVideos} label="Videos" onChange={this.toogleShowVideos} />
             <Switch checked={this.state.show3d} label="3d" onChange={this.toogleShow3d} />
-            <div style={{width: '200px'}} className="pt-input-group">
-              <span className="pt-icon pt-icon-search"></span>
-              <TagInput
-                className="pt-input" type="search"
-                style={{width: '100px'}}
-                leftIcon='user'
-                placeholder="Filter outputs by recording, platform or configuration"
-                values={this.state.filter_values}
-                inputValue={this.state.filter_input}
-                onChange={filter_values => this.setState({ filter_values })}
-                onInputChange={e => this.setState({ filter_input: e.target.value })}
-                tagProps={{className:"pt-minimal"}}
-              />
-            </div>
             <div className="pt-select">
               <select defaultValue="translation_aape" onChange={this.selectSortBy}>
                 <option value="translation_aape">Sort by AAPE</option>
