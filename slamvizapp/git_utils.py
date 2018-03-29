@@ -22,4 +22,6 @@ def find_branch(commit_hash):
   for b in important_branches:
     if b in branches:
       return b
-  return branches[0]
+  if branches:
+    return branches[0]
+  return 'unknown'
