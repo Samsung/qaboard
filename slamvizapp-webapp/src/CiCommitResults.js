@@ -631,7 +631,7 @@ class CiCommitResults extends Component {
             title={
               <Tooltip>
                 <span>{new_commit.batches[selected_batch_new].failed_slam_outputs} crashed in this commit</span>
-                <ul>{new_commit.batches[selected_batch_new].failed_slam_outputs.map(o=><li key={o}>{o}</li>)}</ul>
+                <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_failed===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
             }>
             <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.
@@ -641,7 +641,7 @@ class CiCommitResults extends Component {
     );
 
     let new_batch_filtered = this.filter_batch(new_commit.batches[selected_batch_new])
-    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref])
+    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref  ])
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
