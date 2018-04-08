@@ -46,7 +46,7 @@ def add_batch(hexsha):
     db_session.add(ci_commit)
     db_session.commit()
     overwrite = '--overwrite' if data['overwrite'] == 'on' else ''
-    main_branch = 'feature-parameter-tuning' # FIXME develop
+    main_branch = 'develop'
     # to avoid issues with quoting, we create a temporary file to describe the job
     batch_command = ' '.join([
       'python tools/performance-evaluation/run.py',
