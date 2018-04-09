@@ -208,6 +208,17 @@ class Tuning extends Component {
   }
 
   render() {
+    try {
+      let parameter_search = JSON.parse(this.state.parameter_search);
+      if (this.state.search_type === 'grid')
+        var combinations = Object.values(parameter_search)
+                                 .map( param_array => param_array.length )
+                                 .reduce( (a,v)=>a*v , 1);
+      else
+        combinations = this.state.search_options.n_iter;
+    } catch (e) {
+      combinations = 'invalid';
+    }
     return (
     <form onSubmit={this.onSubmit}>
       <FormGroup
@@ -239,11 +250,11 @@ class Tuning extends Component {
       </FormGroup>
 
       <h3>Tuning search</h3>
-      <FormGroup inline labelFor="select-search-type">
+      <FormGroup inline labelFor="select-search-type" helperText={this.state.search_type === 'grid' ? 'Explores all the combinations' : `Uniform sampling of ${this.state.search_options.n_iter} combinations`}>
         <div className="pt-select pt-minimal">
           <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
             <option key="grid" value="grid">Grid search</option>
-            <option key="sampler" value="sampler">Uniform sampling of N tuning configurations</option>
+            <option key="sampler" value="sampler">Sampling</option>
           </select>
           {this.state.search_type === 'sampler' && <input id="input-iterations" value={this.state.search_options.n_iter} className="pt-input" style={{marginLeft:'30px', width: '70px'}} placeholder="50" onChange={this.updateIterations}  type="numeric" dir="auto" />}
         </div>
@@ -262,7 +273,7 @@ class Tuning extends Component {
         }}
       />
 
-      <Callout icon="time" intent={Intent.PRIMARY}>Estimated time: TBD</Callout>
+      <Callout icon="time" intent={combinations==='invalid' ? Intent.DANGER : (combinations < 10 ? Intent.SUCCESS : (combinations < 50 ? Intent.PRIMARY : Intent.WARNING))}>{combinations} tuning combinations</Callout>
       <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
 
   

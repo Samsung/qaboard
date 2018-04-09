@@ -9,7 +9,7 @@ import { available_metrics } from "./Metrics";
 import { groupBy } from "./utils";
 
 const Plot = createPlotlyComponent(Plotly);
-const config = { displayModeBar:false }
+const config = {};
 
 
 const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
@@ -38,6 +38,10 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
                       })
   const layout = {
     hovermode: 'closest',
+    hoverinfo: 'name',
+    hoverlabel: {
+      namelength: -1,
+    },
     showlegend: false,
     xaxis: {
       title: parameter,
