@@ -163,25 +163,36 @@ class Tuning extends Component {
       experiment_name: null,
       configuration: 'serial-stereo',
       platform: 'lsf',
-
       selected_group: null,
-      tuning_search: `{\n  "search_type": "grid",\n  "parameter_search": {\n    "events_per_frame": [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000]\n  }\n}\n`,
+      search_type: 'grid',
+      search_options: {
+        n_iter: 50,
+      },
+      parameter_search: `{\n  "events_per_frame": [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000]\n}\n`,
     };
   }
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value})};
   updateSelectedGroup = e => {this.setState({selected_group: e.target.value})};
-  updateTuningSearch = new_tuning_search => {this.setState({tuning_search: new_tuning_search})};
+  updateConfiguration = e => {this.setState({configuration: e.target.value})};
+  updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
+  selectSearchType = e => {this.setState({search_type: e.target.value})};
+  updateIterations = e => {this.setState({search_options: {'n_iter': e.target.value}})};
 
 
   onSubmit = e => {
-    const { experiment_name, groups, selected_group, tuning_search, platform, configuration } = this.state;
+    const { experiment_name, platform, configuration, groups, selected_group } = this.state;
+    const { parameter_search, search_type, search_options } = this.state;
     this.setState({ submitted: true })
     OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
     post(`/api/v1/commit/${this.props.commit.id}/batch`, {
       batch_label: experiment_name,
       platform, configuration,
-      tuning_search: JSON.parse(tuning_search),
+      tuning_search: {
+        search_type,
+        search_options,
+        parameter_search: JSON.parse(parameter_search),
+      },
       selected_group, groups,
       overwrite: false,
     })
@@ -200,8 +211,8 @@ class Tuning extends Component {
     return (
     <form onSubmit={this.onSubmit}>
       <FormGroup
-          helperText="Choose a name that describes well the experiment"
-          label="Experiment name"
+          helperText="It should be descriptive. Re-using a name will add more results to the experiment."
+          label="Choose a name for the tuning experiment"
           labelFor="experiment-name"
           intent={Intent.PRIMARY}
           requiredLabel={true}
@@ -210,35 +221,41 @@ class Tuning extends Component {
       </FormGroup>
 
       <FormGroup
+          label="Run on each recording in this group"
           helperText="Choose a small group of recordings if you want results quickly."
-          label="Selected group"
           labelFor="selected-group"
           requiredLabel={true}
       >
-          <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="small" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
+          <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Loop_closure_set" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
       </FormGroup>
 
-      <div style={{display: 'flex'}}>
-        <FormGroup style={{flex: '1 1 auto', marginRight:'30px'}} label={<strong>Platform</strong>} helperText="Only LSF is available">
-          <Checkbox disabled checked={true} label="LSF - Linux" />
-          <Checkbox disabled checked={false} label="S8 - Android" />
-        </FormGroup>
+      <FormGroup
+          label="You can choose any of the available SLAM configuration"
+          helperText='"stereo-serial" is the default. Configurations are saved as $configuration.json, e.g. "mono_mode".'
+          labelFor="input-configuration"
+          requiredLabel={true}
+      >
+          <input id="input-configuration" className="pt-input" style={{width: '300px'}} value={this.state.configuration} placeholder="stereo-serial" onChange={this.updateConfiguration}  type="text" dir="auto" />
+      </FormGroup>
 
-        <FormGroup style={{flex: '1 1 auto'}} label={<strong>Configuration</strong>} helperText="Only stereo-serial runs are available at the moment.">
-          <Checkbox disabled checked={true} label="stereo-serial" />
-          <Checkbox disabled checked={false} label="mono-serial" />
-        </FormGroup>
-      </div>
-
-      <h3>Tuning set</h3>
+      <h3>Tuning search</h3>
+      <FormGroup inline labelFor="select-search-type">
+        <div className="pt-select pt-minimal">
+          <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
+            <option key="grid" value="grid">Grid search</option>
+            <option key="sampler" value="sampler">Uniform sampling of N tuning configurations</option>
+          </select>
+          {this.state.search_type === 'sampler' && <input id="input-iterations" value={this.state.search_options.n_iter} className="pt-input" style={{marginLeft:'30px', width: '70px'}} placeholder="50" onChange={this.updateIterations}  type="numeric" dir="auto" />}
+        </div>
+      </FormGroup>
       <AceEditor
         mode="json"
         theme="github"
-        onChange={this.updateTuningSearch}
+        onChange={this.updateParameterSearch}
         width='100%'
         height='200px'
         name="editor-tuning-set"
-        value={this.state.tuning_search}
+        value={this.state.parameter_search}
         editorProps={{$blockScrolling: true}}
         setOptions={{
           tabSize: 2,
