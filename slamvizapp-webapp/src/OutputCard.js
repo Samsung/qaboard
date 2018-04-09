@@ -170,8 +170,11 @@ class OutputCard extends Component {
     let tags = <span>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.platform}</Tag>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.configuration}</Tag>
-      <Button onClick={this.toogleShowDebug} className="pt-minimal" style={{paddingLeft: '12px'}} text="toogle debug plots" intent={showDebug ? Intent.PRIMARY : Intent.NONE} iconName="series-add" />
-      <a title="Show output files" style={{paddingLeft: '8px'}} target="_blank" href={output_new.output_dir_url}><Icon iconName="download"/></a>
+      {Object.entries(output_new.extra_parameters).map(([k,v]) =>
+        <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">{k}:{v}</Tag>
+      )}
+      <Button onClick={this.toogleShowDebug} className="pt-minimal" style={{paddingLeft: '12px'}} text="toogle debug plots" intent={showDebug ? Intent.PRIMARY : Intent.NONE} icon="series-add" />
+      <a title="Show output files" style={{paddingLeft: '8px'}} target="_blank" href={output_new.output_dir_url}><Icon icon="download"/></a>
     </span>
 
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&

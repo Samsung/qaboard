@@ -2,12 +2,13 @@
 // import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
 import styled from "styled-components";
-import { Tag, Intent } from "@blueprintjs/core";
+import { Tag, Intent, Callout } from "@blueprintjs/core";
 
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
 
+// todo: we should use the colors defined by @blueprint, and JS helpers to alpha-ize, darken, etc.
 const color = 'rgba(255, 157, 0, 1)';
 const color_ref = 'rgba(55, 126, 184, 1)';
 const colors = [color, color_ref];
@@ -101,8 +102,8 @@ const HistogramComparaison = ({new_values, ref_values, metric}) => {
 	      width: 300,
 	      height: 100,
 	      autosize: false,
-	      plot_bgcolor: 'rgba(0,0,0,0)',
-	      paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
 	  };
 
     var ydata = [
@@ -136,6 +137,7 @@ const HistogramComparaison = ({new_values, ref_values, metric}) => {
 }
 
 
+// -${JSON.stringify(output.extra_parameters)}
 const run_type = output => `${output.recording_path}-${output.platform}-${output.configuration}`;
 
 const average = array => {
@@ -151,17 +153,21 @@ const pc_over_threshold = (array, threshold) => {
 class MetricsSummary extends Component {
   render() {
     const { new_batch, ref_batch, compare_cross_runtype } = this.props;
-    let slam_outputs_new = Object.values(new_batch.slam_outputs);
+    let slam_outputs_new = Object.values(new_batch.slam_outputs)
+                                 .filter(o => !o.is_pending && !o.is_failed);
     if (!compare_cross_runtype) {
       var run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
       var slam_outputs_ref = Object.values(ref_batch.slam_outputs)
-                                   .filter(o => run_types_new.has(run_type(o)));
-    } else {
+                                   .filter(o => run_types_new.has(run_type(o)))
+                                   .filter(o => !o.is_pending && !o.is_failed);
+  } else {
       run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
       slam_outputs_ref = Object.values(ref_batch.slam_outputs)
-                                   .filter(o => run_types_new.has(o.recording_path));
+                                   .filter(o => run_types_new.has(o.recording_path))
+                                   .filter(o => !o.is_pending && !o.is_failed);
     }
     return <div>
+      {new_batch.label!=='default' && <Callout intent={Intent.WARNING}>If you tried multiple tuning parameters, the results below show <strong>all the results mixed together</strong>.</Callout>}
       {Object.entries(available_metrics).map(([key, m]) => {
           let new_values = slam_outputs_new.map(o=>o[m.key]).filter(x => x);
           let ref_values = slam_outputs_ref.map(o=>o[m.key]).filter(x => x);

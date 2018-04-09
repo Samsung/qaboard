@@ -9,8 +9,10 @@ import { available_metrics, metric_formatter, percent_formatter } from "./Metric
 
 
 const ColumnsMetricImprovement = ({output_new, output_ref, metric}) => {
-  if (!output_new || !output_ref || output_new[metric]===undefined || output_ref[metric]===undefined || output_new[metric]===null || output_ref[metric]===null)
-    return <td style={{background:'#bbb'}}>na</td>
+  if (!output_new || output_new[metric]===undefined || output_new[metric]===null)
+    return <td style={{background:'#bbb'}}>New missing</td>
+  if (!output_ref || output_ref[metric]===undefined || output_ref[metric]===null)
+    return <td style={{background:'#bbb'}}>Ref missing</td>
   let delta = output_new[metric] - output_ref[metric];
   let delta_relative = delta / output_ref[metric];
   return <td style={{background: interpolateRdYlGn(.5-delta_relative)}}>{metric_formatter.format(delta)} ({percent_formatter.format(100*delta_relative)}%)</td>
@@ -49,16 +51,19 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype
       </thead>
       <tbody>
       {Object.entries(new_batch.slam_outputs)
+             .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(output_sort)
              .map( ([id, output]) => {
           let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
+                                           .filter(o => !o.is_pending && !o.is_failed)
                                            .filter(o => o.recording_path===output.recording_path)
                                            .filter(o => o.platform===output.platform || compare_cross_runtype)
                                            .filter(o => o.configuration===output.configuration || compare_cross_runtype)
           let output_ref = matching_ref_outputs[0];
+          let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path} {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} <Tag className="pt-round pt-minimal" iconName={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" iconName={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
+              <th scope="row">{output.recording_path} {extra_parameters}<Tag className="pt-round pt-minimal" icon={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" icon={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
               {displayed_metrics.map( m =>
                 <ColumnsMetricImprovement key={m} metric={m} output_new={output} output_ref={output_ref} />
               )}
@@ -96,16 +101,19 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype }) 
       </thead>
       <tbody>
       {Object.entries(new_batch.slam_outputs)
+             .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(this.sortOutputs)
              .map( ([id, output]) => {
           let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
+                                           .filter(o => !o.is_pending && !o.is_failed)
                                            .filter(o => o.recording_path===output.recording_path)
                                            .filter(o => o.platform===output.platform)
                                            .filter(o => o.configuration===output.configuration)
           let output_ref = matching_ref_outputs[0];
+          let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path} <Tag className="pt-round pt-minimal" iconName={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" iconName={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
+              <th scope="row">{output.recording_path} {extra_parameters} <Tag className="pt-round pt-minimal" icon={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" icon={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
               {displayed_metrics.map( m =>
                 <Fragment key={m}>
                   <QualityCell metric={m} output={output} />

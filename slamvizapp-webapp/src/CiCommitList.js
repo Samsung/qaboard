@@ -8,22 +8,13 @@ import styled from "styled-components";
 
 import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, ButtonGroup, Tag, Callout } from "@blueprintjs/core";
 import { Container, Section } from "./Common";
-import {CopyToClipboard} from 'react-copy-to-clipboard';
+import { CopyToClipboard } from 'react-copy-to-clipboard';
 import Avatar from "./Avatar";
 import { DoneAtTag } from "./DoneAtTag";
+import { groupBy } from "./utils";
 
 import Moment from 'react-moment';
 import 'moment-timezone';
-
-
-const groupBy = (array, prop) => {
-  return array.reduce(function(groups, item) {
-    var val = item[prop];
-    groups[val] = groups[val] || [];
-    groups[val].push(item);
-    return groups;
-  }, {});
-};
 
 
 const HeaderDay = styled.li`
@@ -142,9 +133,9 @@ class CommitRow extends React.Component {
             <div>
               <CommitShortId href={gitlab_commit_url}>{commit.id.substring(0,8)}</CommitShortId> 
               <CopyToClipboard text={commit.id} onCopy={() => {}}>
-                <Icon title="copy to clipboard" style={{color:'rgba(27, 105, 182, .8)', marginRight: '3px'}} iconName="pt-icon-clipboard" />
+                <Icon title="copy to clipboard" style={{color:'rgba(27, 105, 182, .8)', marginRight: '3px'}} icon="pt-icon-clipboard" />
               </CopyToClipboard>
-              <Icon iconName="pt-icon-git-branch"/> 
+              <Icon icon="pt-icon-git-branch"/> 
               <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${commit.branch}`}>{commit.branch}</Link> 
               <DoneAtTag commit={commit}/>
             </div>
@@ -267,7 +258,7 @@ class CiCommitList extends React.Component {
     let information = (
       <Fragment>
         <Section>
-          <Callout iconName="info-sign" intent={Intent.PRIMARY} title="Useful links" style={{marginBottom:'20px'}}>
+          <Callout icon="info-sign" intent={Intent.PRIMARY} title="Useful links" style={{marginBottom:'20px'}}>
           <ul>
             <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines</a></li>
             <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?</a></li>
@@ -275,7 +266,7 @@ class CiCommitList extends React.Component {
           </Callout>
         </Section>
         <Section>
-          <h3>Reports for branch <code><Icon iconName="git-branch"/>develop</code></h3>
+          <h3>Reports for branch <Link to="/branch/origin/develop"><Button icon="git-branch">develop</Button></Link></h3>
           <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
         </Section>
       </Fragment>
@@ -297,14 +288,14 @@ class CiCommitList extends React.Component {
     //  active ? Link
     let paginator =  (
       <ButtonGroup large style={{marginTop: '25px'}} onClick={this.paginatorOnClick}>
-        {page>0 && <Button value={page-1} iconName="pt-icon-arrow-left">Previous</Button>}
+        {page>0 && <Button value={page-1} icon="pt-icon-arrow-left">Previous</Button>}
         {page>0 && <Button value={page-1}>{page-1}</Button>}
         {page>1 && <Button value={page-2}>{page-2}</Button>}
         <Button value={page} disabled intent={Intent.PRIMARY} >{page}</Button>
         <Button value={page+1}>{page+1}</Button>
         <Button value={page+2}>{page+2}</Button>
         <Button value={page+3}>{page+3}</Button>
-        <Button value={page+1} iconName="pt-icon-arrow-right">Next</Button>
+        <Button value={page+1} icon="pt-icon-arrow-right">Next</Button>
       </ButtonGroup>
     )
 

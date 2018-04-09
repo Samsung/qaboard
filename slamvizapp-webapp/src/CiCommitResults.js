@@ -19,6 +19,7 @@ import { OutputCard } from "./OutputCard";
 import { DoneAtTag } from "./DoneAtTag";
 import { MetricsSummary } from "./Metrics";
 import { TableCompare, TableKpi } from "./Tables";
+import { TuningExploration } from "./TuningExploration";
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
@@ -32,7 +33,7 @@ import 'brace/ext/searchbox';
 export const OurToaster = Toaster.create();
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
 
-const TuningResults = <p/>
+
 
 class AddRecordings extends Component {
   constructor(props) {
@@ -164,7 +165,7 @@ class Tuning extends Component {
       platform: 'lsf',
 
       selected_group: null,
-      tuning_search: `{\n  "search_type": "grid",\n  "parameter_search": {\n    "frame_duration": [10.0, 20.0, 30.0]\n  }\n}\n`,
+      tuning_search: `{\n  "search_type": "grid",\n  "parameter_search": {\n    "events_per_frame": [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000]\n  }\n}\n`,
     };
   }
 
@@ -218,7 +219,7 @@ class Tuning extends Component {
       </FormGroup>
 
       <div style={{display: 'flex'}}>
-        <FormGroup style={{flex: '1 1 auto', marginRight:'15px'}} label={<strong>Platform</strong>} helperText="Only LSF is available">
+        <FormGroup style={{flex: '1 1 auto', marginRight:'30px'}} label={<strong>Platform</strong>} helperText="Only LSF is available">
           <Checkbox disabled checked={true} label="LSF - Linux" />
           <Checkbox disabled checked={false} label="S8 - Android" />
         </FormGroup>
@@ -244,7 +245,7 @@ class Tuning extends Component {
         }}
       />
 
-      <Callout iconName="time" intent={Intent.PRIMARY}>Estimated time: TBD</Callout>
+      <Callout icon="time" intent={Intent.PRIMARY}>Estimated time: TBD</Callout>
       <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
 
   
@@ -517,10 +518,15 @@ class CiCommitResults extends Component {
     let batch_filtered = Object.create(batch)
     batch_filtered.slam_outputs = {}
     Object.entries(batch.slam_outputs).forEach( ([id, output])=> {
-      let searched = `${output.recording_path} ${output.platform} ${output.configuration}`.toLowerCase()
+      let extra_parameters_s = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
+      let extra_parameters = extra_parameters_s.replace(/"/g, '');
+      let searched = `${output.recording_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
       let found = false;
       for (var i in filter_tokens) {
-        let search = filter_tokens[i].toLowerCase();
+        let search = filter_tokens[i]
+                     .toLowerCase()
+                     .replace(/"/g, '')
+                     .replace(/=+/g, ':');
         console.log(search)
         if (searched.includes(search)) {
           found=true;
@@ -566,6 +572,9 @@ class CiCommitResults extends Component {
     if (a[sort_by] < b[sort_by]) {
       return -this.state.order;
     }
+    // TODO: we may want to sort also by extra_parameters
+    // the code below won't sort correctly numbers (5 vs 55)...
+    // return JSON.stringify(a.extra_parameters) < JSON.stringify(b.extra_parameters);
     return 0;
   }
 
@@ -623,18 +632,18 @@ class CiCommitResults extends Component {
       <Section>
        {new_commit.batches[selected_batch_new].pending_slam_outputs>0 &&
           <Callout
-            iconName="info-sign"
+            icon="info-sign"
             intent={Intent.WARNING}
             title={
               <Tooltip>
               <span>Still waiting for {new_commit.batches[selected_batch_new].pending_slam_outputs} result{new_commit.batches[selected_batch_new].pending_slam_outputs>1 ? 's' : ''}</span>
-              <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_pending===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_pending===true).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
        {new_commit.batches[selected_batch_new].failed_slam_outputs>0 &&
           <Callout
-            iconName="error"
+            icon="error"
             intent={Intent.DANGER}
             title={
               <Tooltip>
@@ -649,7 +658,7 @@ class CiCommitResults extends Component {
     );
 
     let new_batch_filtered = this.filter_batch(new_commit.batches[selected_batch_new])
-    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref  ])
+    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref])
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
@@ -669,10 +678,10 @@ class CiCommitResults extends Component {
                 </select>
               </div>
             </FormGroup>}
-            <FormGroup label="Filter results" labelFor="batch-select" helperText="All the data on this page will update.">
+            <FormGroup label="Filter results" labelFor="batch-select" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.slam_outputs).length} selected)`}>
               <InputGroup
                 value={this.state.filter_values}
-                placeholder="Recording name, platform or configuration"
+                placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
                 onChange={e => this.setState({ filter_values: e.target.value })}
                 type="search"
                 leftIcon="search"
@@ -721,7 +730,7 @@ class CiCommitResults extends Component {
               />
             <Tab
               id="output-list"
-              title="6dof Details"
+              title="6DoF Details"
               panel={
                 <OutputList
                   output_sort={this.sortOutputs}
@@ -734,9 +743,9 @@ class CiCommitResults extends Component {
               />
             <Tab
               id="tuning-results"
-              title="Tuning results"
+              title="Tuning exploration"
               panel={
-                <TuningResults new_batch={new_batch_filtered}/>}
+                <TuningExploration batch={new_batch_filtered}/>}
               />
             <Tabs.Expander />
             <Switch checked={this.state.showVideos} label="Videos" onChange={this.toogleShowVideos} />
@@ -773,17 +782,16 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
       <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <div style={{flex:'1 1 auto'}}>
           <h1 style={{display: 'flex', alignItems: 'baseline'}}><Avatar href={`/committer/${new_commit.committer_name}`} alt={new_commit.committer_name} src={new_commit.committer_avatar_url} />{new_commit.type==='git' ? new_commit.id.substring(0,8) : new_commit.id} </h1>
-            <Icon iconName='git-commit'/> {new_commit.parents.length>1 ? 'parents' : 'parent'}: {new_commit.parents.map(p => <Button key={p} onClick={e=>{console.log(p); onConfirmReference(p)}} className="pt-minimal">{p.substring(0,8)}</Button>)}
-            <Link to={`/branch/${new_commit.branch}`}><Button className="pt-minimal" iconName="git-branch">{new_commit.branch}</Button></Link>
+            <Link to={`/branch/${new_commit.branch}`}><Button icon="git-branch">{new_commit.branch}</Button></Link><Icon icon='git-commit'/> {new_commit.parents.length>1 ? 'parents' : 'parent'}: {new_commit.parents.map(p => <Button key={p} onClick={e=>{console.log(p); onConfirmReference(p)}}>{p.substring(0,8)}</Button>)}
             <br/>
-            <DoneAtTag commit={new_commit} /> <Tag>{new_ci_batch.valid_slam_outputs} CI outputs</Tag> {new_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{new_ci_batch.failed_slam_outputs} crashed</Tag>} {new_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{new_ci_batch.pending_slam_outputs} pending</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
+            <DoneAtTag commit={new_commit} /> <Tag>{new_ci_batch.valid_slam_outputs} outputs @CI</Tag> {new_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{new_ci_batch.failed_slam_outputs} crashed @CI</Tag>} {new_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{new_ci_batch.pending_slam_outputs} pending @CI</Tag>} <Tag intent={Intent.WARNING}>New</Tag>
             <p style={{marginTop: '10px', maxWidth:'450px'}} className="pt-monospace-text">{new_commit.message}</p>
           </div>
-        <div><Icon iconName="small-cross"></Icon></div>
+        <div><Icon icon="small-cross"></Icon></div>
         <div style={{flex:'1 1 auto'}}>
             <h1 style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline'}}><EditableText style={{flex: '1 1 auto', margin:'auto', borderBottom: '2px solid rgb(100,100,100)'}} onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /><Avatar href={`/committer/${ref_commit.committer_name}`} alt={ref_commit.committer_name} src={ref_commit.committer_avatar_url} /></h1>
-            <span style={{display: 'flex', justifyContent: 'flex-end'}}><Link to={`/branch/${ref_commit.branch}`}><Button style={{flex: '1 1 auto', margin:'auto'}} className="pt-minimal" iconName="git-branch">{ref_commit.branch}</Button></Link></span>
-            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_ci_batch.valid_slam_outputs} outputs</Tag> {ref_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{ref_ci_batch.failed_slam_outputs} crashed</Tag>} {ref_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{ref_ci_batch.pending_slam_outputs} pending</Tag>} <Tag intent={Intent.PRIMARY}>Reference</Tag></div>
+            <span style={{display: 'flex', justifyContent: 'flex-end'}}><Link to={`/branch/${ref_commit.branch}`}><Button style={{flex: '1 1 auto', margin:'auto'}} icon="git-branch">{ref_commit.branch}</Button></Link></span>
+            <div style={{textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_ci_batch.valid_slam_outputs} outputs @CI</Tag> {ref_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{ref_ci_batch.failed_slam_outputs} crashed @CI</Tag>} {ref_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{ref_ci_batch.pending_slam_outputs} pending @CI</Tag>} <Tag intent={Intent.PRIMARY}>Reference</Tag></div>
             <p style={{display: 'flex', justifyContent: 'flex-end', textAlign: 'right', marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
         </div>
       </div>

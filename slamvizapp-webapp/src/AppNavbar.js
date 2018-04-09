@@ -57,7 +57,7 @@ class AppNavbar extends Component {
 	  <Navbar className="pt-dark">
 	    <NavbarGroup>
 	      <NavbarHeading>SLAM</NavbarHeading>
-	      <Button disabled className="pt-minimal" iconName="git-branch"></Button>
+	      <Button disabled className="pt-minimal" icon="git-branch"></Button>
 	      <Suggest
 	        itemPredicate={filterBranch}
 	        items={this.state.branches}
@@ -70,10 +70,10 @@ class AppNavbar extends Component {
 	        initialContent="Filter by branch..."
 	       />
 	      <NavbarDivider />
-	      <InputGroup leftIconName="git-commit" placeholder="Go to commit or folder..." onChange={this.handleCommitChange}/>
+	      <InputGroup leftIcon="git-commit" placeholder="Go to commit or folder..." onChange={this.handleCommitChange}/>
 	    </NavbarGroup>
 	    <NavbarGroup align="right">
-	      <Link to="/"><Button className="pt-minimal" iconName="home">Recent Commits</Button></Link>
+	      <Link to="/"><Button className="pt-minimal" icon="home">Recent Commits</Button></Link>
 	    </NavbarGroup>
       </Navbar>
     )
