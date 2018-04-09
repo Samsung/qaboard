@@ -7,7 +7,95 @@ import { Callout, Colors, Intent, FormGroup } from "@blueprintjs/core";
 import { Section } from "./Common";
 import { available_metrics } from "./Metrics";
 import { groupBy } from "./utils";
+
 const Plot = createPlotlyComponent(Plotly);
+const config = { displayModeBar:false }
+
+
+const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
+  let slam_outputs_by_recording = groupBy(Object.values(slam_outputs), "recording_path");
+  let traces = Object.entries(slam_outputs_by_recording)
+                     .map( ([recording_path, slam_outputs_for_recording]) => {
+                        let slam_outputs = slam_outputs_for_recording
+                                           .filter( o => !o.is_pending && !o.is_failed)
+                                           .sort( (a,b) => a.extra_parameters[parameter] - b.extra_parameters[parameter])
+                        return {
+                          type: 'scatter',
+                          name: recording_path,
+                          x: slam_outputs.map(o => o.extra_parameters[parameter]),
+                          y: slam_outputs.map(o => o[metric.key] * metric.scale),
+                          marker: {
+                            size: 4,
+                            color: Colors.ORANGE4,
+                            opacity: 0.8,
+                          },
+                          line: {
+                            width: 1,
+                            color: Colors.ORANGE5,
+                            opacity: 0.8,
+                          }
+                        }
+                      })
+  const layout = {
+    hovermode: 'closest',
+    showlegend: false,
+    xaxis: {
+      title: parameter,
+    },
+    yaxis: {
+      title: metric.label,
+      type:'log',
+      autotick: false,
+      dtick:0.69897000433,
+      exponentformat:'SI',
+      showgrid: false,
+      zeroline: false,
+      gridcolor: 'rgb(255, 255, 255)',
+      gridwidth: 1,
+    },
+  }
+  return <Plot data={traces} layout={layout} config={config}/>
+}
+
+const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
+  let slam_outputs_by_param = groupBy(Object.values(slam_outputs).map(o => { return {...o, extra_parameter: o.extra_parameters[parameter]} }), "extra_parameter");
+  console.log(slam_outputs_by_param)
+  let traces = Object.entries(slam_outputs_by_param)
+                     .map( ([param_value, slam_outputs_for_recording]) => {
+                        let slam_outputs = slam_outputs_for_recording
+                                           .filter( o => !o.is_pending && !o.is_failed)
+                        return {
+                          type: 'box',
+                          name: param_value,
+                          x: slam_outputs.map(o => o.extra_parameters[parameter]),
+                          y: slam_outputs.map(o => o[metric.key] * metric.scale),
+                          marker: {
+                            color: Colors.ORANGE3,
+                          },
+                        }
+                      })
+  const layout = {
+    hovermode: 'closest',
+    boxgap: 0,
+    boxgroupgap: 0,
+    showlegend: false,
+    xaxis: {
+      title: parameter,
+    },
+    yaxis: {
+      title: metric.label,
+      type:'log',
+      autotick: false,
+      dtick:0.69897000433,
+      exponentformat:'SI',
+      showgrid: false,
+      zeroline: false,
+      gridcolor: 'rgb(255, 255, 255)',
+      gridwidth: 1,
+    },
+  }
+  return <Plot data={traces} layout={layout} config={config}/>
+}
 
 
 class TuningExploration extends Component {
@@ -46,53 +134,13 @@ class TuningExploration extends Component {
     // what metric are we looking at?
     let metric = available_metrics[this.state.selected_metric];
 
-    let slam_outputs_by_recording = groupBy(Object.values(batch.slam_outputs), "recording_path");
-    let traces = Object.entries(slam_outputs_by_recording)
-                       .map( ([recording_path, slam_outputs_for_recording]) => {
-                          let slam_outputs = slam_outputs_for_recording
-                                             .filter( o => !o.is_pending && !o.is_failed)
-                                             .sort( (a,b) => a.extra_parameters[selected_parameter] - b.extra_parameters[selected_parameter])
-                          return {
-                            type: 'scatter',
-                            name: recording_path,
-                            x: slam_outputs.map(o => o.extra_parameters[selected_parameter]),
-                            y: slam_outputs.map(o => o[metric.key] * metric.scale),
-                            marker: {
-                              size: 4,
-                              color: Colors.ORANGE4,
-                              opacity: 0.8,
-                            },
-                            line: {
-                              width: 1,
-                              color: Colors.ORANGE5,
-                              opacity: 0.8,
-                            }
-                          }
-                        })
-    console.log(traces)
 
-    const layout = {
-      hovermode: 'closest',
-      showlegend: false,
-      xaxis: {
-        title: selected_parameter,
-      },
-      yaxis: {
-        title: metric.label,
-        type:'log',
-        autotick: false,
-        dtick:0.69897000433,
-        exponentformat:'SI',
-        showgrid: false,
-        zeroline: false,
-        gridcolor: 'rgb(255, 255, 255)',
-        gridwidth: 1,
-      },
-    }
+    let total_slam_runs = Object.keys(batch.slam_outputs).length;
+    let number_recordings = Object.keys(groupBy(Object.values(batch.slam_outputs), "recording_path")).length;
 
-    // label="Sensibility analysis of parameter"
-    // label="Metric of interest" 
     return <Section>
+      <h3>{total_slam_runs} SLAM runs over {number_recordings} recordings</h3>
+      <h4>Sensibility analysis</h4>
       <FormGroup inline labelFor="select-parameter" helperText="Shown on the X-axis">
         <div className="pt-select pt-minimal">
           <select id='select-parameter' defaultValue={default_selected_parameter} onChange={this.selectParameter}>
@@ -107,7 +155,9 @@ class TuningExploration extends Component {
           </select>
         </div>
       </FormGroup>
-      <Plot data={traces} layout={layout} config={{displayModeBar:false}}/>
+      <Sensibility1DBoxplots slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter}/>
+      <h4>Breakdown by recording</h4>
+      <Sensibility1DLines slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter}/>
     </Section>
   }
 }

@@ -6,7 +6,7 @@ import queryString from "query-string";
 
 
 import AceEditor from 'react-ace';
-import { Checkbox, FormGroup, Switch, EditableText } from "@blueprintjs/core";
+import { FormGroup, Switch, EditableText } from "@blueprintjs/core";
 import { Tooltip, Callout, Icon, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 import { Button, Tag, InputGroup } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
