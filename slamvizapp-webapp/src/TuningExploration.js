@@ -63,7 +63,6 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
 
 const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
   let slam_outputs_by_param = groupBy(Object.values(slam_outputs).map(o => { return {...o, extra_parameter: o.extra_parameters[parameter]} }), "extra_parameter");
-  console.log(slam_outputs_by_param)
   let traces = Object.entries(slam_outputs_by_param)
                      .map( ([param_value, slam_outputs_for_recording]) => {
                         let slam_outputs = slam_outputs_for_recording

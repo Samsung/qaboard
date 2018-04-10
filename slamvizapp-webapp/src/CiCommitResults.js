@@ -160,7 +160,7 @@ class Tuning extends Component {
     super(props);
     this.state = {
       submitted: false,
-      experiment_name: null,
+      experiment_name: '',
       configuration: 'serial-stereo',
       platform: 'lsf',
       selected_group: null,
@@ -172,7 +172,7 @@ class Tuning extends Component {
     };
   }
 
-  updateExperimentName = e => {this.setState({experiment_name: e.target.value})};
+  updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/\W/g, '-')})};
   updateSelectedGroup = e => {this.setState({selected_group: e.target.value})};
   updateConfiguration = e => {this.setState({configuration: e.target.value})};
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
@@ -228,7 +228,7 @@ class Tuning extends Component {
           intent={Intent.PRIMARY}
           requiredLabel={true}
       >
-          <input id="experiment-name" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" onChange={this.updateExperimentName}  type="text" dir="auto" />
+          <input id="experiment-name" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" value={this.state.experiment_name} onChange={this.updateExperimentName}  type="text" dir="auto" />
       </FormGroup>
 
       <FormGroup
@@ -351,8 +351,9 @@ class CommitParameters extends Component {
        get(`${this.props.new_commit.commit_dir_url}/${c}.json`,
            {transformResponse: response=>response}) // avoid json parsing
         .then(response => {
+          let previous_parameters = this.state.parameters;
           this.setState({
-            parameters: {...this.state.parameters, [c]: response.data},
+            parameters: {...previous_parameters, [c]: response.data},
           })
         })
      })
@@ -407,8 +408,10 @@ class CiCommitResults extends Component {
       filter_values: '',
       sort_by: 'translation_aape',
       order: -1,
-      showVideos: false,
-      show3d: false,
+
+      show_videos: false,
+      show_3d: false,
+      show_debug: false,
 
       commit_logs: {},
     };
@@ -418,14 +421,16 @@ class CiCommitResults extends Component {
     const params = new URLSearchParams(this.props.location.search);
     const new_commit_id = params.get('commit_folder') || this.props.match.params[0]
     const ref_commit_id = this.state.ref_commit_id || params.get('reference') || params.get('commit_ref_folder') || 'default';
-    this.setState({
+    this.setState((previous_state, props) => {
+      return {
         new_commit_id,
         ref_commit_id,
         commits: {
-          ...this.state.commits,
+          ...previous_state.commits,
           [new_commit_id]:{isLoaded:false},
           [ref_commit_id]:{isLoaded:false},
         }
+      }
     });
     this.getCiCommit(new_commit_id, 'new_commit_id');
     this.getCiCommit(ref_commit_id, 'ref_commit_id');
@@ -465,33 +470,39 @@ class CiCommitResults extends Component {
             })
           }
         }
-        this.setState({
+        this.setState( (previous_state, props) => { 
+          return {
           [to_update]: response.data.id,
           commits: {
-            ...this.state.commits,
+            ...previous_state.commits,
             [response.data.id]: {
               data: response.data,
               isLoaded: true,
             }
           }
+        }
         });
       })
       .catch(error => {
-        this.setState({
-          commits: {
-            ...this.state.commits,
-            [commit_id]: {
-              isLoaded: true,
+        this.setState( (previous_state, props) => {
+          return {
+            commits: {
+              ...previous_state.commits,
+              [commit_id]: {
+                isLoaded: true,
+              }
             }
           }
         });
         if (error.response) {
-          this.setState({
-            commits: {
-              ...this.state.commits,
-              [commit_id]: {
-                isLoaded: true,
-                error: error.response.data.error,
+          this.setState( (previous_state, props) => {
+            return {
+              commits: {
+                ...this.state.commits,
+                [commit_id]: {
+                  isLoaded: true,
+                  error: error.response.data.error,
+                }
               }
             }
           });
@@ -527,11 +538,13 @@ class CiCommitResults extends Component {
         pathname: this.props.location.pathname,
         search: queryString.stringify({...query, reference: new_ref_commit_id})
       })
-      this.setState({
-        ref_commit_id: new_ref_commit_id,
-        commits: {
-          ...this.state.commits,
-          [new_ref_commit_id]:{isLoaded:false},
+      this.setState( (previous_state, props) => {
+        return {
+          ref_commit_id: new_ref_commit_id,
+          commits: {
+            ...this.state.commits,
+            [new_ref_commit_id]:{isLoaded:false},
+          }
         }
       }, this.updateState);      
     }
@@ -555,7 +568,6 @@ class CiCommitResults extends Component {
                      .toLowerCase()
                      .replace(/"/g, '')
                      .replace(/=+/g, ':');
-        console.log(search)
         if (searched.includes(search)) {
           found=true;
           break
@@ -577,18 +589,29 @@ class CiCommitResults extends Component {
   selectBatchNew = e => {
     this.setState({selected_batch_new: e.target.value})
   }
+
   selectBatchRef = e => {
     this.setState({selected_batch_ref: e.target.value})
   }
 
-  toogleShowVideos = () => {
+  toogleShowDebug = () => {
+    let previous_value = this.state.show_debug;
     this.setState({
-      showVideos: !this.state.showVideos,
+      show_debug: !previous_value,
     })
   }
-  toogleShow3d = () => {
+
+  toogleShowVideos = () => {
+    let previous_value = this.state.show_videos;
     this.setState({
-      show3d: !this.state.show3d,
+      show_videos: !previous_value,
+    })
+  }
+
+  toogleShow3d = () => {
+    let previous_value = this.state.show_3d;
+    this.setState({
+      show_3d: !previous_value,
     })
   }
 
@@ -764,8 +787,9 @@ class CiCommitResults extends Component {
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
-                  showVideos={this.state.showVideos}
-                  show3d={this.state.show3d}
+                  show_videos={this.state.show_videos}
+                  show_3d={this.state.show_3d}
+                  show_debug={this.state.show_debug}
                   compare_cross_runtype={compare_cross_runtype}
                 />}
               />
@@ -776,8 +800,9 @@ class CiCommitResults extends Component {
                 <TuningExploration batch={new_batch_filtered}/>}
               />
             <Tabs.Expander />
-            <Switch checked={this.state.showVideos} label="Videos" onChange={this.toogleShowVideos} />
-            <Switch checked={this.state.show3d} label="3d" onChange={this.toogleShow3d} />
+            <Switch checked={this.state.show_debug} label="Debug" onChange={this.toogleShowDebug} />
+            <Switch checked={this.state.show_videos} label="Videos" onChange={this.toogleShowVideos} />
+            <Switch checked={this.state.show_3d} label="3d" onChange={this.toogleShow3d} />
             <div className="pt-select">
               <select defaultValue="translation_aape" onChange={this.selectSortBy}>
                 <option value="translation_aape">Sort by AAPE</option>
@@ -828,11 +853,36 @@ const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
 }
 
 class OutputList extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      select_debug_input: '',
+      select_debug: '',
+    };
+  }
+
   render() {
-    const {new_batch, ref_batch, output_sort, showVideos, show3d, compare_cross_runtype } = this.props;
+    const { new_batch, ref_batch, output_sort, compare_cross_runtype } = this.props;
+    const { show_debug, show_videos, show_3d } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return <Fragment>
+            {show_debug && <FormGroup
+                              label="Show debug outputs matching"
+                              labelFor="show-debug-input"
+                              helperText="Separate the debug outputs by spaces."
+                              style={{'marginBottom': '30px'}}
+                            >
+                              <InputGroup
+                                value={this.state.select_debug_input}
+                                placeholder="ransac points"
+                                onChange={e => this.setState({ select_debug_input: e.target.value })}
+                                onBlur={e => this.setState({ select_debug: e.target.value })}
+                                onSubmit={e => this.setState({ select_debug: e.target.value })}
+                                leftIcon="series-add"
+                                style={{width: '300px'}}
+                              />
+                            </FormGroup>}
             <div style={{display:'flex', justifyContent: 'space-between', flexFlow: 'row wrap'}}>
               {Object.entries(new_batch.slam_outputs)
                      .sort(output_sort)
@@ -849,8 +899,10 @@ class OutputList extends React.Component {
                           key={id}
                           output_new={output}
                           output_ref={output_ref}
-                          showVideos={showVideos}
-                          show3d={show3d}
+                          show_debug={show_debug}
+                          select_debug={this.state.select_debug}
+                          show_videos={show_videos}
+                          show_3d={show_3d}
                         />;
               })}
             </div>

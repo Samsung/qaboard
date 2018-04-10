@@ -4,7 +4,7 @@ import React, { Component, Fragment } from "react";
 import { get, all, spread } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
-import { Card, Icon, Tag, Button, Intent } from "@blueprintjs/core";
+import { Card, Icon, Tag, Intent } from "@blueprintjs/core";
 import { MetricTag } from "./Metrics";
 import { SyncedVideos } from "./SyncedVideos";
 
@@ -28,29 +28,47 @@ class OutputCard extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      isLoaded: false,
-      isLoadedDebug: false,
-      showDebug: false,
+      is_loaded: false,
+      is_loaded_debug: false,
+      select_debug: '',
 
       traces_6dof: {},
       traces_3d: {},
       traces_debug: {},
+      data_debug: {},
 
-      plotRevision: 0,
+      plot_revision: 0,
     };
   }
 
+  componentDidUpdate(nextProps, prevState) {
+    if (!prevState.is_loaded_debug && nextProps.show_debug)
+      this.loadDebug()
+    if (nextProps.select_debug !== prevState.select_debug)
+      this.setState({
+        select_debug: nextProps.select_debug,
+        traces_debug: { 
+          ...prevState.traces_debug,
+          new: make_traces_debug(prevState.data_debug['new'], 'new', nextProps.select_debug),
+          reference: make_traces_debug(prevState.data_debug['reference'], 'reference', nextProps.select_debug)
+        },
+        plot_revision: prevState.plot_revision+1,
+      })
+  }
+
   componentDidMount() {
-    const { output_new, output_ref } = this.props;
+    const { output_new, output_ref, show_debug } = this.props;
     let has_groundtruth = output_new.translation_aape!==null;
     if (has_groundtruth) {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`)
             .then(response => {
               let poses = parse_poses(response.data, output_new.time_offset_to_groundtruth);
-              this.setState({
-                traces_6dof: {...this.state.traces_6dof, groundtruth: make_traces(poses, 'groundtruth')},
-                traces_3d: {...this.state.traces_3d, groundtruth: make_traces3d(poses, 'groundtruth')},
+              this.setState((previous_state, props) => {
+                return {
+                  traces_6dof: {...previous_state.traces_6dof, groundtruth: make_traces(poses, 'groundtruth')},
+                  traces_3d: {...previous_state.traces_3d, groundtruth: make_traces3d(poses, 'groundtruth')},
+                }
               })
             })
             .catch(e=>{})
@@ -62,9 +80,11 @@ class OutputCard extends Component {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
         .then(response => {
           let poses = parse_poses(response.data, output_new.time_offset_to_groundtruth);
-          this.setState({
-             traces_6dof: {...this.state.traces_6dof, new: make_traces(poses, 'new')},
-             traces_3d: {...this.state.traces_3d, new: make_traces3d(poses, 'new')},
+          this.setState((previous_state, props) => {
+            return {
+               traces_6dof: {...previous_state.traces_6dof, new: make_traces(poses, 'new')},
+               traces_3d: {...previous_state.traces_3d, new: make_traces3d(poses, 'new')},
+            }
           })
         }).catch(e=>{})
     }
@@ -74,9 +94,11 @@ class OutputCard extends Component {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
           .then(response => {
             let poses = parse_poses(response.data, output_ref.time_offset_to_groundtruth)
-            this.setState({
-              traces_6dof: {...this.state.traces_6dof, reference: make_traces(poses, 'reference')},
-              traces_3d: {...this.state.traces_3d, reference: make_traces3d(poses, 'reference')},
+            this.setState((previous_state, props) => {
+              return {
+                traces_6dof: {...previous_state.traces_6dof, reference: make_traces(poses, 'reference')},
+                traces_3d: {...previous_state.traces_3d, reference: make_traces3d(poses, 'reference')},
+              }
             })
           }).catch(e=>{})
       }      
@@ -91,39 +113,36 @@ class OutputCard extends Component {
     ])
      .then(spread((req_gt, req_new, req_ref) => {
         this.setState({
-          isLoaded: true
+          is_loaded: true
         })
+        if (show_debug) this.loadDebug()
       }))
-     .catch(()=>{ this.setState({isLoaded: true})} )
+     .catch(()=>{ this.setState({is_loaded: true})} )
     }
-
-  toogleShowDebug = () => {
-    this.setState({
-      showDebug: !this.state.showDebug,
-    })
-    if (!this.state.isLoadedDebug)
-      this.loadDebug()
-    else
-      this.setState({plotRevision: this.state.plotRevision+1})
-  }
 
   loadDebug() {
     const { output_new, output_ref } = this.props;
     var get_new_debug = () => {
       return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
         .then(response => {
-          let poses = parse_debug(response.data, output_new.time_offset_to_groundtruth)
-          this.setState({
-            traces_debug: {...this.state.traces_debug, new: make_traces_debug(poses, 'new')},
+          let data = parse_debug(response.data, output_new.time_offset_to_groundtruth)
+          this.setState((previous_state, props) => {
+            return {
+              data_debug: {...previous_state.data_debug, new: data},
+              traces_debug: {...previous_state.traces_debug, new: make_traces_debug(data, 'new', previous_state.select_debug)},
+            }
           })
         }).catch(e=>{})
     }
     var get_ref_debug = () => {
       return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
         .then(response => {
-          let poses = parse_debug(response.data, output_ref.time_offset_to_groundtruth)
-          this.setState({
-            traces_debug: {...this.state.traces_debug, reference: make_traces_debug(poses, 'reference')},
+          let data = parse_debug(response.data, output_ref.time_offset_to_groundtruth)
+          this.setState((previous_state, props) => {
+            return {
+              data_debug: {...previous_state.data_debug, reference: data},
+              traces_debug: {...previous_state.traces_debug, reference: make_traces_debug(data, 'reference', previous_state.select_debug)},
+            }
           })
         }).catch(e=>{})
     }
@@ -132,49 +151,46 @@ class OutputCard extends Component {
       get_ref_debug(),
     ])
      .then(spread((req_new, req_ref) => {
-        this.setState({
-          isLoadedDebug: true,
-          plotRevision: this.state.plotRevision+1,
+        this.setState((previous_state, props) => {
+          return {
+            is_loaded_debug: true,
+            plot_revision: previous_state.plot_revision+1,
+          }
         })
-      })).catch(()=>{this.setState({isLoadedDebug: true})})
+      })).catch(()=>{this.setState({is_loaded_debug: true})})
   }
 
   render() {
-    const { output_new, output_ref, show3d, showVideos } = this.props;
-    const { isLoaded, showDebug, plotRevision } = this.state;
+    const { output_new, output_ref, show_debug, show_3d, show_videos } = this.props;
+    const { is_loaded, plot_revision } = this.state;
   
     var traces = [];
-    if (this.state.traces_6dof.groundtruth)
-      traces = [...traces, ...this.state.traces_6dof.groundtruth];
-    if (this.state.traces_6dof.reference)
-      traces = [...traces, ...this.state.traces_6dof.reference];
-    if (this.state.traces_6dof.new)
-      traces = [...traces, ...this.state.traces_6dof.new];
-    if (showDebug) {
-      if (this.state.traces_debug.reference)
-        traces = [...traces, ...this.state.traces_debug.reference];
-      if (this.state.traces_debug.new)
-        traces = [...traces, ...this.state.traces_debug.new];      
+    ['groundtruth', 'reference', 'new'].forEach( label => {
+      if (this.state.traces_6dof[label])
+        traces = [...traces, ...this.state.traces_6dof[label]];
+    })
+    if (show_debug) {
+      ['reference', 'new'].forEach( label => {
+        if (this.state.traces_debug[label])       
+          traces = [...traces, ...this.state.traces_debug[label]];
+      })
     }
 
-    if (show3d) {
-      var traces3d = [];
-      if (this.state.traces_3d.groundtruth)
-        traces3d = [...traces3d, this.state.traces_3d.groundtruth];
-      if (this.state.traces_3d.reference)
-        traces3d = [...traces3d, this.state.traces_3d.reference];
-      if (this.state.traces_3d.new)
-        traces3d = [...traces3d, this.state.traces_3d.new];
+    if (show_3d) {
+      var traces_3d = [];
+      ['groundtruth', 'reference', 'new'].forEach( label => {
+        if (this.state.traces_3d[label])
+          traces_3d = [...traces_3d, this.state.traces_3d[label]];
+      })
     }
 
     let tags = <span>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.platform}</Tag>
       <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">{output_new.configuration}</Tag>
+      <a title="Show output files" style={{paddingLeft: '8px'}} target="_blank" href={output_new.output_dir_url}><Icon icon="download"/></a>
       {Object.entries(output_new.extra_parameters).map(([k,v]) =>
         <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">{k}:{v}</Tag>
       )}
-      <Button onClick={this.toogleShowDebug} className="pt-minimal" style={{paddingLeft: '12px'}} text="toogle debug plots" intent={showDebug ? Intent.PRIMARY : Intent.NONE} icon="series-add" />
-      <a title="Show output files" style={{paddingLeft: '8px'}} target="_blank" href={output_new.output_dir_url}><Icon icon="download"/></a>
     </span>
 
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&
@@ -185,23 +201,24 @@ class OutputCard extends Component {
                     {output_new.translation_rmse>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='translation_aape'/></p>}
                     {output_new.rotation_mean>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='rotation_mean'/></p>}
                   </div>
-                  {showVideos && <SyncedVideos
+                  {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
                     src_ref={output_ref && `${output_ref.output_dir_url}/results.mp4`}
                     poster_new={`${output_new.output_dir_url}/poster.jpg`}
                     poster_ref={output_ref && `${output_ref.output_dir_url}/poster.jpg`}
                   />}
-                  {show3d && isLoaded && <Plot
-                    data={traces3d}
+                  {show_3d && is_loaded && <Plot
+                    data={traces_3d}
                     layout={layout3d}
-                    revision={plotRevision}
+                    revision={plot_revision}
                   />}
-                  {isLoaded && <Plot
+                  {is_loaded && <Plot
                     data={traces}
-                    layout={make_layout(showDebug, this.state.traces_debug.new)}
-                    revision={plotRevision}
+                    layout={make_layout(show_debug, this.state.traces_debug.new)}
+                    revision={plot_revision}
                   />}
                 </SlimCard>
+                {this.state.plot_revision}
               </div>}
             </Fragment>
   }
@@ -290,9 +307,22 @@ var make_traces3d = function(poses, label) {
   }
 }
 
-const make_traces_debug = (data, label) => {
+const make_traces_debug = (data, label, select_string) => {
+  if (!data) return [];
+  var select = c => {
+    if (select_string.length === 0) return false;
+    let searched = c.toLowerCase();
+    let tokens = select_string.split(' ');
+    for (var i in tokens) {
+      let search = tokens[i].toLowerCase()
+      if (searched.includes(search)) return true;
+    }
+    return false;
+  }
   let traces = Object.keys(data)
-    .filter(c=>c!=='t')
+    .filter(select)
+    .filter( c => c!=='t' )
+    .sort()
     .map( (c, index) => {
       return {
         x: data.t, y: data[c],
@@ -305,7 +335,7 @@ const make_traces_debug = (data, label) => {
           size: 5
         },
         mode: 'lines',
-        name: c, legendgroup:label,
+        name: c, legendgroup: label,
         yaxis: `y${8+index}`,
         showlegend: false,
       }
@@ -314,9 +344,9 @@ const make_traces_debug = (data, label) => {
 }
 
 
-const make_layout = (showDebug, debug_data) => {
+const make_layout = (show_debug, debug_data) => {
   // 6dof+confidence and the debug info
-  var n_yaxis = showDebug && debug_data !== undefined ? 7 + Object.keys(debug_data).length : 7;
+  var n_yaxis = show_debug && debug_data !== undefined ? 7 + Object.keys(debug_data).length : 7;
   var frac_v = 1.0/n_yaxis;
   var layout = {
     type: 'scattergl', // try scatter
@@ -333,7 +363,7 @@ const make_layout = (showDebug, debug_data) => {
     }
   }
   var axes = ["tZ", "tY", "tX", "rZ", "rY", "rX", "Tracking"];
-  if (showDebug && debug_data !== undefined) {
+  if (show_debug && debug_data !== undefined) {
     let debug_axes = Object.values(debug_data).map(t=>t.name);
     axes = axes.concat(debug_axes)
   }
@@ -342,6 +372,7 @@ const make_layout = (showDebug, debug_data) => {
     layout[yaxis] = {
       domain: [index*frac_v, (index+1)*frac_v],
       titlefont: {size: index>8 ? 10 : 12},
+      side: (index <= 6 || index % 2 === 0) ? 'left' : 'right',
       title
     };
   });
