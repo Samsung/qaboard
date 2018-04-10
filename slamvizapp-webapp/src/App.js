@@ -8,11 +8,13 @@ import CiCommitResults from "./CiCommitResults";
 import '../node_modules/@blueprintjs/core/lib/css/blueprint.css';
 import '../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css';
 import '../node_modules/@blueprintjs/select/lib/css/blueprint-select.css';
+import './App.css';
 
 
 class App extends Component {
   render() {
     return (
+      // <React.StrictMode>
       <Router>
         <div className="pt-ui-text">
           <AppNavbar />
@@ -23,6 +25,7 @@ class App extends Component {
           <Route path="/tuning" component={CiCommitTuning} />
         </div>
       </Router>
+      // </React.StrictMode>
     );
   }
 }

@@ -76,12 +76,12 @@ class CommitResults extends React.Component {
     let status_messages = (
       <Fragment>
          {ci_batch.pending_slam_outputs>0 &&
-            <Tag className="pt-minimal">{ci_batch.pending_slam_outputs} pending...</Tag>}
+            <Tag className="pt-minimal" style={{marginRight:'4px'}}>{ci_batch.pending_slam_outputs} pending...</Tag>}
          {ci_batch.failed_slam_outputs>0 &&
             <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_slam_outputs} crashed</Button></a>}
          { Object.keys(commit.batches).length > 1 &&
             <Tooltip>
-              <Tag intent={Intent.PRIMARY} className="pt-minimal" style={{marginTop:'6px'}}>{Object.keys(commit.batches).length-1} tuning experiments</Tag>
+              <Tag intent={Intent.PRIMARY} className="pt-minimal" style={{marginRight:'4px'}}>{Object.keys(commit.batches).length-1} tuning experiments</Tag>
               <ul>{ Object.keys(commit.batches).filter(n=>n!=='default').map( name =>
                 <li key={name}><strong>{name}</strong></li>
               )}</ul>
@@ -92,7 +92,7 @@ class CommitResults extends React.Component {
               <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_aape_median)}cm</strong> median </Tag>
               <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_aape_average)}cm</strong> avg AAPE</Tag>
               <Tooltip modifiers>
-                <Tag style={{marginTop:'3px'}} className="pt-minimal pt-round">...</Tag>
+                <Tag className="pt-minimal pt-round">...</Tag>
                 <ul>
                 { Object.entries(ci_batch.aggregated_metrics).map( ([k,v]) =>
                   <li key={k}><strong>{k}:</strong> {formatter.format(v)}</li>
@@ -136,12 +136,12 @@ class CommitRow extends React.Component {
         <Avatar alt={commit.committer_name} href={`/committer/${commit.committer_name}`} src={commit.committer_avatar_url} />
 
         <CommitDetails>
-          <CommitContent>
+          <CommitContent style={{maxWidth: '600px'}}>
             <Message>{commit.message}</Message>
             <div>
               <CommitShortId href={gitlab_commit_url}>{commit.id.substring(0,8)}</CommitShortId> 
               <CopyToClipboard text={commit.id} onCopy={() => {}}>
-                <Icon title="copy to clipboard" style={{color:'rgba(27, 105, 182, .8)', marginRight: '3px'}} icon="pt-icon-clipboard" />
+                <Button title="copy to clipboard" intent={Intent.PRIMARY} className="pt-minimal pt-small" icon="clipboard" />
               </CopyToClipboard>
               <Icon icon="pt-icon-git-branch"/> 
               <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${commit.branch}`}>{commit.branch}</Link> 
