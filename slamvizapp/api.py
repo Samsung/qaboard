@@ -50,12 +50,12 @@ def add_batch(hexsha):
     # to avoid issues with quoting, we create a temporary file to describe the job
     batch_command = ' '.join([
       'python tools/performance-evaluation/run.py',
-      f'--batch-label {data["batch_label"]}',
-      f'--platform {data["platform"]}',
-      f'--configuration {data["configuration"]}',
+      f"--batch-label '{data['batch_label']}'",
+      f"--platform '{data['platform']}'",
+      f"--configuration '{data['configuration']}'",
       'batch',
       f'--recording-groups-file {recording_groups_filepath}',
-      f'--recording-group {data["selected_group"]}',
+      f"--recording-group '{data['selected_group']}'",
       f"--tuning-search '{json.dumps(data['tuning_search'])}'",
       f'{overwrite}',
       f'--no-wait',
