@@ -856,7 +856,6 @@ class OutputList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      select_debug_input: '',
       select_debug: '',
     };
   }
@@ -876,9 +875,7 @@ class OutputList extends React.Component {
                               <InputGroup
                                 value={this.state.select_debug_input}
                                 placeholder="ransac points"
-                                onChange={e => this.setState({ select_debug_input: e.target.value })}
-                                onBlur={e => this.setState({ select_debug: e.target.value })}
-                                onSubmit={e => this.setState({ select_debug: e.target.value })}
+                                onChange={e => this.setState({ select_debug: e.target.value })}
                                 leftIcon="series-add"
                                 style={{width: '300px'}}
                               />

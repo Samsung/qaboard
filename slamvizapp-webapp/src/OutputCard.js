@@ -218,7 +218,6 @@ class OutputCard extends Component {
                     revision={plot_revision}
                   />}
                 </SlimCard>
-                {this.state.plot_revision}
               </div>}
             </Fragment>
   }
@@ -350,7 +349,8 @@ const make_layout = (show_debug, debug_data) => {
   var frac_v = 1.0/n_yaxis;
   var layout = {
     type: 'scattergl', // try scatter
-    height:Math.min(85*n_yaxis, 1200),
+    // height:Math.min(85*n_yaxis, 1200),
+    height: (show_debug ? 120 : 85) * n_yaxis,
     width:350,
     // autosize: false,
     margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
@@ -371,8 +371,8 @@ const make_layout = (show_debug, debug_data) => {
     let yaxis = `yaxis${index===0 ? '' : index+1}`;
     layout[yaxis] = {
       domain: [index*frac_v, (index+1)*frac_v],
-      titlefont: {size: index>8 ? 10 : 12},
-      side: (index <= 6 || index % 2 === 0) ? 'left' : 'right',
+      titlefont: {size: index>8 ? 12 : 12},
+      // side: (index <= 6 || index % 2 === 0) ? 'left' : 'right',
       title
     };
   });
