@@ -52,35 +52,43 @@ def cache(minutes=1440, func_skip_cache=None):
     return func_wrapper
   return cache_ttl_decorator
 
+
 @cache(minutes=60)
 def get_users_per_name(search_filter):
   """Retrievies users from Gitlab"""
   headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
   gitlab_api = "http://gitlab-srv/api/v4"
-  r = requests.get(f'{gitlab_api}/users/?{search_filter}',
-                   headers=headers,
-                   params={'per_page':1000},
-                   proxies={}
-                  )
-  users = r.json()
-  # sadly we don't have access to email adresses since we are not gitlab admins
-  # and git authors are identified by emails...
   users_db = {} # tries to matche a name/fullname/firstname/id to a gitlab user
-  for u in users:
-    users_db[u['name']] = u
-    users_db[u['username']] = u
-    try:
-      first_name, family_name = u['name'].lower().split(' ')
-      user_id = first_name[0] + family_name[:5]
-      users_db[user_id] = u
-      users_db[f'{first_name}.{family_name}'] = u
-      if first_name not in users_db:
-        users_db[first_name] = u
-      else:
+
+  # gitlab paginates each 100 users
+  page = 1
+  users_on_page = {}
+  while page==1 or users_on_page:
+    r = requests.get(f'{gitlab_api}/users/?{search_filter}',
+                     headers=headers,
+                     params={'per_page':1000, 'page': page},
+                     proxies={}
+                    )
+    users_on_page = r.json()
+    print(users_on_page)
+    # sadly we don't have access to email adresses since we are not gitlab admins
+    # and git authors are identified by emails...
+    for u in users_on_page:
+      users_db[u['name']] = u
+      users_db[u['username']] = u
+      try:
+        first_name, family_name = u['name'].lower().split(' ')
+        user_id = first_name[0] + family_name[:5]
+        users_db[user_id] = u
+        users_db[f'{first_name}.{family_name}'] = u
+        if first_name not in users_db:
+          users_db[first_name] = u
+        else:
+          pass
+          # print(f'warning: {u}')
+      except:
         pass
-        # print(f'warning: {u}')
-    except:
-      pass
+    page = page + 1
   return users_db
 
 
