@@ -17,7 +17,7 @@ from .models import CiCommit
 from .models.LocalMocks import LocalCommit
 from .models import latest_successful_commit
 
-from .utils import get_users_per_name
+from .utils import get_users_per_name, iter_recordings
 from .config import recording_groups_filepath, ci_directory
 
 
@@ -26,6 +26,11 @@ def get_groups():
   with recording_groups_filepath.open() as f:
     return f.read()
 
+@app.route("/api/v1/recordings/group")
+def get_group():
+  name = request.args.get('name', '')
+  recordings = list(iter_recordings([name], recording_groups_filepath))
+  return jsonify({'number_of_recordings': len(recordings)})
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
 @app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])

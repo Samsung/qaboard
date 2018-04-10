@@ -164,6 +164,10 @@ class Tuning extends Component {
       configuration: 'serial-stereo',
       platform: 'lsf',
       selected_group: null,
+      selected_group_info: {
+        number_of_recordings: 0,
+      },
+      selected_group_info_loading: false,
       search_type: 'grid',
       search_options: {
         n_iter: 50,
@@ -173,9 +177,19 @@ class Tuning extends Component {
   }
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/\W/g, '-')})};
-  updateSelectedGroup = e => {this.setState({selected_group: e.target.value})};
   updateConfiguration = e => {this.setState({configuration: e.target.value})};
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
+  updateSelectedGroup = e => {
+    let next_selected_group = e.target.value;
+    this.setState({selected_group: next_selected_group})
+    get(`/api/v1/recordings/group`, {name: next_selected_group})
+    .then(response => {
+      this.setState({selected_group_info_loading: false, selected_group_info: response.data})
+    })
+    .catch(error => {
+      this.setState({selected_group_info_loading: false, selected_group_info: {number_of_recordings: 0}})
+    })
+  };
   selectSearchType = e => {this.setState({search_type: e.target.value})};
   updateIterations = e => {this.setState({search_options: {'n_iter': parseFloat(e.target.value)}})};
 
@@ -208,6 +222,7 @@ class Tuning extends Component {
   }
 
   render() {
+    let number_of_recordings = this.state.selected_group_info.number_of_recordings
     try {
       let parameter_search = JSON.parse(this.state.parameter_search);
       if (this.state.search_type === 'grid')
@@ -219,6 +234,8 @@ class Tuning extends Component {
     } catch (e) {
       combinations = 'invalid';
     }
+    let total_runs = combinations * number_of_recordings;
+    let time_intent = combinations==='invalid' ? Intent.DANGER : (total_runs < 100 ? Intent.SUCCESS : (total_runs < 200 ? Intent.PRIMARY : Intent.WARNING));
     return (
     <form onSubmit={this.onSubmit}>
       <FormGroup
@@ -233,7 +250,7 @@ class Tuning extends Component {
 
       <FormGroup
           label="Run on each recording in this group"
-          helperText="Choose a small group of recordings if you want results quickly."
+          helperText={`${number_of_recordings > 0 ? number_of_recordings+' recordings' : ''}Choose a small group of recordings if you want results quickly.`}
           labelFor="selected-group"
           requiredLabel={true}
       >
@@ -250,7 +267,7 @@ class Tuning extends Component {
       </FormGroup>
 
       <h3>Tuning search</h3>
-      <FormGroup inline labelFor="select-search-type" helperText={this.state.search_type === 'grid' ? 'Explores all the combinations' : `Uniform sampling of ${this.state.search_options.n_iter} combinations`}>
+      <FormGroup inline labelFor="select-search-type" helperText={this.state.search_type === 'grid' ? `Explores all the ${combinations} combinations` : `Uniform sampling of ${this.state.search_options.n_iter} combinations`}>
         <div className="pt-select pt-minimal">
           <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
             <option key="grid" value="grid">Grid search</option>
@@ -273,9 +290,8 @@ class Tuning extends Component {
         }}
       />
 
-      <Callout icon="time" intent={combinations==='invalid' ? Intent.DANGER : (combinations < 10 ? Intent.SUCCESS : (combinations < 50 ? Intent.PRIMARY : Intent.WARNING))}>{combinations} tuning combinations</Callout>
-      <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
-
+      <Callout icon={this.state.selected_group_info_loading ? 'dot' : 'time' } intent={time_intent}>{total_runs} total runs</Callout>
+      <Button disabled={this.state.submitted} type='submit' intent={total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER}>Send</Button>
   
     </form>)
   }

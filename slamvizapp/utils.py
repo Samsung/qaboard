@@ -2,14 +2,17 @@
 Small utility tools.
 """
 import os
+import yaml
 import datetime
 import requests
-
-
+from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+
+from .config import default_recordings_directory
+
 # we prepare a color palette to for the summary table
 norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2) #FIXME
 cmap = plt.get_cmap('RdYlGn')
@@ -79,3 +82,27 @@ def get_users_per_name(search_filter):
     except:
       pass
   return users_db
+
+
+# copy-pasted from psp_swip/tools/performance-evaluation/utils.py
+# database_directory->default_recordings_directory
+# we should create a python package...
+def iter_recordings(recording_groups, recording_groups_file):
+  """Returns an iterator over the recordings from the selected groups
+  params:
+  - recording_groups: array of group labels
+  - recording_groups_file: yaml file
+  """
+  available_batches = yaml.load(Path(recording_groups_file).open())
+  try:
+    for group in recording_groups:
+      locations = available_batches[group]
+      if not locations:
+        print("Warning: the selected batch is empty")
+        continue
+      for location in locations:
+        yield from (default_recordings_directory/location).rglob('*.bin')
+        if location.endswith('.bin') and (default_recordings_directory/location).is_file():
+          yield Path(default_recordings_directory/location)
+  except:
+    return []
