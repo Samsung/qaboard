@@ -64,7 +64,7 @@ def add_batch(hexsha):
     print(batch_command)
     batch_script = ''.join([
       '#!/bin/bash\n',
-      'bsub -q alg_q -sp 4000', # highest priority
+      'bsub -q alg_q -sp 4000 ', # highest priority
       '-o /home/arthurf/dvs/slamvizapp/data/lsf.log ',
       '<< EOF\n'
       f'  cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
