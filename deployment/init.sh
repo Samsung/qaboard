@@ -32,6 +32,8 @@ slamvizapp_init_database --loop &
 echo '...starting the application'
 sleep 5
 cd /slamvizapp && /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
+# export LC_ALL=C.UTF-8
+# export LANG=C.UTF-8
 # cd /slamvizapp && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002
 
 # command
