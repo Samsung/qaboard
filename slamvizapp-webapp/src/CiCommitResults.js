@@ -182,7 +182,7 @@ class Tuning extends Component {
   updateSelectedGroup = e => {
     let next_selected_group = e.target.value;
     this.setState({selected_group: next_selected_group})
-    get(`/api/v1/recordings/group`, {name: next_selected_group})
+    get(`/api/v1/recordings/group?name=${next_selected_group}`, {})
     .then(response => {
       this.setState({selected_group_info_loading: false, selected_group_info: response.data})
     })
