@@ -177,7 +177,7 @@ class Tuning extends Component {
   updateConfiguration = e => {this.setState({configuration: e.target.value})};
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
   selectSearchType = e => {this.setState({search_type: e.target.value})};
-  updateIterations = e => {this.setState({search_options: {'n_iter': e.target.value}})};
+  updateIterations = e => {this.setState({search_options: {'n_iter': parseFloat(e.target.value)}})};
 
 
   onSubmit = e => {
