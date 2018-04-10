@@ -250,7 +250,7 @@ class Tuning extends Component {
 
       <FormGroup
           label="Run on each recording in this group"
-          helperText={`${number_of_recordings > 0 ? number_of_recordings+' recordings' : ''}Choose a small group of recordings if you want results quickly.`}
+          helperText={`${number_of_recordings > 0 ? number_of_recordings+' recordings. ' : ''}Choose a small group of recordings if you want results quickly.`}
           labelFor="selected-group"
           requiredLabel={true}
       >
