@@ -46,6 +46,10 @@ class AddRecordings extends Component {
       submitted: false,
       overwrite: false,
       selected_group: null,
+      selected_group_info: {
+        number_of_recordings: 0,
+      },
+      selected_group_info_loading: false,
     };
   }
 
@@ -68,7 +72,18 @@ class AddRecordings extends Component {
 
   updateGroups = newGroups => {this.setState({groups: newGroups})}
   updateOverwrite = e => {this.setState({overwrite: e.target.checked? 'on' : 'off'})}
-  updateSelectedGroup = e => {this.setState({selected_group: e.target.value})}
+  updateSelectedGroup = e => {
+    let next_selected_group = e.target.value;
+    this.setState({selected_group: next_selected_group})
+    get(`/api/v1/recordings/group?name=${next_selected_group}`, {})
+    .then(response => {
+      this.setState({selected_group_info_loading: false, selected_group_info: response.data})
+    })
+    .catch(error => {
+      this.setState({selected_group_info_loading: false, selected_group_info: {number_of_recordings: 0}})
+    })
+  };
+
   onSubmit = e => {
     const { selected_group, overwrite, groups } = this.state;
     this.setState({submitted: true})
@@ -111,6 +126,7 @@ class AddRecordings extends Component {
       return <Spinner />
     if (error)
       return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
+    let number_of_recordings = this.state.selected_group_info.number_of_recordings
     return (
     <form onSubmit={this.onSubmit}>
       <div className="pt-form-group pt-inline">
@@ -120,7 +136,7 @@ class AddRecordings extends Component {
         </label>
         <div className="pt-form-content">
           <input onChange={this.updateSelectedGroup} id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Go_around_set" type="text" dir="auto" />
-          <div className="pt-form-helper-text">Select a group of recordings from the list below:</div>
+          <div className="pt-form-helper-text">{number_of_recordings===0 ? 'Select a group of recordings from the list below' : `${number_of_recordings} recording${number_of_recordings>1?'s':''} selected`}</div>
         </div>
         <label className="pt-label" htmlFor="overwrite-old-outputs"></label>
         <div className="pt-form-content">
