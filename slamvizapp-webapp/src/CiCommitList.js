@@ -222,11 +222,14 @@ class CiCommitList extends React.Component {
         this.setState({
           isLoaded: true,
           commits,
-          date_range: [
-            new Date(commits[commits.length-1].authored_datetime),
-            new Date(commits[0].authored_datetime)
-          ],
         });
+        if (commits.length > 0)
+          this.setState({
+            date_range: [
+              new Date(commits[commits.length-1].authored_datetime),
+              new Date(commits[0].authored_datetime)
+            ],            
+          })
       })
       .catch(error => {
         this.setState({
