@@ -263,7 +263,7 @@ class CiCommitList extends React.Component {
   }
 
   render() {
-    const { error, isLoaded, commits } = this.state;
+    const { error, isLoaded, commits, date_range } = this.state;
     const { match } = this.props;
     let is_committer = match.path.startsWith('/committer');
     let is_branch = match.path.startsWith('/branch');
@@ -298,12 +298,12 @@ class CiCommitList extends React.Component {
       <div>
         <h3>Evolution for {link_to_tag}</h3>
         <DateRangeInput
-          value={this.state.date_range}
+          value={date_range}
           maxDate={new Date()}
           allowSingleDayRange
           formatDate={date => (date == null ? "" : date.toLocaleDateString())}
           parseDate={str => new Date(Date.parse(str))}
-          onChange={date_range => {this.setState({ date_range }, c => this.getData(this.props))} }
+          onChange={new_date_range => {this.setState({ date_range: new_date_range }, c => this.getData(this.props))} }
           shortcuts
         />
         <CommitsEvolution commits={commits} style={{marginTop: '20px'}}/>
@@ -317,7 +317,7 @@ class CiCommitList extends React.Component {
     if (!isLoaded)
       warning_messages = <NonIdealState title="Loading" visual={<Spinner/>} />;
     if (commits.length===0 && isLoaded)
-      warning_messages = <NonIdealState title="No results" description="Your search didn't return any commit." visual="pt-icon-folder-open" />; 
+      warning_messages = <NonIdealState title="No results" description=`From ${date_range[0]} to ${date_range[1]}` visual="pt-icon-folder-open" />; 
 
     let commits_by_day = groupBy(commits, "authored_date");
 

@@ -96,7 +96,7 @@ def add_batch(hexsha):
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
   timezone = pytz.timezone("Asia/Tel_Aviv")
-  to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%d-%mT%H:%M:%S.%fZ'))
+  to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
   from_date_s = request.args.get('from', None)
   to_date_s = request.args.get('to', None)
   now_localized = timezone.localize(datetime.datetime.now())
