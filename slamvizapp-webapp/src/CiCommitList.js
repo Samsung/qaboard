@@ -317,7 +317,7 @@ class CiCommitList extends React.Component {
     if (!isLoaded)
       warning_messages = <NonIdealState title="Loading" visual={<Spinner/>} />;
     if (commits.length===0 && isLoaded)
-      warning_messages = <NonIdealState title="No results" description=`From ${date_range[0]} to ${date_range[1]}` visual="pt-icon-folder-open" />; 
+      warning_messages = <NonIdealState title="No results" description={`Searched commits from ${date_range[0]} to ${date_range[1]}`} visual="pt-icon-folder-open" />; 
 
     let commits_by_day = groupBy(commits, "authored_date");
 
