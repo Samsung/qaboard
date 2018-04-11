@@ -102,6 +102,7 @@ def get_commits(branch=None):
   now_localized = timezone.localize(datetime.datetime.now())
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=3))
   to_date = to_datetime(to_date_s) if to_date_s else now_localized
+  to_date = to_date + datetime.timedelta(days=1) # fix timezones hahaha
   committer_name = request.args.get('committer', None)
 
   if not branch:
