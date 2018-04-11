@@ -119,7 +119,7 @@ def get_commits(branch=None):
         .limit(max_count)\
         .offset(page*max_count)
   else:
-    page=0
+    page = 0
     earliest_commit = None
     commits = []
     while page==0 or earliest_commit.authored_datetime >= from_date:
@@ -127,7 +127,9 @@ def get_commits(branch=None):
       earliest_commit = new_commits[-1]
       page = page + 1
       commits = commits + new_commits
-    commit_ids = [c.hexsha for c in commits if c.authored_datetime>=from_date and c.authored_datetime<=to_date]
+
+    is_in_range = lambda c: c.authored_datetime >= from_date and c.authored_datetime <= to_date
+    commit_ids = [c.hexsha for c in commits if is_in_range(c)]
     ci_commits = CiCommit.query\
       .filter(CiCommit.id.in_(commit_ids))\
       .order_by(CiCommit.authored_datetime.desc())
