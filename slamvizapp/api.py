@@ -108,7 +108,8 @@ def get_commits(branch=None):
       ci_commits = db_session.query(CiCommit)\
                      .filter(CiCommit.authored_datetime <= to_date,
                              CiCommit.authored_datetime >= from_date
-                            )
+                            )\
+                     .order_by(CiCommit.authored_datetime.desc())\
     else:
       ci_commits = CiCommit.query\
         .filter_by(committer_name=committer_name)\
@@ -116,8 +117,6 @@ def get_commits(branch=None):
                 CiCommit.authored_datetime >= from_date
                )\
         .order_by(CiCommit.authored_datetime.desc())\
-        .limit(max_count)\
-        .offset(page*max_count)
   else:
     commits = []
     page = 0
