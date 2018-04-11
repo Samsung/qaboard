@@ -1,12 +1,11 @@
 import React, { Fragment } from "react";
 import { withRouter } from 'react-router'
 import { Link } from "react-router-dom";
-import queryString from "query-string";
 
 import { get } from "axios";
 import styled from "styled-components";
 
-import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, ButtonGroup, Tag, Callout } from "@blueprintjs/core";
+import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, Tag, Callout } from "@blueprintjs/core";
 import { DateRangeInput } from "@blueprintjs/datetime";
 import { Container, Section } from "./Common";
 import { CopyToClipboard } from 'react-copy-to-clipboard';
@@ -181,7 +180,7 @@ class CiCommitList extends React.Component {
     super(props);
     this.state = {
       date_range: [
-        new Date(moment().subtract(7,'d')),
+        new Date(moment().subtract(3,'d')),
         new Date()
       ],
       error: null,
@@ -198,7 +197,6 @@ class CiCommitList extends React.Component {
 
   getData(props) {
     const { match } = props;
-    const params = new URLSearchParams(props.location.search);
     const { date_range } = this.state;
 
     var url;
@@ -272,7 +270,7 @@ class CiCommitList extends React.Component {
     if (is_branch || is_committer)
       var tag = this.props.match.params[0]
     else
-      tag = 'latest commits';
+      tag = 'all latest commits';
 
     // commits.filter( c => c.batches.default!==undefined )
            // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )

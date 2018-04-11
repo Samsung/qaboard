@@ -99,7 +99,7 @@ def get_commits(branch=None):
   to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%d-%mT%H:%M:%S.%fZ'))
   from_date_s = request.args.get('from', None)
   to_date_s = request.args.get('to', None)
-  from_date = to_datetime(from_date_s) if from_date_s else (datetime.datetime.now() - datetime.timedelta(days=7))
+  from_date = to_datetime(from_date_s) if from_date_s else (datetime.datetime.now() - datetime.timedelta(days=3))
   to_date = to_datetime(to_date_s) if to_date_s else datetime.datetime.now()
   committer_name = request.args.get('committer', None)
 
