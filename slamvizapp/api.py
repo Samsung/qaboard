@@ -109,7 +109,7 @@ def get_commits(branch=None):
                      .filter(CiCommit.authored_datetime <= to_date,
                              CiCommit.authored_datetime >= from_date
                             )\
-                     .order_by(CiCommit.authored_datetime.desc())\
+                     .order_by(CiCommit.authored_datetime.desc())
     else:
       ci_commits = CiCommit.query\
         .filter_by(committer_name=committer_name)\
