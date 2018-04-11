@@ -12,6 +12,7 @@ import { CopyToClipboard } from 'react-copy-to-clipboard';
 import Avatar from "./Avatar";
 import { DoneAtTag } from "./DoneAtTag";
 import { groupBy } from "./utils";
+import { CommitsEvolution } from './CommitsEvolution'
 
 import Moment from 'react-moment';
 import 'moment-timezone';
@@ -193,7 +194,7 @@ class CiCommitList extends React.Component {
   getData(props) {
     const { match } = props;
     const params = new URLSearchParams(props.location.search);
-    const count = params.get('count') || 20;
+    const count = params.get('count') || 30;
     const page = parseFloat(params.get('page')) || 0;
     this.setState({page});
 
@@ -262,7 +263,17 @@ class CiCommitList extends React.Component {
 
   render() {
     const { error, isLoaded, commits, page } = this.state;
+    const { match } = this.props;
+    let is_committer = match.path.startsWith('/committer');
+    let is_branch = match.path.startsWith('/branch');
+    let is_latest = !!this.props.match.params[0];
+    if (is_branch || is_committer)
+      var tag = this.props.match.params[0]
+    else
+      tag = 'latest commits';
 
+    // commits.filter( c => c.batches.default!==undefined )
+           // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
     let information = (
       <Fragment>
         <Section>
@@ -274,12 +285,18 @@ class CiCommitList extends React.Component {
           </Callout>
         </Section>
         <Section>
-          <h3>Reports for branch <Link to="/branch/origin/develop"><Button icon="git-branch">develop</Button></Link></h3>
+          <h3>Reports for <Link to="/branch/origin/develop"><Button icon="git-branch">develop</Button></Link></h3>
           <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
         </Section>
       </Fragment>
     );
 
+    let qa_report = <Fragment>{isLoaded && 
+      <div>
+        <h3>Evolution for {is_branch ? <Link to={`/branch/${tag}`}><Button icon="git-branch">{tag}</Button></Link> : (is_committer ? <Link to={`/committer/${tag}`}><Button icon="user">{tag}</Button></Link> : tag)}</h3>
+        <CommitsEvolution commits={commits}/>
+      </div>
+    }</Fragment>;
 
     var list;
     var warning_messages;
@@ -327,6 +344,7 @@ class CiCommitList extends React.Component {
       <Container>
         {information}
         {warning_messages}
+        {qa_report}
         {isLoaded && list}
       </Container>
     );
