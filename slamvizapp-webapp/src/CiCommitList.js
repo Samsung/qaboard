@@ -180,7 +180,6 @@ class CiCommitList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      page: 0,
       date_range: [
         new Date(moment().subtract(7,'d')),
         new Date()
@@ -200,9 +199,6 @@ class CiCommitList extends React.Component {
   getData(props) {
     const { match } = props;
     const params = new URLSearchParams(props.location.search);
-    const count = params.get('count') || 30;
-    const page = parseFloat(params.get('page')) || 0;
-    this.setState({page});
     const { date_range } = this.state;
 
     var url;
@@ -217,7 +213,6 @@ class CiCommitList extends React.Component {
 
     get(url, {
       params: {
-        page, count,
         from: date_range[0],
         to: date_range[1],
       },
@@ -266,16 +261,8 @@ class CiCommitList extends React.Component {
     clearInterval(this.interval);
   }
 
-  paginatorOnClick = (event) => {
-    const page = event.target.value;
-    this.props.history.push({
-      pathname: this.props.location.pathname,
-      search: queryString.stringify(Object.assign({}, queryString.parse(this.props.location.search), { page }))
-    })
-  }
-
   render() {
-    const { error, isLoaded, commits, page } = this.state;
+    const { error, isLoaded, commits } = this.state;
     const { match } = this.props;
     let is_committer = match.path.startsWith('/committer');
     let is_branch = match.path.startsWith('/branch');
@@ -315,9 +302,8 @@ class CiCommitList extends React.Component {
           allowSingleDayRange
           formatDate={date => (date == null ? "" : date.toLocaleDateString())}
           parseDate={str => new Date(Date.parse(str))}
-          onChange={range => this.setState({ range }) }
+          onChange={date_range => {this.setState({ date_range }, c => this.getData(this.props))} }
           shortcuts
-          disabled
         />
         <CommitsEvolution commits={commits} style={{marginTop: '20px'}}/>
       </div>
@@ -333,21 +319,6 @@ class CiCommitList extends React.Component {
       warning_messages = <NonIdealState title="No results" description="Your search didn't return any commit." visual="pt-icon-folder-open" />; 
 
     let commits_by_day = groupBy(commits, "authored_date");
-    // we should do something like this instead.
-    // https://github.com/bvaughn/react-virtualized/blob/master/source/InfiniteLoader/InfiniteLoader.example.js
-    //  active ? Link
-    let paginator =  (
-      <ButtonGroup large style={{marginTop: '25px'}} onClick={this.paginatorOnClick}>
-        {page>0 && <Button value={page-1} icon="pt-icon-arrow-left">Previous</Button>}
-        {page>0 && <Button value={page-1}>{page-1}</Button>}
-        {page>1 && <Button value={page-2}>{page-2}</Button>}
-        <Button value={page} disabled intent={Intent.PRIMARY} >{page}</Button>
-        <Button value={page+1}>{page+1}</Button>
-        <Button value={page+2}>{page+2}</Button>
-        <Button value={page+3}>{page+3}</Button>
-        <Button value={page+1} icon="pt-icon-arrow-right">Next</Button>
-      </ButtonGroup>
-    )
 
     list = (
       <Fragment>
@@ -362,7 +333,6 @@ class CiCommitList extends React.Component {
 
           </Fragment>
         ))}
-        {paginator}
       </Fragment>
     );
     return (
