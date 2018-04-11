@@ -1,6 +1,6 @@
 /* global Plotly:true */
 // import Plot from 'react-plotly.js'
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Colors, FormGroup } from "@blueprintjs/core";
@@ -44,7 +44,7 @@ const CommitsEvolution1D = ({ commits, metrics, aggregation }) => {
                   x: valid_commits.map( c => c.authored_datetime ),
                   y: valid_commits
                      .map( c => c.batches.default.aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-                     .map( value => value*metric.scale ),
+                     .map( value => Math.min(100, value*metric.scale) ),
                   text: valid_commits.map( c => c.message ),
                   marker: {
                     size: 10,
@@ -57,7 +57,6 @@ const CommitsEvolution1D = ({ commits, metrics, aggregation }) => {
                 }),
               );
   return <Plot data={traces} layout={layout}/>
-  return <p>{JSON.stringify(traces)}</p>;
 }
 
 
@@ -77,9 +76,9 @@ class CommitsEvolution extends Component {
     this.setState({selected_aggregation: e.target.value})
   }
   render() {
-    const { commits } = this.props;
+    const { commits, style } = this.props;
     const { selected_metric, selected_aggregation } = this.state;
-    return <div>
+    return <div style={style}>
       <FormGroup inline>
         <div className="pt-select pt-minimal">
           <select id='select-metric' defaultValue='translation_aape' onChange={this.selectMetric}>

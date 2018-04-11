@@ -2,6 +2,7 @@
 # https://flask-restless.readthedocs.io/en/stable/customizing.html
 # for now we don't use it, but it could be convenient
 import datetime
+import pytz
 import subprocess
 import json
 from pathlib import Path
@@ -9,6 +10,7 @@ from gitdb.exc import BadName
 
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import and_
 # from flask_restless import APIManager
 # from flask_restless.serialization import DefaultSerializer
 
@@ -93,25 +95,39 @@ def add_batch(hexsha):
 @app.route("/api/v1/commits")
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
-  max_count = int(request.args.get('count', 20))
-  page = int(request.args.get('page', 0))
+  timezone = pytz.timezone("Asia/Tel_Aviv")
+  to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%d-%mT%H:%M:%S.%fZ'))
+  from_date_s = request.args.get('from', None)
+  to_date_s = request.args.get('to', None)
+  from_date = to_datetime(from_date_s) if from_date_s else datetime.datetime.now() - datetime.timedelta(days=7)
+  to_date = to_datetime(to_date_s) if to_date_s else datetime.datetime.now()
   committer_name = request.args.get('committer', None)
 
   if not branch:
     if committer_name is None:
-      ci_commits = CiCommit.query\
-        .order_by(CiCommit.authored_datetime.desc())\
-        .limit(max_count)\
-        .offset(page*max_count)
+      ci_commits = db_session.query(CiCommit)\
+                     .filter(CiCommit.authored_datetime <= to_date,
+                             CiCommit.authored_datetime >= from_date
+                            )
     else:
       ci_commits = CiCommit.query\
         .filter_by(committer_name=committer_name)\
+        .filter(CiCommit.authored_datetime <= to_date,
+                CiCommit.authored_datetime >= from_date
+               )\
         .order_by(CiCommit.authored_datetime.desc())\
         .limit(max_count)\
         .offset(page*max_count)
   else:
-    commits = repo.iter_commits(branch, max_count=max_count, skip=max_count*page)
-    commit_ids = [c.hexsha for c in commits]
+    page=0
+    earliest_commit = None
+    commits = []
+    while page==0 or earliest_commit.authored_datetime >= from_date:
+      new_commits = list(repo.iter_commits(branch, max_count=100, skip=100*page))
+      earliest_commit = new_commits[-1]
+      page = page + 1
+      commits = commits + new_commits
+    commit_ids = [c.hexsha for c in commits if c.authored_datetime>=from_date and c.authored_datetime<=to_date]
     ci_commits = CiCommit.query\
       .filter(CiCommit.id.in_(commit_ids))\
       .order_by(CiCommit.authored_datetime.desc())

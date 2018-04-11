@@ -7,14 +7,16 @@ import { get } from "axios";
 import styled from "styled-components";
 
 import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, ButtonGroup, Tag, Callout } from "@blueprintjs/core";
+import { DateRangeInput } from "@blueprintjs/datetime";
 import { Container, Section } from "./Common";
 import { CopyToClipboard } from 'react-copy-to-clipboard';
 import Avatar from "./Avatar";
 import { DoneAtTag } from "./DoneAtTag";
-import { groupBy } from "./utils";
+import { groupBy, calendarStrings } from "./utils";
 import { CommitsEvolution } from './CommitsEvolution'
 
 import Moment from 'react-moment';
+import moment from 'moment';
 import 'moment-timezone';
 
 
@@ -179,6 +181,10 @@ class CiCommitList extends React.Component {
     super(props);
     this.state = {
       page: 0,
+      date_range: [
+        new Date(moment().subtract(7,'d')),
+        new Date()
+      ],
       error: null,
       isLoaded: false,
       commits: []
@@ -197,6 +203,7 @@ class CiCommitList extends React.Component {
     const count = params.get('count') || 30;
     const page = parseFloat(params.get('page')) || 0;
     this.setState({page});
+    const { date_range } = this.state;
 
     var url;
     if (match.path.startsWith('/committer')) {
@@ -211,13 +218,19 @@ class CiCommitList extends React.Component {
     get(url, {
       params: {
         page, count,
+        from: date_range[0],
+        to: date_range[1],
       },
     })
       .then(response => {
-        // console.log(response.data);
+        let commits = response.data;
         this.setState({
           isLoaded: true,
-          commits: response.data
+          commits,
+          date_range: [
+            new Date(commits[commits.length-1].authored_datetime),
+            new Date(commits[0].authored_datetime)
+          ],
         });
       })
       .catch(error => {
@@ -266,7 +279,6 @@ class CiCommitList extends React.Component {
     const { match } = this.props;
     let is_committer = match.path.startsWith('/committer');
     let is_branch = match.path.startsWith('/branch');
-    let is_latest = !!this.props.match.params[0];
     if (is_branch || is_committer)
       var tag = this.props.match.params[0]
     else
@@ -291,12 +303,25 @@ class CiCommitList extends React.Component {
       </Fragment>
     );
 
-    let qa_report = <Fragment>{isLoaded && 
+    let link_to_tag = is_branch ? <Link to={`/branch/${tag}`}><Button icon="git-branch">{tag}</Button></Link>
+                                 : (is_committer ? <Link to={`/committer/${tag}`}><Button icon="user">{tag}</Button></Link>
+                                                 : tag)
+    let qa_report = <Section>{isLoaded && !error && 
       <div>
-        <h3>Evolution for {is_branch ? <Link to={`/branch/${tag}`}><Button icon="git-branch">{tag}</Button></Link> : (is_committer ? <Link to={`/committer/${tag}`}><Button icon="user">{tag}</Button></Link> : tag)}</h3>
-        <CommitsEvolution commits={commits}/>
+        <h3>Evolution for {link_to_tag}</h3>
+        <DateRangeInput
+          value={this.state.date_range}
+          maxDate={new Date()}
+          allowSingleDayRange
+          formatDate={date => (date == null ? "" : date.toLocaleDateString())}
+          parseDate={str => new Date(Date.parse(str))}
+          onChange={range => this.setState({ range }) }
+          shortcuts
+          disabled
+        />
+        <CommitsEvolution commits={commits} style={{marginTop: '20px'}}/>
       </div>
-    }</Fragment>;
+    }</Section>;
 
     var list;
     var warning_messages;
@@ -326,7 +351,7 @@ class CiCommitList extends React.Component {
 
     list = (
       <Fragment>
-        <h3>Recent commits</h3>
+        <h3>Selected commits</h3>
         {Object.keys(commits_by_day).map(day => (
           <Fragment key={day}>
             <HeaderDay>
@@ -352,13 +377,6 @@ class CiCommitList extends React.Component {
 }
 
 
-const calendarStrings = {
-    lastDay : '[Yesterday]',
-    sameDay : '[Today]',
-    nextDay : '[Tomorrow]',
-    lastWeek : '[last] dddd',
-    nextWeek : 'dddd',
-    sameElse : 'L'
-};
+
 
 export default withRouter(CiCommitList);

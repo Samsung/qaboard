@@ -21,7 +21,7 @@
     orbit-camera-controller "^4.0.0"
     turntable-camera-controller "^3.0.0"
 
-"@blueprintjs/core@^2.0.0", "@blueprintjs/core@^2.0.0-beta.3":
+"@blueprintjs/core@^2.0.0", "@blueprintjs/core@^2.0.0-beta.3", "@blueprintjs/core@^2.1.1":
   version "2.1.1"
   resolved "https://registry.yarnpkg.com/@blueprintjs/core/-/core-2.1.1.tgz#8e7178c7bd0faea53a0f9a25392215a1fe62d05e"
   dependencies:
@@ -32,6 +32,15 @@
     normalize.css "^7.0.0"
     popper.js "^1.14.1"
     react-popper "^0.8.2"
+    tslib "^1.9.0"
+
+"@blueprintjs/datetime@^2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@blueprintjs/datetime/-/datetime-2.0.2.tgz#26329a5ab2d96e6151a832948df9cfbf17c357b5"
+  dependencies:
+    "@blueprintjs/core" "^2.1.1"
+    classnames "^2.2"
+    react-day-picker "^7.0.7"
     tslib "^1.9.0"
 
 "@blueprintjs/icons@^2.1.1":
@@ -7249,7 +7258,7 @@ promise@^7.1.1:
   dependencies:
     asap "~2.0.3"
 
-prop-types@^15.5.10, prop-types@^15.5.4, prop-types@^15.5.6, prop-types@^15.5.8, prop-types@^15.6.0:
+prop-types@^15.5.10, prop-types@^15.5.4, prop-types@^15.5.6, prop-types@^15.5.8, prop-types@^15.6.0, prop-types@^15.6.1:
   version "15.6.1"
   resolved "https://registry.yarnpkg.com/prop-types/-/prop-types-15.6.1.tgz#36644453564255ddda391191fb3a125cbdf654ca"
   dependencies:
@@ -7441,6 +7450,12 @@ react-copy-to-clipboard@^5.0.1:
   dependencies:
     copy-to-clipboard "^3"
     prop-types "^15.5.8"
+
+react-day-picker@^7.0.7:
+  version "7.1.4"
+  resolved "https://registry.yarnpkg.com/react-day-picker/-/react-day-picker-7.1.4.tgz#abd187ba4baea524f765fd4cd0055bcb45c33edc"
+  dependencies:
+    prop-types "^15.6.1"
 
 react-dev-utils@^5.0.0:
   version "5.0.1"

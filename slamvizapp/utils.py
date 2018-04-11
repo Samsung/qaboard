@@ -70,7 +70,6 @@ def get_users_per_name(search_filter):
                      proxies={}
                     )
     users_on_page = r.json()
-    print(users_on_page)
     # sadly we don't have access to email adresses since we are not gitlab admins
     # and git authors are identified by emails...
     for u in users_on_page:
