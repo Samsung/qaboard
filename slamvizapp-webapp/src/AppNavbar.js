@@ -9,19 +9,19 @@ import { Navbar, NavbarGroup, NavbarHeading, NavbarDivider,
          Button, InputGroup
 } from "@blueprintjs/core";
 
-const renderBranch = ({ handleClick, index, isActive, item }) => {
-    return (
-        <MenuItem
-            className={!isActive? Classes.ACTIVE : Classes.INTENT_PRIMARY}
-            key={item}
-            onClick={handleClick}
-            text={item}
-        />
-    );
+const renderBranch = ( item, {handleClick, modifiers, query} ) => {
+  return (
+      <MenuItem
+          className={!modifiers.active ? Classes.ACTIVE : Classes.INTENT_PRIMARY}
+          key={item}
+          onClick={handleClick}
+          text={item}
+      />
+  );
 };
 
 function filterBranch(query, branch) {
-    return branch.indexOf(query.toLowerCase()) >= 0;
+  return branch.toLowerCase().indexOf(query.toLowerCase()) >= 0;
 }
 
 
