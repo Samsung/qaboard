@@ -5,8 +5,8 @@ Describes an output from a SLAM run:
 - on what platform we ran
 - what parameters were used
 2. What results we got
-- quality metrics: drift, RMSE, AAPE...
-- what assets are available (debug movies...)
+- metrics: drift, RMSE, AAPE...
+- what assets are available (debug movies...) [todo]
 """
 import datetime
 import hashlib
@@ -47,49 +47,10 @@ class SlamOutput(Base):
   extra_parameters = Column(JSON(), default={})
 
   # How good we ran
-  is_failed = Column(Boolean(), default=False)
   is_pending = Column(Boolean(), default=False)
-  # We could imaging stuffing all the columns below into a JSON column named metrics
-  latency = Column(Float(), default=None) # 1x = realtime
-  computation_time = Column(Float(), default=None) # 1x = realtime
-  duration = Column(Float(), default=None) # [seconds] Redundant, but...
-  cpu_utilization = Column(Float())
-  time_offset_to_groundtruth = Column(Float(), default=None)
-
-  # Tracking quality
-  translation_rmse = Column(Float(), default=None)
-  translation_aape = Column(Float(), default=None)
-  translation_drift = Column(Float(), default=None)
-  translation_rmse_pc = Column(Float(), default=None)
-  translation_aape_pc = Column(Float(), default=None)
-  translation_drift_pc = Column(Float(), default=None)
-
-  rotation_rmse = Column(Float(), default=None)
-  rotation_mean = Column(Float(), default=None)
-  rotation_drift = Column(Float(), default=None)
-  # ...idem computed only when the tracking is good
-  translation_aape_during_tracking = Column(Float(), default=None)
-
-  # Loss of tracking
-  frac_tracking_state_good = Column(Float(), default=None)
-  frac_tracking_state_lost = Column(Float(), default=None)
-  frac_tracking_state_imu3 = Column(Float(), default=None)
-  frac_tracking_state_imu6 = Column(Float(), default=None)
-  total_time_lost_pc = Column(Float(), default=None)
-  total_time_lost = Column(Float(), default=None)
-  nb_lost = Column(Integer(), default=None)
-  median_lost_duration = Column(Float(), default=None)
-  translation_aape_when_good = Column(Float(), default=None)
-  rotation_mean_when_good = Column(Float(), default=None)
-  time_before_first_lost = Column(Float(), default=None)
-  time_pc_before_first_lost = Column(Float(), default=None)
-
-  # ...
-
-  # User experience
-  # jitter_sum_mabs = Column(Float(), default=None)
-  # jitter_sum_mad = Column(Float(), default=None)
-  # jitter_sum_std = Column(Float(), default=None)
+  is_running = Column(Boolean(), default=False)
+  is_failed = Column(Boolean(), default=False)
+  metrics = Column(JSON(), default={})
 
 
 
@@ -110,8 +71,7 @@ class SlamOutput(Base):
       print(f'WARNING: failed to read {filepath}')
       # metrics = {'is_failed': True}
       metrics = {}
-    for m in metrics:
-      setattr(self, m, metrics[m])
+    setattr(self, 'metrics', metrics)
     self.is_pending = False
 
 
