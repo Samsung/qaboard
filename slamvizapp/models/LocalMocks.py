@@ -48,6 +48,7 @@ class LocalSlamOutput():
     self.platform = platform
     self.configuration = configuration
     self.is_pending = False
+    self.is_running = False
     self.is_failed = False
     self.batch = batch
     self.batch_id = 0
@@ -74,9 +75,9 @@ class LocalSlamOutput():
       print(f'WARNING: failed to read {filepath}')
       metrics = {'is_failed': True}
     metrics = remap_metrics(metrics)
-    for m in metrics:
-      setattr(self, m, metrics[m])
+    setattr(self, 'metrics', metrics)
     self.is_pending = False
+    self.is_running = False
 
   def to_dict(self):
     # return {}
@@ -138,6 +139,7 @@ class LocalBatch():
         'aggregated_metrics': {k: v for k, v in self.aggregated_metrics().items() if v == v},
         'valid_slam_outputs': len(self.valid_slam_outputs),
         'pending_slam_outputs': len(self.pending_slam_outputs),
+        'running_slam_outputs': len(self.pending_slam_outputs),
         'failed_slam_outputs': len(self.failed_slam_outputs),
         **details,
     }
@@ -149,6 +151,10 @@ class LocalBatch():
   @property
   def pending_slam_outputs(self):
     return [o for o in self.slam_outputs if o.is_pending]
+
+  @property
+  def running_slam_outputs(self):
+    return [o for o in self.slam_outputs if o.is_running]
 
   @property
   def failed_slam_outputs(self):

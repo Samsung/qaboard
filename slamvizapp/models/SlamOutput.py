@@ -73,6 +73,7 @@ class SlamOutput(Base):
       metrics = {}
     setattr(self, 'metrics', metrics)
     self.is_pending = False
+    self.is_running = False
 
 
   @property

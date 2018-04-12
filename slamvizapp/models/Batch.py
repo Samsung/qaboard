@@ -82,6 +82,10 @@ class Batch(Base):
     return [o for o in self.slam_outputs if o.is_pending]
 
   @property
+  def running_slam_outputs(self):
+    return [o for o in self.slam_outputs if o.is_running]
+
+  @property
   def failed_slam_outputs(self):
     return [o for o in self.slam_outputs if o.is_failed]
 
@@ -120,6 +124,7 @@ class Batch(Base):
         'aggregated_metrics': {k: v for k, v in self.aggregated_metrics().items() if v == v},
         'valid_slam_outputs': len(self.valid_slam_outputs),
         'pending_slam_outputs': len(self.pending_slam_outputs),
+        'running_slam_outputs': len(self.running_slam_outputs),
         'failed_slam_outputs': len(self.failed_slam_outputs),
         **details,
     }
@@ -150,8 +155,8 @@ def aggregated_metrics(slam_outputs):
   ]
   for metric, treshold in metrics_to_aggregate:
     values = np.array([
-        getattr(o, metric) for o in slam_outputs
-        if hasattr(o, metric) and getattr(o, metric)
+        getattr(o, 'metrics')[metric] for o in slam_outputs
+        if metric in getattr(o, 'metrics')
     ])
     aggregated[f'{metric}_median'] = np.median(values)
     aggregated[f'{metric}_average'] = np.average(values)
