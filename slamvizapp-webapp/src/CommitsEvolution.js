@@ -18,6 +18,9 @@ let layout = {
       pad:0
   },
   autosize: false,
+  yaxis: {
+    type:'log',
+  },
 }
 
 
