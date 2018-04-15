@@ -4,9 +4,9 @@ import React, { Component } from "react";
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Callout, Colors, Intent, FormGroup } from "@blueprintjs/core";
 
-import { Section } from "./Common";
-import { available_metrics } from "./Metrics";
-import { groupBy } from "./utils";
+import { Section } from "../Common";
+import { slam_metrics, default_metric } from "../slam/metrics";
+import { groupBy } from "../utils";
 
 const Plot = createPlotlyComponent(Plotly);
 const config = {};
@@ -23,7 +23,7 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
                           type: 'scatter',
                           name: recording_path,
                           x: slam_outputs.map(o => o.extra_parameters[parameter]),
-                          y: slam_outputs.map(o => o[metric.key] * metric.scale),
+                          y: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
                           marker: {
                             size: 4,
                             color: Colors.ORANGE4,
@@ -62,7 +62,12 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
 }
 
 const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
-  let slam_outputs_by_param = groupBy(Object.values(slam_outputs).map(o => { return {...o, extra_parameter: o.extra_parameters[parameter]} }), "extra_parameter");
+  let slam_outputs_values = Object.values(slam_outputs)
+                            .map(o => ({
+                              ...o,
+                              extra_parameter: o.extra_parameters[parameter]
+                            }) );
+  let slam_outputs_by_param = groupBy(slam_outputs_values, "extra_parameter");
   let traces = Object.entries(slam_outputs_by_param)
                      .map( ([param_value, slam_outputs_for_recording]) => {
                         let slam_outputs = slam_outputs_for_recording
@@ -71,7 +76,7 @@ const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
                           type: 'box',
                           name: param_value,
                           x: slam_outputs.map(o => o.extra_parameters[parameter]),
-                          y: slam_outputs.map(o => o[metric.key] * metric.scale),
+                          y: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
                           marker: {
                             color: Colors.ORANGE3,
                           },
@@ -106,7 +111,7 @@ class TuningExploration extends Component {
     super(props);
     this.state = {
       selected_parameter: null,
-      selected_metric: 'translation_aape',
+      selected_metric: default_metric,
     };
   }
 
@@ -135,7 +140,7 @@ class TuningExploration extends Component {
     let selected_parameter = this.state.selected_parameter || default_selected_parameter;
 
     // what metric are we looking at?
-    let metric = available_metrics[this.state.selected_metric];
+    let metric = slam_metrics[this.state.selected_metric];
 
 
     let total_slam_runs = Object.keys(batch.slam_outputs).length;
@@ -153,8 +158,8 @@ class TuningExploration extends Component {
       </FormGroup>
       <FormGroup inline labelFor="select-metric" helperText="Shown on the Y-axis">
         <div className="pt-select pt-minimal">
-          <select id='select-metric' defaultValue='translation_aape' onChange={this.selectMetric}>
-            {Object.values(available_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
+            {Object.values(slam_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
         </div>
       </FormGroup>

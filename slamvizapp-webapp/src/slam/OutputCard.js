@@ -5,8 +5,8 @@ import { get, all, spread } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
 import { Card, Icon, Tag, Intent } from "@blueprintjs/core";
-import { MetricTag } from "./Metrics";
-import { SyncedVideos } from "./SyncedVideos";
+import { MetricTag } from "../Metrics";
+import { SyncedVideos } from "../SyncedVideos";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
@@ -58,7 +58,7 @@ class OutputCard extends Component {
 
   componentDidMount() {
     const { output_new, output_ref, show_debug } = this.props;
-    let has_groundtruth = output_new.translation_aape!==null;
+    let has_groundtruth = output_new.metrics.translation_aape!==null;
     if (has_groundtruth) {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`)
@@ -198,8 +198,8 @@ class OutputCard extends Component {
                 <SlimCard className="output-card">
                   <div style={{padding:'  '}}>
                     <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
-                    {output_new.translation_rmse>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='translation_aape'/></p>}
-                    {output_new.rotation_mean>0 && <p><MetricTag output={output_new} output_ref={output_ref} metric='rotation_mean'/></p>}
+                    {output_new.metrics.translation_rmse>0 && <p><MetricTag metrics={output_new.metrics} metrics_ref={output_ref.metrics} metric='translation_aape'/></p>}
+                    {output_new.metrics.rotation_mean>0 && <p><MetricTag metrics={output_new.metrics} metrics_ref={output_ref.metrics} metric='rotation_mean'/></p>}
                   </div>
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}

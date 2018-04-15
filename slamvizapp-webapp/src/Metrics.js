@@ -3,7 +3,7 @@
 import React, { Component, Fragment } from "react";
 import styled from "styled-components";
 import { Tag, Intent, Callout } from "@blueprintjs/core";
-
+import { slam_metrics } from "./slam/metrics";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
@@ -23,15 +23,15 @@ const metric_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimu
 const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:0, maximumFractionDigits:0});
 
 
-const MetricTag = ({output, output_ref, metric}) => {
-  const metric_info = available_metrics[metric];
-  let formatted_valued = <span>{metric_info.short_label}: <strong>{metric_formatter.format(metric_info.scale*output[metric])}{metric_info.suffix}</strong></span>;
-  let intent = output[metric]>metric_info.threshold? Intent.DANGER : Intent.SUCCESS;
+const MetricTag = ({metrics, metrics_ref, metric}) => {
+  const metric_info = slam_metrics[metric];
+  let formatted_valued = <span>{metric_info.short_label}: <strong>{metric_formatter.format(metric_info.scale*metrics[metric])}{metric_info.suffix}</strong></span>;
+  let intent = metrics[metric]>metric_info.threshold ? Intent.DANGER : Intent.SUCCESS;
   let metric_tag = <Tag className="pt-minimal" intent={intent}>{formatted_valued}</Tag>
 
-  if (output_ref!==undefined && output_ref[metric]) {
-    let delta = output[metric] - output_ref[metric];
-    let delta_relative = delta / output_ref[metric];
+  if (metrics_ref!==undefined && metrics_ref[metric]) {
+    let delta = metrics[metric] - metrics_ref[metric];
+    let delta_relative = delta / metrics_ref[metric];
     var intent_compare;
     if (delta_relative>.01)
       intent_compare = Intent.DANGER;
@@ -168,12 +168,12 @@ class MetricsSummary extends Component {
     }
     return <div>
       {new_batch.label!=='default' && <Callout intent={Intent.WARNING}>If you tried multiple tuning parameters, the results below show <strong>all the results mixed together</strong>.</Callout>}
-      {Object.entries(available_metrics).map(([key, m]) => {
-          let new_values = slam_outputs_new.map(o=>o[m.key]).filter(x => x);
-          let ref_values = slam_outputs_ref.map(o=>o[m.key]).filter(x => x);
+      {Object.entries(slam_metrics).map(([key, m]) => {
+          let new_values = slam_outputs_new.map(o=>o.metrics[m.key]).filter(x => x);
+          let ref_values = slam_outputs_ref.map(o=>o.metrics[m.key]).filter(x => x);
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
-          let new_pc_good = m.smaller_is_better? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)
+          let new_pc_good = m.smaller_is_better ? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)
           let delta = new_avg - ref_avg;
           let delta_relative = delta / ref_avg;
 
@@ -218,89 +218,4 @@ class MetricsSummary extends Component {
 }
 
 
-
-const available_metrics = {
-  translation_rmse: {
-    key:'translation_rmse',
-    label: 'Translation RMSE',
-    short_label: 'tRMSE',
-    scale: 100,
-    suffix: 'cm',
-    threshold: 0.01,
-    smaller_is_better: true,
-  },
-
-  translation_aape:{
-    key:'translation_aape',
-    label: 'Translation AAPE',
-    short_label: 'tAAPE',
-    scale: 100,
-    suffix: 'cm',
-    threshold: 0.01,
-    smaller_is_better: true,
-  },
-
-
-  translation_drift_pc:{
-    key:'translation_drift_pc',
-    label: 'Translation Relative Drift',
-    short_label: 'tDrift',
-    scale: 100,
-    suffix: '%',
-    threshold: 0.01,
-    smaller_is_better: true,
-  },
-
-  translation_aape_when_good:{
-    key:'translation_aape_when_good',
-    label: 'Translation AAPE - when GOOD',
-    short_label: 'tAAPE_good',
-    scale: 100,	
-    suffix: 'cm',
-    threshold: 0.01,
-    smaller_is_better: true,
-  },
-
-  frac_tracking_state_good:{
-    key:'frac_tracking_state_good',
-    label: 'Tracking is GOOD',
-    short_label: 'Tracking',
-    scale: 100,
-    suffix: '%',
-    threshold: 0.99,
-    smaller_is_better: false,
-  },
-
-  rotation_mean:{
-    key:'rotation_mean',
-    label: 'Rotation Error',
-    short_label: 'Rot Error',
-    scale: 1,
-    suffix: '°',
-    threshold: 1.5,
-    smaller_is_better: true,
-  },
-
-  rotation_mean_when_good:{
-    key:'rotation_mean_when_good',
-    label: 'Rotation Error - when GOOD',
-    short_label: 'Rot Error_good',
-    scale: 1,
-    suffix: '°',
-    threshold: 1.5,
-    smaller_is_better: true,
-  },
-
-  time_pc_before_first_lost:{
-    key:'time_pc_before_first_lost',
-    label: 'Time before first failure',
-    short_label: 'Time before KO',
-    scale: 100,
-    suffix: '%',
-    threshold: .99,
-    smaller_is_better: false,
-  },
-
- };
-
-export { available_metrics, HistogramComparaison, MetricsSummary, MetricTag, percent_formatter, metric_formatter};
+export { HistogramComparaison, MetricsSummary, MetricTag, percent_formatter, metric_formatter};

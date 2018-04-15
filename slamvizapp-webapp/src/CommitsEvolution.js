@@ -4,7 +4,7 @@ import React, { Component } from "react";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Colors, FormGroup } from "@blueprintjs/core";
-import { available_metrics } from "./Metrics";
+import { slam_metrics, default_metric } from "./slam/metrics";
 
 const Plot = createPlotlyComponent(Plotly);
 let layout = {
@@ -35,12 +35,12 @@ const has_all_metrics = (commit, metrics, aggregation) => {
 
 
 const CommitsEvolution1D = ({ commits, metrics, aggregation }) => {
-  let shown_metrics = metrics || ['translation_aape'];
+  let shown_metrics = metrics || [default_metric];
   let shown_aggregation = aggregation || 'average';
   let valid_commits = commits.filter( c => !!c.batches.default )
                              .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
   let traces = shown_metrics
-                .map( key => available_metrics[key] )
+                .map( key => slam_metrics[key] )
                 .map( metric => ({
                   name: metric.label,
                   type: 'scatter',
@@ -67,7 +67,7 @@ class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      selected_metric: 'translation_aape',
+      selected_metric: default_metric,
       selected_aggregation: 'average',
     };
   }
@@ -84,8 +84,8 @@ class CommitsEvolution extends Component {
     return <div style={style}>
       <FormGroup inline>
         <div className="pt-select pt-minimal">
-          <select id='select-metric' defaultValue='translation_aape' onChange={this.selectMetric}>
-            {Object.values(available_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
+            {Object.values(slam_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
         </div>
         <div className="pt-select pt-minimal">
