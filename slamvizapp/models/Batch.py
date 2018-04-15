@@ -137,9 +137,13 @@ class Batch(Base):
 # this should be refactored into SQL
 def aggregated_metrics(slam_outputs):
   aggregated = {
-      'pc_where_lost_at_least_once': np.mean([ m.metrics['nb_lost'] > 0 for m in slam_outputs if 'nb_lost' in o.metrics]),
+      'pc_where_lost_at_least_once': np.mean([ o.metrics['nb_lost'] > 0
+                                             for o in slam_outputs
+                                             if 'nb_lost' in o.metrics and not o.metrics['nb_lost'] is None]),
       'total_time_lost_pc_mean': np.mean([
-          m.metrics['total_time_lost_pc'] for m in slam_outputs if 'total_time_lost_pc' in o.metric
+          o.metrics['total_time_lost_pc']
+          for o in slam_outputs
+          if 'total_time_lost_pc' in o.metrics and not o.metrics['total_time_lost_pc'] is None
       ]),
   }
   metrics_to_aggregate = [
@@ -156,7 +160,7 @@ def aggregated_metrics(slam_outputs):
   for metric, treshold in metrics_to_aggregate:
     values = np.array([
         o.metrics[metric] for o in slam_outputs
-        if metric in o.metrics
+        if metric in o.metrics and not o.metrics[metric] is None
     ])
     aggregated[f'{metric}_median'] = np.median(values)
     aggregated[f'{metric}_average'] = np.average(values)
