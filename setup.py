@@ -20,6 +20,7 @@ setup(
     'flask',     # HTTP server
     'flask_cors',
     'sqlalchemy',       # ORM
+    'alembic',          # SQL schema migrations
     'psycopg2-binary',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
