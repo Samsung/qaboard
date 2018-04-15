@@ -17,7 +17,7 @@ You need to set two environment variables:
 Then you're all set:
 ```bash
 # This short script wraps `docker run`. By default it will enable "--restart always"
-# Adapt it to your needs - some commands useful for debugging are commented-out
+# Adapt it to your needs. Some commands useful for debugging are commented-out
 ./start-docker.sh
 # => now serving http://dvs:5000
 ```
@@ -57,18 +57,18 @@ You need to install:
   * install this application and its dependencies as a python package:
 
 ```bash
-pip install --editable .                  # edits to the code will be seen
-#           --proxy http://dlp-wcg01:8080 # from LSF/vdi
-#            -k                           # to trust Samsung's SSL certificate
+pip install --editable .                   # edits to the code will be seen
+#           --proxy http://dlp2-wcg01:8080 # from IT's "vdi" servers
+#            -k                            # to trust Samsung's SSL certificate
 
-# If you want a clean python environment, consider
+# If you want a clean and dedicated python environment, consider using virtualenv/conda
 # pip install virtualenv; virtualenv venv; . venv/bin/activate 
 ```
 
 ### Database setup
 You will need a database accessible:
 * The default configuration expects a `postgreSQL` database available on *localhost* ([download](https://www.postgresql.org/download)). The *Dockerfile* provides setup instructions.
-* Since we work with `sqlalchemy` as ORM, we can pick almost any database. If needed, you can change the database user, password, host... using environment variables like `SLAMVIZAPP_DB_USER`. To know more, read *database.py*.
+* Since we work with `sqlalchemy` as ORM, we can pick almost any database. If needed, you can change the database user, password, host, type... using environment variables like `SLAMVIZAPP_DB_USER`. To know more, read *database.py*.
 
 To initialize the database run:
 
@@ -101,7 +101,7 @@ export GITLAB_ACCESS_TOKEN=XXXXXXXXXXX
 ```bash
 FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads
 ```
-To run the app using fancier tools (HTTP2, SSL, wsgi and reverse proxies...), read the [deployment instructions](deployment/README.md), but it's *100% optionnal.* You'll also find info on how to run the app as a linux service.
+To run the app using fancier tools (HTTP2, SSL, wsgi and reverse proxies...), read the [deployment instructions](deployment/README.md), but it's *100% optionnal for development.* You'll also find info on how to run the app as a linux service.
 
 
 ## How should the SLAM results be saved?
