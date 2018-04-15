@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from .Batch import aggregated_metrics
-from .SlamOutput import SlamOutput, remap_metrics
+from .SlamOutput import SlamOutput
 from ..utils import filter_slam_outputs
 
 
@@ -74,7 +74,6 @@ class LocalSlamOutput():
     except:
       print(f'WARNING: failed to read {filepath}')
       metrics = {'is_failed': True}
-    metrics = remap_metrics(metrics)
     setattr(self, 'metrics', metrics)
     self.is_pending = False
     self.is_running = False

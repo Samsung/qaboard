@@ -30,7 +30,6 @@ class SlamOutput(Base):
   # What we ran
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
   recording = relationship("Recording", back_populates="slam_outputs")
-  trajectory_length = Column(Float()) # it's not normalized to store it here but..
 
   batch_id = Column(Integer(), ForeignKey('batches.id'))
   batch = relationship("Batch", back_populates="slam_outputs")
@@ -53,12 +52,6 @@ class SlamOutput(Base):
   metrics = Column(JSON(), default={})
 
 
-
-  def __init__(self, **kwargs):
-    # We change the name of a few metrics
-    kwargs = remap_metrics(kwargs)
-    super(SlamOutput, self).__init__(**kwargs)
-
   def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""
     if not filepath:
@@ -66,12 +59,15 @@ class SlamOutput(Base):
     try:
       with filepath.open() as f:
         metrics = json.load(f)
-        metrics = remap_metrics(metrics)
+        is_serializable = lambda v: not v != v  # avoid NaN values
+        metrics = {k:v for k, v in metrics.items() if is_serializable(v)}
+        setattr(self, 'metrics', metrics)
+        if 'is_failed' in metrics: setattr(self, 'is_failed', metrics['is_failed'])
     except:
-      print(f'WARNING: failed to read {filepath}')
+      print(f'[WARNING] SlamOutput.update_metrics: failed to read {filepath}')
+      # we *could* return False then consider the run crashed if more than X time has passed...
       # metrics = {'is_failed': True}
-      metrics = {}
-    setattr(self, 'metrics', metrics)
+      # metrics = {}
     self.is_pending = False
     self.is_running = False
 
@@ -156,24 +152,3 @@ class SlamOutput(Base):
       session.add(slam_output)
       session.commit()
       return slam_output
-
-
-
-
-def remap_metrics(metrics):
-  """Use the newer names of a number of metrics"""
-  # We remove attributes our model doesn't know.
-  # There should be a better way to do this...
-  columns = set(c.name for c in Base.metadata.tables['slam_outputs'].columns)
-  relationships = set(['recording', 'batch', 'parameters_set'])
-  columns = columns | relationships
-
-  remapped_names = {
-      'aape':'translation_aape',
-      'final_drift': 'final_drift',
-      'final_drift_pc':'translation_drift_pc',
-  }
-  for old, new in remapped_names.items():
-    if old in metrics:
-      metrics[new] = metrics[old]
-  return {k: v for k, v in metrics.items() if k in columns}

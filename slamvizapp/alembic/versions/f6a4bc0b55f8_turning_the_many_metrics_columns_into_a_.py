@@ -17,7 +17,7 @@ depends_on = None
 
 
 # https://stackoverflow.com/questions/24612395/how-do-i-execute-inserts-and-updates-in-an-alembic-upgrade-script
-from sqlalchemy import Column, Float, Integer, Boolean
+from sqlalchemy import Column, Float, Integer, Boolean, JSON
 from sqlalchemy.orm import sessionmaker, Session as BaseSession
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -29,6 +29,8 @@ class SlamOutput(Base):
   id = Column(Integer, primary_key=True)
 
   is_running = Column(Boolean(), default=False)
+
+  metrics = Column(JSON(), default=None)
 
   latency = Column(Float(), default=None)
   computation_time = Column(Float(), default=None)
@@ -92,6 +94,7 @@ metrics = [
 def upgrade():
   op.add_column('slam_outputs', sa.Column('metrics', sa.JSON))
   op.add_column('slam_outputs', sa.Column('is_running', sa.Boolean))
+  op.drop_column('slam_outputs', 'trajectory_length')
   # populate the new column
   bind = op.get_bind()
   session = Session(bind=bind)
@@ -110,13 +113,20 @@ def upgrade():
 
 
 def downgrade():
+  op.add_column('slam_outputs', sa.Column('trajectory_length', sa.Float))
   for metric in metrics:
     op.add_column('slam_outputs', sa.Column(metric, sa.Float))
 
+  # populate the metrics columns
+  bind = op.get_bind()
+  session = Session(bind=bind)
+
+
   for o in session.query(SlamOutput):
     for m in metrics:
-      value = getattr(o, 'metrics')[m]
-      setattr(o, m, value)
+      if m in getattr(o, 'metrics'):
+        value = getattr(o, 'metrics')[m]
+        setattr(o, m, value)
     session.add(o)
   session.commit()
 
