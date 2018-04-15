@@ -1,50 +1,50 @@
 # Visualization of SLAM results
-- Provides a web dashboard to show and compare SLAM results.
-- Keeps in sync with gitlab and listens for notifications when a SLAM run is completed. Keeps the data in a database other tools can connect to.
+Provides a web application to:
+- Show, debug and compare SLAM results.
+- Perform parameter tuning.
+
+It does it by:
+- Exposing an API to get updates about individual SLAM runs
+- Keeping in sync with `git` projects on Gitlab.
+- Storing the data in a database.
 
 
 ## How to run (with Docker, recommended)
+You need to set two environment variables:
+- an access token from Gitlab ([get it here](http://gitlab-srv/profile/personal_access_tokens))
+- the passphrase to `arthurf`'s key in *deployment/ssh/id_rsa* (or provide your own key and use your own user) 
+
+Then you're all set:
 ```bash
-# export $GITLAB_ACCESS_TOKEN and $SSH_PASSPHRASE
-./source secrets.sh
-# We use a few persistent storage volumes
-docker volume create slamvizapp
-docker volume create slamvizapp-postgresql
-docker volume create slamvizapp-postgresql-log
-docker volume create slamvizapp-postgresql-lib
-
-# FYI, delete them with
-# docker volume rm -f slamvizapp-postgresql
-# docker volume rm -f slamvizapp-postgresql-log
-# docker volume rm -f slamvizapp-postgresql-lib
-
-# This short script wraps `docker run`
-# by default it will enable "--restart always"
-# Adapt to your needs - some commands useful for debugging are commented-out
+# This short script wraps `docker run`. By default it will enable "--restart always"
+# Adapt it to your needs - some commands useful for debugging are commented-out
 ./start-docker.sh
 # => now serving http://dvs:5000
 ```
+
+## CI
+Gitlab manages:
+- builds and tests
+- the release to the [`production` enviromnent](http://dvs:5000/), via a manual job on [the `master` branch's pipelines](http://gitlab-srv/dvs/slamvizapp/pipelines)
+- the release to the [`staging` enviromnent](http://dvs:9000/) (mirrors production) enviromnent automatically on each update of the `master` branch.
+Those steps are described in [`.gitlab-ci.yml`](http://gitlab-srv/dvs/slamvizapp/blob/master/.gitlab-ci.yml). Details on our environments can be [found here](http://gitlab-srv/dvs/slamvizapp/environments).
 
 
 ## Architecture overview
 * `slamvizapp`: backend application composed of:
   - `__init__.py`: [Flask](https://flask.pocoo.org) application that handle all our HTTP needs.
-  - `webhooks.py`: Listens for notification from gitlab or SLAM jobs.
   - `database.py`: Accesses our database through `[sqlalchemy](http://docs.sqlalchemy.org/en/latest/orm/tutorial.html)`, and connect to the git repository via `gitpython`.
   - `models/`: Provides a few simple classes to represent
-    * DVS recordings
-    * the version of the code at different commits
-    * the parameters used
-    * and the results obtained...
-  - `/api.py`: exposes the data through a minimal API
-
-
+    * DVS **Recordings**
+    * versions of the code, eg **CiCommits**
+    * **Batches** of related **SlamOutputs**
+  - `/api.py` and `webhooks.py`: expose the data through a minimal API and listens for notification from gitlab or SLAM jobs.
+  - `alembic`: schema and data migrations for our database via [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html).
 * `slamvizapp-webapp`: web application that consumes this API to display results.
   - previously all the frontend was done server-side through html templates (`flask`+`jinja`)
   - it makes it easy to start developping, but after we reach a certain level of complexity, it's better to move to javascript tools...
-  - built using [`react`](https://reactjs.org/), using the recommended [`create-react-app`](https://github.com/facebook/create-react-app) toolchain.
+  - built using [`react`](https://reactjs.org/), using the recommended [`create-react-app`](https://github.com/facebook/create-react-app) toolchain (`ES6` etc).
   - more details in the [app's README](slamvizapp-webapp/README.md).
-
 
 ## How to run (without Docker)
 > The **Dockerfile** is the reference on how to install this application.
@@ -124,6 +124,5 @@ We don't store all the data in a database (eg 6dof results, DVS recordings); we 
                        metrics.json            # all the metrics, time offset vs ground-truth...
                        results.mp4             # rendering of the results
                        curves.jpg              # 6dof plots
+  tuning/ .. not yet documented, refer to the code
 ```
-
-As we add tuning possibilities, this section will be modified/extended.
