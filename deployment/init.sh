@@ -26,7 +26,7 @@ echo '...starting the database'
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &
 
 echo '...applying database migrations'
-cd /var/slamvizapp/slamvizapp
+cd /slamvizapp/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
 echo '...initializing the database'
