@@ -25,6 +25,9 @@ echo '...starting the database'
 #   -D /var/lib/postgresql/9.6/main \
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &
 
+echo '...applying database migrations'
+alembic upgrade head || alembic downgrade head || alembic stamp head
+
 echo '...initializing the database'
 slamvizapp_init_database --loop &
 # slamvizapp_init_database --verbose

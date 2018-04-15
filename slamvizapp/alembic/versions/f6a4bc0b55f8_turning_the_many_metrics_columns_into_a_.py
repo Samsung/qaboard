@@ -102,6 +102,8 @@ def upgrade():
   for o in session.query(SlamOutput):
     new_metrics = {}
     for m in metrics:
+      # avoid NaN values
+      if getattr(o, m) != getattr(o, m): continue
       new_metrics[m] = getattr(o, m)
     setattr(o, 'metrics', new_metrics) 
     session.add(o)
