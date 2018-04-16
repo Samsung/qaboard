@@ -193,13 +193,15 @@ class OutputCard extends Component {
       )}
     </span>
 
+    let metrics_new = output_new && output_new.metrics ? output_new.metrics : {};
+    let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : {};
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&
               <div style={{flex: '0 0 auto', width: '350px', marginBottom: '20px'}}>
                 <SlimCard className="output-card">
                   <div style={{padding:'  '}}>
                     <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
-                    {output_new.metrics.translation_rmse>0 && <p><MetricTag metrics={output_new.metrics} metrics_ref={output_ref.metrics} metric='translation_aape'/></p>}
-                    {output_new.metrics.rotation_mean>0 && <p><MetricTag metrics={output_new.metrics} metrics_ref={output_ref.metrics} metric='rotation_mean'/></p>}
+                    {metrics_new.translation_rmse>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='translation_aape'/></p>}
+                    {metrics_new.rotation_mean>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='rotation_mean'/></p>}
                   </div>
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
