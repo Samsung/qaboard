@@ -1,26 +1,22 @@
 import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
-import { Link } from "react-router-dom";
 import { get, all } from "axios";
 import queryString from "query-string";
-
-
-import AceEditor from 'react-ace';
-import { FormGroup, Switch, EditableText } from "@blueprintjs/core";
-import { Tooltip, Callout, Icon, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
-import { Button, Tag, InputGroup } from "@blueprintjs/core";
-
-import Avatar from "./Avatar";
 // import List from 'react-virtualized'
 
+import AceEditor from 'react-ace';
+import { FormGroup, Switch } from "@blueprintjs/core";
+import { Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+
 import { Container, Section } from "./Common";
-import { DoneAtTag } from "./DoneAtTag";
 import { MetricsSummary } from "./Metrics";
 import { TableCompare, TableKpi } from "./Tables";
 import { OutputCard } from "./slam/OutputCard";
+import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { slam_configurations } from "./slam/configurations";
 import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
 import { TuningExploration } from "./tuning/TuningExploration";
+import { SelectBatches } from "./tuning/SelectBatches";
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
@@ -30,7 +26,6 @@ import 'brace/theme/github';
 import 'brace/ext/searchbox';
 // import 'brace/mode/diff';
 // import 'brace/ext/language_tools';
-
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
 
 
@@ -466,20 +461,24 @@ class CiCommitResults extends Component {
     var result = (
       <Container>
         {warning_messages}
-        <CommitCompareCard new_commit={new_commit} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
+        <Section>
+          <CommitInfoCompareCard new_commit={new_commit} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
+        </Section>
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
-
         <Section>
           <Card elevation={0}>
-            {Object.values(new_commit.batches).length>1 && <FormGroup label="You can view results from different tuning experiments" labelFor="batch-select" helperText="The CI results use the default parameters.">
-              <div className="pt-select pt-minimal">
-                <select id='batch-select' defaultValue="default" onChange={this.selectBatchNew}>
-                  {Object.keys(new_commit.batches).map( label=> <option key={label} value={label}>{label==='default' ? 'CI results' : label} • {Object.keys(new_commit.batches[label].slam_outputs).length} outputs</option>)}
-                </select>
-              </div>
-            </FormGroup>}
-            <FormGroup label="Filter results" labelFor="batch-select" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.slam_outputs).length} selected)`}>
+            <SelectBatches
+              commit={new_commit}
+              onChange={this.selectBatchNew}
+              prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
+            />
+            <SelectBatches
+              commit={ref_commit}
+              onChange={this.selectBatchRef}
+              prefix={<Tag intent={Intent.PRIMARY}>Reference commit</Tag>}
+            />
+            <FormGroup label="Filter results" labelFor="filter-input" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.slam_outputs).length} selected)`}>
               <InputGroup
                 value={this.state.filter_values}
                 placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
@@ -576,32 +575,6 @@ class CiCommitResults extends Component {
 }
 
 
-const CommitCompareCard = ({new_commit, ref_commit, onConfirmReference}) => {
-  const empty_batch = {failed_slam_outputs: 0, valid_slam_outputs: 0, pending_slam_outputs: 0};
-  let new_ci_batch = new_commit.batches.default || empty_batch;
-  let ref_ci_batch = ref_commit.batches.default || empty_batch;
-  return <Section>
-    <Card elevation={4}>
-      <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-        <div style={{flex:'1 1 auto', minWidth: '450px'}}>
-          <h1 style={{display: 'flex', alignItems: 'baseline'}}><Avatar href={`/committer/${new_commit.committer_name}`} alt={new_commit.committer_name} src={new_commit.committer_avatar_url} />{new_commit.type==='git' ? new_commit.id.substring(0,8) : new_commit.id} </h1>
-            <Link to={`/branch/${new_commit.branch}`}><Button icon="git-branch">{new_commit.branch}</Button></Link><Icon icon='git-commit'/> {new_commit.parents.length>1 ? 'parents' : 'parent'}: {new_commit.parents.map(p => <Button key={p} onClick={e=>{console.log(p); onConfirmReference(p)}}>{p.substring(0,8)}</Button>)}
-            <br/>
-            <div style={{marginTop: '10px'}}><DoneAtTag commit={new_commit} /> <Tag>{new_ci_batch.valid_slam_outputs} outputs @CI</Tag> {new_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{new_ci_batch.failed_slam_outputs} crashed @CI</Tag>} {new_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{new_ci_batch.pending_slam_outputs} pending @CI</Tag>} <Tag intent={Intent.WARNING}>New</Tag></div>
-            <p style={{marginTop: '10px', maxWidth:'450px'}} className="pt-monospace-text">{new_commit.message}</p>
-          </div>
-        <div style={{minWidth: '40px', textAlign: 'center'}}><Icon icon="small-cross"></Icon></div>
-        <div style={{flex:'1 1 auto'}}>
-            <h1 style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline'}}><EditableText style={{flex: '1 1 auto', margin:'auto', borderBottom: '2px solid rgb(100,100,100)'}} onConfirm={onConfirmReference} intent={Intent.PRIMARY} defaultValue={ref_commit.type==='git' ? ref_commit.id.substring(0,8) : ref_commit.id} /><Avatar href={`/committer/${ref_commit.committer_name}`} alt={ref_commit.committer_name} src={ref_commit.committer_avatar_url} /></h1>
-            <span style={{display: 'flex', justifyContent: 'flex-end'}}><Link to={`/branch/${ref_commit.branch}`}><Button style={{flex: '1 1 auto', margin:'auto'}} icon="git-branch">{ref_commit.branch}</Button></Link></span>
-            <div style={{marginTop: '10px', textAlign: 'right'}}><DoneAtTag commit={ref_commit} /> <Tag>{ref_ci_batch.valid_slam_outputs} outputs @CI</Tag> {ref_ci_batch.failed_slam_outputs>0 && <Tag intent={Intent.DANGER}>{ref_ci_batch.failed_slam_outputs} crashed @CI</Tag>} {ref_ci_batch.pending_slam_outputs>0 && <Tag intent={Intent.WARNING}>{ref_ci_batch.pending_slam_outputs} pending @CI</Tag>} <Tag intent={Intent.PRIMARY}>Reference</Tag></div>
-            <p style={{display: 'flex', justifyContent: 'flex-end', textAlign: 'right', marginTop: '10px'}} className="pt-monospace-text">{ref_commit.message}</p>
-        </div>
-      </div>
-    </Card>
-  </Section>
-}
-
 class OutputList extends React.Component {
   constructor(props) {
     super(props);
@@ -630,6 +603,7 @@ class OutputList extends React.Component {
                                 style={{width: '300px'}}
                               />
                             </FormGroup>}
+            {ref_batch.label!=='default' && <Callout intent={Intent.WARNING}>We compare each output to <strong>any</strong> reference outputs with matching recording+configuration+platform, <strong>without looking at the tuning parameters</strong>.</Callout>}
             <div style={{display:'flex', justifyContent: 'space-between', flexFlow: 'row wrap'}}>
               {Object.entries(new_batch.slam_outputs)
                      .sort(output_sort)
@@ -657,7 +631,6 @@ class OutputList extends React.Component {
 
   }
 }
-
 
 
 export default withRouter(CiCommitResults);

@@ -303,7 +303,7 @@ class CiCommitList extends React.Component {
           allowSingleDayRange
           formatDate={date => (date == null ? "" : date.toLocaleDateString())}
           parseDate={str => new Date(Date.parse(str))}
-          onChange={new_date_range => {this.setState({ date_range: new_date_range }, c => this.getData(this.props))} }
+          onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getData(this.props))} }
           shortcuts
         />
         <CommitsEvolution commits={commits} style={{marginTop: '20px'}}/>

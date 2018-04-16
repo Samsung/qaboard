@@ -1,6 +1,6 @@
 import React, { Fragment } from "react";
 import { interpolateRdYlGn } from 'd3-scale-chromatic'
-import { Tag } from "@blueprintjs/core";
+import { Tag, Callout, Intent } from "@blueprintjs/core";
 
 import { Section } from "./Common";
 import { slam_metrics, main_metrics } from "./slam/metrics";
@@ -32,6 +32,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype
   return (
     <Section>
       <h2>Improvement report</h2>
+      {ref_batch.label!=='default' && <Callout intent={Intent.WARNING}>We compare each output to <strong>any</strong> reference outputs with matching recording+configuration+platform, <strong>without looking at the tuning parameters</strong>.</Callout>}
       <table className="pt-html-table pt-small">
       <thead>
         <tr>
@@ -78,6 +79,7 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype }) 
   return (
     <Section>
       <h2>Quality report</h2>
+      {ref_batch.label!=='default' && <Callout intent={Intent.WARNING}>We compare each output to <strong>any</strong> reference outputs with matching recording+configuration+platform, <strong>without looking at the tuning parameters</strong>.</Callout>}
       <table className="pt-html-table pt-small">
       <thead>
         <tr>
