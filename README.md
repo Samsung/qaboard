@@ -11,8 +11,8 @@ It does it by:
 
 ## How to run (with Docker, recommended)
 You need to set two environment variables:
-- an access token from Gitlab ([get it here](http://gitlab-srv/profile/personal_access_tokens))
-- the passphrase to `arthurf`'s key in *deployment/ssh/id_rsa* (or provide your own key and use your own user) 
+- *$GITLAB_ACCESS_TOKEN*: an access token from Gitlab ([get it here](http://gitlab-srv/profile/personal_access_tokens))
+- *$SSH_PASSPHRASE*: the passphrase to `arthurf`'s key in *deployment/ssh/id_rsa* (or provide your own key and use your own user) 
 
 Then you're all set:
 ```bash
@@ -41,20 +41,26 @@ Those steps are described in [`.gitlab-ci.yml`](http://gitlab-srv/dvs/slamvizapp
   - `/api.py` and `webhooks.py`: expose the data through a minimal API and listens for notification from gitlab or SLAM jobs.
   - `alembic`: schema and data migrations for our database via [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html).
 * `slamvizapp-webapp`: web application that consumes this API to display results.
-  - previously all the frontend was done server-side through html templates (`flask`+`jinja`)
-  - it makes it easy to start developping, but after we reach a certain level of complexity, it's better to move to javascript tools...
-  - built using [`react`](https://reactjs.org/), using the recommended [`create-react-app`](https://github.com/facebook/create-react-app) toolchain (`ES6` etc).
+  - built using [`react`](https://reactjs.org/), using the official [`create-react-app`](https://github.com/facebook/create-react-app) toolchain (`ES6`, `webpack`...).
   - more details in the [app's README](slamvizapp-webapp/README.md).
 
 ## How to run (without Docker)
 > The **Dockerfile** is the reference on how to install this application.
 
+### Sync with the `dvs/psp_swip` repository
+- Clone the `psp_swip` repository at a location specified in the `SLAMVIZAPP_DATA` environment variable:
+
+```bash
+cd $SLAMVIZAPP_DATA
+git clone git@gitlab-srv:dvs/psp_swip.git
+```
+
 ### Application setup
-You need to install:
+You need:
 - `git`
-- `python3.6`:
-  * the [annaconda distribution](https://www.continuum.io/downloads) is the easiest way.
-  * install this application and its dependencies as a python package:
+- `python3.6`: the [annaconda distribution](https://www.continuum.io/downloads) is the easiest way.
+
+Now install this application and its dependencies as a regular python package:
 
 ```bash
 pip install --editable .                   # edits to the code will be seen
@@ -64,6 +70,7 @@ pip install --editable .                   # edits to the code will be seen
 # If you want a clean and dedicated python environment, consider using virtualenv/conda
 # pip install virtualenv; virtualenv venv; . venv/bin/activate 
 ```
+
 
 ### Database setup
 You will need a database accessible:
@@ -79,33 +86,18 @@ To initialize the database run:
 # --loop       Keep looking for new results.
 ```
 
-### Keeping in sync with `psp_swip` git repository
-- Clone the `psp_swip` repository in the working directory or at a location specified in the `SLAMVIZAPP_DATA` environment variable.
-
-```bash
-cd $SLAMVIZAPP_DATA
-git clone git@gitlab-srv:dvs/psp_swip.git
-```
-
-- Make sure the app receives notifications (aka webhooks) whenever someone pushes changes to [gitlab](http://gitlab-srv/dvs/psp_swip):
-    1. In `psp_swip`'s project  *Settings*, in the [*Integrations*](http://gitlab-srv/dvs/psp_swip/settings/integrations) setup a webhook to `$YOUR_HOSTNAME/webhook/gitlab`.
-    2. In your [user setting](http://gitlab-srv/profile/personal_access_tokens), get an API access tokens for your user and export as:
-
-```bash
-# to avoid a line like this in your shell history, you may want to
-# write it in a file called ~/.secrets ()and source ~/.secrets
-export GITLAB_ACCESS_TOKEN=XXXXXXXXXXX
-```
-
 ### Run the backend
 ```bash
 FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads
 ```
-To run the app using fancier tools (HTTP2, SSL, wsgi and reverse proxies...), read the [deployment instructions](deployment/README.md), but it's *100% optionnal for development.* You'll also find info on how to run the app as a linux service.
+
+### Optionnal configuration
+* To run the app using fancier tools (HTTP2, SSL, wsgi and reverse proxies...), read the [deployment instructions](deployment/README.md).
+* Make sure the app receives notifications (aka webhooks) whenever someone pushes changes to [gitlab](http://gitlab-srv/dvs/psp_swip). In `psp_swip`'s [*integrations settings*](http://gitlab-srv/dvs/psp_swip/settings/integrations) setup a webhook to `$YOUR_HOSTNAME/webhook/gitlab`.
 
 
-## How should the SLAM results be saved?
-We don't store all the data in a database (eg 6dof results, DVS recordings); we store them on the filesystem with this structure:
+## How are the SLAM results saved?
+We only store their *metrics* in the database. The rest (eg 6dof results, DVS recordings) is stored on the filesystem like so:
 - Default base folder: `/home/arthurf/ci/commits/`
 - Per commit output folder: `${GIT_AUTHORED_TIMESTAMPCOMMIT}__git__${CI_COMMIT_SHA:0:8}`
 - Then....
@@ -117,12 +109,13 @@ We don't store all the data in a database (eg 6dof results, DVS recordings); we 
   app_params.json
   swip_slam_tests
   output/
-        $PLATFORM_PREFIX                       # default='' for lsf
-        $MODE_PREFIX                           # default='' for serial-stereo
-         my/recording1/                        # from $database/my/recording1.bin
+        $PLATFORM                              # default: lsf
+        $CONFIGURATION                         # default: serial-stereo
+         my/recording1/                        # eg $database/my/recording1.bin
                        camera_poses_debug.csv  # 6dof and more...
                        metrics.json            # all the metrics, time offset vs ground-truth...
                        results.mp4             # rendering of the results
                        curves.jpg              # 6dof plots
-  tuning/ .. not yet documented, refer to the code
+                       ...
+  tuning/$BATCH_LABEL/$PLATFORM/$CONFIGURATION/hash(EXTRA_PARAMETERS)[:2]/hash(EXTRA_PARAMETERS)/my/recording/
 ```
