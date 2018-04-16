@@ -208,6 +208,7 @@ class CiCommitList extends React.Component {
         branch = `/${match.params[0]}`
       url = `/api/v1/commits${branch}`;
     }
+    document.title = match.params[0] || 'index';
 
     get(url, {
       params: {

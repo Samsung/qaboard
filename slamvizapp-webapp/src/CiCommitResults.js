@@ -166,6 +166,7 @@ class CiCommitResults extends Component {
     const params = new URLSearchParams(this.props.location.search);
     const new_commit_id = params.get('commit_folder') || this.props.match.params[0]
     const ref_commit_id = this.state.ref_commit_id || params.get('reference') || params.get('commit_ref_folder') || 'default';
+    document.title = new_commit_id;
     this.setState((previous_state, props) => {
       return {
         new_commit_id,
