@@ -78,12 +78,14 @@ class CommitResults extends React.Component {
     let status_messages = (
       <Fragment>
          {ci_batch.pending_slam_outputs>0 &&
-            <Tag className="pt-minimal" style={{marginRight:'4px'}}>{ci_batch.pending_slam_outputs} pending...</Tag>}
+            <Tag className="pt-minimal" style={{marginRight:'4px'}}>{ci_batch.pending_slam_outputs-ci_batch.running_slam_outputs} pending</Tag>}
+         {ci_batch.running_slam_outputs>0 &&
+            <Tag className="pt-minimal" style={{marginRight:'4px'}} intent={Intent.PRIMARY}>{ci_batch.running_slam_outputs} running</Tag>}
          {ci_batch.failed_slam_outputs>0 &&
             <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_slam_outputs} crashed</Button></a>}
          { Object.keys(commit.batches).length > 1 &&
             <Tooltip>
-              <Tag intent={Intent.PRIMARY} className="pt-minimal" style={{marginRight:'4px'}}>{Object.keys(commit.batches).length-1} tuning experiments</Tag>
+              <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{Object.keys(commit.batches).length-1} tuning experiments</Tag>
               <ul>{ Object.keys(commit.batches).filter(n=>n!=='default').map( name =>
                 <li key={name}><strong>{name}</strong></li>
               )}</ul>
