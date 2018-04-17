@@ -463,7 +463,13 @@ class CiCommitResults extends Component {
       <Container>
         {warning_messages}
         <Section>
-          <CommitInfoCompareCard new_commit={new_commit} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
+          <CommitInfoCompareCard
+            new_commit={new_commit}
+            ref_commit={ref_commit}
+            new_label={selected_batch_new}
+            ref_label={selected_batch_ref}
+            onConfirmReference={this.handleSubmitReference}
+          />
         </Section>
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
