@@ -154,7 +154,7 @@ class MetricsSummary extends Component {
   render() {
     const { new_batch, ref_batch, compare_cross_runtype } = this.props;
     let slam_outputs_new = Object.values(new_batch.slam_outputs)
-                                 .filter(o => !o.is_pending && !o.is_failed);
+                                 .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
     if (!compare_cross_runtype) {
       var run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
       var slam_outputs_ref = Object.values(ref_batch.slam_outputs)

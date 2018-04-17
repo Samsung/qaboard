@@ -63,7 +63,7 @@ class OutputCard extends Component {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`)
             .then(response => {
-              let poses = parse_poses(response.data, output_new.time_offset_to_groundtruth);
+              let poses = parse_poses(response.data);
               this.setState((previous_state, props) => {
                 return {
                   traces_6dof: {...previous_state.traces_6dof, groundtruth: make_traces(poses, 'groundtruth')},
@@ -79,7 +79,7 @@ class OutputCard extends Component {
     var get_new = () => {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
         .then(response => {
-          let poses = parse_poses(response.data, output_new.time_offset_to_groundtruth);
+          let poses = parse_poses(response.data);
           this.setState((previous_state, props) => {
             return {
                traces_6dof: {...previous_state.traces_6dof, new: make_traces(poses, 'new')},
@@ -93,7 +93,7 @@ class OutputCard extends Component {
       get_ref = () => {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
           .then(response => {
-            let poses = parse_poses(response.data, output_ref.time_offset_to_groundtruth)
+            let poses = parse_poses(response.data)
             this.setState((previous_state, props) => {
               return {
                 traces_6dof: {...previous_state.traces_6dof, reference: make_traces(poses, 'reference')},
@@ -125,7 +125,7 @@ class OutputCard extends Component {
     var get_new_debug = () => {
       return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
         .then(response => {
-          let data = parse_debug(response.data, output_new.time_offset_to_groundtruth)
+          let data = parse_debug(response.data)
           this.setState((previous_state, props) => {
             return {
               data_debug: {...previous_state.data_debug, new: data},
@@ -137,7 +137,7 @@ class OutputCard extends Component {
     var get_ref_debug = () => {
       return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
         .then(response => {
-          let data = parse_debug(response.data, output_ref.time_offset_to_groundtruth)
+          let data = parse_debug(response.data)
           this.setState((previous_state, props) => {
             return {
               data_debug: {...previous_state.data_debug, reference: data},
@@ -202,6 +202,8 @@ class OutputCard extends Component {
                     <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
                     {metrics_new.translation_rmse>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='translation_aape'/></p>}
                     {metrics_new.rotation_mean>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='rotation_mean'/></p>}
+					{metrics_new.relative_translation_error>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='relative_translation_error'/></p>}
+					{metrics_new.time_before_lost_gt>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='time_before_lost_gt'/></p>}
                   </div>
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
@@ -225,7 +227,7 @@ class OutputCard extends Component {
   }
 }
 
-const parse_debug = (text_string, gt_time_offset) => {
+const parse_debug = (text_string) => {
   let data = tsvParse(text_string);
   var output = {}
   data.columns.forEach(c=>output[c]=[])
@@ -241,7 +243,7 @@ const parse_debug = (text_string, gt_time_offset) => {
 
 
 
-const parse_poses = (text_string, gt_time_offset) => {
+const parse_poses = (text_string) => {
   let headers = ["rX","rY","rZ","tX", "tY", "tZ", "t", "confidence", "tracking_state\n"].join('\t');
   let data = tsvParse(headers + text_string);
   let tX=[], tY=[], tZ=[];
@@ -261,8 +263,6 @@ const parse_poses = (text_string, gt_time_offset) => {
     tY.push(parseFloat(row['tY']));
     tZ.push(parseFloat(row['tZ']));
     t.push(parseFloat(row['t']-t0));
-    // we don't rely on per-commit-sync anymore
-    // t.push(parseFloat(row['t'])+gt_time_offset);
     confidence.push(parseFloat(row['confidence']/100));
     tracking_state.push(parseFloat(row['tracking_state']));
   };
