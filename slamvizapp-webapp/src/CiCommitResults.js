@@ -425,27 +425,40 @@ class CiCommitResults extends Component {
     if (new_commit===undefined || ref_commit===undefined || new_commit.batches[selected_batch_new]===undefined || ref_commit.batches[selected_batch_ref]===undefined)
       return <Container>{warning_messages}</Container>
 
+    let new_batch = new_commit.batches[selected_batch_new];
+    let ref_batch = ref_commit.batches[selected_batch_ref];
     let status_messages = (
       <Section>
-       {new_commit.batches[selected_batch_new].pending_slam_outputs>0 &&
+       {new_commit.batches[selected_batch_new].running_slam_outputs>0 &&
+          <Callout
+            icon="info-sign"
+            intent={Intent.SUCCESS}
+            title={
+              <Tooltip>
+              <span>{new_batch.pending_slam_outputs} result{new_batch.pending_slam_outputs>1 ? 's' : ''} running</span>
+              <ul>{Object.values(new_batch.slam_outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              </Tooltip>
+          }>
+          </Callout>}
+       {new_batch.pending_slam_outputs-new_batch.running_slam_outputs>0 &&
           <Callout
             icon="info-sign"
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>Still waiting for {new_commit.batches[selected_batch_new].pending_slam_outputs} result{new_commit.batches[selected_batch_new].pending_slam_outputs>1 ? 's' : ''}</span>
-              <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_pending===true).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <span>{new_batch.pending_slam_outputs} result{new_batch.pending_slam_outputs>1 ? 's' : ''} pending</span>
+              <ul>{Object.values(new_batch.slam_outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
-       {new_commit.batches[selected_batch_new].failed_slam_outputs>0 &&
+       {new_batch.failed_slam_outputs>0 &&
           <Callout
             icon="error"
             intent={Intent.DANGER}
             title={
               <Tooltip>
-                <span>{new_commit.batches[selected_batch_new].failed_slam_outputs} crashed in this commit</span>
-                <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_failed===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+                <span>{new_batch.failed_slam_outputs} crashed</span>
+                <ul>{Object.values(new_batch.slam_outputs).filter(o=>o.is_failed===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
             }>
             <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.
@@ -454,8 +467,8 @@ class CiCommitResults extends Component {
       </Section>
     );
 
-    let new_batch_filtered = this.filter_batch(new_commit.batches[selected_batch_new])
-    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref])
+    let new_batch_filtered = this.filter_batch(new_batch)
+    let ref_batch_filtered = this.filter_batch(ref_batch)
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
