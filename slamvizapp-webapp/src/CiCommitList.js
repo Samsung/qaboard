@@ -77,7 +77,7 @@ class CommitResults extends React.Component {
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
     let status_messages = (
       <Fragment>
-         {ci_batch.pending_slam_outputs>0 &&
+         {ci_batch.pending_slam_outputs-ci_batch.running_slam_outputs>0 &&
             <Tag className="pt-minimal" style={{marginRight:'4px'}}>{ci_batch.pending_slam_outputs-ci_batch.running_slam_outputs} pending</Tag>}
          {ci_batch.running_slam_outputs>0 &&
             <Tag className="pt-minimal" style={{marginRight:'4px'}} intent={Intent.PRIMARY}>{ci_batch.running_slam_outputs} running</Tag>}
