@@ -460,7 +460,7 @@ class CiCommitResults extends Component {
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>{new_batch.pending_slam_outputs} result{new_batch.pending_slam_outputs>1 ? 's' : ''} pending</span>
+              <span>{new_batch.pending_slam_outputs-new_batch.running_slam_outputs} result{new_batch.pending_slam_outputs-new_batch.running_slam_outputs>1 ? 's' : ''} pending</span>
               <ul>{Object.values(new_batch.slam_outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
