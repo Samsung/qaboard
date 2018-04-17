@@ -2,7 +2,7 @@
 // import Plot from 'react-plotly.js'
 import React, { Component } from "react";
 import createPlotlyComponent from 'react-plotly.js/factory'
-import { Callout, Colors, Intent, FormGroup } from "@blueprintjs/core";
+import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { Section } from "../Common";
 import { slam_metrics, default_metric } from "../slam/metrics";
@@ -12,7 +12,7 @@ const Plot = createPlotlyComponent(Plotly);
 const config = {};
 
 
-const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
+const Sensibility1DLines = ({ slam_outputs, metric, parameter, layout }) => {
   let slam_outputs_by_recording = groupBy(Object.values(slam_outputs), "recording_path");
   let traces = Object.entries(slam_outputs_by_recording)
                      .map( ([recording_path, slam_outputs_for_recording]) => {
@@ -36,7 +36,7 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
                           }
                         }
                       })
-  const layout = {
+  const layout_ = {
     hovermode: 'closest',
     hoverinfo: 'name',
     hoverlabel: {
@@ -57,11 +57,12 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter }) => {
       gridcolor: 'rgb(255, 255, 255)',
       gridwidth: 1,
     },
+    ...layout,
   }
-  return <Plot data={traces} layout={layout} config={config}/>
+  return <Plot data={traces} layout={layout_} config={config}/>
 }
 
-const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
+const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter, layout }) => {
   let slam_outputs_values = Object.values(slam_outputs)
                             .map(o => ({
                               ...o,
@@ -82,7 +83,7 @@ const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
                           },
                         }
                       })
-  const layout = {
+  const layout_ = {
     hovermode: 'closest',
     boxgap: 0,
     boxgroupgap: 0,
@@ -101,8 +102,9 @@ const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter }) => {
       gridcolor: 'rgb(255, 255, 255)',
       gridwidth: 1,
     },
+    ...layout,
   }
-  return <Plot data={traces} layout={layout} config={config}/>
+  return <Plot data={traces} layout={layout_} config={config}/>
 }
 
 
@@ -112,6 +114,11 @@ class TuningExploration extends Component {
     this.state = {
       selected_parameter: null,
       selected_metric: default_metric,
+      layout: {
+        xaxis: {
+          type: 'linear',
+        }
+      },
     };
   }
 
@@ -121,9 +128,22 @@ class TuningExploration extends Component {
   selectMetric = e => {
     this.setState({selected_metric: e.target.value})
   }
+  updateXScale = e => {
+    const toogleScale = scale => scale === 'log' ? 'linear' : 'log';
+    this.setState((previousState, newProps) => ({
+      layout: {
+        ...previousState.layout,
+        xaxis: {
+          ...previousState.layout.xaxis,
+          type: toogleScale(previousState.layout.xaxis.type),
+        }
+      }
+    }))
+  }
 
   render() {
     const { batch } = this.props;
+    const { layout } = this.state;
     if (!batch) return <p>Loading...</p>
     if (batch.label==='default')
       return <Callout intent={Intent.PRIMARY}>First select a tuning experiment</Callout>
@@ -155,6 +175,7 @@ class TuningExploration extends Component {
             {tuned_parameters_array.map( p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
+        <Switch inline label='Log-scale' checked={this.state.layout.xaxis.type==='log'} onChange={this.updateXScale}></Switch>
       </FormGroup>
       <FormGroup inline labelFor="select-metric" helperText="Shown on the Y-axis">
         <div className="pt-select pt-minimal">
@@ -163,9 +184,9 @@ class TuningExploration extends Component {
           </select>
         </div>
       </FormGroup>
-      <Sensibility1DBoxplots slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter}/>
+      <Sensibility1DBoxplots slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
       <h4>Breakdown by recording</h4>
-      <Sensibility1DLines slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter}/>
+      <Sensibility1DLines slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
     </Section>
   }
 }
