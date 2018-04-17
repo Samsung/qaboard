@@ -5,6 +5,9 @@ from logging.config import fileConfig
 
 from slamvizapp.database import engine_url, engine
 
+# this could be used for automatic migrations
+# context.configure(compare_type = True)
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
