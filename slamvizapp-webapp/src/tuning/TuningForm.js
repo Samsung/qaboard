@@ -131,7 +131,7 @@ class AddRecordingsForm extends Component {
           <div className="pt-form-helper-text">By default we won't run the SLAM twice on the same recordings </div>
         </div>
         <Button onClick={this.recomputeMetrics} disabled={this.state.submitted} type='button'>Recompute metrics</Button>
-        <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
+        <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >{this.state.selected_group ? 'Run SLAM' : 'Save list'}</Button>
       </div>
 
       <div className="pt-form-group pt-inline">
