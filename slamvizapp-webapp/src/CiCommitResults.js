@@ -33,6 +33,7 @@ class CommitLogs extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      batch_label: 'default',
       isLoaded: true,
       error: null,
       logs_lsf: null,
@@ -57,7 +58,19 @@ class CommitLogs extends Component {
   }
 
   render() {
+    const { batch_label, commit } = this.props;
     const { isLoaded, error, logs_lsf } = this.state;
+
+    if (batch_label !== 'default') {
+      return Object.values( commit.batches[batch_label].slam_outputs )
+             .filter( o=>!o.is_pending )
+             .map( o=> <li key={o}><strong>{!o.is_failed && <Tag intent={Intent.SUCCESS}>OK</Tag>}{o.is_failed && <Tag intent={Intent.DANGER}>Crashed</Tag>}{o.recording_path}</strong>
+                         <br/>{o.configuration} @{o.platform}
+                         <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
+                         <span> <a href={`${o.output_dir_url}/lsf.log`}>(link to logs)</a></span>
+                       </li>)
+    }
+
     if (!isLoaded)
       return <Spinner />
     if (error)
@@ -109,6 +122,7 @@ class CommitParameters extends Component {
 
   render() {
     const { isLoaded, error, parameters } = this.state;
+
     if (!isLoaded) return <Spinner />
     if (error) return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
     let configuration_parameters = slam_configurations.map( c =>
@@ -455,14 +469,19 @@ class CiCommitResults extends Component {
           <Callout
             icon="error"
             intent={Intent.DANGER}
-            title={
-              <Tooltip>
-                <span>{new_batch.failed_slam_outputs} crashed</span>
-                <ul>{Object.values(new_batch.slam_outputs).filter(o=>o.is_failed===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
-              </Tooltip>
-            }>
-            <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.
-            <br/>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
+            title={`${new_batch.failed_slam_outputs} crashed`}
+          >
+            {new_batch.label==='default' && <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.</p>}
+            <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
+            <ul>
+              {Object.values( new_batch.slam_outputs )
+                     .filter( o=>o.is_failed )
+                     .map( o=> <li key={o}><strong>{o.recording_path}</strong>
+                                            <br/>{o.configuration} @{o.platform}
+                                            <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
+                                            {new_batch.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}</li>)}
+            </ul>
+
           </Callout>}
       </Section>
     );
@@ -517,7 +536,7 @@ class CiCommitResults extends Component {
           <Tabs id="tabs-summary">
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} compare_cross_runtype={compare_cross_runtype} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
-              <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit}/>} />
+              <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit} batch_label={new_batch.label}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordingsForm commit={new_commit} />} />
               <Tab id="tuning" title="Create tuning experiment" panel={<TuningForm commit={new_commit} />} />
           </Tabs>
