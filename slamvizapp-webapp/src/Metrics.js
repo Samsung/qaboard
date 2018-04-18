@@ -2,8 +2,10 @@
 // import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
 import styled from "styled-components";
-import { Tag, Intent, Callout } from "@blueprintjs/core";
+import { Tag, Button, Intent, Callout, MenuItem } from "@blueprintjs/core";
+import { MultiSelect, Classes } from "@blueprintjs/select";
 import { slam_metrics } from "./slam/metrics";
+import { noMetrics } from "./metricSelect";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
@@ -150,7 +152,58 @@ const pc_over_threshold = (array, threshold) => {
   return array.filter( x => x>=threshold).length / array.length;
 }
 
+
 class MetricsSummary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      selected_metrics: Object.values(slam_metrics),
+    };
+  }
+
+  renderMetric = (metric, {handleClick, modifiers, query} ) => {
+    if (!modifiers.matchesPredicate) {
+      return null;
+    }
+    return (
+        <MenuItem
+            active={modifiers.active}
+            icon={this.isMetricSelected(metric) ? "tick" : "blank"}
+            key={metric.key}
+            label={metric.key}
+            text={`${metric.label} [${metric.suffix}]`}
+            onClick={handleClick}
+            shouldDismissPopover={false}
+        />
+    );
+  };
+  filterMetric = (query, metric) => {
+    let searched = `${metric.key} ${metric.label} ${metric.short_label}`.toLowerCase();
+    let search = query.toLowerCase();
+    return searched.indexOf(search) >= 0;
+  }
+  handleClear = () => this.setState({ selected_metrics: [] });
+  handleTagRemove = (_tag, index) => {
+    this.deselectMetric(index);
+  };
+  getSelectedMetricIndex = metric => {
+    return this.state.selected_metrics.indexOf(metric);
+  }
+  isMetricSelected(metric) {
+      return this.getSelectedMetricIndex(metric) !== -1;
+  }
+  deselectMetric = index => {
+      this.setState({ selected_metrics: this.state.selected_metrics.filter( (metric, i) => i !== index) });
+  }
+  handleMetricSelect = metric => {
+    if (!this.isMetricSelected(metric)) {
+      this.setState({ selected_metrics: [...this.state.selected_metrics, metric] });
+    } else {
+      this.deselectMetric(this.getSelectedMetricIndex(metric));
+    }
+  };
+
+
   render() {
     const { new_batch, ref_batch, compare_cross_runtype } = this.props;
     let slam_outputs_new = Object.values(new_batch.slam_outputs)
@@ -166,9 +219,25 @@ class MetricsSummary extends Component {
                                    .filter(o => run_types_new.has(o.recording_path))
                                    .filter(o => !o.is_pending && !o.is_failed);
     }
+
+
+    const { selected_metrics } = this.state;
+    const clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
+
     return <div>
       {new_batch.label!=='default' && <Callout intent={Intent.WARNING}>If you tried multiple tuning parameters, the results below show <strong>all the results mixed together</strong>.</Callout>}
-      {Object.entries(slam_metrics).map(([key, m]) => {
+      <MultiSelect
+          items={Object.values(slam_metrics)}
+          itemPredicate={this.filterMetric}
+          itemRenderer={this.renderMetric}
+          onItemSelect={this.handleMetricSelect}
+          tagRenderer={m => m.label}
+          tagInputProps={{ onRemove: this.handleTagRemove, rightElement: clearButton }}
+          noResults={noMetrics}
+          selectedItems={selected_metrics}
+          popoverProps={Classes.MINIMAL}
+      />
+      {selected_metrics.map( m => {
           let new_values = slam_outputs_new.map(o=>o.metrics[m.key]).filter(x => x);
           let ref_values = slam_outputs_ref.map(o=>o.metrics[m.key]).filter(x => x);
           let new_avg = average(new_values)

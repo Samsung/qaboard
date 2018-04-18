@@ -6,7 +6,7 @@ import queryString from "query-string";
 
 import AceEditor from 'react-ace';
 import { FormGroup, Switch } from "@blueprintjs/core";
-import { Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 
 import { Container, Section } from "./Common";
 import { MetricsSummary } from "./Metrics";
@@ -14,9 +14,14 @@ import { TableCompare, TableKpi } from "./Tables";
 import { OutputCard } from "./slam/OutputCard";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { slam_configurations } from "./slam/configurations";
+import { main_metrics, slam_metrics } from "./slam/metrics";
 import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
 import { TuningExploration } from "./tuning/TuningExploration";
 import { SelectBatches } from "./tuning/SelectBatches";
+
+import { MultiSelect, Classes } from "@blueprintjs/select";
+import { noMetrics } from "./metricSelect";
+
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
@@ -172,9 +177,53 @@ class CiCommitResults extends Component {
       show_3d: false,
       show_debug: false,
 
+      selected_metrics: main_metrics.map(k=>slam_metrics[k]),
+
       commit_logs: {},
     };
   }
+
+  renderMetric = (metric, {handleClick, modifiers, query} ) => {
+    if (!modifiers.matchesPredicate) {
+      return null;
+    }
+    return (
+        <MenuItem
+            active={modifiers.active}
+            icon={this.isMetricSelected(metric) ? "tick" : "blank"}
+            key={metric.key}
+            label={metric.key}
+            text={`${metric.label} [${metric.suffix}]`}
+            onClick={handleClick}
+            shouldDismissPopover={false}
+        />
+    );
+  };
+  filterMetric = (query, metric) => {
+    let searched = `${metric.key} ${metric.label} ${metric.short_label}`.toLowerCase();
+    let search = query.toLowerCase();
+    return searched.indexOf(search) >= 0;
+  }
+  handleClear = () => this.setState({ selected_metrics: [] });
+  handleTagRemove = (_tag, index) => {
+    this.deselectMetric(index);
+  };
+  getSelectedMetricIndex = metric => {
+    return this.state.selected_metrics.indexOf(metric);
+  }
+  isMetricSelected(metric) {
+      return this.getSelectedMetricIndex(metric) !== -1;
+  }
+  deselectMetric = index => {
+      this.setState({ selected_metrics: this.state.selected_metrics.filter( (metric, i) => i !== index) });
+  }
+  handleMetricSelect = metric => {
+    if (!this.isMetricSelected(metric)) {
+      this.setState({ selected_metrics: [...this.state.selected_metrics, metric] });
+    } else {
+      this.deselectMetric(this.getSelectedMetricIndex(metric));
+    }
+  };
 
   updateState() {
     const params = new URLSearchParams(this.props.location.search);
@@ -391,7 +440,7 @@ class CiCommitResults extends Component {
 
   render() {
     // console.log(this.state);
-    var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref } = this.state;
+    var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref, selected_metrics } = this.state;
 
     if (!new_commit_id || !new_commit_id)
       return (
@@ -491,6 +540,21 @@ class CiCommitResults extends Component {
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
+
+    let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
+    let metricTableSelect = <MultiSelect
+      items={Object.values(slam_metrics)}
+      itemPredicate={this.filterMetric}
+      itemRenderer={this.renderMetric}
+      onItemSelect={this.handleMetricSelect}
+      tagRenderer={m => m.label}
+      tagInputProps={{ onRemove: this.handleTagRemove, rightElement: clearButton }}
+      noResults={noMetrics}
+      selectedItems={selected_metrics}
+      popoverProps={Classes.MINIMAL}
+    />
+
+
     var result = (
       <Container>
         {warning_messages}
@@ -553,6 +617,8 @@ class CiCommitResults extends Component {
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
+                  metrics={selected_metrics}
+                  input={metricTableSelect}
                   compare_cross_runtype={compare_cross_runtype}
                 />}
               />
@@ -564,7 +630,9 @@ class CiCommitResults extends Component {
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
+                  metrics={selected_metrics}
                   compare_cross_runtype={compare_cross_runtype}
+                  input={metricTableSelect}
                 />}
               />
             <Tab
