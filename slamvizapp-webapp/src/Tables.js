@@ -38,7 +38,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype
         <tr>
           <th></th>
           {metrics.map( m =>
-            <th key={m}>{m.label} [{m.suffix}]</th>
+            <th key={m.key}>{m.label} [{m.suffix}]</th>
           )}
         </tr>
         <tr>
