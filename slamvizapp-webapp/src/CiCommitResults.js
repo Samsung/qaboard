@@ -6,7 +6,7 @@ import queryString from "query-string";
 
 import AceEditor from 'react-ace';
 import { FormGroup, Switch } from "@blueprintjs/core";
-import { Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
+import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 
 import { Container, Section } from "./Common";
 import { MetricsSummary } from "./Metrics";
@@ -14,9 +14,14 @@ import { TableCompare, TableKpi } from "./Tables";
 import { OutputCard } from "./slam/OutputCard";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { slam_configurations } from "./slam/configurations";
+import { main_metrics, slam_metrics } from "./slam/metrics";
 import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
 import { TuningExploration } from "./tuning/TuningExploration";
 import { SelectBatches } from "./tuning/SelectBatches";
+
+import { MultiSelect, Classes } from "@blueprintjs/select";
+import { noMetrics } from "./metricSelect";
+
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
@@ -33,6 +38,7 @@ class CommitLogs extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      batch_label: 'default',
       isLoaded: true,
       error: null,
       logs_lsf: null,
@@ -57,7 +63,19 @@ class CommitLogs extends Component {
   }
 
   render() {
+    const { batch_label, commit } = this.props;
     const { isLoaded, error, logs_lsf } = this.state;
+
+    if (batch_label !== 'default') {
+      return Object.values( commit.batches[batch_label].slam_outputs )
+             .filter( o=>!o.is_pending )
+             .map( o=> <li key={o}><strong>{!o.is_failed && <Tag intent={Intent.SUCCESS}>OK</Tag>}{o.is_failed && <Tag intent={Intent.DANGER}>Crashed</Tag>}{o.recording_path}</strong>
+                         <br/>{o.configuration} @{o.platform}
+                         <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
+                         <span> <a href={`${o.output_dir_url}/lsf.log`}>(link to logs)</a></span>
+                       </li>)
+    }
+
     if (!isLoaded)
       return <Spinner />
     if (error)
@@ -109,6 +127,7 @@ class CommitParameters extends Component {
 
   render() {
     const { isLoaded, error, parameters } = this.state;
+
     if (!isLoaded) return <Spinner />
     if (error) return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
     let configuration_parameters = slam_configurations.map( c =>
@@ -158,9 +177,53 @@ class CiCommitResults extends Component {
       show_3d: false,
       show_debug: false,
 
+      selected_metrics: main_metrics.map(k=>slam_metrics[k]),
+
       commit_logs: {},
     };
   }
+
+  renderMetric = (metric, {handleClick, modifiers, query} ) => {
+    if (!modifiers.matchesPredicate) {
+      return null;
+    }
+    return (
+        <MenuItem
+            active={modifiers.active}
+            icon={this.isMetricSelected(metric) ? "tick" : "blank"}
+            key={metric.key}
+            label={metric.key}
+            text={`${metric.label} [${metric.suffix}]`}
+            onClick={handleClick}
+            shouldDismissPopover={false}
+        />
+    );
+  };
+  filterMetric = (query, metric) => {
+    let searched = `${metric.key} ${metric.label} ${metric.short_label}`.toLowerCase();
+    let search = query.toLowerCase();
+    return searched.indexOf(search) >= 0;
+  }
+  handleClear = () => this.setState({ selected_metrics: [] });
+  handleTagRemove = (_tag, index) => {
+    this.deselectMetric(index);
+  };
+  getSelectedMetricIndex = metric => {
+    return this.state.selected_metrics.indexOf(metric);
+  }
+  isMetricSelected(metric) {
+      return this.getSelectedMetricIndex(metric) !== -1;
+  }
+  deselectMetric = index => {
+      this.setState({ selected_metrics: this.state.selected_metrics.filter( (metric, i) => i !== index) });
+  }
+  handleMetricSelect = metric => {
+    if (!this.isMetricSelected(metric)) {
+      this.setState({ selected_metrics: [...this.state.selected_metrics, metric] });
+    } else {
+      this.deselectMetric(this.getSelectedMetricIndex(metric));
+    }
+  };
 
   updateState() {
     const params = new URLSearchParams(this.props.location.search);
@@ -377,7 +440,7 @@ class CiCommitResults extends Component {
 
   render() {
     // console.log(this.state);
-    var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref } = this.state;
+    var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref, selected_metrics } = this.state;
 
     if (!new_commit_id || !new_commit_id)
       return (
@@ -425,45 +488,84 @@ class CiCommitResults extends Component {
     if (new_commit===undefined || ref_commit===undefined || new_commit.batches[selected_batch_new]===undefined || ref_commit.batches[selected_batch_ref]===undefined)
       return <Container>{warning_messages}</Container>
 
+    let new_batch = new_commit.batches[selected_batch_new];
+    let ref_batch = ref_commit.batches[selected_batch_ref];
     let status_messages = (
       <Section>
-       {new_commit.batches[selected_batch_new].pending_slam_outputs>0 &&
+       {new_commit.batches[selected_batch_new].running_slam_outputs>0 &&
+          <Callout
+            icon="info-sign"
+            intent={Intent.SUCCESS}
+            title={
+              <Tooltip>
+              <span>{new_batch.pending_slam_outputs} result{new_batch.running_slam_outputs>1 ? 's' : ''} running</span>
+              <ul>{Object.values(new_batch.slam_outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              </Tooltip>
+          }>
+          </Callout>}
+       {new_batch.pending_slam_outputs-new_batch.running_slam_outputs>0 &&
           <Callout
             icon="info-sign"
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>Still waiting for {new_commit.batches[selected_batch_new].pending_slam_outputs} result{new_commit.batches[selected_batch_new].pending_slam_outputs>1 ? 's' : ''}</span>
-              <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_pending===true).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <span>{new_batch.pending_slam_outputs-new_batch.running_slam_outputs} result{new_batch.pending_slam_outputs-new_batch.running_slam_outputs>1 ? 's' : ''} pending</span>
+              <ul>{Object.values(new_batch.slam_outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
-       {new_commit.batches[selected_batch_new].failed_slam_outputs>0 &&
+       {new_batch.failed_slam_outputs>0 &&
           <Callout
             icon="error"
             intent={Intent.DANGER}
-            title={
-              <Tooltip>
-                <span>{new_commit.batches[selected_batch_new].failed_slam_outputs} crashed in this commit</span>
-                <ul>{Object.values(new_commit.batches[selected_batch_new].slam_outputs).filter(o=>o.is_failed===true).map(o=><li key={o}>{o.recording_path}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
-              </Tooltip>
-            }>
-            <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.
-            <br/>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
+            title={`${new_batch.failed_slam_outputs} crashed`}
+          >
+            {new_batch.label==='default' && <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.</p>}
+            <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
+            <ul>
+              {Object.values( new_batch.slam_outputs )
+                     .filter( o=>o.is_failed )
+                     .map( o=> <li key={o}><strong>{o.recording_path}</strong>
+                                            <br/>{o.configuration} @{o.platform}
+                                            <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
+                                            {new_batch.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}</li>)}
+            </ul>
+
           </Callout>}
       </Section>
     );
 
-    let new_batch_filtered = this.filter_batch(new_commit.batches[selected_batch_new])
-    let ref_batch_filtered = this.filter_batch(ref_commit.batches[selected_batch_ref])
+    let new_batch_filtered = this.filter_batch(new_batch)
+    let ref_batch_filtered = this.filter_batch(ref_batch)
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
+
+
+    let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
+    let metricTableSelect = <MultiSelect
+      items={Object.values(slam_metrics)}
+      itemPredicate={this.filterMetric}
+      itemRenderer={this.renderMetric}
+      onItemSelect={this.handleMetricSelect}
+      tagRenderer={m => m.label}
+      tagInputProps={{ onRemove: this.handleTagRemove, rightElement: clearButton }}
+      noResults={noMetrics}
+      selectedItems={selected_metrics}
+      popoverProps={Classes.MINIMAL}
+    />
+
 
     var result = (
       <Container>
         {warning_messages}
         <Section>
-          <CommitInfoCompareCard new_commit={new_commit} ref_commit={ref_commit} onConfirmReference={this.handleSubmitReference}/>
+          <CommitInfoCompareCard
+            new_commit={new_commit}
+            ref_commit={ref_commit}
+            new_label={selected_batch_new}
+            ref_label={selected_batch_ref}
+            onConfirmReference={this.handleSubmitReference}
+          />
         </Section>
 
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
@@ -498,7 +600,7 @@ class CiCommitResults extends Component {
           <Tabs id="tabs-summary">
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} compare_cross_runtype={compare_cross_runtype} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
-              <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit}/>} />
+              <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit} batch_label={new_batch.label}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordingsForm commit={new_commit} />} />
               <Tab id="tuning" title="Create tuning experiment" panel={<TuningForm commit={new_commit} />} />
           </Tabs>
@@ -515,6 +617,8 @@ class CiCommitResults extends Component {
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
+                  metrics={selected_metrics}
+                  input={metricTableSelect}
                   compare_cross_runtype={compare_cross_runtype}
                 />}
               />
@@ -526,7 +630,9 @@ class CiCommitResults extends Component {
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
+                  metrics={selected_metrics}
                   compare_cross_runtype={compare_cross_runtype}
+                  input={metricTableSelect}
                 />}
               />
             <Tab

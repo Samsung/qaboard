@@ -31,7 +31,10 @@ def new_slam_output_webhook():
                                          extra_parameters=data['extra_parameters'],
                                          recording=recording,
                                         )
-  if request.json.get('is_pending', False):
+  if request.json.get('is_running', False):
+    slam_output.is_running = True
+    slam_output.is_pending = True
+  elif request.json.get('is_pending', False):
     slam_output.is_pending = True
   else:
     slam_output.update_metrics()

@@ -131,7 +131,7 @@ class AddRecordingsForm extends Component {
           <div className="pt-form-helper-text">By default we won't run the SLAM twice on the same recordings </div>
         </div>
         <Button onClick={this.recomputeMetrics} disabled={this.state.submitted} type='button'>Recompute metrics</Button>
-        <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >Send</Button>
+        <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >{this.state.selected_group ? 'Run SLAM' : 'Save list'}</Button>
       </div>
 
       <div className="pt-form-group pt-inline">
@@ -155,6 +155,21 @@ class AddRecordingsForm extends Component {
 
 
 
+const wrap_in_array = x => {
+  if (typeof x !== "object") return [x];
+  if (Array.isArray(x)) return x;
+  // let's say we don't know what to do with objects yet, even though
+  // the api supports {type: "range", options: {from:0, to:100, step:1} }
+  return [];
+} 
+
+const grid_combinations = param_search => {
+  return Object.values(param_search)
+               .map(wrap_in_array)
+               .map( param_array => param_array.length )
+               .reduce( (a,v) => a*v , 1);
+}
+
 class TuningForm extends Component {
   constructor(props) {
     super(props);
@@ -176,7 +191,7 @@ class TuningForm extends Component {
     };
   }
 
-  updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/\W/g, '-')})};
+  updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/[^\w_.@:=]/g, '-')})};
   updateConfiguration = e => {this.setState({configuration: e.target.value})};
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
   updateSelectedGroup = e => {
@@ -222,15 +237,12 @@ class TuningForm extends Component {
   }
 
   render() {
-    let number_of_recordings = this.state.selected_group_info.number_of_recordings
+    const { configuration, selected_group_info, experiment_name } = this.state;
+    const { search_type, parameter_search, search_options } = this.state;
+
+    let number_of_recordings = selected_group_info.number_of_recordings
     try {
-      let parameter_search = JSON.parse(this.state.parameter_search);
-      if (this.state.search_type === 'grid')
-        var combinations = Object.values(parameter_search)
-                                 .map( param_array => param_array.length )
-                                 .reduce( (a,v)=>a*v , 1);
-      else
-        combinations = this.state.search_options.n_iter;
+      var combinations = search_type === 'grid' ? grid_combinations(JSON.parse(parameter_search)) : search_options.n_iter;
     } catch (e) {
       combinations = 'invalid';
     }
@@ -245,7 +257,7 @@ class TuningForm extends Component {
           intent={Intent.PRIMARY}
           requiredLabel={true}
       >
-          <input id="experiment-name" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" value={this.state.experiment_name} onChange={this.updateExperimentName}  type="text" dir="auto" />
+          <input id="experiment-name" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" value={experiment_name} onChange={this.updateExperimentName}  type="text" dir="auto" />
       </FormGroup>
 
       <FormGroup
@@ -263,17 +275,17 @@ class TuningForm extends Component {
           labelFor="input-configuration"
           requiredLabel={true}
       >
-          <input id="input-configuration" className="pt-input" style={{width: '300px'}} value={this.state.configuration} placeholder="stereo-serial" onChange={this.updateConfiguration}  type="text" dir="auto" />
+          <input id="input-configuration" className="pt-input" style={{width: '300px'}} value={configuration} placeholder="stereo-serial" onChange={this.updateConfiguration}  type="text" dir="auto" />
       </FormGroup>
 
       <h3>Tuning search</h3>
-      <FormGroup inline labelFor="select-search-type" helperText={this.state.search_type === 'grid' ? `Explores all the ${combinations} combinations` : `Uniform sampling of ${this.state.search_options.n_iter} combinations`}>
+      <FormGroup inline labelFor="select-search-type" helperText={search_type === 'grid' ? `Explores all the ${combinations} combinations` : `Uniform sampling of ${search_options.n_iter} combinations`}>
         <div className="pt-select pt-minimal">
           <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
             <option key="grid" value="grid">Grid search</option>
             <option key="sampler" value="sampler">Sampling</option>
           </select>
-          {this.state.search_type === 'sampler' && <input id="input-iterations" value={this.state.search_options.n_iter} className="pt-input" style={{marginLeft:'30px', width: '70px'}} placeholder="50" onChange={this.updateIterations}  type="numeric" dir="auto" />}
+          {search_type === 'sampler' && <input id="input-iterations" value={search_options.n_iter} className="pt-input" style={{marginLeft:'30px', width: '70px'}} placeholder="50" onChange={this.updateIterations}  type="numeric" dir="auto" />}
         </div>
       </FormGroup>
       <AceEditor

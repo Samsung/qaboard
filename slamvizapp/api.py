@@ -125,7 +125,7 @@ def get_commits(branch=None):
     earliest_commit = None
     new_commits = []
     while page==0 or earliest_commit.authored_datetime >= from_date:
-      new_commits = list(repo.iter_commits(branch, max_count=100, skip=100*page))
+      new_commits = list(repo.iter_commits(branch, max_count=20, skip=20*page))
       if not new_commits: break
       earliest_commit = new_commits[-1]
       page = page + 1
