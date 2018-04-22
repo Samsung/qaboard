@@ -100,15 +100,6 @@ const slam_metrics = {
     smaller_is_better: false,
   },
   
-  time_before_lost_gt:{
-    key:'time_before_lost_gt',
-    label: 'Time before failure - GT',
-    short_label: 'Time before failure - GT',
-    scale: 0.001,
-    suffix: 'k',
-    threshold: 999999,
-    smaller_is_better: false,
-  },
 
  };
 
