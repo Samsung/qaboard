@@ -28,7 +28,7 @@ const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minim
 const MetricTag = ({metrics, metrics_ref, metric}) => {
   const metric_info = slam_metrics[metric];
   let formatted_valued = <span>{metric_info.short_label}: <strong>{metric_formatter.format(metric_info.scale*metrics[metric])}{metric_info.suffix}</strong></span>;
-  let intent = metrics[metric]>metric_info.threshold ? Intent.DANGER : Intent.SUCCESS;
+  let intent = (metrics[metric]>metric_info.threshold && metric_info.smaller_is_better) || (metrics[metric]<metric_info.threshold && !metric_info.smaller_is_better)  ? Intent.DANGER : Intent.SUCCESS;
   let metric_tag = <Tag className="pt-minimal" intent={intent}>{formatted_valued}</Tag>
 
   if (metrics_ref!==undefined && metrics_ref[metric]) {
@@ -207,17 +207,17 @@ class MetricsSummary extends Component {
   render() {
     const { new_batch, ref_batch, compare_cross_runtype } = this.props;
     let slam_outputs_new = Object.values(new_batch.slam_outputs)
-                                 .filter(o => !o.is_pending && !o.is_failed);
+                                 .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
     if (!compare_cross_runtype) {
       var run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
       var slam_outputs_ref = Object.values(ref_batch.slam_outputs)
                                    .filter(o => run_types_new.has(run_type(o)))
-                                   .filter(o => !o.is_pending && !o.is_failed);
+                                   .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
   } else {
       run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
       slam_outputs_ref = Object.values(ref_batch.slam_outputs)
                                    .filter(o => run_types_new.has(o.recording_path))
-                                   .filter(o => !o.is_pending && !o.is_failed);
+                                   .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
     }
 
 

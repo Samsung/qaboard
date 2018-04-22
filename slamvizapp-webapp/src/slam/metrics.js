@@ -18,6 +18,16 @@ const slam_metrics = {
     threshold: 0.01,
     smaller_is_better: true,
   },
+  
+  relative_translation_error:{
+    key:'relative_translation_error',
+    label: 'Relative Translation Error',
+    short_label: 'tRTE',
+    scale: 100,
+    suffix: 'cm',
+    threshold: 0.01,
+    smaller_is_better: true,
+  },
 
 
   translation_drift_pc:{
@@ -77,6 +87,26 @@ const slam_metrics = {
     scale: 100,
     suffix: '%',
     threshold: .99,
+    smaller_is_better: false,
+  },
+  
+  time_pc_before_lost_gt:{
+    key:'time_pc_before_lost_gt',
+    label: 'Time before failure - GT',
+    short_label: 'Time before KO - GT',
+    scale: 100,
+    suffix: '%',
+    threshold: .99,
+    smaller_is_better: false,
+  },
+  
+  time_before_lost_gt:{
+    key:'time_before_lost_gt',
+    label: 'Time before failure - GT',
+    short_label: 'Time before failure - GT',
+    scale: 0.001,
+    suffix: 'k',
+    threshold: 999999,
     smaller_is_better: false,
   },
 
