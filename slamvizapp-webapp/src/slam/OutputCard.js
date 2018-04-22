@@ -203,7 +203,6 @@ class OutputCard extends Component {
                     {metrics_new.translation_rmse>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='translation_aape'/></p>}
                     {metrics_new.rotation_mean>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='rotation_mean'/></p>}
 					{metrics_new.relative_translation_error>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='relative_translation_error'/></p>}
-					{metrics_new.time_before_lost_gt>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='time_before_lost_gt'/></p>}
                   </div>
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
