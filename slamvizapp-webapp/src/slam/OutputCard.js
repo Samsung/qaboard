@@ -202,6 +202,7 @@ class OutputCard extends Component {
                     <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
                     {metrics_new.translation_rmse>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='translation_aape'/></p>}
                     {metrics_new.rotation_mean>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='rotation_mean'/></p>}
+					{metrics_new.relative_translation_error>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='relative_translation_error'/></p>}
                   </div>
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
