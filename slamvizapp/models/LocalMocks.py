@@ -47,6 +47,7 @@ class LocalSlamOutput():
     self.recording_id = 0
     self.platform = platform
     self.configuration = configuration
+    self.extra_parameters = {}
     self.is_pending = False
     self.is_running = False
     self.is_failed = False
