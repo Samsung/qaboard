@@ -1,22 +1,23 @@
 import React, { Fragment } from "react";
 import { withRouter } from 'react-router'
 import { Link } from "react-router-dom";
-
 import { get } from "axios";
 import styled from "styled-components";
-
-import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, Tag, Callout } from "@blueprintjs/core";
-import { DateRangeInput } from "@blueprintjs/datetime";
-import { Container, Section } from "./Common";
-import { CopyToClipboard } from 'react-copy-to-clipboard';
-import Avatar from "./Avatar";
-import { DoneAtTag } from "./DoneAtTag";
-import { groupBy, calendarStrings } from "./utils";
-import { CommitsEvolution } from './CommitsEvolution'
 
 import Moment from 'react-moment';
 import moment from 'moment';
 import 'moment-timezone';
+
+import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, Tag, Callout } from "@blueprintjs/core";
+import { DateRangeInput } from "@blueprintjs/datetime";
+import { CopyToClipboard } from 'react-copy-to-clipboard';
+
+import { Container, Section } from "./common/containers";
+import { DoneAtTag } from "./common/DoneAtTag";
+import { Avatar } from "./common/Avatar";
+import { groupBy, calendarStrings } from "./common/utils";
+import { CommitsEvolution } from './CommitsEvolution'
+// import { slam_metrics } from './slam/metrics'
 
 
 const HeaderDay = styled.li`

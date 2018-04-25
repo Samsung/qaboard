@@ -2,8 +2,8 @@ import React, { Fragment } from "react";
 import { interpolateRdYlGn } from 'd3-scale-chromatic'
 import { Tag, Callout, Intent } from "@blueprintjs/core";
 
-import { Section } from "./Common";
-import { metric_formatter, percent_formatter } from "./Metrics";
+import { Section } from "./common/containers";
+import { metric_formatter, percent_formatter } from "./MetricsSummary";
 
 
 const ColumnsMetricImprovement = ({metrics_new, metrics_ref, metric}) => {
@@ -58,7 +58,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype
                                            .filter(o => o.recording_path===output.recording_path)
                                            .filter(o => o.platform===output.platform || compare_cross_runtype)
                                            .filter(o => o.configuration===output.configuration || compare_cross_runtype)
-          let output_ref = matching_ref_outputs[0] || {metrics: undefined};
+          let output_ref = matching_ref_outputs[0] || {metrics: undefined, extra_parameters: {}};
           let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
           return (
             <tr key={id}>
@@ -109,7 +109,7 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype, me
                                            .filter(o => o.recording_path===output.recording_path)
                                            .filter(o => o.platform===output.platform)
                                            .filter(o => o.configuration===output.configuration)
-          let output_ref = matching_ref_outputs[0] || {metrics: undefined};
+          let output_ref = matching_ref_outputs[0] || {metrics: undefined, extra_parameters: {}};
           let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
           return (
             <tr key={id}>

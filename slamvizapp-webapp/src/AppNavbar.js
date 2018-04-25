@@ -9,6 +9,7 @@ import { Navbar, NavbarGroup, NavbarHeading, NavbarDivider,
          Button, InputGroup
 } from "@blueprintjs/core";
 
+
 const renderBranch = ( item, {handleClick, modifiers, query} ) => {
   return (
       <MenuItem

@@ -8,8 +8,8 @@ import AceEditor from 'react-ace';
 import { FormGroup, Switch } from "@blueprintjs/core";
 import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 
-import { Container, Section } from "./Common";
-import { MetricsSummary } from "./Metrics";
+import { Container, Section } from "./common/containers";
+import { MetricsSummary } from "./MetricsSummary";
 import { TableCompare, TableKpi } from "./Tables";
 import { OutputCard } from "./slam/OutputCard";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
@@ -20,7 +20,7 @@ import { TuningExploration } from "./tuning/TuningExploration";
 import { SelectBatches } from "./tuning/SelectBatches";
 
 import { MultiSelect, Classes } from "@blueprintjs/select";
-import { noMetrics } from "./metricSelect";
+import { noMetrics } from "./common/metricSelect";
 
 
 /*eslint-disable no-alert, no-console */
@@ -498,7 +498,7 @@ class CiCommitResults extends Component {
             intent={Intent.SUCCESS}
             title={
               <Tooltip>
-              <span>{new_batch.pending_slam_outputs} result{new_batch.running_slam_outputs>1 ? 's' : ''} running</span>
+              <span>{new_batch.running_slam_outputs} result{new_batch.running_slam_outputs>1 ? 's' : ''} running</span>
               <ul>{Object.values(new_batch.slam_outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>

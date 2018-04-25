@@ -4,9 +4,9 @@ import React, { Component } from "react";
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
-import { Section } from "../Common";
+import { Section } from "../common/containers";
+import { groupBy } from "../common/utils";
 import { slam_metrics, default_metric } from "../slam/metrics";
-import { groupBy } from "../utils";
 
 const Plot = createPlotlyComponent(Plotly);
 const config = {};

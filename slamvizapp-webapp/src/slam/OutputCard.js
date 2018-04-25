@@ -5,8 +5,8 @@ import { get, all, spread } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
 import { Card, Icon, Tag, Intent } from "@blueprintjs/core";
-import { MetricTag } from "../Metrics";
-import { SyncedVideos } from "../SyncedVideos";
+import { MetricTag } from "../MetricsSummary";
+import { SyncedVideos } from "../common/SyncedVideos";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);

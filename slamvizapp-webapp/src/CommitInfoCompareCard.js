@@ -2,8 +2,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Card, Tag, Button, Icon, Intent, EditableText } from "@blueprintjs/core";
 
-import Avatar from "./Avatar";
-import { DoneAtTag } from "./DoneAtTag";
+import { Avatar } from "./common/Avatar";
+import { DoneAtTag } from "./common/DoneAtTag";
 
 
 const CommitInfoCompareCard = ({new_commit, ref_commit, new_label, ref_label, onConfirmReference}) => {

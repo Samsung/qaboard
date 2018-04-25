@@ -2,10 +2,13 @@
 // import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
 import styled from "styled-components";
+
 import { Tag, Button, Intent, Callout, MenuItem } from "@blueprintjs/core";
 import { MultiSelect, Classes } from "@blueprintjs/select";
+
+
 import { slam_metrics } from "./slam/metrics";
-import { noMetrics } from "./metricSelect";
+import { noMetrics } from "./common/metricSelect";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);

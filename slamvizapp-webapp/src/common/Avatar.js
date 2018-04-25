@@ -30,4 +30,4 @@ const Avatar = ({src, href, alt}) => (
 	</AvatarCell>
 )
 
-export default Avatar;
+export { Avatar };
