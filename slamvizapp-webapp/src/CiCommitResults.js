@@ -5,7 +5,7 @@ import queryString from "query-string";
 // import List from 'react-virtualized'
 
 import AceEditor from 'react-ace';
-import { FormGroup, Switch } from "@blueprintjs/core";
+import { FormGroup, Switch, Collapse } from "@blueprintjs/core";
 import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 
 import { Container, Section } from "./common/containers";
@@ -34,65 +34,62 @@ import 'brace/ext/searchbox';
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
 
 
-class CommitLogs extends Component {
+class OutputLog extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      batch_label: 'default',
-      isLoaded: true,
+      is_loaded: false,
+      is_open: false,
       error: null,
-      logs_lsf: null,
+      logs: null,
     };
   }
 
-  componentDidMount() {
-    this.getLogs()
+  handleClick = () => {
+    if (!this.state.is_loaded) this.getLog();
+    this.setState({ is_open: !this.state.is_open });
   }
 
-  getLogs() {
-   get(`${this.props.commit.commit_dir_url}/lsf.log`)
+  getLog() {
+   get(`${this.props.output.output_dir_url}/log.txt`)
     .then(response => {
       this.setState({
-        isLoaded: true,
-        logs_lsf: response.data
+        is_loaded: true,
+        logs: response.data
       })
     })
     .catch( error => {
-      this.setState({isLoaded: true, error})
+      this.setState({is_loaded: true, error})
     })
   }
 
   render() {
-    const { batch_label, commit } = this.props;
-    const { isLoaded, error, logs_lsf } = this.state;
-
-    if (batch_label !== 'default') {
-      return Object.values( commit.batches[batch_label].slam_outputs )
-             .filter( o=>!o.is_pending )
-             .map( o=> <li key={o}><strong>{!o.is_failed && <Tag intent={Intent.SUCCESS}>OK</Tag>}{o.is_failed && <Tag intent={Intent.DANGER}>Crashed</Tag>}{o.recording_path}</strong>
-                         <br/>{o.configuration} @{o.platform}
-                         <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
-                         <span> <a href={`${o.output_dir_url}/lsf.log`}>(link to logs)</a></span>
-                       </li>)
-    }
-
-    if (!isLoaded)
-      return <Spinner />
-    if (error)
-      return <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>
-    return <AceEditor
-      mode="text"
-      theme="github"
-      readOnly
-      onChange={()=>{}}
-      width='100%'
-      name="logs-lsf"
-      value={logs_lsf || ''}
-      editorProps={{$blockScrolling: true}}
-    />    
+    const { output } = this.props;
+    const { is_open, is_loaded, error, logs } = this.state;
+    const intent = output.is_failed ? Intent.DANGER : Intent.SUCCESS;
+    const tag_text = `${output.is_failed ? 'KO' : ''} ${output.configuration} @${output.platform}`
+    const details = Object.entries(output.extra_parameters).map(([k,v]) =>
+      <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
+    )
+    return <div>
+      <h6><Button onClick={this.handleClick}>{is_open ? "Hide" : "Show"} logs</Button><Tag intent={intent}>{tag_text}</Tag> {output.recording_path}</h6>
+      {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
+      {details}
+      <Collapse isOpen={is_open}>
+        {is_loaded && <span>loading...</span> }
+        {error && <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>}   
+        <pre>{logs || ''}</pre>
+      </Collapse>
+    </div>
   }
 }
 
+const BatchLogs = ({ batch_label, commit }) =>  {
+  if (!commit.batches[batch_label]) return <span>Batch not available</span>;
+  return Object.values( commit.batches[batch_label].slam_outputs )
+               .filter( o=>!o.is_pending )
+               .map( output => <OutputLog key={output.id} output={output} />)
+}
 
 
 class CommitParameters extends Component {
@@ -600,7 +597,7 @@ class CiCommitResults extends Component {
           <Tabs id="tabs-summary">
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} compare_cross_runtype={compare_cross_runtype} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
-              <Tab id="logs" title="Logs" panel={<CommitLogs commit={new_commit} batch_label={new_batch.label}/>} />
+              <Tab id="logs" title="Logs" panel={<BatchLogs commit={new_commit} batch_label={new_batch.label}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordingsForm commit={new_commit} />} />
               <Tab id="tuning" title="Create tuning experiment" panel={<TuningForm commit={new_commit} />} />
           </Tabs>
