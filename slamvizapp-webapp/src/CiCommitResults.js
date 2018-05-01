@@ -55,7 +55,7 @@ class OutputLog extends Component {
     .then(response => {
       this.setState({
         is_loaded: true,
-        logs: response.data
+        logs: response.data,  
       })
     })
     .catch( error => {
@@ -68,15 +68,16 @@ class OutputLog extends Component {
     const { is_open, is_loaded, error, logs } = this.state;
     const intent = output.is_failed ? Intent.DANGER : Intent.SUCCESS;
     const tag_text = `${output.is_failed ? 'KO' : ''} ${output.configuration} @${output.platform}`
+            {is_loaded && <span>loading...</span> }
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
       <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
     )
+    let button_text = is_open ? "Hide" : (is_loaded ? "loading..." : "Show")
     return <div>
-      <h6><Button onClick={this.handleClick}>{is_open ? "Hide" : "Show"} logs</Button><Tag intent={intent}>{tag_text}</Tag> {output.recording_path}</h6>
+      <h6><Button disabled={!is_loaded && !is_open} onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text} </Tag> {output.recording_path}</h6>
       {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
       {details}
       <Collapse isOpen={is_open}>
-        {is_loaded && <span>loading...</span> }
         {error && <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>}   
         <pre>{logs || ''}</pre>
       </Collapse>
