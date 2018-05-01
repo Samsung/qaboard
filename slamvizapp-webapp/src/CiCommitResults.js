@@ -74,7 +74,7 @@ class OutputLog extends Component {
     )
     let button_text = is_open ? "Hide" : (is_loaded ? "loading..." : "Show")
     return <div>
-      <h6><Button disabled={!is_loaded || !is_open} onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text} </Tag> {output.recording_path}</h6>
+      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text} </Tag> {output.recording_path}</h6>
       {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
       {details}
       <Collapse isOpen={is_open}>
