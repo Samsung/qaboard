@@ -67,12 +67,11 @@ class OutputLog extends Component {
     const { output } = this.props;
     const { is_open, is_loaded, error, logs } = this.state;
     const intent = output.is_failed ? Intent.DANGER : Intent.SUCCESS;
+    const button_text = is_open ? "Hide" : (is_loaded ? "loading..." : "Show")
     const tag_text = `${output.is_failed ? 'KO' : ''} ${output.configuration} @${output.platform}`
-            {is_loaded && <span>loading...</span> }
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
       <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
     )
-    let button_text = is_open ? "Hide" : (is_loaded ? "loading..." : "Show")
     return <div>
       <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text} </Tag> {output.recording_path}</h6>
       {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
@@ -85,9 +84,8 @@ class OutputLog extends Component {
   }
 }
 
-const BatchLogs = ({ batch_label, commit }) =>  {
-  if (!commit.batches[batch_label]) return <span>Batch not available</span>;
-  return Object.values( commit.batches[batch_label].slam_outputs )
+const BatchLogs = ({ batch }) =>  {
+  return Object.values( batch.slam_outputs )
                .filter( o=>!o.is_pending )
                .map( output => <OutputLog key={output.id} output={output} />)
 }
@@ -598,7 +596,6 @@ class CiCommitResults extends Component {
           <Tabs id="tabs-summary">
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} compare_cross_runtype={compare_cross_runtype} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
-              <Tab id="logs" title="Logs" panel={<BatchLogs commit={new_commit} batch_label={new_batch.label}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordingsForm commit={new_commit} />} />
               <Tab id="tuning" title="Create tuning experiment" panel={<TuningForm commit={new_commit} />} />
           </Tabs>
@@ -633,6 +630,12 @@ class CiCommitResults extends Component {
                   input={metricTableSelect}
                 />}
               />
+            <Tab
+              id="logs"
+              title="Logs"
+              panel={<BatchLogs batch={new_batch_filtered}
+              batch_label={new_batch.label}/>}
+            />
             <Tab
               id="output-list"
               title="6DoF Details"
