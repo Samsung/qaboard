@@ -5,12 +5,13 @@ import queryString from "query-string";
 // import List from 'react-virtualized'
 
 import AceEditor from 'react-ace';
-import { FormGroup, Switch, Collapse } from "@blueprintjs/core";
+import { FormGroup, Switch } from "@blueprintjs/core";
 import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 
 import { Container, Section } from "./common/containers";
 import { MetricsSummary } from "./MetricsSummary";
 import { TableCompare, TableKpi } from "./Tables";
+import { BatchLogs } from "./BatchLogs";
 import { OutputCard } from "./slam/OutputCard";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { slam_configurations } from "./slam/configurations";
@@ -33,63 +34,6 @@ import 'brace/ext/searchbox';
 // import 'brace/ext/language_tools';
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
 
-
-class OutputLog extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      is_loaded: false,
-      is_open: false,
-      error: null,
-      logs: null,
-    };
-  }
-
-  handleClick = () => {
-    if (!this.state.is_loaded) this.getLog();
-    this.setState({ is_open: !this.state.is_open });
-  }
-
-  getLog() {
-   get(`${this.props.output.output_dir_url}/log.txt`)
-    .then(response => {
-      this.setState({
-        is_loaded: true,
-        logs: response.data,  
-      })
-    })
-    .catch( error => {
-      this.setState({is_loaded: true, error})
-    })
-  }
-
-  render() {
-    const { output } = this.props;
-    const { is_open, is_loaded, error, logs } = this.state;
-    const intent = output.is_failed ? Intent.DANGER : Intent.SUCCESS;
-    const button_text = is_open ? "Hide" : (!is_loaded ? "Loading" : "Show")
-    const tag_text = `${output.is_failed ? 'KO' : ''} ${output.configuration} @${output.platform}`
-    const details = Object.entries(output.extra_parameters).map(([k,v]) =>
-      <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
-    )
-    return <div>
-      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text} </Tag> {output.recording_path}</h6>
-      {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
-      {details}
-      <Collapse isOpen={is_open}>
-        {error && <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>}   
-        <pre>{logs || ''}</pre>
-      </Collapse>
-    </div>
-  }
-}
-
-const BatchLogs = ({ batch }) =>  {
-  return Object.values( batch.slam_outputs )
-               .filter( o=>!o.is_pending )
-               .sort( o=>!o.is_failed )
-               .map( output => <OutputLog key={output.id} output={output} />)
-}
 
 
 class CommitParameters extends Component {
@@ -529,7 +473,7 @@ class CiCommitResults extends Component {
             <ul>
               {Object.values( new_batch_filtered.slam_outputs )
                      .filter( o=>o.is_failed )
-                     .map( o=> <li key={o}><strong>{o.recording_path}</strong>
+                     .map( o=> <li key={o.id}><strong>{o.recording_path}</strong>
                                             <br/>{o.configuration} @{o.platform}
                                             <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
                                             {new_batch_filtered.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}</li>)}
