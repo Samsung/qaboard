@@ -72,27 +72,6 @@ class Batch(Base):
       session.add(slam_output)
       session.commit()
 
-
-  @property
-  def valid_slam_outputs(self):
-    return [o for o in self.slam_outputs if not o.is_failed and not o.is_pending]
-
-  @property
-  def pending_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_pending]
-
-  @property
-  def running_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_running]
-
-  @property
-  def failed_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_failed]
-
-  def failures_count(self):
-    """Returns an estimate of the number of failed runs"""
-    return len([o for o in self.slam_outputs if o.is_failed])
-
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
     return aggregated_metrics(
         filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude)
@@ -122,10 +101,10 @@ class Batch(Base):
 
         # v == v means is not NaN
         'aggregated_metrics': {k: v for k, v in self.aggregated_metrics().items() if v == v},
-        'valid_slam_outputs': len(self.valid_slam_outputs),
-        'pending_slam_outputs': len(self.pending_slam_outputs),
-        'running_slam_outputs': len(self.running_slam_outputs),
-        'failed_slam_outputs': len(self.failed_slam_outputs),
+        'valid_slam_outputs': len([o for o in self.slam_outputs if not o.is_failed and not o.is_pending]),
+        'pending_slam_outputs': len([o for o in self.slam_outputs if o.is_pending]),
+        'running_slam_outputs': len([o for o in self.slam_outputs if o.is_running]),
+        'failed_slam_outputs': len([o for o in self.slam_outputs if o.is_failed]),
         **details,
     }
 
