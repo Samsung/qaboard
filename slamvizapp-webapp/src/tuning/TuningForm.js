@@ -193,6 +193,7 @@ class TuningForm extends Component {
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/[^\w_.@:=]/g, '-')})};
   updateConfiguration = e => {this.setState({configuration: e.target.value})};
+  updatePlatform = e => {this.setState({platform: e.target.value})};
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
   updateSelectedGroup = e => {
     let next_selected_group = e.target.value;
@@ -237,7 +238,7 @@ class TuningForm extends Component {
   }
 
   render() {
-    const { configuration, selected_group_info, experiment_name } = this.state;
+    const { platform, configuration, selected_group_info, experiment_name } = this.state;
     const { search_type, parameter_search, search_options } = this.state;
 
     let number_of_recordings = selected_group_info.number_of_recordings
@@ -267,6 +268,15 @@ class TuningForm extends Component {
           requiredLabel={true}
       >
           <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Loop_closure_set" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
+      </FormGroup>
+
+      <FormGroup
+          label="Platform"
+          helperText='"lsf" is the default. For now "s8" is only available on develop'
+          labelFor="input-platform"
+          requiredLabel={true}
+      >
+          <input id="input-platform" className="pt-input" style={{width: '300px'}} value={platform} placeholder="lsf" onChange={this.updatePlatform}  type="text" dir="auto" />
       </FormGroup>
 
       <FormGroup
