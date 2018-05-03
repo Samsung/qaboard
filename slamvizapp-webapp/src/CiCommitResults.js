@@ -484,7 +484,7 @@ class CiCommitResults extends Component {
     );
 
 
-    let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
+    let compare_cross_runtype = true; //new_commit.type==='local' && ref_commit.type==='git';
 
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
