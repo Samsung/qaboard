@@ -180,7 +180,7 @@ const summary_metrics = [
   'rotation_mean',
   'translation_aape_when_good', 'rotation_mean_when_good',
   'frac_tracking_state_good', 'time_pc_before_first_lost', 'time_pc_before_lost_gt',
-  'cpu_usage_median',
+  'cpu_med', 'cpu_avg',
   'processing_time_med', 'processing_time_q95',
 ];
 // will be shown in the table and 6dof output cards
