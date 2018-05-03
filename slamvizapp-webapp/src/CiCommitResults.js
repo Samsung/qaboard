@@ -67,7 +67,7 @@ class OutputLog extends Component {
     const { output } = this.props;
     const { is_open, is_loaded, error, logs } = this.state;
     const intent = output.is_failed ? Intent.DANGER : Intent.SUCCESS;
-    const button_text = is_open ? "Hide" : (is_loaded ? "loading..." : "Show")
+    const button_text = is_open ? "Hide" : (!is_loaded ? "Loading" : "Show")
     const tag_text = `${output.is_failed ? 'KO' : ''} ${output.configuration} @${output.platform}`
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
       <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
@@ -87,6 +87,7 @@ class OutputLog extends Component {
 const BatchLogs = ({ batch }) =>  {
   return Object.values( batch.slam_outputs )
                .filter( o=>!o.is_pending )
+               .sort( o=>!o.is_failed )
                .map( output => <OutputLog key={output.id} output={output} />)
 }
 
@@ -486,53 +487,58 @@ class CiCommitResults extends Component {
 
     let new_batch = new_commit.batches[selected_batch_new];
     let ref_batch = ref_commit.batches[selected_batch_ref];
+
+    let new_batch_filtered = this.filter_batch(new_batch)
+    let ref_batch_filtered = this.filter_batch(ref_batch)
+    let nb_running = Object.values(new_batch_filtered.slam_outputs).filter( o=>o.is_running ).length;
+    let nb_pending = Object.values(new_batch_filtered.slam_outputs).filter( o=>o.is_pending && !o.is_running ).length;
+    let nb_failed = Object.values(new_batch_filtered.slam_outputs).filter( o=>o.is_failed ).length;
+
     let status_messages = (
       <Section>
-       {new_commit.batches[selected_batch_new].running_slam_outputs>0 &&
+       {nb_running>0 &&
           <Callout
             icon="info-sign"
             intent={Intent.SUCCESS}
             title={
               <Tooltip>
-              <span>{new_batch.running_slam_outputs} result{new_batch.running_slam_outputs>1 ? 's' : ''} running</span>
-              <ul>{Object.values(new_batch.slam_outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <span>{nb_running} result{nb_running>1 ? 's' : ''} running</span>
+              <ul>{Object.values(new_batch_filtered.slam_outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
-       {new_batch.pending_slam_outputs-new_batch.running_slam_outputs>0 &&
+       {nb_pending>0 &&
           <Callout
             icon="info-sign"
             intent={Intent.WARNING}
             title={
               <Tooltip>
-              <span>{new_batch.pending_slam_outputs-new_batch.running_slam_outputs} result{new_batch.pending_slam_outputs-new_batch.running_slam_outputs>1 ? 's' : ''} pending</span>
-              <ul>{Object.values(new_batch.slam_outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <span>{nb_pending} result{nb_pending>1 ? 's' : ''} pending</span>
+              <ul>{Object.values(new_batch_filtered.slam_outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
-       {new_batch.failed_slam_outputs>0 &&
+       {nb_failed>0 &&
           <Callout
             icon="error"
             intent={Intent.DANGER}
-            title={`${new_batch.failed_slam_outputs} crashed`}
+            title={`${nb_failed} crashed`}
           >
-            {new_batch.label==='default' && <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.</p>}
+            {new_batch_filtered.label==='default' && <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.</p>}
             <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
             <ul>
-              {Object.values( new_batch.slam_outputs )
+              {Object.values( new_batch_filtered.slam_outputs )
                      .filter( o=>o.is_failed )
                      .map( o=> <li key={o}><strong>{o.recording_path}</strong>
                                             <br/>{o.configuration} @{o.platform}
                                             <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
-                                            {new_batch.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}</li>)}
+                                            {new_batch_filtered.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}</li>)}
             </ul>
 
           </Callout>}
       </Section>
     );
 
-    let new_batch_filtered = this.filter_batch(new_batch)
-    let ref_batch_filtered = this.filter_batch(ref_batch)
 
     let compare_cross_runtype= new_commit.type==='local' && ref_commit.type==='git';
 
