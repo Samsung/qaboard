@@ -74,7 +74,7 @@ class Batch(Base):
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
     return aggregated_metrics(
-        filter_slam_outputs(self.valid_slam_outputs, filename_filter, filename_exclude)
+        filter_slam_outputs([o for o in self.slam_outputs if not o.is_failed and not o.is_pending], filename_filter, filename_exclude)
     )
 
   def metrics(self, metric, outputs=None):
