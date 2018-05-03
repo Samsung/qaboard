@@ -115,9 +115,9 @@ const slam_metrics = {
     key:'cpu_avg',
     label: 'Average CPU usage',
     short_label: 'CPU avg.',
-    scale: 100,
+    scale: 1,
     suffix: '%',
-    threshold: 1.00,
+    threshold: 100,
     smaller_is_better: true,
   },
 
@@ -125,9 +125,9 @@ const slam_metrics = {
     key:'cpu_med',
     label: 'Median CPU usage',
     short_label: 'CPU median',
-    scale: 100,
+    scale: 1,
     suffix: '%',
-    threshold: 1.00,
+    threshold: 100,
     smaller_is_better: true,
   },
 
