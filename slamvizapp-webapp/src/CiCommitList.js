@@ -83,7 +83,9 @@ class CommitResults extends React.Component {
          {ci_batch.running_slam_outputs>0 &&
             <Tag className="pt-minimal" style={{marginRight:'4px'}} intent={Intent.PRIMARY}>{ci_batch.running_slam_outputs} running</Tag>}
          {ci_batch.failed_slam_outputs>0 &&
-            <a href={`${commit.commit_dir_url}/lsf.log`}><Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_slam_outputs} crashed</Button></a>}
+            <Link style={{marginLeft: '10px'}} to={`/commit/${commit.id}`}>
+              <Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_slam_outputs} crashed</Button>
+            </Link>}
          { Object.keys(commit.batches).length > 1 &&
             <Tooltip>
               <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{Object.keys(commit.batches).length-1} tuning experiments</Tag>
