@@ -66,20 +66,21 @@ const MetricTile = styled.div`
 `
 
 
-const HistogramComparaison = ({new_values, ref_values, metric}) => {
+const HistogramComparaison = ({ new_values, ref_values, metric }) => {
+  let plot_scale = metric['plot_scale'] || 'log';
 	let layout = {
 	      bargap: 0., 
 	      bargroupgap: 0., 
 	      barmode: "overlay",
 	      yaxis: {
-	          type:'log',
+	          type: plot_scale,
 	          autorange: true,
 
+            // autotick: false,
+            // dtick: plot_scale === 'log' ? 0.69897000433 : null,
+            // exponentformat:'SI',
 	          color: "rgba(0,0,0,0.8)",
 	          tickcolor: "rgba(0,0,0,0.8)",
-	          autotick: false,
-	          dtick:0.69897000433,
-	          exponentformat:'SI',
 
 	          showgrid: false,
 	          zeroline: false,
@@ -210,17 +211,17 @@ class MetricsSummary extends Component {
   render() {
     const { new_batch, ref_batch, compare_cross_runtype } = this.props;
     let slam_outputs_new = Object.values(new_batch.slam_outputs)
-                                 .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
+                                 .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
     if (!compare_cross_runtype) {
       var run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
       var slam_outputs_ref = Object.values(ref_batch.slam_outputs)
                                    .filter(o => run_types_new.has(run_type(o)))
-                                   .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
+                                   .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
   } else {
       run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
       slam_outputs_ref = Object.values(ref_batch.slam_outputs)
                                    .filter(o => run_types_new.has(o.recording_path))
-                                   .filter(o => !o.is_pending && !o.is_failed && !o.metrics['no_gt_final']);
+                                   .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
     }
 
 
@@ -241,9 +242,12 @@ class MetricsSummary extends Component {
           popoverProps={Classes.MINIMAL}
       />
       {selected_metrics.map( m => {
-          let new_values = slam_outputs_new.map(o=>o.metrics[m.key]).filter(x => x);
+          let new_values = slam_outputs_new
+                           .map(o=>o.metrics[m.key])
+                           .filter(x => x!==undefined)
+                           .map(o=>1*o);
           if (new_values.length===0) return <Fragment key={m.key}/>
-          let ref_values = slam_outputs_ref.map(o=>o.metrics[m.key]).filter(x => x);
+          let ref_values = slam_outputs_ref.map(o=>o.metrics[m.key]).filter(x => x!==undefined);
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
           let new_pc_good = m.smaller_is_better ? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)

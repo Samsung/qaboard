@@ -1,4 +1,15 @@
 const slam_metrics = {
+  is_failed: {
+    key:'is_failed',
+    label: 'Crashed',
+    short_label: 'Crashed',
+    scale: 100,
+    suffix: '%',
+    threshold: 0,
+    smaller_is_better: true,
+    plot_scale: 'linear',
+  },
+
   translation_rmse: {
     key:'translation_rmse',
     label: 'Translation RMSE',
@@ -127,6 +138,7 @@ const slam_metrics = {
 const default_metric = 'translation_aape';
 // will be shown in the summary histogramms of each commit
 const summary_metrics = [
+  'is_failed',
   'translation_aape', 'relative_translation_error', 'translation_drift_pc', 'translation_rmse',
   'rotation_mean',
   'translation_aape_when_good', 'rotation_mean_when_good',
