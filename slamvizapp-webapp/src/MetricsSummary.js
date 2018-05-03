@@ -7,7 +7,7 @@ import { Tag, Button, Intent, Callout, MenuItem } from "@blueprintjs/core";
 import { MultiSelect, Classes } from "@blueprintjs/select";
 
 
-import { slam_metrics } from "./slam/metrics";
+import { slam_metrics, summary_metrics } from "./slam/metrics";
 import { noMetrics } from "./common/metricSelect";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
@@ -160,7 +160,7 @@ class MetricsSummary extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      selected_metrics: Object.values(slam_metrics),
+      selected_metrics: summary_metrics.map(k=>slam_metrics[k]),
     };
   }
 
@@ -242,6 +242,7 @@ class MetricsSummary extends Component {
       />
       {selected_metrics.map( m => {
           let new_values = slam_outputs_new.map(o=>o.metrics[m.key]).filter(x => x);
+          if (new_values.length===0) return <Fragment key={m.key}/>
           let ref_values = slam_outputs_ref.map(o=>o.metrics[m.key]).filter(x => x);
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
