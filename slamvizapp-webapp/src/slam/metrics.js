@@ -111,8 +111,8 @@ const slam_metrics = {
     smaller_is_better: false,
   },
   
-  cpu_usage_avg:{
-    key:'cpu_usage_avg',
+  cpu_avg:{
+    key:'cpu_avg',
     label: 'Average CPU usage',
     short_label: 'CPU avg.',
     scale: 100,
@@ -121,13 +121,50 @@ const slam_metrics = {
     smaller_is_better: true,
   },
 
-  cpu_usage_median:{
-    key:'cpu_usage_median',
+  cpu_med:{
+    key:'cpu_med',
     label: 'Median CPU usage',
     short_label: 'CPU median',
     scale: 100,
     suffix: '%',
     threshold: 1.00,
+    smaller_is_better: true,
+  },
+
+  processing_time_avg:{
+    key:'processing_time_avg',
+    label: 'Average processing',
+    short_label: 'Processing Avg',
+    scale: 1,
+    suffix: 'ms',
+    threshold: 10.0,
+    smaller_is_better: true,
+  },
+  processing_time_med:{
+    key:'processing_time_med',
+    label: 'Median processing',
+    short_label: 'Processing Med',
+    scale: 1,
+    suffix: 'ms',
+    threshold: 10.0,
+    smaller_is_better: true,
+  },
+  processing_time_q95:{
+    key:'processing_time_q95',
+    label: 'Processing Time @95%',
+    short_label: 'Processing q95',
+    scale: 1,
+    suffix: 'ms',
+    threshold: 10.0,
+    smaller_is_better: true,
+  },
+  processing_time_max:{
+    key:'processing_time_max',
+    label: 'Max processing time',
+    short_label: 'Processing Max',
+    scale: 1,
+    suffix: 'ms',
+    threshold: 10.0,
     smaller_is_better: true,
   },
 
@@ -143,7 +180,8 @@ const summary_metrics = [
   'rotation_mean',
   'translation_aape_when_good', 'rotation_mean_when_good',
   'frac_tracking_state_good', 'time_pc_before_first_lost', 'time_pc_before_lost_gt',
-  'cpu_usage_median'
+  'cpu_usage_median',
+  'processing_time_med', 'processing_time_q95',
 ];
 // will be shown in the table and 6dof output cards
 const main_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc'];
