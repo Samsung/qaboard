@@ -11,7 +11,7 @@ const SelectBatches = ({ commit, prefix, onChange }) => {
   if (!has_tuning_batches)
     return <span></span>
   return <FormGroup
-          label={<span>{prefix} You can view results from different tuning experiments</span>}
+          label={<span>{prefix} You can view results from different batches or tuning experiments</span>}
           labelFor="batch-select"
           helperText="The CI results use the default parameters."
          >
