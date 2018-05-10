@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { Card, Icon, Tag, Intent } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { SyncedVideos } from "../common/SyncedVideos";
+import { main_metrics } from "./metrics";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
@@ -200,9 +201,12 @@ class OutputCard extends Component {
                 <SlimCard className="output-card">
                   <div style={{padding:'  '}}>
                     <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
-                    {metrics_new.translation_rmse>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='translation_aape'/></p>}
-                    {metrics_new.rotation_mean>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='rotation_mean'/></p>}
-					{metrics_new.relative_translation_error>0 && <p><MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric='relative_translation_error'/></p>}
+                    {main_metrics
+                      .filter( key => metrics_new[key] !== undefined)
+                      .map(key => <p key={key}>
+                             <MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric={key}/>
+                          </p>)
+                    }
                   </div>
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
