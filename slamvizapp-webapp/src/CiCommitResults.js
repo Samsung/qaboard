@@ -468,7 +468,7 @@ class CiCommitResults extends Component {
             intent={Intent.DANGER}
             title={`${nb_failed} crashed`}
           >
-            {new_batch_filtered.label==='default' && <p>Maybe the <a href={`${new_commit.commit_dir_url}/lsf.log`}>LSF logs</a> can help debug this.</p>}
+            {new_batch_filtered.label==='default' && <p>Maybe the logs (below) can help debug this.</p>}
             <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
             <ul>
               {Object.values( new_batch_filtered.slam_outputs )
