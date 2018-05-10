@@ -200,25 +200,24 @@ const grid_combinations = param_search => {
 
 
 const tuning_templates = {
-  none: '',
+  none: '{}',
   basic: JSON.stringify({
     events_per_frame: [5e3, 10e3, 15e3, 20e3],
+    'solver': ['A', 'B'],
   }, null, 2),
   list: JSON.stringify([
     {
       min_events_per_frame: [5e3],
       max_events_per_frame: [10e3],
-    },
-    {
-      min_events_per_frame: [10e3],
-      max_events_per_frame: [15e3],
+      solver: ['A', 'B'],
     },
     {
       min_events_per_frame: [15e3],
       max_events_per_frame: [20e3],
+      solver: ['A', 'B'],
     },
   ], null, 2),
-  function: '// you use the output of any javascript function\nlet events = [10e3, 20e3, 30e3];\nlet delta = 5e3\n\nreturn events.map(t => ({\n  min_events_per_frame: t,\n  max_events_per_frame: t + delta,\n}));\n',
+  function: '// you use the output of any javascript function\nlet events = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events.map(t => ({\n  min_events_per_frame: t,\n  max_events_per_frame: t + delta,\n  solver: ["A", "B"],\n}));\n',
 }
 
 
