@@ -228,8 +228,17 @@ class MetricsSummary extends Component {
     const { selected_metrics } = this.state;
     const clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
 
+    // what parameters were changed?
+    let tuned_parameters = new Set()
+    Object.entries(new_batch.slam_outputs).forEach( ([id, o]) =>{
+      Object.keys(o.extra_parameters).forEach( p => {
+        tuned_parameters.add(p)
+      })
+    })
+    let tuned_parameters_array = Array.from(tuned_parameters)
+
     return <div>
-      {new_batch.label!=='default' && <Callout intent={Intent.WARNING}>If you tried multiple tuning parameters, the results below show <strong>all the results mixed together</strong>.</Callout>}
+      {tuned_parameters_array.length>0 && <Callout intent={Intent.WARNING}>The results below show <strong>all the results mixed together</strong>.</Callout>}
       <MultiSelect
           items={Object.values(slam_metrics)}
           itemPredicate={this.filterMetric}
