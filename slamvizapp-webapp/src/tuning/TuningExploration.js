@@ -108,6 +108,60 @@ const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter, layout }) => {
 }
 
 
+// SensibilityScatterMatrix
+// type: 'splom', // Scatter PLOt Matrix
+// diagonal: {visible: true},
+// showUpperHalf: false,
+// showLowerHalf: true,
+// dimensions: parameters.map(p => ({
+//   label: p,
+//   values: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
+// })),
+
+const Sensibility2DContour = ({ slam_outputs, metric, parameters, layout }) => {
+  // https://plot.ly/javascript/reference/#contour
+  // https://plot.ly/javascript/contour-plots/
+  // todo: aggregate median/mean per recording..
+  let slam_outputs_ok = Object.values(slam_outputs).filter( o => !o.is_pending && !o.is_failed);
+  let traces = [{
+    type: 'contour',
+    x: slam_outputs_ok.map(o => o.extra_parameters[parameters[0]]),
+    y: slam_outputs_ok.map(o => o.extra_parameters[parameters[1]]),
+    // a matrix???/
+    z: slam_outputs_ok.map(o => o.metrics[metric.key] * metric.scale),
+    contours: {
+      coloring: 'heatmap', // apply a gradient within each contour
+      showlabels: true,
+      labelfont: {
+        size: 8,
+        color: '#ffffff',
+      }
+    },
+    zsmooth: 'best',
+    // connectgaps: false,
+    colorscale: 'Viridis',
+    // reversescale: true,
+    // showscale: false,
+  }]
+  const layout_ = {
+    hovermode: 'closest',
+    hoverinfo: 'name',
+    hoverlabel: {
+      namelength: -1,
+    },
+    showlegend: false,
+    xaxis: {
+      title: parameters[0],
+    },
+    yaxis: {
+      title: parameters[1],
+    },
+  }
+  console.log(traces)
+  return <Plot data={traces} layout={layout_} config={config}/>
+}
+
+
 class TuningExploration extends Component {
   constructor(props) {
     super(props);
@@ -124,6 +178,9 @@ class TuningExploration extends Component {
 
   selectParameter = e => {
     this.setState({selected_parameter: e.target.value})
+  }
+  selectParameter2 = e => {
+    this.setState({selected_parameter_2: e.target.value})
   }
   selectMetric = e => {
     this.setState({selected_metric: e.target.value})
@@ -157,7 +214,9 @@ class TuningExploration extends Component {
     })
     let tuned_parameters_array = Array.from(tuned_parameters)
     let default_selected_parameter = tuned_parameters_array[0];
+    let default_selected_parameter_2 = tuned_parameters_array.length>1 ? tuned_parameters_array[1] : default_selected_parameter;
     let selected_parameter = this.state.selected_parameter || default_selected_parameter;
+    let selected_parameter_2 = this.state.selected_parameter_2 || default_selected_parameter_2;
 
     // what metric are we looking at?
     let metric = slam_metrics[this.state.selected_metric];
@@ -177,6 +236,13 @@ class TuningExploration extends Component {
         </div>
         <Switch inline label='Log-scale' checked={this.state.layout.xaxis.type==='log'} onChange={this.updateXScale}></Switch>
       </FormGroup>
+      {tuned_parameters_array.length>1 && <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensibility plot">
+              <div className="pt-select pt-minimal">
+                <select id='select-parameter-2' defaultValue={default_selected_parameter} onChange={this.selectParameter2}>
+                  {tuned_parameters_array.map( p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+      </FormGroup>}
       <FormGroup inline labelFor="select-metric" helperText="Shown on the Y-axis">
         <div className="pt-select pt-minimal">
           <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
@@ -184,6 +250,10 @@ class TuningExploration extends Component {
           </select>
         </div>
       </FormGroup>
+      {tuned_parameters_array.length > 1 && <div>
+        <p>Everything is interpolated, so don't rush to conclusions.</p>
+        <Sensibility2DContour slam_outputs={batch.slam_outputs} metric={metric} parameters={[selected_parameter, selected_parameter_2]} />
+      </div>}
       <Sensibility1DBoxplots slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
       <h4>Breakdown by recording</h4>
       <Sensibility1DLines slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
