@@ -5,6 +5,7 @@ import AceEditor from 'react-ace';
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
 import 'brace/mode/json';
+import 'brace/mode/javascript';
 import 'brace/mode/yaml';
 import 'brace/theme/github';
 import 'brace/ext/searchbox';
@@ -156,19 +157,70 @@ class AddRecordingsForm extends Component {
 
 
 const wrap_in_array = x => {
+  // the python backend expects *iterables*
+  // so numeric values won't work, strings will be split, etc.
+  // here we fix this unexpected behaviour
+  // note: arrays are objects.
   if (typeof x !== "object") return [x];
   if (Array.isArray(x)) return x;
-  // let's say we don't know what to do with objects yet, even though
-  // the api supports {type: "range", options: {from:0, to:100, step:1} }
+  // note: the backend supports {type: "range", options: {from:0, to:100, step:1} }
   return [];
-} 
+}
+
+const eval_combinations = param_search_text => {
+  const eval_f = text => {
+    try {
+      /*eslint-disable no-new-func */
+      var result = Function(text)();
+      return result;      
+    } catch(e) {
+      return null;
+    }
+  }
+  // users can directly provide tuning sets via objects or arrays of objects
+  try {
+    let param_search = JSON.parse(param_search_text)
+    return param_search
+  } catch (e) {
+    return eval_f(param_search_text)
+  }
+}
 
 const grid_combinations = param_search => {
+  if (param_search === null || param_search === undefined)
+    return null
+  if (typeof x !== "object" && Array.isArray(param_search) )
+    return param_search.map(search_set => grid_combinations(search_set) )
+                       .reduce( (a,v) => a+v , 0);
   return Object.values(param_search)
                .map(wrap_in_array)
                .map( param_array => param_array.length )
                .reduce( (a,v) => a*v , 1);
 }
+
+
+const tuning_templates = {
+  none: '',
+  basic: JSON.stringify({
+    events_per_frame: [5e3, 10e3, 15e3, 20e3],
+  }, null, 2),
+  list: JSON.stringify([
+    {
+      min_events_per_frame: [5e3],
+      max_events_per_frame: [10e3],
+    },
+    {
+      min_events_per_frame: [10e3],
+      max_events_per_frame: [15e3],
+    },
+    {
+      min_events_per_frame: [15e3],
+      max_events_per_frame: [20e3],
+    },
+  ], null, 2),
+  function: '// you use the output of any javascript function\nlet events = [10e3, 20e3, 30e3];\nlet delta = 5e3\n\nreturn events.map(t => ({\n  min_events_per_frame: t,\n  max_events_per_frame: t + delta,\n}));\n',
+}
+
 
 class TuningForm extends Component {
   constructor(props) {
@@ -187,7 +239,7 @@ class TuningForm extends Component {
       search_options: {
         n_iter: 50,
       },
-      parameter_search: `{\n  "events_per_frame": [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000]\n}\n`,
+      parameter_search: tuning_templates['none'],
     };
   }
 
@@ -221,7 +273,7 @@ class TuningForm extends Component {
       tuning_search: {
         search_type,
         search_options,
-        parameter_search: JSON.parse(parameter_search),
+        parameter_search: eval_combinations(parameter_search),
       },
       selected_group, groups,
       overwrite: false,
@@ -243,7 +295,12 @@ class TuningForm extends Component {
 
     let number_of_recordings = selected_group_info.number_of_recordings
     try {
-      var combinations = search_type === 'grid' ? grid_combinations(JSON.parse(parameter_search)) : search_options.n_iter;
+      var tuning_sets = eval_combinations(parameter_search);
+      var combinations = grid_combinations(tuning_sets);
+      if (combinations === null)
+        combinations = 'invalid';
+      else
+        combinations = search_type === 'grid' ? combinations : Math.min(search_options.n_iter, combinations);
     } catch (e) {
       combinations = 'invalid';
     }
@@ -289,7 +346,10 @@ class TuningForm extends Component {
       </FormGroup>
 
       <h3>Tuning search</h3>
-      <FormGroup inline labelFor="select-search-type" helperText={search_type === 'grid' ? `Explores all the ${combinations} combinations` : `Uniform sampling of ${search_options.n_iter} combinations`}>
+      <p>Be inspired by those tuning templates: {['basic', 'list', 'function'].map(x => 
+       <Button key={x} onClick={e=>this.setState({parameter_search: tuning_templates[x]})}>{x}</Button> 
+      )}</p>
+      <FormGroup inline labelFor="select-search-type" helperText={search_type === 'grid' ? `Explores all the ${combinations} combinations` : `Uniform sampling of ${combinations} combinations`}>
         <div className="pt-select pt-minimal">
           <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
             <option key="grid" value="grid">Grid search</option>
@@ -299,7 +359,7 @@ class TuningForm extends Component {
         </div>
       </FormGroup>
       <AceEditor
-        mode="json"
+        mode="javascript"
         theme="github"
         onChange={this.updateParameterSearch}
         width='100%'
