@@ -22,9 +22,9 @@ const empty_output = {metrics: undefined, extra_parameters: {}};
 // Finds the most matching output from a batch
 const matching_output = ({output, batch}) => {
   // high => more different
-  const match_score = o => (o.configuration!==output.configuration|0) +
-                           (o.platform!==output.platform|0) +
-                           (JSON.stringify(o.extra_parameters)!==JSON.stringify(output.extra_parameters)|0);
+  const match_score = o => 5*(o.configuration!==output.configuration|0) +
+                           3*(o.platform!==output.platform|0) +
+                           1*(JSON.stringify(o.extra_parameters)!==JSON.stringify(output.extra_parameters)|0);
 
   // let soft_match = true;
   let matching_outputs = Object.values(batch.slam_outputs || [])
