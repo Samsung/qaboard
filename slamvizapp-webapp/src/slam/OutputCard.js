@@ -4,7 +4,7 @@ import React, { Component, Fragment } from "react";
 import { get, all, spread } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
-import { Card, Icon, Tag, Intent } from "@blueprintjs/core";
+import { Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { SyncedVideos } from "../common/SyncedVideos";
 import { main_metrics } from "./metrics";
@@ -162,7 +162,7 @@ class OutputCard extends Component {
   }
 
   render() {
-    const { output_new, output_ref, show_debug, show_3d, show_videos } = this.props;
+    const { output_new, output_ref, show_debug, show_3d, show_videos, warning } = this.props;
     const { is_loaded, plot_revision } = this.state;
   
     var traces = [];
@@ -192,6 +192,7 @@ class OutputCard extends Component {
       {Object.entries(output_new.extra_parameters).map(([k,v]) =>
         <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">{k}:{v}</Tag>
       )}
+      {warning && <Popover interactionKind='hover'><Icon intent={Intent.WARNING} icon='warning-sign' /><span>{warning}</span></Popover>}      
     </span>
 
     let metrics_new = output_new && output_new.metrics ? output_new.metrics : {};

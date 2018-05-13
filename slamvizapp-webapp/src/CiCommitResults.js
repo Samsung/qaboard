@@ -9,6 +9,7 @@ import { FormGroup, Switch } from "@blueprintjs/core";
 import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
 
 import { Container, Section } from "./common/containers";
+import { matching_output } from "./common/utils";
 import { MetricsSummary } from "./MetricsSummary";
 import { TableCompare, TableKpi } from "./Tables";
 import { BatchLogs } from "./BatchLogs";
@@ -483,10 +484,6 @@ class CiCommitResults extends Component {
       </Section>
     );
 
-
-    let compare_cross_runtype = true; //new_commit.type==='local' && ref_commit.type==='git';
-
-
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = <MultiSelect
       items={Object.values(slam_metrics)}
@@ -544,7 +541,7 @@ class CiCommitResults extends Component {
         <Section>
           <Card elevation={2}>
           <Tabs id="tabs-summary">
-              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} compare_cross_runtype={compare_cross_runtype} />} />
+              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
               <Tab id="re-run" title="Add recordings" panel={<AddRecordingsForm commit={new_commit} />} />
               <Tab id="tuning" title="Create tuning experiment" panel={<TuningForm commit={new_commit} />} />
@@ -564,7 +561,6 @@ class CiCommitResults extends Component {
                   ref_batch={ref_batch_filtered}
                   metrics={selected_metrics}
                   input={metricTableSelect}
-                  compare_cross_runtype={compare_cross_runtype}
                 />}
               />
             <Tab
@@ -576,7 +572,6 @@ class CiCommitResults extends Component {
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
                   metrics={selected_metrics}
-                  compare_cross_runtype={compare_cross_runtype}
                   input={metricTableSelect}
                 />}
               />
@@ -597,7 +592,6 @@ class CiCommitResults extends Component {
                   show_videos={this.state.show_videos}
                   show_3d={this.state.show_3d}
                   show_debug={this.state.show_debug}
-                  compare_cross_runtype={compare_cross_runtype}
                 />}
               />
             <Tab
@@ -642,7 +636,7 @@ class OutputList extends React.Component {
   }
 
   render() {
-    const { new_batch, ref_batch, output_sort, compare_cross_runtype } = this.props;
+    const { new_batch, ref_batch, output_sort } = this.props;
     const { show_debug, show_videos, show_3d } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
@@ -666,14 +660,7 @@ class OutputList extends React.Component {
               {Object.entries(new_batch.slam_outputs)
                      .sort(output_sort)
                      .map( ([id, output]) => {
-                        // we need to find a matching output - by path name for now...
-                        // ideally we'd split the list of outputs by recording name and not id, 
-                        // and display lsf/s8 curves serparately,,,
-                        let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
-                          .filter(o => o.recording_path===output.recording_path)
-                          .filter(o => o.platform===output.platform || compare_cross_runtype)
-                          .filter(o => o.configuration===output.configuration || compare_cross_runtype)
-                        let output_ref = matching_ref_outputs[0];
+                        let { output_ref, warning } = matching_output({output: output, batch:ref_batch});
                         return <OutputCard
                           key={id}
                           output_new={output}
@@ -682,6 +669,7 @@ class OutputList extends React.Component {
                           select_debug={this.state.select_debug}
                           show_videos={show_videos}
                           show_3d={show_3d}
+                          warning={warning}
                         />;
               })}
             </div>

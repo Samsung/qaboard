@@ -1,10 +1,22 @@
 import React, { Fragment } from "react";
 import { interpolateRdYlGn } from 'd3-scale-chromatic'
-import { Tag, Callout, Intent } from "@blueprintjs/core";
+import { Icon, Tag, Callout, Intent, Popover } from "@blueprintjs/core";
 
 import { Section } from "./common/containers";
+import { matching_output } from "./common/utils";
 import { metric_formatter, percent_formatter } from "./MetricsSummary";
 
+
+const RowHeaderCell = ({output, warning}) => {
+  let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
+  return <th scope="row">
+    {output.recording_path} {extra_parameters}
+    <Tag className="pt-round pt-minimal" icon={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag>
+    <Tag className="pt-round pt-minimal" icon={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag>
+    {warning && <Popover interactionKind='hover'><Icon intent={Intent.WARNING} icon='warning-sign' /><span>{warning}</span></Popover>}
+  </th>
+
+}
 
 const ColumnsMetricImprovement = ({metrics_new, metrics_ref, metric}) => {
   if (!metrics_new || metrics_new[metric.key]===undefined || metrics_new[metric.key]===null)
@@ -13,7 +25,9 @@ const ColumnsMetricImprovement = ({metrics_new, metrics_ref, metric}) => {
     return <td style={{background:'#bbb'}}>Ref missing</td>
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
   let delta_relative = delta / metrics_ref[metric.key];
-  return <td style={{background: interpolateRdYlGn(.5-delta_relative)}}>{metric_formatter.format(delta)} ({percent_formatter.format(100*delta_relative)}%)</td>
+  return <td style={{background: interpolateRdYlGn(.5-delta_relative)}}>
+    {metric_formatter.format(delta)} ({percent_formatter.format(100*delta_relative)}%)
+  </td>
 }
 
 
@@ -23,11 +37,13 @@ const QualityCell = ({metric, metrics}) => {
   let value = metrics[metric.key];
   const threshold = metric.threshold
   const quality = 0.5 + (threshold - value) / threshold
-  return <td style={{background: interpolateRdYlGn(quality)}}>{metric_formatter.format(value)}</td>
+  return <td style={{background: interpolateRdYlGn(quality)}}>
+    {metric_formatter.format(value)}
+  </td>
 }
 
 
-const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype, metrics, input }) => {
+const TableCompare = ({ new_batch, ref_batch, output_sort, metrics, input }) => {
   return (
     <Section>
       <h2>Improvement report</h2>
@@ -53,18 +69,17 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, compare_cross_runtype
              .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(output_sort)
              .map( ([id, output]) => {
-          let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
-                                           .filter(o => !o.is_pending && !o.is_failed)
-                                           .filter(o => o.recording_path===output.recording_path)
-                                           .filter(o => o.platform===output.platform || compare_cross_runtype)
-                                           .filter(o => o.configuration===output.configuration || compare_cross_runtype)
-          let output_ref = matching_ref_outputs[0] || {metrics: undefined, extra_parameters: {}};
-          let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
+          let { output_ref, warning } = matching_output({output: output, batch: ref_batch});
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path} {extra_parameters}<Tag className="pt-round pt-minimal" icon={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" icon={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
+              <RowHeaderCell output={output} warning={warning}/>
               {metrics.map( m =>
-                <ColumnsMetricImprovement key={m.key} metric={m} metrics_new={output.metrics} metrics_ref={output_ref.metrics} />
+                <ColumnsMetricImprovement
+                  key={m.key}
+                  metric={m}
+                  metrics_new={output.metrics}
+                  metrics_ref={output_ref.metrics}
+                />
               )}
             </tr>)
       })}
@@ -104,20 +119,14 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype, me
              .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(this.sortOutputs)
              .map( ([id, output]) => {
-          let matching_ref_outputs = Object.values(ref_batch.slam_outputs)
-                                           .filter(o => !o.is_pending && !o.is_failed)
-                                           .filter(o => o.recording_path===output.recording_path)
-                                           .filter(o => o.platform===output.platform)
-                                           .filter(o => o.configuration===output.configuration)
-          let output_ref = matching_ref_outputs[0] || {metrics: undefined, extra_parameters: {}};
-          let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
+          let { output_ref, warning } = matching_output({output: output, batch: ref_batch, soft_match: false});
           return (
             <tr key={id}>
-              <th scope="row">{output.recording_path} {extra_parameters} <Tag className="pt-round pt-minimal" icon={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag><Tag className="pt-round pt-minimal" icon={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag></th>
+              <RowHeaderCell output={output} warning={warning}/>
               {metrics.map( m =>
                 <Fragment key={m.key}>
                   <QualityCell metric={m} metrics={output.metrics} />
-                  <QualityCell metric={m} metrics={output_ref.metrics} />
+                  <QualityCell metric={m} metrics={output_ref.metrics}/>
                 </Fragment>
               )}
             </tr>)

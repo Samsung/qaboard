@@ -209,20 +209,17 @@ class MetricsSummary extends Component {
 
 
   render() {
-    const { new_batch, ref_batch, compare_cross_runtype } = this.props;
+    const { new_batch, ref_batch } = this.props;
     let slam_outputs_new = Object.values(new_batch.slam_outputs)
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
-    if (!compare_cross_runtype) {
-      var run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
-      var slam_outputs_ref = Object.values(ref_batch.slam_outputs)
-                                   .filter(o => run_types_new.has(run_type(o)))
-                                   .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
-  } else {
-      run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
-      slam_outputs_ref = Object.values(ref_batch.slam_outputs)
-                                   .filter(o => run_types_new.has(o.recording_path))
-                                   .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
-    }
+    let run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
+    let slam_outputs_ref = Object.values(ref_batch.slam_outputs)
+                                 .filter(o => run_types_new.has(run_type(o)))
+                                 .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
+    run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
+    slam_outputs_ref = Object.values(ref_batch.slam_outputs)
+                                 .filter(o => run_types_new.has(o.recording_path))
+                                 .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
 
 
     const { selected_metrics } = this.state;
