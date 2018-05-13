@@ -235,7 +235,7 @@ class MetricsSummary extends Component {
     let tuned_parameters_array = Array.from(tuned_parameters)
 
     return <div>
-      {tuned_parameters_array.length>0 && <Callout intent={Intent.WARNING}>The results below show <strong>all the results mixed together</strong>.</Callout>}
+      {tuned_parameters_array.length>0 && <Callout intent={Intent.WARNING}>The results below show <strong>all the results</strong> with various parameters mixed together.</Callout>}
       <MultiSelect
           items={Object.values(slam_metrics)}
           itemPredicate={this.filterMetric}
