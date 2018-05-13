@@ -172,7 +172,7 @@ const slam_metrics = {
 
 
 // will be shown proeminently in the index page, and first for tuning exploration
-const default_metric = 'translation_aape';
+const default_metric = 'translation_rmse';
 // will be shown in the summary histogramms of each commit
 const summary_metrics = [
   'is_failed',
