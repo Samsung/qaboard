@@ -238,7 +238,7 @@ class TuningExploration extends Component {
       </FormGroup>
       {tuned_parameters_array.length>1 && <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensibility plot">
               <div className="pt-select pt-minimal">
-                <select id='select-parameter-2' defaultValue={default_selected_parameter} onChange={this.selectParameter2}>
+                <select id='select-parameter-2' defaultValue={default_selected_parameter_2} onChange={this.selectParameter2}>
                   {tuned_parameters_array.map( p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
