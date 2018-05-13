@@ -24,7 +24,7 @@ const matching_output = ({output, batch}) => {
   // high => more different
   const match_score = o => (o.configuration!==output.configuration|0) +
                            (o.platform!==output.platform|0) +
-                           (o.extra_parameters!==output.extra_parameters|0);
+                           (JSON.stringify(o.extra_parameters)!==JSON.stringify(output.extra_parameters)|0);
 
   // let soft_match = true;
   let matching_outputs = Object.values(batch.slam_outputs || [])
