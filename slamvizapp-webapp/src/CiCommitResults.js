@@ -345,25 +345,25 @@ class CiCommitResults extends Component {
   }
 
   selectBatchNew = e => {
-    this.setState({batch_new: e.target.value})
+    this.setState({selected_batch_new: e.target.value})
     let query = queryString.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: queryString.stringify({
         ...query,
-        selected_batch_new: e.target.value,
+        batch_new: e.target.value,
       })
     })
   }
 
   selectBatchRef = e => {
-    this.setState({batch_reference: e.target.value})
+    this.setState({selected_batch_ref: e.target.value})
     let query = queryString.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: queryString.stringify({
         ...query,
-        selected_batch_ref: e.target.value,
+        batch_reference: e.target.value,
       })
     })
   }
