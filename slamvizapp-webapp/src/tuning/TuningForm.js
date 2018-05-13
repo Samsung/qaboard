@@ -365,7 +365,7 @@ class TuningForm extends Component {
       )}</p>
       <FormGroup inline labelFor="select-search-type" helperText={search_type === 'grid' ? `Explores all the ${combinations} combination${combinations>1 ? 's' : ''}` : `Uniform sampling of ${combinations} combinations`}>
         <div className="pt-select pt-minimal">
-          <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
+          <select id='select-search-type' defaultValue='grid' onChange={this.selectSearchType}>
             <option key="grid" value="grid">Grid search</option>
             <option key="sampler" value="sampler">Sampling</option>
           </select>
