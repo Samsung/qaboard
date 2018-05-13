@@ -156,44 +156,59 @@ class AddRecordingsForm extends Component {
 
 
 
+const wrap_values_in_array = object => {
+  let output = {}
+  Object.keys(object).forEach(key => {
+   output[key] = wrap_in_array(object[key]);
+  })
+  return output;
+}
+
 const wrap_in_array = x => {
+  if (Array.isArray(x)) return x;
   // the python backend expects *iterables*
   // so numeric values won't work, strings will be split, etc.
   // here we fix this unexpected behaviour
   // note: arrays are objects.
   if (typeof x !== "object") return [x];
-  if (Array.isArray(x)) return x;
   // note: the backend supports {type: "range", options: {from:0, to:100, step:1} }
+  // for now we just ignore this
   return [];
 }
 
-const eval_combinations = param_search_text => {
-  const eval_f = text => {
-    try {
-      /*eslint-disable no-new-func */
-      var result = Function(text)();
-      return result;      
-    } catch(e) {
-      return null;
-    }
-  }
-  // users can directly provide tuning sets via objects or arrays of objects
+
+const eval_function = text => {
   try {
-    let param_search = JSON.parse(param_search_text)
-    return param_search
-  } catch (e) {
-    return eval_f(param_search_text)
+    /*eslint-disable no-new-func */
+    return Function(text)();
+  } catch(e) {
+    return null;
   }
 }
 
+const eval_combinations = param_search_text => {
+  /*Parses a string describing a tuning set into an object.*/
+  let output = null;
+  // users can directly provide tuning sets via objects or arrays of objects
+  try {
+    output = JSON.parse(param_search_text)
+  } catch (e) {
+    // or they can provide a function that returns a tuning set
+    output = eval_function(param_search_text)
+  }
+  if (Array.isArray(output)){
+    return output.map(wrap_values_in_array)
+  }
+  else
+    return wrap_values_in_array(output)
+}
+
 const grid_combinations = param_search => {
-  if (param_search === null || param_search === undefined)
-    return null
-  if (typeof x !== "object" && Array.isArray(param_search) )
+  if (param_search === null || param_search === undefined) return null
+  if (Array.isArray(param_search))
     return param_search.map(search_set => grid_combinations(search_set) )
                        .reduce( (a,v) => a+v , 0);
   return Object.values(param_search)
-               .map(wrap_in_array)
                .map( param_array => param_array.length )
                .reduce( (a,v) => a*v , 1);
 }
@@ -207,13 +222,13 @@ const tuning_templates = {
   }, null, 2),
   list: JSON.stringify([
     {
-      min_events_per_frame: [5e3],
-      max_events_per_frame: [10e3],
+      min_events_per_frame: 5e3,
+      max_events_per_frame: 10e3,
       solver: ['A', 'B'],
     },
     {
-      min_events_per_frame: [15e3],
-      max_events_per_frame: [20e3],
+      min_events_per_frame: 15e3,
+      max_events_per_frame: 20e3,
       solver: ['A', 'B'],
     },
   ], null, 2),
@@ -348,7 +363,7 @@ class TuningForm extends Component {
       <p>Be inspired by those tuning templates: {['basic', 'list', 'function'].map(x => 
        <Button key={x} onClick={e=>this.setState({parameter_search: tuning_templates[x]})}>{x}</Button> 
       )}</p>
-      <FormGroup inline labelFor="select-search-type" helperText={search_type === 'grid' ? `Explores all the ${combinations} combinations` : `Uniform sampling of ${combinations} combinations`}>
+      <FormGroup inline labelFor="select-search-type" helperText={search_type === 'grid' ? `Explores all the ${combinations} combination${combinations>1 ? 's' : ''}` : `Uniform sampling of ${combinations} combinations`}>
         <div className="pt-select pt-minimal">
           <select id='select-search-type' defaultValue='translation_aape' onChange={this.selectSearchType}>
             <option key="grid" value="grid">Grid search</option>
