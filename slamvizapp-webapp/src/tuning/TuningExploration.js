@@ -5,7 +5,7 @@ import createPlotlyComponent from 'react-plotly.js/factory'
 import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
-import { groupBy } from "../common/utils";
+import { groupBy, groupByObject } from "../common/utils";
 import { slam_metrics, default_metric } from "../slam/metrics";
 
 const Plot = createPlotlyComponent(Plotly);
@@ -26,12 +26,12 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter, layout }) => {
                           y: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
                           marker: {
                             size: 4,
-                            color: Colors.ORANGE4,
+                            // color: Colors.ORANGE4,
                             opacity: 0.8,
                           },
                           line: {
                             width: 1,
-                            color: Colors.ORANGE5,
+                            // color: Colors.ORANGE5,
                             opacity: 0.8,
                           }
                         }
@@ -118,17 +118,34 @@ const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter, layout }) => {
 //   values: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
+const average = array => {
+  return array.reduce( (a,b) => (a+b) , 0) / array.length;
+}
+
 const Sensibility2DContour = ({ slam_outputs, metric, parameters, layout }) => {
   // https://plot.ly/javascript/reference/#contour
   // https://plot.ly/javascript/contour-plots/
-  // todo: aggregate median/mean per recording..
   let slam_outputs_ok = Object.values(slam_outputs).filter( o => !o.is_pending && !o.is_failed);
+  // todo: aggregate median/mean per recording..
+
+  let slam_outputs_by_param = groupByObject(slam_outputs_ok, "extra_parameters");
+  // console.log(slam_outputs_by_param)
+
+  let slam_outputs_aggregated = Object.entries(slam_outputs_by_param).map( ([extra_parameters, outputs]) => {
+    Object.values(slam_metrics).forEach( m => {
+      let values = outputs.map( o => o.metrics[m.key]).filter(x => x!==undefined)
+      outputs[0].metrics[m.key] = average(values)
+    })
+    return outputs[0]
+  })
+  // console.log(slam_outputs_aggregated)
+
   let traces = [{
     type: 'contour',
-    x: slam_outputs_ok.map(o => o.extra_parameters[parameters[0]]),
-    y: slam_outputs_ok.map(o => o.extra_parameters[parameters[1]]),
+    x: slam_outputs_aggregated.map(o => o.extra_parameters[parameters[0]]),
+    y: slam_outputs_aggregated.map(o => o.extra_parameters[parameters[1]]),
     // a matrix???/
-    z: slam_outputs_ok.map(o => o.metrics[metric.key] * metric.scale),
+    z: slam_outputs_aggregated.map(o => o.metrics[metric.key] * metric.scale),
     contours: {
       coloring: 'heatmap', // apply a gradient within each contour
       showlabels: true,
@@ -137,8 +154,8 @@ const Sensibility2DContour = ({ slam_outputs, metric, parameters, layout }) => {
         color: '#ffffff',
       }
     },
-    zsmooth: 'best',
-    // connectgaps: false,
+    // zsmooth: 'best',// default
+    connectgaps: false,
     colorscale: 'Viridis',
     // reversescale: true,
     // showscale: false,
@@ -205,22 +222,28 @@ class TuningExploration extends Component {
     if (batch.label==='default')
       return <Callout intent={Intent.PRIMARY}>First select a tuning experiment</Callout>
 
-    // what parameters were changed?
-    let tuned_parameters = new Set()
+    // tuned_parameters holds all tuning values used for each parameter
+    let tuned_parameters = {};
     Object.entries(batch.slam_outputs).forEach( ([id, o]) =>{
-      Object.keys(o.extra_parameters).forEach( p => {
-        tuned_parameters.add(p)
+      Object.entries(o.extra_parameters).forEach( ([param,value]) => {
+        if (tuned_parameters[param]===undefined)
+          tuned_parameters[param] = new Set()
+        tuned_parameters[param].add(value)
       })
     })
-    let tuned_parameters_array = Array.from(tuned_parameters)
-    let default_selected_parameter = tuned_parameters_array[0];
-    let default_selected_parameter_2 = tuned_parameters_array.length>1 ? tuned_parameters_array[1] : default_selected_parameter;
+    // we sort tuned parameters by the number of different values that were used
+    let sorted_parameters = Object.entries(tuned_parameters)
+                                  .sort( ([p1,s1],[p2,s2]) => s2.size-s1.size )
+                                  .map( ([k,v])=>k )
+    let default_selected_parameter = sorted_parameters[0];
+    let default_selected_parameter_2 = sorted_parameters.length>1 ? sorted_parameters[1] : default_selected_parameter;
     let selected_parameter = this.state.selected_parameter || default_selected_parameter;
     let selected_parameter_2 = this.state.selected_parameter_2 || default_selected_parameter_2;
 
     // what metric are we looking at?
     let metric = slam_metrics[this.state.selected_metric];
 
+    let show_2d_sensibility = sorted_parameters.length>1 && tuned_parameters[sorted_parameters[1]].size>1;
 
     let total_slam_runs = Object.keys(batch.slam_outputs).length;
     let number_recordings = Object.keys(groupBy(Object.values(batch.slam_outputs), "recording_path")).length;
@@ -231,15 +254,15 @@ class TuningExploration extends Component {
       <FormGroup inline labelFor="select-parameter" helperText="Shown on the X-axis">
         <div className="pt-select pt-minimal">
           <select id='select-parameter' defaultValue={default_selected_parameter} onChange={this.selectParameter}>
-            {tuned_parameters_array.map( p => <option key={p} value={p}>{p}</option>)}
+            {sorted_parameters.map( p => <option key={p} value={p}>{p} ({tuned_parameters[p].size} different{tuned_parameters[p].size>1 ? 's':''})</option>)}
           </select>
         </div>
         <Switch inline label='Log-scale' checked={this.state.layout.xaxis.type==='log'} onChange={this.updateXScale}></Switch>
       </FormGroup>
-      {tuned_parameters_array.length>1 && <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensibility plot">
+      {show_2d_sensibility && <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensibility plot">
               <div className="pt-select pt-minimal">
                 <select id='select-parameter-2' defaultValue={default_selected_parameter_2} onChange={this.selectParameter2}>
-                  {tuned_parameters_array.map( p => <option key={p} value={p}>{p}</option>)}
+                  {sorted_parameters.map( p => <option key={p} value={p}>{p} ({tuned_parameters[p].size} different{tuned_parameters[p].size>1 ? 's':''})</option>)}
                 </select>
               </div>
       </FormGroup>}
@@ -250,7 +273,7 @@ class TuningExploration extends Component {
           </select>
         </div>
       </FormGroup>
-      {tuned_parameters_array.length > 1 && <div>
+      {show_2d_sensibility && <div>
         <p>Everything is interpolated, so don't rush to conclusions.</p>
         <Sensibility2DContour slam_outputs={batch.slam_outputs} metric={metric} parameters={[selected_parameter, selected_parameter_2]} />
       </div>}

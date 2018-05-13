@@ -16,6 +16,15 @@ const groupBy = (array, prop) => {
   }, {});
 };
 
+const groupByObject = (array, prop) => {
+  return array.reduce(function(groups, item) {
+    var val = JSON.stringify(item[prop]);
+    groups[val] = groups[val] || [];
+    groups[val].push(item);
+    return groups;
+  }, {});
+};
+
 
 const empty_output = {metrics: undefined, extra_parameters: {}};
 
@@ -41,4 +50,4 @@ const matching_output = ({output, batch}) => {
   return {output_ref, warning, imperfect_match}
 }
 
-export { groupBy, matching_output, calendarStrings };
+export { groupBy, groupByObject, matching_output, calendarStrings };
