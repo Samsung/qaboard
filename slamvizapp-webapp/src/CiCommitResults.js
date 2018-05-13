@@ -16,7 +16,7 @@ import { BatchLogs } from "./BatchLogs";
 import { OutputCard } from "./slam/OutputCard";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { slam_configurations } from "./slam/configurations";
-import { main_metrics, slam_metrics } from "./slam/metrics";
+import { main_metrics, slam_metrics, default_metric } from "./slam/metrics";
 import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
 import { TuningExploration } from "./tuning/TuningExploration";
 import { SelectBatches } from "./tuning/SelectBatches";
@@ -100,19 +100,20 @@ class CommitParameters extends Component {
 class CiCommitResults extends Component {
   constructor(props) {
     super(props);
+    const params = new URLSearchParams(this.props.location.search);
     this.state = {
       new_commit_id: null, // current commit to display
-      ref_commit_id: null, // reference commit to display
+      ref_commit_id: params.get('reference') || null, // reference commit to display
 
       commits: { // store of commit information
         'default': {isLoaded: false}
       },
 
-      selected_batch_new: 'default',
-      selected_batch_ref: 'default',
+      selected_batch_new: params.get('batch_new') || 'default',
+      selected_batch_ref: params.get('batch_reference') || 'default',
 
-      filter_values: '',
-      sort_by: 'translation_aape',
+      filter_values: params.get('filter') || '',
+      sort_by: default_metric,
       order: -1,
 
       show_videos: false,
@@ -217,7 +218,10 @@ class CiCommitResults extends Component {
           if (query.reference && query.reference!==response.data.id) {
             this.props.history.push({
               pathname: this.props.location.pathname,
-              search: queryString.stringify({...query, reference: response.data.id})
+              search: queryString.stringify({
+                ...query,
+                reference: response.data.id,
+              })
             })
           }
         }
@@ -287,7 +291,10 @@ class CiCommitResults extends Component {
       let query = queryString.parse(this.props.location.search);
       this.props.history.push({
         pathname: this.props.location.pathname,
-        search: queryString.stringify({...query, reference: new_ref_commit_id})
+        search: queryString.stringify({
+          ...query,
+          reference: new_ref_commit_id,
+        })
       })
       this.setState( (previous_state, props) => {
         return {
@@ -338,12 +345,41 @@ class CiCommitResults extends Component {
   }
 
   selectBatchNew = e => {
-    this.setState({selected_batch_new: e.target.value})
+    this.setState({batch_new: e.target.value})
+    let query = queryString.parse(this.props.location.search);
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: queryString.stringify({
+        ...query,
+        selected_batch_new: e.target.value,
+      })
+    })
   }
 
   selectBatchRef = e => {
-    this.setState({selected_batch_ref: e.target.value})
+    this.setState({batch_reference: e.target.value})
+    let query = queryString.parse(this.props.location.search);
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: queryString.stringify({
+        ...query,
+        selected_batch_ref: e.target.value,
+      })
+    })
   }
+
+  UpdateFilterValues = e => {
+    this.setState({filter_values: e.target.value})
+    let query = queryString.parse(this.props.location.search);
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: queryString.stringify({
+        ...query,
+        filter: e.target.value,
+      })
+    })
+  }
+
 
   toogleShowDebug = () => {
     let previous_value = this.state.show_debug;
@@ -528,7 +564,7 @@ class CiCommitResults extends Component {
               <InputGroup
                 value={this.state.filter_values}
                 placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
-                onChange={e => this.setState({ filter_values: e.target.value })}
+                onChange={this.UpdateFilterValues}
                 type="search"
                 leftIcon="search"
               />
@@ -621,7 +657,6 @@ class CiCommitResults extends Component {
 
       </Container>
     );
-    // <form onSubmit={this.handleReferenceSubmit}><input onChange={this.handleReferenceChange} className="pt-input" type="text" placeholder="Compare to a different commit..." /></form>
     return result;
   }
 }
