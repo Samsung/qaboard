@@ -550,17 +550,24 @@ class CiCommitResults extends Component {
         { new_commit!==undefined && ref_commit!==undefined && <Fragment>
         <Section>
           <Card elevation={0}>
-            <SelectBatches
-              commit={new_commit}
-              onChange={this.selectBatchNew}
-              prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
-            />
-            <SelectBatches
-              commit={ref_commit}
-              onChange={this.selectBatchRef}
-              prefix={<Tag intent={Intent.PRIMARY}>Reference commit</Tag>}
-            />
-            <FormGroup label="Filter results" labelFor="filter-input" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.slam_outputs).length} selected)`}>
+            <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <div style={{flex:'1 1 auto', minWidth: '450px'}}>
+              <SelectBatches
+                commit={new_commit}
+                onChange={this.selectBatchNew}
+                prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
+              />
+              </div>
+              <div style={{flex:'1 1 auto', minWidth: '450px',  textAlign: 'right'}}>
+              <SelectBatches
+                commit={ref_commit}
+                onChange={this.selectBatchRef}
+                prefix={<Tag intent={Intent.PRIMARY}>Reference commit</Tag>}
+              />
+              </div>
+            </div>
+
+            <FormGroup label="Filter all results" labelFor="filter-input" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.slam_outputs).length} selected)`}>
               <InputGroup
                 value={this.state.filter_values}
                 placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
@@ -579,8 +586,8 @@ class CiCommitResults extends Component {
           <Tabs id="tabs-summary">
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
-              <Tab id="re-run" title="Add recordings" panel={<AddRecordingsForm commit={new_commit} />} />
-              <Tab id="tuning" title="Create tuning experiment" panel={<TuningForm commit={new_commit} />} />
+              <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm commit={new_commit} />} />
+              <Tab id="tuning" title="Extra SLAM runs & Tuning" panel={<TuningForm commit={new_commit} />} />
           </Tabs>
           </Card>
         </Section>

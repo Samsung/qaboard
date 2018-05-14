@@ -12,7 +12,7 @@ import 'brace/ext/searchbox';
 // import 'brace/mode/diff';
 // import 'brace/ext/language_tools';
 
-import { Callout, Intent, Spinner, NonIdealState, Button, FormGroup } from "@blueprintjs/core";
+import { Callout, Intent, Spinner, NonIdealState, Button, FormGroup, Radio, RadioGroup } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
 
 
@@ -114,25 +114,25 @@ class AddRecordingsForm extends Component {
     return (
     <form onSubmit={this.onSubmit}>
       <div className="pt-form-group pt-inline">
-        <label className="pt-label" htmlFor="selected-group">
+        {false && <label className="pt-label" htmlFor="selected-group">
           Requested Group
           <span className="pt-text-muted">(optionnal)</span>
-        </label>
-        <div className="pt-form-content">
+        </label>}
+        {false && <div className="pt-form-content">
           <input onChange={this.updateSelectedGroup} id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Go_around_set" type="text" dir="auto" />
           <div className="pt-form-helper-text">{number_of_recordings===0 ? 'Select a group of recordings from the list below' : `${number_of_recordings} recording${number_of_recordings>1?'s':''} selected`}</div>
-        </div>
-        <label className="pt-label" htmlFor="overwrite-old-outputs"></label>
-        <div className="pt-form-content">
+        </div>}
+        {false && <label className="pt-label" htmlFor="overwrite-old-outputs"></label>}
+        {false && <div className="pt-form-content">
           <label className="pt-control pt-switch">
             <input onChange={this.updateOverwrite} defaultValue='off' id="overwrite-old-outputs" type="checkbox" />
             <span className="pt-control-indicator"></span>
             Overwrite previous runs
           </label>
           <div className="pt-form-helper-text">By default we won't run the SLAM twice on the same recordings </div>
-        </div>
-        <Button onClick={this.recomputeMetrics} disabled={this.state.submitted} type='button'>Recompute metrics</Button>
-        <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >{this.state.selected_group ? 'Run SLAM' : 'Save list'}</Button>
+        </div>}
+        {false && <Button onClick={this.recomputeMetrics} disabled={this.state.submitted} type='button'>Recompute CI metrics</Button>}
+        <Button disabled={this.state.submitted} type='submit' intent={Intent.PRIMARY} >{this.state.selected_group ? 'Run SLAM' : 'Update list'}</Button>
       </div>
 
       <div className="pt-form-group pt-inline">
@@ -218,21 +218,19 @@ const tuning_templates = {
   none: '{}',
   basic: JSON.stringify({
     events_per_frame: [5e3, 10e3, 15e3, 20e3],
-    'solver': ['A', 'B'],
+    'smart_frame_on': [0, 1],
   }, null, 2),
   list: JSON.stringify([
     {
       min_events_per_frame: 5e3,
       max_events_per_frame: 10e3,
-      solver: ['A', 'B'],
     },
     {
       min_events_per_frame: 15e3,
       max_events_per_frame: 20e3,
-      solver: ['A', 'B'],
     },
   ], null, 2),
-  function: '// you use the output of any javascript function\nlet events = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events.map(t => ({\n  min_events_per_frame: t,\n  max_events_per_frame: t + delta,\n  solver: ["A", "B"],\n}));\n',
+  function: '// you use the output of any javascript function\nlet events = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events.map(t => ({\n  min_events_per_frame: t,\n  max_events_per_frame: t + delta,\n  smart_frame_on: [0, 1],\n}));\n',
 }
 
 
@@ -259,7 +257,13 @@ class TuningForm extends Component {
 
   updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/[^\w_.@:=]/g, '-')})};
   updateConfiguration = e => {this.setState({configuration: e.target.value})};
-  updatePlatform = e => {this.setState({platform: e.target.value})};
+  updatePlatform = e => {
+    this.setState({platform: e.target.value})
+    if (e.target.value==='s8')
+      this.setState({configuration: 'parallel-stereo'})
+    if (e.target.value==='lsf' && this.state.configuration==='parallel-stereo')
+      this.setState({configuration: 'serial-stereo'})
+  };
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
   updateSelectedGroup = e => {
     let next_selected_group = e.target.value;
@@ -323,13 +327,13 @@ class TuningForm extends Component {
     return (
     <form onSubmit={this.onSubmit}>
       <FormGroup
-          helperText="It should be descriptive. Re-using a name will add more results to the experiment."
-          label="Choose a name for the tuning experiment"
-          labelFor="experiment-name"
+          helperText={<span>Re-using a name adds more results. The <code>default</code> batch corresponds to the CI results</span>}
+          label="Choose a name for the batch/tuning experiment"
+          labelFor="batch-label"
           intent={Intent.PRIMARY}
           requiredLabel={true}
       >
-          <input id="experiment-name" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" value={experiment_name} onChange={this.updateExperimentName}  type="text" dir="auto" />
+          <input id="batch-label" className="pt-input" style={{width: '300px'}} placeholder="search-radius-sensibility" value={experiment_name} onChange={this.updateExperimentName}  type="text" dir="auto" />
       </FormGroup>
 
       <FormGroup
@@ -341,14 +345,19 @@ class TuningForm extends Component {
           <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Loop_closure_set" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
       </FormGroup>
 
-      <FormGroup
-          label="Platform"
-          helperText='"lsf" is the default. For now "s8" is only available on develop'
-          labelFor="input-platform"
-          requiredLabel={true}
+      <RadioGroup
+          // label=""
+          // helperText={<span><strong>lsf</strong> is the default. <strong>s8</strong> is </span>}
+          onChange={this.updatePlatform}
+          selectedValue={platform}
       >
-          <input id="input-platform" className="pt-input" style={{width: '300px'}} value={platform} placeholder="lsf" onChange={this.updatePlatform}  type="text" dir="auto" />
-      </FormGroup>
+
+          <Radio labelElement={<span>Linux</span>} value="lsf" large/>
+          <Radio label={<span>Android<br/>
+                              <span class="pt-text-muted">
+                                Available on <code>develop</code> or if you ran the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>performance:android:manual</code> job</a>
+                              </span></span>} value="s8" large/>
+      </RadioGroup>
 
       <FormGroup
           label="You can choose any of the available SLAM configuration"
