@@ -36,14 +36,14 @@ class OutputLog extends Component {
   render() {
     const { output } = this.props;
     const { is_open, is_loaded, error, logs } = this.state;
-    const intent = output.is_failed ? Intent.DANGER : Intent.SUCCESS;
-    const button_text = is_open ? "Hide" : (!is_loaded ? "Loading" : "Show")
-    const tag_text = `${output.is_failed ? 'KO' : ''} ${output.configuration} @${output.platform}`
+    const intent = output.is_failed ? Intent.DANGER : (output.is_pending ? Intent.WARNING : Intent.SUCCESS);
+    const button_text = is_open ? "Hide" : (is_loaded ? "Loading" : "Show")
+    const tag_text = output.is_failed ? '❌' : (output.is_pending ? '🕑' : '✔️')
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
       <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
     )
     return <div>
-      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text} </Tag> {output.recording_path}</h6>
+      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text}</Tag> <Tag>{`${output.configuration} @${output.platform}`}</Tag> {output.recording_path}</h6>
       {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
       {details}
       <Collapse isOpen={is_open}>
@@ -56,9 +56,9 @@ class OutputLog extends Component {
 
 
 const BatchLogs = ({ batch }) =>  {
+  let now = new Date(); 
   return Object.values( batch.slam_outputs )
-               .filter( o=>!o.is_pending )
-               .sort( o=>!o.is_failed )
+               .filter( o=> (!o.is_pending && !o.is_failed) || now - (new Date(o.created_date)) > 1800e3  )
                .map( output => <OutputLog key={output.id} output={output} />)
 }
 
