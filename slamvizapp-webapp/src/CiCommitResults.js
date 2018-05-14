@@ -510,10 +510,12 @@ class CiCommitResults extends Component {
             <ul>
               {Object.values( new_batch_filtered.slam_outputs )
                      .filter( o=>o.is_failed )
-                     .map( o=> <li key={o.id}><strong>{o.recording_path}</strong>
-                                            <br/>{o.configuration} @{o.platform}
-                                            <br/>{Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''} 
-                                            {new_batch_filtered.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}</li>)}
+                     .map( o=> <li key={o.id}>
+                                 <Tag intent={Intent.DANGER} className="pt-minimal">{`${o.configuration} @${o.platform}`}</Tag> <strong>{o.recording_path}</strong>
+                                 {Object.keys(o.extra_parameters).length>0 && <Fragment><br/><span>JSON.stringify(o.extra_parameters)</span></Fragment>} 
+                                 {new_batch_filtered.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}
+                                </li>
+                      )}
             </ul>
 
           </Callout>}
@@ -587,7 +589,7 @@ class CiCommitResults extends Component {
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
               <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
               <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm commit={new_commit} />} />
-              <Tab id="tuning" title="Extra SLAM runs & Tuning" panel={<TuningForm commit={new_commit} />} />
+              <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm commit={new_commit} />} />
           </Tabs>
           </Card>
         </Section>
