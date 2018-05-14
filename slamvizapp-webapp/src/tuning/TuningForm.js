@@ -354,7 +354,7 @@ class TuningForm extends Component {
 
           <Radio labelElement={<span>Linux</span>} value="lsf" large/>
           <Radio label={<span>Android<br/>
-                              <span class="pt-text-muted">
+                              <span className="pt-text-muted">
                                 Available on <code>develop</code> or if you ran the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>performance:android:manual</code> job</a>
                               </span></span>} value="s8" large/>
       </RadioGroup>
