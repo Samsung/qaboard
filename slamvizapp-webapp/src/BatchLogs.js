@@ -47,7 +47,7 @@ class OutputLog extends Component {
       {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
       {details}
       <Collapse isOpen={is_open}>
-        {error && <NonIdealState title="An error occurred" description={JSON.stringify(error.response)}/>}   
+        {error && <NonIdealState title="No logs (yet?)" description={JSON.stringify(error.response.data)}/>}   
         <pre>{logs || ''}</pre>
       </Collapse>
     </div>
