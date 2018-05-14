@@ -42,7 +42,7 @@ const matching_output = ({output, batch}) => {
                                    // .filter(o => o.platform===output.platform || soft_match)
                                    // .filter(o => o.configuration===output.configuration || soft_match)
                                    // We prefer to compare an ouput versus a similar one
-                                   .sort( ([a,b]) => match_score(a) - match_score(b))
+                                   .sort( (a,b) => match_score(a) - match_score(b))
   // if (matching_outputs) console.log(matching_outputs)
   let output_ref = matching_outputs[0] || empty_output;
   let imperfect_match = match_score(output_ref)>0;
