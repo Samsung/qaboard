@@ -24,6 +24,7 @@ RUN wget --no-check-certificate https://repo.continuum.io/archive/Anaconda3-5.0.
 RUN bash Anaconda3-5.0.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 RUN conda install pandas
+RUN pip install pipenv
 
 # uwsgi and matplotlib dependencies
 RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
@@ -75,7 +76,12 @@ RUN yarn config set http-proxy  $HTTP_PROXY
 # our API's dependencies
 WORKDIR /slamvizapp
 COPY ./requirements-freeze.txt ./
-RUN pip install -r requirements-freeze.txt
+RUN pip install --upgrade pip
+# we just want to prime the cache..
+# RUN cat requirements-freeze.txt | xargs -n 1 pip install
+# RUN pip install -U git+https://github.com/google/python-adb
+# RUN pip install -r requirements-freeze.txt || true
+# RUN conda install --yes requirements-freeze.txt || true
 
 # our frontend's dependencies
 WORKDIR /slamvizapp/slamvizapp-webapp
