@@ -40,7 +40,7 @@ server {
   server_name dvs, gpu09-dt, planet31, planet33, localhost;
 
   # ssl_dhparam  /etc/nginx/ssl/dhparam.pem;
-  ssl_certificate /etc/ssl/dvs/dvs.fromp7b.chain.crt;
+  ssl_certificate /etc/nginx/ssl/dvs/dvs.fromp7b.chain.crt;
   # ssl_certificate_key /etc/nginx/ssl/dvs/dvs.key;
   ssl_certificate_key /etc/nginx/ssl/dvs/dvs-key.pem;
 
