@@ -62,7 +62,7 @@ const MetricTile = styled.div`
   flex: 0.1 0.1 auto;
   text-align: center;
   padding: 10px;
-  min-width: 310px; // manuall adjusted with the largest title..
+  min-width: 355px; // manuall adjusted with the largest title..
 `
 
 
@@ -301,4 +301,4 @@ class MetricsSummary extends Component {
 }
 
 
-export { HistogramComparaison, MetricsSummary, MetricTag, percent_formatter, metric_formatter};
+export { HistogramComparaison, MetricsSummary, MetricTag };
