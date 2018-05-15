@@ -6,11 +6,16 @@ const SelectBatches = ({ commit, prefix, onChange }) => {
   const batches_to_options = batches => Object.keys(batches)
                                   .map( label=> {
                                     let slam_outputs = Object.values(batches[label].slam_outputs);
+                                    let title = label==='default' ? 'CI results' : label;
+                                    let nb_success = slam_outputs.filter(o=>!o.is_pending && !o.is_failed).length;
+                                    let status = `${nb_success}/${slam_outputs.length} ✅`
+                                    let nb_failed = slam_outputs.filter(o=>o.is_failed).length;
+                                    let failures = nb_failed > 0 ? `${nb_failed}❌` : '';
                                     return <option key={label} value={label}>
-                                            {label==='default' ? 'CI results' : label}
+                                            {title}
                                             &nbsp;•&nbsp;
-                                            {slam_outputs.filter(o=>!o.is_pending && !o.is_failed).length}/{slam_outputs.length} ✅
-                                            &nbsp;{slam_outputs.filter(o=>o.is_failed).length}❌
+                                            {status}
+                                            &nbsp;{failures}
                                     </option>})
   let has_tuning_batches = Object.values(commit.batches).length>1;
   return <FormGroup
