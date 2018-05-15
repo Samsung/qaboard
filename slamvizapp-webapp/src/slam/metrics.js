@@ -47,7 +47,7 @@ const slam_metrics = {
     short_label: 'tDrift',
     scale: 100,
     suffix: '%',
-    threshold: 0.01,
+    threshold: 1.00,
     smaller_is_better: true,
   },
 
