@@ -38,7 +38,7 @@ class OutputLog extends Component {
     const { is_open, is_loaded, error, logs } = this.state;
     const intent = output.is_failed ? Intent.DANGER : (output.is_pending ? Intent.WARNING : Intent.SUCCESS);
     const button_text = is_open ? "Hide" : (is_loaded ? "Loading" : "Show")
-    const tag_text = output.is_failed ? '❌' : (output.is_pending ? '🕑' : '✔️')
+    const tag_text = output.is_failed ? '❌' : (output.is_pending ? '⏳' : '✅')
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
       <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
     )

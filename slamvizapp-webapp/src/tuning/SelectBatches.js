@@ -9,7 +9,8 @@ const SelectBatches = ({ commit, prefix, onChange }) => {
                                     return <option key={label} value={label}>
                                             {label==='default' ? 'CI results' : label}
                                             &nbsp;•&nbsp;
-                                            {slam_outputs.filter(o=>!o.is_pending && !o.is_crashed).length}/{slam_outputs.length} ✔️
+                                            {slam_outputs.filter(o=>!o.is_pending && !o.is_failed).length}/{slam_outputs.length} ✅
+                                            &nbsp;{slam_outputs.filter(o=>o.is_failed).length}❌
                                     </option>})
   let has_tuning_batches = Object.values(commit.batches).length>1;
   return <FormGroup
