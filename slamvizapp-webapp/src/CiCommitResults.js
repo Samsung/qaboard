@@ -556,6 +556,7 @@ class CiCommitResults extends Component {
               <div style={{flex:'1 1 auto', minWidth: '450px'}}>
               <SelectBatches
                 commit={new_commit}
+                selected={selected_batch_new}
                 onChange={this.selectBatchNew}
                 prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
               />
@@ -563,6 +564,7 @@ class CiCommitResults extends Component {
               <div style={{flex:'1 1 auto', minWidth: '450px',  textAlign: 'right'}}>
               <SelectBatches
                 commit={ref_commit}
+                selected={selected_batch_ref}
                 onChange={this.selectBatchRef}
                 prefix={<Tag intent={Intent.PRIMARY}>Reference commit</Tag>}
               />
