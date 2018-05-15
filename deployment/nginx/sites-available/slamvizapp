@@ -40,9 +40,9 @@ server {
   server_name dvs, gpu09-dt, planet31, planet33, localhost;
 
   # ssl_dhparam  /etc/nginx/ssl/dhparam.pem;
-  ssl_certificate /slamvizapp/deployment/nginx/ssl/dvs/dvs.chain.pem;
-  ssl_certificate_key /slamvizapp/deployment/nginx/ssl/dvs/dvs.key;
-  # ssl_certificate_key /slamvizapp/deployment/nginx/ssl/dvs/dvs-key.pem;
+  ssl_certificate /etc/ssl/dvs/dvs.chain.pem;
+  ssl_certificate_key /etc/nginx/ssl/dvs/dvs.key;
+  # ssl_certificate_key /etc/nginx/ssl/dvs/dvs-key.pem;
 
   location / {
     root /slamvizapp/slamvizapp-webapp/build;
