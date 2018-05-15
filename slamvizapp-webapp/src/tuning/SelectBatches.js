@@ -10,19 +10,15 @@ const SelectBatches = ({ commit, prefix, onChange }) => {
                                             {label==='default' ? 'CI results' : label}
                                             &nbsp;•&nbsp;
                                             {slam_outputs.filter(o=>!o.is_pending && !o.is_crashed).length}/{slam_outputs.length} ✔️
-                                    </option>})      
+                                    </option>})
   let has_tuning_batches = Object.values(commit.batches).length>1;
-  if (!has_tuning_batches)
-    return <span></span>
-
-  //  You can 
   return <FormGroup
           label={<span>{prefix}</span>}
           labelFor="batch-select"
-          helperText="You can view results from different batches or tuning experiments."
+          helperText={has_tuning_batches ? "You can view results from different batches or tuning experiments." : ''}
          >
           <div className="pt-select pt-minimal">
-            <select id='batch-select-new' defaultValue="default" onChange={onChange}>
+            <select disabled={!has_tuning_batches} id='batch-select-new' defaultValue="default" onChange={onChange}>
               {batches_to_options(commit.batches)}
             </select>
           </div>
