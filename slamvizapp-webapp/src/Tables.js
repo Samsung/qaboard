@@ -4,8 +4,9 @@ import { Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
 import { Section } from "./common/containers";
 import { matching_output } from "./common/utils";
-import { metric_formatter, percent_formatter } from "./MetricsSummary";
 
+const metric_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:3, maximumFractionDigits:3});
+const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:0, maximumFractionDigits:0});
 
 const RowHeaderCell = ({output, warning}) => {
   let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
@@ -99,7 +100,7 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype, me
         <tr>
           <th></th>
           {metrics.map( m =>
-            <th colSpan={2} key={m.key}>{m.label} [{metric_formatter.format(m.threshold)}{m.suffix}]</th>
+            <th colSpan={2} key={m.key}>{m.label} [{metric_formatter.format(m.threshold*m.scale)}{m.suffix}]</th>
           )}
         </tr>
         <tr>
