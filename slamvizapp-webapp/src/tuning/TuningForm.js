@@ -264,6 +264,7 @@ class TuningForm extends Component {
     if (e.target.value==='lsf' && this.state.configuration==='parallel-stereo')
       this.setState({configuration: 'serial-stereo'})
   };
+  updateOverwrite = e => {this.setState({overwrite: e.target.checked? 'on' : 'off'})}
   updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
   updateSelectedGroup = e => {
     let next_selected_group = e.target.value;
@@ -281,7 +282,7 @@ class TuningForm extends Component {
 
 
   onSubmit = e => {
-    const { experiment_name, platform, configuration, groups, selected_group } = this.state;
+    const { experiment_name, platform, configuration, groups, selected_group, overwrite } = this.state;
     const { parameter_search, search_type, search_options } = this.state;
     this.setState({ submitted: true })
     OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
@@ -294,7 +295,7 @@ class TuningForm extends Component {
         parameter_search: eval_combinations(parameter_search),
       },
       selected_group, groups,
-      overwrite: false,
+      overwrite: overwrite,
     })
     .then(response => {
       this.setState({submitted: false})
@@ -398,6 +399,17 @@ class TuningForm extends Component {
       <Callout icon={this.state.selected_group_info_loading ? 'dot' : 'time' } intent={time_intent}>{total_runs} total runs</Callout>
       <Button disabled={this.state.submitted || this.state.experiment_name.length===0 || !total_runs} type='submit' intent={total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER}>Send</Button>
   
+      <label className="pt-label" htmlFor="overwrite-old-outputs"></label>
+      <div className="pt-form-content">
+        <label className="pt-control pt-switch">
+          <input onChange={this.updateOverwrite} defaultValue='off' id="overwrite-old-outputs" type="checkbox" />
+          <span className="pt-control-indicator"></span>
+          Overwrite previous runs
+        </label>
+        <div className="pt-form-helper-text">By default we won't run the SLAM twice on the same recordings </div>
+      </div>
+
+
     </form>)
   }
 
