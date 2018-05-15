@@ -4,6 +4,7 @@
 set -ex
 DOCKER_IMAGE=gitlab-srv.transchip.com:4567/dvs/slamvizapp
 
+DOCKER_ENV=""
 
 DOCKER_VOLUMES=""
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
@@ -12,6 +13,7 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/ro
 DOCKER_VOLUMES+=" --volume=/stage:/stage"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results"
+DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database"
 # DOCKER_VOLUMES+=" --volume=/raid:/raid"
 # DOCKER_VOLUMES+=" --volume=/net/f2:/net/f2"
 # --volume=/home/arthurf/ci/dvs:/home/arthurf/ci/dvs
@@ -26,7 +28,8 @@ else
 		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
 	else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
-		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"			
+		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"
+  		  # DOCKER_ENV+=" --env SLAM_DB_PORT=9000"		
 		else
 			PORTS=""
 			# or we could yse a dummy port and change the host's nginx config to point to the correct port..
@@ -42,13 +45,13 @@ fi
 if [ -z ${SSH_PASSPHRASE+x} ]; then
   echo "[Error] \$SSH_PASSPHRASE is not defined : the app won't be able to use git"; exit
 else
-  DOCKER_SSH_PASSPHRASE="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
+  DOCKER_ENV="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
 fi
 
 if [ -z ${GITLAB_ACCESS_TOKEN+x} ]; then
   echo "[Error] \$GITLAB_ACCESS_TOKEN is not defined: create one at http://gitlab-srv/profile/personal_access_tokens"; exit
 else
-  DOCKER_GITLAB_ACCESS_TOKEN="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
+  DOCKER_ENV="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
 fi
 
 
@@ -64,10 +67,12 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zshrc:/root/.zshrc"
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.oh-my-zsh:/root/.oh-my-zsh"
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zsh_history:/root/.zsh_history"
 if [ -z ${SLAMVIZAPP_DEBUG_WITH_MOUNTS+x} ]; then
-	echo 'reading source from container'
+    echo 'reading source from container'
 else
-	DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
+    DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
 fi
+
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp/deployment/nginx/ssl/dvs:/slamvizapp/slamvizapp/deployment/nginx/ssl/dvs"
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/init.sh:/slamvizapp/deployment/init.sh"
 
 # Networking:
@@ -83,6 +88,6 @@ POLICY="--restart always --detach"
 # -i interactive
 # -t pseudo tty
 
-command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG $POLICY $DOCKER_VOLUMES $DOCKER_SSH_PASSPHRASE $DOCKER_GITLAB_ACCESS_TOKEN $PORTS $DOCKER_IMAGE ${@}"
+command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
 echo $command
 exec $command
