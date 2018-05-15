@@ -73,7 +73,7 @@ else
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/slamvizapp/deployment/nginx/ssl/dvs"
+# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/slamvizapp/deployment/nginx/ssl/dvs"
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/init.sh:/slamvizapp/deployment/init.sh"
 
 # Networking:
