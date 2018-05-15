@@ -11,7 +11,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
                                     let status = `${nb_success}/${slam_outputs.length} ✅`
                                     let nb_failed = slam_outputs.filter(o=>o.is_failed).length;
                                     let failures = nb_failed > 0 ? `${nb_failed}❌` : '';
-                                    return <option key={label} selected={label===selected} value={label}>
+                                    return <option key={label} value={label}>
                                             {title}
                                             &nbsp;•&nbsp;
                                             {status}
@@ -24,7 +24,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
           helperText={has_tuning_batches ? "You can view results from different batches or tuning experiments." : ''}
          >
           <div className="pt-select pt-minimal">
-            <select disabled={!has_tuning_batches} id='batch-select-new' defaultValue="default" onChange={onChange}>
+            <select disabled={!has_tuning_batches} id='batch-select-new' defaultValue={selected} onChange={onChange}>
               {batches_to_options(commit.batches)}
             </select>
           </div>
