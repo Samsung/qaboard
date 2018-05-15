@@ -72,7 +72,12 @@ RUN yarn config set cafile /usr/local/share/ca-certificates/samsung/DLP-TRITON.c
 RUN yarn config set https-proxy $HTTP_PROXY
 RUN yarn config set http-proxy  $HTTP_PROXY
 
-# our app
+# our API's dependencies
+WORKDIR /slamvizapp
+COPY ./requirements-freeze.txt ./
+RUN pip install -r requirements-freeze.txt
+
+# our frontend's dependencies
 WORKDIR /slamvizapp/slamvizapp-webapp
 COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/yarn.lock ./
 ENV NODE_ENV production

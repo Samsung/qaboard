@@ -71,6 +71,12 @@ pip install --editable .                   # edits to the code will be seen
 # pip install virtualenv; virtualenv venv; . venv/bin/activate 
 ```
 
+If the python dependencies change, make the Docker build faster with:
+```bash
+pip freeze requirements-freeze.txt
+# TODO: use pipenv... https://docs.pipenv.org/
+```
+
 
 ### Database setup
 You will need a database accessible:
