@@ -50,7 +50,6 @@ RUN echo 'deb http://nginx.org/packages/ubuntu/ trusty nginx'     >  /etc/apt/so
 RUN echo 'deb-src http://nginx.org/packages/ubuntu/ trusty nginx' >> /etc/apt/sources.list.d/nginx.list
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys ABF5BD827BD9BF62
 RUN apt-get update && apt-get install -y nginx
-COPY deployment/nginx /etc/nginx
 
 # more certificate stuff
 COPY deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
@@ -81,7 +80,6 @@ RUN yarn install --pure-lockfile
 COPY . /slamvizapp/
 RUN yarn build
 
-
 # our API
 WORKDIR /slamvizapp
 RUN pip install --editable .
@@ -89,6 +87,9 @@ ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 
 VOLUME /var/slamvizapp
+
+# nginx config
+COPY deployment/nginx /etc/nginx
 
 EXPOSE 5000
 EXPOSE 80
