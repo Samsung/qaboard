@@ -251,6 +251,7 @@ class TuningForm extends Component {
       search_options: {
         n_iter: 50,
       },
+      overwrite: false,
       parameter_search: tuning_templates['none'],
     };
   }
