@@ -1,6 +1,7 @@
 import React, { Component } from "react";
 import { get, post } from "axios";
 import AceEditor from 'react-ace';
+import { withCookies } from 'react-cookie';
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
@@ -237,12 +238,13 @@ const tuning_templates = {
 class TuningForm extends Component {
   constructor(props) {
     super(props);
+    const { cookies } = this.props;
     this.state = {
       submitted: false,
-      experiment_name: '',
-      configuration: 'serial-stereo',
-      platform: 'lsf',
-      selected_group: null,
+      experiment_name: cookies.get('experiment_name') || '',
+      platform: cookies.get('platform') || 'lsf',
+      configuration: cookies.get('configuration') || 'serial-stereo',
+      selected_group: cookies.get('selected_group') || null,
       selected_group_info: {
         number_of_recordings: 0,
       },
@@ -252,23 +254,49 @@ class TuningForm extends Component {
         n_iter: 50,
       },
       overwrite: false,
-      parameter_search: tuning_templates['none'],
+      user: cookies.get('user') || 'arthurf',
+      parameter_search: cookies.get('parameter_search', {doNotParse: true}) ? JSON.parse(cookies.get('parameter_search', {doNotParse: true})) : tuning_templates['none'],
     };
   }
 
-  updateExperimentName = e => {this.setState({experiment_name: e.target.value.replace(/[^\w_.@:=]/g, '-')})};
-  updateConfiguration = e => {this.setState({configuration: e.target.value})};
+  updateExperimentName = e => {
+    const { cookies } = this.props;
+    cookies.set('experiment_name', e.target.value, { path: '/' });
+    this.setState({experiment_name: e.target.value.replace(/[^\w_.@:=]/g, '-')})
+  };
+  updateConfiguration = e => {
+    const { cookies } = this.props;
+    cookies.set('configuration', e.target.value, { path: '/' });
+    this.setState({configuration: e.target.value})
+  };
+  updateUser = e => {
+    const { cookies } = this.props;
+    cookies.set('user', e.target.value, { path: '/' });
+    this.setState({user: e.target.value})
+  };
   updatePlatform = e => {
+    const { cookies } = this.props;
     this.setState({platform: e.target.value})
-    if (e.target.value==='s8')
+    cookies.set('platform', e.target.value, { path: '/' });
+    if (e.target.value==='s8') {
       this.setState({configuration: 'parallel-stereo'})
-    if (e.target.value==='lsf' && this.state.configuration==='parallel-stereo')
+      cookies.set('configuration', 'parallel-stereo', { path: '/' });
+    }
+    if (e.target.value==='lsf' && this.state.configuration==='parallel-stereo') {
       this.setState({configuration: 'serial-stereo'})
+      cookies.set('configuration', 'serial-stereo', { path: '/' });
+    }
   };
   updateOverwrite = e => {this.setState({overwrite: e.target.checked? 'on' : 'off'})}
-  updateParameterSearch = new_parameter_search => {this.setState({parameter_search: new_parameter_search})};
+  updateParameterSearch = new_parameter_search => {
+    const { cookies } = this.props;
+    cookies.set('parameter_search', JSON.stringify(new_parameter_search), { path: '/' });
+    this.setState({parameter_search: new_parameter_search})
+  };
   updateSelectedGroup = e => {
+    const { cookies } = this.props;
     let next_selected_group = e.target.value;
+    cookies.set('selected_group', next_selected_group, { path: '/' });
     this.setState({selected_group: next_selected_group})
     get(`/api/v1/recordings/group?name=${next_selected_group}`, {})
     .then(response => {
@@ -283,7 +311,7 @@ class TuningForm extends Component {
 
 
   onSubmit = e => {
-    const { experiment_name, platform, configuration, groups, selected_group, overwrite } = this.state;
+    const { experiment_name, platform, configuration, groups, selected_group, overwrite, user } = this.state;
     const { parameter_search, search_type, search_options } = this.state;
     this.setState({ submitted: true })
     OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
@@ -296,6 +324,7 @@ class TuningForm extends Component {
         parameter_search: eval_combinations(parameter_search),
       },
       selected_group, groups,
+      user,
       overwrite: overwrite,
     })
     .then(response => {
@@ -310,9 +339,8 @@ class TuningForm extends Component {
   }
 
   render() {
-    const { platform, configuration, selected_group_info, experiment_name } = this.state;
+    const { platform, configuration, selected_group, selected_group_info, experiment_name, user } = this.state;
     const { search_type, parameter_search, search_options } = this.state;
-
     let number_of_recordings = selected_group_info.number_of_recordings
     try {
       var tuning_sets = eval_combinations(parameter_search);
@@ -344,7 +372,7 @@ class TuningForm extends Component {
           labelFor="selected-group"
           requiredLabel={true}
       >
-          <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Loop_closure_set" onChange={this.updateSelectedGroup}  type="text" dir="auto" />
+          <input id="selected-group" className="pt-input" style={{width: '300px'}} placeholder="Loop_closure_set" onChange={this.updateSelectedGroup} value={selected_group} type="text" dir="auto" />
       </FormGroup>
 
       <RadioGroup
@@ -405,15 +433,23 @@ class TuningForm extends Component {
         <label className="pt-control pt-switch">
           <input onChange={this.updateOverwrite} defaultValue='off' id="overwrite-old-outputs" type="checkbox" />
           <span className="pt-control-indicator"></span>
-          Overwrite previous runs
+          Overwrite previous runs if already computed.
         </label>
-        <div className="pt-form-helper-text">By default we won't run the SLAM twice on the same recordings </div>
       </div>
 
+      <FormGroup
+          label="Run as"
+          helperText='Be nice.'
+          labelFor="input-user"
+          inline
+      >
+          <input id="input-user" className="pt-input" style={{width: '300px'}} value={user} placeholder="arthurf" onChange={this.updateUser}  type="text" dir="auto" />
+      </FormGroup>
 
     </form>)
   }
 
 }
 
-export { TuningForm, AddRecordingsForm };
+const TuningForm_ = withCookies(TuningForm)
+export { TuningForm_ as TuningForm, AddRecordingsForm };

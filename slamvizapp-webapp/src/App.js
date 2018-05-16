@@ -1,5 +1,6 @@
 import React, { Component } from "react";
 import { BrowserRouter as Router, Route } from "react-router-dom";
+import { CookiesProvider } from 'react-cookie';
 
 import AppNavbar from "./AppNavbar"
 import CiCommitList from "./CiCommitList";
@@ -16,6 +17,7 @@ class App extends Component {
   render() {
     return (
       // <React.StrictMode>
+      <CookiesProvider>
       <Router>
         <div className="pt-ui-text">
           <AppNavbar />
@@ -26,6 +28,7 @@ class App extends Component {
           <Route path="/tuning" component={CiCommitTuning} />
         </div>
       </Router>
+      </CookiesProvider>
       // </React.StrictMode>
     );
   }
