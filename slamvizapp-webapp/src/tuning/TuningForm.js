@@ -259,6 +259,28 @@ class TuningForm extends Component {
     };
   }
 
+  componentDidMount() {
+    const { selected_group } = this.state;
+    if (selected_group)
+      this.getGroupInfo(selected_group);
+  }
+  getGroupInfo(group) {
+    get(`/api/v1/recordings/group?name=${group}`, {})
+    .then(response => {
+      this.setState({selected_group_info_loading: false, selected_group_info: response.data})
+    })
+    .catch(error => {
+      this.setState({selected_group_info_loading: false, selected_group_info: {number_of_recordings: 0}})
+    })
+  }
+  updateSelectedGroup = e => {
+    const { cookies } = this.props;
+    let next_selected_group = e.target.value;
+    cookies.set('selected_group', next_selected_group, { path: '/' });
+    this.setState({selected_group: next_selected_group})
+    this.getGroupInfo(next_selected_group);
+  };
+
   updateExperimentName = e => {
     const { cookies } = this.props;
     cookies.set('experiment_name', e.target.value, { path: '/' });
@@ -293,19 +315,7 @@ class TuningForm extends Component {
     cookies.set('parameter_search', JSON.stringify(new_parameter_search), { path: '/' });
     this.setState({parameter_search: new_parameter_search})
   };
-  updateSelectedGroup = e => {
-    const { cookies } = this.props;
-    let next_selected_group = e.target.value;
-    cookies.set('selected_group', next_selected_group, { path: '/' });
-    this.setState({selected_group: next_selected_group})
-    get(`/api/v1/recordings/group?name=${next_selected_group}`, {})
-    .then(response => {
-      this.setState({selected_group_info_loading: false, selected_group_info: response.data})
-    })
-    .catch(error => {
-      this.setState({selected_group_info_loading: false, selected_group_info: {number_of_recordings: 0}})
-    })
-  };
+
   selectSearchType = e => {this.setState({search_type: e.target.value})};
   updateIterations = e => {this.setState({search_options: {'n_iter': parseFloat(e.target.value)}})};
 
