@@ -513,7 +513,6 @@ class CiCommitResults extends Component {
                      .map( o=> <li key={o.id}>
                                  <Tag intent={Intent.DANGER} className="pt-minimal">{`${o.configuration} @${o.platform}`}</Tag> <strong>{o.recording_path}</strong>
                                  {Object.keys(o.extra_parameters).length>0 && <Fragment><br/><span>JSON.stringify(o.extra_parameters)</span></Fragment>} 
-                                 {new_batch_filtered.label!=='default' && <span> <a href={`${o.output_dir_url}/lsf.log`}>(logs)</a></span>}
                                 </li>
                       )}
             </ul>
