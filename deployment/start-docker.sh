@@ -31,7 +31,8 @@ else
 		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"
   		  # DOCKER_ENV+=" --env SLAM_DB_PORT=9000"		
 		else
-			PORTS=""
+            PORTS="-p0.0.0.0:10000:5000 -p0.0.0.0:10002:5002 -p0.0.0.0:10001:443"
+ 			# PORTS=""
 			# or we could yse a dummy port and change the host's nginx config to point to the correct port..
 			# DOCKER_VOLUMES+=" --volume=slamvizapp:/var/slamvizapp"
 			# this would replace using port 5000, but we need to update some nginx configurations before it works... 
