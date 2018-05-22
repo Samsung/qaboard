@@ -1,24 +1,15 @@
 import os
 
-from git import Repo
-from git.exc import NoSuchPathError
 
-from flask import _app_ctx_stack
+from .git_utils import Repos
+from .config import git_server, app_data_directory
+repos = Repos(git_server, app_data_directory)
+
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy_utils import database_exists, create_database
-
-from .config import app_data_directory
-
-repo_location = str(app_data_directory/'psp_swip')
-try:
-  repo = Repo(repo_location)
-except NoSuchPathError:
-  print(f'[ERROR] database.py: Could not load git repository data from: {repo_location}')
-  print(f'                     Please set $SLAMVIZAPP_DATA to where you cloned psp_swip')
-  raise
 
 
 
@@ -45,9 +36,9 @@ if not database_exists(engine.url):
     pass
 
 
-
 # This is the recommended integration with Flask
 # It scopes session within HTTP requests
+from flask import _app_ctx_stack
 Session = sessionmaker(bind=engine)
 db_session = scoped_session(
     sessionmaker(

@@ -1,10 +1,10 @@
-from .database import repo
+from .database import repos
 from .database import db_session, Session
-
 
 # we fetch the latest commits at startup
 from .git_utils import git_pull
-git_pull()
+default_repo = repos['dvs/psp_swip']
+git_pull(default_repo)
 
 # We configure the flask application
 from flask import Flask

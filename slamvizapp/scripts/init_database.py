@@ -12,7 +12,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from alembic.config import Config
 from alembic import command
 
-from slamvizapp import repo
+from slamvizapp import repos
 from slamvizapp.database import engine, Session
 from slamvizapp.models import Base, CiCommit, Recording, Batch, SlamOutput
 from slamvizapp.config import default_recordings_directory, ci_directory
@@ -87,6 +87,7 @@ def init_cicommits(verbose=False):
   Initializes the database with ci commits.
   We don't delete the old recordings.... and we don't replace either.
   """
+  repo = repos['dvs/psp_swip']
   session = Session()
   cicommits_dir = ci_directory/'commits'
 

@@ -14,7 +14,7 @@ from sqlalchemy import and_
 # from flask_restless import APIManager
 # from flask_restless.serialization import DefaultSerializer
 
-from slamvizapp import app, repo, db_session
+from slamvizapp import app, repos, db_session
 from .models import CiCommit
 from .models.LocalMocks import LocalCommit
 from .models import latest_successful_commit

@@ -2,7 +2,7 @@ import json
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
-from slamvizapp import app, repo, db_session
+from slamvizapp import app, repos, db_session
 from .models import CiCommit, SlamOutput, Recording
 from .git_utils import git_pull
 
@@ -47,10 +47,12 @@ def new_slam_output_webhook():
 @app.route('/webhook/gitlab', methods=['GET', 'POST'])
 def gitlab_webhook():
   """Gitlab calls this endpoint every push, it garantees we stay synced."""
+  # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
   print(data)
-
-  git_pull()
+  # dvs/psp_swip
+  repo = repos[data['project']['path_with_namespace']]
+  git_pull(repo)
 
   # we can't create a commit now as we're missing default params.json
   # we should look into the commit data etc...

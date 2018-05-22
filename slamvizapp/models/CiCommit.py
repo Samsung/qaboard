@@ -6,7 +6,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import Column
 from sqlalchemy import String, DateTime
 
-from slamvizapp import repo
+from slamvizapp import repos
 from slamvizapp.models import Base, Batch
 # from ..utils import get_users_per_name
 from ..git_utils import find_branch
@@ -64,12 +64,14 @@ class CiCommit(Base):
 
 
   def __init__(self, commit, project='dvs/psp_swip', branch=None):
+    self.project = project
+    self.repo = repos[project]
     self.gitcommit = commit
     self.id = commit.hexsha
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
-      self.branch = find_branch(self.gitcommit.hexsha)
+      self.branch = find_branch(self.gitcommit.hexsha, self.repo)
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_batch = commit.authored_datetime
     self.committer_name = commit.committer.name
@@ -77,13 +79,14 @@ class CiCommit(Base):
 
   @reconstructor
   def init_on_load(self):
-    self.gitcommit = repo.commit(self.id)
+    self.repo = repos[self.project]
+    self.gitcommit = self.repo.commit(self.id)
 
 
   @staticmethod
   def get_or_create(session, hexsha):
     try:
-      commit = repo.commit(hexsha)
+      commit = self.repo.commit(hexsha)
     except:
       raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
     try:
@@ -133,7 +136,7 @@ def latest_successful_commit(branch='origin/develop'):
   # one of those should be successful
   page = 0
   while page < 10:
-    commits = repo.iter_commits(branch, max_count=20, skip=20*page)
+    commits = self.repo.iter_commits(branch, max_count=20, skip=20*page)
     commit_ids = [c.hexsha for c in commits]
     ci_commits = CiCommit.query\
       .filter(CiCommit.id.in_(commit_ids))\

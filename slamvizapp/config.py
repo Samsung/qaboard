@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
 
-# we clone our psp_swip repo here
+# we clone our repositories here to access commit metadata
+git_server = os.getenv('SLAMVIZAPP_GIT_SERVER', 'http://gitlab-srv')
 app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '/var/slamvizapp')).resolve()
 
 # users can request to run on new recordings - here we keep the list of available groups
