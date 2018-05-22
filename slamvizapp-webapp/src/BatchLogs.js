@@ -57,7 +57,7 @@ class OutputLog extends Component {
 
 const BatchLogs = ({ batch }) =>  {
   let now = new Date(); 
-  return Object.values( batch.slam_outputs )
+  return Object.values( batch.outputs )
                .filter( o=> (!o.is_pending) || now - (new Date(o.created_date)) > 180e3  )
                .map( output => <OutputLog key={output.id} output={output} />)
 }

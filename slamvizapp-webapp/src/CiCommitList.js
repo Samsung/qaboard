@@ -72,19 +72,19 @@ class CommitResults extends React.Component {
     const { commit } = this.props;
     const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
     let ci_batch = commit.batches.default;
-    if (ci_batch===undefined || (ci_batch.failed_slam_outputs===0 && ci_batch.valid_slam_outputs===0 && ci_batch.pending_slam_outputs===0))
+    if (ci_batch===undefined || (ci_batch.failed_outputs===0 && ci_batch.valid_outputs===0 && ci_batch.pending_outputs===0))
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
     let status_messages = (
       <Fragment>
-         {ci_batch.pending_slam_outputs-ci_batch.running_slam_outputs>0 &&
-            <Tag className="pt-minimal" style={{marginRight:'4px'}}>{ci_batch.pending_slam_outputs-ci_batch.running_slam_outputs} pending</Tag>}
-         {ci_batch.running_slam_outputs>0 &&
-            <Tag className="pt-minimal" style={{marginRight:'4px'}} intent={Intent.PRIMARY}>{ci_batch.running_slam_outputs} running</Tag>}
-         {ci_batch.failed_slam_outputs>0 &&
+         {ci_batch.pending_outputs-ci_batch.running_outputs>0 &&
+            <Tag className="pt-minimal" style={{marginRight:'4px'}}>{ci_batch.pending_outputs-ci_batch.running_outputs} pending</Tag>}
+         {ci_batch.running_outputs>0 &&
+            <Tag className="pt-minimal" style={{marginRight:'4px'}} intent={Intent.PRIMARY}>{ci_batch.running_outputs} running</Tag>}
+         {ci_batch.failed_outputs>0 &&
             <Link style={{marginLeft: '10px'}} to={`/commit/${commit.id}`}>
-              <Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_slam_outputs} crashed</Button>
+              <Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_outputs} crashed</Button>
             </Link>}
          { Object.keys(commit.batches).length > 1 &&
             <Tooltip>
@@ -94,7 +94,7 @@ class CommitResults extends React.Component {
               )}</ul>
             </Tooltip>
          }
-         {ci_batch.valid_slam_outputs>0 && ci_batch.aggregated_metrics.translation_rmse_median>0 &&
+         {ci_batch.valid_outputs>0 && ci_batch.aggregated_metrics.translation_rmse_median>0 &&
             <Fragment>
               <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_aape_median)}cm</strong> median </Tag>
               <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_aape_average)}cm</strong> avg AAPE</Tag>
@@ -113,9 +113,9 @@ class CommitResults extends React.Component {
     return (
       <div>
       {status_messages}
-      {ci_batch.valid_slam_outputs>0 &&
+      {ci_batch.valid_outputs>0 &&
           <Link style={{marginLeft: '10px'}} to={`/commit/${commit.id}`}>
-            <Button intent={Intent.SUCCESS} text={`${ci_batch.valid_slam_outputs} results`}/>
+            <Button intent={Intent.SUCCESS} text={`${ci_batch.valid_outputs} results`}/>
           </Link>
       }
       </div>

@@ -5,11 +5,11 @@ import { FormGroup } from "@blueprintjs/core";
 const SelectBatches = ({ commit, prefix, onChange, selected }) => {
   const batches_to_options = batches => Object.keys(batches)
                                   .map( label=> {
-                                    let slam_outputs = Object.values(batches[label].slam_outputs);
+                                    let outputs = Object.values(batches[label].outputs);
                                     let title = label==='default' ? 'CI results' : label;
-                                    let nb_success = slam_outputs.filter(o=>!o.is_pending && !o.is_failed).length;
-                                    let status = `${nb_success}/${slam_outputs.length} ✅`
-                                    let nb_failed = slam_outputs.filter(o=>o.is_failed).length;
+                                    let nb_success = outputs.filter(o=>!o.is_pending && !o.is_failed).length;
+                                    let status = `${nb_success}/${outputs.length} ✅`
+                                    let nb_failed = outputs.filter(o=>o.is_failed).length;
                                     let failures = nb_failed > 0 ? `${nb_failed}❌` : '';
                                     return <option key={label} value={label}>
                                             {title}
