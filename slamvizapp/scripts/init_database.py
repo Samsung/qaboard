@@ -14,7 +14,7 @@ from alembic import command
 
 from slamvizapp import repos
 from slamvizapp.database import engine, Session
-from slamvizapp.models import Base, CiCommit, Recording, Batch, SlamOutput
+from slamvizapp.models import Base, CiCommit, Recording, Batch, Output
 from slamvizapp.config import default_recordings_directory, ci_directory
 
 import os
@@ -25,7 +25,7 @@ def print_summary():
   print(f'total Recordings: {session.query(Recording).count()}')
   print(f'total CiCommits: {session.query(CiCommit).count()}')
   print(f'total Batches: {session.query(Batch).count()}')
-  print(f'total SlamOutputs: {session.query(SlamOutput).count()}')
+  print(f'total Outputs: {session.query(Output).count()}')
 
 
 def stamp_schema_version():
@@ -124,9 +124,9 @@ def init_cicommits(verbose=False):
 
     ci_batch = ci_commit.ci_batch
     could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_batch < datetime.timedelta(hours=3)
-    if not ci_batch.slam_outputs or ci_batch.failed_slam_outputs or ci_batch.pending_slam_outputs or could_be_pending_results:
-      ci_batch.discover_slam_outputs(session)
-      if verbose or ci_batch.pending_slam_outputs: print(ci_commit)
+    if not ci_batch.outputs or ci_batch.failed_outputs or ci_batch.pending_outputs or could_be_pending_results:
+      ci_batch.discover_outputs(session)
+      if verbose or ci_batch.pending_outputs: print(ci_commit)
       session.add(ci_batch)
       session.commit()
     if verbose: print(ci_commit)

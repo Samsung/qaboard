@@ -193,17 +193,17 @@ def get_ci_commit(commit_id=None):
 #       'branch': self.branch,
 #       'message': self.gitcommit.message,
 #       'authored_datetime': self.authored_datetime,
-#       'time_of_last_slam_job': self.time_of_last_slam_job,
+#       'time_of_last_batch': self.time_of_last_batch,
 #       'commit_dir_url': self.commit_dir_url,
 #       'aggregated_metrics': self.aggregated_metrics(),
 #       'failure_count': self.failure_count(),
-#       'valid_slam_outputs': [o.id for o in self.valid_slam_outputs],
+#       'valid_outputs': [o.id for o in self.valid_outputs],
 #     }
 
 
 # manager.create_api(CiCommit,
 #   methods=['GET', 'POST', 'DELETE'],
-#   #   # exclude_columns=['slam_outputs'],
+#   #   # exclude_columns=['outputs'],
 #   # serializer_class=CiCommitSerializer,
 #   #   # includes = ['name', 'birth_date', 'computers', 'computers.vendor']
 # )
@@ -215,7 +215,7 @@ def get_ci_commit(commit_id=None):
 #   methods=['GET', 'POST', 'DELETE'],
 # #   # results_per_page=40,
 # )
-# manager.create_api(SlamOutput,
+# manager.create_api(Output,
 #   methods=['GET', 'POST', 'DELETE'],
 # #   # results_per_page=40,
 # )

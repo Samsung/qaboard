@@ -3,12 +3,12 @@ from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repos, db_session
-from .models import CiCommit, SlamOutput, Recording
+from .models import CiCommit, Output, Recording
 from .git_utils import git_pull
 
 
-@app.route('/api/v1/slam_output', methods=['POST'])
-def new_slam_output_webhook():
+@app.route('/api/v1/output', methods=['POST'])
+def new_output_webhook():
   data = request.get_json()
   if data['job_type'] != 'ci': # we do nothing for now with local runs
     print(data['output_directory'])
@@ -25,7 +25,7 @@ def new_slam_output_webhook():
   if not recording: return "KO", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
-  slam_output = SlamOutput.get_or_create(db_session,
+  output = Output.get_or_create(db_session,
                                          batch=batch,
                                          platform=data['platform'],
                                          configuration=data['configuration'],
@@ -33,14 +33,14 @@ def new_slam_output_webhook():
                                          recording=recording,
                                         )
   if request.json.get('is_running', False):
-    slam_output.is_running = True
-    slam_output.is_pending = True
+    output.is_running = True
+    output.is_pending = True
   elif request.json.get('is_pending', False):
-    slam_output.is_pending = True
+    output.is_pending = True
   else:
-    slam_output.update_metrics()
+    output.update_metrics()
 
-  db_session.add(slam_output)
+  db_session.add(output)
   db_session.commit()
   return "OK"
 

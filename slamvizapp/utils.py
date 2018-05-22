@@ -20,13 +20,13 @@ palette = cm.ScalarMappable(norm=norm, cmap=cmap)
 
 
 
-def filter_slam_outputs(slam_outputs, include, exclude):
+def filter_outputs(outputs, include, exclude):
   """Filters a dictionnary based on strings its keys should include or not include."""
   if include:
-    slam_outputs = [o for o in slam_outputs if include in o.recording.path]
+    outputs = [o for o in outputs if include in o.recording.path]
   if exclude:
-    slam_outputs = [o for o in slam_outputs if exclude not in o.recording.path]
-  return slam_outputs
+    outputs = [o for o in outputs if exclude not in o.recording.path]
+  return outputs
 
 
 

@@ -37,7 +37,7 @@ Those steps are described in [`.gitlab-ci.yml`](http://gitlab-srv/dvs/slamvizapp
   - `models/`: Provides a few simple classes to represent
     * DVS **Recordings**
     * versions of the code, eg **CiCommits**
-    * **Batches** of related **SlamOutputs**
+    * **Batches** of related **Outputs**
   - `/api.py` and `webhooks.py`: expose the data through a minimal API and listens for notification from gitlab or SLAM jobs.
   - `alembic`: schema and data migrations for our database via [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html).
 * `slamvizapp-webapp`: web application that consumes this API to display results.

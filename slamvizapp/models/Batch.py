@@ -11,8 +11,8 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
-from slamvizapp.models import Base, Recording, SlamOutput
-from ..utils import filter_slam_outputs
+from slamvizapp.models import Base, Recording, Output
+from ..utils import filter_outputs
 
 class Batch(Base):
   __tablename__ = 'batches'
@@ -25,7 +25,7 @@ class Batch(Base):
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
-  slam_outputs = relationship("SlamOutput", back_populates="batch",
+  outputs = relationship("Output", back_populates="batch",
                               cascade="all, delete, delete-orphan"
                              )
 
@@ -42,7 +42,7 @@ class Batch(Base):
   def output_dir_url(self):
     return self.ci_commit.commit_dir_url / self.output_folder
 
-  def discover_slam_outputs(self, session):
+  def discover_outputs(self, session):
     """Find outputs saved on the disk to initialize the database"""
     # FIXME: we should also look for unsuccessful runs
     #   we could look into lsf.log and parse it for recoring names
@@ -61,20 +61,20 @@ class Batch(Base):
 
       # FIXME: we should use the actual parameters used
       # not just the default, but also configuration.json
-      slam_output = SlamOutput.get_or_create(session,
+      output = Output.get_or_create(session,
                                              batch=self,
                                              recording=recording,
                                              platform=platform,
                                              configuration=configuration,
                                              extra_parameters={},
                                             )
-      slam_output.update_metrics(output_dir/'metrics.json')
-      session.add(slam_output)
+      output.update_metrics(output_dir/'metrics.json')
+      session.add(output)
       session.commit()
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
     return aggregated_metrics(
-        filter_slam_outputs([o for o in self.slam_outputs if not o.is_failed and not o.is_pending], filename_filter, filename_exclude)
+        filter_outputs([o for o in self.outputs if not o.is_failed and not o.is_pending], filename_filter, filename_exclude)
     )
 
   def metrics(self, metric, outputs=None):
@@ -83,13 +83,13 @@ class Batch(Base):
     It helps with scope issues in the templates.
     """
     if not outputs:
-      outputs = self.slam_outputs
+      outputs = self.outputs
     return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
   def to_dict(self, with_details=False):
     if with_details:
       details = {
-          'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs},
+          'outputs': {o.id: o.to_dict() for o in self.outputs},
       }
     else:
       details = {}
@@ -101,27 +101,27 @@ class Batch(Base):
 
         # v == v means is not NaN
         'aggregated_metrics': {k: v for k, v in self.aggregated_metrics().items() if v == v},
-        'valid_slam_outputs': len([o for o in self.slam_outputs if not o.is_failed and not o.is_pending]),
-        'pending_slam_outputs': len([o for o in self.slam_outputs if o.is_pending]),
-        'running_slam_outputs': len([o for o in self.slam_outputs if o.is_running]),
-        'failed_slam_outputs': len([o for o in self.slam_outputs if o.is_failed]),
+        'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),
+        'pending_outputs': len([o for o in self.outputs if o.is_pending]),
+        'running_outputs': len([o for o in self.outputs if o.is_running]),
+        'failed_outputs': len([o for o in self.outputs if o.is_failed]),
         **details,
     }
 
   def __repr__(self):
     return f"<Batch(commmit='{self.ci_commit.id}' \
                     label='{self.label}' \
-                    slam_outputs={len(self.slam_outputs)} />"
+                    outputs={len(self.outputs)} />"
 
 # this should be refactored into SQL
-def aggregated_metrics(slam_outputs):
+def aggregated_metrics(outputs):
   aggregated = {
       'pc_where_lost_at_least_once': np.mean([ o.metrics['nb_lost'] > 0
-                                             for o in slam_outputs
+                                             for o in outputs
                                              if 'nb_lost' in o.metrics and not o.metrics['nb_lost'] is None]),
       'total_time_lost_pc_mean': np.mean([
           o.metrics['total_time_lost_pc']
-          for o in slam_outputs
+          for o in outputs
           if 'total_time_lost_pc' in o.metrics and not o.metrics['total_time_lost_pc'] is None
       ]),
   }
@@ -138,7 +138,7 @@ def aggregated_metrics(slam_outputs):
   ]
   for metric, treshold in metrics_to_aggregate:
     values = np.array([
-        o.metrics[metric] for o in slam_outputs
+        o.metrics[metric] for o in outputs
         if metric in o.metrics and not o.metrics[metric] is None
     ])
     aggregated[f'{metric}_median'] = np.median(values)

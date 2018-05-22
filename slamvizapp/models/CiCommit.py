@@ -59,7 +59,7 @@ class CiCommit(Base):
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
-    return f"<CiCommit(id='{self.id}' ci_batch.slam_outputs={len(self.ci_batch.slam_outputs)}>"
+    return f"<CiCommit(id='{self.id}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
 
 
 
@@ -141,7 +141,7 @@ def latest_successful_commit(branch='origin/develop'):
     ci_commits = CiCommit.query\
       .filter(CiCommit.id.in_(commit_ids))\
       .order_by(CiCommit.authored_datetime.desc())
-    ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.slam_outputs) > 10]
+    ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
     if ci_commits_successful: return ci_commits_successful[0]
     page = page + 1
 
@@ -157,5 +157,5 @@ def parent_successful_commit(ci_commit):
       parent_ci_commit = CiCommit.query.filter(CiCommit.id == parent_id).one()
     except:
       continue
-    if parent_ci_commit.ci_batch.slam_outputs > 10:
+    if parent_ci_commit.ci_batch.outputs > 10:
       return parent_ci_commit

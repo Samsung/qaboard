@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 
 from .Batch import aggregated_metrics
-from .SlamOutput import SlamOutput
-from ..utils import filter_slam_outputs
+from .Output import Output
+from ..utils import filter_outputs
 
 
 class LocalGitCommit():
@@ -40,7 +40,7 @@ class LocalRecording():
     return self.path.split('/')[-1]
 
 
-class LocalSlamOutput():
+class LocalOutput():
   def __init__(self, recording, platform, configuration, batch):
     self.id = str(recording.path)
     self.recording = recording
@@ -82,7 +82,7 @@ class LocalSlamOutput():
   def to_dict(self):
     # return {}
     as_dict = {c.name: getattr(self, c.name)
-               for c in SlamOutput.metadata.tables['slam_outputs'].columns
+               for c in Output.metadata.tables['outputs'].columns
                if hasattr(self, c.name)
               }
     return {
@@ -98,7 +98,7 @@ class LocalBatch():
     self.id = 0
     self.label = label
     self.created_date = created_date
-    self.slam_outputs = []
+    self.outputs = []
 
   @property
   def output_dir(self):
@@ -108,26 +108,26 @@ class LocalBatch():
   def output_dir_url(self):
     return self.ci_commit.commit_dir_url / 'output'
 
-  def discover_slam_outputs(self):
+  def discover_outputs(self):
     output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
     for output_dir in output_dirs:
       platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
       rel_recording_path = Path(*rel_recording_path)
       rel_recording_path = f'{rel_recording_path}.bin'
       recording = LocalRecording(rel_recording_path)
-      slam_output = LocalSlamOutput(
+      output = LocalOutput(
           recording=recording,
           platform=platform,
           configuration=configuration,
           batch=self,
       )
-      slam_output.update_metrics(output_dir/'metrics.json')
-      self.slam_outputs.append(slam_output)
+      output.update_metrics(output_dir/'metrics.json')
+      self.outputs.append(output)
 
   def to_dict(self, with_details=False):
     if with_details:
       details = {
-          'slam_outputs': {o.id: o.to_dict() for o in self.slam_outputs},
+          'outputs': {o.id: o.to_dict() for o in self.outputs},
       }
     else:
       details = {}
@@ -137,37 +137,37 @@ class LocalBatch():
         'label': self.label,
         'created_date': self.created_date.isoformat(),
         'aggregated_metrics': {k: v for k, v in self.aggregated_metrics().items() if v == v},
-        'valid_slam_outputs': len(self.valid_slam_outputs),
-        'pending_slam_outputs': len(self.pending_slam_outputs),
-        'running_slam_outputs': len(self.pending_slam_outputs),
-        'failed_slam_outputs': len(self.failed_slam_outputs),
+        'valid_outputs': len(self.valid_outputs),
+        'pending_outputs': len(self.pending_outputs),
+        'running_outputs': len(self.pending_outputs),
+        'failed_outputs': len(self.failed_outputs),
         **details,
     }
 
   @property
-  def valid_slam_outputs(self):
-    return [o for o in self.slam_outputs if not o.is_failed and not o.is_pending]
+  def valid_outputs(self):
+    return [o for o in self.outputs if not o.is_failed and not o.is_pending]
 
   @property
-  def pending_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_pending]
+  def pending_outputs(self):
+    return [o for o in self.outputs if o.is_pending]
 
   @property
-  def running_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_running]
+  def running_outputs(self):
+    return [o for o in self.outputs if o.is_running]
 
   @property
-  def failed_slam_outputs(self):
-    return [o for o in self.slam_outputs if o.is_failed]
+  def failed_outputs(self):
+    return [o for o in self.outputs if o.is_failed]
 
 
   def failures_count(self):
     """Returns an estimate of the number of failed runs"""
-    return len([o for o in self.slam_outputs if o.is_failed])
+    return len([o for o in self.outputs if o.is_failed])
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
-    return aggregated_metrics(filter_slam_outputs(
-        self.valid_slam_outputs, filename_filter, filename_exclude)
+    return aggregated_metrics(filter_outputs(
+        self.valid_outputs, filename_filter, filename_exclude)
                              )
 
   def metrics(self, metric, outputs=None):
@@ -176,7 +176,7 @@ class LocalBatch():
     It helps with scope issues in the templates.
     """
     if not outputs:
-      outputs = self.slam_outputs
+      outputs = self.outputs
     return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
 
@@ -219,7 +219,7 @@ class LocalCommit():
     self.committer_name = matches['author']
 
     self.batches = [LocalBatch(self, 'default', self.authored_datetime)]
-    self.batches[0].discover_slam_outputs()
+    self.batches[0].discover_outputs()
     self.latest_gitlab_pipeline = ''
 
   @property
