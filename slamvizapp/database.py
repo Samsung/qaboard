@@ -32,7 +32,7 @@ try:
   if not database_exists(engine.url):
     create_database(engine.url)
 except:
-  print(f'[WARNIGN] Could not connect to {engine_url}')
+  print(f'[WARNING] Could not connect to {engine_url}')
   pass
 
 

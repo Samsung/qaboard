@@ -7,7 +7,7 @@ import subprocess
 import click
 from gitdb.exc import BadName
 
-from slamvizapp import repo, db_session
+from slamvizapp import repos, db_session
 from slamvizapp.models import CiCommit
 from slamvizapp.config import *
 
@@ -23,6 +23,7 @@ def clean(days):
   def is_old(commit):
     return now - commit.authored_datetime > threshold
 
+  repo = repos['dvs/psp_swip']
 
   # We don't want to touch the commits from that branch
   protected_refs = set(['origin/develop'])
