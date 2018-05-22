@@ -26,7 +26,7 @@ class Repos():
         print(f'Cloning <{project_path}> to {self.clone_directory}')
         repo = Repo.clone_from(
           # for now we expect everything to be on gitlab-srv via http
-          f'{self.git_server}/{project_path}.git',
+          f'git@{self.git_server}:{project_path}',
           str(clone_location)
         )
       except Exception as e:
