@@ -84,9 +84,9 @@ class CiCommit(Base):
 
 
   @staticmethod
-  def get_or_create(session, hexsha):
+  def get_or_create(session, hexsha, repo):
     try:
-      commit = self.repo.commit(hexsha)
+      commit = repo.commit(hexsha)
     except:
       raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
     try:

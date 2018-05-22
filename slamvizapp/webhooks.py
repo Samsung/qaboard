@@ -16,7 +16,8 @@ def new_slam_output_webhook():
 
   hexsha = request.json['git_commit_sha']
   try:
-    ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha)
+    repo = repos['dvs/psp_swip']
+    ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha, repo=repo)
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
@@ -51,7 +52,8 @@ def gitlab_webhook():
   data = json.loads(request.data)
   print(data)
   # dvs/psp_swip
-  repo = repos[data['project']['path_with_namespace']]
+  project_path = data['project']['path_with_namespace']
+  repo = repos[project_path]
   git_pull(repo)
 
   # we can't create a commit now as we're missing default params.json
@@ -67,7 +69,7 @@ def gitlab_webhook():
     try: # the commit might have failed (eg no params.json available)
       ci_commit = CiCommit(
           commit,
-          project='dvs/psp_swip',
+          project=project_path,
           branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
       )
       print(ci_commit)

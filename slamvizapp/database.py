@@ -28,12 +28,12 @@ db_name = os.getenv('SLAMVIZAPP_DB_NAME', 'slamvizapp')
 engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
 engine = create_engine(engine_url, echo=False, pool_size=100, max_overflow=10)
 
-
-if not database_exists(engine.url):
-  try:
+try:
+  if not database_exists(engine.url):
     create_database(engine.url)
-  except:
-    pass
+except:
+  print(f'[WARNIGN] Could not connect to {engine_url}')
+  pass
 
 
 # This is the recommended integration with Flask

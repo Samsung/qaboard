@@ -38,7 +38,7 @@ def get_group():
 @app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
 def add_batch(hexsha):
   try:
-    commit = repo.commit(hexsha)
+    commit = repos['dvs/psp_swip'].commit(hexsha)
     ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
   except NoResultFound:
     return jsonify("Sorry, the commit id was not found"), 404
@@ -126,6 +126,7 @@ def get_commits(branch=None):
     earliest_commit = None
     new_commits = []
     while page==0 or earliest_commit.authored_datetime >= from_date:
+      repo = repos['dvs/psp_swip']
       new_commits = list(repo.iter_commits(branch, max_count=20, skip=20*page))
       if not new_commits: break
       earliest_commit = new_commits[-1]
@@ -144,6 +145,7 @@ def get_commits(branch=None):
 
 @app.route("/api/v1/branches")
 def list_branches():
+  repo = repos['dvs/psp_swip']
   return jsonify([r.name for r in repo.refs if r.name.startswith('origin/')])
 
 
@@ -155,6 +157,7 @@ def get_ci_commit(commit_id=None):
     ci_commit = latest_successful_commit('origin/develop')
   else:
     try: # we try a commit from git
+      repo = repos['dvs/psp_swip']
       commit = repo.commit(commit_id)
       ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
     except BadName:

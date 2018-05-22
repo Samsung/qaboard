@@ -23,17 +23,17 @@ class Repos():
       repo = Repo(clone_location)
     except NoSuchPathError:
       try:
+        print(f'Cloning <{project_path}> to {self.clone_directory}')
         repo = Repo.clone_from(
           # for now we expect everything to be on gitlab-srv via http
           f'{self.git_server}/{project_path}.git',
           str(clone_location)
         )
       except Exception as e:
-        print(f'[ERROR] database.py: Could not clone repository <{project_path}> to {self.clone_directory}')
-        print(f'                     Please set $SLAMVIZAPP_DATA to a writable location and verify your network settings')
+        print(f'[ERROR] Could not clone. Please set $SLAMVIZAPP_DATA to a writable location and verify your network settings')
         raise(e)
-    self._repos = repo
-    return self._repos
+    self._repos[project_path] = repo
+    return self._repos[project_path]
 
 
 def git_pull(repo):
