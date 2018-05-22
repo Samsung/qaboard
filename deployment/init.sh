@@ -15,10 +15,6 @@ ssh-keyscan gitlab-srv >> ~/.ssh/known_hosts
 
 nginx &
 
-echo '...cloning dvs/psp_swip'
-cd /var/slamvizapp
-git clone -q git@gitlab-srv:dvs/psp_swip || cd psp_swip && git fetch origin
-
 echo '...starting the database'
 /etc/init.d/postgresql start &
 # sudo -u postgres /usr/lib/postgresql/9.6/bin/postgres \
@@ -34,7 +30,7 @@ slamvizapp_init_database --loop &
 # slamvizapp_init_database --verbose
 
 echo '...starting the application'
-sleep 5
+sleep 2
 cd /slamvizapp && /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
 # export LC_ALL=C.UTF-8
 # export LANG=C.UTF-8
