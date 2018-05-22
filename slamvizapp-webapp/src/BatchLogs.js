@@ -47,7 +47,7 @@ class OutputLog extends Component {
       {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
       {details}
       <Collapse isOpen={is_open}>
-        {error && <NonIdealState title="No logs (yet?)" description={JSON.stringify(error.response.data)}/>}   
+        {error && <NonIdealState title="No logs (yet?)" description={error.response ? JSON.stringify(error.response.data) : error}/>}   
         <pre>{logs || ''}</pre>
       </Collapse>
     </div>
@@ -58,7 +58,7 @@ class OutputLog extends Component {
 const BatchLogs = ({ batch }) =>  {
   let now = new Date(); 
   return Object.values( batch.slam_outputs )
-               .filter( o=> (!o.is_pending) || now - (new Date(o.created_date)) > 1800e3  )
+               .filter( o=> (!o.is_pending) || now - (new Date(o.created_date)) > 180e3  )
                .map( output => <OutputLog key={output.id} output={output} />)
 }
 
