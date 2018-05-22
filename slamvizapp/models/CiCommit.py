@@ -20,7 +20,7 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = Column(String, primary_key=True) # git commit id
 
-  project = Column(String(), default='dvs/psp_swip')
+  project = Column(String())
   branch = Column(String()) # first added as.. we ignore tags?
   committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True))
@@ -63,7 +63,7 @@ class CiCommit(Base):
 
 
 
-  def __init__(self, commit, project='dvs/psp_swip', branch=None):
+  def __init__(self, commit, *, project, branch=None):
     self.project = project
     self.repo = repos[project]
     self.gitcommit = commit

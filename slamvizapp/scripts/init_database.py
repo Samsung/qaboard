@@ -111,7 +111,7 @@ def init_cicommits(verbose=False):
       ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
     except NoResultFound:
       try: # the commit might have failed (eg no params.json available)
-        ci_commit = CiCommit(commit)
+        ci_commit = CiCommit(commit, project='dvs/psp_swip')
       except ValueError:
         print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
         continue
