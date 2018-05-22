@@ -40,7 +40,7 @@ test-frontend:
 # we could run more tests with: 
 #    - CI=true yarn test
 
-deploy_staging:
+deploy_cis_integration:
   stage: deploy
   script:
     - update_lsf
