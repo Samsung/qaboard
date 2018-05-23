@@ -1,9 +1,6 @@
 import os
 
 
-from .git_utils import Repos
-from .config import git_server, app_data_directory
-repos = Repos(git_server, app_data_directory)
 
 
 from sqlalchemy import create_engine
