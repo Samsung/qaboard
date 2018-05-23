@@ -18,7 +18,6 @@ depends_on = None
 
 def upgrade():
   op.rename_table('slam_outputs', 'outputs')
-  op.alter_column('slam_outputs', new_column_name='output')
 
 def downgrade():
   op.rename_table('outputs', 'slam_outputs')

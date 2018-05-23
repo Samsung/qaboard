@@ -27,6 +27,12 @@ class Output(Base):
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
+  # Where results are stored (eg logs, images, 6dof, whatever)
+  # It is easier if there is a centralized way of storing results, but
+  # we let people override this to use disk with different quotas
+  # or even random folder (like for the CIS projects) 
+  output_dir_override = Column(String())
+
   # What we ran
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
   recording = relationship("Recording", back_populates="outputs")
@@ -83,6 +89,7 @@ class Output(Base):
 
   @property
   def output_dir(self):
+    if self.output_dir_override: return self.output_dir_override
     return self.batch.output_dir / self.output_folder
 
   @property
