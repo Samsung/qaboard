@@ -36,7 +36,7 @@ def clean(days):
   print(f'{len(protected_commits)} protected')
 
 
-  cicommits_dir = ci_directory/'commits'
+  cicommits_dir = ci_directory/'dvs/psp_swip'/'commits'
   for cicommit_dir in cicommits_dir.glob('*__git__*'):
     commit_short_id = str(cicommit_dir)[-8:]
     try:

@@ -74,7 +74,7 @@ def add_batch(hexsha):
       'bsub -q alg_q -sp 4000 ', # highest priority
       '-o /home/arthurf/dvs/slamvizapp/data/lsf.log ',
       '<< EOF\n'
-      f'  cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
+      f'  cd {ci_directory}/dvs/psp_swip/branches/{main_branch}/psp_swip;\n',
       f"  export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
       f"  export GITLAB_USER_LOGIN='{data['user']}';\n" if data['user'] != 'arthurf' else '',
       f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",

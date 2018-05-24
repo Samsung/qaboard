@@ -27,20 +27,23 @@ class Output(Base):
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
-  # Where results are stored (eg logs, images, 6dof, whatever)
+  ####  Where results are stored (eg logs, images, 6dof, whatever)
   # It is easier if there is a centralized way of storing results, but
   # we let people override this to use disk with different quotas
   # or even random folder (like for the CIS projects) 
   output_dir_override = Column(String())
 
-  # What we ran
+  #### What we ran
+  # Different output types (slam/6dof, cis/siemens...) are visualized differently
+  output_type = Column(String())
+
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
   recording = relationship("Recording", back_populates="outputs")
 
   batch_id = Column(Integer(), ForeignKey('batches.id'))
   batch = relationship("Batch", back_populates="outputs")
 
-  # How we ran
+  #### How we ran
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
   recording = relationship("Recording", back_populates="outputs")
 
@@ -51,7 +54,7 @@ class Output(Base):
   # we will need to save the association parameters<->hash
   extra_parameters = Column(JSON(), default={})
 
-  # How good we ran
+  #### How good we ran
   is_pending = Column(Boolean(), default=False)
   is_running = Column(Boolean(), default=False)
   is_failed = Column(Boolean(), default=False)
@@ -94,6 +97,7 @@ class Output(Base):
 
   @property
   def output_dir_url(self):
+    # todo: update in case we override the output directory
     return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):

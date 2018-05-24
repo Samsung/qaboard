@@ -89,7 +89,7 @@ def init_cicommits(verbose=False):
   """
   repo = repos['dvs/psp_swip']
   session = Session()
-  cicommits_dir = ci_directory/'commits'
+  cicommits_dir = ci_directory/'dvs/psp_swip'/'commits'
 
   # ? should we go over all the commits on all branches?
   # ? it would be more complete, but maybe wasteful? we only care about results.

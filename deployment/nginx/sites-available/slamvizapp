@@ -20,15 +20,18 @@ server {
   }
 
  location ^~ /s/ {
-  alias /home/arthurf/ci/dvs/psp_swip/;
+  alias /home/arthurf/ci/;
   access_log off;
-  autoindex on;
  }
 
- location ^~ /ss/ {
-  alias /net/f2/algo_archive/PTAM_Results/; 
+ location ^~ /s/algo_archive/ {
+  alias /net/f2/algo_archive/; 
   access_log off;
-  autoindex on;
+ }
+
+ location ^~ /s/algo_data/ {
+  alias /stage/algo_data/; 
+  access_log off;
  }
 
 }
@@ -61,15 +64,20 @@ server {
   }
 
  location ^~ /s/ {
-  alias /home/arthurf/ci/dvs/psp_swip/;
-  access_log off;
-
- }
-
- location ^~ /ss/ {
-  alias /net/f2/algo_archive/PTAM_Results/; 
+  alias /home/arthurf/ci/;
   access_log off;
  }
+
+ location ^~ /s/algo_archive/ {
+  alias /net/f2/algo_archive/; 
+  access_log off;
+ }
+
+ location ^~ /s/algo_data/ {
+  alias /stage/algo_data/; 
+  access_log off;
+ }
+
 
 }
 

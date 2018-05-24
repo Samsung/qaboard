@@ -47,7 +47,7 @@ class CiCommit(Base):
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
-    return ci_directory / 'commits' / commit_dir_name
+    return ci_directory / self.project / 'commits' / commit_dir_name
 
   @property
   def authored_date(self):
