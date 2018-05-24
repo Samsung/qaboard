@@ -225,7 +225,7 @@ class LocalCommit():
   @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
-    return '/ss/'/self.commit_dir.relative_to('/net/f2/algo_archive/PTAM_Results')
+    return '/s/'/self.commit_dir.relative_to('/net/f2/algo_archive')
 
   def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''

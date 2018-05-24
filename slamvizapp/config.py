@@ -5,6 +5,8 @@ from pathlib import Path
 git_server = os.getenv('SLAMVIZAPP_GIT_SERVER', 'gitlab-srv')
 app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '/var/slamvizapp')).resolve()
 
+
+# SLAM configuration #########################################################
 # users can request to run on new recordings - here we keep the list of available groups
 # it must be available from LSF
 recording_groups_filepath = Path('/home/arthurf/dvs/slamvizapp/data/extra-batches.yml')
@@ -19,3 +21,9 @@ is_windows = os.name == 'nt'
 if is_windows:
   ci_directory = Path('//mars/homes/arthurf/ci')
   default_recordings_directory = Path('//f2/algo_archive/DVS_SLAM_Database/')
+
+  
+# CIS configuration #########################################################
+# there is more at other locations...
+cis_ci_directory = Path('/stage/algo_data') # often wtf fails
+cis_ci_directory = Path('/opt/dockermounts/stage/algo_data')

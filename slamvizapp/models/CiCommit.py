@@ -1,6 +1,7 @@
 """
 A version of the code on which we ran SLAM performance test.
 """
+from pathlib import Path
 from sqlalchemy.orm import relationship, reconstructor
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import Column
@@ -8,7 +9,7 @@ from sqlalchemy import String, DateTime
 
 from slamvizapp import repos
 from slamvizapp.models import Base, Batch
-# from ..utils import get_users_per_name
+from slamvizapp.models.LocalMocks import LocalGitCommit
 from ..git_utils import find_branch
 from ..config import ci_directory
 
@@ -22,9 +23,13 @@ class CiCommit(Base):
 
   project = Column(String())
   branch = Column(String()) # first added as.. we ignore tags?
+  message = Column(String())
   committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True))
 
+  commit_dir_override = Column(String())
+  commit_type = Column(String(), default='git')
+  
   batches = relationship("Batch", order_by=Batch.created_date, back_populates="ci_commit")
 
   def get_or_create_batch(self, label):
@@ -46,6 +51,7 @@ class CiCommit(Base):
   @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
+    if self.commit_dir_override: return Path(commit_dir_override)
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
     return ci_directory / self.project / 'commits' / commit_dir_name
 
@@ -56,6 +62,13 @@ class CiCommit(Base):
   @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
+    if self.output_dir_override:
+      if '/net/f2/algo_archive' in self.output_dir_override:
+        return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
+      if '/stage/algo_data' in self.output_dir_override:
+        return '/s/'/self.output_dir.relative_to('/stage/algo_data')
+    else:
+      raise NotImplementedError
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
@@ -63,11 +76,16 @@ class CiCommit(Base):
 
 
 
-  def __init__(self, commit, *, project, branch=None):
+  def __init__(self, commit, *, project, branch=None, project_type='git'):
     self.project = project
-    self.repo = repos[project]
+    if project_type == 'git':
+      self.repo = repos[project]
+    else:
+      if not branch: branch='<NA>'
+      self.repo = ''
     self.gitcommit = commit
     self.id = commit.hexsha
+    self.message = commit.message
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
@@ -79,8 +97,13 @@ class CiCommit(Base):
 
   @reconstructor
   def init_on_load(self):
-    self.repo = repos[self.project]
-    self.gitcommit = self.repo.commit(self.id)
+    if self.commit_type == 'git':
+      self.repo = repos[self.project]
+      self.gitcommit = self.repo.commit(self.id)
+    else:
+      self.repo = None
+      self.gitcommit = LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
+
 
 
   @staticmethod
@@ -134,6 +157,7 @@ class CiCommit(Base):
 def latest_successful_commit(branch='origin/develop'):
   """Returns the latest commit on a given branch where we got outputs."""
   # one of those should be successful
+  if not self.repo: return None
   page = 0
   while page < 10:
     commits = self.repo.iter_commits(branch, max_count=20, skip=20*page)

@@ -92,12 +92,18 @@ class Output(Base):
 
   @property
   def output_dir(self):
-    if self.output_dir_override: return self.output_dir_override
+    if self.output_dir_override: return Path(self.output_dir_override)
     return self.batch.output_dir / self.output_folder
 
   @property
   def output_dir_url(self):
-    # todo: update in case we override the output directory
+    if self.output_dir_override:
+      if '/net/f2/algo_archive' in self.output_dir_override:
+        return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
+      if '/stage/algo_data' in self.output_dir_override:
+        return '/s/'/self.output_dir.relative_to('/stage/algo_data')
+    else:
+      raise NotImplementedError
     return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):

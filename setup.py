@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 setup(
   name='slamvizapp',
   version="0.2",
-  packages=find_packages(), 
+  packages=find_packages(),
 
   author="Arthur Flam",
   author_email="arthur.flam@samsung.com",
@@ -33,7 +33,7 @@ setup(
       'slamvizapp_init_database = slamvizapp.scripts.init_database:init_database',
     ]
   },
-  
+
   # https://setuptools.readthedocs.io/en/latest/setuptools.html#including-data-files
   include_package_data=True,
 

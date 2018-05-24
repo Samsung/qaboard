@@ -1,4 +1,3 @@
-from .database import repos
 from .database import db_session, Session
 
 # Configure the flask application
