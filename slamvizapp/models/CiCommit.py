@@ -76,11 +76,13 @@ class CiCommit(Base):
 
 
 
-  def __init__(self, commit, *, project, branch=None, project_type='git'):
+  def __init__(self, commit, *, project, branch=None, commit_type='git'):
     self.project = project
-    if project_type == 'git':
+    if commit_type == 'git':
+      self.commit_type = 'git'
       self.repo = repos[project]
     else:
+      self.commit_type = 'local'
       if not branch: branch='<NA>'
       self.repo = ''
     self.gitcommit = commit

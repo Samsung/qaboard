@@ -12,6 +12,9 @@ from .Batch import aggregated_metrics
 from .Output import Output
 from ..utils import filter_outputs
 
+class Committer():
+  def  __init__(self, name):
+    self.name = name
 
 class LocalGitCommit():
   def __init__(self, hexsha, message, author, authored_datetime):
@@ -19,7 +22,7 @@ class LocalGitCommit():
     self.hexsha = hexsha
     self.message = message
     self.author = author
-    self.committer = {'name': author}
+    self.committer = Committer(author)
     self.committer_name = author
     self.authored_datetime = authored_datetime
     self.parents = [self]

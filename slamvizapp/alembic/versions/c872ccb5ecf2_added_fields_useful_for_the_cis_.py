@@ -27,13 +27,13 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = sa.Column(sa.String, primary_key=True)
   message = sa.Column(sa.String)
-  output_dir_override = sa.Column(sa.String)
+  commit_dir_override = sa.Column(sa.String)
   commit_type = sa.Column(sa.String, default='git')
 
 
 def upgrade():
   op.add_column('ci_commits', sa.Column('message', sa.String))
-  op.add_column('ci_commits', sa.Column('output_dir_override', sa.String))
+  op.add_column('ci_commits', sa.Column('commit_dir_override', sa.String))
   op.add_column('ci_commits', sa.Column('commit_type', sa.String))
   
   repo = repos['dvs/psp_swip']
@@ -49,5 +49,5 @@ def upgrade():
       
 def downgrade():
   op.drop_column('ci_commits', 'message')
-  op.drop_column('ci_commits', 'output_dir_override')
+  op.drop_column('ci_commits', 'commit_dir_override')
   op.drop_column('ci_commits', 'commit_type')
