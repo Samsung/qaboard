@@ -51,7 +51,8 @@ class CiCommit(Base):
   @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
-    if self.commit_dir_override: return Path(commit_dir_override)
+    if self.commit_dir_override is not None:
+      return Path(commit_dir_override)
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
     return ci_directory / self.project / 'commits' / commit_dir_name
 
@@ -62,13 +63,13 @@ class CiCommit(Base):
   @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
-    if self.output_dir_override:
-      if '/net/f2/algo_archive' in self.output_dir_override:
+    if self.commit_dir_override is not None:
+      if '/net/f2/algo_archive' in self.commit_dir_override:
         return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
-      if '/stage/algo_data' in self.output_dir_override:
+      elif '/stage/algo_data' in self.commit_dir_override:
         return '/s/'/self.output_dir.relative_to('/stage/algo_data')
-    else:
-      raise NotImplementedError
+      else:
+        raise NotImplementedError
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
@@ -156,13 +157,13 @@ class CiCommit(Base):
 
 
 
-def latest_successful_commit(branch='origin/develop'):
+def latest_successful_commit(repo=None, branch='origin/develop'):
   """Returns the latest commit on a given branch where we got outputs."""
   # one of those should be successful
-  if not self.repo: return None
+  if not repo: return None
   page = 0
   while page < 10:
-    commits = self.repo.iter_commits(branch, max_count=20, skip=20*page)
+    commits = repo.iter_commits(branch, max_count=20, skip=20*page)
     commit_ids = [c.hexsha for c in commits]
     ci_commits = CiCommit.query\
       .filter(CiCommit.id.in_(commit_ids))\
@@ -175,10 +176,9 @@ def latest_successful_commit(branch='origin/develop'):
 
 def parent_successful_commit(ci_commit):
   """Returns a commit's latest successful parent."""
-  parent_ci_commit = None
   # if we don't have a git repo,
   # we try to find the previous commit on the same "branch"...
-  if not self.repo:
+  if not ci_commit.repo:
     try:
       query = CiCommit.query\
                       .filter(
@@ -191,6 +191,7 @@ def parent_successful_commit(ci_commit):
     except:
       return None
 
+  parent_ci_commit = None
   # we arbitrarly pick the first git parent
   parent_id = ci_commit.gitcommit.parents[0]
   while True:
