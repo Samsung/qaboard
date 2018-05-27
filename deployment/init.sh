@@ -25,9 +25,14 @@ echo '...applying database migrations'
 cd /slamvizapp/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
+# echo '...executing as...'
+# useradd -u 11611 -g 10 arthurf -s /usr/bin/zsh
+# su arthurf
+# runuser -u arthurf -- *
+
 echo '...initializing the database'
-slamvizapp_init_database --scrip-from slam --loop &
-# slamvizapp_init_database --scrip-from cis --loop &
+slamvizapp_init_database --scrap-from slam --loop &
+# slamvizapp_init_database --scrap-from cis --loop &
 # slamvizapp_init_database --verbose
 
 echo '...starting the application'
