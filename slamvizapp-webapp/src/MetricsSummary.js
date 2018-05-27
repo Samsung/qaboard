@@ -88,6 +88,21 @@ const HistogramComparaison = ({ new_values, ref_values, metric }) => {
 	          gridwidth: 1,
 	      },
 	      xaxis: {color: "rgba(0,0,0,0.8)", fixedrange: true, title:''},
+        shapes: [
+            {
+              type: 'line',
+              layer: 'below',
+              x0: -0.5,
+              x1:  1.25,
+              y0: metric.threshold*metric.scale,
+              y1: metric.threshold*metric.scale,
+              line: {
+                color: 'rgba(150, 150, 150, 0.5)',
+                width: 3,
+                dash: 'dashdot',
+              },
+          },
+        ],
 	      showlegend: false,
 	      // margin: {
 	      //     l: 40,
