@@ -25,5 +25,4 @@ if is_windows:
   
 # CIS configuration #########################################################
 # there is more at other locations...
-cis_ci_directory = Path('/stage/algo_data') # often wtf fails
-cis_ci_directory = Path('/opt/dockermounts/stage/algo_data')
+cis_ci_directory = Path('/stage/algo_data')
