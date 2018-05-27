@@ -154,7 +154,8 @@ def list_branches():
 @app.route("/api/v1/commit/<path:commit_id>")
 def get_ci_commit(commit_id=None):
   if not commit_id:
-    ci_commit = latest_successful_commit('origin/develop')
+    repo = repos['dvs/psp_swip']
+    ci_commit = latest_successful_commit(repo, 'origin/develop')
   else:
     try: # we try a commit from git
       repo = repos['dvs/psp_swip']
