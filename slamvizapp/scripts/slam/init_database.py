@@ -58,14 +58,15 @@ def init_slam_database(verbose=False):
         print('[InitDatabase] WARNING: ci_commit is None')
         continue
 
-    print(ci_commit)
-    return
     session.add(ci_commit)
     session.commit()
 
     ci_batch = ci_commit.ci_batch
     could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_batch < datetime.timedelta(hours=3)
-    if not ci_batch.outputs or ci_batch.failed_outputs or ci_batch.pending_outputs or could_be_pending_results:
+    has_failed = len([o for o in ci_batch.outputs if o.is_pending])
+    has_pending = len([o for o in ci_batch.outputs if o.is_failed])
+    # if not ci_batch.outputs or has_pending or has_failed or could_be_pending_results:
+    if not ci_batch.outputs or could_be_pending_results:
       ci_batch.discover_outputs(session)
       if verbose or ci_batch.pending_outputs: print(ci_commit)
       session.add(ci_batch)
