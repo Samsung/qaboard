@@ -244,7 +244,7 @@ class TuningForm extends Component {
       experiment_name: cookies.get('experiment_name') || '',
       platform: cookies.get('platform') || 'lsf',
       configuration: cookies.get('configuration') || 'serial-stereo',
-      selected_group: cookies.get('selected_group') || null,
+      selected_group: cookies.get('selected_group') || '',
       selected_group_info: {
         number_of_recordings: 0,
       },
