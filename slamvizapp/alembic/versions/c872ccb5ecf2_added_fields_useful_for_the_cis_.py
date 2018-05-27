@@ -46,7 +46,8 @@ def upgrade():
       setattr(o, 'message', commit.message) 
     except:
       setattr(o, 'message', '<NA>')
-      
+  session.commit()
+
 def downgrade():
   op.drop_column('ci_commits', 'message')
   op.drop_column('ci_commits', 'commit_dir_override')

@@ -34,6 +34,7 @@ def upgrade():
   # let's home it's all SLAM!
   for o in session.query(Output):
     setattr(o, 'output_type', 'slam/6dof') 
+  session.commit()
 
 def downgrade():
   op.drop_column('outputs', 'output_type')
