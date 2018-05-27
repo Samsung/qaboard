@@ -72,7 +72,7 @@ class CiCommit(Base):
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
-    return f"<CiCommit(id='{self.id}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
+    return f"<CiCommit id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
 
 
 
@@ -132,18 +132,18 @@ class CiCommit(Base):
   def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''
     if users_db:
-      name = self.gitcommit.committer.name
+      name = self.committer_name
       if name in users_db:
         committer_avatar_url = users_db[name]['avatar_url']
       elif name.replace('.', '') in users_db:
         committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
     return {
         'id': self.id,
-        'type': 'git',
+        'type': self.commit_type,
         'branch': self.branch,
         'parents': [p.hexsha for p in self.gitcommit.parents],
-        'message': self.gitcommit.message,
-        'committer_name': self.gitcommit.committer.name,
+        'message': self.message,
+        'committer_name': self.committer_name,
         'committer_avatar_url': committer_avatar_url,
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
@@ -175,13 +175,32 @@ def latest_successful_commit(branch='origin/develop'):
 
 def parent_successful_commit(ci_commit):
   """Returns a commit's latest successful parent."""
-  # we arbitrarly pick the first parent
   parent_ci_commit = None
+  # if we don't have a git repo,
+  # we try to find the previous commit on the same "branch"...
+  if not self.repo:
+    try:
+      query = CiCommit.query\
+                      .filter(
+                        CiCommit.authored_datetime < self.authored_datetime,
+                        CiCommit.branch == self.branch,
+                      )
+      for ci_commit in query:
+        if len(ci_commit.ci_batch.outputs) > 10:
+          return ci_commit
+    except:
+      return None
+
+  # we arbitrarly pick the first git parent
   parent_id = ci_commit.gitcommit.parents[0]
   while True:
     try:
-      parent_ci_commit = CiCommit.query.filter(CiCommit.id == parent_id).one()
+      parent_ci_commit = CiCommit.query\
+                                 .filter(CiCommit.id == parent_id)\
+                                 .order_by(CiCommit.authored_datetime.desc())\
+                                 .one()
     except:
-      continue
-    if parent_ci_commit.ci_batch.outputs > 10:
+      return None
+    if len(parent_ci_commit.ci_batch.outputs) > 10:
       return parent_ci_commit
+    parent_id = parent_ci_commit.gitcommit.parents[0]

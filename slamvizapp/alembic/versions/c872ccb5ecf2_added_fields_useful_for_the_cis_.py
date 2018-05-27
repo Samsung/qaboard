@@ -28,7 +28,7 @@ class CiCommit(Base):
   id = sa.Column(sa.String, primary_key=True)
   message = sa.Column(sa.String)
   commit_dir_override = sa.Column(sa.String)
-  commit_type = sa.Column(sa.String, default='git')
+  commit_type = sa.Column(sa.String)
 
 
 def upgrade():
@@ -45,7 +45,7 @@ def upgrade():
       commit = repo.commit(o.id)
       setattr(o, 'message', commit.message) 
     except:
-      setattr(o, 'message', '<NA>') 
+      setattr(o, 'message', '<NA>')
       
 def downgrade():
   op.drop_column('ci_commits', 'message')

@@ -16,7 +16,6 @@ def init_cis_database(verbose):
     # print(ci_dir_info['path'])
     print(f"{project} by {author}: {ci_dir_info['authored_datetime']:%D %H:%M} -- {ci_dir_info['version']}")
     commit = LocalGitCommit(ci_dir_info['path'].name, ci_dir_info['version'], author, ci_dir_info['authored_datetime'])
-    print(commit.committer)
     ci_commit = CiCommit(commit, project=project, branch='<NA>', commit_type='<NA>')
     print(ci_commit)
     # repo???

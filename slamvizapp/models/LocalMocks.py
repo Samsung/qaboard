@@ -25,6 +25,7 @@ class LocalGitCommit():
     self.committer = Committer(author)
     self.committer_name = author
     self.authored_datetime = authored_datetime
+    self.authored_date = authored_datetime
     self.parents = [self]
 
 

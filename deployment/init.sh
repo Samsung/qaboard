@@ -26,7 +26,8 @@ cd /slamvizapp/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
 echo '...initializing the database'
-slamvizapp_init_database --loop &
+slamvizapp_init_database --scrip-from slam --loop &
+# slamvizapp_init_database --scrip-from cis --loop &
 # slamvizapp_init_database --verbose
 
 echo '...starting the application'

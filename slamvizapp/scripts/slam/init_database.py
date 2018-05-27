@@ -34,7 +34,6 @@ def init_slam_database(verbose=False):
   # ? it would be more complete, but maybe wasteful? we only care about results.
 
   # go over all folders and look for results
-  if verbose: print('import...')
   cicommit_directories = list(cicommits_dir.glob('*__git__*'))
   cicommit_directories.reverse() # update the most recent first
   for cicommit_dir in cicommit_directories:
@@ -50,14 +49,17 @@ def init_slam_database(verbose=False):
       ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
     except NoResultFound:
       try: # the commit might have failed (eg no params.json available)
+        print('[InitDatabase] creating a commit')
         ci_commit = CiCommit(commit, project=project)
       except ValueError:
         print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
         continue
-      if ci_commit is None: # something is wrong, maybe an error opening param.json
+      if ci_commit is None: # something is wrong
         print('[InitDatabase] WARNING: ci_commit is None')
         continue
 
+    print(ci_commit)
+    return
     session.add(ci_commit)
     session.commit()
 

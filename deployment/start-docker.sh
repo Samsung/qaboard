@@ -26,7 +26,7 @@ else
 	DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
 	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
 		#                 frontend               debug            database     https-frontend
-		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
+		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5032:5432 -p0.0.0.0:5001:443"
 	else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
 		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"
@@ -91,6 +91,6 @@ POLICY="--restart always --detach"
 # -i interactive
 # -t pseudo tty
 
-command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG$$CI_DEBUG $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
+command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG${CI_DEBUG} $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
 echo $command
 exec $command
