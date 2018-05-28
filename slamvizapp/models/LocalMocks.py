@@ -229,7 +229,7 @@ class LocalCommit():
   @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
-    return '/s/'/self.commit_dir.relative_to('/net/f2/algo_archive')
+    return '/s/'/self.commit_dir.relative_to('/net/f2')
 
   def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''
