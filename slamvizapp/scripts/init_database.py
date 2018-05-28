@@ -2,6 +2,7 @@
 """
 Initializes or updates the database using information from the filesystem.
 """
+import time
 from pathlib import Path
 
 import click
