@@ -14,7 +14,7 @@ from sqlalchemy import and_
 # from flask_restless import APIManager
 # from flask_restless.serialization import DefaultSerializer
 
-from slamvizapp import app, repo, db_session
+from slamvizapp import app, repos, db_session
 from .models import CiCommit
 from .models.LocalMocks import LocalCommit
 from .models import latest_successful_commit
@@ -38,7 +38,7 @@ def get_group():
 @app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
 def add_batch(hexsha):
   try:
-    commit = repo.commit(hexsha)
+    commit = repos['dvs/psp_swip'].commit(hexsha)
     ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
   except NoResultFound:
     return jsonify("Sorry, the commit id was not found"), 404
@@ -74,7 +74,7 @@ def add_batch(hexsha):
       'bsub -q alg_q -sp 4000 ', # highest priority
       '-o /home/arthurf/dvs/slamvizapp/data/lsf.log ',
       '<< EOF\n'
-      f'  cd {ci_directory}/branches/{main_branch}/psp_swip;\n',
+      f'  cd {ci_directory}/dvs/psp_swip/branches/{main_branch}/psp_swip;\n',
       f"  export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
       f"  export GITLAB_USER_LOGIN='{data['user']}';\n" if data['user'] != 'arthurf' else '',
       f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
@@ -126,6 +126,7 @@ def get_commits(branch=None):
     earliest_commit = None
     new_commits = []
     while page==0 or earliest_commit.authored_datetime >= from_date:
+      repo = repos['dvs/psp_swip']
       new_commits = list(repo.iter_commits(branch, max_count=20, skip=20*page))
       if not new_commits: break
       earliest_commit = new_commits[-1]
@@ -144,6 +145,7 @@ def get_commits(branch=None):
 
 @app.route("/api/v1/branches")
 def list_branches():
+  repo = repos['dvs/psp_swip']
   return jsonify([r.name for r in repo.refs if r.name.startswith('origin/')])
 
 
@@ -152,9 +154,11 @@ def list_branches():
 @app.route("/api/v1/commit/<path:commit_id>")
 def get_ci_commit(commit_id=None):
   if not commit_id:
-    ci_commit = latest_successful_commit('origin/develop')
+    repo = repos['dvs/psp_swip']
+    ci_commit = latest_successful_commit(repo, 'origin/develop')
   else:
     try: # we try a commit from git
+      repo = repos['dvs/psp_swip']
       commit = repo.commit(commit_id)
       ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
     except BadName:
@@ -190,17 +194,17 @@ def get_ci_commit(commit_id=None):
 #       'branch': self.branch,
 #       'message': self.gitcommit.message,
 #       'authored_datetime': self.authored_datetime,
-#       'time_of_last_slam_job': self.time_of_last_slam_job,
+#       'time_of_last_batch': self.time_of_last_batch,
 #       'commit_dir_url': self.commit_dir_url,
 #       'aggregated_metrics': self.aggregated_metrics(),
 #       'failure_count': self.failure_count(),
-#       'valid_slam_outputs': [o.id for o in self.valid_slam_outputs],
+#       'valid_outputs': [o.id for o in self.valid_outputs],
 #     }
 
 
 # manager.create_api(CiCommit,
 #   methods=['GET', 'POST', 'DELETE'],
-#   #   # exclude_columns=['slam_outputs'],
+#   #   # exclude_columns=['outputs'],
 #   # serializer_class=CiCommitSerializer,
 #   #   # includes = ['name', 'birth_date', 'computers', 'computers.vendor']
 # )
@@ -212,7 +216,7 @@ def get_ci_commit(commit_id=None):
 #   methods=['GET', 'POST', 'DELETE'],
 # #   # results_per_page=40,
 # )
-# manager.create_api(SlamOutput,
+# manager.create_api(Output,
 #   methods=['GET', 'POST', 'DELETE'],
 # #   # results_per_page=40,
 # )

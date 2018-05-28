@@ -2,13 +2,13 @@ import json
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
-from slamvizapp import app, repo, db_session
-from .models import CiCommit, SlamOutput, Recording
+from slamvizapp import app, repos, db_session
+from .models import CiCommit, Output, Recording
 from .git_utils import git_pull
 
 
-@app.route('/api/v1/slam_output', methods=['POST'])
-def new_slam_output_webhook():
+@app.route('/api/v1/output', methods=['POST'])
+def new_output_webhook():
   data = request.get_json()
   if data['job_type'] != 'ci': # we do nothing for now with local runs
     print(data['output_directory'])
@@ -16,7 +16,8 @@ def new_slam_output_webhook():
 
   hexsha = request.json['git_commit_sha']
   try:
-    ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha)
+    repo = repos['dvs/psp_swip']
+    ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha, repo=repo)
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
@@ -24,7 +25,7 @@ def new_slam_output_webhook():
   if not recording: return "KO", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
-  slam_output = SlamOutput.get_or_create(db_session,
+  output = Output.get_or_create(db_session,
                                          batch=batch,
                                          platform=data['platform'],
                                          configuration=data['configuration'],
@@ -32,14 +33,14 @@ def new_slam_output_webhook():
                                          recording=recording,
                                         )
   if request.json.get('is_running', False):
-    slam_output.is_running = True
-    slam_output.is_pending = True
+    output.is_running = True
+    output.is_pending = True
   elif request.json.get('is_pending', False):
-    slam_output.is_pending = True
+    output.is_pending = True
   else:
-    slam_output.update_metrics()
+    output.update_metrics()
 
-  db_session.add(slam_output)
+  db_session.add(output)
   db_session.commit()
   return "OK"
 
@@ -47,10 +48,13 @@ def new_slam_output_webhook():
 @app.route('/webhook/gitlab', methods=['GET', 'POST'])
 def gitlab_webhook():
   """Gitlab calls this endpoint every push, it garantees we stay synced."""
+  # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
   print(data)
-
-  git_pull()
+  # dvs/psp_swip
+  project_path = data['project']['path_with_namespace']
+  repo = repos[project_path]
+  git_pull(repo)
 
   # we can't create a commit now as we're missing default params.json
   # we should look into the commit data etc...
@@ -65,7 +69,7 @@ def gitlab_webhook():
     try: # the commit might have failed (eg no params.json available)
       ci_commit = CiCommit(
           commit,
-          project='dvs/psp_swip',
+          project=project_path,
           branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
       )
       print(ci_commit)

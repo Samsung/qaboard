@@ -12,18 +12,18 @@ const Plot = createPlotlyComponent(Plotly);
 const config = {};
 
 
-const Sensibility1DLines = ({ slam_outputs, metric, parameter, layout }) => {
-  let slam_outputs_by_recording = groupBy(Object.values(slam_outputs), "recording_path");
-  let traces = Object.entries(slam_outputs_by_recording)
-                     .map( ([recording_path, slam_outputs_for_recording]) => {
-                        let slam_outputs = slam_outputs_for_recording
+const Sensibility1DLines = ({ outputs, metric, parameter, layout }) => {
+  let outputs_by_recording = groupBy(Object.values(outputs), "recording_path");
+  let traces = Object.entries(outputs_by_recording)
+                     .map( ([recording_path, outputs_for_recording]) => {
+                        let outputs = outputs_for_recording
                                            .filter( o => !o.is_pending && !o.is_failed)
                                            .sort( (a,b) => a.extra_parameters[parameter] - b.extra_parameters[parameter])
                         return {
                           type: 'scatter',
                           name: recording_path,
-                          x: slam_outputs.map(o => o.extra_parameters[parameter]),
-                          y: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
+                          x: outputs.map(o => o.extra_parameters[parameter]),
+                          y: outputs.map(o => o.metrics[metric.key] * metric.scale),
                           marker: {
                             size: 4,
                             // color: Colors.ORANGE4,
@@ -62,22 +62,22 @@ const Sensibility1DLines = ({ slam_outputs, metric, parameter, layout }) => {
   return <Plot data={traces} layout={layout_} config={config}/>
 }
 
-const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter, layout }) => {
-  let slam_outputs_values = Object.values(slam_outputs)
+const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
+  let outputs_values = Object.values(outputs)
                             .map(o => ({
                               ...o,
                               extra_parameter: o.extra_parameters[parameter]
                             }) );
-  let slam_outputs_by_param = groupBy(slam_outputs_values, "extra_parameter");
-  let traces = Object.entries(slam_outputs_by_param)
-                     .map( ([param_value, slam_outputs_for_recording]) => {
-                        let slam_outputs = slam_outputs_for_recording
+  let outputs_by_param = groupBy(outputs_values, "extra_parameter");
+  let traces = Object.entries(outputs_by_param)
+                     .map( ([param_value, outputs_for_recording]) => {
+                        let outputs = outputs_for_recording
                                            .filter( o => !o.is_pending && !o.is_failed)
                         return {
                           type: 'box',
                           name: param_value,
-                          x: slam_outputs.map(o => o.extra_parameters[parameter]),
-                          y: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
+                          x: outputs.map(o => o.extra_parameters[parameter]),
+                          y: outputs.map(o => o.metrics[metric.key] * metric.scale),
                           marker: {
                             color: Colors.ORANGE3,
                           },
@@ -115,37 +115,37 @@ const Sensibility1DBoxplots = ({ slam_outputs, metric, parameter, layout }) => {
 // showLowerHalf: true,
 // dimensions: parameters.map(p => ({
 //   label: p,
-//   values: slam_outputs.map(o => o.metrics[metric.key] * metric.scale),
+//   values: outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
 const average = array => {
   return array.reduce( (a,b) => (a+b) , 0) / array.length;
 }
 
-const Sensibility2DContour = ({ slam_outputs, metric, parameters, layout }) => {
+const Sensibility2DContour = ({ outputs, metric, parameters, layout }) => {
   // https://plot.ly/javascript/reference/#contour
   // https://plot.ly/javascript/contour-plots/
-  let slam_outputs_ok = Object.values(slam_outputs).filter( o => !o.is_pending && !o.is_failed);
+  let outputs_ok = Object.values(outputs).filter( o => !o.is_pending && !o.is_failed);
   // todo: aggregate median/mean per recording..
 
-  let slam_outputs_by_param = groupByObject(slam_outputs_ok, "extra_parameters");
-  // console.log(slam_outputs_by_param)
+  let outputs_by_param = groupByObject(outputs_ok, "extra_parameters");
+  // console.log(outputs_by_param)
 
-  let slam_outputs_aggregated = Object.entries(slam_outputs_by_param).map( ([extra_parameters, outputs]) => {
+  let outputs_aggregated = Object.entries(outputs_by_param).map( ([extra_parameters, outputs]) => {
     Object.values(slam_metrics).forEach( m => {
       let values = outputs.map( o => o.metrics[m.key]).filter(x => x!==undefined)
       outputs[0].metrics[m.key] = average(values)
     })
     return outputs[0]
   })
-  // console.log(slam_outputs_aggregated)
+  // console.log(outputs_aggregated)
 
   let traces = [{
     type: 'contour',
-    x: slam_outputs_aggregated.map(o => o.extra_parameters[parameters[0]]),
-    y: slam_outputs_aggregated.map(o => o.extra_parameters[parameters[1]]),
+    x: outputs_aggregated.map(o => o.extra_parameters[parameters[0]]),
+    y: outputs_aggregated.map(o => o.extra_parameters[parameters[1]]),
     // a matrix???/
-    z: slam_outputs_aggregated.map(o => o.metrics[metric.key] * metric.scale),
+    z: outputs_aggregated.map(o => o.metrics[metric.key] * metric.scale),
     contours: {
       coloring: 'heatmap', // apply a gradient within each contour
       showlabels: true,
@@ -224,7 +224,7 @@ class TuningExploration extends Component {
 
     // tuned_parameters holds all tuning values used for each parameter
     let tuned_parameters = {};
-    Object.entries(batch.slam_outputs).forEach( ([id, o]) =>{
+    Object.entries(batch.outputs).forEach( ([id, o]) =>{
       Object.entries(o.extra_parameters).forEach( ([param,value]) => {
         if (tuned_parameters[param]===undefined)
           tuned_parameters[param] = new Set()
@@ -245,11 +245,11 @@ class TuningExploration extends Component {
 
     let show_2d_sensibility = sorted_parameters.length>1 && tuned_parameters[sorted_parameters[1]].size>1;
 
-    let total_slam_runs = Object.keys(batch.slam_outputs).length;
-    let number_recordings = Object.keys(groupBy(Object.values(batch.slam_outputs), "recording_path")).length;
+    let total_outputs = Object.keys(batch.outputs).length;
+    let number_recordings = Object.keys(groupBy(Object.values(batch.outputs), "recording_path")).length;
 
     return <Section>
-      <h3>{total_slam_runs} SLAM runs over {number_recordings} recordings</h3>
+      <h3>{total_outputs} SLAM results over {number_recordings} recordings</h3>
       <h4>Sensibility analysis</h4>
       <FormGroup inline labelFor="select-parameter" helperText="Shown on the X-axis">
         <div className="pt-select pt-minimal">
@@ -275,11 +275,11 @@ class TuningExploration extends Component {
       </FormGroup>
       {show_2d_sensibility && <div>
         <p>Everything is interpolated, so don't rush to conclusions.</p>
-        <Sensibility2DContour slam_outputs={batch.slam_outputs} metric={metric} parameters={[selected_parameter, selected_parameter_2]} />
+        <Sensibility2DContour outputs={batch.outputs} metric={metric} parameters={[selected_parameter, selected_parameter_2]} />
       </div>}
-      <Sensibility1DBoxplots slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
+      <Sensibility1DBoxplots outputs={batch.outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
       <h4>Breakdown by recording</h4>
-      <Sensibility1DLines slam_outputs={batch.slam_outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
+      <Sensibility1DLines outputs={batch.outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
     </Section>
   }
 }

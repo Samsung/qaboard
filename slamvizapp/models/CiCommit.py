@@ -1,14 +1,15 @@
 """
 A version of the code on which we ran SLAM performance test.
 """
+from pathlib import Path
 from sqlalchemy.orm import relationship, reconstructor
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import Column
 from sqlalchemy import String, DateTime
 
-from slamvizapp import repo
+from slamvizapp import repos
 from slamvizapp.models import Base, Batch
-# from ..utils import get_users_per_name
+from slamvizapp.models.LocalMocks import LocalGitCommit
 from ..git_utils import find_branch
 from ..config import ci_directory
 
@@ -20,11 +21,15 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = Column(String, primary_key=True) # git commit id
 
-  project = Column(String(), default='dvs/psp_swip')
+  project = Column(String())
   branch = Column(String()) # first added as.. we ignore tags?
+  message = Column(String())
   committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True))
 
+  commit_dir_override = Column(String())
+  commit_type = Column(String(), default='git')
+  
   batches = relationship("Batch", order_by=Batch.created_date, back_populates="ci_commit")
 
   def get_or_create_batch(self, label):
@@ -46,8 +51,10 @@ class CiCommit(Base):
   @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
+    if self.commit_dir_override is not None:
+      return Path(commit_dir_override)
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
-    return ci_directory / 'commits' / commit_dir_name
+    return ci_directory / self.project / 'commits' / commit_dir_name
 
   @property
   def authored_date(self):
@@ -56,20 +63,36 @@ class CiCommit(Base):
   @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
+    if self.commit_dir_override is not None:
+      if '/net/f2/algo_archive' in self.commit_dir_override:
+        return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
+      elif '/stage/algo_data' in self.commit_dir_override:
+        return '/s/'/self.output_dir.relative_to('/stage/algo_data')
+      else:
+        raise NotImplementedError
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
-    return f"<CiCommit(id='{self.id}' ci_batch.slam_outputs={len(self.ci_batch.slam_outputs)}>"
+    return f"<CiCommit id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
 
 
 
-  def __init__(self, commit, project='dvs/psp_swip', branch=None):
+  def __init__(self, commit, *, project, branch=None, commit_type='git'):
+    self.project = project
+    if commit_type == 'git':
+      self.commit_type = 'git'
+      self.repo = repos[project]
+    else:
+      self.commit_type = 'local'
+      if not branch: branch='<NA>'
+      self.repo = ''
     self.gitcommit = commit
     self.id = commit.hexsha
+    self.message = commit.message
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
-      self.branch = find_branch(self.gitcommit.hexsha)
+      self.branch = find_branch(self.gitcommit.hexsha, self.repo)
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_batch = commit.authored_datetime
     self.committer_name = commit.committer.name
@@ -77,11 +100,17 @@ class CiCommit(Base):
 
   @reconstructor
   def init_on_load(self):
-    self.gitcommit = repo.commit(self.id)
+    if self.commit_type == 'git':
+      self.repo = repos[self.project]
+      self.gitcommit = self.repo.commit(self.id)
+    else:
+      self.repo = None
+      self.gitcommit = LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
+
 
 
   @staticmethod
-  def get_or_create(session, hexsha):
+  def get_or_create(session, hexsha, repo):
     try:
       commit = repo.commit(hexsha)
     except:
@@ -104,18 +133,18 @@ class CiCommit(Base):
   def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''
     if users_db:
-      name = self.gitcommit.committer.name
+      name = self.committer_name
       if name in users_db:
         committer_avatar_url = users_db[name]['avatar_url']
       elif name.replace('.', '') in users_db:
         committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
     return {
         'id': self.id,
-        'type': 'git',
+        'type': self.commit_type,
         'branch': self.branch,
         'parents': [p.hexsha for p in self.gitcommit.parents],
-        'message': self.gitcommit.message,
-        'committer_name': self.gitcommit.committer.name,
+        'message': self.message,
+        'committer_name': self.committer_name,
         'committer_avatar_url': committer_avatar_url,
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
@@ -128,9 +157,10 @@ class CiCommit(Base):
 
 
 
-def latest_successful_commit(branch='origin/develop'):
+def latest_successful_commit(repo=None, branch='origin/develop'):
   """Returns the latest commit on a given branch where we got outputs."""
   # one of those should be successful
+  if not repo: return None
   page = 0
   while page < 10:
     commits = repo.iter_commits(branch, max_count=20, skip=20*page)
@@ -138,7 +168,7 @@ def latest_successful_commit(branch='origin/develop'):
     ci_commits = CiCommit.query\
       .filter(CiCommit.id.in_(commit_ids))\
       .order_by(CiCommit.authored_datetime.desc())
-    ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.slam_outputs) > 10]
+    ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
     if ci_commits_successful: return ci_commits_successful[0]
     page = page + 1
 
@@ -146,13 +176,32 @@ def latest_successful_commit(branch='origin/develop'):
 
 def parent_successful_commit(ci_commit):
   """Returns a commit's latest successful parent."""
-  # we arbitrarly pick the first parent
+  # if we don't have a git repo,
+  # we try to find the previous commit on the same "branch"...
+  if not ci_commit.repo:
+    try:
+      query = CiCommit.query\
+                      .filter(
+                        CiCommit.authored_datetime < self.authored_datetime,
+                        CiCommit.branch == self.branch,
+                      )
+      for ci_commit in query:
+        if len(ci_commit.ci_batch.outputs) > 10:
+          return ci_commit
+    except:
+      return None
+
   parent_ci_commit = None
+  # we arbitrarly pick the first git parent
   parent_id = ci_commit.gitcommit.parents[0]
   while True:
     try:
-      parent_ci_commit = CiCommit.query.filter(CiCommit.id == parent_id).one()
+      parent_ci_commit = CiCommit.query\
+                                 .filter(CiCommit.id == parent_id)\
+                                 .order_by(CiCommit.authored_datetime.desc())\
+                                 .one()
     except:
-      continue
-    if parent_ci_commit.ci_batch.slam_outputs > 10:
+      return None
+    if len(parent_ci_commit.ci_batch.outputs) > 10:
       return parent_ci_commit
+    parent_id = parent_ci_commit.gitcommit.parents[0]

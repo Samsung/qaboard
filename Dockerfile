@@ -106,4 +106,11 @@ EXPOSE 5000
 EXPOSE 80
 EXPOSE 443
 
+# some of our NFS mounts seem to use squash_root
+# eg /stage/algo_data
+# this forces us to acces them with a regular SIRC user
+# and dance around with sudo
+RUN useradd -u 11611 -g 10 arthurf --shell /bin/bash --no-create-home
+RUN echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+USER arthurf
 CMD deployment/init.sh

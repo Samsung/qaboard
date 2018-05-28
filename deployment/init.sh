@@ -7,20 +7,23 @@ export LANG=C.UTF-8
 echo 'starting'
 
 echo '...preparing ssh-agent'
-echo -e '#!/usr/bin/env bash\necho "${SSH_PASSPHRASE}"' > /root/askpass; chmod +x /root/askpass
-export SSH_ASKPASS=/root/askpass
+export SSH_ASKPASS=$HOME/askpass
+echo -e '#!/usr/bin/env bash\necho "${SSH_PASSPHRASE}"' > $SSH_ASKPASS; chmod +x $SSH_ASKPASS
 eval `ssh-agent`
-DISPLAY= setsid ssh-add /root/.ssh/id_rsa
-ssh-keyscan gitlab-srv >> ~/.ssh/known_hosts
+DISPLAY= setsid ssh-add $HOME/.ssh/id_rsa
+# now that we use arthurf as user, we may not need this...
+# TODO: clean this...
+# ssh-keyscan gitlab-srv >> $HOME/.ssh/known_hosts
 
-nginx &
+# TODO: Maybe this can be removed once the old volumes
+# are owned by arthurf and not root 
+sudo chown -R arthurf:uucp /var/slamvizapp
 
-echo '...cloning dvs/psp_swip'
-cd /var/slamvizapp
-git clone -q git@gitlab-srv:dvs/psp_swip || cd psp_swip && git fetch origin
+
+sudo nginx &
 
 echo '...starting the database'
-/etc/init.d/postgresql start &
+sudo /etc/init.d/postgresql start &
 # sudo -u postgres /usr/lib/postgresql/9.6/bin/postgres \
 #   -D /var/lib/postgresql/9.6/main \
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &
@@ -29,16 +32,24 @@ echo '...applying database migrations'
 cd /slamvizapp/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
+# echo '...executing as...'
+# useradd -u 11611 -g 10 arthurf -s /usr/bin/zsh
+# su arthurf
+# runuser -u arthurf -- *
+
 echo '...initializing the database'
-slamvizapp_init_database --loop &
+slamvizapp_init_database --scrap-from slam --loop &
+# slamvizapp_init_database --scrap-from cis --loop &
 # slamvizapp_init_database --verbose
 
 echo '...starting the application'
-sleep 5
-cd /slamvizapp && /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
+sleep 2
+sudo chmod 777 /slamvizapp/deployment/
+cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
+
 # export LC_ALL=C.UTF-8
 # export LANG=C.UTF-8
-# cd /slamvizapp && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002
+cd /slamvizapp && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
 
 # command
 # status=$?

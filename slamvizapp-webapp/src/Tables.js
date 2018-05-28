@@ -65,7 +65,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, metrics, input }) => 
         </tr>
       </thead>
       <tbody>
-      {Object.entries(new_batch.slam_outputs)
+      {Object.entries(new_batch.outputs)
              .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(output_sort)
              .map( ([id, output]) => {
@@ -114,7 +114,7 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype, me
         </tr>
       </thead>
       <tbody>
-      {Object.entries(new_batch.slam_outputs)
+      {Object.entries(new_batch.outputs)
              .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(this.sortOutputs)
              .map( ([id, output]) => {

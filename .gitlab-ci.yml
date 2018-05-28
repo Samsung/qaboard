@@ -40,6 +40,21 @@ test-frontend:
 # we could run more tests with: 
 #    - CI=true yarn test
 
+deploy_cis_integration:
+  stage: deploy
+  script:
+    - update_lsf
+    - ssh gpu09-dt "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; docker build -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+  environment:
+    name: cis
+    url: http://dvs:10000
+  only:
+    - feature/cis-projects
+
 deploy_staging:
   stage: deploy
   script:

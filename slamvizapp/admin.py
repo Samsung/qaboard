@@ -7,7 +7,7 @@ from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 
 from slamvizapp import app, db_session
-from slamvizapp.models import Recording, CiCommit, Batch, Parameters #, SlamOutput 
+from slamvizapp.models import Recording, CiCommit, Batch, Parameters #, Output 
 
 admin = Admin(app, name='slamvizapp',
               template_mode='bootstrap3',
@@ -17,7 +17,7 @@ admin = Admin(app, name='slamvizapp',
 
 
 # we don't want to display those
-one_to_many_columns = ['slam_outputs',]
+one_to_many_columns = ['outputs',]
 editable_columns = set(c.name for c in Recording.metadata.tables['recordings'].columns
                       ) - set(['path'])
 
@@ -42,6 +42,6 @@ class RecordingModelView(ModelView):
 
 admin.add_view(RecordingModelView(Recording, db_session))
 admin.add_view(ModelView(CiCommit, db_session))
-# admin.add_view(ModelView(SlamOutput, db_session))
+# admin.add_view(ModelView(Output, db_session))
 admin.add_view(ModelView(Batch, db_session))
 admin.add_view(ModelView(Parameters, db_session))

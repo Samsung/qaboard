@@ -27,7 +27,7 @@ class Recording(Base):
   # Relative to the root of the database folder
   path = Column(String(), index=True, unique=True)
 
-  slam_outputs = relationship("SlamOutput", back_populates="recording",
+  outputs = relationship("Output", back_populates="recording",
                               # If we delete a recording, the corresponding outputs are kept,
                               # and their recording_id is set to NULL.
                               # To change this behaviour, uncomment

@@ -315,8 +315,8 @@ class CiCommitResults extends Component {
     let filter_tokens = filter_values.split(' ');
 
     let batch_filtered = Object.create(batch)
-    batch_filtered.slam_outputs = {}
-    Object.entries(batch.slam_outputs).forEach( ([id, output])=> {
+    batch_filtered.outputs = {}
+    Object.entries(batch.outputs).forEach( ([id, output])=> {
       let extra_parameters_s = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
       let extra_parameters = extra_parameters_s.replace(/"/g, '');
       let searched = `${output.recording_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
@@ -332,7 +332,7 @@ class CiCommitResults extends Component {
         }    
       }
       if (found)
-        batch_filtered.slam_outputs[id] = output;      
+        batch_filtered.outputs[id] = output;      
     });
     return batch_filtered;
   }
@@ -471,9 +471,9 @@ class CiCommitResults extends Component {
 
     let new_batch_filtered = this.filter_batch(new_batch)
     let ref_batch_filtered = this.filter_batch(ref_batch)
-    let nb_running = Object.values(new_batch_filtered.slam_outputs).filter( o=>o.is_running ).length;
-    let nb_pending = Object.values(new_batch_filtered.slam_outputs).filter( o=>o.is_pending && !o.is_running ).length;
-    let nb_failed = Object.values(new_batch_filtered.slam_outputs).filter( o=>o.is_failed ).length;
+    let nb_running = Object.values(new_batch_filtered.outputs).filter( o=>o.is_running ).length;
+    let nb_pending = Object.values(new_batch_filtered.outputs).filter( o=>o.is_pending && !o.is_running ).length;
+    let nb_failed = Object.values(new_batch_filtered.outputs).filter( o=>o.is_failed ).length;
 
     let status_messages = (
       <Section>
@@ -484,7 +484,7 @@ class CiCommitResults extends Component {
             title={
               <Tooltip>
               <span>{nb_running} result{nb_running>1 ? 's' : ''} running</span>
-              <ul>{Object.values(new_batch_filtered.slam_outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <ul>{Object.values(new_batch_filtered.outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
@@ -495,7 +495,7 @@ class CiCommitResults extends Component {
             title={
               <Tooltip>
               <span>{nb_pending} result{nb_pending>1 ? 's' : ''} pending</span>
-              <ul>{Object.values(new_batch_filtered.slam_outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <ul>{Object.values(new_batch_filtered.outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
@@ -508,7 +508,7 @@ class CiCommitResults extends Component {
             {new_batch_filtered.label==='default' && <p>Maybe the logs (below) can help debug this.</p>}
             <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
             <ul>
-              {Object.values( new_batch_filtered.slam_outputs )
+              {Object.values( new_batch_filtered.outputs )
                      .filter( o=>o.is_failed )
                      .map( o=> <li key={o.id}>
                                  <Tag intent={Intent.DANGER} className="pt-minimal">{`${o.configuration} @${o.platform}`}</Tag> <strong>{o.recording_path}</strong>
@@ -570,7 +570,7 @@ class CiCommitResults extends Component {
               </div>
             </div>
 
-            <FormGroup label="Filter all results" labelFor="filter-input" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.slam_outputs).length} selected)`}>
+            <FormGroup label="Filter all results" labelFor="filter-input" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.outputs).length} selected)`}>
               <InputGroup
                 value={this.state.filter_values}
                 placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
@@ -702,7 +702,7 @@ class OutputList extends React.Component {
                             </FormGroup>}
             {ref_batch.label!=='default' && <Callout intent={Intent.WARNING}>We compare each output to <strong>any</strong> reference outputs with matching recording+configuration+platform, <strong>without looking at the tuning parameters</strong>.</Callout>}
             <div style={{display:'flex', justifyContent: 'space-between', flexFlow: 'row wrap'}}>
-              {Object.entries(new_batch.slam_outputs)
+              {Object.entries(new_batch.outputs)
                      .sort(output_sort)
                      .map( ([id, output]) => {
                         let { output_ref, warning } = matching_output({output: output, batch:ref_batch});

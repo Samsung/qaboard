@@ -22,21 +22,30 @@ from sqlalchemy import cast, type_coerce
 from slamvizapp.models import Base
 
 
-class SlamOutput(Base):
-  __tablename__ = 'slam_outputs'
+class Output(Base):
+  __tablename__ = 'outputs'
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
-  # What we ran
+  ####  Where results are stored (eg logs, images, 6dof, whatever)
+  # It is easier if there is a centralized way of storing results, but
+  # we let people override this to use disk with different quotas
+  # or even random folder (like for the CIS projects) 
+  output_dir_override = Column(String())
+
+  #### What we ran
+  # Different output types (slam/6dof, cis/siemens...) are visualized differently
+  output_type = Column(String())
+
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
-  recording = relationship("Recording", back_populates="slam_outputs")
+  recording = relationship("Recording", back_populates="outputs")
 
   batch_id = Column(Integer(), ForeignKey('batches.id'))
-  batch = relationship("Batch", back_populates="slam_outputs")
+  batch = relationship("Batch", back_populates="outputs")
 
-  # How we ran
+  #### How we ran
   recording_id = Column(Integer(), ForeignKey('recordings.id'))
-  recording = relationship("Recording", back_populates="slam_outputs")
+  recording = relationship("Recording", back_populates="outputs")
 
   platform = Column(String()) # lsf/s8/...
   # SLAM runs use params.json, $configuration.json, and the extra parameters for tuning
@@ -45,7 +54,7 @@ class SlamOutput(Base):
   # we will need to save the association parameters<->hash
   extra_parameters = Column(JSON(), default={})
 
-  # How good we ran
+  #### How good we ran
   is_pending = Column(Boolean(), default=False)
   is_running = Column(Boolean(), default=False)
   is_failed = Column(Boolean(), default=False)
@@ -64,7 +73,7 @@ class SlamOutput(Base):
         setattr(self, 'metrics', metrics)
         if 'is_failed' in metrics: setattr(self, 'is_failed', metrics['is_failed'])
     except:
-      print(f'[WARNING] SlamOutput.update_metrics: failed to read {filepath}')
+      print(f'[WARNING] Output.update_metrics: failed to read {filepath}')
       # we *could* return False then consider the run crashed if more than X time has passed...
       # metrics = {'is_failed': True}
       # metrics = {}
@@ -83,14 +92,23 @@ class SlamOutput(Base):
 
   @property
   def output_dir(self):
+    if self.output_dir_override is not None:
+      return Path(self.output_dir_override)
     return self.batch.output_dir / self.output_folder
 
   @property
   def output_dir_url(self):
+    if self.output_dir_override is not None:
+      if '/net/f2/algo_archive' in self.output_dir_override:
+        return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
+      elif '/stage/algo_data' in self.output_dir_override:
+        return '/s/'/self.output_dir.relative_to('/stage/algo_data')
+      else:
+        raise NotImplementedError
     return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):
-    return f"<SlamOutput \
+    return f"<Output \
               ci_commit_id='{self.batch.ci_commit_id}' \
               batch='{self.batch.label}' \
               platform='{self.platform}' \
@@ -98,7 +116,7 @@ class SlamOutput(Base):
               filename='{self.recording.filename}' />"
 
   def to_dict(self):
-    as_dict = {c.name:getattr(self, c.name) for c in Base.metadata.tables['slam_outputs'].columns}
+    as_dict = {c.name:getattr(self, c.name) for c in Base.metadata.tables['outputs'].columns}
     return {
         **as_dict,
         'output_dir_url': str(self.output_dir_url),
@@ -109,46 +127,46 @@ class SlamOutput(Base):
   def get_or_create(session, **kwargs):
     extra_parameters_json = type_coerce(kwargs['extra_parameters'], JSON)
     try:
-      return session.query(SlamOutput).filter(
+      return session.query(Output).filter(
           and_(
-              SlamOutput.batch_id == kwargs['batch'].id,
-              SlamOutput.recording_id == kwargs['recording'].id,
-              SlamOutput.platform == kwargs['platform'],
-              SlamOutput.configuration == kwargs['configuration'],
-              cast(SlamOutput.extra_parameters, String) == extra_parameters_json,
+              Output.batch_id == kwargs['batch'].id,
+              Output.recording_id == kwargs['recording'].id,
+              Output.platform == kwargs['platform'],
+              Output.configuration == kwargs['configuration'],
+              cast(Output.extra_parameters, String) == extra_parameters_json,
           )
       ).one()
     except NoResultFound:
-      slam_output = SlamOutput(
+      output = Output(
           batch=kwargs['batch'],
           recording=kwargs['recording'],
           platform=kwargs['platform'],
           configuration=kwargs['configuration'],
           extra_parameters=kwargs['extra_parameters'],
       )
-      session.add(slam_output)
+      session.add(output)
       session.commit()
-      return slam_output
+      return output
 
     except MultipleResultsFound:
       print('WARNING: MultipleResultsFound')
       # this should not happen. Quick and dirty fix:
-      slam_output = session.query(SlamOutput).filter(
+      output = session.query(Output).filter(
           and_(
-              SlamOutput.batch_id == kwargs['batch'].id,
-              SlamOutput.recording_id == kwargs['recording'].id,
-              SlamOutput.platform == kwargs['platform'],
-              SlamOutput.configuration == kwargs['configuration'],
-              cast(SlamOutput.extra_parameters, String) == extra_parameters_json,
+              Output.batch_id == kwargs['batch'].id,
+              Output.recording_id == kwargs['recording'].id,
+              Output.platform == kwargs['platform'],
+              Output.configuration == kwargs['configuration'],
+              cast(Output.extra_parameters, String) == extra_parameters_json,
           )
       ).delete()
-      slam_output = SlamOutput(
+      output = Output(
           batch=kwargs['batch'],
           recording=kwargs['recording'],
           platform=kwargs['platform'],
           configuration=kwargs['configuration'],
           extra_parameters=kwargs['extra_parameters'],
       )
-      session.add(slam_output)
+      session.add(output)
       session.commit()
-      return slam_output
+      return output

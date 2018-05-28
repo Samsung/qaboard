@@ -88,6 +88,21 @@ const HistogramComparaison = ({ new_values, ref_values, metric }) => {
 	          gridwidth: 1,
 	      },
 	      xaxis: {color: "rgba(0,0,0,0.8)", fixedrange: true, title:''},
+        shapes: [
+            {
+              type: 'line',
+              layer: 'below',
+              x0: -0.5,
+              x1:  1.25,
+              y0: metric.threshold*metric.scale,
+              y1: metric.threshold*metric.scale,
+              line: {
+                color: 'rgba(150, 150, 150, 0.5)',
+                width: 3,
+                dash: 'dashdot',
+              },
+          },
+        ],
 	      showlegend: false,
 	      // margin: {
 	      //     l: 40,
@@ -210,14 +225,14 @@ class MetricsSummary extends Component {
 
   render() {
     const { new_batch, ref_batch } = this.props;
-    let slam_outputs_new = Object.values(new_batch.slam_outputs)
+    let outputs_new = Object.values(new_batch.outputs)
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
-    let run_types_new = new Set(slam_outputs_new.map(o => run_type(o)))
-    let slam_outputs_ref = Object.values(ref_batch.slam_outputs)
+    let run_types_new = new Set(outputs_new.map(o => run_type(o)))
+    let outputs_ref = Object.values(ref_batch.outputs)
                                  .filter(o => run_types_new.has(run_type(o)))
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
-    run_types_new = new Set(slam_outputs_new.map(o => o.recording_path))
-    slam_outputs_ref = Object.values(ref_batch.slam_outputs)
+    run_types_new = new Set(outputs_new.map(o => o.recording_path))
+    outputs_ref = Object.values(ref_batch.outputs)
                                  .filter(o => run_types_new.has(o.recording_path))
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
 
@@ -227,7 +242,7 @@ class MetricsSummary extends Component {
 
     // what parameters were changed?
     let tuned_parameters = new Set()
-    Object.entries(new_batch.slam_outputs).forEach( ([id, o]) =>{
+    Object.entries(new_batch.outputs).forEach( ([id, o]) =>{
       Object.keys(o.extra_parameters).forEach( p => {
         tuned_parameters.add(p)
       })
@@ -248,12 +263,12 @@ class MetricsSummary extends Component {
           popoverProps={Classes.MINIMAL}
       />
       {selected_metrics.map( m => {
-          let new_values = slam_outputs_new
+          let new_values = outputs_new
                            .map(o=>o.metrics[m.key])
                            .filter(x => x!==undefined)
                            .map(o=>1*o);
           if (new_values.length===0) return <Fragment key={m.key}/>
-          let ref_values = slam_outputs_ref.map(o=>o.metrics[m.key]).filter(x => x!==undefined);
+          let ref_values = outputs_ref.map(o=>o.metrics[m.key]).filter(x => x!==undefined);
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
           let new_pc_good = m.smaller_is_better ? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)
