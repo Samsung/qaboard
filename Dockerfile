@@ -112,5 +112,5 @@ EXPOSE 443
 # and dance around with sudo
 RUN useradd -u 11611 -g 10 arthurf
 RUN echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-USER arthurf:11611
+USER arthurf
 CMD deployment/init.sh

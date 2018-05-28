@@ -85,8 +85,13 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:
 # --ip6
 
 # Container lifecycle:
-POLICY="--restart always --detach"
-POLICY="--rm -it"
+if [ -z ${CI_DEBUG+x} ]; then
+  echo 'Always-on'
+  POLICY="--restart always --detach"
+else
+  echo 'Interactive session'
+  POLICY="--rm -it"
+fi
 # --rm: removed container on exit
 # -i interactive
 # -t pseudo tty
