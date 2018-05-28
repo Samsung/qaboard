@@ -8,6 +8,7 @@ from .git_utils import git_pull
 
 
 @app.route('/api/v1/output', methods=['POST'])
+@app.route('/api/v1/slam_output', methods=['POST'])
 def new_output_webhook():
   data = request.get_json()
   if data['job_type'] != 'ci': # we do nothing for now with local runs
