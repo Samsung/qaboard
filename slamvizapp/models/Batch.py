@@ -116,14 +116,14 @@ class Batch(Base):
 # this should be refactored into SQL
 def aggregated_metrics(outputs):
   aggregated = {
-      'pc_where_lost_at_least_once': np.mean([ o.metrics['nb_lost'] > 0
-                                             for o in outputs
-                                             if 'nb_lost' in o.metrics and not o.metrics['nb_lost'] is None]),
-      'total_time_lost_pc_mean': np.mean([
-          o.metrics['total_time_lost_pc']
-          for o in outputs
-          if 'total_time_lost_pc' in o.metrics and not o.metrics['total_time_lost_pc'] is None
-      ]),
+      # 'pc_where_lost_at_least_once': np.mean([ o.metrics['nb_lost'] > 0
+      #                                        for o in outputs
+      #                                        if 'nb_lost' in o.metrics and not o.metrics['nb_lost'] is None]),
+      # 'total_time_lost_pc_mean': np.mean([
+      #     o.metrics['total_time_lost_pc']
+      #     for o in outputs
+      #     if 'total_time_lost_pc' in o.metrics and not o.metrics['total_time_lost_pc'] is None
+      # ]),
   }
   metrics_to_aggregate = [
       # metric_name, threshold_good
@@ -144,7 +144,7 @@ def aggregated_metrics(outputs):
     has_values = values.shape[0]>0
     aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
     aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
-    aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
+    # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
     aggregated[f'{metric}_threshold_bad'] = treshold
   return aggregated
 
