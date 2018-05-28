@@ -7,16 +7,16 @@ export LANG=C.UTF-8
 echo 'starting'
 
 echo '...preparing ssh-agent'
-echo -e '#!/usr/bin/env bash\necho "${SSH_PASSPHRASE}"' > /root/askpass; chmod +x /root/askpass
-export SSH_ASKPASS=/root/askpass
+export SSH_ASKPASS=$HOME/askpass
+echo -e '#!/usr/bin/env bash\necho "${SSH_PASSPHRASE}"' > $SSH_ASKPASS; chmod +x $SSH_ASKPASS
 eval `ssh-agent`
-DISPLAY= setsid ssh-add /root/.ssh/id_rsa
-ssh-keyscan gitlab-srv >> ~/.ssh/known_hosts
+DISPLAY= setsid ssh-add $HOME/.ssh/id_rsa
+ssh-keyscan gitlab-srv >> $HOME/.ssh/known_hosts
 
-nginx &
+sudo nginx &
 
 echo '...starting the database'
-/etc/init.d/postgresql start &
+sudo /etc/init.d/postgresql start &
 # sudo -u postgres /usr/lib/postgresql/9.6/bin/postgres \
 #   -D /var/lib/postgresql/9.6/main \
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &

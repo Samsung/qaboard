@@ -86,11 +86,14 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:
 
 # Container lifecycle:
 POLICY="--restart always --detach"
-# POLICY="--rm -it"
+POLICY="--rm -it"
 # --rm: removed container on exit
 # -i interactive
 # -t pseudo tty
-
+# -u=$USER:$UID
+# -u=$UID
+# -u=$UID
+# --privileged=true
 command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG${CI_DEBUG} $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
 echo $command
 exec $command
