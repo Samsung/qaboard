@@ -11,13 +11,16 @@ export SSH_ASKPASS=$HOME/askpass
 echo -e '#!/usr/bin/env bash\necho "${SSH_PASSPHRASE}"' > $SSH_ASKPASS; chmod +x $SSH_ASKPASS
 eval `ssh-agent`
 DISPLAY= setsid ssh-add $HOME/.ssh/id_rsa
-ssh-keyscan gitlab-srv >> $HOME/.ssh/known_hosts
-
-sudo nginx &
+# now that we use arthurf as user, we may not need this...
+# TODO: clean this...
+# ssh-keyscan gitlab-srv >> $HOME/.ssh/known_hosts
 
 # TODO: Maybe this can be removed once the old volumes
 # are owned by arthurf and not root 
-sudo chown -R arthurf /var/slamvizapp
+sudo chown -R arthurf:uucp /var/slamvizapp
+
+
+sudo nginx &
 
 echo '...starting the database'
 sudo /etc/init.d/postgresql start &
@@ -41,7 +44,7 @@ slamvizapp_init_database --scrap-from slam --loop &
 
 echo '...starting the application'
 sleep 2
-cd /slamvizapp && /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
+cd /slamvizapp && sudo /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
 
 # export LC_ALL=C.UTF-8
 # export LANG=C.UTF-8

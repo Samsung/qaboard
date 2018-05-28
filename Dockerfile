@@ -110,7 +110,7 @@ EXPOSE 443
 # eg /stage/algo_data
 # this forces us to acces them with a regular SIRC user
 # and dance around with sudo
-RUN useradd -u 11611 -g 10 arthurf
+RUN useradd -u 11611 -g 10 arthurf --shell --no-create-home /bin/bash
 RUN echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 USER arthurf
 CMD deployment/init.sh
