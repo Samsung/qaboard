@@ -141,7 +141,7 @@ def aggregated_metrics(outputs):
         o.metrics[metric] for o in outputs
         if metric in o.metrics and not o.metrics[metric] is None
     ])
-    has_values = values.shape[0]*values.shape[1]>0
+    has_values = values.shape[0]>0
     aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
     aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
     aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
