@@ -453,7 +453,7 @@ class TuningForm extends Component {
           labelFor="input-user"
           inline
       >
-          <input id="input-user" className="pt-input" style={{width: '300px'}} value={user} placeholder="arthurf" onChange={this.updateUser}  type="text" dir="auto" />
+          <input disabled id="input-user" className="pt-input" style={{width: '300px'}} value={user} placeholder="arthurf" onChange={this.updateUser}  type="text" dir="auto" />
       </FormGroup>
 
     </form>)
