@@ -45,7 +45,7 @@ slamvizapp_init_database --scrap-from slam --loop &
 echo '...starting the application'
 sleep 2
 sudo chmod 777 /slamvizapp/deployment/
-cd /slamvizapp && sudo /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
+cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
 
 # export LC_ALL=C.UTF-8
 # export LANG=C.UTF-8
