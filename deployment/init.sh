@@ -15,6 +15,8 @@ ssh-keyscan gitlab-srv >> $HOME/.ssh/known_hosts
 
 sudo nginx &
 
+sudo chown -R arthurf /var/slamvizapp
+
 echo '...starting the database'
 sudo /etc/init.d/postgresql start &
 # sudo -u postgres /usr/lib/postgresql/9.6/bin/postgres \

@@ -111,5 +111,6 @@ EXPOSE 443
 # this forces us to acces them with a regular SIRC user
 # and dance around with sudo
 RUN useradd -u 11611 -g 10 arthurf
-USER arthurf
+RUN 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+USER arthurf:11611
 CMD deployment/init.sh
