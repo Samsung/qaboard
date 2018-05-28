@@ -15,6 +15,8 @@ ssh-keyscan gitlab-srv >> $HOME/.ssh/known_hosts
 
 sudo nginx &
 
+# TODO: Maybe this can be removed once the old volumes
+# are owned by arthurf and not root 
 sudo chown -R arthurf /var/slamvizapp
 
 echo '...starting the database'
