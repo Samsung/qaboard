@@ -112,7 +112,8 @@ class CiCommitResults extends Component {
       selected_batch_new: params.get('batch_new') || 'default',
       selected_batch_ref: params.get('batch_reference') || 'default',
 
-      filter_values: params.get('filter') || '',
+      filter_batch_new: params.get('filter') || '',
+      filter_batch_ref: params.get('filter_ref') || '',
       sort_by: default_metric,
       order: -1,
 
@@ -308,8 +309,7 @@ class CiCommitResults extends Component {
     }
   }
 
-  filter_batch = batch => {
-    const { filter_values } = this.state;
+  filter_batch = (batch, filter_values) => {
     if (filter_values.length===0)
       return batch;
     let filter_tokens = filter_values.split(' ');
@@ -368,8 +368,8 @@ class CiCommitResults extends Component {
     })
   }
 
-  UpdateFilterValues = e => {
-    this.setState({filter_values: e.target.value})
+  UpdateFilterBatchNew = e => {
+    this.setState({filter_batch_new: e.target.value})
     let query = queryString.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
@@ -379,7 +379,17 @@ class CiCommitResults extends Component {
       })
     })
   }
-
+  UpdateFilterBatchRef = e => {
+    this.setState({filter_batch_ref: e.target.value})
+    let query = queryString.parse(this.props.location.search);
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: queryString.stringify({
+        ...query,
+        filter_ref: e.target.value,
+      })
+    })
+  }
 
   toogleShowDebug = () => {
     let previous_value = this.state.show_debug;
@@ -419,6 +429,7 @@ class CiCommitResults extends Component {
   render() {
     // console.log(this.state);
     var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref, selected_metrics } = this.state;
+    var { filter_batch_new, filter_batch_ref } = this.state;
 
     if (!new_commit_id || !new_commit_id)
       return (
@@ -469,8 +480,8 @@ class CiCommitResults extends Component {
     let new_batch = new_commit.batches[selected_batch_new];
     let ref_batch = ref_commit.batches[selected_batch_ref];
 
-    let new_batch_filtered = this.filter_batch(new_batch)
-    let ref_batch_filtered = this.filter_batch(ref_batch)
+    let new_batch_filtered = this.filter_batch(new_batch, filter_batch_new)
+    let ref_batch_filtered = this.filter_batch(ref_batch, filter_batch_ref)
     let nb_running = Object.values(new_batch_filtered.outputs).filter( o=>o.is_running ).length;
     let nb_pending = Object.values(new_batch_filtered.outputs).filter( o=>o.is_pending && !o.is_running ).length;
     let nb_failed = Object.values(new_batch_filtered.outputs).filter( o=>o.is_failed ).length;
@@ -552,33 +563,41 @@ class CiCommitResults extends Component {
         <Section>
           <Card elevation={0}>
             <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-              <div style={{flex:'1 1 auto', minWidth: '450px'}}>
-              <SelectBatches
-                commit={new_commit}
-                selected={selected_batch_new}
-                onChange={this.selectBatchNew}
-                prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
-              />
+              <div style={{flex:'1 1 auto', minWidth: '500px', maxWidth: '500px'}}>
+                <SelectBatches
+                  commit={new_commit}
+                  selected={selected_batch_new}
+                  onChange={this.selectBatchNew}
+                  prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
+                />
+                <FormGroup labelFor="filter-new-input" helperText={`${!this.state.filter_batch_new ? 'You can filter outputs by all their properties. ' : ''}${Object.keys(new_batch_filtered.outputs).length} selected`}>
+                  <InputGroup
+                    value={this.state.filter_batch_new}
+                    placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
+                    onChange={this.UpdateFilterBatchNew}
+                    type="search"
+                    leftIcon="search"
+                  />
+                </FormGroup>
               </div>
-              <div style={{flex:'1 1 auto', minWidth: '450px',  textAlign: 'right'}}>
-              <SelectBatches
-                commit={ref_commit}
-                selected={selected_batch_ref}
-                onChange={this.selectBatchRef}
-                prefix={<Tag intent={Intent.PRIMARY}>Reference commit</Tag>}
-              />
-              </div>
+              <div style={{flex:'1 1 auto', minWidth: '450px', maxWidth: '450px',  textAlign: 'right'}}>
+                <SelectBatches
+                  commit={ref_commit}
+                  selected={selected_batch_ref}
+                  onChange={this.selectBatchRef}
+                  prefix={<Tag intent={Intent.PRIMARY}>Reference commit</Tag>}
+                />
+                <FormGroup labelFor="filter-ref-input" helperText={`${Object.keys(ref_batch_filtered.outputs).length} selected.`}>
+                <InputGroup
+                  value={this.state.filter_batch_ref}
+                  placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
+                  onChange={this.UpdateFilterBatchRef}
+                  type="search"
+                  rightIcon="search"
+                />
+              </FormGroup>
             </div>
-
-            <FormGroup label="Filter all results" labelFor="filter-input" helperText={`All the data on this page will update. (${Object.keys(new_batch_filtered.outputs).length} selected)`}>
-              <InputGroup
-                value={this.state.filter_values}
-                placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
-                onChange={this.UpdateFilterValues}
-                type="search"
-                leftIcon="search"
-              />
-            </FormGroup>
+            </div>
           </Card>
          </Section>
 

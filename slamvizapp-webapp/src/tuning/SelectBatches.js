@@ -21,7 +21,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
   return <FormGroup
           label={<span>{prefix}</span>}
           labelFor="batch-select"
-          helperText={has_tuning_batches ? "You can view results from different batches or tuning experiments." : ''}
+          helperText={has_tuning_batches ? "You can view results from different batches or tuning experiments." : ' '}
          >
           <div className="pt-select pt-minimal">
             <select disabled={!has_tuning_batches} id='batch-select-new' defaultValue={selected} onChange={onChange}>
