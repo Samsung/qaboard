@@ -63,12 +63,11 @@ def init_slam_database(verbose=False):
 
     ci_batch = ci_commit.ci_batch
     could_be_pending_results = datetime.datetime.now().astimezone() - ci_commit.time_of_last_batch < datetime.timedelta(hours=3)
-    has_failed = len([o for o in ci_batch.outputs if o.is_pending])
-    has_pending = len([o for o in ci_batch.outputs if o.is_failed])
+    has_pending = len([o for o in ci_batch.outputs if o.is_pending])
+    has_failed = len([o for o in ci_batch.outputs if o.is_failed])
     # if not ci_batch.outputs or has_pending or has_failed or could_be_pending_results:
     if not ci_batch.outputs or could_be_pending_results:
       ci_batch.discover_outputs(session)
-      if verbose or ci_batch.pending_outputs: print(ci_commit)
       session.add(ci_batch)
       session.commit()
     if verbose: print(ci_commit)
