@@ -234,7 +234,7 @@ class LocalCommit():
   def to_dict(self, with_details=False, users_db=None):
     committer_avatar_url = ''
     if users_db:
-      name = self.gitcommit.committer['name']
+      name = self.gitcommit.committer.name
       if name in users_db:
         committer_avatar_url = users_db[name]['avatar_url']
     return {
