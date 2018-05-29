@@ -40,11 +40,10 @@ class OutputLog extends Component {
     const button_text = is_open ? "Hide" : (is_loaded ? "Loading" : "Show")
     const tag_text = output.is_failed ? '❌' : (output.is_pending ? '⏳' : '✅')
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
-      <Tag key={k} className="pt-round pt-minimal">{k}:{v}</Tag>
+      <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">{k}:{v}</Tag>
     )
     return <div>
-      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text}</Tag> <Tag>{`${output.configuration} @${output.platform}`}</Tag> {output.recording_path}</h6>
-      {Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : ''} 
+      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text}</Tag> <Tag>{`${output.configuration} @${output.platform}`}</Tag> {output.test_input_path}</h6>
       {details}
       <Collapse isOpen={is_open}>
         {error && <NonIdealState title="No logs (yet?)" description={error.response ? JSON.stringify(error.response.data) : error}/>}   

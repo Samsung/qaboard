@@ -10,11 +10,11 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import repos
 from slamvizapp.database import Session
-from slamvizapp.models import Base, CiCommit, Recording, Batch, Output
+from slamvizapp.models import Base, Project, CiCommit, TestInput, Batch, Output
 from slamvizapp.config import default_recordings_directory, ci_directory
 
 import slamvizapp
-
+from slamvizapp.config import default_recordings_directory
 
 # TODO: we should also import the old Android runs on algo_archive/PTAM_Results
 
@@ -24,10 +24,10 @@ def init_slam_database(verbose=False):
   Initializes the database with ci commits.
   We don't delete the old recordings.... and we don't replace either.
   """
-  project = 'dvs/psp_swip'
-  repo = repos[project]
   session = Session()
-  cicommits_dir = ci_directory/project/'commits'
+  project = Project.get_or_create(session=session, id='dvs/psp_swip')
+  repo = repos[project.id]
+  cicommits_dir = ci_directory/project.id/'commits'
 
   # ? should we go over all the commits on all branches?
   # ? it would be more complete, but maybe wasteful? we only care about results.
@@ -50,6 +50,9 @@ def init_slam_database(verbose=False):
       try: # the commit might have failed (eg no params.json available)
         print('[InitDatabase] creating a commit')
         ci_commit = CiCommit(commit, project=project)
+        # todo: from the the timestamp, update:
+        # ci_commit.time_of_last_batch = ..
+        # ci_commit.ci_batch.created_date = ..
       except ValueError:
         print(f'[InitDatabase] WARNING: could not create a commit for {commit.hexsha}.')
         continue
@@ -83,9 +86,9 @@ def init_slam_database(verbose=False):
 #     path = str(absolute_path.relative_to(default_recordings_directory))
 
 #     # it's a complete re-import, so I guess we should just drop the table...
-#     session.query(Recording).filter_by(path=path).delete()
+#     session.query(TestInput).filter_by(path=path, database=default_recordings_directory).delete()
 
-#     recording = Recording(path=path)
-#     session.add(recording)
-#     print(recording)
+#     test_input = TestInput(path=path)
+#     session.add(test_input)
+#     print(test_input)
 #   session.commit()

@@ -4,7 +4,7 @@ A version of the code on which we ran SLAM performance test.
 from pathlib import Path
 from sqlalchemy.orm import relationship, reconstructor
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy import Column
+from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, DateTime
 
 from slamvizapp import repos
@@ -21,11 +21,13 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = Column(String, primary_key=True) # git commit id
 
-  project = Column(String())
-  branch = Column(String()) # first added as.. we ignore tags?
+  project_id = Column(String(), ForeignKey('projects.id'), index=True)
+  project = relationship("Project", back_populates="ci_commits")
+
+  branch = Column(String(), index=True) # first added as.. we ignore tags?
   message = Column(String())
   committer_name = Column(String())
-  authored_datetime = Column(DateTime(timezone=True))
+  authored_datetime = Column(DateTime(timezone=True), index=True)
 
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
@@ -54,7 +56,7 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       return Path(commit_dir_override)
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
-    return ci_directory / self.project / 'commits' / commit_dir_name
+    return ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
   def authored_date(self):
@@ -73,7 +75,7 @@ class CiCommit(Base):
     return '/s/'/self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
-    return f"<CiCommit id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
+    return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
 
 
 
@@ -81,7 +83,7 @@ class CiCommit(Base):
     self.project = project
     if commit_type == 'git':
       self.commit_type = 'git'
-      self.repo = repos[project]
+      self.repo = repos[project.id]
     else:
       self.commit_type = 'local'
       if not branch: branch='<NA>'
@@ -101,7 +103,7 @@ class CiCommit(Base):
   @reconstructor
   def init_on_load(self):
     if self.commit_type == 'git':
-      self.repo = repos[self.project]
+      self.repo = repos[self.project.id]
       self.gitcommit = self.repo.commit(self.id)
     else:
       self.repo = None

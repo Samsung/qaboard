@@ -29,8 +29,9 @@ class LocalGitCommit():
     self.parents = [self]
 
 
-class LocalRecording():
-  def __init__(self, path):
+class LocalTestInput():
+  def __init__(self, database, path):
+    self.database = database
     self.path = path
 
   @property
@@ -45,10 +46,10 @@ class LocalRecording():
 
 
 class LocalOutput():
-  def __init__(self, recording, platform, configuration, batch):
-    self.id = str(recording.path)
-    self.recording = recording
-    self.recording_id = 0
+  def __init__(self, test_input, platform, configuration, batch):
+    self.id = str(test_input.path)
+    self.test_input = test_input
+    self.test_input_id = 0
     self.platform = platform
     self.configuration = configuration
     self.extra_parameters = {}
@@ -61,7 +62,7 @@ class LocalOutput():
 
   @property
   def foldername(self):
-    return Path(self.platform) / self.configuration / self.recording.output_folder
+    return Path(self.platform) / self.configuration / self.test_input.output_folder
 
   @property
   def output_dir(self):
@@ -92,7 +93,8 @@ class LocalOutput():
     return {
         **as_dict,
         'output_dir_url': str(self.output_dir_url),
-        'recording_path': str(self.recording.path),
+        'test_input_database': str(self.test_input.database),
+        'test_input_path': str(self.test_input.path),
     }
 
 class LocalBatch():
@@ -115,12 +117,12 @@ class LocalBatch():
   def discover_outputs(self):
     output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
     for output_dir in output_dirs:
-      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
-      rel_recording_path = Path(*rel_recording_path)
-      rel_recording_path = f'{rel_recording_path}.bin'
-      recording = LocalRecording(rel_recording_path)
+      platform, configuration, *rel_input_path = output_dir.relative_to(self.output_dir).parts
+      rel_input_path = Path(*rel_input_path)
+      rel_input_path = f'{rel_input_path}.bin'
+      test_input = LocalTestInput('/net/f2/algo_archive/DVS_SLAM_Database', rel_input_path)
       output = LocalOutput(
-          recording=recording,
+          test_input=test_input,
           platform=platform,
           configuration=configuration,
           batch=self,

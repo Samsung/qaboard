@@ -13,15 +13,15 @@ const config = {};
 
 
 const Sensibility1DLines = ({ outputs, metric, parameter, layout }) => {
-  let outputs_by_recording = groupBy(Object.values(outputs), "recording_path");
-  let traces = Object.entries(outputs_by_recording)
-                     .map( ([recording_path, outputs_for_recording]) => {
-                        let outputs = outputs_for_recording
+  let outputs_by_input = groupBy(Object.values(outputs), "test_input_path");
+  let traces = Object.entries(outputs_by_input)
+                     .map( ([test_input_path, outputs_for_input]) => {
+                        let outputs = outputs_for_input
                                            .filter( o => !o.is_pending && !o.is_failed)
                                            .sort( (a,b) => a.extra_parameters[parameter] - b.extra_parameters[parameter])
                         return {
                           type: 'scatter',
-                          name: recording_path,
+                          name: test_input_path,
                           x: outputs.map(o => o.extra_parameters[parameter]),
                           y: outputs.map(o => o.metrics[metric.key] * metric.scale),
                           marker: {
@@ -70,8 +70,8 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
                             }) );
   let outputs_by_param = groupBy(outputs_values, "extra_parameter");
   let traces = Object.entries(outputs_by_param)
-                     .map( ([param_value, outputs_for_recording]) => {
-                        let outputs = outputs_for_recording
+                     .map( ([param_value, outputs_for_input]) => {
+                        let outputs = outputs_for_input
                                            .filter( o => !o.is_pending && !o.is_failed)
                         return {
                           type: 'box',
@@ -246,10 +246,10 @@ class TuningExploration extends Component {
     let show_2d_sensibility = sorted_parameters.length>1 && tuned_parameters[sorted_parameters[1]].size>1;
 
     let total_outputs = Object.keys(batch.outputs).length;
-    let number_recordings = Object.keys(groupBy(Object.values(batch.outputs), "recording_path")).length;
+    let number_inputs = Object.keys(groupBy(Object.values(batch.outputs), "test_input_path")).length;
 
     return <Section>
-      <h3>{total_outputs} SLAM results over {number_recordings} recordings</h3>
+      <h3>{total_outputs} SLAM results over {number_inputs} recordings</h3>
       <h4>Sensibility analysis</h4>
       <FormGroup inline labelFor="select-parameter" helperText="Shown on the X-axis">
         <div className="pt-select pt-minimal">

@@ -319,7 +319,7 @@ class CiCommitResults extends Component {
     Object.entries(batch.outputs).forEach( ([id, output])=> {
       let extra_parameters_s = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
       let extra_parameters = extra_parameters_s.replace(/"/g, '');
-      let searched = `${output.recording_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
+      let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
       let found = false;
       for (var i in filter_tokens) {
         let search = filter_tokens[i]
@@ -495,7 +495,7 @@ class CiCommitResults extends Component {
             title={
               <Tooltip>
               <span>{nb_running} result{nb_running>1 ? 's' : ''} running</span>
-              <ul>{Object.values(new_batch_filtered.outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <ul>{Object.values(new_batch_filtered.outputs).filter(o=>o.is_running).map(o=><li key={o}>{o.test_input_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
@@ -506,7 +506,7 @@ class CiCommitResults extends Component {
             title={
               <Tooltip>
               <span>{nb_pending} result{nb_pending>1 ? 's' : ''} pending</span>
-              <ul>{Object.values(new_batch_filtered.outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.recording_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
+              <ul>{Object.values(new_batch_filtered.outputs).filter(o=> o.is_pending && !o.is_running).map(o=><li key={o}>{o.test_input_path} {Object.keys(o.extra_parameters).length>0 ? JSON.stringify(o.extra_parameters) : ''}<br/>@{o.configuration} on {o.platform}</li>)}</ul>
               </Tooltip>
           }>
           </Callout>}
@@ -522,7 +522,7 @@ class CiCommitResults extends Component {
               {Object.values( new_batch_filtered.outputs )
                      .filter( o=>o.is_failed )
                      .map( o=> <li key={o.id}>
-                                 <Tag intent={Intent.DANGER} className="pt-minimal">{`${o.configuration} @${o.platform}`}</Tag> <strong>{o.recording_path}</strong>
+                                 <Tag intent={Intent.DANGER} className="pt-minimal">{`${o.configuration} @${o.platform}`}</Tag> <strong>{o.test_input_path}</strong>
                                  {Object.keys(o.extra_parameters).length>0 && <Fragment><br/><span>JSON.stringify(o.extra_parameters)</span></Fragment>} 
                                 </li>
                       )}

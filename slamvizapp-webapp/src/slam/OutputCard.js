@@ -201,7 +201,7 @@ class OutputCard extends Component {
               <div style={{flex: '0 0 auto', width: '350px', marginBottom: '20px'}}>
                 <SlimCard className="output-card">
                   <div style={{padding:'  '}}>
-                    <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.recording_path} {tags}</h5>
+                    <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} {tags}</h5>
                     {main_metrics
                       .filter( key => metrics_new[key] !== undefined)
                       .map(key => <p key={key}>

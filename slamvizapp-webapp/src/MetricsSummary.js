@@ -159,7 +159,7 @@ const HistogramComparaison = ({ new_values, ref_values, metric }) => {
 
 
 // -${JSON.stringify(output.extra_parameters)}
-const run_type = output => `${output.recording_path}-${output.platform}-${output.configuration}`;
+const run_type = output => `${output.test_input_path}-${output.platform}-${output.configuration}`;
 
 const average = array => {
   return array.reduce( (a,b) => (a+b) , 0) / array.length;
@@ -231,9 +231,9 @@ class MetricsSummary extends Component {
     let outputs_ref = Object.values(ref_batch.outputs)
                                  .filter(o => run_types_new.has(run_type(o)))
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
-    run_types_new = new Set(outputs_new.map(o => o.recording_path))
+    run_types_new = new Set(outputs_new.map(o => o.test_input_path))
     outputs_ref = Object.values(ref_batch.outputs)
-                                 .filter(o => run_types_new.has(o.recording_path))
+                                 .filter(o => run_types_new.has(o.test_input_path))
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
 
 

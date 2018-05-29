@@ -10,7 +10,7 @@ from alembic.config import Config
 from alembic import command
 
 import slamvizapp
-from slamvizapp.models import Base, Recording, Output, Batch, CiCommit
+from slamvizapp.models import Base, Project, TestInput, Output, Batch, CiCommit
 from slamvizapp.database import engine, Session
 from .slam.init_database import init_slam_database
 from .cis.init_database import init_cis_database
@@ -52,8 +52,6 @@ def stamp_schema_version():
 
 def scrap(scrap_from, verbose):
   if 'slam' in scrap_from:
-    # Recordings will be created already when importing CiCommits
-    # init_recordings()
     init_slam_database(verbose=verbose)
   if 'cis' in scrap_from:
     init_cis_database(verbose=verbose)
@@ -61,7 +59,8 @@ def scrap(scrap_from, verbose):
 
 def print_summary():
   session = Session()
-  print(f'total Recordings: {session.query(Recording).count()}')
-  print(f'total CiCommits: {session.query(CiCommit).count()}')
-  print(f'total Batches: {session.query(Batch).count()}')
-  print(f'total Outputs: {session.query(Output).count()}')
+  print(f'#TestInputs : {session.query(TestInput).count()}')
+  print(f'#Projects   : {session.query(Project).count()}')
+  print(f'#CiCommits  : {session.query(CiCommit).count()}')
+  print(f'#Batches    : {session.query(Batch).count()}')
+  print(f'#Outputs    : {session.query(Output).count()}')

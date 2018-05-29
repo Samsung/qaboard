@@ -38,7 +38,7 @@ const matching_output = ({output, batch}) => {
   // let soft_match = true;
   let matching_outputs = Object.values(batch.outputs || [])
                                    .filter(o => !o.is_pending && !o.is_failed)
-                                   .filter(o => o.recording_path===output.recording_path)
+                                   .filter(o => o.test_input_path===output.test_input_path)
                                    // .filter(o => o.platform===output.platform || soft_match)
                                    // .filter(o => o.configuration===output.configuration || soft_match)
                                    // We prefer to compare an ouput versus a similar one

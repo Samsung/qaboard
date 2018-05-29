@@ -1,6 +1,6 @@
 """
-Describes an output from a SLAM run:
-1. How we ran the SLAM
+Describes an output from a CI run:
+1. How we ran
 - what version of the code was used
 - on what platform we ran
 - what parameters were used
@@ -25,6 +25,9 @@ from slamvizapp.models import Base
 class Output(Base):
   __tablename__ = 'outputs'
   id = Column(Integer, primary_key=True)
+
+  batch_id = Column(Integer(), ForeignKey('batches.id'), index=True)
+  batch = relationship("Batch", back_populates="outputs")
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
   ####  Where results are stored (eg logs, images, 6dof, whatever)
@@ -32,35 +35,27 @@ class Output(Base):
   # we let people override this to use disk with different quotas
   # or even random folder (like for the CIS projects) 
   output_dir_override = Column(String())
-
   #### What we ran
   # Different output types (slam/6dof, cis/siemens...) are visualized differently
   output_type = Column(String())
-
-  recording_id = Column(Integer(), ForeignKey('recordings.id'))
-  recording = relationship("Recording", back_populates="outputs")
-
-  batch_id = Column(Integer(), ForeignKey('batches.id'))
-  batch = relationship("Batch", back_populates="outputs")
-
-  #### How we ran
-  recording_id = Column(Integer(), ForeignKey('recordings.id'))
-  recording = relationship("Recording", back_populates="outputs")
+  test_input_id = Column(Integer(), ForeignKey('test_inputs.id'))
+  test_input = relationship("TestInput", back_populates="outputs")
 
   platform = Column(String()) # lsf/s8/...
-  # SLAM runs use params.json, $configuration.json, and the extra parameters for tuning
-  configuration = Column(String()) # mono/stereo/serial/...
-  # If we ever want to re-import outputs,
-  # we will need to save the association parameters<->hash
+  # SLAM runs use params.json, $configuration.json (mono/stereo...)
+  # For CIS projects it might have other meanings
+  configuration = Column(String())
+  # Used for tuning
   extra_parameters = Column(JSON(), default={})
 
   #### How good we ran
   is_pending = Column(Boolean(), default=False)
-  is_running = Column(Boolean(), default=False)
+  is_running = Column(Boolean(), default=False) # in addition to pending
   is_failed = Column(Boolean(), default=False)
   metrics = Column(JSON(), default={})
 
 
+  # TODO: refactor as SLAM-specific, move into the scrapping code
   def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""
     if not filepath:
@@ -88,7 +83,7 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.recording.output_folder
+    return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property
   def output_dir(self):
@@ -113,14 +108,15 @@ class Output(Base):
               batch='{self.batch.label}' \
               platform='{self.platform}' \
               config='{self.configuration}' \
-              filename='{self.recording.filename}' />"
+              filename='{self.test_input.filename}' />"
 
   def to_dict(self):
     as_dict = {c.name:getattr(self, c.name) for c in Base.metadata.tables['outputs'].columns}
     return {
         **as_dict,
         'output_dir_url': str(self.output_dir_url),
-        'recording_path': str(self.recording.path),
+        'test_input_database': str(self.test_input.database),
+        'test_input_path': str(self.test_input.path),
     }
 
   @staticmethod
@@ -130,7 +126,7 @@ class Output(Base):
       return session.query(Output).filter(
           and_(
               Output.batch_id == kwargs['batch'].id,
-              Output.recording_id == kwargs['recording'].id,
+              Output.test_input_id == kwargs['test_input'].id,
               Output.platform == kwargs['platform'],
               Output.configuration == kwargs['configuration'],
               cast(Output.extra_parameters, String) == extra_parameters_json,
@@ -139,7 +135,7 @@ class Output(Base):
     except NoResultFound:
       output = Output(
           batch=kwargs['batch'],
-          recording=kwargs['recording'],
+          test_input=kwargs['test_input'],
           platform=kwargs['platform'],
           configuration=kwargs['configuration'],
           extra_parameters=kwargs['extra_parameters'],
@@ -154,7 +150,7 @@ class Output(Base):
       output = session.query(Output).filter(
           and_(
               Output.batch_id == kwargs['batch'].id,
-              Output.recording_id == kwargs['recording'].id,
+              Output.test_input_id == kwargs['test_input'].id,
               Output.platform == kwargs['platform'],
               Output.configuration == kwargs['configuration'],
               cast(Output.extra_parameters, String) == extra_parameters_json,
@@ -162,7 +158,7 @@ class Output(Base):
       ).delete()
       output = Output(
           batch=kwargs['batch'],
-          recording=kwargs['recording'],
+          test_input=kwargs['test_input'],
           platform=kwargs['platform'],
           configuration=kwargs['configuration'],
           extra_parameters=kwargs['extra_parameters'],

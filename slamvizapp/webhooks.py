@@ -3,9 +3,9 @@ from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repos, db_session
-from .models import CiCommit, Output, Recording
+from .models import Project, CiCommit, Output, TestInput
 from .git_utils import git_pull
-
+from .config import default_recordings_directory
 
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/slam_output', methods=['POST'])
@@ -22,8 +22,8 @@ def new_output_webhook():
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
-  recording = Recording.get_or_create(db_session, path=data['recording_path'])
-  if not recording: return "KO", 404
+  test_input = TestInput.get_or_create(db_session, path=data['recording_path'], database=default_recordings_directory)
+  if not test_input: return "KO", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
   output = Output.get_or_create(db_session,
@@ -31,7 +31,7 @@ def new_output_webhook():
                                          platform=data['platform'],
                                          configuration=data['configuration'],
                                          extra_parameters=data['extra_parameters'],
-                                         recording=recording,
+                                         test_input=test_input,
                                         )
   if request.json.get('is_running', False):
     output.is_running = True
@@ -54,13 +54,18 @@ def gitlab_webhook():
   print(data)
   # dvs/psp_swip
   project_path = data['project']['path_with_namespace']
+  project = Project.get_or_create(id=project_path)
   repo = repos[project_path]
   git_pull(repo)
 
   # we can't create a commit now as we're missing default params.json
   # we should look into the commit data etc...
   try: # no work to do if our commit is already in the database
-    ci_commit = db_session.query(CiCommit).filter_by(id=data['checkout_sha']).one()
+    ci_commit = (db_session
+                 .query(CiCommit)
+                 .filter_by(id=data['checkout_sha'], project_id='dvs/psp_swip')
+                 .one()
+    )
   except NoResultFound:
     try:
       commit = repo.commit(data['checkout_sha'])
@@ -70,7 +75,7 @@ def gitlab_webhook():
     try: # the commit might have failed (eg no params.json available)
       ci_commit = CiCommit(
           commit,
-          project=project_path,
+          project=project,
           branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
       )
       print(ci_commit)

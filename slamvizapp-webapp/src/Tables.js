@@ -11,7 +11,7 @@ const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minim
 const RowHeaderCell = ({output, warning}) => {
   let extra_parameters = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
   return <th scope="row">
-    {output.recording_path} {extra_parameters}
+    {output.test_input_path} {extra_parameters}
     <Tag className="pt-round pt-minimal" icon={output.platform==='s8'? 'mobile-phone' : 'desktop'}>{output.platform}</Tag>
     <Tag className="pt-round pt-minimal" icon={output.configuration==='mono_mode'?'eye-off':'blank'}>{output.configuration}</Tag>
     {warning && <Popover interactionKind='hover'><Icon intent={Intent.WARNING} icon='warning-sign' /><span>{warning}</span></Popover>}

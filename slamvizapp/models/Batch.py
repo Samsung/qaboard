@@ -3,6 +3,7 @@ Represents SLAM runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
 import datetime
+import json
 from pathlib import Path
 
 import numpy as np
@@ -11,8 +12,9 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
-from slamvizapp.models import Base, Recording, Output
+from slamvizapp.models import Base, TestInput, Output
 from ..utils import filter_outputs
+from ..config import default_recordings_directory
 
 class Batch(Base):
   __tablename__ = 'batches'
@@ -44,26 +46,34 @@ class Batch(Base):
 
   def discover_outputs(self, session):
     """Find outputs saved on the disk to initialize the database"""
+    if self.ci_commit.project.id == 'dvs/psp_swip':
+      self.discover_outputs_slam(session)
+    else:
+      self.discover_outputs_cis(session)
+
+
+  def discover_outputs_slam(self, session):
+    """Find outputs saved on the disk to initialize the database"""
     # FIXME: we should also look for unsuccessful runs
-    #   we could look into lsf.log and parse it for recoring names
+    #   we could look into lsf.log and parse it for recording names
     #   then check whether we have them of not...
     # we look for successful runs
     output_dirs = [p.parent for p in self.output_dir.rglob('metrics.json')]
     for output_dir in output_dirs:
       if self.label != 'default': raise NotImplementedError
-      platform, configuration, *rel_recording_path = output_dir.relative_to(self.output_dir).parts
+      platform, configuration, *rel_input_path = output_dir.relative_to(self.output_dir).parts
       # FIXME:                 , parameter_id
-      rel_recording_path = Path(*rel_recording_path)
-      rel_recording_path = f'{rel_recording_path}.bin'
-      recording = Recording.get_or_create(session, path=rel_recording_path)
-      if not recording:
+      rel_input_path = Path(*rel_input_path)
+      rel_input_path = f'{rel_input_path}.bin'
+      test_input = TestInput.get_or_create(session, database=default_recordings_directory, path=rel_input_path)
+      if not test_input:
         continue
 
       # FIXME: we should use the actual parameters used
       # not just the default, but also configuration.json
       output = Output.get_or_create(session,
                                              batch=self,
-                                             recording=recording,
+                                             test_input=test_input,
                                              platform=platform,
                                              configuration=configuration,
                                              extra_parameters={},
@@ -71,6 +81,29 @@ class Batch(Base):
       output.update_metrics(output_dir/'metrics.json')
       session.add(output)
       session.commit()
+
+  def discover_outputs_cis(self, session):
+    """Find outputs saved on the disk to initialize the database"""
+    outputs_dir = Path(self.ci_commit.commit_dir_override)
+    for output_description in outputs_dir.glob('*_job_description.json'):
+      print(output_description)
+      with output_description.open('r') as f:
+        data = json.load(f)
+        print(data)
+        # input_picture_path_format => \\f2\\algo_archive\\ISP_Database\\Turbo_Database\
+        test_input = TestInput.get_or_create(session, database=default_recordings_directory, path=data['input_picture_path_format'])
+        # data['save_config_folder_name']
+        # input_picture_path_format
+        output = Output.get_or_create(session,
+                                             batch=self,
+                                             test_input=test_input,
+                                             platform='CDE',
+                                             configuration=data['configuration'],
+                                             extra_parameters={},
+                                            )
+        print(output)
+        # session.add(output)
+        # session.commit()
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
     return aggregated_metrics(

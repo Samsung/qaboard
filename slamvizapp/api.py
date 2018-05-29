@@ -208,7 +208,7 @@ def get_ci_commit(commit_id=None):
 #   # serializer_class=CiCommitSerializer,
 #   #   # includes = ['name', 'birth_date', 'computers', 'computers.vendor']
 # )
-# manager.create_api(Recording,
+# manager.create_api(TestInput,
 #   methods=['GET', 'POST', 'DELETE'],
 # #   # results_per_page=40, # ?page=X
 # )
