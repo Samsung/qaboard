@@ -29,7 +29,7 @@ setup(
 
   entry_points= {
     'console_scripts': [
-      'slamvizapp_clean = slamvizapp.scripts.clean:clean',
+      'slamvizapp_clean = slamvizapp.scripts.slam.clean:clean',
       'slamvizapp_init_database = slamvizapp.scripts.init_database:init_database',
     ]
   },
