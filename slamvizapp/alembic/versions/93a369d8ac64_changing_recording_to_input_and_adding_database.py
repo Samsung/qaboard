@@ -36,7 +36,7 @@ class TestInput(Base):
 
 def upgrade():
   # projects
-  op.alter_column('ci_commits', 'project_id', type_=sa.String, new_column_name= 'project') # drop the uniqueness constaint
+  # op.alter_column('ci_commits', 'project_id', type_=sa.String, new_column_name= 'project') # drop the uniqueness constaint
   op.alter_column('ci_commits', 'project', type_=sa.String, new_column_name= 'project_id') # drop the uniqueness constaint
   op.create_table(
     'projects',
@@ -45,14 +45,14 @@ def upgrade():
   )
 
   # op.drop_column("ci_commits", "project")
-  op.add_column('ci_commits', sa.Column('project_id',
-                                        sa.String,
-                                        sa.ForeignKey('projects.id'),
-                                        default='dvs/psp_swip',
-                                        # nullable=False,
-                                        # index=True,
-                                        )
-  )
+  # op.add_column('ci_commits', sa.Column('project_id',
+  #                                       sa.String,
+  #                                       sa.ForeignKey('projects.id'),
+  #                                       default='dvs/psp_swip',
+  #                                       # nullable=False,
+  #                                       index=True,
+  #                                       )
+  # )
 
   bind = op.get_bind()
   session = Session(bind=bind)
@@ -90,11 +90,11 @@ def upgrade():
 
   session.commit()
 
-  # op.create_index('outputs_batch_id_idx', 'outputs', ['batch_id'])
-  # op.create_index('ci_commits_batch_id_idx', 'ci_commits', ['project_id'])
-  # op.create_index('ci_commits_branch_idx', 'ci_commits', ['branch'])
-  # op.create_index('ci_commits_authored_datetime_idx', 'ci_commits', ['authored_datetime'])
-  # op.create_unique_constraint('input_test_database_path_unique', 'test_inputs', ['database', 'path'])
+  op.create_index('outputs_batch_id_idx', 'outputs', ['batch_id'])
+  op.create_index('ci_commits_batch_id_idx', 'ci_commits', ['project_id'])
+  op.create_index('ci_commits_branch_idx', 'ci_commits', ['branch'])
+  op.create_index('ci_commits_authored_datetime_idx', 'ci_commits', ['authored_datetime'])
+  op.create_unique_constraint('input_test_database_path_unique', 'test_inputs', ['database', 'path'])
 
 
 def downgrade():
