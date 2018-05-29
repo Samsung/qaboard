@@ -68,10 +68,15 @@ DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/l
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zshrc:/root/.zshrc"
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.oh-my-zsh:/root/.oh-my-zsh"
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zsh_history:/root/.zsh_history"
-if [ -z ${SLAMVIZAPP_DEBUG_WITH_MOUNTS+x} ]; then
-    echo 'reading source from container'
+
+if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
+  echo 'production !'
 else
-    DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
+  if [ -z ${SLAMVIZAPP_DEBUG_WITH_MOUNTS+x} ]; then
+      echo 'reading source from container'
+  else
+      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
+  fi
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
