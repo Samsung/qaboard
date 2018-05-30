@@ -69,11 +69,41 @@ def init_slam_database(verbose=False):
     has_failed = len([o for o in ci_batch.outputs if o.is_failed])
     # if not ci_batch.outputs or has_pending or has_failed or could_be_pending_results:
     if not ci_batch.outputs or could_be_pending_results:
-      ci_batch.discover_outputs(session)
+      discover_outputs(ci_batch, session)
       session.add(ci_batch)
       session.commit()
     if verbose: print(ci_commit)
 
+
+def discover_outputs(batch, session):
+  """Find outputs saved on the disk to initialize the database"""
+  # FIXME: we should also look for unsuccessful runs
+  #   we could look into lsf.log and parse it for recording names
+  #   then check whether we have them of not...
+  # we look for successful runs
+  output_dirs = [p.parent for p in batch.output_dir.rglob('metrics.json')]
+  for output_dir in output_dirs:
+    if batch.label != 'default': raise NotImplementedError
+    platform, configuration, *rel_input_path = output_dir.relative_to(batch.output_dir).parts
+    # FIXME:                 , parameter_id
+    rel_input_path = Path(*rel_input_path)
+    rel_input_path = f'{rel_input_path}.bin'
+    test_input = TestInput.get_or_create(session, database=default_recordings_directory, path=rel_input_path)
+    if not test_input:
+      continue
+
+    # FIXME: we should use the actual parameters used
+    # not just the default, but also configuration.json
+    output = Output.get_or_create(session,
+                                           batch=batch,
+                                           test_input=test_input,
+                                           platform=platform,
+                                           configuration=configuration,
+                                           extra_parameters={},
+                                          )
+    output.update_metrics(output_dir/'metrics.json')
+    session.add(output)
+    session.commit()
 
 
 # def init_recordings():

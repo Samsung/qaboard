@@ -7,28 +7,7 @@ import datetime
 import requests
 from pathlib import Path
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-
 from .config import default_recordings_directory
-
-# we prepare a color palette to for the summary table
-norm = mpl.colors.Normalize(vmin=-1.2, vmax=1.2) #FIXME
-cmap = plt.get_cmap('RdYlGn')
-palette = cm.ScalarMappable(norm=norm, cmap=cmap)
-
-
-
-def filter_outputs(outputs, include, exclude):
-  """Filters a dictionnary based on strings its keys should include or not include."""
-  if include:
-    outputs = [o for o in outputs if include in o.test_input.path]
-  if exclude:
-    outputs = [o for o in outputs if exclude not in o.test_input.path]
-  return outputs
-
-
 
 
 # Until we get a proper database, we need to cache things a bit
