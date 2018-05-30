@@ -26,9 +26,10 @@ class Batch(Base):
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
-  outputs = relationship("Output", back_populates="batch",
-                              cascade="all, delete-orphan"
-                             )
+  outputs = relationship("Output", 
+                         back_populates="batch",
+                         cascade="all, delete-orphan"
+                        )
 
   @property
   def output_folder(self):
@@ -57,7 +58,7 @@ class Batch(Base):
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
-      details = {}
+      outputs = {}
     return {
         'id': self.id,
         'commit_id': self.ci_commit_id,

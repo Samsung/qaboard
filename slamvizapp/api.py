@@ -9,19 +9,33 @@ from pathlib import Path
 from gitdb.exc import BadName
 
 from flask import request, jsonify
+from sqlalchemy import func, and_, asc
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy import and_
+from sqlalchemy.sql import label
+
 # from flask_restless import APIManager
 # from flask_restless.serialization import DefaultSerializer
 
 from slamvizapp import app, repos, db_session
-from .models import CiCommit
+from .models import Project, CiCommit
 from .models.LocalMocks import LocalCommit
 from .models import latest_successful_commit
 
-from .utils import get_users_per_name, iter_recordings
+from .utils import iter_recordings
 from .config import recording_groups_filepath, ci_directory
 
+
+slam_metrics_to_aggregate = {
+    # metric_name: threshold_good
+    'translation_rmse': 0.01,
+    'translation_aape': 0.01,
+    'translation_drift_pc': 0.01,
+    'rotation_mean': 1.5,
+    'rotation_mean_when_good': 1.5,
+    'translation_aape_when_good': 0.01,
+    'frac_tracking_state_good': .99,
+    # 'compute_time_vs_realtime': 1, # FIXME: it's not an attribute so the call will fail
+}
 
 @app.route("/api/v1/recordings/groups")
 def get_groups():
@@ -94,6 +108,7 @@ def add_batch(hexsha):
 
 
 @app.route("/api/v1/commits")
+@app.route("/api/v1/commits/")
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
   timezone = pytz.timezone("Asia/Tel_Aviv")
@@ -120,6 +135,7 @@ def get_commits(branch=None):
                 CiCommit.authored_datetime >= from_date
                )\
         .order_by(CiCommit.authored_datetime.desc())
+
   else:
     commits = []
     page = 0
@@ -135,34 +151,79 @@ def get_commits(branch=None):
 
     is_in_range = lambda c: c.authored_datetime >= from_date and c.authored_datetime <= to_date
     commit_ids = [c.hexsha for c in commits if is_in_range(c)]
-    ci_commits = CiCommit.query\
-      .filter(CiCommit.id.in_(commit_ids))\
-      .order_by(CiCommit.authored_datetime.desc())
+    ci_commits = (CiCommit
+                  .query
+                  .filter(CiCommit.id.in_(commit_ids))
+                  .order_by(CiCommit.authored_datetime.desc())
+                 )
 
-  users_db = get_users_per_name("")
-  return jsonify([c.to_dict(users_db=users_db) for c in ci_commits])
+  metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
+  print(metrics_to_aggregate)
+  metrics_to_aggregate = metrics_to_aggregate if metrics_to_aggregate else slam_metrics_to_aggregate
+  return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate) for c in ci_commits])
 
 
-@app.route("/api/v1/branches")
+@app.route("/api/v1/project/branches")
 def list_branches():
-  repo = repos['dvs/psp_swip']
-  return jsonify([r.name for r in repo.refs if r.name.startswith('origin/')])
+  """Returns a list of that project's branches"""
+  project_id = request.args.get('project')
+
+  # TODO: seperate git-based projects, and the rest..?
+  if project_id=='dvs/psp_swip':
+    repo = repos[project_id]
+    return jsonify([r.name for r in repo.refs if r.name.startswith('origin/')])
+
+  branches = (db_session
+              .query(CiCommit.branch)
+              .filter(CiCommit.project_id==project_id)
+              .distinct()
+              .order_by(CiCommit.branch)
+             )
+  return jsonify([b[0] for b in branches])
+
+
+
+@app.route("/api/v1/projects")
+def list_projects():
+  # projects = db_session.query(Project).all()
+  projects = (db_session
+              .query(
+                Project.id,
+                label('latest_commit_datetime', func.max(CiCommit.authored_datetime)),
+                label('total_commits', func.count(CiCommit.id)),
+              )
+              .join(CiCommit)
+              .group_by(Project.id)
+              .order_by(asc(func.lower(Project.id)))
+              .all()
+             )
+  return jsonify({
+    project_id: {
+      'latest_commit_datetime': latest_commit_datetime,
+      'total_commits': total_commits,
+    } for project_id, latest_commit_datetime, total_commits  in projects })
 
 
 @app.route("/api/v1/commit")
 @app.route("/api/v1/commit/")
 @app.route("/api/v1/commit/<path:commit_id>")
 def get_ci_commit(commit_id=None):
+  project_id = request.args.get('project', 'dvs/psp_swip')
   if not commit_id:
-    repo = repos['dvs/psp_swip']
-    ci_commit = latest_successful_commit(repo, 'origin/develop')
+    commit_id = request.args.get('commit', None)
+
+  if not commit_id:
+    branch = request.args.get('branch', 'origin/develop')
+    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch)
+    print(ci_commit)
+    if not ci_commit:
+      return jsonify({'error': 'Sorry, we cant find a suitable commit.'}), 404
   else:
     try: # we try a commit from git
-      repo = repos['dvs/psp_swip']
+      repo = repos[project_id] if project_id == 'dvs/psp_swip' else None
       commit = repo.commit(commit_id)
       ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
     except BadName:
-      ci_commit = LocalCommit(commit_id)
       try:
         ci_commit = LocalCommit(commit_id)
       except:
@@ -173,9 +234,7 @@ def get_ci_commit(commit_id=None):
       return jsonify({'error': 'Sorry, the request failed.'}), 500
     # FIXME: we should add details about the outputs...
     # FIXME: how do we get the reference commit?
-
-  users_db = get_users_per_name("")
-  return jsonify(ci_commit.to_dict(with_details=True, users_db=users_db))
+  return jsonify(ci_commit.to_dict(with_outputs=True))
 
 
 
