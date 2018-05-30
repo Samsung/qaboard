@@ -16,7 +16,8 @@ from slamvizapp.config import *
 
 @click.command()
 @click.option('--days', default=5, help='Outputs folders older than this will be removed.')
-def clean(days):
+@click.option('--verbose', is_flag=True)
+def clean(days, verbose):
   """Removes the outputs from old commits from the disk. This saves storage..."""
   now = datetime.datetime.now().astimezone()
   threshold = datetime.timedelta(days=days)
@@ -33,7 +34,7 @@ def clean(days):
       protected_commits.add(c)
   # for c in protected_commits:
   #   print(f'{c.hexsha} on {c.authored_datetime} by {c.author.name}')
-  print(f'{len(protected_commits)} protected')
+  if verbose: print(f'{len(protected_commits)} protected')
 
 
   cicommits_dir = ci_directory/'dvs/psp_swip'/'commits'
@@ -42,7 +43,7 @@ def clean(days):
     try:
       commit = repo.commit(commit_short_id)
     except BadName:
-      print(f'{cicommit_dir}')
+      if verbose: print(f'{cicommit_dir}')
       continue
 
     if is_old(commit):
@@ -50,7 +51,7 @@ def clean(days):
         print(f'DELETE: {commit.hexsha} on {commit.authored_datetime} by {commit.author.name}')
         subprocess.Popen(f'rm -rf {cicommit_dir}', shell=True)
       else:
-        print(f"find {cicommit_dir} -name '*mp4' -delete -print")  
+        if verbose:  print(f"find {cicommit_dir} -name '*mp4' -delete -print")  
         subprocess.Popen(f"find {cicommit_dir} -name '*mp4' -delete -print", shell=True)
 
   # we remove core dumps, they are soooo heavy...
