@@ -3,7 +3,7 @@ Useful utilities to import data from the CIS CI
 """
 import re
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 # https://docs.python.org/3/howto/regex.html
 date = '(?P<date>\d{4}_\d{2}_\d{2})'
@@ -90,3 +90,27 @@ def parse_project_path(path):
   return author, project
 
 
+mount_mapping = {
+  '\\\\f2\\algo_archive\\': Path('/net/f2/algo_archive'),
+  '\\\\f2\\algo_data\\': Path('/stage/algo_data'),
+  '\\\\netapp2\\algo_data\\': Path('/stage/algo_data'),
+  '\\\\netapp\\algo_data\\': Path('/stage/algo_data'),
+}
+
+def parse_cis_input_path(path):
+  """
+  Returns (database, relative_path) from the ugly input path found in the CIS CI.
+  """
+  path_ = PureWindowsPath(path)
+  anchor = path_.anchor
+  rel_path = path_.relative_to(anchor)
+  database_name = list(rel_path.parents)[-2]
+  path_ = path_.relative_to(anchor / database_name)
+
+  try:
+    unix_anchor = mount_mapping[anchor]
+  except Exception as e:
+    print(path_)
+    raise e
+  database = unix_anchor / database_name
+  return database.as_posix(), path_.as_posix()

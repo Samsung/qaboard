@@ -10,7 +10,6 @@ from pathlib import Path
 
 from .Batch import aggregated_metrics
 from .Output import Output
-from ..utils import filter_outputs
 
 class Committer():
   def  __init__(self, name):
@@ -172,9 +171,7 @@ class LocalBatch():
     return len([o for o in self.outputs if o.is_failed])
 
   def aggregated_metrics(self, filename_filter='', filename_exclude=''):
-    return aggregated_metrics(filter_outputs(
-        self.valid_outputs, filename_filter, filename_exclude)
-                             )
+    return aggregated_metrics(self.valid_outputs)
 
   def metrics(self, metric, outputs=None):
     """Returns a list of results - for a chosen metric - over the commit's outputs.

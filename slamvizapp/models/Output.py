@@ -27,7 +27,7 @@ class Output(Base):
   id = Column(Integer, primary_key=True)
 
   batch_id = Column(Integer(), ForeignKey('batches.id'), index=True)
-  batch = relationship("Batch", back_populates="outputs")
+  batch = relationship("Batch", back_populates="outputs",)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
   ####  Where results are stored (eg logs, images, 6dof, whatever)
@@ -103,15 +103,26 @@ class Output(Base):
     return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):
-    return f"<Output \
-              ci_commit_id='{self.batch.ci_commit_id}' \
-              batch='{self.batch.label}' \
-              platform='{self.platform}' \
-              config='{self.configuration}' \
-              filename='{self.test_input.filename}' />"
+    return (f"<Output "
+           f"ci_commit_id='{self.batch.ci_commit_id}' "
+           f"batch='{self.batch.label}' "
+           f"platform='{self.platform}' "
+           f"config='{self.configuration}' "
+           f"filename='{self.test_input.filename}' />")
 
   def to_dict(self):
-    as_dict = {c.name:getattr(self, c.name) for c in Base.metadata.tables['outputs'].columns}
+    cols = [
+     'id',
+     'output_type',
+     'platform',
+     'configuration',
+     'extra_parameters',
+     'metrics',
+     'is_failed',
+     'is_pending',
+     'is_running',
+    ]
+    as_dict = {c: getattr(self, c) for c in cols}
     return {
         **as_dict,
         'output_dir_url': str(self.output_dir_url),

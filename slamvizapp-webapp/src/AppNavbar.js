@@ -35,7 +35,7 @@ class AppNavbar extends Component {
   }
 
   componentDidMount() {
-    get("/api/v1/branches")
+    get("/api/v1/project/branches", params={project: 'dvs/psp_swip'})
     .then(response=>{
        this.setState({
          branches: response.data,

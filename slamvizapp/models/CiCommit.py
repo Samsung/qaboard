@@ -8,8 +8,9 @@ from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, DateTime
 
 from slamvizapp import repos
-from slamvizapp.models import Base, Batch
+from slamvizapp.models import Base, Batch, Output
 from slamvizapp.models.LocalMocks import LocalGitCommit
+from ..utils import get_users_per_name, iter_recordings
 from ..git_utils import find_branch
 from ..config import ci_directory
 
@@ -32,7 +33,11 @@ class CiCommit(Base):
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
   
-  batches = relationship("Batch", order_by=Batch.created_date, back_populates="ci_commit")
+  batches = relationship("Batch",
+                         back_populates="ci_commit",
+                         cascade="all, delete-orphan",
+                         order_by=Batch.created_date,
+                        )
 
   def get_or_create_batch(self, label):
     matching_batches = [b for b in self.batches if b.label == label]
@@ -54,7 +59,7 @@ class CiCommit(Base):
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
-      return Path(commit_dir_override)
+      return Path(self.commit_dir_override)
     commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
     return ci_directory / self.project.id / 'commits' / commit_dir_name
 
@@ -67,9 +72,9 @@ class CiCommit(Base):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       if '/net/f2/algo_archive' in self.commit_dir_override:
-        return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
+        return '/s/'/self.commit_dir.relative_to('/net/f2/algo_archive')
       elif '/stage/algo_data' in self.commit_dir_override:
-        return '/s/'/self.output_dir.relative_to('/stage/algo_data')
+        return '/s/'/self.commit_dir.relative_to('/stage/algo_data')
       else:
         raise NotImplementedError
     return '/s/'/self.commit_dir.relative_to(ci_directory)
@@ -132,7 +137,8 @@ class CiCommit(Base):
                              maybe an error opening param.json for {commit.hexsha}')
 
 
-  def to_dict(self, with_details=False, users_db=None):
+  def to_dict(self, with_outputs=False, with_aggregation=None):
+    users_db = get_users_per_name("")
     committer_avatar_url = ''
     if users_db:
       name = self.committer_name
@@ -151,7 +157,7 @@ class CiCommit(Base):
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'commit_dir_url': str(self.commit_dir_url),
-        'batches': {b.label: b.to_dict(with_details=with_details) for b in self.batches},
+        'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation) for b in self.batches},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
 
@@ -159,20 +165,41 @@ class CiCommit(Base):
 
 
 
-def latest_successful_commit(repo=None, branch='origin/develop'):
+def latest_successful_commit(session, project_id, branch):
   """Returns the latest commit on a given branch where we got outputs."""
-  # one of those should be successful
-  if not repo: return None
-  page = 0
-  while page < 10:
-    commits = repo.iter_commits(branch, max_count=20, skip=20*page)
-    commit_ids = [c.hexsha for c in commits]
-    ci_commits = CiCommit.query\
-      .filter(CiCommit.id.in_(commit_ids))\
-      .order_by(CiCommit.authored_datetime.desc())
-    ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
-    if ci_commits_successful: return ci_commits_successful[0]
-    page = page + 1
+  if project_id != 'dvs/psp_swip':
+    ci_commits = (session
+                  .query(CiCommit)
+                  .join(Batch, Output)
+                  .filter(
+                    CiCommit.project_id == project_id,
+                    # CiCommit.branch == branch,
+                    # Output.is_pending == False,
+                    # Output.is_failed == False,
+                  )
+                  .order_by(CiCommit.authored_datetime.desc())
+                  .group_by(CiCommit.id)
+                  .first()
+                 )
+    print(ci_commits)
+    return ci_commits
+
+  else:
+    repo = repos[project_id]
+    page = 0
+    while page < 10:
+      commits = repo.iter_commits(branch, max_count=20, skip=20*page)
+      commit_ids = [c.hexsha for c in commits]
+      ci_commits = (CiCommit
+                    .query
+                    .filter(CiCommit.id.in_(commit_ids))
+                    .order_by(
+                      CiCommit.authored_datetime.desc()
+                    )
+                   )
+      ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
+      if ci_commits_successful: return ci_commits_successful[0]
+      page = page + 1
 
 
 
