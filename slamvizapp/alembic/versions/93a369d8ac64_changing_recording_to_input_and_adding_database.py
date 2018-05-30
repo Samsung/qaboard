@@ -38,6 +38,7 @@ def upgrade():
   # projects
   # op.alter_column('ci_commits', 'project_id', type_=sa.String, new_column_name= 'project') # drop the uniqueness constaint
   op.alter_column('ci_commits', 'project', type_=sa.String, new_column_name= 'project_id') # drop the uniqueness constaint
+  op.alter_column('recordings', 'path', type_=sa.String) # drop the uniqueness constaint
   op.create_table(
     'projects',
     sa.Column('id', sa.String(), primary_key=True),
