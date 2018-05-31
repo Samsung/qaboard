@@ -53,6 +53,7 @@ class Output(Base):
   is_running = Column(Boolean(), default=False) # in addition to pending
   is_failed = Column(Boolean(), default=False)
   metrics = Column(JSON(), default={})
+  data = Column(JSON(), default={})
 
 
   # TODO: refactor as SLAM-specific, move into the scrapping code
@@ -121,6 +122,7 @@ class Output(Base):
      'is_failed',
      'is_pending',
      'is_running',
+     'data',
     ]
     as_dict = {c: getattr(self, c) for c in cols}
     return {

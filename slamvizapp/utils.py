@@ -52,8 +52,8 @@ def get_users_per_name(search_filter):
     # sadly we don't have access to email adresses since we are not gitlab admins
     # and git authors are identified by emails...
     for u in users_on_page:
-      users_db[u['name']] = u
-      users_db[u['username']] = u
+      users_db[u['name'].lower()] = u
+      users_db[u['username'].lower()] = u
       try:
         first_name, family_name = u['name'].lower().split(' ')
         user_id = first_name[0] + family_name[:5]

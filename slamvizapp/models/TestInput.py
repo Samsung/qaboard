@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import enum
 
-from sqlalchemy import Column, Integer, String, Boolean, Enum
+from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound
@@ -48,7 +48,8 @@ class TestInput(Base):
     """The path without .bin"""
     return self.path.split('/')[-1]
 
-
+  # misc data
+  data = Column(JSON(), default={})
 
   ### HOW we recorded #########
    # we could store the sensorID...

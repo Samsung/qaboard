@@ -111,6 +111,8 @@ def add_batch(hexsha):
 @app.route("/api/v1/commits/")
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
+  project_id = request.args.get('project', 'dvs/psp_swip')
+
   timezone = pytz.timezone("Asia/Tel_Aviv")
   to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
   from_date_s = request.args.get('from', None)
@@ -123,42 +125,61 @@ def get_commits(branch=None):
 
   if not branch:
     if committer_name is None:
-      ci_commits = db_session.query(CiCommit)\
-                     .filter(CiCommit.authored_datetime <= to_date,
-                             CiCommit.authored_datetime >= from_date
-                            )\
-                     .order_by(CiCommit.authored_datetime.desc())
+      ci_commits = (db_session
+                    .query(CiCommit)
+                    .filter(
+                      CiCommit.project_id == project_id,
+                      CiCommit.authored_datetime <= to_date,
+                      CiCommit.authored_datetime >= from_date
+                    )
+                    .order_by(CiCommit.authored_datetime.desc())
+                   )
     else:
-      ci_commits = CiCommit.query\
-        .filter_by(committer_name=committer_name)\
-        .filter(CiCommit.authored_datetime <= to_date,
-                CiCommit.authored_datetime >= from_date
-               )\
-        .order_by(CiCommit.authored_datetime.desc())
+      ci_commits = (CiCommit
+                    .query
+                    .filter_by(committer_name=committer_name)
+                    .filter(
+                      CiCommit.project_id == project_id,
+                      CiCommit.authored_datetime <= to_date,
+                      CiCommit.authored_datetime >= from_date,
+                    )
+                    .order_by(CiCommit.authored_datetime.desc())
+                   )
 
   else:
-    commits = []
-    page = 0
-    earliest_commit = None
-    new_commits = []
-    while page==0 or earliest_commit.authored_datetime >= from_date:
-      repo = repos['dvs/psp_swip']
-      new_commits = list(repo.iter_commits(branch, max_count=20, skip=20*page))
-      if not new_commits: break
-      earliest_commit = new_commits[-1]
-      page = page + 1
-      commits = commits + new_commits
+    if project_id == 'dvs/psp_swip':
+      commits = []
+      page = 0
+      earliest_commit = None
+      new_commits = []
+      while page==0 or earliest_commit.authored_datetime >= from_date:
+        repo = repos[project_id]
+        new_commits = list(repo.iter_commits(branch, max_count=20, skip=20*page))
+        if not new_commits: break
+        earliest_commit = new_commits[-1]
+        page = page + 1
+        commits = commits + new_commits
 
-    is_in_range = lambda c: c.authored_datetime >= from_date and c.authored_datetime <= to_date
-    commit_ids = [c.hexsha for c in commits if is_in_range(c)]
-    ci_commits = (CiCommit
-                  .query
-                  .filter(CiCommit.id.in_(commit_ids))
-                  .order_by(CiCommit.authored_datetime.desc())
-                 )
+      is_in_range = lambda c: c.authored_datetime >= from_date and c.authored_datetime <= to_date
+      commit_ids = [c.hexsha for c in commits if is_in_range(c)]
+      ci_commits = (CiCommit
+                    .query
+                    .filter(CiCommit.id.in_(commit_ids))
+                    .order_by(CiCommit.authored_datetime.desc())
+                   )
+    else:
+      ci_commits = (db_session
+                    .query(CiCommit)
+                    .filter(
+                      CiCommit.project_id == project_id,
+                      CiCommit.branch == branch,
+                      CiCommit.authored_datetime <= to_date,
+                      CiCommit.authored_datetime >= from_date
+                    )
+                    .order_by(CiCommit.authored_datetime.desc())
+                   )
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  print(metrics_to_aggregate)
   metrics_to_aggregate = metrics_to_aggregate if metrics_to_aggregate else slam_metrics_to_aggregate
   return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate) for c in ci_commits])
 
@@ -215,14 +236,22 @@ def get_ci_commit(commit_id=None):
   if not commit_id:
     branch = request.args.get('branch', 'origin/develop')
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch)
-    print(ci_commit)
     if not ci_commit:
       return jsonify({'error': 'Sorry, we cant find a suitable commit.'}), 404
   else:
     try: # we try a commit from git
-      repo = repos[project_id] if project_id == 'dvs/psp_swip' else None
-      commit = repo.commit(commit_id)
-      ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
+      if project_id == 'dvs/psp_swip':
+        repo = repos[project_id]
+        commit = repo.commit(commit_id)
+        ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
+      else:
+        ci_commit = (CiCommit
+                     .query.filter(
+                      CiCommit.project_id==project_id,
+                      CiCommit.id == commit_id,
+                     )
+                     .one()
+                    )
     except BadName:
       try:
         ci_commit = LocalCommit(commit_id)
@@ -230,7 +259,8 @@ def get_ci_commit(commit_id=None):
         return jsonify({'error': 'Sorry, we could not find the commit folder.'}), 404
     except NoResultFound:
       return jsonify({'error': 'Sorry, we could not find the commit in the database.'}), 404
-    except:
+    except Exception as e:
+      raise(e)
       return jsonify({'error': 'Sorry, the request failed.'}), 500
     # FIXME: we should add details about the outputs...
     # FIXME: how do we get the reference commit?

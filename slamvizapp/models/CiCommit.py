@@ -2,6 +2,8 @@
 A version of the code on which we ran SLAM performance test.
 """
 from pathlib import Path
+from hashlib import md5
+
 from sqlalchemy.orm import relationship, reconstructor
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import Column, ForeignKey
@@ -141,11 +143,16 @@ class CiCommit(Base):
     users_db = get_users_per_name("")
     committer_avatar_url = ''
     if users_db:
-      name = self.committer_name
+      name = self.committer_name.lower()
       if name in users_db:
         committer_avatar_url = users_db[name]['avatar_url']
       elif name.replace('.', '') in users_db:
         committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
+      elif name.replace(' ', '') in users_db:
+        committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
+      else:
+        name_hash = md5(name.encode('utf8')).hexdigest()
+        committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
     return {
         'id': self.id,
         'type': self.commit_type,
@@ -181,7 +188,6 @@ def latest_successful_commit(session, project_id, branch):
                   .group_by(CiCommit.id)
                   .first()
                  )
-    print(ci_commits)
     return ci_commits
 
   else:

@@ -29,7 +29,7 @@ def shutdown_session(exception=None):
     db_session.remove()
 
 import slamvizapp.webhooks
-import slamvizapp.admin
+# import slamvizapp.admin
 import slamvizapp.api
 
 # Enable cross-origin requests to avoid development headcaches  

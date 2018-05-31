@@ -130,6 +130,12 @@ def discover_outputs(batch, session):
                                            configuration=data['configuration'],
                                            extra_parameters={},
                                           )
+      output.output_dir_override = outputs_dir
+      output.data = {
+        'output_picture_format': data['output_picture_format'],
+        'out_regs_file': data['out_regs_file'],
+        'config_folder': data['save_config_folder_name'],
+      }
       # output.is_failed = False
       # output.is_pending = False
       # print(output)
