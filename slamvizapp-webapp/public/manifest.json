@@ -1,6 +1,6 @@
 {
-  "short_name": "Tuning SLAM parameters",
-  "name": "Investigate good tuning parameters",
+  "short_name": "QA SIRC",
+  "name": "QA tools for SIRC's projects",
   "icons": [
     {
       "src": "favicon.ico",

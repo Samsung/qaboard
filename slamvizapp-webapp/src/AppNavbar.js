@@ -1,4 +1,4 @@
-import React, { Component } from "react";
+import React, { Component, Fragment } from "react";
 import { withRouter } from 'react-router'
 import { Link } from "react-router-dom";
 import { get } from "axios";
@@ -35,7 +35,9 @@ class AppNavbar extends Component {
   }
 
   componentDidMount() {
-    get("/api/v1/project/branches", params={project: 'dvs/psp_swip'})
+    const params = new URLSearchParams(this.props.location.search);
+    let project = params.get('project') || 'dvs/psp_swip';
+    get("/api/v1/project/branches", {params: {project}})
     .then(response=>{
        this.setState({
          branches: response.data,
@@ -54,28 +56,34 @@ class AppNavbar extends Component {
   }
 
   render() {
+    const params = new URLSearchParams(this.props.location.search);
+    let is_home = this.props.location.pathname.startsWith('/projects');
+    let project = is_home ? 'SIRC' : ( params.get('project') || 'dvs/psp_swip' );
   	return (
-	  <Navbar className="pt-dark">
-	    <NavbarGroup>
-	      <NavbarHeading>SLAM</NavbarHeading>
-	      <Button disabled className="pt-minimal" icon="git-branch"></Button>
-	      <Suggest
-	        itemPredicate={filterBranch}
-	        items={this.state.branches}
-	        itemRenderer={renderBranch}
-	        inputValueRenderer={this.renderInputValue}
-	        noResults={<MenuItem disabled={true} text="No results." />}
-	        onItemSelect={this.handleBranchChange}
-	        popoverProps={Classes.MINIMAL}
-	        placeholder="Filter by branch..."
-	        initialContent="Filter by branch..."
-	       />
-	      <NavbarDivider />
-	      <InputGroup leftIcon="git-commit" placeholder="Go to commit or folder..." onChange={this.handleCommitChange}/>
-	    </NavbarGroup>
-	    <NavbarGroup align="right">
-	      <Link to="/"><Button className="pt-minimal" icon="home">Recent Commits</Button></Link>
-	    </NavbarGroup>
+  	  <Navbar className="pt-dark">
+  	    <NavbarGroup>
+  	      <NavbarHeading>{project}</NavbarHeading>
+  	      {!is_home && <Fragment>
+            <Button disabled className="pt-minimal" icon="git-branch"></Button>
+    	      <Suggest
+    	        itemPredicate={filterBranch}
+    	        items={this.state.branches}
+    	        itemRenderer={renderBranch}
+    	        inputValueRenderer={this.renderInputValue}
+    	        noResults={<MenuItem disabled={true} text="No results." />}
+    	        onItemSelect={this.handleBranchChange}
+    	        popoverProps={Classes.MINIMAL}
+    	        placeholder="Filter by branch..."
+    	        initialContent="Filter by branch..."
+              onFocus ={this.getBranches}
+    	       />
+    	      <NavbarDivider />
+    	      <InputGroup leftIcon="git-commit" placeholder="Go to commit or folder..." onChange={this.handleCommitChange}/>
+          </Fragment>}
+  	    </NavbarGroup>
+  	    <NavbarGroup align="right">
+  	      {!is_home && <Link to="/project"><Button className="pt-minimal" icon="home">All projects</Button></Link>}
+  	    </NavbarGroup>
       </Navbar>
     )
   }

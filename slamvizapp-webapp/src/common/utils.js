@@ -26,6 +26,16 @@ const groupByObject = (array, prop) => {
 };
 
 
+const shortId = (project, id) => {
+  if (project==='dvs/psp_swip')
+    return id.substring(0,8);
+
+  let parts = id.split('/')
+  let name = parts[parts.length-1];
+  let name_parts = name.split('__');
+  return name_parts.slice(0, name_parts.length-1).join('__')
+}
+
 const empty_output = {metrics: undefined, extra_parameters: {}};
 
 // Finds the most matching output from a batch
@@ -50,4 +60,4 @@ const matching_output = ({output, batch}) => {
   return {output_ref, warning, imperfect_match}
 }
 
-export { groupBy, groupByObject, matching_output, calendarStrings };
+export { groupBy, groupByObject, matching_output, calendarStrings, shortId };

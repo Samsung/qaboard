@@ -39,6 +39,7 @@ const CommitsEvolution1D = ({ commits, metrics, aggregation }) => {
   let shown_aggregation = aggregation || 'average';
   let valid_commits = commits.filter( c => !!c.batches.default )
                              .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
+
   let traces = shown_metrics
                 .map( key => slam_metrics[key] )
                 .map( metric => ({
@@ -79,8 +80,11 @@ class CommitsEvolution extends Component {
     this.setState({selected_aggregation: e.target.value})
   }
   render() {
-    const { commits, style } = this.props;
+    const { project, commits, style } = this.props;
     const { selected_metric, selected_aggregation } = this.state;
+
+    if (project!=='dvs/psp_swip') return <div></div>;
+
     return <div style={style}>
       <FormGroup inline>
         <div className="pt-select pt-minimal">

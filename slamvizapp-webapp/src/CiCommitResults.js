@@ -102,6 +102,7 @@ class CiCommitResults extends Component {
     super(props);
     const params = new URLSearchParams(this.props.location.search);
     this.state = {
+      project: params.get('project') || 'dvs/psp_swip',
       new_commit_id: null, // current commit to display
       ref_commit_id: params.get('reference') || null, // reference commit to display
 
@@ -205,9 +206,9 @@ class CiCommitResults extends Component {
 
   getCiCommit(commit_id, to_update) {
     // the API defaults to the latest commit on develop
-    // we want to use this default 
+    // we want to use this default
     let query = commit_id==='default' ? '' : `/${commit_id}`;
-    get(`/api/v1/commit${query}`, {params: {}})
+    get(`/api/v1/commit${query}`, {params: {project: this.state.project}})
       .then(response => {
         // we want to keep updated
         // we could use setInterval and update the reference but it makes the logic more complicated...
@@ -314,18 +315,23 @@ class CiCommitResults extends Component {
       return batch;
     let filter_tokens = filter_values.split(' ');
 
-    let batch_filtered = Object.create(batch)
+    let batch_filtered = Object.create(batch) // copy
     batch_filtered.outputs = {}
+
     Object.entries(batch.outputs).forEach( ([id, output])=> {
       let extra_parameters_s = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
       let extra_parameters = extra_parameters_s.replace(/"/g, '');
       let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
       let found = false;
+      // TODO: first check for exclude filter (-)
+      // ..
       for (var i in filter_tokens) {
         let search = filter_tokens[i]
                      .toLowerCase()
                      .replace(/"/g, '')
                      .replace(/=+/g, ':');
+        // let exclude = search.startswith('-')
+        // if exclude and searched.includes(search[1:]) {found=false}
         if (searched.includes(search)) {
           found=true;
           break
@@ -414,10 +420,12 @@ class CiCommitResults extends Component {
 
   sortOutputs = ([ka,a], [kb,b]) => {
     const { sort_by } = this.state;
-    if (a[sort_by] > b[sort_by]) {
+    const a_value = a.metrics[sort_by] || a[sort_by];
+    const b_value = b.metrics[sort_by] || b[sort_by];
+    if (a_value > b_value ) {
       return this.state.order;
     }
-    if (a[sort_by] < b[sort_by]) {
+    if (a_value < b_value) {
       return -this.state.order;
     }
     // TODO: we may want to sort also by extra_parameters
@@ -428,7 +436,7 @@ class CiCommitResults extends Component {
 
   render() {
     // console.log(this.state);
-    var { commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref, selected_metrics } = this.state;
+    var { project, commits, new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref, selected_metrics } = this.state;
     var { filter_batch_new, filter_batch_ref } = this.state;
 
     if (!new_commit_id || !new_commit_id)
@@ -551,6 +559,7 @@ class CiCommitResults extends Component {
         {warning_messages}
         <Section>
           <CommitInfoCompareCard
+            project={project}
             new_commit={new_commit}
             ref_commit={ref_commit}
             new_label={selected_batch_new}
@@ -606,10 +615,10 @@ class CiCommitResults extends Component {
         <Section>
           <Card elevation={2}>
           <Tabs id="tabs-summary">
-              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
-              <Tab id="parameters" title="Parameters" panel={<CommitParameters new_commit={new_commit}/>} />
-              <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm commit={new_commit} />} />
-              <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm commit={new_commit} />} />
+              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary project={project} new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
+              <Tab id="parameters" title="Parameters" panel={<CommitParameters project={project} new_commit={new_commit}/>} />
+              <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm project={project} commit={new_commit} />} />
+              <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm project={project} commit={new_commit} />} />
           </Tabs>
           </Card>
         </Section>

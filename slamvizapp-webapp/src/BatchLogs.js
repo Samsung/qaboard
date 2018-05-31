@@ -21,7 +21,13 @@ class OutputLog extends Component {
   }
 
   getLog() {
-   get(`${this.props.output.output_dir_url}/log.txt`)
+    const { output } = this.props;
+    if (output.type==='slam/6dof')
+      var logfile = 'log.txt';
+    else {
+      logfile`command_line_sw_log_${output.data.config_folder}.txt`;
+   }
+   get(`${this.props.output.output_dir_url}/${logfile}`)
     .then(response => {
       this.setState({
         is_loaded: true,
