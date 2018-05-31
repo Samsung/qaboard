@@ -3,14 +3,14 @@ LABEL maintainer="arthurf.flam@samsung.com"
 
 # SIRC proxy configuration
 # if you run into network issues, build the image somewhere else :_)
-RUN echo 'Acquire::http::Proxy "http://dlp-wcg01:8080";' >> /etc/apt/apt.conf
-RUN echo 'Acquire::https::Proxy "http://dlp-wcg01:8080";' >> /etc/apt/apt.conf
-RUN echo '[http]\nsslverify = false\n# proxy = http://dlp-wcg01:8080' >> /root/.gitconfig
-ENV HTTP_PROXY 'http://dlp-wcg01:8080'
-ENV http_proxy 'http://dlp-wcg01:8080'
-ENV HTTPS_PROXY 'http://dlp-wcg01:8080'
-ENV https_proxy 'http://dlp-wcg01:8080'
-ENV NO_PROXY 'gitlab-srv'
+RUN echo 'Acquire::http::Proxy "http://dlp2-wcg01:8080";' >> /etc/apt/apt.conf
+RUN echo 'Acquire::https::Proxy "http://dlp2-wcg01:8080";' >> /etc/apt/apt.conf
+RUN echo '[http]\nsslverify = false\n# proxy = http://dlp2-wcg01:8080' >> /root/.gitconfig
+ENV HTTP_PROXY 'http://dlp2-wcg01:8080'
+ENV http_proxy 'http://dlp2-wcg01:8080'
+ENV HTTPS_PROXY 'http://dlp2-wcg01:8080'
+ENV https_proxy 'http://dlp2-wcg01:8080'
+ENV NO_PROXY 'gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
 
 RUN apt-get update
 RUN apt-get install -y git wget
