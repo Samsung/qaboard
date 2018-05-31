@@ -1,7 +1,7 @@
 import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
 import { get, all } from "axios";
-import queryString from "query-string";
+import qs from "qs";
 // import List from 'react-virtualized'
 
 import AceEditor from 'react-ace';
@@ -216,11 +216,11 @@ class CiCommitResults extends Component {
           setTimeout(x=>this.getCiCommit(response.data.id, to_update), 60*1000)
 
         if (to_update ==='ref_commit_id') {
-          let query = queryString.parse(this.props.location.search)
+          let query = qs.parse(this.props.location.search)
           if (query.reference && query.reference!==response.data.id) {
             this.props.history.push({
               pathname: this.props.location.pathname,
-              search: queryString.stringify({
+              search: qs.stringify({
                 ...query,
                 reference: response.data.id,
               })
@@ -290,10 +290,10 @@ class CiCommitResults extends Component {
     if (
       ( is_git && new_ref_commit_id.substring(0,8) !== ref_commit_id.substring(0,8)) || 
       (!is_git && new_ref_commit_id !== ref_commit_id) ) {
-      let query = queryString.parse(this.props.location.search);
+      let query = qs.parse(this.props.location.search);
       this.props.history.push({
         pathname: this.props.location.pathname,
-        search: queryString.stringify({
+        search: qs.stringify({
           ...query,
           reference: new_ref_commit_id,
         })
@@ -352,10 +352,10 @@ class CiCommitResults extends Component {
 
   selectBatchNew = e => {
     this.setState({selected_batch_new: e.target.value})
-    let query = queryString.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
-      search: queryString.stringify({
+      search: qs.stringify({
         ...query,
         batch_new: e.target.value,
       })
@@ -364,10 +364,10 @@ class CiCommitResults extends Component {
 
   selectBatchRef = e => {
     this.setState({selected_batch_ref: e.target.value})
-    let query = queryString.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
-      search: queryString.stringify({
+      search: qs.stringify({
         ...query,
         batch_reference: e.target.value,
       })
@@ -376,10 +376,10 @@ class CiCommitResults extends Component {
 
   UpdateFilterBatchNew = e => {
     this.setState({filter_batch_new: e.target.value})
-    let query = queryString.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
-      search: queryString.stringify({
+      search: qs.stringify({
         ...query,
         filter: e.target.value,
       })
@@ -387,10 +387,10 @@ class CiCommitResults extends Component {
   }
   UpdateFilterBatchRef = e => {
     this.setState({filter_batch_ref: e.target.value})
-    let query = queryString.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search);
     this.props.history.push({
       pathname: this.props.location.pathname,
-      search: queryString.stringify({
+      search: qs.stringify({
         ...query,
         filter_ref: e.target.value,
       })

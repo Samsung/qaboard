@@ -16,7 +16,7 @@
     "moment": "^2.20.1",
     "moment-timezone": "^0.5.14",
     "plotly.js": "^1.38.1",
-    "query-string": "^6.1.0",
+    "qs": "^6.5.2",
     "react": "^16.2.0",
     "react-ace": "^6.1.1",
     "react-addons-css-transition-group": "^15.6.2",
