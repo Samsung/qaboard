@@ -19,6 +19,11 @@ server {
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
   }
 
+  location ^~ /admin {
+      include uwsgi_params;
+      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+  }
+
  location ^~ /s/ {
   alias /home/arthurf/ci/;
   autoindex on;
@@ -62,6 +67,11 @@ server {
   }
 
   location ^~ /webhook {
+      include uwsgi_params;
+      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+  }
+
+  location ^~ /admin {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
   }
