@@ -80,16 +80,16 @@ def init_cis_database(verbose):
     has_pending = len([o for o in ci_batch.outputs if o.is_pending])
     has_failed = len([o for o in ci_batch.outputs if o.is_failed])
     # if not ci_batch.outputs or could_be_pending_results:
-    # if True:
-    if not ci_batch.outputs:
+    # if not ci_batch.outputs:
+    if True:
       try:
         discover_outputs(ci_batch, session)
         if verbose: print(ci_commit)
       except Exception as e:
         print(e)
         continue
-      # session.add(ci_batch)
-      # session.commit()
+      session.add(ci_batch)
+      session.commit()
 
     session.add(ci_commit)
     session.commit()
@@ -130,17 +130,17 @@ def discover_outputs(batch, session):
                                            configuration=data['configuration'],
                                            extra_parameters={},
                                           )
-      output.output_dir_override = outputs_dir
+      output.output_dir_override = str(outputs_dir)
+      output.output_type = 'cis/image'
       output.data = {
         'output_picture_format': data['output_picture_format'],
         'out_regs_file': data['out_regs_file'],
         'config_folder': data['save_config_folder_name'],
+        'first_frame': data['first_frame'],
       }
-      # output.is_failed = False
-      # output.is_pending = False
       # print(output)
-      session.add(output)
-      session.commit()
+      # session.add(output)
+      # session.commit()
 
 
 
