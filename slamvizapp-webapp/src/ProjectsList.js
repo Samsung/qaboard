@@ -54,7 +54,7 @@ class ProjectsList extends React.Component {
     const { error, is_loaded, projects } = this.state;
     let warnings;
     if (error)
-      warnings = <NonIdealState description={error.message} visual="pt-icon-error"/>;
+      warnings = <NonIdealState description={error.message} visual="error"/>;
     if (!is_loaded)
       warnings = <NonIdealState title="Loading" visual={<Spinner/>} />;
 
