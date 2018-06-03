@@ -62,7 +62,8 @@ class AppNavbar extends Component {
   	return (
   	  <Navbar className="pt-dark">
   	    <NavbarGroup>
-  	      <NavbarHeading>{project}</NavbarHeading>
+  	      <NavbarHeading>{is_home ? "SIRC"
+                                  : <Link style={{color: '#fff'}} to={`/?project=${project}`}>{project}</Link>}</NavbarHeading>
   	      {!is_home && <Fragment>
             <Button disabled className="pt-minimal" icon="git-branch"></Button>
     	      <Suggest
@@ -82,7 +83,7 @@ class AppNavbar extends Component {
           </Fragment>}
   	    </NavbarGroup>
   	    <NavbarGroup align="right">
-  	      {!is_home && <Link to="/project"><Button className="pt-minimal" icon="home">All projects</Button></Link>}
+  	      {!is_home && <Link to="/projects"><Button className="pt-minimal" icon="home">All projects</Button></Link>}
   	    </NavbarGroup>
       </Navbar>
     )
