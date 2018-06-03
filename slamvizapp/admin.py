@@ -8,7 +8,7 @@ from flask_admin.contrib.sqla import ModelView
 from flask_admin.form import fields as fa_fields
 
 from slamvizapp import app, db_session
-from slamvizapp.models import TestInput, CiCommit, Batch, Project 
+from slamvizapp.models import TestInput, CiCommit, Batch, Project, Output
 
 
 admin = Admin(app, name='slamvizapp',
@@ -44,4 +44,5 @@ class ProjectModelView(ModelView):
 admin.add_view(TestInputModelView(TestInput, db_session))
 admin.add_view(ModelView(CiCommit, db_session))
 admin.add_view(ModelView(Batch, db_session))
+admin.add_view(ModelView(Output, db_session))
 admin.add_view(ProjectModelView(Project, db_session))
