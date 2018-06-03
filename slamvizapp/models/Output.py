@@ -96,9 +96,9 @@ class Output(Base):
   def output_dir_url(self):
     if self.output_dir_override is not None:
       if '/net/f2/algo_archive' in self.output_dir_override:
-        return '/s/'/self.output_dir.relative_to('/net/f2/algo_archive')
+        return '/s/'/self.output_dir.relative_to('/net/f2')
       elif '/stage/algo_data' in self.output_dir_override:
-        return '/s/'/self.output_dir.relative_to('/stage/algo_data')
+        return '/s/'/self.output_dir.relative_to('/stage')
       else:
         raise NotImplementedError
     return self.batch.output_dir_url / self.output_folder
@@ -153,8 +153,8 @@ class Output(Base):
           configuration=kwargs['configuration'],
           extra_parameters=kwargs['extra_parameters'],
       )
-      session.add(output)
-      session.commit()
+      # session.add(output)
+      # session.commit()
       return output
 
     except MultipleResultsFound:

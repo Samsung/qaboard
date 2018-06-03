@@ -129,8 +129,8 @@ class CiCommit(Base):
     except NoResultFound:
       try:
         ci_commit = CiCommit(commit)
-        session.add(ci_commit)
-        session.commit()
+        # session.add(ci_commit)
+        # session.commit()
         return ci_commit
       except ValueError:
         raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')

@@ -27,6 +27,6 @@ class Project(Base):
       project = session.query(Project).filter_by(**kwargs).one()
     except NoResultFound:
       project = Project(**kwargs)
-      session.add(project)
-      session.commit()
+      # session.add(project)
+      # session.commit()
     return project

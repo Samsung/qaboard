@@ -126,7 +126,7 @@ class TestInput(Base):
 
 
   def __repr__(self):
-    return f"<Input(id='{self.id}' path='{self.path}' speed={self.motion_speed}>"
+    return f"<Input id='{self.id}' path='{self.path}' speed={self.motion_speed}/>"
 
 
   @staticmethod
@@ -139,6 +139,6 @@ class TestInput(Base):
       )
     except NoResultFound:
       test_input = TestInput(database=str(database), path=str(path))
-      session.add(test_input)
-      session.commit()
+      # session.add(test_input)
+      # session.commit()
     return test_input
