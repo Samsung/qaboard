@@ -25,7 +25,7 @@ const SlimCard = styled(Card)`
   overflow: 'auto';
 `
 
-class OutputCard extends Component {
+class SlamOutputCard extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -398,4 +398,4 @@ const layout3d = {
   }
 }
 
-export { OutputCard };
+export { SlamOutputCard };

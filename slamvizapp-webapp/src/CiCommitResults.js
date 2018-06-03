@@ -7,23 +7,25 @@ import qs from "qs";
 import AceEditor from 'react-ace';
 import { FormGroup, Switch } from "@blueprintjs/core";
 import { Button, MenuItem, Tag, InputGroup, Tooltip, Callout, Card, NonIdealState, Spinner, Tab, Tabs, Intent } from "@blueprintjs/core";
-
-import { Container, Section } from "./common/containers";
-import { matching_output } from "./common/utils";
-import { MetricsSummary } from "./MetricsSummary";
-import { TableCompare, TableKpi } from "./Tables";
-import { BatchLogs } from "./BatchLogs";
-import { OutputCard } from "./slam/OutputCard";
-import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
-import { slam_configurations } from "./slam/configurations";
-import { main_metrics, slam_metrics, default_metric } from "./slam/metrics";
-import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
-import { TuningExploration } from "./tuning/TuningExploration";
-import { SelectBatches } from "./tuning/SelectBatches";
-
 import { MultiSelect, Classes } from "@blueprintjs/select";
 import { noMetrics } from "./common/metricSelect";
 
+import { Container, Section } from "./common/containers";
+import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
+import { MetricsSummary } from "./MetricsSummary";
+
+import { matching_output } from "./common/utils";
+import { TableCompare, TableKpi } from "./Tables";
+import { BatchLogs } from "./BatchLogs";
+import { SlamOutputCard } from "./slam/SlamOutputCard";
+import { CisOutputCard } from "./cis/CisOutputCard";
+
+import { slam_configurations } from "./slam/configurations";
+import { main_metrics, slam_metrics, default_metric } from "./slam/metrics";
+
+import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
+import { TuningExploration } from "./tuning/TuningExploration";
+import { SelectBatches } from "./tuning/SelectBatches";
 
 /*eslint-disable no-alert, no-console */
 import brace from 'brace'; // eslint-disable-line no-unused-vars
@@ -101,8 +103,14 @@ class CiCommitResults extends Component {
   constructor(props) {
     super(props);
     const params = new URLSearchParams(this.props.location.search);
+    const project = params.get('project') || 'dvs/psp_swip';
+    const is_slam = project === 'dvs/psp_swip';
+
     this.state = {
-      project: params.get('project') || 'dvs/psp_swip',
+      project,
+      available_metrics: is_slam ? slam_metrics : {},
+      selected_metrics: is_slam ? main_metrics.map(k=>slam_metrics[k]) : [],
+
       new_commit_id: null, // current commit to display
       ref_commit_id: params.get('reference') || null, // reference commit to display
 
@@ -115,19 +123,17 @@ class CiCommitResults extends Component {
 
       filter_batch_new: params.get('filter') || '',
       filter_batch_ref: params.get('filter_ref') || '',
-      sort_by: default_metric,
+      sort_by: is_slam ? default_metric : 'input_test_path', // FIXME
       order: -1,
 
+      // FIX: SLAM-specific
       show_videos: false,
       show_3d: false,
       show_debug: false,
-
-      selected_metrics: main_metrics.map(k=>slam_metrics[k]),
-
-      commit_logs: {},
     };
   }
 
+  // these members help us define the metric selector 
   renderMetric = (metric, {handleClick, modifiers, query} ) => {
     if (!modifiers.matchesPredicate) {
       return null;
@@ -282,11 +288,10 @@ class CiCommitResults extends Component {
   }
 
 
+  // callbacl used when the user want to change the reference commit
   handleSubmitReference = (new_ref_commit_id) => {
     const { commits, ref_commit_id } = this.state;
     let is_git = commits[ref_commit_id].data.type==='git';
-     // console.log(new_ref_commit_id.substring(0,8))
-    // console.log(ref_commit_id.substring(0,8))
     if (
       ( is_git && new_ref_commit_id.substring(0,8) !== ref_commit_id.substring(0,8)) || 
       (!is_git && new_ref_commit_id !== ref_commit_id) ) {
@@ -397,20 +402,20 @@ class CiCommitResults extends Component {
     })
   }
 
+
+
   toogleShowDebug = () => {
     let previous_value = this.state.show_debug;
     this.setState({
       show_debug: !previous_value,
     })
   }
-
   toogleShowVideos = () => {
     let previous_value = this.state.show_videos;
     this.setState({
       show_videos: !previous_value,
     })
   }
-
   toogleShow3d = () => {
     let previous_value = this.state.show_3d;
     this.setState({
@@ -465,7 +470,7 @@ class CiCommitResults extends Component {
         <Section>
           <NonIdealState
             title="Network Error"
-            description={error_description} visual="pt-icon-error"
+            description={error_description} visual="error"
           />
         </Section>)
     }
@@ -525,7 +530,7 @@ class CiCommitResults extends Component {
             title={`${nb_failed} crashed`}
           >
             {new_batch_filtered.label==='default' && <p>Maybe the logs (below) can help debug this.</p>}
-            <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>
+            {project==='dvs/psp_swip' && <p>Consider running the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>debug</code></a> manual CI job, or adding <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">instrumentation flags</a> for the compiler.</p>}
             <ul>
               {Object.values( new_batch_filtered.outputs )
                      .filter( o=>o.is_failed )
@@ -542,7 +547,7 @@ class CiCommitResults extends Component {
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = <MultiSelect
-      items={Object.values(slam_metrics)}
+      items={Object.values(this.state.available_metrics)}
       itemPredicate={this.filterMetric}
       itemRenderer={this.renderMetric}
       onItemSelect={this.handleMetricSelect}
@@ -582,7 +587,7 @@ class CiCommitResults extends Component {
                 <FormGroup labelFor="filter-new-input" helperText={`${!this.state.filter_batch_new ? 'You can filter outputs by all their properties. ' : ''}${Object.keys(new_batch_filtered.outputs).length} selected`}>
                   <InputGroup
                     value={this.state.filter_batch_new}
-                    placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
+                    placeholder="Input, platform, configuration, or tuning parameters (key:value)"
                     onChange={this.UpdateFilterBatchNew}
                     type="search"
                     leftIcon="search"
@@ -599,7 +604,7 @@ class CiCommitResults extends Component {
                 <FormGroup labelFor="filter-ref-input" helperText={`${Object.keys(ref_batch_filtered.outputs).length} selected.`}>
                 <InputGroup
                   value={this.state.filter_batch_ref}
-                  placeholder="Recording, platform, configuration, or tuning parameters (key:value)"
+                  placeholder="Input, platform, configuration, or tuning parameters (key:value)"
                   onChange={this.UpdateFilterBatchRef}
                   type="search"
                   rightIcon="search"
@@ -615,10 +620,10 @@ class CiCommitResults extends Component {
         <Section>
           <Card elevation={2}>
           <Tabs id="tabs-summary">
-              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary project={project} new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
-              <Tab id="parameters" title="Parameters" panel={<CommitParameters project={project} new_commit={new_commit}/>} />
-              <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm project={project} commit={new_commit} />} />
-              <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm project={project} commit={new_commit} />} />
+              <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary project={project} available_metrics={this.state.available_metrics} new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
+              {project==='dvs/psp_swip' && <Tab id="parameters" title="Parameters" panel={<CommitParameters project={project} new_commit={new_commit}/>} />}
+              {project==='dvs/psp_swip' && <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm project={project} commit={new_commit} />} />}
+              {project==='dvs/psp_swip' && <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm project={project} commit={new_commit} />} />}
           </Tabs>
           </Card>
         </Section>
@@ -657,9 +662,10 @@ class CiCommitResults extends Component {
             />
             <Tab
               id="output-list"
-              title="6DoF Details"
+              title={project==='dvs/psp_swip' ? "6DoF Details" : "Detailed outputs"}
               panel={
                 <OutputList
+                  project={project}
                   output_sort={this.sortOutputs}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
@@ -672,23 +678,26 @@ class CiCommitResults extends Component {
               id="tuning-results"
               title="Tuning exploration"
               panel={
-                <TuningExploration batch={new_batch_filtered}/>}
+                <TuningExploration project={project} batch={new_batch_filtered}/>}
               />
             <Tabs.Expander />
-            <Switch checked={this.state.show_debug} label="Debug" onChange={this.toogleShowDebug} />
-            <Switch checked={this.state.show_videos} label="Videos" onChange={this.toogleShowVideos} />
-            <Switch checked={this.state.show_3d} label="3d" onChange={this.toogleShow3d} />
-            <div className="pt-select">
-              <select defaultValue="translation_aape" onChange={this.selectSortBy}>
-                <option value="translation_aape">Sort by AAPE</option>
-                <option value="recording_path">Sort by recording path</option>
-                <option value="rotation_mean">Sort by mean rotation error</option>
-              </select>
-              <select defaultValue="descending" onChange={this.selectOrder}>
-                <option value={-1}>descending</option>
-                <option value={1}>ascending</option>
-              </select>
-            </div>
+            {project==='dvs/psp_swip' ? <Fragment>
+                                          <Switch checked={this.state.show_debug} label="Debug" onChange={this.toogleShowDebug} />
+                                          <Switch checked={this.state.show_videos} label="Videos" onChange={this.toogleShowVideos} />
+                                          <Switch checked={this.state.show_3d} label="3d" onChange={this.toogleShow3d} />
+                                          <div className="pt-select">
+                                            <select defaultValue="translation_aape" onChange={this.selectSortBy}>
+                                              <option value="translation_aape">Sort by AAPE</option>
+                                              <option value="recording_path">Sort by recording path</option>
+                                              <option value="rotation_mean">Sort by mean rotation error</option>
+                                            </select>
+                                            <select defaultValue="descending" onChange={this.selectOrder}>
+                                              <option value={-1}>descending</option>
+                                              <option value={1}>ascending</option>
+                                            </select>
+                                          </div>
+                                          </Fragment>
+                                      : <Fragment/>}
           </Tabs>
         </Section>
         </Fragment>}
@@ -717,7 +726,7 @@ class OutputList extends React.Component {
             {show_debug && <FormGroup
                               label="Show debug outputs matching"
                               labelFor="show-debug-input"
-                              helperText="Separate the debug outputs by spaces."
+                              helperText="You can select any number of debug outputs."
                               style={{'marginBottom': '30px'}}
                             >
                               <InputGroup
@@ -734,17 +743,26 @@ class OutputList extends React.Component {
                      .sort(output_sort)
                      .map( ([id, output]) => {
                         let { output_ref, warning } = matching_output({output: output, batch:ref_batch});
-                        return <OutputCard
-                          key={id}
-                          output_new={output}
-                          output_ref={output_ref}
-                          show_debug={show_debug}
-                          select_debug={this.state.select_debug}
-                          show_videos={show_videos}
-                          show_3d={show_3d}
-                          warning={warning}
-                        />;
-              })}
+                        if (output.output_type==='slam/6dof')
+                          return <SlamOutputCard
+                            key={id}
+                            output_new={output}
+                            output_ref={output_ref}
+                            show_debug={show_debug}
+                            select_debug={this.state.select_debug}
+                            show_videos={show_videos}
+                            show_3d={show_3d}
+                            warning={warning}
+                          />;
+                        else if (output.output_type==='cis/image')
+                          return <CisOutputCard
+                            key={id}
+                            output_new={output}
+                            output_ref={output_ref}
+                            warning={warning}
+                          />;
+                        else return <span>Unsupport output type</span>
+                    })}
             </div>
            </Fragment>
 
