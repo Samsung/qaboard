@@ -175,8 +175,10 @@ const pc_over_threshold = (array, threshold) => {
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
+    const is_slam = this.props.project === 'dvs/psp_swip';
     this.state = {
-      selected_metrics: summary_metrics.map(k=>slam_metrics[k]),
+      available_metrics: is_slam ? slam_metrics : {},
+      selected_metrics: is_slam ? summary_metrics.map(k=>slam_metrics[k]) : [],
     };
   }
 
@@ -252,7 +254,7 @@ class MetricsSummary extends Component {
     return <div>
       {tuned_parameters_array.length>0 && <Callout intent={Intent.WARNING}>The results below show <strong>all the results</strong> with various parameters mixed together.</Callout>}
       <MultiSelect
-          items={Object.values(slam_metrics)}
+          items={Object.values(this.state.available_metrics)}
           itemPredicate={this.filterMetric}
           itemRenderer={this.renderMetric}
           onItemSelect={this.handleMetricSelect}

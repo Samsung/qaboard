@@ -90,7 +90,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, metrics, input }) => 
 }
 
 
-const TableKpi = ({ new_batch, ref_batch, output_sort, compare_cross_runtype, metrics, input }) => {
+const TableKpi = ({ new_batch, ref_batch, output_sort, metrics, input }) => {
   return (
     <Section>
       <h2>Quality report</h2>
