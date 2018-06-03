@@ -70,11 +70,9 @@ class CisOutputCard extends Component {
 
         <p>{output_new.data.output_picture_format}</p>
         <div>
-          <img alt='New' src={`${output_new.output_dir_url}/${output_new.data.output_picture_format}`}/>
+          <img width={400} alt='New' src={`${output_new.output_dir_url}/${output_new.data.output_picture_format}`} />
+          {output_ref.data && <img width={400} alt='Reference' src={`${output_ref.output_dir_url}/${output_ref.data.output_picture_format}`} />}
         </div>
-        {output_ref.data && <div>
-          <img alt='Reference' src={`${output_ref.output_dir_url}/${output_ref.data.output_picture_format}`}/>
-        </div>}
 
         <p><a href={`${output_new.output_dir_url}/${output_new.data.out_regs_file}`}>Output registers</a></p>
       </Card>
