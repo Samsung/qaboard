@@ -22,11 +22,13 @@ class OutputLog extends Component {
 
   getLog() {
     const { output } = this.props;
-    if (output.type==='slam/6dof')
+    if (output.output_type==='slam/6dof')
       var logfile = 'log.txt';
-    else {
-      logfile`command_line_sw_log_${output.data.config_folder}.txt`;
-   }
+    else if (output.output_type==='cis/image') {
+      logfile =  `command_line_sw_log_${output.data.config_folder}.txt`;
+    } else {
+      return;
+    }
    get(`${this.props.output.output_dir_url}/${logfile}`)
     .then(response => {
       this.setState({
@@ -42,19 +44,32 @@ class OutputLog extends Component {
   render() {
     const { output } = this.props;
     const { is_open, is_loaded, error, logs } = this.state;
-    const intent = output.is_failed ? Intent.DANGER : (output.is_pending ? Intent.WARNING : Intent.SUCCESS);
+
+    console.log(output)
+
     const button_text = is_open ? "Hide" : (is_loaded ? "Loading" : "Show")
     const tag_text = output.is_failed ? '❌' : (output.is_pending ? '⏳' : '✅')
+    // we may not know where to look for logs
+    // for this type of output
+    const is_supported = output.output_type==='cis/image' || output.output_type==='slam/6dof';
+    const show_button = <Button
+      disabled={!is_supported}
+      title={is_supported ? button_text : "We don't know where to look for logs"}
+      onClick={this.handleClick}>{button_text} logs
+    </Button>;
+
+    const intent = output.is_failed ? Intent.DANGER : (output.is_pending ? Intent.WARNING : Intent.SUCCESS);
+    const tag_config = <Tag>{`${output.configuration} @${output.platform}`}</Tag>;
     const details = Object.entries(output.extra_parameters).map(([k,v]) =>
       <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">{k}:{v}</Tag>
     )
     return <div>
-      <h6><Button onClick={this.handleClick}>{button_text} logs</Button> <Tag intent={intent}>{tag_text}</Tag> <Tag>{`${output.configuration} @${output.platform}`}</Tag> {output.test_input_path}</h6>
+      <h6>{show_button} <Tag intent={intent}>{tag_text}</Tag> {tag_config} {output.test_input_path}</h6>
       {details}
-      <Collapse isOpen={is_open}>
-        {error && <NonIdealState title="No logs (yet?)" description={error.response ? JSON.stringify(error.response.data) : error}/>}   
-        <pre>{logs || ''}</pre>
-      </Collapse>
+      {is_supported && <Collapse isOpen={is_open}>
+                         {error && <NonIdealState title="No logs (yet?)" description={error.response ? JSON.stringify(error.response.data) : error}/>}   
+                         <pre>{logs || ''}</pre>
+                       </Collapse>}
     </div>
   }
 }
