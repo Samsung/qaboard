@@ -21,6 +21,10 @@ import { slam_metrics, main_metrics } from './slam/metrics'
 import { shortId } from "./common/utils";
 
 
+import { Toaster } from "@blueprintjs/core";
+export const OurToaster = Toaster.create();
+
+
 const HeaderDay = styled.li`
   border-top-width: 0;
   padding: 5px 10px;
@@ -147,10 +151,13 @@ class CommitRow extends React.Component {
           <CommitContent style={{maxWidth: '600px'}}>
             <Message>{commit.message}</Message>
             <div>
-              <CommitShortId project={project} href={commit_url}>{shortId(project, commit.id)}</CommitShortId> 
-              <CopyToClipboard text={commit.id} onCopy={() => {}}>
-                <Button title="copy to clipboard" intent={Intent.PRIMARY} className="pt-minimal pt-small" icon="clipboard" />
-              </CopyToClipboard>
+              <CommitShortId project={project} href={commit_url}>{shortId(project, commit.id)}</CommitShortId>
+              <Tooltip>
+                <CopyToClipboard text={commit.id} onCopy={() => {OurToaster.show({ message: "Copied to clipboard!", intent: Intent.PRIMARY})}}>
+                  <Icon title="copy to clipboard" intent={Intent.PRIMARY} className="pt-minimal pt-small" icon="clipboard" />
+                </CopyToClipboard>
+                <span>Copy to clipboard</span>
+              </Tooltip>
               <Icon icon="pt-icon-git-branch"/> 
               <Link style={{color:'rgba(0,0,0,0.85)'}} to={`/branch/${commit.branch}?project=${project}`}>{commit.branch}</Link> 
               <DoneAtTag commit={commit}/>
@@ -345,11 +352,11 @@ class CiCommitList extends React.Component {
     var list;
     var warning_messages;
     if (error)
-      warning_messages = <NonIdealState description={error.message} visual="pt-icon-error"/>;
+      warning_messages = <NonIdealState description={error.message} visual="error"/>;
     if (!isLoaded)
       warning_messages = <NonIdealState title="Loading" visual={<Spinner/>} />;
     if (commits.length===0 && isLoaded)
-      warning_messages = <NonIdealState title="No results" description={`Searched commits from ${date_range[0]} to ${date_range[1]}`} visual="pt-icon-folder-open" />; 
+      warning_messages = <NonIdealState title="No results" description={`Searched commits from ${date_range[0]} to ${date_range[1]}`} visual="folder-open" />; 
 
     let commits_by_day = groupBy(commits, "authored_date");
 
@@ -371,8 +378,8 @@ class CiCommitList extends React.Component {
     return (
       <Container>
         {information}
-        {warning_messages}
         {qa_report}
+        {warning_messages}
         {isLoaded && list}
       </Container>
     );

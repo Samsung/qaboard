@@ -446,7 +446,7 @@ class CiCommitResults extends Component {
             <NonIdealState
               title="No commit selected"
               description="Please first select a commit."
-              visual="pt-icon-folder-open"
+              visual="folder-open"
             />
           </Section>
         </Container>)
