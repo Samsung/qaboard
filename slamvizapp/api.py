@@ -224,6 +224,7 @@ def list_projects():
   projects = (db_session
               .query(
                 Project.id,
+                Project.information,
                 label('latest_commit_datetime', func.max(CiCommit.authored_datetime)),
                 label('total_commits', func.count(CiCommit.id)),
               )
@@ -234,9 +235,10 @@ def list_projects():
              )
   return jsonify({
     project_id: {
+      'information': information,
       'latest_commit_datetime': latest_commit_datetime,
       'total_commits': total_commits,
-    } for project_id, latest_commit_datetime, total_commits  in projects })
+    } for project_id, information, latest_commit_datetime, total_commits  in projects })
 
 
 @app.route("/api/v1/commit")
