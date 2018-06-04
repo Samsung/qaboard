@@ -49,6 +49,9 @@ class CiCommitResults extends Component {
       selected_batch_new: params.get('batch_new') || 'default',
       selected_batch_ref: params.get('batch_reference') || 'default',
 
+      // for the kpi/improvement/details/tuningExplore tabs
+      selectedTabId: project==='dvs/psp_swip' ? "output-table-compare" : 'output-list',
+
       filter_batch_new: params.get('filter') || '',
       filter_batch_ref: params.get('filter_ref') || '',
       sort_by: is_slam ? default_metric : 'input_test_path', // FIXME
@@ -557,7 +560,7 @@ class CiCommitResults extends Component {
         </Section>
 
         <Section>
-          <Tabs renderActiveTabPanelOnly id="tabs-outputs" selectedTabId={project==='dvs/psp_swip' ? "output-table-compare" : 'output-list'}>
+          <Tabs renderActiveTabPanelOnly id="tabs-outputs" onChange={(newTabId, prevTabId, event)=>{this.setState({selectedTabId: newTabId})}} selectedTabId={this.state.selectedTabId}>
             <Tab
               id="output-table-compare"
               title="Improvement"
@@ -614,10 +617,9 @@ class CiCommitResults extends Component {
                                           <Switch checked={this.state.show_videos} label="Videos" onChange={this.toogleShowVideos} />
                                           <Switch checked={this.state.show_3d} label="3d" onChange={this.toogleShow3d} />
                                           <div className="pt-select">
-                                            <select defaultValue="translation_aape" onChange={this.selectSortBy}>
-                                              <option value="translation_aape">Sort by AAPE</option>
-                                              <option value="recording_path">Sort by recording path</option>
-                                              <option value="rotation_mean">Sort by mean rotation error</option>
+                                            <select defaultValue="test_input_path" onChange={this.selectSortBy}>
+                                              <option value="test_input_path">Sort by Name</option>
+                                              {Object.values(this.state.available_metrics).map(m => <option value={m.key}>Sort by {m.label}</option>)}
                                             </select>
                                             <select defaultValue="descending" onChange={this.selectOrder}>
                                               <option value={-1}>descending</option>
