@@ -1,6 +1,7 @@
 # we expose a simple REST API
 # https://flask-restless.readthedocs.io/en/stable/customizing.html
 # for now we don't use it, but it could be convenient
+import sys
 import datetime
 import pytz
 import subprocess
@@ -107,20 +108,33 @@ def add_batch(hexsha):
   return jsonify('OK')
 
 
+
+to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
+timezone = pytz.timezone("Asia/Tel_Aviv")
+
 @app.route("/api/v1/commits")
 @app.route("/api/v1/commits/")
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
   project_id = request.args.get('project', 'dvs/psp_swip')
 
-  timezone = pytz.timezone("Asia/Tel_Aviv")
-  to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
-  from_date_s = request.args.get('from', None)
   to_date_s = request.args.get('to', None)
   now_localized = timezone.localize(datetime.datetime.now())
-  from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(hours=3))
+
   to_date = to_datetime(to_date_s) if to_date_s else now_localized
-  to_date = to_date + datetime.timedelta(days=1) # fix timezones hahaha
+  to_date = to_date + datetime.timedelta(hours=3) # fix timezones hahaha
+
+  from_date_s = request.args.get('from', None)
+  from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(hours=3))
+  latest_ci_commit = (db_session
+                      .query(CiCommit)
+                      .filter(CiCommit.project_id==project_id)
+                      .order_by(CiCommit.authored_datetime.desc())
+                      .first()
+                     )
+  # latest_ci_commit = db_session.query(func.max(CiCommit.authored_datetime))
+  from_date = min(latest_ci_commit.authored_datetime - (to_date - from_date), from_date)
+
   committer_name = request.args.get('committer', None)
 
   if not branch:
