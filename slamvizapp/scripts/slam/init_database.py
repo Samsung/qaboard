@@ -103,8 +103,8 @@ def discover_outputs(batch, session):
                                           )
     output.update_metrics(output_dir/'metrics.json')
     output.output_type = 'slam/6dof'
-    # session.add(output)
-    # session.commit()
+    session.add(output)
+    session.commit()
 
 
 # def init_recordings():

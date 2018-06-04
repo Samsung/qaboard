@@ -139,8 +139,8 @@ def discover_outputs(batch, session):
         'first_frame': data['first_frame'],
       }
       # print(output)
-      # session.add(output)
-      # session.commit()
+      session.add(output)
+      session.commit()
 
 
 
