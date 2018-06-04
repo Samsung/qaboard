@@ -41,7 +41,7 @@ class TestInput(Base):
   @property
   def output_folder(self):
     """The path without .bin"""
-    return Path(self.path).stem
+    return Path(self.path).with_suffix('')
 
   @property
   def filename(self):
