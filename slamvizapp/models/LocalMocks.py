@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .Batch import aggregated_metrics
 from .Output import Output
+from ..utils import get_users_per_name
 
 class Committer():
   def  __init__(self, name):
@@ -47,6 +48,7 @@ class LocalTestInput():
 class LocalOutput():
   def __init__(self, test_input, platform, configuration, batch):
     self.id = str(test_input.path)
+    self.output_type = 'slam/6dof'
     self.test_input = test_input
     self.test_input_id = 0
     self.platform = platform
@@ -84,11 +86,19 @@ class LocalOutput():
     self.is_running = False
 
   def to_dict(self):
-    # return {}
-    as_dict = {c.name: getattr(self, c.name)
-               for c in Output.metadata.tables['outputs'].columns
-               if hasattr(self, c.name)
-              }
+    cols = [
+     'id',
+     'output_type',
+     'platform',
+     'configuration',
+     'extra_parameters',
+     'metrics',
+     'is_failed',
+     'is_pending',
+     'is_running',
+     'data',
+    ]
+    as_dict = {c: getattr(self, c) for c in cols}
     return {
         **as_dict,
         'output_dir_url': str(self.output_dir_url),
@@ -129,26 +139,25 @@ class LocalBatch():
       output.update_metrics(output_dir/'metrics.json')
       self.outputs.append(output)
 
-  def to_dict(self, with_details=False):
-    if with_details:
-      details = {
-          'outputs': {o.id: o.to_dict() for o in self.outputs},
-      }
+  def to_dict(self, with_outputs=False, with_aggregation=None):
+    metrics_to_aggregate  = with_aggregation if with_aggregation else {}
+    if with_outputs:
+      outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
-      details = {}
+      outputs = {}
     return {
         'id': self.id,
         'commit_id': self.ci_commit_id,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
-        'aggregated_metrics': {k: v for k, v in self.aggregated_metrics().items() if v == v},
-        'valid_outputs': len(self.valid_outputs),
-        'pending_outputs': len(self.pending_outputs),
-        'running_outputs': len(self.pending_outputs),
-        'failed_outputs': len(self.failed_outputs),
-        **details,
-    }
 
+        'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
+        'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),
+        'pending_outputs': len([o for o in self.outputs if o.is_pending]),
+        'running_outputs': len([o for o in self.outputs if o.is_running]),
+        'failed_outputs': len([o for o in self.outputs if o.is_failed]),
+        **outputs,
+    }
   @property
   def valid_outputs(self):
     return [o for o in self.outputs if not o.is_failed and not o.is_pending]
@@ -182,7 +191,10 @@ class LocalBatch():
       outputs = self.outputs
     return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
-
+  def __repr__(self):
+    return (f"<Batch commmit='{self.ci_commit.id}' "
+            f"label='{self.label}' "
+            f"outputs={len(self.outputs)} />")
 
 
 id_parser = re.compile('^(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2})__local__(?P<author>[A-Za-z0-9]*)(?:__(?P<message>.*))*')
@@ -190,7 +202,7 @@ id_parser = re.compile('^(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[
 class LocalCommit():
   def __init__(self, commit_dir):
     # print('getting local commit: ', commit_dir)
-    self.type = 'local'
+    self.commit_type = 'local'
     commit_dir = str(commit_dir)
     commit_dir = commit_dir.replace('\\', '/')
     commit_dir = commit_dir.replace('//', '/')
@@ -213,9 +225,11 @@ class LocalCommit():
     self.authored_datetime = datetime.datetime.strptime(time, '%Y-%m-%d_%H-%M-%S')
     self.time_of_last_batch = self.authored_datetime
     self.branch = f"{matches['author']}'s LOCAL COMMIT"
+    self.parents = []
+    self.message = f"LOCAL COMMIT - {matches['message']}"
     self.gitcommit = LocalGitCommit(
         hexsha=str(self.id),
-        message=f"LOCAL COMMIT - {matches['message']}",
+        message=self.message,
         author=matches['author'],
         authored_datetime=self.authored_datetime,
     )
@@ -230,25 +244,34 @@ class LocalCommit():
     """The URL at which the data about this commit is stored. It's convenient."""
     return '/s/'/self.commit_dir.relative_to('/net/f2')
 
-  def to_dict(self, with_details=False, users_db=None):
+
+  def to_dict(self, with_outputs=False, with_aggregation=None):
+    users_db = get_users_per_name("")
     committer_avatar_url = ''
     if users_db:
-      name = self.gitcommit.committer.name
+      name = self.committer_name.lower()
       if name in users_db:
         committer_avatar_url = users_db[name]['avatar_url']
+      elif name.replace('.', '') in users_db:
+        committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
+      elif name.replace(' ', '') in users_db:
+        committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
+      else:
+        name_hash = md5(name.encode('utf8')).hexdigest()
+        committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
     return {
         'id': self.id,
+        'type': self.commit_type,
         'branch': self.branch,
-        'type': 'local',
-        'message': self.gitcommit.message,
-        'parents': [],
-        'committer_name': self.gitcommit.committer.name,
+        'parents': self.parents,
+        'message': self.message,
+        'committer_name': self.committer_name,
         'committer_avatar_url': committer_avatar_url,
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'commit_dir_url': str(self.commit_dir_url),
+        'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation) for b in self.batches},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
-        'batches': {b.label: b.to_dict(with_details=with_details) for b in self.batches},
     }
 
   @property
