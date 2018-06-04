@@ -103,6 +103,11 @@ def init_cis_database(verbose):
 
 def discover_outputs(batch, session):
   """Find outputs saved on the disk to initialize the database"""
+  # TODO: get workspace, get conf.json in ci_commmit and return details in the API call
+  # maybe use it to compute metrics...
+
+  # make sure we get the milstones, and reference...
+  # http://dvs:5000/s/algo_data/igal/GM3ContinuousIntegration/NRv4/
   outputs_dir = Path(batch.ci_commit.commit_dir_override)
   for output_description in outputs_dir.glob('*_job_description.json'):
     with output_description.open('r') as f:

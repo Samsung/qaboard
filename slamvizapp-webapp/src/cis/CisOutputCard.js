@@ -58,10 +58,21 @@ class CisOutputCard extends Component {
     // there is also  https://github.com/HuddleEng/Resemble.js
     // but it doesn't look that great, and <3 mapbox
 
+    // https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/getImageData
+    // https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Using_images
+
+    // https://support.shotgunsoftware.com/hc/en-us/articles/219031308-Launching-applications-using-custom-browser-protocols
+
     // https://github.com/cezary/react-image-diff
 
-
     // http://blueprintjs.com/docs/v2/#core/components/dialog
+
+
+    // https://www.npmjs.com/package/react-native-comparison-slider
+
+    // load ROI...
+    // toggle keyboard: display ref/new/diff (like faststone)
+
     return <div style={{flex: '0 0 auto', marginBottom: '20px'}}>
       <Card className="output-card">
         <div style={{padding:'  '}}>
@@ -70,8 +81,8 @@ class CisOutputCard extends Component {
 
         <p>{output_new.data.output_picture_format}</p>
         <div>
-          <img width={400} alt='New' src={`${output_new.output_dir_url}/${output_new.data.output_picture_format}`} />
-          {output_ref.data && <img width={400} alt='Reference' src={`${output_ref.output_dir_url}/${output_ref.data.output_picture_format}`} />}
+          <a href={`${output_new.output_dir_url}/${output_new.data.output_picture_format}`}><img width={400} alt='New' src={`${output_new.output_dir_url}/${output_new.data.output_picture_format}`} /></a>
+          {output_ref.data && <a href={`${output_ref.output_dir_url}/${output_ref.data.output_picture_format}`}><img width={400} alt='Reference' src={`${output_ref.output_dir_url}/${output_ref.data.output_picture_format}`} /></a>}
         </div>
 
         <p><a href={`${output_new.output_dir_url}/${output_new.data.out_regs_file}`}>Output registers</a></p>
