@@ -194,8 +194,9 @@ def get_commits(branch=None):
                    )
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
+  with_batches = ['default', 'ci-android-rt']
   with_outputs = request.args.get('with_outputs', False)
-  return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate, with_outputs=with_outputs) for c in ci_commits])
+  return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate, with_outputs=with_outputs, with_batches=with_batches) for c in ci_commits])
 
 
 @app.route("/api/v1/project/branches")

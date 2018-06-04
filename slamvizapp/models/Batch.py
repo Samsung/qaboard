@@ -58,7 +58,7 @@ class Batch(Base):
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
-      outputs = {}
+      outputs = {'outputs': {}}
     return {
         'id': self.id,
         'commit_id': self.ci_commit_id,

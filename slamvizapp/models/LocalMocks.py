@@ -146,7 +146,7 @@ class LocalBatch():
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
-      outputs = {}
+      outputs = {'outputs': {}}
     return {
         'id': self.id,
         'commit_id': self.ci_commit_id,
@@ -247,7 +247,7 @@ class LocalCommit():
     return '/s/'/self.commit_dir.relative_to('/net/f2')
 
 
-  def to_dict(self, with_outputs=False, with_aggregation=None):
+  def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):
     users_db = get_users_per_name("")
     committer_avatar_url = ''
     if users_db:
@@ -272,7 +272,9 @@ class LocalCommit():
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'commit_dir_url': str(self.commit_dir_url),
-        'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation) for b in self.batches},
+        'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
+                    for b in self.batches
+                    if with_batches is None or b.label in with_batches},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
 
