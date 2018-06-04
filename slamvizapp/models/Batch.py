@@ -20,7 +20,7 @@ class Batch(Base):
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
 
-  ci_commit_id = Column(String(), ForeignKey('ci_commits.id'))
+  ci_commit_id = Column(String(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])
 
   # identifies eg whether it is the default CI job, or a tuning experiment...

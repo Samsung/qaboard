@@ -27,10 +27,10 @@ class CiCommit(Base):
   project_id = Column(String(), ForeignKey('projects.id'), index=True)
   project = relationship("Project", back_populates="ci_commits")
 
-  branch = Column(String(), index=True) # first added as.. we ignore tags?
-  message = Column(String())
-  committer_name = Column(String())
   authored_datetime = Column(DateTime(timezone=True), index=True)
+  branch = Column(String(), index=True) # first added as.. we ignore tags?
+  committer_name = Column(String(), index=True)
+  message = Column(String())
 
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
