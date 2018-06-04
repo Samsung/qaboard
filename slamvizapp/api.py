@@ -194,8 +194,8 @@ def get_commits(branch=None):
                    )
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  metrics_to_aggregate = metrics_to_aggregate if metrics_to_aggregate else slam_metrics_to_aggregate
-  return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate) for c in ci_commits])
+  with_outputs = request.args.get('with_outputs', False)
+  return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate, with_outputs=with_outputs) for c in ci_commits])
 
 
 @app.route("/api/v1/project/branches")
