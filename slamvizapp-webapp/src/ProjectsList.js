@@ -69,7 +69,7 @@ class ProjectsList extends React.Component {
                         elevation={2}
                         onClick={e => this.props.history.push(`/?project=${id}`)}
                       >
-                        <h5><Link to={`/?project=${id}`}>{id}</Link></h5>
+                        <h5><Link to={`/?project=${id}`}>{id}</Link> {details.information && details.information.git && <a href={details.information.git.homepage}><Icon icon="link"/></a>}</h5>
                           <LastCommitAt project={details}/><br/>
                           <span style={{color: '#555'}}>{details.total_commits} commits</span>
                 </Card>})}
