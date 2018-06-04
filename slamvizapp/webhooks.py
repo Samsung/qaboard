@@ -55,6 +55,7 @@ def gitlab_webhook():
   # dvs/psp_swip
   project_path = data['project']['path_with_namespace']
   project = Project.get_or_create(session=db_session, id=project_path)
+  project.data = {'git': data['project']}
   repo = repos[project_path]
   git_pull(repo)
 
