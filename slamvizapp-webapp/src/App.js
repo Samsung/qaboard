@@ -7,6 +7,7 @@ import AppNavbar from "./AppNavbar"
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
+import { Dashboard } from "./Dashboard";
 
 import '../node_modules/@blueprintjs/core/lib/css/blueprint.css';
 import '../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css';
@@ -34,8 +35,8 @@ class App extends Component {
           <Route path="/branch/(.*)" component={CiCommitList} />
           <Route path="/committer/(.*)" component={CiCommitList} />
           <Route path="/commit/(.*)" component={CiCommitResults} />
-          <Route path="/dashboard" component={CiCommitDashboard} />
           <Route path="/projects" component={ProjectsList} />
+          <Route path="/dashboard" component={Dashboard} />
         </div>
       </Router>
       </CookiesProvider>
@@ -43,10 +44,6 @@ class App extends Component {
     );
   }
 }
-
-const CiCommitDashboard = () => <p>todo</p>;
-
-
 
 // ​const getVisibleTodos = (todos, filter) => {
 //   switch (filter) {
