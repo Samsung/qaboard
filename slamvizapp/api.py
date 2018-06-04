@@ -161,7 +161,7 @@ def get_commits(branch=None):
                    )
 
   else:
-    if project_id == 'dvs/psp_swip':
+    if project_id == 'dvs/psp_swip' and not request.args.get('only_when_first_pushed_as', False):
       commits = []
       page = 0
       earliest_commit = None
