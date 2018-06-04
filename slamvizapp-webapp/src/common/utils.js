@@ -60,4 +60,25 @@ const matching_output = ({output, batch}) => {
   return {output_ref, warning, imperfect_match}
 }
 
-export { groupBy, groupByObject, matching_output, calendarStrings, shortId };
+
+const sortOutputs = (sort_by, order) => {
+  // console.log(sort_by, order)
+  return ([ka,a], [kb,b]) => {
+    const a_value = a.metrics[sort_by] || a[sort_by] || a.test_input_path;
+    const b_value = b.metrics[sort_by] || b[sort_by] || b.test_input_path;
+    // console.log(a_value, b_value)
+    if (a_value > b_value ) {
+      return order;
+    }
+    if (a_value < b_value) {
+      return -order;
+    }
+    // TODO: we may want to sort also by extra_parameters
+    // the code below won't sort correctly numbers (5 vs 55)...
+    // return JSON.stringify(a.extra_parameters) < JSON.stringify(b.extra_parameters);
+    return 0;
+  }
+}
+
+
+export { groupBy, groupByObject, matching_output, calendarStrings, shortId, sortOutputs };

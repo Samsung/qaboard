@@ -13,7 +13,7 @@ import { Container, Section } from "./common/containers";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { MetricsSummary } from "./MetricsSummary";
 
-import { matching_output } from "./common/utils";
+import { matching_output, sortOutputs } from "./common/utils";
 import { TableCompare, TableKpi } from "./Tables";
 import { BatchLogs } from "./BatchLogs";
 import { CommitParameters } from "./Parameters";
@@ -354,21 +354,6 @@ class CiCommitResults extends Component {
     })
   }
 
-  sortOutputs = ([ka,a], [kb,b]) => {
-    const { sort_by } = this.state;
-    const a_value = a.metrics[sort_by] || a[sort_by];
-    const b_value = b.metrics[sort_by] || b[sort_by];
-    if (a_value > b_value ) {
-      return this.state.order;
-    }
-    if (a_value < b_value) {
-      return -this.state.order;
-    }
-    // TODO: we may want to sort also by extra_parameters
-    // the code below won't sort correctly numbers (5 vs 55)...
-    // return JSON.stringify(a.extra_parameters) < JSON.stringify(b.extra_parameters);
-    return 0;
-  }
 
   render() {
     // console.log(this.state);
@@ -566,7 +551,8 @@ class CiCommitResults extends Component {
               title="Improvement"
               panel={
                 <TableCompare
-                  output_sort={this.sortOutputs}
+                  sort_order={this.state.order}
+                  sort_by={this.state.sort_by}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
                   metrics={selected_metrics}
@@ -578,7 +564,8 @@ class CiCommitResults extends Component {
               title="KPI report"
               panel={
                 <TableKpi
-                  output_sort={this.sortOutputs}
+                  sort_order={this.state.order}
+                  sort_by={this.state.sort_by}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
                   metrics={selected_metrics}
@@ -597,7 +584,8 @@ class CiCommitResults extends Component {
               panel={
                 <OutputList
                   project={project}
-                  output_sort={this.sortOutputs}
+                  sort_order={this.state.order}
+                  sort_by={this.state.sort_by}
                   new_batch={new_batch_filtered}
                   ref_batch={ref_batch_filtered}
                   show_videos={this.state.show_videos}
@@ -617,7 +605,7 @@ class CiCommitResults extends Component {
                                           <Switch checked={this.state.show_videos} label="Videos" onChange={this.toogleShowVideos} />
                                           <Switch checked={this.state.show_3d} label="3d" onChange={this.toogleShow3d} />
                                           <div className="pt-select">
-                                            <select defaultValue="test_input_path" onChange={this.selectSortBy}>
+                                            <select defaultValue={this.state.sort_by} onChange={this.selectSortBy}>
                                               <option value="test_input_path">Sort by Name</option>
                                               {Object.values(this.state.available_metrics).map(m => <option value={m.key}>Sort by {m.label}</option>)}
                                             </select>
@@ -648,7 +636,7 @@ class OutputList extends React.Component {
   }
 
   render() {
-    const { new_batch, ref_batch, output_sort } = this.props;
+    const { new_batch, ref_batch, sort_by, sort_order } = this.props;
     const { show_debug, show_videos, show_3d } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
@@ -670,7 +658,7 @@ class OutputList extends React.Component {
             {ref_batch.label!=='default' && <Callout intent={Intent.WARNING}>We compare each output to <strong>any</strong> reference outputs with matching recording+configuration+platform, <strong>without looking at the tuning parameters</strong>.</Callout>}
             <div style={{display:'flex', justifyContent: 'space-between', flexFlow: 'row wrap'}}>
               {Object.entries(new_batch.outputs)
-                     .sort(output_sort)
+                     .sort(sortOutputs(sort_by, sort_order))
                      .map( ([id, output]) => {
                         let { output_ref, warning } = matching_output({output: output, batch:ref_batch});
                         if (output.output_type==='slam/6dof')

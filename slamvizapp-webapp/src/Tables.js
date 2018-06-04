@@ -3,7 +3,7 @@ import { interpolateRdYlGn } from 'd3-scale-chromatic'
 import { Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
 import { Section } from "./common/containers";
-import { matching_output } from "./common/utils";
+import { matching_output, sortOutputs } from "./common/utils";
 
 const metric_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:3, maximumFractionDigits:3});
 const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:0, maximumFractionDigits:0});
@@ -44,7 +44,7 @@ const QualityCell = ({metric, metrics}) => {
 }
 
 
-const TableCompare = ({ new_batch, ref_batch, output_sort, metrics, input }) => {
+const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
   return (
     <Section>
       <h2>Improvement report</h2>
@@ -67,7 +67,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, metrics, input }) => 
       <tbody>
       {Object.entries(new_batch.outputs)
              .filter(([id, o]) => !o.is_pending && !o.is_failed)
-             .sort(output_sort)
+             .sort(sortOutputs(sort_by, sort_order))
              .map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch});
           return (
@@ -90,7 +90,7 @@ const TableCompare = ({ new_batch, ref_batch, output_sort, metrics, input }) => 
 }
 
 
-const TableKpi = ({ new_batch, ref_batch, output_sort, metrics, input }) => {
+const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
   return (
     <Section>
       <h2>Quality report</h2>
@@ -116,7 +116,7 @@ const TableKpi = ({ new_batch, ref_batch, output_sort, metrics, input }) => {
       <tbody>
       {Object.entries(new_batch.outputs)
              .filter(([id, o]) => !o.is_pending && !o.is_failed)
-             .sort(this.sortOutputs)
+             .sort(sortOutputs(sort_by, sort_order))
              .map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch, soft_match: false});
           return (
