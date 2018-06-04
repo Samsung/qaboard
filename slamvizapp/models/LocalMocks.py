@@ -33,6 +33,7 @@ class LocalTestInput():
   def __init__(self, database, path):
     self.database = database
     self.path = path
+    self.data = {}
 
   @property
   def output_folder(self):
@@ -51,6 +52,7 @@ class LocalOutput():
     self.output_type = 'slam/6dof'
     self.test_input = test_input
     self.test_input_id = 0
+    self.data = {}
     self.platform = platform
     self.configuration = configuration
     self.extra_parameters = {}
