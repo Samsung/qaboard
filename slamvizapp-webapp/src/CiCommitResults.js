@@ -607,7 +607,7 @@ class CiCommitResults extends Component {
                                           <div className="pt-select">
                                             <select defaultValue={this.state.sort_by} onChange={this.selectSortBy}>
                                               <option value="test_input_path">Sort by Name</option>
-                                              {Object.values(this.state.available_metrics).map(m => <option value={m.key}>Sort by {m.label}</option>)}
+                                              {Object.values(this.state.available_metrics).map(m => <option key={m.key} value={m.key}>Sort by {m.label}</option>)}
                                             </select>
                                             <select defaultValue="descending" onChange={this.selectOrder}>
                                               <option value={-1}>descending</option>
