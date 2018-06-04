@@ -8,8 +8,8 @@ from .git_utils import git_pull
 from .config import default_recordings_directory
 
 @app.route('/api/v1/output', methods=['POST'])
-@app.route('/api/v1/slam_output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
+@app.route('/api/v1/slam_output', methods=['POST'])
 @app.route('/api/v1/slam_output/', methods=['POST'])
 def new_output_webhook():
   data = request.get_json()
@@ -35,6 +35,7 @@ def new_output_webhook():
                                          extra_parameters=data['extra_parameters'],
                                          test_input=test_input,
                                         )
+  output.output_type = request.json.get('output_type', 'slam/6dof')
   if request.json.get('is_running', False):
     output.is_running = True
     output.is_pending = True
