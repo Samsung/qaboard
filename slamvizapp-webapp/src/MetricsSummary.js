@@ -22,7 +22,6 @@ const color_a = 'rgba(255, 157, 0, .4)';
 const color_ref_a = 'rgba(55, 126, 184, .4)';
 const colors_a = [color_a, color_ref_a];
 
-const xdata = ['New', 'Reference'];
 
 const metric_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
 const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:0, maximumFractionDigits:0});
@@ -66,8 +65,11 @@ const MetricTile = styled.div`
 `
 
 
-const HistogramComparaison = ({ new_values, ref_values, metric }) => {
+const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) => {
+  const xdata = xaxis_labels || ['New', 'Reference'];
   let plot_scale = metric['plot_scale'] || 'log';
+  // let threshold = plot_scale==='log' ? Math.log(metric.threshold*metric.scale) : metric.threshold*metric.scale
+  let threshold = metric.threshold*metric.scale;
 	let layout = {
 	      bargap: 0., 
 	      bargroupgap: 0., 
@@ -94,8 +96,8 @@ const HistogramComparaison = ({ new_values, ref_values, metric }) => {
               layer: 'below',
               x0: -0.5,
               x1:  1.25,
-              y0: metric.threshold*metric.scale,
-              y1: metric.threshold*metric.scale,
+              y0: threshold,
+              y1: threshold,
               line: {
                 color: 'rgba(150, 150, 150, 0.5)',
                 width: 3,
@@ -227,6 +229,7 @@ class MetricsSummary extends Component {
 
   render() {
     const { new_batch, ref_batch } = this.props;
+    let xaxis_labels = this.props.xaxis_labels || ['New', 'Reference'];
     let outputs_new = Object.values(new_batch.outputs)
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
     let run_types_new = new Set(outputs_new.map(o => run_type(o)))
@@ -306,7 +309,7 @@ class MetricsSummary extends Component {
                <h5><Tag intent={intent}>{percent_formatter.format(100*delta_relative)}%</Tag></h5>
               </MetricTile>
 
-              <HistogramComparaison ref_values={ref_values} new_values={new_values} metric={m} />
+              <HistogramComparaison ref_values={ref_values} new_values={new_values} metric={m} xaxis_labels={xaxis_labels} />
           </MetricRow>
           )
 

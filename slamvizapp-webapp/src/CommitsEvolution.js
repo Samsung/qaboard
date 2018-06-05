@@ -4,7 +4,7 @@ import React, { Component } from "react";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Tag, Colors, FormGroup, Switch, Intent } from "@blueprintjs/core";
-import { slam_metrics, default_metric } from "./slam/metrics";
+import { slam_metrics, main_metrics, default_metric } from "./slam/metrics";
 
 import { CommitRow } from "./CommitRow";
 
@@ -69,40 +69,129 @@ const has_all_metrics = (commit, metrics, aggregation) => {
 //   return <Plot data={traces} layout={layout}/>
 // }
 
-const CommitsEvolutionPerBatch = ({ commits, metrics, aggregation }) => {
-  let shown_metrics = metrics || [default_metric];
-  let shown_batches = ['default', 'ci-android-rt']
-  let shown_aggregation = aggregation || 'median';
-  let valid_commits = commits.filter( c => !!c.batches.default )
-                             .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
-  let traces = []
-  shown_metrics.forEach( key => {
-    let metric = slam_metrics[key]
-    shown_batches.forEach( label => {
-      let commits_with_batch = valid_commits.filter(c => c.batches[label]!==undefined)
-      if (commits_with_batch.length>0) {
-        let trace = {
-          name: `${label==='default' ? 'Linux (LSF)' : 'Real-time (Android)'} ${shown_metrics.length>1 ? metric.label : ''}`,
-          type: 'scatter',
-          x: commits_with_batch.map( c => c.authored_datetime ),
-          y: commits_with_batch
-             .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-             .map( value => Math.min(100, value*metric.scale) ),
-          text: valid_commits.map( c => c.message ),
-          marker: {
-            size: 10,
-            color: label==='default' ? Colors.BLUE2 : Colors.ORANGE2,
-          },
-          line: {
-            width: 2,
-            color: label==='default' ? Colors.BLUE3 : Colors.ORANGE3,
-          },
-        }
-        traces.push(trace);
-      }
+class CommitsEvolutionPerBatch extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      revision: 0,
+      traces: [],
+      // metadata to link hover events to the corresponding batch/commit
+      traces_metadata: [],
+      // date_to_commit: {},
+
+      hovered: false,
+      hovered_test_input_path: '',
+      hovered_label: null,
+      hovered_commit: null,
+    }
+  }
+
+  onHover = e => {
+    let { label, commits } = this.state.traces_metadata[e.points[0].curveNumber];
+    let commit = commits[e.points[0].pointNumber];
+    this.setState({
+      hovered: true,
+      hovered_label: label,
+      hovered_commit: commit,
     })
-  });
-  return <Plot data={traces} layout={layout}/>
+  }
+
+  componentDidMount() {
+    this.updateTraces()
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (nextProps.commits !== this.props.commits ||
+        nextProps.metrics[0] !== this.props.metrics[0] ||
+        nextProps.aggregation !== this.props.aggregation
+       )
+    this.updateTraces()
+  }
+
+  updateTraces() {
+    const { commits, metrics, aggregation } = this.props;
+    let shown_metrics = metrics || [default_metric];
+    let shown_batches = ['default', 'ci-android-rt']
+    let shown_aggregation = aggregation || 'median';
+    let valid_commits = commits.filter( c => !!c.batches.default )
+                               .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
+    let traces = []
+    let traces_metadata = []
+
+    shown_metrics.forEach( key => {
+      let metric = slam_metrics[key]
+      shown_batches.forEach( label => {
+        let commits_with_batch = valid_commits.filter(c => c.batches[label]!==undefined)
+        if (commits_with_batch.length>0) {
+          let trace = {
+            name: `${label==='default' ? 'Linux (LSF)' : 'Real-time (Android)'} ${shown_metrics.length>1 ? metric.label : ''}`,
+            type: 'scatter',
+            x: commits_with_batch.map( c => c.authored_datetime ),
+            y: commits_with_batch
+               .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
+               .map( value => Math.min(100*metric.threshold*metric.scale, value*metric.scale) ),
+            // text: valid_commits.map( c => c.message ),
+            marker: {
+              size: 10,
+              color: label==='default' ? Colors.BLUE2 : Colors.ORANGE2,
+            },
+            line: {
+              width: 2,
+              color: label==='default' ? Colors.BLUE3 : Colors.ORANGE3,
+            },
+          }
+          let trace_metadata = {
+            label,
+            commits: commits_with_batch,
+          }
+          traces.push(trace);
+          traces_metadata.push(trace_metadata);
+        }
+      })
+    });
+    this.setState({traces, traces_metadata, revision: this.state.revision+1})
+  }
+
+
+  render() {
+    const { metrics } = this.props;
+
+    if (this.state.hovered) {
+      var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
+        <CommitRow commit={this.state.hovered_commit} project="dvs/psp_swip" toaster={toaster} />
+      </div>
+    } else {
+      legend = <span></span>
+    }
+
+    let metric = slam_metrics[metrics[0]];
+    let threshold = metric.threshold*metric.scale;
+    let layout_ = {
+      ...layout,
+      shapes: [
+          {
+            type: 'line',
+            layer: 'below',
+            xref: 'paper',
+            x0: 0,
+            x1: 1,
+            yref: 'y',
+            y0: threshold,
+            y1: threshold,
+            line: {
+              color: 'rgba(150, 150, 150, 0.5)',
+              width: 3,
+              dash: 'dashdot',
+            },
+        },
+      ],
+    }
+    return <div>
+      <Plot revision={this.state.revision} data={this.state.traces} layout={layout_} onHover={this.onHover}/>
+      {legend}
+    </div>
+  }
+
 }
 
 
@@ -110,10 +199,10 @@ class CommitsEvolutionPerMovie extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
+      revision: 0,
       traces: [],
       // metadata to link hover events to the corresponding batch/commit
       traces_metadata: [],
-      // date_to_commit: {},
 
       hovered: false,
       hovered_test_input_path: '',
@@ -134,6 +223,18 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   componentDidMount() {
+    this.updateTraces()
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (nextProps.commits !== this.props.commits ||
+        nextProps.metrics[0] !== this.props.metrics[0]
+       ) {
+      this.updateTraces()
+    }
+  }
+
+  updateTraces() {
     const { commits, metrics } = this.props;
     let shown_metrics = metrics || [default_metric];
     let shown_batches = ['default', 'ci-android-rt']
@@ -165,8 +266,7 @@ class CommitsEvolutionPerMovie extends React.Component {
               y: commits_with_input.map( c => Object.values(c.batches[label].outputs)
                                                     .filter(o => o.test_input_path===test_input_path)
                                                     .filter(o=>o.configuration.includes('stereo'))[0])
-                                   .map( o => Math.min(100, o.metrics[metric.key]*metric.scale) ),
-              // text: test_input_path,
+                                   .map( o => Math.min(100*metric.threshold*metric.scale, o.metrics[metric.key]*metric.scale) ),
               opacity: 0.8,
               marker: {
                 size: 5,
@@ -179,7 +279,6 @@ class CommitsEvolutionPerMovie extends React.Component {
                 opacity: 0.3,
               },
               legendgroup: test_input_path,
-              legendgroup: label==='default' ? 'Linux (LSF)' : 'Real-time (Android)',
               showlegend: false,
               connectgap: true,
             };
@@ -194,10 +293,13 @@ class CommitsEvolutionPerMovie extends React.Component {
         }
       })
     });
-    this.setState({traces, traces_metadata})
+    this.setState({traces, traces_metadata, revision: this.state.revision+1})
   }
 
   render() {
+    const { metrics } = this.props;
+    let metric = slam_metrics[metrics[0]];
+    let threshold = metric.threshold*metric.scale;
     let layout_ = {
       ...layout,
       height: 500,
@@ -205,17 +307,29 @@ class CommitsEvolutionPerMovie extends React.Component {
       hoverinfo: 'y',
       // showlegend: false,
       legend: {
-      "orientation": "h"
-        // x:0,
-        // y:1,
-        // bgcolor: 'rgba(255,255,255,0.5)',
-        // traceorder:'grouped',
-        // tracegroupgap: 0
-      }
+        "orientation": "h"
+      },
+      shapes: [
+          {
+            type: 'line',
+            layer: 'below',
+            xref: 'paper',
+            x0: 0,
+            x1: 1,
+            yref: 'y',
+            y0: threshold,
+            y1: threshold,
+            line: {
+              color: 'rgba(150, 150, 150, 0.5)',
+              width: 3,
+              dash: 'dashdot',
+            },
+        },
+      ],
     }
 
     if (this.state.hovered) {
-      var legend = <div style={{marginTop: '30px'}}>
+      var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
         <Tag intent={this.state.hovered_label==='default' ? Intent.PRIMARY : Intent.WARNING}>{this.state.hovered_test_input_path}</Tag>
         <CommitRow commit={this.state.hovered_commit} project="dvs/psp_swip" toaster={toaster} />
       </div>
@@ -224,7 +338,7 @@ class CommitsEvolutionPerMovie extends React.Component {
     }
 
     return <div>
-      <Plot data={this.state.traces} layout={layout_} onHover={this.onHover}/>
+      <Plot revision={this.state.revision} data={this.state.traces} layout={layout_} onHover={this.onHover}/>
       {legend}
     </div>
   }
@@ -256,7 +370,7 @@ class CommitsEvolution extends Component {
       <FormGroup inline>
         <div className="pt-select pt-minimal">
           <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
-            {Object.values(slam_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
+            {main_metrics.map( m => <option key={slam_metrics[m].key} value={m}>{slam_metrics[m].label}</option>)}
           </select>
         </div>
         <div className="pt-select pt-minimal">
@@ -267,7 +381,7 @@ class CommitsEvolution extends Component {
         </div>
         {offer_breakdown_per_test && <Switch inline label='Breakdown per test' defaultChecked={breakdown_per_test} onChange={e => {this.setState({breakdown_per_test: !breakdown_per_test})}}></Switch>}
       </FormGroup>
-      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
+      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} />
                           : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
       }
     </div>

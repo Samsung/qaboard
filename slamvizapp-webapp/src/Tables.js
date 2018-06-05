@@ -47,7 +47,6 @@ const QualityCell = ({metric, metrics}) => {
 const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
   return (
     <Section>
-      <h2>Improvement report</h2>
       {input}
       <table className="pt-html-table pt-small">
       <thead>
@@ -93,7 +92,6 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
 const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
   return (
     <Section>
-      <h2>Quality report</h2>
       {input}
       <table className="pt-html-table pt-small">
       <thead>

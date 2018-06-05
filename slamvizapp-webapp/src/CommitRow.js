@@ -33,7 +33,6 @@ const CommitRowWrapper = styled.li`
   font-size: 14px;
   color: rgba(0, 0, 0, 0.85);
   padding: 10px 0;
-  border-bottom: 1px solid #eee;
   margin: 0;
 `;
 

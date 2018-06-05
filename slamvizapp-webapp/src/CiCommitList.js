@@ -165,6 +165,7 @@ class CiCommitList extends React.Component {
           <Callout icon="info-sign" intent={Intent.PRIMARY} title="Useful links" style={{marginBottom:'20px'}}>
           <ul>
             <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
             <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?</a></li>
           </ul>
           </Callout>

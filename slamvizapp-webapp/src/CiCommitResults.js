@@ -550,27 +550,33 @@ class CiCommitResults extends Component {
               id="output-table-compare"
               title="Improvement"
               panel={
-                <TableCompare
-                  sort_order={this.state.order}
-                  sort_by={this.state.sort_by}
-                  new_batch={new_batch_filtered}
-                  ref_batch={ref_batch_filtered}
-                  metrics={selected_metrics}
-                  input={metricTableSelect}
-                />}
+                <div>
+                  <h2>Improvement report</h2>
+                  <TableCompare
+                    sort_order={this.state.order}
+                    sort_by={this.state.sort_by}
+                    new_batch={new_batch_filtered}
+                    ref_batch={ref_batch_filtered}
+                    metrics={selected_metrics}
+                    input={metricTableSelect}
+                  />
+                </div>}
               />
             <Tab
               id="output-table-kpi"
               title="KPI report"
               panel={
-                <TableKpi
-                  sort_order={this.state.order}
-                  sort_by={this.state.sort_by}
-                  new_batch={new_batch_filtered}
-                  ref_batch={ref_batch_filtered}
-                  metrics={selected_metrics}
-                  input={metricTableSelect}
-                />}
+                <div>
+                  <h2>Quality report</h2>
+                  <TableKpi
+                    sort_order={this.state.order}
+                    sort_by={this.state.sort_by}
+                    new_batch={new_batch_filtered}
+                    ref_batch={ref_batch_filtered}
+                    metrics={selected_metrics}
+                    input={metricTableSelect}
+                  />
+                </div>}
               />
             <Tab
               id="logs"

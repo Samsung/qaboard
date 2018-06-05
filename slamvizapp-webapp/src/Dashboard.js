@@ -2,16 +2,20 @@ import React from "react";
 import { get } from "axios";
 import moment from 'moment';
 
-import { Card, Intent, Callout } from "@blueprintjs/core";
+import { Card, Intent, Callout, Spinner, NonIdealState, Tabs, Tab, Button, MenuItem } from "@blueprintjs/core";
+import { MultiSelect, Classes }  from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 // import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, Tag, Callout } from "@blueprintjs/core";
 
 import { Container, Section } from "./common/containers";
+import { noMetrics } from "./common/metricSelect";
+// import { MetricTag } from "./MetricsSummary"
 // import { groupBy, calendarStrings } from "./common/utils";
 
 import { CommitsEvolution } from './CommitsEvolution'
+import { MetricsSummary } from './MetricsSummary'
+import { TableCompare, TableKpi } from './Tables'
 import { slam_metrics, main_metrics } from './slam/metrics'
-// import { shortId } from "./common/utils";
 
 
 
@@ -28,10 +32,13 @@ class Dashboard extends React.Component {
         new Date()
       ],
       // error: null,
-      // isLoaded: false,
+      is_loaded: false,
       commits: [],
       latest_commit: null,
       aggregation_metrics,
+
+      available_metrics: slam_metrics,
+      selected_metrics: main_metrics.map(k=>slam_metrics[k]),
     };
   }
 
@@ -56,12 +63,14 @@ class Dashboard extends React.Component {
     })
     .then(response => {
       let commits = response.data;
-      // TODO: ???
-      let latest_commit = commits.filter(c=>!!c.batches['ci-android-rt'])[0]
+      // TODO: get the id from the URL
+      let latest_android_commit = commits.filter(c=>!!c.batches['ci-android-rt'])[0]
+      let latest_linux_commit = commits[0]
       this.setState({
-        isLoaded: true,
+        is_loaded: true,
         commits,
-        latest_commit,
+        latest_android_commit,
+        latest_linux_commit,
       });
       if (commits.length > 0)
         this.setState({
@@ -73,9 +82,78 @@ class Dashboard extends React.Component {
     })
   }
 
+  renderMetric = (metric, {handleClick, modifiers, query} ) => {
+    if (!modifiers.matchesPredicate) {
+      return null;
+    }
+    return (
+        <MenuItem
+            active={modifiers.active}
+            icon={this.isMetricSelected(metric) ? "tick" : "blank"}
+            key={metric.key}
+            label={metric.key}
+            text={`${metric.label} [${metric.suffix}]`}
+            onClick={handleClick}
+            shouldDismissPopover={false}
+        />
+    );
+  };
+  filterMetric = (query, metric) => {
+    let searched = `${metric.key} ${metric.label} ${metric.short_label}`.toLowerCase();
+    let search = query.toLowerCase();
+    return searched.indexOf(search) >= 0;
+  }
+  handleClear = () => this.setState({ selected_metrics: [] });
+  handleTagRemove = (_tag, index) => {
+    this.deselectMetric(index);
+  };
+  getSelectedMetricIndex = metric => {
+    return this.state.selected_metrics.indexOf(metric);
+  }
+  isMetricSelected(metric) {
+      return this.getSelectedMetricIndex(metric) !== -1;
+  }
+  deselectMetric = index => {
+      this.setState({ selected_metrics: this.state.selected_metrics.filter( (metric, i) => i !== index) });
+  }
+  handleMetricSelect = metric => {
+    if (!this.isMetricSelected(metric)) {
+      this.setState({ selected_metrics: [...this.state.selected_metrics, metric] });
+    } else {
+      this.deselectMetric(this.getSelectedMetricIndex(metric));
+    }
+  };
+  selectSortBy = e => {
+    this.setState({sort_by: e.target.value})
+  }
+  selectOrder = e => {
+    this.setState({order: e.target.value})
+  }
+
   render() {
-    const { commits, date_range } = this.state;
-    // const { error, isLoaded, project, commits, date_range } = this.state;
+    const { is_loaded, commits, date_range } = this.state;
+    var { selected_metrics } = this.state;
+
+    if (!is_loaded) return <Container>
+      <NonIdealState title="Loading" visual={<Spinner/>} />
+    </Container>
+
+    let linux_batch = this.state.latest_linux_commit.batches.default
+    let android_batch = this.state.latest_android_commit.batches['ci-android-rt']
+
+    let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
+    let metricTableSelect = <MultiSelect
+      items={Object.values(this.state.available_metrics)}
+      itemPredicate={this.filterMetric}
+      itemRenderer={this.renderMetric}
+      onItemSelect={this.handleMetricSelect}
+      tagRenderer={m => m.label}
+      tagInputProps={{ onRemove: this.handleTagRemove, rightElement: clearButton }}
+      noResults={noMetrics}
+      selectedItems={selected_metrics}
+      popoverProps={Classes.MINIMAL}
+    />
+
 
     return <Container>
       <Section>
@@ -105,8 +183,7 @@ class Dashboard extends React.Component {
       <Section>
         <Card elevation={1}>
           <h2>KPI Status</h2>
-          <span>commit.</span>
-          <span>todo</span>
+          <span></span>
        </Card>
       </Section>
         
@@ -126,12 +203,53 @@ class Dashboard extends React.Component {
       <Section>
         <Card elevation={0}>
           <h2>Review of each metric</h2>
+          <MetricsSummary project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
       </Section>
 
       <Section>
         <Card elevation={0}>
           <h2>Review of individual tests</h2>
+
+          <Tabs renderActiveTabPanelOnly id="tabs-outputs" onChange={(newTabId, prevTabId, event)=>{this.setState({selectedTabId: newTabId})}} selectedTabId={this.state.selectedTabId}>
+            <Tab
+              id="output-table-compare"
+              title="Android vs LSF"
+              panel={
+                <TableCompare
+                  sort_order={this.state.order}
+                  sort_by={this.state.sort_by}
+                  new_batch={android_batch}
+                  ref_batch={linux_batch}
+                  metrics={selected_metrics}
+                  input={metricTableSelect}
+                />}
+            />
+            <Tab
+              id="output-table-kpi"
+              title="vs KPI"
+              panel={
+                <TableKpi
+                  sort_order={this.state.order}
+                  sort_by={this.state.sort_by}
+                  new_batch={android_batch}
+                  ref_batch={linux_batch}
+                  metrics={selected_metrics}
+                  input={metricTableSelect}
+                />}
+            />
+            <Tabs.Expander />
+            <div className="pt-select">
+              <select defaultValue={this.state.sort_by} onChange={this.selectSortBy}>
+                <option value="test_input_path">Sort by Name</option>
+                {Object.values(this.state.available_metrics).map(m => <option key={m.key} value={m.key}>Sort by {m.label}</option>)}
+              </select>
+              <select defaultValue="descending" onChange={this.selectOrder}>
+                <option value={-1}>descending</option>
+                <option value={1}>ascending</option>
+              </select>
+            </div>
+          </Tabs>
        </Card>
       </Section>
 
