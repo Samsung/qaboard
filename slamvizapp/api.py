@@ -194,7 +194,8 @@ def get_commits(branch=None):
                    )
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  with_batches = ['default', 'ci-android-rt']
+  only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
+  with_batches = ['default', 'ci-android-rt'] if only_ci_batches else None
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
   return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs) for c in ci_commits])
 

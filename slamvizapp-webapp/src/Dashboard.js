@@ -47,6 +47,7 @@ class Dashboard extends React.Component {
       params: {
         project,
         only_when_first_pushed_as: true,
+        only_ci_batches: true,
         with_outputs: true,
         from: date_range[0],
         to: date_range[1],
