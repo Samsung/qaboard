@@ -43,9 +43,12 @@ def git_pull(repo):
       # print('...')
       # print(op_code, cur_count, max_count, (cur_count or 0)/max_count, message)
       pass
-  for fetch_info in repo.remotes.origin.fetch(progress=MyProgressPrinter()):
-    # print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
-    pass
+  try:
+    for fetch_info in repo.remotes.origin.fetch(progress=MyProgressPrinter()):
+      # print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
+      pass
+  except Exception as e:
+    print(e)
 
 def find_branch(commit_hash, repo):
   """Tries to get from which branch a commit comes from. It's a *guess*."""
