@@ -3,7 +3,7 @@
 import React, { Component } from "react";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
-import { Tag, Colors, FormGroup, Switch, Intent } from "@blueprintjs/core";
+import { Tag, Colors, FormGroup, Switch, Intent, InputGroup } from "@blueprintjs/core";
 import { slam_metrics, main_metrics, default_metric } from "./slam/metrics";
 
 import { CommitRow } from "./CommitRow";
@@ -97,7 +97,7 @@ class CommitsEvolutionPerBatch extends React.Component {
   }
 
   componentDidMount() {
-    this.updateTraces()
+    this.updateTraces(this.props)
   }
 
   componentWillReceiveProps(nextProps) {
@@ -105,11 +105,11 @@ class CommitsEvolutionPerBatch extends React.Component {
         nextProps.metrics[0] !== this.props.metrics[0] ||
         nextProps.aggregation !== this.props.aggregation
        )
-    this.updateTraces()
+    this.updateTraces(nextProps)
   }
 
-  updateTraces() {
-    const { commits, metrics, aggregation } = this.props;
+  updateTraces(props) {
+    const { commits, metrics, aggregation } = props;
     let shown_metrics = metrics || [default_metric];
     let shown_batches = ['default', 'ci-android-rt']
     let shown_aggregation = aggregation || 'median';
@@ -223,19 +223,20 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   componentDidMount() {
-    this.updateTraces()
+    this.updateTraces(this.props)
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.commits !== this.props.commits ||
-        nextProps.metrics[0] !== this.props.metrics[0]
-       ) {
-      this.updateTraces()
-    }
+    // if (nextProps.commits !== this.props.commits ||
+    //     nextProps.metrics[0] !== this.props.metrics[0] ||
+    //     nextProps.filter !== this.props.filter
+    //    ) {
+      this.updateTraces(nextProps)
+    // }
   }
 
-  updateTraces() {
-    const { commits, metrics } = this.props;
+  updateTraces(props) {
+    const { commits, metrics, filter } = props;
     let shown_metrics = metrics || [default_metric];
     let shown_batches = ['default', 'ci-android-rt']
     let traces = []
@@ -250,9 +251,12 @@ class CommitsEvolutionPerMovie extends React.Component {
           commits_with_batch.forEach(c => {
             Object.values(c.batches[label].outputs)
                   .map(o => o.test_input_path)
+                  .filter(test_input_path => test_input_path.includes(filter))
                   .forEach(new_test_input_path => input_paths.add(new_test_input_path))
           })
+          console.log(filter)
           input_paths.forEach( test_input_path => {
+            // console.log(test_input_path)
             let commits_with_input = commits_with_batch
                                      .filter(c => Object.values(c.batches[label].outputs)
                                                         .filter(o=>o.test_input_path===test_input_path)
@@ -350,6 +354,7 @@ class CommitsEvolution extends Component {
     this.state = {
       selected_metric: default_metric,
       selected_aggregation: 'median',
+      filter: '',
     };
   }
 
@@ -362,7 +367,7 @@ class CommitsEvolution extends Component {
 
   render() {
     const { project, commits, style, offer_breakdown_per_test } = this.props;
-    const { selected_metric, selected_aggregation, breakdown_per_test } = this.state;
+    const { selected_metric, selected_aggregation, breakdown_per_test, filter } = this.state;
 
     if (project!=='dvs/psp_swip') return <div></div>;
 
@@ -380,8 +385,19 @@ class CommitsEvolution extends Component {
           </select>
         </div>
         {offer_breakdown_per_test && <Switch inline label='Breakdown per test' defaultChecked={breakdown_per_test} onChange={e => {this.setState({breakdown_per_test: !breakdown_per_test})}}></Switch>}
+        {offer_breakdown_per_test && breakdown_per_test && 
+          <FormGroup labelFor="filter-input" inline>
+            <InputGroup
+              value={this.state.filter}
+              placeholder="filter by input path"
+              onChange={e => this.setState({filter: e.target.value})}
+              type="search"
+              leftIcon="search"
+            />
+          </FormGroup>
+        }
       </FormGroup>
-      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} />
+      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} filter={filter} />
                           : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
       }
     </div>
