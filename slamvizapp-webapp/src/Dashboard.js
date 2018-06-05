@@ -2,7 +2,7 @@ import React from "react";
 import { get } from "axios";
 import moment from 'moment';
 
-import { Intent, Callout } from "@blueprintjs/core";
+import { Card, Intent, Callout } from "@blueprintjs/core";
 import { DateRangeInput } from "@blueprintjs/datetime";
 // import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, Tag, Callout } from "@blueprintjs/core";
 
@@ -18,7 +18,7 @@ import { slam_metrics, main_metrics } from './slam/metrics'
 class Dashboard extends React.Component {
   constructor(props) {
     super(props);
-    const params = new URLSearchParams(this.props.location.search);
+    // const params = new URLSearchParams(this.props.location.search);
     let aggregation_metrics = {}
     main_metrics.forEach(m => aggregation_metrics[m] = slam_metrics[m].threshold)
     this.state = {
@@ -27,10 +27,11 @@ class Dashboard extends React.Component {
         new Date(moment().subtract(31,'d')),
         new Date()
       ],
-      error: null,
-      isLoaded: false,
+      // error: null,
+      // isLoaded: false,
       commits: [],
-      aggregation_metrics
+      latest_commit: null,
+      aggregation_metrics,
     };
   }
 
@@ -40,21 +41,26 @@ class Dashboard extends React.Component {
   }
 
   getData(props) {
-    var url = '/api/v1/commits/origin/develop?only_when_first_pushed_as=true';
+    var url = '/api/v1/commits/origin/develop';
     const { project, date_range } = this.state;
     get(url, {
       params: {
         project,
+        only_when_first_pushed_as: true,
+        with_outputs: true,
         from: date_range[0],
         to: date_range[1],
-        metrics: JSON.stringify(this.state.aggregation_metrics)
+        metrics: JSON.stringify(this.state.aggregation_metrics),
       },
     })
     .then(response => {
       let commits = response.data;
+      // TODO: ???
+      let latest_commit = commits.filter(c=>!!c.batches['ci-android-rt'])[0]
       this.setState({
         isLoaded: true,
         commits,
+        latest_commit,
       });
       if (commits.length > 0)
         this.setState({
@@ -67,12 +73,16 @@ class Dashboard extends React.Component {
   }
 
   render() {
-    const { error, isLoaded, project, commits, date_range } = this.state;
+    const { commits, date_range } = this.state;
+    // const { error, isLoaded, project, commits, date_range } = this.state;
 
     return <Container>
       <Section>
-        <h1>Dashboard</h1>
         <Callout icon="info-sign" intent={Intent.WARNING} title="Work in Progress"/>
+
+        <h1>SLAM Dashboard</h1>
+        <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
+
         <DateRangeInput
           value={date_range}
           maxDate={new Date()}
@@ -82,34 +92,48 @@ class Dashboard extends React.Component {
           onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getData(this.props))} }
           shortcuts
         />
-    </Section>
-  
-    <Section>
-      <h2>Improvement over time</h2>
-      <CommitsEvolution project={this.state.project} commits={commits} style={{marginTop: '20px'}}/>
-      <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
+      </Section>
+    
+      <Section>
+        <Card elevation={1}>
+          <h2>Improvement over time</h2>
+          <CommitsEvolution offer_breakdown_per_test={true} project={this.state.project} commits={commits} style={{marginTop: '20px'}}/>
+       </Card>
+      </Section>
 
-    </Section>
-      
-    <Section>
-      <h2>Realtime on Android versus Linux on LSF</h2>
-    </Section>
+      <Section>
+        <Card elevation={1}>
+          <h2>KPI Status</h2>
+          <span>commit.</span>
+          <span>todo</span>
+       </Card>
+      </Section>
+        
 
-    <Section>
-      <h2>Algorithmic bottlenecks</h2>
-    </Section>
+      <Section>
+        <Card elevation={1}>
+          <h2>Realtime on Android versus Linux on LSF</h2>
+       </Card>
+      </Section>
 
-    <Section>
-      <h2>Review of each metric</h2>
-    </Section>
+      <Section>
+        <Card elevation={1}>
+          <h2>Algorithmic bottlenecks</h2>
+       </Card>
+      </Section>
 
-    <Section>
-      <h2>Review of individual tests</h2>
-    </Section>
+      <Section>
+        <Card elevation={0}>
+          <h2>Review of each metric</h2>
+       </Card>
+      </Section>
 
-    <Callout icon="info-sign" intent={Intent.PRIMARY} title="Dashboard" style={{marginBottom:'20px'}}>
-      <p></p>
-    </Callout>
+      <Section>
+        <Card elevation={0}>
+          <h2>Review of individual tests</h2>
+       </Card>
+      </Section>
+
     </Container>
   }
 }
