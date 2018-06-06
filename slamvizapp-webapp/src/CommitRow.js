@@ -47,6 +47,11 @@ class CommitResults extends React.Component {
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
+
+    let tuning_batches_labels = Object.keys(commit.batches)
+                                      .filter(label => label !== 'default' && label !== 'ci-android-rt');
+    let has_android_batch = !!commit.batches['ci-android-rt'] && commit.batches['ci-android-rt'].valid_outputs>0;
+
     let status_messages = (
       <Fragment>
          {ci_batch.pending_outputs-ci_batch.running_outputs>0 &&
@@ -57,13 +62,16 @@ class CommitResults extends React.Component {
             <Link style={{marginLeft: '10px'}} to={`/commit/${commit.id}`}>
               <Button intent={Intent.DANGER} className="pt-minimal">{ci_batch.failed_outputs} crashed</Button>
             </Link>}
-         { Object.keys(commit.batches).length > 1 &&
+         {tuning_batches_labels.length > 1 &&
             <Tooltip>
-              <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{Object.keys(commit.batches).length-1} extra test batch{Object.keys(commit.batches).length-1>1 ? 's' : ''}</Tag>
-              <ul>{ Object.keys(commit.batches).filter(n=>n!=='default').map( name =>
-                <li key={name}><strong>{name}</strong></li>
+              <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{tuning_batches_labels.length} tuning batch{tuning_batches_labels.length>1 ? 'es' : ''}</Tag>
+              <ul>{ tuning_batches_labels.map( label =>
+                <li key={label}><strong>{label}</strong></li>
               )}</ul>
             </Tooltip>
+         }
+         { has_android_batch &&
+            <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{commit.batches['ci-android-rt'].valid_outputs} @Android</Tag>
          }
          {ci_batch.valid_outputs>0 && ci_batch.aggregated_metrics.translation_rmse_median>0 &&
             <Fragment>
