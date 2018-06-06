@@ -178,6 +178,7 @@ class SlamOutputCard extends Component {
   render() {
     const { output_new, output_ref, show_debug, show_3d, show_videos, warning, layout, no_header } = this.props;
     const { is_loaded, plot_revision } = this.state;
+    const layout = this.layout.props || {};
 
     var traces = [];
     ['groundtruth', 'reference', 'new'].forEach( label => {
