@@ -267,7 +267,7 @@ class CiCommitResults extends Component {
       if (negative_filter_tokens.some( token => searched.includes(token) )) return;
 
       let positive_filter_tokens = filter_tokens.filter(t=>t[0]!=='-')
-      let found = positive_filter_tokens.some( token => searched.includes(token))
+      let found = positive_filter_tokens.every( token => searched.includes(token))
       if (positive_filter_tokens.length===0 || found)
         batch_filtered.outputs[id] = output;
     });

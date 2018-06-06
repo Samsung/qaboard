@@ -225,7 +225,7 @@ const make_output_filter = output_filter => {
 
     let positive_filter_tokens = filter_tokens.filter(t=>t[0]!=='-')
     if (positive_filter_tokens.length===0) return true;
-    return positive_filter_tokens.some( token => searched.includes(token));
+    return positive_filter_tokens.every( token => searched.includes(token));
   }
 }
 
