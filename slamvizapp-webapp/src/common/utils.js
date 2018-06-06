@@ -50,7 +50,7 @@ const matching_output = ({output, batch}) => {
                            1*(JSON.stringify(o.extra_parameters)!==JSON.stringify(output.extra_parameters)|0);
 
   // let soft_match = true;
-  let matching_outputs = Object.values(batch.outputs || [])
+  let matching_outputs = Object.values(batch.outputs || {})
                                    .filter(o => !o.is_pending && !o.is_failed)
                                    .filter(o => o.test_input_path===output.test_input_path)
                                    // .filter(o => o.platform===output.platform || soft_match)

@@ -42,7 +42,15 @@ class SlamOutputCard extends Component {
     };
   }
 
+
   componentDidUpdate(nextProps, prevState) {
+    if (prevState.is_loaded) {
+      let updated_new = nextProps.output_new!==undefined && nextProps.output_new!==null && (this.props.output_new==null || nextProps.output_new.id !== this.props.output_new.id);
+      let updated_ref = nextProps.output_ref!==undefined && nextProps.output_ref!==null && (this.props.output_ref==null || nextProps.output_ref.id !== this.props.output_ref.id);
+      if (updated_new || updated_ref) {
+        this.getData(nextProps);
+      }      
+    }
     if (!prevState.is_loaded_debug && nextProps.show_debug)
       this.loadDebug()
     if (nextProps.select_debug !== prevState.select_debug)
@@ -58,8 +66,13 @@ class SlamOutputCard extends Component {
   }
 
   componentDidMount() {
-    const { output_new, output_ref, show_debug } = this.props;
+    this.getData(this.props);
+  }
+
+  getData(props) {
+    const { output_new, output_ref, show_debug } = props;
     let has_groundtruth = output_new.metrics.translation_aape!==null;
+
     if (has_groundtruth) {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`)
@@ -114,7 +127,8 @@ class SlamOutputCard extends Component {
     ])
      .then(spread((req_gt, req_new, req_ref) => {
         this.setState({
-          is_loaded: true
+          is_loaded: true,
+          plot_revision: this.state.plot_revision+1,
         })
         if (show_debug) this.loadDebug()
       }))
@@ -201,7 +215,7 @@ class SlamOutputCard extends Component {
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&
               <div style={{flex: '0 0 auto', width: layout.width ? `${layout.width}px` : '350px' , marginBottom: '20px'}}>
                 <SlimCard className="output-card">
-                  {no_header===true && <div style={{padding:'  '}}>
+                  {!no_header && <div style={{padding:'  '}}>
                                       <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} {tags}</h5>
                                       {main_metrics
                                         .filter( key => metrics_new[key] !== undefined)

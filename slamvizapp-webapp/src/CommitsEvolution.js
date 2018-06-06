@@ -353,7 +353,7 @@ class CommitsEvolutionPerMovie extends React.Component {
     let threshold = metric.threshold*metric.scale;
     let layout_ = {
       ...layout,
-      height: 500,
+      height: 250,
     }
 
     if (!relative)
@@ -379,17 +379,20 @@ class CommitsEvolutionPerMovie extends React.Component {
       let hovered_output = Object.values(hovered_commit.batches[hovered_label].outputs)
                                  .filter(o=>o.test_input_path===hovered_test_input_path)[0]
       if (details_on_hover && !!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]) {
-        var { hovered_output_ref, warning } = matching_output({
+        var { output_ref, warning } = matching_output({
           output: hovered_output,
           batch: hovered_commit_ref.batches[hovered_label]
         });
+        // console.log(hovered_commit_ref.batches[hovered_label])
+        // console.log(hovered_output_ref)
+        // console.log(warning)
       }
 
       var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
         <Tag style={{background: input_test_color(hovered_test_input_path)}}>{hovered_test_input_path}</Tag>
         <Tag style={{marginLeft: '15px'}}>{hovered_label==='default' ? 'LSF' : 'Android'}</Tag>
         <CommitRow commit={hovered_commit} project="dvs/psp_swip" toaster={toaster} />
-        {details_on_hover && <SlamOutputCard output_new={hovered_output} output_ref={hovered_output_ref} warning={warning} layout={{width:1180}} no_header />}
+        {details_on_hover && <SlamOutputCard output_new={hovered_output} output_ref={output_ref} warning={warning} layout={{width:1180, height: 300}} no_header={true} />}
       </div>
     } else {
       legend = <span></span>
