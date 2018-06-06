@@ -29,7 +29,6 @@ let layout = {
   autosize: false,
   yaxis: {
     type:'log',
-    hoverformat: '.2f',
   },
   hovermode: 'closest',
   hoverinfo: 'y',

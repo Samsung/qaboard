@@ -393,7 +393,6 @@ const make_layout = (show_debug, debug_data) => {
     layout[yaxis] = {
       domain: [index*frac_v, (index+1)*frac_v],
       titlefont: {size: index>8 ? 12 : 12},
-      hoverformat: '.3f',
       // side: (index <= 6 || index % 2 === 0) ? 'left' : 'right',
       title
     };
