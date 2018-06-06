@@ -167,10 +167,11 @@ class CommitsEvolutionPerBatch extends React.Component {
 
   render() {
     const { metrics } = this.props;
+    const { revision, hovered, hovered_commit, traces } = this.state;
 
-    if (this.state.hovered) {
+    if (hovered) {
       var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
-        <CommitRow commit={this.state.hovered_commit} project="dvs/psp_swip" toaster={toaster} />
+        <CommitRow commit={hovered_commit} project="dvs/psp_swip" toaster={toaster} />
       </div>
     } else {
       legend = <span></span>
@@ -199,7 +200,7 @@ class CommitsEvolutionPerBatch extends React.Component {
       ],
     }
     return <div>
-      <Plot revision={this.state.revision} data={this.state.traces} layout={layout_} onHover={this.onHover}/>
+      {traces.length>0 && <Plot revision={revision} data={traces} layout={layout_} onHover={this.onHover}/>}
       {legend}
     </div>
   }
@@ -344,6 +345,7 @@ class CommitsEvolutionPerMovie extends React.Component {
 
   render() {
     const { metrics, relative } = this.props;
+    const { revision, traces, hovered_test_input_path, hovered_label, hovered_commit } = this.state;
     let metric = slam_metrics[metrics[0]];
     let threshold = metric.threshold*metric.scale;
     let layout_ = {
@@ -372,16 +374,16 @@ class CommitsEvolutionPerMovie extends React.Component {
 
     if (this.state.hovered) {
       var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
-        <Tag style={{background: input_test_color(this.state.hovered_test_input_path)}}>{this.state.hovered_test_input_path}</Tag>
-        <Tag style={{marginLeft: '15px'}} intent={this.state.hovered_label==='default' ? Intent.PRIMARY : Intent.WARNING}>{this.state.hovered_label==='default' ? 'LSF' : 'Android'}</Tag>
-        <CommitRow commit={this.state.hovered_commit} project="dvs/psp_swip" toaster={toaster} />
+        <Tag style={{background: input_test_color(hovered_test_input_path)}}>{hovered_test_input_path}</Tag>
+        <Tag style={{marginLeft: '15px'}} intent={hovered_label==='default' ? Intent.PRIMARY : Intent.WARNING}>{hovered_label==='default' ? 'LSF' : 'Android'}</Tag>
+        <CommitRow commit={hovered_commit} project="dvs/psp_swip" toaster={toaster} />
       </div>
     } else {
       legend = <span></span>
     }
 
     return <div>
-      <Plot revision={this.state.revision} data={this.state.traces} layout={layout_} onHover={this.onHover}/>
+      {traces.length>0 && <Plot revision={revision} data={traces} layout={layout_} onHover={this.onHover}/>}
       {legend}
     </div>
   }
