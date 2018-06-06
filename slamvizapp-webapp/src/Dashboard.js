@@ -15,7 +15,7 @@ import { noMetrics } from "./common/metricSelect";
 import { CommitsEvolution } from './CommitsEvolution'
 import { MetricsSummary } from './MetricsSummary'
 import { TableCompare, TableKpi } from './Tables'
-import { slam_metrics, main_metrics } from './slam/metrics'
+import { slam_metrics, main_metrics, default_metric } from './slam/metrics'
 
 
 
@@ -35,6 +35,8 @@ class Dashboard extends React.Component {
       is_loaded: false,
       commits: [],
       latest_commit: null,
+      sort_by: default_metric,
+      sort_order: -1,
       aggregation_metrics,
 
       available_metrics: slam_metrics,
@@ -64,13 +66,11 @@ class Dashboard extends React.Component {
     .then(response => {
       let commits = response.data;
       // TODO: get the id from the URL
-      let latest_android_commit = commits.filter(c=>!!c.batches['ci-android-rt'])[0]
-      let latest_linux_commit = commits[0]
+      let latest_android_commit = commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0)[0]
       this.setState({
         is_loaded: true,
         commits,
         latest_android_commit,
-        latest_linux_commit,
       });
       if (commits.length > 0)
         this.setState({
@@ -127,7 +127,7 @@ class Dashboard extends React.Component {
     this.setState({sort_by: e.target.value})
   }
   selectOrder = e => {
-    this.setState({order: e.target.value})
+    this.setState({sort_order: e.target.value})
   }
 
   render() {
@@ -138,8 +138,8 @@ class Dashboard extends React.Component {
       <NonIdealState title="Loading" visual={<Spinner/>} />
     </Container>
 
-    let linux_batch = this.state.latest_linux_commit.batches.default
-    let android_batch = this.state.latest_android_commit ? this.state.latest_android_commit.batches['ci-android-rt'] : null
+    let linux_batch = this.state.latest_android_commit.batches.default
+    let android_batch = this.state.latest_android_commit.batches['ci-android-rt']
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = <MultiSelect
@@ -213,27 +213,29 @@ class Dashboard extends React.Component {
 
           <Tabs renderActiveTabPanelOnly id="tabs-outputs" onChange={(newTabId, prevTabId, event)=>{this.setState({selectedTabId: newTabId})}} selectedTabId={this.state.selectedTabId}>
             <Tab
-              id="output-table-compare"
-              title="Android vs LSF"
+              id="output-table-kpi"
+              title="vs KPI"
               panel={
-                <TableCompare
-                  sort_order={this.state.order}
+                <TableKpi
+                  sort_order={this.state.sort_order}
                   sort_by={this.state.sort_by}
                   new_batch={android_batch}
                   ref_batch={linux_batch}
+                  labels={['Android', 'LSF']}
                   metrics={selected_metrics}
                   input={metricTableSelect}
                 />}
             />
             <Tab
-              id="output-table-kpi"
-              title="vs KPI"
+              id="output-table-compare"
+              title="Android vs LSF"
               panel={
-                <TableKpi
-                  sort_order={this.state.order}
+                <TableCompare
+                  sort_order={this.state.sort_order}
                   sort_by={this.state.sort_by}
                   new_batch={android_batch}
                   ref_batch={linux_batch}
+                  labels={['Android', 'LSF']}
                   metrics={selected_metrics}
                   input={metricTableSelect}
                 />}

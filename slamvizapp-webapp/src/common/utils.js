@@ -70,7 +70,7 @@ const sortOutputs = (sort_by, order) => {
   return ([ka,a], [kb,b]) => {
     const a_value = a.metrics[sort_by] || a[sort_by] || a.test_input_path;
     const b_value = b.metrics[sort_by] || b[sort_by] || b.test_input_path;
-    // console.log(a_value, b_value)
+    // console.log(a_value, b_valu)e
     if (a_value > b_value ) {
       return order;
     }

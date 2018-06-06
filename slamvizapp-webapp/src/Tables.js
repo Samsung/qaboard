@@ -44,8 +44,9 @@ const QualityCell = ({metric, metrics}) => {
 }
 
 
-const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
+const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, labels }) => {
   if (new_batch===null) return <span/>
+  const [label_new, label_ref] = labels || ['new', 'ref']
   return (
     <Section>
       {input}
@@ -60,13 +61,13 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
         <tr>
           <th scope="col"></th>
           {metrics.map( m =>
-            <th scope="col" key={m.key}>new-ref</th>
+            <th scope="col" key={m.key}>{label_new}-{label_ref}</th>
           )}
         </tr>
       </thead>
       <tbody>
       {Object.entries(new_batch.outputs)
-             .filter(([id, o]) => !o.is_pending)
+             .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(sortOutputs(sort_by, sort_order))
              .map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch});
@@ -90,8 +91,9 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
 }
 
 
-const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
+const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, labels }) => {
   if (new_batch===null) return <span/>
+  const [label_new, label_ref] = labels || ['New', 'Reference']
   return (
     <Section>
       {input}
@@ -107,15 +109,15 @@ const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input })
           <th scope="col"></th>
           {metrics.map( m =>
             <Fragment key={m.key}>
-              <th scope="col">New</th>
-              <th scope="col">Reference</th>
+              <th scope="col">{label_new}</th>
+              <th scope="col">{label_ref}</th>
             </Fragment>
           )}
         </tr>
       </thead>
       <tbody>
       {Object.entries(new_batch.outputs)
-             .filter(([id, o]) => !o.is_pending)
+             .filter(([id, o]) => !o.is_pending && !o.is_failed)
              .sort(sortOutputs(sort_by, sort_order))
              .map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch, soft_match: false});
