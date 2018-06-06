@@ -90,7 +90,7 @@ class SlamOutputCard extends Component {
         }).catch(e=>{})
     }
     var get_ref;
-    if (output_ref!==undefined) {
+    if (output_ref!==undefined && output_ref!==null) {
       get_ref = () => {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
           .then(response => {
@@ -162,9 +162,9 @@ class SlamOutputCard extends Component {
   }
 
   render() {
-    const { output_new, output_ref, show_debug, show_3d, show_videos, warning } = this.props;
+    const { output_new, output_ref, show_debug, show_3d, show_videos, warning, layout, no_header } = this.props;
     const { is_loaded, plot_revision } = this.state;
-  
+
     var traces = [];
     ['groundtruth', 'reference', 'new'].forEach( label => {
       if (this.state.traces_6dof[label])
@@ -197,18 +197,19 @@ class SlamOutputCard extends Component {
 
     let metrics_new = output_new && output_new.metrics ? output_new.metrics : {};
     let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : {};
+
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&
-              <div style={{flex: '0 0 auto', width: '350px', marginBottom: '20px'}}>
+              <div style={{flex: '0 0 auto', width: layout.width ? `${layout.width}px` : '350px' , marginBottom: '20px'}}>
                 <SlimCard className="output-card">
-                  <div style={{padding:'  '}}>
-                    <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} {tags}</h5>
-                    {main_metrics
-                      .filter( key => metrics_new[key] !== undefined)
-                      .map(key => <p key={key}>
-                             <MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric={key}/>
-                          </p>)
-                    }
-                  </div>
+                  {no_header===true && <div style={{padding:'  '}}>
+                                      <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} {tags}</h5>
+                                      {main_metrics
+                                        .filter( key => metrics_new[key] !== undefined)
+                                        .map(key => <p key={key}>
+                                               <MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric={key}/>
+                                            </p>)
+                                      }
+                  </div>}
                   {show_videos && <SyncedVideos
                     src_new={`${output_new.output_dir_url}/results.mp4`}
                     src_ref={output_ref && `${output_ref.output_dir_url}/results.mp4`}
@@ -222,7 +223,7 @@ class SlamOutputCard extends Component {
                   />}
                   {is_loaded && <Plot
                     data={traces}
-                    layout={make_layout(show_debug, this.state.traces_debug.new)}
+                    layout={{...make_layout(show_debug, this.state.traces_debug.new), ...layout}}
                     revision={plot_revision}
                   />}
                 </SlimCard>
@@ -357,7 +358,7 @@ const make_layout = (show_debug, debug_data) => {
     type: 'scattergl', // try scatter
     // height:Math.min(85*n_yaxis, 1200),
     height: (show_debug ? 120 : 85) * n_yaxis,
-    width:350,
+    width: 350,
     // autosize: false,
     margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
     legend: {

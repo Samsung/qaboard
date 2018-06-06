@@ -6,7 +6,8 @@ import createPlotlyComponent from 'react-plotly.js/factory'
 import { Tag, Colors, FormGroup, Switch, Intent, InputGroup } from "@blueprintjs/core";
 
 import { slam_metrics, main_metrics, default_metric } from "./slam/metrics";
-import { input_test_color } from "./common/utils";
+import { SlamOutputCard } from "./slam/SlamOutputCard";
+import { input_test_color, matching_output } from "./common/utils";
 
 import { CommitRow } from "./CommitRow";
 
@@ -240,17 +241,19 @@ class CommitsEvolutionPerMovie extends React.Component {
       hovered_test_input_path: '',
       hovered_label: null,
       hovered_commit: null,
+      hovered_commit_ref: null,
     }
   }
 
   onHover = e => {
     let { label, test_input_path, commits } = this.state.traces_metadata[e.points[0].curveNumber];
-    let commit = commits[e.points[0].pointNumber];
+    let point_number = e.points[0].pointNumber;
     this.setState({
       hovered: true,
       hovered_test_input_path: test_input_path,
       hovered_label: label,
-      hovered_commit: commit,
+      hovered_commit: commits[point_number],
+      hovered_commit_ref: point_number > 0 ? commits[point_number-1] : null,
     })
   }
 
@@ -344,8 +347,8 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   render() {
-    const { metrics, relative } = this.props;
-    const { revision, traces, hovered_test_input_path, hovered_label, hovered_commit } = this.state;
+    const { metrics, relative, details_on_hover } = this.props;
+    const { revision, traces, hovered_test_input_path, hovered_label, hovered_commit, hovered_commit_ref } = this.state;
     let metric = slam_metrics[metrics[0]];
     let threshold = metric.threshold*metric.scale;
     let layout_ = {
@@ -373,10 +376,21 @@ class CommitsEvolutionPerMovie extends React.Component {
     ]
 
     if (this.state.hovered) {
+      let hovered_output = Object.values(hovered_commit.batches[hovered_label].outputs)
+                                 .filter(o=>o.test_input_path===hovered_test_input_path)[0]
+      var hovered_output_ref = null
+      if (!!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]) {
+        var { hovered_output_ref, warning } = matching_output({
+          output: hovered_output,
+          batch: hovered_commit_ref.batches[hovered_label]
+        });
+      }
+
       var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
         <Tag style={{background: input_test_color(hovered_test_input_path)}}>{hovered_test_input_path}</Tag>
-        <Tag style={{marginLeft: '15px'}} intent={hovered_label==='default' ? Intent.PRIMARY : Intent.WARNING}>{hovered_label==='default' ? 'LSF' : 'Android'}</Tag>
+        <Tag style={{marginLeft: '15px'}}>{hovered_label==='default' ? 'LSF' : 'Android'}</Tag>
         <CommitRow commit={hovered_commit} project="dvs/psp_swip" toaster={toaster} />
+        {details_on_hover && <SlamOutputCard output_new={hovered_output} output_ref={hovered_output_ref} warning={warning} layout={{width:1180}} no_header />}
       </div>
     } else {
       legend = <span></span>
@@ -397,6 +411,7 @@ class CommitsEvolution extends Component {
       selected_aggregation: 'median',
       output_filter: '',
       relative: true,
+      details_on_hover: false,
     };
   }
 
@@ -409,7 +424,7 @@ class CommitsEvolution extends Component {
 
   render() {
     const { project, commits, style, offer_breakdown_per_test } = this.props;
-    const { selected_metric, selected_aggregation, breakdown_per_test, output_filter, relative } = this.state;
+    const { selected_metric, selected_aggregation, breakdown_per_test, output_filter, relative, details_on_hover } = this.state;
 
     if (project!=='dvs/psp_swip') return <div></div>;
 
@@ -431,6 +446,7 @@ class CommitsEvolution extends Component {
         {offer_breakdown_per_test && breakdown_per_test &&
           <Fragment>
             <Switch inline label='Relative' defaultChecked={relative} onChange={e => {this.setState({relative: !relative})}}></Switch>
+            <Switch inline label='Show 6dof' defaultChecked={details_on_hover} onChange={e => {this.setState({details_on_hover: !details_on_hover})}}></Switch>
             <FormGroup labelFor="filter-input" inline>
               <InputGroup
                 value={output_filter}
@@ -443,7 +459,7 @@ class CommitsEvolution extends Component {
           </Fragment>
         }
       </FormGroup>
-      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} output_filter={output_filter} relative={this.state.relative} />
+      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} output_filter={output_filter} relative={this.state.relative} details_on_hover={details_on_hover} />
                           : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
       }
     </div>
