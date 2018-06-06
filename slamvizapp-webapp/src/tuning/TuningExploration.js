@@ -26,7 +26,8 @@ const Sensibility1DLines = ({ outputs, metric, parameter, relative, layout }) =>
                             opacity: 0.8,
                         }
                         let values = outputs.map(o => o.metrics[metric.key] * metric.scale);
-                        let v0 = values[0];
+                        let v0 = metric.smaller_is_better ? Math.min(...values) : Math.max(...values);
+                        console.log(v0)
                         let y = relative ? values.map(v => 100 * v / v0) : values;
                         return {
                           type: 'scatter',
