@@ -408,7 +408,7 @@ class CommitsEvolution extends Component {
     this.state = {
       selected_metric: default_metric,
       selected_aggregation: 'median',
-      output_filter: '',
+      output_filter: 'lsf',
       relative: true,
       details_on_hover: false,
     };
