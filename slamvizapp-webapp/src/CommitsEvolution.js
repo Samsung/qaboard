@@ -1,10 +1,12 @@
 /* global Plotly:true */
 // import Plot from 'react-plotly.js'
-import React, { Component } from "react";
+import React, { Component, Fragment } from "react";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Tag, Colors, FormGroup, Switch, Intent, InputGroup } from "@blueprintjs/core";
+
 import { slam_metrics, main_metrics, default_metric } from "./slam/metrics";
+import { input_test_color } from "./common/utils";
 
 import { CommitRow } from "./CommitRow";
 
@@ -27,6 +29,15 @@ let layout = {
   yaxis: {
     type:'log',
   },
+  hovermode: 'closest',
+  hoverinfo: 'y',
+  hoverlabel: {
+    namelength: -1,
+  },
+  // showlegend: false,
+  // legend: {
+  //   "orientation": "h"
+  // },
 }
 
 
@@ -126,6 +137,7 @@ class CommitsEvolutionPerBatch extends React.Component {
           let trace = {
             name: `${label==='default' ? 'Linux (LSF)' : 'Real-time (Android)'} ${shown_metrics.length>1 ? metric.label : ''}`,
             type: 'scatter',
+            mode: 'lines+markers',
             x: commits_with_batch.map( c => c.authored_datetime ),
             y: commits_with_batch
                .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
@@ -227,16 +239,15 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    // if (nextProps.commits !== this.props.commits ||
-    //     nextProps.metrics[0] !== this.props.metrics[0] ||
-    //     nextProps.filter !== this.props.filter
-    //    ) {
+    if (nextProps.commits !== this.props.commits      ||
+       nextProps.metrics[0] !== this.props.metrics[0] ||
+       nextProps.relative !== this.props.relative     ||
+       nextProps.filter !== this.props.filter)
       this.updateTraces(nextProps)
-    // }
   }
 
   updateTraces(props) {
-    const { commits, metrics, filter } = props;
+    const { commits, metrics, filter, relative } = props;
     let shown_metrics = metrics || [default_metric];
     let shown_batches = ['default', 'ci-android-rt']
     let traces = []
@@ -250,36 +261,50 @@ class CommitsEvolutionPerMovie extends React.Component {
           let input_paths = new Set()
           commits_with_batch.forEach(c => {
             Object.values(c.batches[label].outputs)
+                  .filter(o=>!o.is_pending && !o.is_failed)
+                  .filter(o => `${o.test_input_path} ${o.platform}`.toLowerCase().includes(filter.toLowerCase()) )
                   .map(o => o.test_input_path)
-                  .filter(test_input_path => test_input_path.includes(filter))
                   .forEach(new_test_input_path => input_paths.add(new_test_input_path))
           })
-          console.log(filter)
           input_paths.forEach( test_input_path => {
-            // console.log(test_input_path)
             let commits_with_input = commits_with_batch
                                      .filter(c => Object.values(c.batches[label].outputs)
+                                                        .filter(o=>!o.is_pending && !o.is_failed)
+                                                        .filter(o => `${o.test_input_path} ${o.platform}`.toLowerCase().includes(filter.toLowerCase()) )
                                                         .filter(o=>o.test_input_path===test_input_path)
                                                         .filter(o=>o.configuration.includes('stereo'))
                                                         .length>0 )
+
             let name = test_input_path;
+            let values = commits_with_input.map( c => Object.values(c.batches[label].outputs)
+                                                            .filter(o=>!o.is_pending && !o.is_failed)
+                                                            .filter(o => `${o.test_input_path} ${o.platform}`.toLowerCase().includes(filter.toLowerCase()) )
+                                                            .filter(o => o.test_input_path===test_input_path)
+                                                            .filter(o=>o.configuration.includes('stereo'))[0])
+                                           .map( o => Math.min(100*metric.threshold*metric.scale, o.metrics[metric.key]*metric.scale) )
+            const y0 = values[values.length-1]
+            const y = relative ? values.map(v => 100 * v / y0) : values
+
+            // ? compute an hash of the path -> 0-1, boom
+            // interpolateRainbow(0->1)
+            // same for symbols / line style
+            let color = input_test_color(test_input_path, label)
             let trace = {
               name,
               type: 'scatter',
+              mode: 'lines+markers',
               x: commits_with_input.map( c => c.authored_datetime ),
-              y: commits_with_input.map( c => Object.values(c.batches[label].outputs)
-                                                    .filter(o => o.test_input_path===test_input_path)
-                                                    .filter(o=>o.configuration.includes('stereo'))[0])
-                                   .map( o => Math.min(100*metric.threshold*metric.scale, o.metrics[metric.key]*metric.scale) ),
+              y,
               opacity: 0.8,
               marker: {
                 size: 5,
-                color: label==='default' ? Colors.BLUE2 : Colors.ORANGE2,
+                color,
                 opacity: 0.8,
               },
               line: {
                 width: 2,
-                color: label==='default' ? Colors.BLUE3 : Colors.ORANGE3,
+                color,
+                dash: label==='default' ? 'solid' : 'dot',
                 opacity: 0.3,
               },
               legendgroup: test_input_path,
@@ -301,40 +326,37 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   render() {
-    const { metrics } = this.props;
+    const { metrics, relative } = this.props;
     let metric = slam_metrics[metrics[0]];
     let threshold = metric.threshold*metric.scale;
     let layout_ = {
       ...layout,
       height: 500,
-      hovermode: 'closest',
-      hoverinfo: 'y',
-      // showlegend: false,
-      legend: {
-        "orientation": "h"
-      },
-      shapes: [
-          {
-            type: 'line',
-            layer: 'below',
-            xref: 'paper',
-            x0: 0,
-            x1: 1,
-            yref: 'y',
-            y0: threshold,
-            y1: threshold,
-            line: {
-              color: 'rgba(150, 150, 150, 0.5)',
-              width: 3,
-              dash: 'dashdot',
-            },
-        },
-      ],
     }
+
+    if (!relative)
+      layout_.shapes = [
+        {
+          type: 'line',
+          layer: 'below',
+          xref: 'paper',
+          x0: 0,
+          x1: 1,
+          yref: 'y',
+          y0: threshold,
+          y1: threshold,
+          line: {
+            color: 'rgba(150, 150, 150, 0.5)',
+            width: 3,
+            dash: 'dashdot',
+          },
+      },
+    ]
 
     if (this.state.hovered) {
       var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
-        <Tag intent={this.state.hovered_label==='default' ? Intent.PRIMARY : Intent.WARNING}>{this.state.hovered_test_input_path}</Tag>
+        <Tag style={{background: input_test_color(this.state.hovered_test_input_path)}}>{this.state.hovered_test_input_path}</Tag>
+        <Tag style={{marginLeft: '15px'}} intent={this.state.hovered_label==='default' ? Intent.PRIMARY : Intent.WARNING}>{this.state.hovered_label==='default' ? 'LSF' : 'Android'}</Tag>
         <CommitRow commit={this.state.hovered_commit} project="dvs/psp_swip" toaster={toaster} />
       </div>
     } else {
@@ -355,6 +377,7 @@ class CommitsEvolution extends Component {
       selected_metric: default_metric,
       selected_aggregation: 'median',
       filter: '',
+      relative: true,
     };
   }
 
@@ -367,7 +390,7 @@ class CommitsEvolution extends Component {
 
   render() {
     const { project, commits, style, offer_breakdown_per_test } = this.props;
-    const { selected_metric, selected_aggregation, breakdown_per_test, filter } = this.state;
+    const { selected_metric, selected_aggregation, breakdown_per_test, filter, relative } = this.state;
 
     if (project!=='dvs/psp_swip') return <div></div>;
 
@@ -378,26 +401,30 @@ class CommitsEvolution extends Component {
             {main_metrics.map( m => <option key={slam_metrics[m].key} value={m}>{slam_metrics[m].label}</option>)}
           </select>
         </div>
+        {!breakdown_per_test &&
         <div className="pt-select pt-minimal">
           <select id='select-aggregation' defaultValue={selected_metric} onChange={this.selectAggregation}>
             <option key='median' value='median'>median</option>
             <option key='average' value='average'>average</option>
           </select>
-        </div>
+        </div>}
         {offer_breakdown_per_test && <Switch inline label='Breakdown per test' defaultChecked={breakdown_per_test} onChange={e => {this.setState({breakdown_per_test: !breakdown_per_test})}}></Switch>}
-        {offer_breakdown_per_test && breakdown_per_test && 
-          <FormGroup labelFor="filter-input" inline>
-            <InputGroup
-              value={this.state.filter}
-              placeholder="filter by input path"
-              onChange={e => this.setState({filter: e.target.value})}
-              type="search"
-              leftIcon="search"
-            />
-          </FormGroup>
+        {offer_breakdown_per_test && breakdown_per_test &&
+          <Fragment>
+            <Switch inline label='Relative' defaultChecked={relative} onChange={e => {this.setState({relative: !relative})}}></Switch>
+            <FormGroup labelFor="filter-input" inline>
+              <InputGroup
+                value={this.state.filter}
+                placeholder="filter by input path"
+                onChange={e => this.setState({filter: e.target.value})}
+                type="search"
+                leftIcon="search"
+              />
+            </FormGroup>
+          </Fragment>
         }
       </FormGroup>
-      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} filter={filter} />
+      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} filter={filter} relative={this.state.relative} />
                           : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
       }
     </div>

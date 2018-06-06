@@ -28,7 +28,7 @@ class Dashboard extends React.Component {
     this.state = {
       project: 'dvs/psp_swip',
       date_range: [
-        new Date(moment().subtract(31,'d')),
+        new Date(moment().subtract(7,'d')),
         new Date()
       ],
       // error: null,

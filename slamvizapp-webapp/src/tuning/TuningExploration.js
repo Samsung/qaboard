@@ -5,35 +5,42 @@ import createPlotlyComponent from 'react-plotly.js/factory'
 import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
-import { groupBy, groupByObject } from "../common/utils";
+import { groupBy, groupByObject, input_test_color } from "../common/utils";
 import { slam_metrics, default_metric } from "../slam/metrics";
 
 const Plot = createPlotlyComponent(Plotly);
 const config = {};
 
 
-const Sensibility1DLines = ({ outputs, metric, parameter, layout }) => {
+const Sensibility1DLines = ({ outputs, metric, parameter, relative, layout }) => {
   let outputs_by_input = groupBy(Object.values(outputs), "test_input_path");
   let traces = Object.entries(outputs_by_input)
                      .map( ([test_input_path, outputs_for_input]) => {
                         let outputs = outputs_for_input
                                            .filter( o => !o.is_pending && !o.is_failed)
                                            .sort( (a,b) => a.extra_parameters[parameter] - b.extra_parameters[parameter])
+                        let color = input_test_color(test_input_path);
+                        let line = {
+                            width: 1,
+                            color,
+                            opacity: 0.8,
+                        }
+                        let values = outputs.map(o => o.metrics[metric.key] * metric.scale);
+                        let v0 = values[0];
+                        let y = relative ? values.map(v => 100 * v / v0) : values;
                         return {
                           type: 'scatter',
+                          mode: 'lines+markers',
                           name: test_input_path,
                           x: outputs.map(o => o.extra_parameters[parameter]),
-                          y: outputs.map(o => o.metrics[metric.key] * metric.scale),
+                          y,
                           marker: {
                             size: 4,
-                            // color: Colors.ORANGE4,
+                            color,
                             opacity: 0.8,
+                            line,
                           },
-                          line: {
-                            width: 1,
-                            // color: Colors.ORANGE5,
-                            opacity: 0.8,
-                          }
+                          line,
                         }
                       })
   const layout_ = {
@@ -185,6 +192,7 @@ class TuningExploration extends Component {
     this.state = {
       selected_parameter: null,
       selected_metric: default_metric,
+      relative: true,
       layout: {
         xaxis: {
           type: 'linear',
@@ -217,7 +225,7 @@ class TuningExploration extends Component {
 
   render() {
     const { batch } = this.props;
-    const { layout } = this.state;
+    const { layout, relative } = this.state;
     if (!batch) return <p>Loading...</p>
     if (batch.label==='default')
       return <Callout intent={Intent.PRIMARY}>First select a tuning experiment</Callout>
@@ -279,7 +287,8 @@ class TuningExploration extends Component {
       </div>}
       <Sensibility1DBoxplots outputs={batch.outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
       <h4>Breakdown by recording</h4>
-      <Sensibility1DLines outputs={batch.outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
+      <Switch label='Relative' defaultChecked={relative} onChange={e => {this.setState({relative: !relative})}}></Switch>
+      <Sensibility1DLines outputs={batch.outputs} metric={metric} parameter={selected_parameter} relative={relative} layout={layout}/>
     </Section>
   }
 }

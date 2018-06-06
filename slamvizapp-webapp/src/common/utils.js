@@ -1,3 +1,7 @@
+import { interpolateRainbow } from 'd3-scale-chromatic'
+import md5 from 'js-md5'
+
+
 const calendarStrings = {
   lastDay : '[Yesterday]',
   sameDay : '[Today]',
@@ -81,4 +85,12 @@ const sortOutputs = (sort_by, order) => {
 }
 
 
-export { groupBy, groupByObject, matching_output, calendarStrings, shortId, sortOutputs };
+const input_test_color = (path, label) => {
+  let hash = md5.array(path);
+  let hash_numeric =  hash.reduce( (accumulator, current, current_idx, array) => accumulator + (current>>7) / Math.pow(2, current_idx+1), 0)
+  let correction = (1 + Math.pow(2, -16))
+  let color = interpolateRainbow(hash_numeric*correction)
+  return color;
+}
+
+export { groupBy, groupByObject, matching_output, calendarStrings, shortId, sortOutputs, input_test_color };
