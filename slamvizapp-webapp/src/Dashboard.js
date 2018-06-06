@@ -139,7 +139,7 @@ class Dashboard extends React.Component {
     </Container>
 
     let linux_batch = this.state.latest_linux_commit.batches.default
-    let android_batch = this.state.latest_android_commit.batches['ci-android-rt']
+    let android_batch = this.state.latest_android_commit ? this.state.latest_android_commit.batches['ci-android-rt'] : null
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = <MultiSelect
