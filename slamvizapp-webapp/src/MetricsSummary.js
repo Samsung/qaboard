@@ -229,6 +229,8 @@ class MetricsSummary extends Component {
 
   render() {
     const { new_batch, ref_batch } = this.props;
+    if (new_batch===null) return <span/>
+
     let xaxis_labels = this.props.xaxis_labels || ['New', 'Reference'];
     let outputs_new = Object.values(new_batch.outputs)
                                  .filter(o => !o.is_pending && !o.metrics['no_gt_final']);

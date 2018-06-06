@@ -45,6 +45,7 @@ const QualityCell = ({metric, metrics}) => {
 
 
 const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
+  if (new_batch===null) return <span/>
   return (
     <Section>
       {input}
@@ -90,6 +91,7 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
 
 
 const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input }) => {
+  if (new_batch===null) return <span/>
   return (
     <Section>
       {input}

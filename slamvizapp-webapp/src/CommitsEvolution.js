@@ -3,7 +3,7 @@
 import React, { Component, Fragment } from "react";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
-import { Tag, Colors, FormGroup, Switch, Intent, InputGroup } from "@blueprintjs/core";
+import { Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 import { slam_metrics, main_metrics, default_metric } from "./slam/metrics";
 import { SlamOutputCard } from "./slam/SlamOutputCard";
@@ -378,8 +378,7 @@ class CommitsEvolutionPerMovie extends React.Component {
     if (this.state.hovered) {
       let hovered_output = Object.values(hovered_commit.batches[hovered_label].outputs)
                                  .filter(o=>o.test_input_path===hovered_test_input_path)[0]
-      var hovered_output_ref = null
-      if (!!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]) {
+      if (details_on_hover && !!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]) {
         var { hovered_output_ref, warning } = matching_output({
           output: hovered_output,
           batch: hovered_commit_ref.batches[hovered_label]
