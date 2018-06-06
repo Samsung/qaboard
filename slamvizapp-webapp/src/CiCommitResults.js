@@ -249,7 +249,11 @@ class CiCommitResults extends Component {
   filter_batch = (batch, filter_values) => {
     if (filter_values.length===0)
       return batch;
-    let filter_tokens = filter_values.split(' ');
+    let filter_tokens = filter_values
+                        .toLowerCase()
+                        .replace(/"/g, '')
+                        .replace(/=+/g, ':')
+                        .split(' ');
 
     let batch_filtered = Object.create(batch) // copy
     batch_filtered.outputs = {}
@@ -258,23 +262,14 @@ class CiCommitResults extends Component {
       let extra_parameters_s = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
       let extra_parameters = extra_parameters_s.replace(/"/g, '');
       let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
-      let found = false;
-      // TODO: first check for exclude filter (-)
-      // ..
-      for (var i in filter_tokens) {
-        let search = filter_tokens[i]
-                     .toLowerCase()
-                     .replace(/"/g, '')
-                     .replace(/=+/g, ':');
-        // let exclude = search.startswith('-')
-        // if exclude and searched.includes(search[1:]) {found=false}
-        if (searched.includes(search)) {
-          found=true;
-          break
-        }    
-      }
-      if (found)
-        batch_filtered.outputs[id] = output;      
+
+      let negative_filter_tokens = filter_tokens.filter(t=>t[0]==='-').map(t=>t.substring(1))
+      if (negative_filter_tokens.some( token => searched.includes(token) )) return;
+
+      let positive_filter_tokens = filter_tokens.filter(t=>t[0]!=='-')
+      let found = positive_filter_tokens.some( token => searched.includes(token))
+      if (positive_filter_tokens.length===0 || found)
+        batch_filtered.outputs[id] = output;
     });
     return batch_filtered;
   }

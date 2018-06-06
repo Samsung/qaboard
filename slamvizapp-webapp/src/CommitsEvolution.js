@@ -207,6 +207,25 @@ class CommitsEvolutionPerBatch extends React.Component {
 }
 
 
+const make_output_filter = output_filter => {
+  const filter_tokens = output_filter.toLowerCase()
+                                     .replace('android', 's8')
+                                     .split(' '); 
+  return o => {
+    if (o.is_pending || o.is_failed)
+      return false;
+    if (output_filter.length===0) return true;
+    let searched = `${o.test_input_path} ${o.platform} ${o.configuration}`.toLowerCase()
+
+    let negative_filter_tokens = filter_tokens.filter(t=>t[0]==='-').map(t=>t.substring(1))
+    if (negative_filter_tokens.some( token => searched.includes(token) )) return false;
+
+    let positive_filter_tokens = filter_tokens.filter(t=>t[0]!=='-')
+    if (positive_filter_tokens.length===0) return true;
+    return positive_filter_tokens.some( token => searched.includes(token));
+  }
+}
+
 class CommitsEvolutionPerMovie extends React.Component {
   constructor(props) {
     super(props);
@@ -242,12 +261,13 @@ class CommitsEvolutionPerMovie extends React.Component {
     if (nextProps.commits !== this.props.commits      ||
        nextProps.metrics[0] !== this.props.metrics[0] ||
        nextProps.relative !== this.props.relative     ||
-       nextProps.filter !== this.props.filter)
+       nextProps.output_filter !== this.props.output_filter)
       this.updateTraces(nextProps)
   }
 
   updateTraces(props) {
-    const { commits, metrics, filter, relative } = props;
+    const { commits, metrics, output_filter, relative } = props;
+    const output_filter_ = make_output_filter(output_filter)
     let shown_metrics = metrics || [default_metric];
     let shown_batches = ['default', 'ci-android-rt']
     let traces = []
@@ -258,28 +278,25 @@ class CommitsEvolutionPerMovie extends React.Component {
       shown_batches.forEach( label => {
         let commits_with_batch = commits.filter(c => !!c.batches[label])
         if (commits_with_batch.length>0) {
+
           let input_paths = new Set()
           commits_with_batch.forEach(c => {
             Object.values(c.batches[label].outputs)
-                  .filter(o=>!o.is_pending && !o.is_failed)
-                  .filter(o => `${o.test_input_path} ${o.platform}`.toLowerCase().includes(filter.toLowerCase()) )
-                  .map(o => o.test_input_path)
-                  .forEach(new_test_input_path => input_paths.add(new_test_input_path))
+                  .filter(output_filter_)
+                  .forEach(o => input_paths.add(o.test_input_path))
           })
           input_paths.forEach( test_input_path => {
             let commits_with_input = commits_with_batch
                                      .filter(c => Object.values(c.batches[label].outputs)
-                                                        .filter(o=>!o.is_pending && !o.is_failed)
-                                                        .filter(o => `${o.test_input_path} ${o.platform}`.toLowerCase().includes(filter.toLowerCase()) )
                                                         .filter(o=>o.test_input_path===test_input_path)
+                                                        .filter(output_filter_)
                                                         .filter(o=>o.configuration.includes('stereo'))
                                                         .length>0 )
 
             let name = test_input_path;
             let values = commits_with_input.map( c => Object.values(c.batches[label].outputs)
-                                                            .filter(o=>!o.is_pending && !o.is_failed)
-                                                            .filter(o => `${o.test_input_path} ${o.platform}`.toLowerCase().includes(filter.toLowerCase()) )
                                                             .filter(o => o.test_input_path===test_input_path)
+                                                            .filter(output_filter_)
                                                             .filter(o=>o.configuration.includes('stereo'))[0])
                                            .map( o => Math.min(100*metric.threshold*metric.scale, o.metrics[metric.key]*metric.scale) )
             const y0 = values[values.length-1]
@@ -376,7 +393,7 @@ class CommitsEvolution extends Component {
     this.state = {
       selected_metric: default_metric,
       selected_aggregation: 'median',
-      filter: '',
+      output_filter: '',
       relative: true,
     };
   }
@@ -390,7 +407,7 @@ class CommitsEvolution extends Component {
 
   render() {
     const { project, commits, style, offer_breakdown_per_test } = this.props;
-    const { selected_metric, selected_aggregation, breakdown_per_test, filter, relative } = this.state;
+    const { selected_metric, selected_aggregation, breakdown_per_test, output_filter, relative } = this.state;
 
     if (project!=='dvs/psp_swip') return <div></div>;
 
@@ -414,9 +431,9 @@ class CommitsEvolution extends Component {
             <Switch inline label='Relative' defaultChecked={relative} onChange={e => {this.setState({relative: !relative})}}></Switch>
             <FormGroup labelFor="filter-input" inline>
               <InputGroup
-                value={this.state.filter}
+                value={output_filter}
                 placeholder="filter by input path"
-                onChange={e => this.setState({filter: e.target.value})}
+                onChange={e => this.setState({output_filter: e.target.value})}
                 type="search"
                 leftIcon="search"
               />
@@ -424,7 +441,7 @@ class CommitsEvolution extends Component {
           </Fragment>
         }
       </FormGroup>
-      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} filter={filter} relative={this.state.relative} />
+      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} output_filter={output_filter} relative={this.state.relative} />
                           : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
       }
     </div>
