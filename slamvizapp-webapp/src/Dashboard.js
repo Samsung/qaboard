@@ -180,25 +180,25 @@ class Dashboard extends React.Component {
        </Card>
       </Section>
 
-      <Section>
+      {false && <Section>
         <Card elevation={1}>
           <h2>KPI Status</h2>
           <span></span>
-       </Card>
-      </Section>
-        
-
-      <Section>
+        </Card>
+      </Section>}
+              
+      
+      {false && <Section>
         <Card elevation={1}>
           <h2>Realtime on Android versus Linux on LSF</h2>
        </Card>
-      </Section>
+      </Section>}
 
-      <Section>
+      {false && <Section>
         <Card elevation={1}>
           <h2>Algorithmic bottlenecks</h2>
        </Card>
-      </Section>
+      </Section>}
 
       <Section>
         <Card elevation={0}>
