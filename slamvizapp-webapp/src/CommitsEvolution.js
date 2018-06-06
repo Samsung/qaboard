@@ -29,6 +29,7 @@ let layout = {
   autosize: false,
   yaxis: {
     type:'log',
+    hoverformat: '.2f',
   },
   hovermode: 'closest',
   hoverinfo: 'y',
@@ -383,9 +384,6 @@ class CommitsEvolutionPerMovie extends React.Component {
           output: hovered_output,
           batch: hovered_commit_ref.batches[hovered_label]
         });
-        // console.log(hovered_commit_ref.batches[hovered_label])
-        // console.log(hovered_output_ref)
-        // console.log(warning)
       }
 
       var legend = <div style={{marginTop: '30px', background: '#fefefe', 'padding': '10px'}}>
