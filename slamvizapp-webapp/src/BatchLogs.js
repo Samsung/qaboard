@@ -44,9 +44,6 @@ class OutputLog extends Component {
   render() {
     const { output } = this.props;
     const { is_open, is_loaded, error, logs } = this.state;
-
-    console.log(output)
-
     const button_text = is_open ? "Hide" : (is_loaded ? "Loading" : "Show")
     const tag_text = output.is_failed ? '❌' : (output.is_pending ? '⏳' : '✅')
     // we may not know where to look for logs

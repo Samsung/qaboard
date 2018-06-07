@@ -66,7 +66,7 @@ const matching_output = ({output, batch}) => {
 
 
 const sortOutputs = (sort_by, order) => {
-  console.log(sort_by, order)
+  // console.log(sort_by, order)
   return ([ka,a], [kb,b]) => {
     const a_value = a.metrics[sort_by] || a[sort_by];
     const b_value = b.metrics[sort_by] || b[sort_by];
