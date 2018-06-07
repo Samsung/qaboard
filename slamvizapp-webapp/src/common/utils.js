@@ -66,11 +66,11 @@ const matching_output = ({output, batch}) => {
 
 
 const sortOutputs = (sort_by, order) => {
-  // console.log(sort_by, order)
+  console.log(sort_by, order)
   return ([ka,a], [kb,b]) => {
-    const a_value = a.metrics[sort_by] || a[sort_by] || a.test_input_path;
-    const b_value = b.metrics[sort_by] || b[sort_by] || b.test_input_path;
-    // console.log(a_value, b_valu)e
+    const a_value = a.metrics[sort_by] || a[sort_by];
+    const b_value = b.metrics[sort_by] || b[sort_by];
+    // console.log(a_value, b_value)
     if (a_value > b_value ) {
       return order;
     }
