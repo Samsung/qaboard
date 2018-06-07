@@ -9,7 +9,7 @@ import { DateRangeInput } from "@blueprintjs/datetime";
 
 import { Container, Section } from "./common/containers";
 import { noMetrics } from "./common/metricSelect";
-// import { groupBy, calendarStrings } from "./common/utils";
+import { shortId } from "./common/utils";
 
 import { CommitsEvolution } from './CommitsEvolution'
 import { MetricsSummary } from './MetricsSummary'
@@ -47,7 +47,33 @@ class Dashboard extends React.Component {
 
   componentDidMount() {
     document.title = `Dashboard - ${this.state.project}`;   
-    this.getCommits(this.props)
+    this.getData(this.props)
+  }
+
+  getData(props) {
+    const params = new URLSearchParams(this.props.location.search);
+    Promise.all([
+      this.getCommits(props),
+      this.getCommit(params.get('commit_id')),
+      this.getCommit(params.get('commit_android_id')),
+    ])
+    .then(() => {
+      this.setState({isLoaded: true})
+    })
+  }
+
+  getCommit(commit_id) {
+    if (commit_id===null || commit_id===undefined) return;
+    get(`/api/v1/commit/${commit_id}`, {params: {project: this.state.project}})
+    .then(response => {
+      this.setState( (previous_state, props) => ({
+        commits: new Map([
+          ...previous_state.commits,
+          [commit_id, response.data]
+        ])
+      }))
+
+    })
   }
 
   getCommits(props) {
@@ -181,7 +207,7 @@ class Dashboard extends React.Component {
           allowSingleDayRange
           formatDate={date => (date == null ? "" : date.toLocaleDateString())}
           parseDate={str => new Date(Date.parse(str))}
-          onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getCommits(this.props))} }
+          onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getData(this.props))} }
           shortcuts
         />
       </Section>
@@ -215,7 +241,7 @@ class Dashboard extends React.Component {
 
       <Section>
         <Card elevation={0}>
-          <h2>Metrics on Android</h2>
+          <h2>Metrics on Android <span className="pt-text-muted">{shortId(this.state.project, commit_android_id)}</span></h2>
           <MetricsSummary selected_metrics={selected_metrics} project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
       </Section>
