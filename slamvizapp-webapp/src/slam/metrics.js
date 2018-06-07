@@ -16,7 +16,7 @@ const slam_metrics = {
     short_label: 'tRMSE',
     scale: 100,
     suffix: 'cm',
-    threshold: 0.01,
+    threshold: 0.015,
     smaller_is_better: true,
   },
 
@@ -26,7 +26,7 @@ const slam_metrics = {
     short_label: 'tAAPE',
     scale: 100,
     suffix: 'cm',
-    threshold: 0.01,
+    threshold: 0.015,
     smaller_is_better: true,
   },
   
@@ -57,7 +57,7 @@ const slam_metrics = {
     short_label: 'tAAPE_good',
     scale: 100,	
     suffix: 'cm',
-    threshold: 0.01,
+    threshold: 0.015,
     smaller_is_better: true,
   },
 
@@ -117,7 +117,7 @@ const slam_metrics = {
     short_label: 'CPU avg.',
     scale: 1,
     suffix: '%',
-    threshold: 100,
+    threshold: 200,
     smaller_is_better: true,
   },
 
@@ -127,7 +127,7 @@ const slam_metrics = {
     short_label: 'CPU median',
     scale: 1,
     suffix: '%',
-    threshold: 100,
+    threshold: 200,
     smaller_is_better: true,
   },
 
@@ -137,7 +137,7 @@ const slam_metrics = {
     short_label: 'Processing Avg',
     scale: 1,
     suffix: 'ms',
-    threshold: 10.0,
+    threshold: 25.0,
     smaller_is_better: true,
   },
   processing_time_med:{
@@ -146,7 +146,7 @@ const slam_metrics = {
     short_label: 'Processing Med',
     scale: 1,
     suffix: 'ms',
-    threshold: 10.0,
+    threshold: 25.0,
     smaller_is_better: true,
   },
   processing_time_q95:{
@@ -155,7 +155,7 @@ const slam_metrics = {
     short_label: 'Processing q95',
     scale: 1,
     suffix: 'ms',
-    threshold: 10.0,
+    threshold: 25.0,
     smaller_is_better: true,
   },
   processing_time_max:{
@@ -164,7 +164,7 @@ const slam_metrics = {
     short_label: 'Processing Max',
     scale: 1,
     suffix: 'ms',
-    threshold: 10.0,
+    threshold: 25.0,
     smaller_is_better: true,
   },
 
@@ -185,6 +185,7 @@ const summary_metrics = [
 ];
 // will be shown in the table and 6dof output cards
 const main_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc'];
+const dashboard_metrics = ['is_failed', 'translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc', 'processing_time_med', 'cpu_med'];
 
 
-export { slam_metrics, default_metric, main_metrics, summary_metrics };
+export { slam_metrics, default_metric, main_metrics, summary_metrics, dashboard_metrics };
