@@ -178,9 +178,11 @@ class MetricsSummary extends Component {
   constructor(props) {
     super(props);
     const is_slam = this.props.project === 'dvs/psp_swip';
+    const default_selected_metrics = is_slam ? summary_metrics.map(k=>slam_metrics[k]) : [];
+    let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
       available_metrics: is_slam ? slam_metrics : {},
-      selected_metrics: is_slam ? summary_metrics.map(k=>slam_metrics[k]) : [],
+      selected_metrics,
     };
   }
 

@@ -1,56 +1,57 @@
 import React from "react";
+import { withRouter } from "react-router";
 import { get } from "axios";
 import moment from 'moment';
 
-import { Card, Intent, Callout, Spinner, NonIdealState, Tabs, Tab, Button, MenuItem } from "@blueprintjs/core";
+import { Card, Spinner, NonIdealState, Tabs, Tab, Button, MenuItem } from "@blueprintjs/core";
 import { MultiSelect, Classes }  from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
-// import { Button, Icon, Intent, Tooltip, NonIdealState, Spinner, Tag, Callout } from "@blueprintjs/core";
 
 import { Container, Section } from "./common/containers";
 import { noMetrics } from "./common/metricSelect";
-// import { MetricTag } from "./MetricsSummary"
 // import { groupBy, calendarStrings } from "./common/utils";
 
 import { CommitsEvolution } from './CommitsEvolution'
 import { MetricsSummary } from './MetricsSummary'
 import { TableCompare, TableKpi } from './Tables'
-import { slam_metrics, main_metrics, default_metric } from './slam/metrics'
+import { slam_metrics, dashboard_metrics, default_metric } from './slam/metrics'
 
 
 
 class Dashboard extends React.Component {
   constructor(props) {
     super(props);
-    // const params = new URLSearchParams(this.props.location.search);
+    const params = new URLSearchParams(this.props.location.search);
     let aggregation_metrics = {}
-    main_metrics.forEach(m => aggregation_metrics[m] = slam_metrics[m].threshold)
+    dashboard_metrics.forEach(m => {aggregation_metrics[m] = slam_metrics[m].threshold})
     this.state = {
-      project: 'dvs/psp_swip',
+      project: params.get('branch') || 'dvs/psp_swip',
+      branch: params.get('branch') || 'develop',
       date_range: [
         new Date(moment().subtract(31,'d')),
         new Date()
       ],
       // error: null,
       is_loaded: false,
-      commits: [],
+      commits: new Map(),
+
       latest_commit: null,
       sort_by: default_metric,
       sort_order: -1,
       aggregation_metrics,
 
       available_metrics: slam_metrics,
-      selected_metrics: main_metrics.map(k=>slam_metrics[k]),
+      selected_metrics: dashboard_metrics.map(k=>slam_metrics[k]),
     };
   }
 
   componentDidMount() {
     document.title = `Dashboard - ${this.state.project}`;   
-    this.getData(this.props)
+    this.getCommits(this.props)
   }
 
-  getData(props) {
-    var url = '/api/v1/commits/origin/develop';
+  getCommits(props) {
+    var url = `/api/v1/commits/origin/${this.state.branch}`;
     const { project, date_range } = this.state;
     get(url, {
       params: {
@@ -64,19 +65,21 @@ class Dashboard extends React.Component {
       },
     })
     .then(response => {
-      let commits = response.data;
-      // TODO: get the id from the URL
-      let latest_android_commit = commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0)[0]
-      this.setState({
+      let new_commits = response.data
+      let latest_commit_android_id = new_commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0)[0].id
+      this.setState((previous_state, props) => ({
         is_loaded: true,
-        commits,
-        latest_android_commit,
-      });
-      if (commits.length > 0)
+        commits: new Map([
+          ...previous_state.commits,
+          ...new_commits.map( commit => [commit.id, commit]),
+        ]),
+        latest_commit_android_id,
+      }));
+      if (new_commits.length > 0)
         this.setState({
           date_range: [
-            new Date(commits[commits.length-1].authored_datetime),
-            new Date(commits[0].authored_datetime)
+            new Date(new_commits[new_commits.length-1].authored_datetime),
+            new Date(new_commits[0].authored_datetime)
           ],            
         })
     })
@@ -131,15 +134,21 @@ class Dashboard extends React.Component {
   }
 
   render() {
-    const { is_loaded, commits, date_range } = this.state;
+    const { is_loaded, commits, latest_commit_android_id, date_range } = this.state;
     var { selected_metrics } = this.state;
 
     if (!is_loaded) return <Container>
       <NonIdealState title="Loading" visual={<Spinner/>} />
     </Container>
 
-    let linux_batch = this.state.latest_android_commit.batches.default
-    let android_batch = this.state.latest_android_commit.batches['ci-android-rt']
+    const params = new URLSearchParams(this.props.location.search);
+    let commit_id = params.get('commit_id') || latest_commit_android_id;
+    let commit_android_id = params.get('commit_android_id') || latest_commit_android_id;
+    let commit = commits.get(commit_id)
+    let commit_android = commits.get(commit_android_id)
+
+    let linux_batch = commit.batches.default
+    let android_batch = commit_android.batches[commit_android.type==='git' ? 'ci-android-rt' : 'default']
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = <MultiSelect
@@ -154,13 +163,17 @@ class Dashboard extends React.Component {
       popoverProps={Classes.MINIMAL}
     />
 
+    // console.log(Array.from(commits.values()))
+    // .map(([id, commit]) => commit)
+    // Array.from(commits.values()).forEach(c => {console.log(c)})
+    let selected_commits = Array.from(commits.values())
+                                .filter(c => new Date(c.authored_datetime) >= date_range[0] &&
+                                             new Date(c.authored_datetime) <= date_range[1]
+                                )
 
     return <Container>
       <Section>
-        <Callout icon="info-sign" intent={Intent.WARNING} title="Work in Progress"/>
-
         <h1>SLAM Dashboard</h1>
-        <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
 
         <DateRangeInput
           value={date_range}
@@ -168,7 +181,7 @@ class Dashboard extends React.Component {
           allowSingleDayRange
           formatDate={date => (date == null ? "" : date.toLocaleDateString())}
           parseDate={str => new Date(Date.parse(str))}
-          onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getData(this.props))} }
+          onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getCommits(this.props))} }
           shortcuts
         />
       </Section>
@@ -176,7 +189,7 @@ class Dashboard extends React.Component {
       <Section>
         <Card elevation={1}>
           <h2>Improvement over time</h2>
-          <CommitsEvolution offer_breakdown_per_test={true} project={this.state.project} commits={commits} style={{marginTop: '20px'}}/>
+          <CommitsEvolution offer_breakdown_per_test={true} project={this.state.project} commits={selected_commits} style={{marginTop: '20px'}}/>
        </Card>
       </Section>
 
@@ -202,14 +215,14 @@ class Dashboard extends React.Component {
 
       <Section>
         <Card elevation={0}>
-          <h2>Review of each metric</h2>
-          <MetricsSummary project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
+          <h2>Metrics on Android</h2>
+          <MetricsSummary selected_metrics={selected_metrics} project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
       </Section>
 
       <Section>
         <Card elevation={0}>
-          <h2>Review of individual tests</h2>
+          <h2>Individual tests</h2>
 
           <Tabs renderActiveTabPanelOnly id="tabs-outputs" onChange={(newTabId, prevTabId, event)=>{this.setState({selectedTabId: newTabId})}} selectedTabId={this.state.selectedTabId}>
             <Tab
@@ -261,5 +274,4 @@ class Dashboard extends React.Component {
 
 
 
-
-export { Dashboard };
+export default withRouter(Dashboard);

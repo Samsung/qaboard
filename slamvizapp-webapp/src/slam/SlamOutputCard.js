@@ -214,7 +214,7 @@ class SlamOutputCard extends Component {
     let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : {};
 
     return <Fragment> {!output_new.is_failed && !output_new.is_pending &&
-              <div style={{flex: '0 0 auto', width: layout.width ? `${layout.width}px` : '350px' , marginBottom: '20px'}}>
+              <div style={{flex: '0 0 auto', width: layout.width!==undefined ? `${layout.width}px` : '350px' , marginBottom: '20px'}}>
                 <SlimCard className="output-card">
                   {!no_header && <div style={{padding:'  '}}>
                                       <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} {tags}</h5>

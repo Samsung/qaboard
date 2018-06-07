@@ -7,7 +7,7 @@ import AppNavbar from "./AppNavbar"
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
-import { Dashboard } from "./Dashboard";
+import Dashboard from "./Dashboard";
 
 import '../node_modules/@blueprintjs/core/lib/css/blueprint.css';
 import '../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css';
