@@ -25,7 +25,7 @@ const ColumnsMetricImprovement = ({metrics_new, metrics_ref, metric}) => {
   if (!metrics_ref || metrics_ref[metric.key]===undefined || metrics_ref[metric.key]===null)
     return <td style={{background:'#bbb'}}>Ref missing</td>
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
-  let delta_relative = delta / metrics_ref[metric.key];
+  let delta_relative = delta / (metrics_ref[metric.key]+0.00001);
   return <td style={{background: interpolateRdYlGn(.5-delta_relative)}}>
     {metric_formatter.format(delta)} ({percent_formatter.format(100*delta_relative)}%)
   </td>
@@ -37,7 +37,7 @@ const QualityCell = ({metric, metrics}) => {
     return <td style={{background:'#bbb'}}>na</td>
   let value = metrics[metric.key];
   const threshold = metric.threshold
-  const quality = 0.5 + (threshold - value) / threshold
+  const quality = 0.5 + (threshold - value) / (threshold+0.0001)
   return <td style={{background: interpolateRdYlGn(quality)}}>
     {metric_formatter.format(value)}
   </td>
@@ -67,7 +67,7 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
       </thead>
       <tbody>
       {Object.entries(new_batch.outputs)
-             .filter(([id, o]) => !o.is_pending && !o.is_failed)
+             .filter(([id, o]) => !o.is_pending)
              .sort(sortOutputs(sort_by, sort_order))
              .map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch});
@@ -117,7 +117,7 @@ const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, l
       </thead>
       <tbody>
       {Object.entries(new_batch.outputs)
-             .filter(([id, o]) => !o.is_pending && !o.is_failed)
+             .filter(([id, o]) => !o.is_pending)
              .sort(sortOutputs(sort_by, sort_order))
              .map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch, soft_match: false});
