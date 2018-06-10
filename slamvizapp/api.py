@@ -92,6 +92,7 @@ def add_batch(hexsha):
       '<< EOF\n'
       f'  cd {ci_directory}/dvs/psp_swip/branches/{main_branch}/psp_swip;\n',
       f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if data['android_device'].lower() != 'openstf' else '',
+      f"  export OPENSTF_STORAGE_QUOTA=12;\n" if data['android_device'].lower() != 'openstf' else '',
       f"  export SAMSUNG_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n",
       f"  export GITLAB_USER_LOGIN='{data['user']}';\n" if data['user'] != 'arthurf' else '',
       f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
