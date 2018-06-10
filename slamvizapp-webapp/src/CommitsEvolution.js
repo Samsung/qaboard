@@ -28,6 +28,8 @@ let layout = {
   },
   autosize: false,
   yaxis: {
+    showgrid: false,
+    showline: false,
     type:'log',
   },
   hovermode: 'closest',
@@ -422,7 +424,7 @@ class CommitsEvolution extends Component {
   }
 
   render() {
-    const { project, commits, style, offer_breakdown_per_test } = this.props;
+    const { project, commits, style, offer_breakdown_per_test, selected_metrics } = this.props;
     const { selected_metric, selected_aggregation, breakdown_per_test, output_filter, relative, details_on_hover } = this.state;
 
     if (project!=='dvs/psp_swip') return <div></div>;
@@ -430,9 +432,11 @@ class CommitsEvolution extends Component {
     return <div style={style}>
       <FormGroup inline>
         <div className="pt-select pt-minimal">
-          <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
+          {selected_metrics!==null &&
+            <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
             {main_metrics.map( m => <option key={slam_metrics[m].key} value={m}>{slam_metrics[m].label}</option>)}
-          </select>
+            </select>
+          }
         </div>
         {!breakdown_per_test &&
         <div className="pt-select pt-minimal">

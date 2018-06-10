@@ -1,9 +1,10 @@
 import React from "react";
 import { withRouter } from "react-router";
+import { Link } from "react-router-dom";
 import { get } from "axios";
 import moment from 'moment';
 
-import { Card, Spinner, NonIdealState, Tabs, Tab, Button, MenuItem } from "@blueprintjs/core";
+import { Card, Spinner, NonIdealState, Tabs, Tab, Button, MenuItem, Colors } from "@blueprintjs/core";
 import { MultiSelect, Classes }  from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
@@ -196,7 +197,8 @@ class Dashboard extends React.Component {
                                 .filter(c => new Date(c.authored_datetime) >= date_range[0] &&
                                              new Date(c.authored_datetime) <= date_range[1]
                                 )
-    let pretty_commit_android_id = commit_android.type==='git' ? shortId(this.state.project, commit_android_id) : commit_android_id
+    let pretty_commit_android_id = commit_android.type==='git' ? shortId(this.state.project, commit_android_id)
+                                                               : commit_android_id.replace('/f2/algo_archive/PTAM_Results/', '')
     let pretty_commit_id = shortId(this.state.project, commit_id)
 
     return <Container>
@@ -215,9 +217,9 @@ class Dashboard extends React.Component {
       </Section>
     
       <Section>
-        <Card elevation={1}>
+        <Card elevation={1} style={{breakInside: 'avoid'}}>
           <h2>Improvement over time</h2>
-          <CommitsEvolution offer_breakdown_per_test={true} project={this.state.project} commits={selected_commits} style={{marginTop: '20px'}}/>
+          <CommitsEvolution selected_metrics={['translation_aape', 'rotation_error']} offer_breakdown_per_test={true} project={this.state.project} commits={selected_commits} style={{marginTop: '20px'}}/>
        </Card>
       </Section>
 
@@ -241,19 +243,19 @@ class Dashboard extends React.Component {
        </Card>
       </Section>}
 
-      <Section>
+      <Section style={{breakAfter: 'always', breakInside: 'avoid'}}>
         <Card elevation={0}>
-          <h2>Metrics on Android</h2>
+          <h2>Metrics on Android <span style={{color: Colors.BLUE2}}>vs LSF</span></h2>
           <ul>
-          <li><strong>Android:</strong> {Object.keys(android_batch.outputs).length} results from <code className="pt-text-muted">{pretty_commit_android_id}</code></li>
-          <li><strong>LSF:</strong> {Object.keys(linux_batch.outputs).length} results from <code className="pt-text-muted">{pretty_commit_id}</code></li>
+          <li><strong>Android:</strong> {Object.keys(android_batch.outputs).length} results from <Link to={`/commit/${commit_android_id}`}><code className="pt-text-muted">{pretty_commit_android_id}</code></Link></li>
+          <li><strong>LSF:</strong> {Object.keys(linux_batch.outputs).length} results from <Link to={`/commit/${commit_id}`}><code className="pt-text-muted">{pretty_commit_id}</code></Link></li>
           </ul>
           <MetricsSummary selected_metrics={selected_metrics} project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
       </Section>
 
       <Section>
-        <Card elevation={0}>
+        <div>
           <h2>Individual tests</h2>
 
           <Tabs renderActiveTabPanelOnly id="tabs-outputs" onChange={(newTabId, prevTabId, event)=>{this.setState({selectedTabId: newTabId})}} selectedTabId={this.state.selectedTabId}>
@@ -297,7 +299,7 @@ class Dashboard extends React.Component {
               </select>
             </div>
           </Tabs>
-       </Card>
+       </div>
       </Section>
 
     </Container>
