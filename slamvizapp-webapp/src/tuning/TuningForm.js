@@ -243,6 +243,7 @@ class TuningForm extends Component {
       submitted: false,
       experiment_name: cookies.get('experiment_name') || '',
       platform: cookies.get('platform') || 'lsf',
+      android_device: 'openstf',
       configuration: cookies.get('configuration') || 'serial-stereo',
       selected_group: cookies.get('selected_group') || '',
       selected_group_info: {
@@ -254,7 +255,7 @@ class TuningForm extends Component {
         n_iter: 50,
       },
       overwrite: false,
-      user: cookies.get('user') || 'arthurf',
+      user: 'arthurf',
       parameter_search: cookies.get('parameter_search', {doNotParse: true}) ? JSON.parse(cookies.get('parameter_search', {doNotParse: true})) : tuning_templates['none'],
     };
   }
@@ -280,11 +281,15 @@ class TuningForm extends Component {
     this.setState({selected_group: next_selected_group})
     this.getGroupInfo(next_selected_group);
   };
-
   updateExperimentName = e => {
     const { cookies } = this.props;
     cookies.set('experiment_name', e.target.value, { path: '/' });
     this.setState({experiment_name: e.target.value.replace(/[^\w_.@:=]/g, '-')})
+  };
+  updateAndroidDevice = e => {
+    const { cookies } = this.props;
+    cookies.set('android_device', e.target.value, { path: '/' });
+    this.setState({android_device: e.target.value})
   };
   updateConfiguration = e => {
     const { cookies } = this.props;
@@ -321,7 +326,7 @@ class TuningForm extends Component {
 
 
   onSubmit = e => {
-    const { experiment_name, platform, configuration, groups, selected_group, overwrite, user } = this.state;
+    const { experiment_name, platform, android_device, configuration, groups, selected_group, overwrite, user } = this.state;
     const { parameter_search, search_type, search_options } = this.state;
     this.setState({ submitted: true })
     OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
@@ -335,6 +340,7 @@ class TuningForm extends Component {
       },
       selected_group, groups,
       user,
+      android_device,
       overwrite: overwrite,
     })
     .then(response => {
@@ -349,7 +355,7 @@ class TuningForm extends Component {
   }
 
   render() {
-    const { platform, configuration, selected_group, selected_group_info, experiment_name, user } = this.state;
+    const { platform, android_device, configuration, selected_group, selected_group_info, experiment_name, user } = this.state;
     const { search_type, parameter_search, search_options } = this.state;
     let number_of_recordings = selected_group_info.number_of_recordings
     try {
@@ -398,6 +404,15 @@ class TuningForm extends Component {
                                 Available on <code>develop</code> or if you ran the <a href="http://gitlab-srv/dvs/psp_swip/pipelines"><code>performance:android:manual</code> job</a>
                               </span></span>} value="s8" large/>
       </RadioGroup>
+
+      {platform==='s8' && <FormGroup
+          label="Android device"
+          helperText='Choose a device from the openstf farm, or your own (host:port)'
+          labelFor="input-android-device"
+          requiredLabel={true}
+      >
+          <input id="input-android-device" className="pt-input" style={{width: '300px'}} value={android_device} placeholder="openstf" onChange={this.updateAndroidDevice}  type="text" dir="auto" />
+      </FormGroup>}
 
       <FormGroup
           label="You can choose any of the available SLAM configuration"
