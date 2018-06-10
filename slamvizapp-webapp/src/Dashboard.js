@@ -196,6 +196,8 @@ class Dashboard extends React.Component {
                                 .filter(c => new Date(c.authored_datetime) >= date_range[0] &&
                                              new Date(c.authored_datetime) <= date_range[1]
                                 )
+    let pretty_commit_android_id = commit_android.type==='git' ? shortId(this.state.project, commit_android_id) : commit_android_id
+    let pretty_commit_id = shortId(this.state.project, commit_id)
 
     return <Container>
       <Section>
@@ -241,7 +243,11 @@ class Dashboard extends React.Component {
 
       <Section>
         <Card elevation={0}>
-          <h2>Metrics on Android <span className="pt-text-muted">{shortId(this.state.project, commit_android_id)}</span></h2>
+          <h2>Metrics on Android</h2>
+          <ul>
+          <li><strong>Android:</strong> {Object.keys(android_batch.outputs).length} results from <code className="pt-text-muted">{pretty_commit_android_id}</code></li>
+          <li><strong>LSF:</strong> {Object.keys(linux_batch.outputs).length} results from <code className="pt-text-muted">{pretty_commit_id}</code></li>
+          </ul>
           <MetricsSummary selected_metrics={selected_metrics} project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
       </Section>

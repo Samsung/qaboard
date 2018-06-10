@@ -59,7 +59,7 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
           )}
         </tr>
         <tr>
-          <th scope="col"></th>
+          <th scope="col"><span className='pt-text-muted'>{Object.keys(new_batch.outputs).length} tests</span></th>
           {metrics.map( m =>
             <th scope="col" key={m.key}>{label_new}-{label_ref}</th>
           )}
@@ -106,7 +106,7 @@ const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, l
           )}
         </tr>
         <tr>
-          <th scope="col"></th>
+          <th scope="col"><span className='pt-text-muted'>{Object.keys(new_batch.outputs).length} tests</span></th>
           {metrics.map( m =>
             <Fragment key={m.key}>
               <th scope="col">{label_new}</th>

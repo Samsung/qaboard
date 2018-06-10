@@ -3,7 +3,7 @@
 import React, { Component, Fragment } from "react";
 import styled from "styled-components";
 
-import { Tag, Button, Intent, Callout, MenuItem } from "@blueprintjs/core";
+import { Tag, Button, Intent, Callout, MenuItem, Colors } from "@blueprintjs/core";
 import { MultiSelect, Classes } from "@blueprintjs/select";
 
 
@@ -54,12 +54,15 @@ const MetricTag = ({metrics, metrics_ref, metric}) => {
 const MetricRow = styled.div`
   display: flex;
   align-items: center;
-  //margin-bottom: 35px;
+  &:first-child {
+    margin-top: 10px;
+  };
   // justify-content: space-between;
 `
 const MetricTile = styled.div`
   flex: 0.1 0.1 auto;
   text-align: center;
+  align-self: start;
   padding: 10px;
   min-width: 355px; // manuall adjusted with the largest title..
 `
@@ -174,6 +177,50 @@ const pc_over_threshold = (array, threshold) => {
 }
 
 
+
+
+const disable_axe = {
+  fixedrange: true,
+  zeroline: false,
+  showgrid: false,
+  showline: false,
+  showticklabel: false,
+  ticks:'',
+  autotick: true,
+}
+
+let layout_tiles = {
+  barmode: 'stack',
+  font: {
+    color: '#fff',
+  },
+  yaxis: {
+    ...disable_axe,
+    title:'',
+    color: "#fff",
+    tickcolor: "#fff",
+  },
+  xaxis: {
+    ...disable_axe,
+    title:'',
+    color: "#fff",
+    tickcolor: "#fff",
+  },
+  showlegend: false,
+  margin: {
+      l: 0,
+      r: 0,
+      b: 0,
+      t: 0,
+      pad:0
+  },
+  width: 150,
+  height: 25,
+  autosize: false,
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  paper_bgcolor: 'rgba(0,0,0,0)',
+};
+
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
@@ -258,6 +305,9 @@ class MetricsSummary extends Component {
     })
     let tuned_parameters_array = Array.from(tuned_parameters)
 
+
+
+
     return <div>
       {tuned_parameters_array.length>0 && <Callout intent={Intent.WARNING}>The results below show <strong>all the results</strong> with various parameters mixed together.</Callout>}
       <MultiSelect
@@ -305,11 +355,40 @@ class MetricsSummary extends Component {
               <MetricTile>
                <h3>{metric_formatter.format(m.scale*new_avg)}{m.suffix}<span style={{color: '#ccc'}}> avg</span></h3>
                <h5>{m.label}</h5>
-               <p className="pt-text-muted">{percent_formatter.format(100*new_pc_good)}% { m.smaller_is_better? 'under': 'over'} {metric_formatter.format(m.scale*m.threshold)}{m.suffix}</p>
+               <Plot
+                data={[
+                  {
+                    type: 'bar',
+                    orientation: 'h',
+                    name: 'Success',
+                    x: [100*new_pc_good],
+                    textposition: 'auto',
+                    hoverinfo: 'none',
+                    text: `${percent_formatter.format(100*new_pc_good)}%`,
+                    marker: {
+                      color: Colors.GREEN3,
+                    },
+                  },
+                  {
+                    type: 'bar',
+                    orientation: 'h',
+                    name: 'Failure',
+                    x: [100*(1-new_pc_good)],
+                    textposition: 'auto',
+                    hoverinfo: 'none',
+                    text: `${percent_formatter.format(100*(1-new_pc_good))}%`,
+                    marker: {
+                      color: Colors.RED3,
+                    }, 
+                  },
+                ]}
+                layout={layout_tiles}
+                config={{displayModeBar:false}}
+              />
               </MetricTile>
 
               <MetricTile>
-               <h3 className="pt-text-muted">vs {metric_formatter.format(m.scale*ref_avg)}{m.suffix}</h3>
+               <h3 style={{color: color_ref}} className="pt-text-muted">vs {metric_formatter.format(m.scale*ref_avg)}{m.suffix}</h3>
                <h5><Tag intent={intent}>{percent_formatter.format(100*delta_relative)}%</Tag></h5>
               </MetricTile>
 
