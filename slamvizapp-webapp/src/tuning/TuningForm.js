@@ -78,7 +78,7 @@ class AddRecordingsForm extends Component {
       platform: 'lsf', configuration: 'serial-stereo',
       tuning_search: {},
       selected_group, groups,
-      overwrite,
+      overwrite, android_device: 'openstf',
     })
     .then(response => {
       this.setState({submitted: false})
