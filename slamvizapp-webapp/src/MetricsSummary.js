@@ -364,7 +364,7 @@ class MetricsSummary extends Component {
                     x: [100*new_pc_good],
                     textposition: 'auto',
                     hoverinfo: 'none',
-                    text: `${percent_formatter.format(100*new_pc_good)}%`,
+                    text: `${percent_formatter.format(100*new_pc_good)}% Success`,
                     marker: {
                       color: Colors.GREEN3,
                     },
