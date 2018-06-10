@@ -221,6 +221,39 @@ let layout_tiles = {
   paper_bgcolor: 'rgba(0,0,0,0)',
 };
 
+const SuccessBar = ({success_frac}) => <Plot
+  data={[
+    {
+      type: 'bar',
+      orientation: 'h',
+      name: 'Success',
+      x: [100*success_frac],
+      textposition: 'auto',
+      hoverinfo: 'none',
+      text: success_frac>.2 ? `${percent_formatter.format(100*success_frac)}% success` : '',
+      marker: {
+        color: Colors.GREEN3,
+      },
+    },
+    {
+      type: 'bar',
+      orientation: 'h',
+      name: 'Failure',
+      x: [100*(1-success_frac)],
+      textposition: 'auto',
+      hoverinfo: 'none',
+      text: success_frac<.8 ?`${percent_formatter.format(100*(1-success_frac))}% failed` : '',
+      marker: {
+        color: Colors.RED3,
+      }, 
+    },
+  ]}
+  layout={layout_tiles}
+  config={{displayModeBar:false}}
+/>
+
+
+
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
@@ -331,6 +364,7 @@ class MetricsSummary extends Component {
           let new_avg = average(new_values)
           let ref_avg = average(ref_values)
           let new_pc_good = m.smaller_is_better ? pc_under_threshold(new_values, m.threshold) : pc_over_threshold(new_values, m.threshold)
+          let ref_pc_good = m.smaller_is_better ? pc_under_threshold(ref_values, m.threshold) : pc_over_threshold(ref_values, m.threshold)
           let delta = new_avg - ref_avg;
           let delta_relative = delta / ref_avg;
 
@@ -355,41 +389,13 @@ class MetricsSummary extends Component {
               <MetricTile>
                <h3>{metric_formatter.format(m.scale*new_avg)}{m.suffix}<span style={{color: '#ccc'}}> avg</span></h3>
                <h5>{m.label}</h5>
-               <Plot
-                data={[
-                  {
-                    type: 'bar',
-                    orientation: 'h',
-                    name: 'Success',
-                    x: [100*new_pc_good],
-                    textposition: 'auto',
-                    hoverinfo: 'none',
-                    text: `${percent_formatter.format(100*new_pc_good)}% Success`,
-                    marker: {
-                      color: Colors.GREEN3,
-                    },
-                  },
-                  {
-                    type: 'bar',
-                    orientation: 'h',
-                    name: 'Failure',
-                    x: [100*(1-new_pc_good)],
-                    textposition: 'auto',
-                    hoverinfo: 'none',
-                    text: `${percent_formatter.format(100*(1-new_pc_good))}% failed`,
-                    marker: {
-                      color: Colors.RED3,
-                    }, 
-                  },
-                ]}
-                layout={layout_tiles}
-                config={{displayModeBar:false}}
-              />
+               <SuccessBar success_frac={new_pc_good}/>
               </MetricTile>
 
               <MetricTile>
-               <h3 style={{color: color_ref}} className="pt-text-muted">vs {metric_formatter.format(m.scale*ref_avg)}{m.suffix}</h3>
-               <h5><Tag intent={intent}>{percent_formatter.format(100*delta_relative)}%</Tag></h5>
+               <h3 style={{color: color_ref}}>vs {metric_formatter.format(m.scale*ref_avg)}{m.suffix}</h3>
+               <h5><Tag intent={intent}>{delta_relative>0 ? '+' : ''}{percent_formatter.format(100*delta_relative)}%</Tag></h5>
+               {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good}/>}
               </MetricTile>
 
               <HistogramComparaison ref_values={ref_values} new_values={new_values} metric={m} xaxis_labels={xaxis_labels} />
