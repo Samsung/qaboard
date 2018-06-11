@@ -73,6 +73,8 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
   let plot_scale = metric['plot_scale'] || 'log';
   // let threshold = plot_scale==='log' ? Math.log(metric.threshold*metric.scale) : metric.threshold*metric.scale
   let threshold = metric.threshold*metric.scale;
+  let min_y = Math.min(...new_values, ...ref_values)*metric.scale;
+  let max_y = Math.max(...new_values, ...ref_values)*metric.scale;
 	let layout = {
 	      bargap: 0., 
 	      bargroupgap: 0., 
@@ -94,19 +96,36 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
 	      },
 	      xaxis: {color: "rgba(0,0,0,0.8)", fixedrange: true, title:''},
         shapes: [
-            {
-              type: 'line',
-              layer: 'below',
-              x0: -0.5,
-              x1:  1.25,
-              y0: threshold,
-              y1: threshold,
-              line: {
-                color: 'rgba(150, 150, 150, 0.5)',
-                width: 3,
-                dash: 'dashdot',
-              },
-          },
+          {
+            type: 'rect',
+            layer: 'below',
+            xref: "paper",
+            x0: 0,
+            x1: 1,
+            yref: "y",
+            y0: metric.smaller_is_better ? max_y     : threshold,
+            y1: metric.smaller_is_better ? threshold : min_y,
+            opacity: 0.15,
+            fillcolor: Colors.RED5,
+            line: {
+              color: Colors.RED5,
+            }
+        },
+        {
+          type: 'rect',
+          layer: 'below',
+          xref: "paper",
+          x0: 0,
+          x1: 1,
+          yref: "y",
+          y0: metric.smaller_is_better ? min_y     : threshold,
+          y1: metric.smaller_is_better ? threshold : max_y,
+          opacity: 0.15,
+          fillcolor: Colors.GREEN2,
+          line: {
+            color: Colors.GREEN2,
+          }
+        },
         ],
 	      showlegend: false,
 	      // margin: {
