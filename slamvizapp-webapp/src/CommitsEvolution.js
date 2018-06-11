@@ -129,6 +129,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     let shown_aggregation = aggregation || 'median';
     let valid_commits = commits.filter( c => !!c.batches.default )
                                .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
+    // TODO: remove outliers
     let traces = []
     let traces_metadata = []
 
@@ -144,7 +145,7 @@ class CommitsEvolutionPerBatch extends React.Component {
             x: commits_with_batch.map( c => c.authored_datetime ),
             y: commits_with_batch
                .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-               .map( value => Math.min(100*metric.threshold*metric.scale, value*metric.scale) ),
+               .map( x => x<20*metric.threshold ? x*metric.scale : null ),
             // text: valid_commits.map( c => c.message ),
             marker: {
               size: 10,
@@ -204,6 +205,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     }
     return <div>
       {traces.length>0 && <Plot revision={revision} data={traces} layout={layout_} onHover={this.onHover}/>}
+      <p><span className="pt-text-muted" style={{fontSize: 10, }}>Outlier commits (>20x KPIs) are not shown. Their performance may not be evaluated on the same tests.</span></p>
       {legend}
     </div>
   }
