@@ -249,7 +249,8 @@ const SuccessBar = ({success_frac}) => <Plot
       x: [100*success_frac],
       textposition: 'auto',
       hoverinfo: 'none',
-      text: success_frac>.2 ? `${percent_formatter.format(100*success_frac)}% success` : '',
+      text: success_frac>.4 ? `${percent_formatter.format(100*success_frac)}% success` : '',
+      opacity: 1,
       marker: {
         color: Colors.GREEN3,
       },
@@ -261,9 +262,10 @@ const SuccessBar = ({success_frac}) => <Plot
       x: [100*(1-success_frac)],
       textposition: 'auto',
       hoverinfo: 'none',
-      text: success_frac<.8 ?`${percent_formatter.format(100*(1-success_frac))}% failed` : '',
+      text: success_frac<.6 ?`${percent_formatter.format(100*(1-success_frac))}% failed` : '',
+      opacity: .8,
       marker: {
-        color: Colors.RED3,
+        color: Colors.RED5,
       }, 
     },
   ]}
