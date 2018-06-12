@@ -103,7 +103,7 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
 	  };
 
     let threshold = metric.threshold*metric.scale;
-    let all_values = [...new_values, ...ref_values].filter(x=> x!==null && x!==undefined && x!==NaN);
+    let all_values = [...new_values, ...ref_values].filter(x=> x!==null && x!==undefined && !isNaN(x));
     let min_y = Math.min(...all_values)*metric.scale;
     let max_y = Math.max(...all_values)*metric.scale;
     let all_success = metric.smaller_is_better ? (max_y <= threshold) : (min_y <= threshold);
