@@ -71,10 +71,6 @@ const MetricTile = styled.div`
 const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) => {
   const xdata = xaxis_labels || ['New', 'Reference'];
   let plot_scale = metric['plot_scale'] || 'log';
-  // let threshold = plot_scale==='log' ? Math.log(metric.threshold*metric.scale) : metric.threshold*metric.scale
-  let threshold = metric.threshold*metric.scale;
-  let min_y = Math.min(...new_values, ...ref_values)*metric.scale;
-  let max_y = Math.max(...new_values, ...ref_values)*metric.scale;
 	let layout = {
 	      bargap: 0., 
 	      bargroupgap: 0., 
@@ -82,61 +78,16 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
 	      yaxis: {
 	          type: plot_scale,
 	          autorange: true,
-
-            // autotick: false,
-            // dtick: plot_scale === 'log' ? 0.69897000433 : null,
-            // exponentformat:'SI',
 	          color: "rgba(0,0,0,0.8)",
 	          tickcolor: "rgba(0,0,0,0.8)",
-
 	          showgrid: false,
 	          zeroline: false,
 	          gridcolor: 'rgb(255, 255, 255)',
 	          gridwidth: 1,
 	      },
 	      xaxis: {color: "rgba(0,0,0,0.8)", fixedrange: true, title:''},
-        shapes: [
-          {
-            type: 'rect',
-            layer: 'below',
-            xref: "paper",
-            x0: 0,
-            x1: 1,
-            yref: "y",
-            y0: metric.smaller_is_better ? max_y     : threshold,
-            y1: metric.smaller_is_better ? threshold : min_y,
-            opacity: 0.15,
-            fillcolor: Colors.RED5,
-            line: {
-              color: Colors.RED5,
-            }
-        },
-        {
-          type: 'rect',
-          layer: 'below',
-          xref: "paper",
-          x0: 0,
-          x1: 1,
-          yref: "y",
-          y0: metric.smaller_is_better ? min_y     : threshold,
-          y1: metric.smaller_is_better ? threshold : max_y,
-          opacity: 0.15,
-          fillcolor: Colors.GREEN2,
-          line: {
-            color: Colors.GREEN2,
-          }
-        },
-        ],
+        shapes: [],
 	      showlegend: false,
-	      // margin: {
-	      //     l: 40,
-	      //     r: 30,
-	      //     b: 80,
-	      //     t: 100
-	      // },
-	      // height: 400,
-	      // width: 300,
-
 	      margin: { // will eat into the drawing area
 	          l: 40,
 	          r: 30,
@@ -150,6 +101,46 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
         plot_bgcolor: 'rgba(0,0,0,0)',
         paper_bgcolor: 'rgba(0,0,0,0)',
 	  };
+
+    let threshold = metric.threshold*metric.scale;
+    let all_values = [...new_values, ...ref_values].filter(x=> x!==null && x!==undefined && x!==NaN);
+    let min_y = Math.min(...all_values)*metric.scale;
+    let max_y = Math.max(...all_values)*metric.scale;
+    let all_success = metric.smaller_is_better ? (max_y <= threshold) : (min_y <= threshold);
+    let all_failed  = metric.smaller_is_better ? (min_y >= threshold) : (max_y >= threshold);
+
+    if (!all_failed)
+      layout.shapes.push({
+        type: 'rect',
+        layer: 'below',
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        yref: "y",
+        y0: metric.smaller_is_better ? max_y     : threshold,
+        y1: metric.smaller_is_better ? threshold : min_y,
+        opacity: 0.2,
+        fillcolor: Colors.RED5,
+        line: {
+          color: Colors.RED5,
+        }
+      })
+    if (!all_success)
+      layout.shapes.push({
+        type: 'rect',
+        layer: 'below',
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        yref: "y",
+        y0: metric.smaller_is_better ? min_y     : threshold,
+        y1: metric.smaller_is_better ? threshold : max_y,
+        opacity: 0.15,
+        fillcolor: Colors.GREEN2,
+        line: {
+          color: Colors.GREEN2,
+        }
+    })
 
     var ydata = [
       new_values.map(x=>metric.scale*x),
