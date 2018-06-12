@@ -1,7 +1,7 @@
 /* global Plotly:true */
 // import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
-import { get, all, spread } from "axios";
+import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
 import { Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
@@ -11,8 +11,6 @@ import { main_metrics } from "./metrics";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
-
-
 
 var colors = {
   groundtruth : '#4daf4a',
@@ -48,6 +46,8 @@ class SlamOutputCard extends Component {
       let updated_new = nextProps.output_new!==undefined && nextProps.output_new!==null && (this.props.output_new==null || nextProps.output_new.id !== this.props.output_new.id);
       let updated_ref = nextProps.output_ref!==undefined && nextProps.output_ref!==null && (this.props.output_ref==null || nextProps.output_ref.id !== this.props.output_ref.id);
       if (updated_new || updated_ref) {
+        if (this.state.cancel_source)
+          this.state.cancel_source.cancel();
         this.getData(nextProps);
       }      
     }
@@ -73,9 +73,11 @@ class SlamOutputCard extends Component {
     const { output_new, output_ref, show_debug } = props;
     let has_groundtruth = output_new.metrics.translation_aape!==null;
 
+    const source = CancelToken.source();
+    this.setState({cancel_source: source})
     if (has_groundtruth) {
       var get_gt = () => {
-        return get(`${output_new.output_dir_url}/GT_final.txt`)
+        return get(`${output_new.output_dir_url}/GT_final.txt`, {cancelToken: source.token})
             .then(response => {
               let poses = parse_poses(response.data);
               this.setState((previous_state, props) => {
@@ -91,7 +93,7 @@ class SlamOutputCard extends Component {
       get_gt = () => {}; 
     }
     var get_new = () => {
-      return get(`${output_new.output_dir_url}/camera_poses_debug.csv`)
+      return get(`${output_new.output_dir_url}/camera_poses_debug.csv`, {cancelToken: source.token})
         .then(response => {
           let poses = parse_poses(response.data);
           this.setState((previous_state, props) => {
@@ -105,7 +107,7 @@ class SlamOutputCard extends Component {
     var get_ref;
     if (output_ref!==undefined && output_ref!==null) {
       get_ref = () => {
-        return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`)
+        return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`, {cancelToken: source.token})
           .then(response => {
             let poses = parse_poses(response.data)
             this.setState((previous_state, props) => {
