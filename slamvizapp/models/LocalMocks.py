@@ -6,6 +6,7 @@ It's slow, not integrated into the database, missing some data, but it does the 
 import datetime
 import re
 import json
+from hashlib import md5
 from pathlib import Path
 
 from .Batch import aggregated_metrics
