@@ -75,7 +75,7 @@ def init_slam_database(verbose=False):
     if verbose: print(ci_commit)
 
     # also get the manual runs...
-	init_slam_manual_runs()
+  init_slam_manual_runs()
 
 def discover_outputs(batch, session):
   """Find outputs saved on the disk to initialize the database"""
