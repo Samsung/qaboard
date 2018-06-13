@@ -15,7 +15,7 @@ from slamvizapp.config import default_recordings_directory, ci_directory
 
 import slamvizapp
 from slamvizapp.config import default_recordings_directory
-
+from load_manual_android_runs import init_slam_manual_runs
 # TODO: we should also import the old Android runs on algo_archive/PTAM_Results
 
 
@@ -74,6 +74,8 @@ def init_slam_database(verbose=False):
       session.commit()
     if verbose: print(ci_commit)
 
+    # also get the manual runs...
+	init_slam_manual_runs()
 
 def discover_outputs(batch, session):
   """Find outputs saved on the disk to initialize the database"""
