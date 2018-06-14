@@ -14,7 +14,7 @@ from slamvizapp.models import Base, Project, CiCommit, TestInput, Batch, Output
 from slamvizapp.config import default_recordings_directory, ci_directory
 
 import slamvizapp
-from init_database import discover_outputs
+from slamvizapp.scripts.slam.init_database import discover_outputs
 
 root = Path('/net/f2/algo_archive/PTAM_Results/')
 # manual_runs = [
@@ -38,7 +38,7 @@ re_datetime = '(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2})'
 re_author = '(?P<author>[A-Za-z0-9]*)'
 re_commit_id = '(?P<commit_id>[A-Za-z0-9]*)'
 re_message = '(?P<message>.*)'
-id_parser = re.compile(f'^{re_datetime}__local__{re_author}__DEMO_{re_commit_id}(?:_{re_message})*')
+id_parser = re.compile(f'^{re_datetime}__local__{re_author}__EXPORT_{re_commit_id}(?:_{re_message})*')
 
 def init_slam_manual_runs(verbose=False):
   for folder in root.iterdir():
