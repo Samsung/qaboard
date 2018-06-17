@@ -13,13 +13,14 @@ from .config import default_recordings_directory
 @app.route('/api/v1/slam_output/', methods=['POST'])
 def new_output_webhook():
   data = request.get_json()
+  project_id = request.json.get('project', 'dvs/psp_swip')
   if data['job_type'] != 'ci': # we do nothing for now with local runs
     print(data['output_directory'])
     return "OK"
 
   hexsha = request.json['git_commit_sha']
   try:
-    repo = repos['dvs/psp_swip']
+    repo = repos[project_id]
     ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha, repo=repo)
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
@@ -36,6 +37,7 @@ def new_output_webhook():
                                          test_input=test_input,
                                         )
   output.output_type = request.json.get('output_type', 'slam/6dof')
+  output.data = request.json.get('data', {})
   if request.json.get('is_running', False):
     output.is_running = True
     output.is_pending = True
@@ -67,7 +69,7 @@ def gitlab_webhook():
   try: # no work to do if our commit is already in the database
     ci_commit = (db_session
                  .query(CiCommit)
-                 .filter_by(id=data['checkout_sha'], project_id='dvs/psp_swip')
+                 .filter_by(id=data['checkout_sha'], project_id=project_path)
                  .one()
     )
   except NoResultFound:
