@@ -108,7 +108,7 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
     let all_success = metric.smaller_is_better ? (max_y <= threshold) : (min_y <= threshold);
     let all_failed  = metric.smaller_is_better ? (min_y >= threshold) : (max_y >= threshold);
 
-    if (!all_failed)
+    if (!all_success)
       layout.shapes.push({
         type: 'rect',
         layer: 'below',
@@ -124,7 +124,7 @@ const HistogramComparaison = ({ new_values, ref_values, metric, xaxis_labels }) 
           color: Colors.RED5,
         }
       })
-    if (!all_success)
+    if (!all_failed)
       layout.shapes.push({
         type: 'rect',
         layer: 'below',
