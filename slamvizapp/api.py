@@ -85,6 +85,14 @@ def add_batch(hexsha):
     ])
     print(batch_command)
     use_openstf = data['android_device'].lower() == 'openstf'
+    device = data['android_device']
+    # if use_openstf:
+    #   dependencies = f'-w ""'
+    # else:
+    #   dependencies = ''
+    # dependencies_expression = ' && '.join([f'ended({job.name})' for job in dependencies])
+    # dependencies_flag = f'-w "{dependencies_expression}"'
+
     device = '--overwrite' if data['overwrite'] == 'on' else ''
     batch_script = ''.join([
       '#!/bin/bash\n',
@@ -259,7 +267,7 @@ def get_ci_commit(commit_id=None):
     branch = request.args.get('branch', 'origin/develop')
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch)
     if not ci_commit:
-      return jsonify({'error': 'Sorry, we cant find a suitable commit.'}), 404
+      return jsonify({'error': 'Sorry, we cant find any commit with results for this project.'}), 404
   else:
     try: # we try a commit from git
       if project_id == 'dvs/psp_swip':
