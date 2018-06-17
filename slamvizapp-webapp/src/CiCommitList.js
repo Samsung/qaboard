@@ -15,7 +15,7 @@ import { CommitRow } from "./CommitRow";
 import { Container, Section } from "./common/containers";
 import { groupBy, calendarStrings } from "./common/utils";
 import { CommitsEvolution } from './CommitsEvolution'
-import { slam_metrics, main_metrics } from './slam/metrics'
+import { metrics } from './metrics'
 
 import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();
@@ -56,10 +56,11 @@ class CiCommitList extends React.Component {
   constructor(props) {
     super(props);
     const params = new URLSearchParams(this.props.location.search);
+    const project = params.get('project') || 'dvs/psp_swip';
     let aggregation_metrics = {}
-    main_metrics.forEach(m => aggregation_metrics[m] = slam_metrics[m].threshold)
+    metrics[project].main_metrics.forEach(m => aggregation_metrics[m] = metrics[project].available_metrics[m].threshold)
     this.state = {
-      project: params.get('project') || 'dvs/psp_swip',
+      project,
       date_range: [
         new Date(moment().subtract(3,'d')),
         new Date()
@@ -164,19 +165,20 @@ class CiCommitList extends React.Component {
         <Section>
           <Callout icon="info-sign" intent={Intent.PRIMARY} title="Useful links" style={{marginBottom:'20px'}}>
           <ul>
-            <li><a href="http://gitlab-srv/dvs/psp_swip/pipelines">Gitlab CI pipelines</a></li>
-            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href={`http://gitlab-srv/${project}/pipelines`}>Gitlab CI pipelines</a></li>
+            <li><Link to={`/dashboard?project=${project}`}>Dashboard</Link></li>
             <li><a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">FAQ: When did my CI fail?</a></li>
           </ul>
           </Callout>
         </Section>
         <Section>
           <h3>Reports for <Link to="/branch/origin/develop"><Button icon="git-branch">develop</Button></Link></h3>
-          <p><a href="http://gitlab-srv/dvs/psp_swip/commits/develop"><img src="http://gitlab-srv/dvs/psp_swip/badges/develop/build.svg" alt="build status"/></a><a href="/s/branches/develop/coverage/index.html"> <img alt="coverage report" src="http://gitlab-srv/dvs/psp_swip/badges/develop/coverage.svg"/></a><a href="/s/branches/develop/doxygen/index.html"> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
+          <p><a href={`http://gitlab-srv/${project}/commits/develop`}><img src={`http://gitlab-srv/${project}/badges/develop/build.svg`} alt="build status"/></a><a href={`/s/${project}/branches/develop/coverage/index.html`}> <img alt="coverage report" src={`http://gitlab-srv/${project}/badges/develop/coverage.svg`}/></a><a href={`/s/${project}/branches/develop/doxygen/index.html`}> <img src="https://img.shields.io/badge/docs-develop-green.svg" alt="documentation"/></a></p>
         </Section>
       </Fragment>
     );
-    if (project !== 'dvs/psp_swip')
+    let show_integration_todos = project !== 'dvs/psp_swip' && project !== 'tof/swip_tof'
+    if (show_integration_todos)
       information = (
         <Fragment>
           <Section>

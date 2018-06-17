@@ -15,7 +15,7 @@ import { shortId } from "./common/utils";
 import { CommitsEvolution } from './CommitsEvolution'
 import { MetricsSummary } from './MetricsSummary'
 import { TableCompare, TableKpi } from './Tables'
-import { slam_metrics, dashboard_metrics, default_metric } from './slam/metrics'
+import { metrics } from './metrics';
 
 
 
@@ -23,10 +23,12 @@ class Dashboard extends React.Component {
   constructor(props) {
     super(props);
     const params = new URLSearchParams(this.props.location.search);
+    const project = params.get('project') || 'dvs/psp_swip'
+    const available_metrics = metrics[project].available_metrics;
     let aggregation_metrics = {}
-    dashboard_metrics.forEach(m => {aggregation_metrics[m] = slam_metrics[m].threshold})
+    metrics[project].dashboard_metrics.forEach(m => {aggregation_metrics[m] = available_metrics[m].threshold})
     this.state = {
-      project: params.get('branch') || 'dvs/psp_swip',
+      project,
       branch: params.get('branch') || 'develop',
       date_range: [
         new Date(moment().subtract(31,'d')),
@@ -37,12 +39,12 @@ class Dashboard extends React.Component {
       commits: new Map(),
 
       latest_commit: null,
-      sort_by: default_metric,
+      sort_by: metrics[project].default_metric,
       sort_order: -1,
       aggregation_metrics,
 
-      available_metrics: slam_metrics,
-      selected_metrics: dashboard_metrics.map(k=>slam_metrics[k]),
+      available_metrics,
+      selected_metrics: metrics[project].dashboard_metrics.map(k=>available_metrics[k]),
     };
   }
 
@@ -53,13 +55,14 @@ class Dashboard extends React.Component {
 
   getData(props) {
     const params = new URLSearchParams(this.props.location.search);
+    this.setState({is_loaded: false}) 
     Promise.all([
       this.getCommits(props),
       this.getCommit(params.get('commit_id')),
       this.getCommit(params.get('commit_android_id')),
     ])
     .then(() => {
-      this.setState({isLoaded: true})
+      this.setState({is_loaded: true})
     })
   }
 
@@ -89,13 +92,13 @@ class Dashboard extends React.Component {
         from: date_range[0],
         to: date_range[1],
         metrics: JSON.stringify(this.state.aggregation_metrics),
+        commits: new Map(),
       },
     })
     .then(response => {
       let new_commits = response.data
       let latest_commit_android_id = new_commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0)[0].id
       this.setState((previous_state, props) => ({
-        is_loaded: true,
         commits: new Map([
           ...previous_state.commits,
           ...new_commits.map( commit => [commit.id, commit]),
@@ -164,9 +167,16 @@ class Dashboard extends React.Component {
     const { is_loaded, commits, latest_commit_android_id, date_range } = this.state;
     var { selected_metrics } = this.state;
 
-    if (!is_loaded) return <Container>
+    // console.log(commits)
+    // console.log(commits.size)
+    console.log(is_loaded)
+    if (!is_loaded || commits.size===0) return <Container>
       <NonIdealState title="Loading" visual={<Spinner/>} />
     </Container>
+    // if (commits.size===0) return <Container>
+    //   <NonIdealState title="Empty" visual='folder' />
+    // </Container>
+    // console.log(commits)
 
     const params = new URLSearchParams(this.props.location.search);
     let commit_id = params.get('commit_id') || latest_commit_android_id;
@@ -214,6 +224,7 @@ class Dashboard extends React.Component {
           onChange={new_date_range => {this.setState({ date_range: new_date_range, isLoaded: false }, c => this.getData(this.props))} }
           shortcuts
         />
+        {!is_loaded && <Spinner/>}
       </Section>
     
       <Section>

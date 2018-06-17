@@ -19,8 +19,8 @@ import { BatchLogs } from "./BatchLogs";
 import { CommitParameters } from "./Parameters";
 import { SlamOutputCard } from "./slam/SlamOutputCard";
 import { CisOutputCard } from "./cis/CisOutputCard";
-
-import { main_metrics, slam_metrics, default_metric } from "./slam/metrics";
+import { TofOutputCard } from "./tof/TofOutputCard";
+import { metrics } from './metrics';
 
 import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
 import { TuningExploration } from "./tuning/TuningExploration";
@@ -32,12 +32,13 @@ class CiCommitResults extends Component {
     super(props);
     const params = new URLSearchParams(this.props.location.search);
     const project = params.get('project') || 'dvs/psp_swip';
-    const is_slam = project === 'dvs/psp_swip';
+    console.log()
+    const available_metrics = metrics[project].available_metrics;
 
     this.state = {
       project,
-      available_metrics: is_slam ? slam_metrics : {},
-      selected_metrics: is_slam ? main_metrics.map(k=>slam_metrics[k]) : [],
+      available_metrics,
+      selected_metrics: metrics[project].main_metrics.map(k=>available_metrics[k]),
 
       new_commit_id: null, // current commit to display
       ref_commit_id: params.get('reference') || null, // reference commit to display
@@ -54,7 +55,7 @@ class CiCommitResults extends Component {
 
       filter_batch_new: params.get('filter') || '',
       filter_batch_ref: params.get('filter_ref') || '',
-      sort_by: is_slam ? default_metric : 'input_test_path', // FIXME
+      sort_by: metrics[project].default_metric || 'input_test_path',
       order: -1,
 
       // FIX: SLAM-specific
@@ -675,6 +676,13 @@ class OutputList extends React.Component {
                           />;
                         else if (output.output_type==='cis/image')
                           return <CisOutputCard
+                            key={id}
+                            output_new={output}
+                            output_ref={output_ref}
+                            warning={warning}
+                          />;
+                        else if (output.output_type==='tof/depth')
+                          return <TofOutputCard
                             key={id}
                             output_new={output}
                             output_ref={output_ref}

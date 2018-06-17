@@ -5,7 +5,7 @@ import React, { Component, Fragment } from "react";
 import createPlotlyComponent from 'react-plotly.js/factory'
 import { Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
-import { slam_metrics, main_metrics, default_metric } from "./slam/metrics";
+import { metrics } from './metrics';
 import { SlamOutputCard } from "./slam/SlamOutputCard";
 import { input_test_color, matching_output } from "./common/utils";
 
@@ -54,14 +54,14 @@ const has_all_metrics = (commit, metrics, aggregation) => {
 }
 
 
-// const CommitsEvolution1D = ({ commits, metrics, aggregation }) => {
+// const CommitsEvolution1D = ({ commits, metrics, aggregation, available_metrics }) => {
 //   let shown_metrics = metrics || [default_metric];
 //   let shown_aggregation = aggregation || 'median';
 //   let valid_commits = commits.filter( c => !!c.batches.default )
 //                              .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
 
 //   let traces = shown_metrics
-//                 .map( key => slam_metrics[key] )
+//                 .map( key => available_metrics[key] )
 //                 .map( metric => ({
 //                   name: metric.label,
 //                   type: 'scatter',
@@ -123,8 +123,8 @@ class CommitsEvolutionPerBatch extends React.Component {
   }
 
   updateTraces(props) {
-    const { commits, metrics, aggregation } = props;
-    let shown_metrics = metrics || [default_metric];
+    const { commits, metrics, aggregation, available_metrics } = props;
+    let shown_metrics = metrics;
     let shown_batches = ['default', 'ci-android-rt']
     let shown_aggregation = aggregation || 'median';
     let valid_commits = commits.filter( c => !!c.batches.default )
@@ -134,7 +134,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     let traces_metadata = []
 
     shown_metrics.forEach( key => {
-      let metric = slam_metrics[key]
+      let metric = available_metrics[key]
       shown_batches.forEach( label => {
         let commits_with_batch = valid_commits.filter(c => c.batches[label]!==undefined)
         if (commits_with_batch.length>0) {
@@ -170,7 +170,7 @@ class CommitsEvolutionPerBatch extends React.Component {
 
 
   render() {
-    const { metrics } = this.props;
+    const { metrics, available_metrics } = this.props;
     const { revision, hovered, hovered_commit, traces } = this.state;
 
     if (hovered) {
@@ -181,7 +181,7 @@ class CommitsEvolutionPerBatch extends React.Component {
       legend = <span></span>
     }
 
-    let metric = slam_metrics[metrics[0]];
+    let metric = available_metrics[metrics[0]];
     let threshold = metric.threshold*metric.scale;
     let layout_ = {
       ...layout,
@@ -274,15 +274,15 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   updateTraces(props) {
-    const { commits, metrics, output_filter, relative } = props;
+    const { commits, metrics, available_metrics, output_filter, relative } = props;
     const output_filter_ = make_output_filter(output_filter)
-    let shown_metrics = metrics || [default_metric];
+    let shown_metrics = metrics;
     let shown_batches = ['default', 'ci-android-rt']
     let traces = []
     let traces_metadata = []
 
     shown_metrics.forEach( key => {
-      let metric = slam_metrics[key]
+      let metric = available_metrics[key]
       shown_batches.forEach( label => {
         let commits_with_batch = commits.filter(c => !!c.batches[label])
         if (commits_with_batch.length>0) {
@@ -351,9 +351,9 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   render() {
-    const { metrics, relative, details_on_hover } = this.props;
+    const { metrics, available_metrics, relative, details_on_hover } = this.props;
     const { revision, traces, hovered_test_input_path, hovered_label, hovered_commit, hovered_commit_ref } = this.state;
-    let metric = slam_metrics[metrics[0]];
+    let metric = available_metrics[metrics[0]];
     let threshold = metric.threshold*metric.scale;
     let layout_ = {
       ...layout,
@@ -409,8 +409,11 @@ class CommitsEvolutionPerMovie extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
+    const { project } = props;
     this.state = {
-      selected_metric: default_metric,
+      available_metrics: metrics[project].available_metrics,
+      main_metrics: metrics[project].main_metrics,
+      selected_metric: metrics[project].default_metric,
       selected_aggregation: 'median',
       output_filter: 'lsf',
       relative: true,
@@ -428,6 +431,7 @@ class CommitsEvolution extends Component {
   render() {
     const { project, commits, style, offer_breakdown_per_test, selected_metrics } = this.props;
     const { selected_metric, selected_aggregation, breakdown_per_test, output_filter, relative, details_on_hover } = this.state;
+    const { available_metrics, main_metrics } = this.state;
 
     if (project!=='dvs/psp_swip') return <div></div>;
 
@@ -435,8 +439,8 @@ class CommitsEvolution extends Component {
       <FormGroup inline>
         <div className="pt-select pt-minimal">
           {selected_metrics!==null &&
-            <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
-            {main_metrics.map( m => <option key={slam_metrics[m].key} value={m}>{slam_metrics[m].label}</option>)}
+            <select id='select-metric' defaultValue={metrics[this.state.project].default_metric} onChange={this.selectMetric}>
+            {main_metrics.map( m => <option key={available_metrics[m].key} value={m}>{available_metrics[m].label}</option>)}
             </select>
           }
         </div>
@@ -464,8 +468,8 @@ class CommitsEvolution extends Component {
           </Fragment>
         }
       </FormGroup>
-      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} output_filter={output_filter} relative={this.state.relative} details_on_hover={details_on_hover} />
-                          : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} />
+      {breakdown_per_test ? <CommitsEvolutionPerMovie commits={commits} metrics={[selected_metric]} output_filter={output_filter} relative={this.state.relative} details_on_hover={details_on_hover} available_metrics={available_metrics} />
+                          : <CommitsEvolutionPerBatch commits={commits} metrics={[selected_metric]} aggregation={selected_aggregation} available_metrics={available_metrics} />
       }
     </div>
   }

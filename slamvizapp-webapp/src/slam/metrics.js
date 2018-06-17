@@ -1,4 +1,4 @@
-const slam_metrics = {
+const available_metrics = {
   is_failed: {
     key:'is_failed',
     label: 'Crashed',
@@ -188,4 +188,4 @@ const main_metrics = ['translation_aape', 'translation_rmse', 'rotation_mean', '
 const dashboard_metrics = ['is_failed', 'translation_aape', 'translation_rmse', 'rotation_mean', 'translation_drift_pc', 'processing_time_med', 'cpu_med'];
 
 
-export { slam_metrics, default_metric, main_metrics, summary_metrics, dashboard_metrics };
+export { available_metrics, default_metric, main_metrics, summary_metrics, dashboard_metrics };

@@ -7,7 +7,7 @@ import styled from "styled-components";
 import { Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { SyncedVideos } from "../common/SyncedVideos";
-import { main_metrics } from "./metrics";
+import { main_metrics, available_metrics } from "./metrics";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly);
@@ -223,7 +223,7 @@ class SlamOutputCard extends Component {
                                       {main_metrics
                                         .filter( key => metrics_new[key] !== undefined)
                                         .map(key => <p key={key}>
-                                               <MetricTag metrics={metrics_new} metrics_ref={metrics_ref} metric={key}/>
+                                               <MetricTag metrics_new={metrics_new} metrics_ref={metrics_ref} metric_info={available_metrics[key]}/>
                                             </p>)
                                       }
                   </div>}

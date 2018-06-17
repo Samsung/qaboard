@@ -6,7 +6,7 @@ import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
 import { groupBy, groupByObject, input_test_color } from "../common/utils";
-import { slam_metrics, default_metric } from "../slam/metrics";
+import { metrics } from "../metrics";
 
 const Plot = createPlotlyComponent(Plotly);
 const config = {};
@@ -130,7 +130,7 @@ const average = array => {
   return array.reduce( (a,b) => (a+b) , 0) / array.length;
 }
 
-const Sensibility2DContour = ({ outputs, metric, parameters, layout }) => {
+const Sensibility2DContour = ({ outputs, metric, parameters, layout, available_metrics }) => {
   // https://plot.ly/javascript/reference/#contour
   // https://plot.ly/javascript/contour-plots/
   let outputs_ok = Object.values(outputs).filter( o => !o.is_pending && !o.is_failed);
@@ -140,7 +140,7 @@ const Sensibility2DContour = ({ outputs, metric, parameters, layout }) => {
   // console.log(outputs_by_param)
 
   let outputs_aggregated = Object.entries(outputs_by_param).map( ([extra_parameters, outputs]) => {
-    Object.values(slam_metrics).forEach( m => {
+    Object.values(available_metrics).forEach( m => {
       let values = outputs.map( o => o.metrics[m.key]).filter(x => x!==undefined)
       outputs[0].metrics[m.key] = average(values)
     })
@@ -190,9 +190,11 @@ const Sensibility2DContour = ({ outputs, metric, parameters, layout }) => {
 class TuningExploration extends Component {
   constructor(props) {
     super(props);
+    const project = props.project || 'dvs/psp_swip';
     this.state = {
       selected_parameter: null,
-      selected_metric: default_metric,
+      available_metrics: metrics[project].available_metrics,
+      selected_metric:  metrics[project].default_metric,
       relative: true,
       layout: {
         xaxis: {
@@ -225,8 +227,8 @@ class TuningExploration extends Component {
   }
 
   render() {
-    const { batch } = this.props;
-    const { layout, relative } = this.state;
+    const { batch, project } = this.props;
+    const { layout, relative, available_metrics} = this.state;
     if (!batch) return <p>Loading...</p>
     if (batch.label==='default')
       return <Callout intent={Intent.PRIMARY}>First select a tuning experiment</Callout>
@@ -250,7 +252,7 @@ class TuningExploration extends Component {
     let selected_parameter_2 = this.state.selected_parameter_2 || default_selected_parameter_2;
 
     // what metric are we looking at?
-    let metric = slam_metrics[this.state.selected_metric];
+    let metric = available_metrics[this.state.selected_metric];
 
     let show_2d_sensibility = sorted_parameters.length>1 && tuned_parameters[sorted_parameters[1]].size>1;
 
@@ -277,19 +279,19 @@ class TuningExploration extends Component {
       </FormGroup>}
       <FormGroup inline labelFor="select-metric" helperText="Shown on the Y-axis">
         <div className="pt-select pt-minimal">
-          <select id='select-metric' defaultValue={default_metric} onChange={this.selectMetric}>
-            {Object.values(slam_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          <select id='select-metric' defaultValue={metrics[project].default_metric} onChange={this.selectMetric}>
+            {Object.values(available_metrics).map( m => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
         </div>
       </FormGroup>
       {show_2d_sensibility && <div>
         <p>Everything is interpolated, so don't rush to conclusions.</p>
-        <Sensibility2DContour outputs={batch.outputs} metric={metric} parameters={[selected_parameter, selected_parameter_2]} />
+        <Sensibility2DContour outputs={batch.outputs} metric={metric} available_metrics={available_metrics} parameters={[selected_parameter, selected_parameter_2]} />
       </div>}
-      <Sensibility1DBoxplots outputs={batch.outputs} metric={metric} parameter={selected_parameter} layout={layout}/>
+      <Sensibility1DBoxplots outputs={batch.outputs} metric={metric} available_metrics={available_metrics} parameter={selected_parameter} layout={layout}/>
       <h4>Breakdown by recording</h4>
       <Switch label='Relative' defaultChecked={relative} onChange={e => {this.setState({relative: !relative})}}></Switch>
-      <Sensibility1DLines outputs={batch.outputs} metric={metric} parameter={selected_parameter} relative={relative} layout={layout}/>
+      <Sensibility1DLines outputs={batch.outputs} metric={metric} available_metrics={available_metrics} parameter={selected_parameter} relative={relative} layout={layout}/>
     </Section>
   }
 }

@@ -7,7 +7,7 @@ import { Tag, Button, Intent, Callout, MenuItem, Colors } from "@blueprintjs/cor
 import { MultiSelect, Classes } from "@blueprintjs/select";
 
 
-import { slam_metrics, summary_metrics } from "./slam/metrics";
+import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
 
 import createPlotlyComponent from 'react-plotly.js/factory'
@@ -27,15 +27,14 @@ const metric_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimu
 const percent_formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:0, maximumFractionDigits:0});
 
 
-const MetricTag = ({metrics, metrics_ref, metric}) => {
-  const metric_info = slam_metrics[metric];
-  let formatted_valued = <span>{metric_info.short_label}: <strong>{metric_formatter.format(metric_info.scale*metrics[metric])}{metric_info.suffix}</strong></span>;
-  let intent = (metrics[metric]>metric_info.threshold && metric_info.smaller_is_better) || (metrics[metric]<metric_info.threshold && !metric_info.smaller_is_better)  ? Intent.DANGER : Intent.SUCCESS;
+const MetricTag = ({metrics_new, metrics_ref, metric_info }) => {
+  let formatted_valued = <span>{metric_info.short_label}: <strong>{metric_formatter.format(metric_info.scale*metrics_new[metric_info.key])}{metric_info.suffix}</strong></span>;
+  let intent = (metrics_new[metric_info.key]>metric_info.threshold && metric_info.smaller_is_better) || (metrics_new[metric_info.key]<metric_info.threshold && !metric_info.smaller_is_better)  ? Intent.DANGER : Intent.SUCCESS;
   let metric_tag = <Tag className="pt-minimal" intent={intent}>{formatted_valued}</Tag>
 
-  if (metrics_ref!==undefined && metrics_ref[metric]) {
-    let delta = metrics[metric] - metrics_ref[metric];
-    let delta_relative = delta / metrics_ref[metric];
+  if (metrics_ref!==undefined && metrics_ref[metric_info.key]) {
+    let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
+    let delta_relative = delta / metrics_ref[metric_info.key];
     var intent_compare;
     if (delta_relative>.01)
       intent_compare = Intent.DANGER;
@@ -269,11 +268,12 @@ const SuccessBar = ({success_frac}) => <Plot
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
-    const is_slam = this.props.project === 'dvs/psp_swip';
-    const default_selected_metrics = is_slam ? summary_metrics.map(k=>slam_metrics[k]) : [];
+    const { project } = props;
+    const available_metrics = metrics[project].available_metrics;
+    const default_selected_metrics = metrics[project].summary_metrics.map(k=>available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
-      available_metrics: is_slam ? slam_metrics : {},
+      available_metrics,
       selected_metrics,
     };
   }
