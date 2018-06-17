@@ -22,7 +22,7 @@ class OutputLog extends Component {
 
   getLog() {
     const { output } = this.props;
-    if (output.output_type==='slam/6dof')
+    if (output.output_type==='slam/6dof' || output.output_type==='tof/depth')
       var logfile = 'log.txt';
     else if (output.output_type==='cis/image') {
       logfile =  `command_line_sw_log_${output.data.config_folder}.txt`;
@@ -48,7 +48,7 @@ class OutputLog extends Component {
     const tag_text = output.is_failed ? '❌' : (output.is_pending ? '⏳' : '✅')
     // we may not know where to look for logs
     // for this type of output
-    const is_supported = output.output_type==='cis/image' || output.output_type==='slam/6dof';
+    const is_supported = output.output_type==='cis/image' || output.output_type==='slam/6dof' || output.output_type==='tof/depth';
     const show_button = <Button
       disabled={!is_supported}
       title={is_supported ? button_text : "We don't know where to look for logs"}

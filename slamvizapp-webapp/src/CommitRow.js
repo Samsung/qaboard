@@ -41,7 +41,7 @@ const CommitRowWrapper = styled.li`
 class CommitResults extends React.Component {
   render() {
     const { project, commit } = this.props;
-    const gitlab_commit_url = `http://gitlab-srv/dvs/psp_swip/commit/${commit.id}`;
+    const gitlab_commit_url = `http://gitlab-srv/${project}/commit/${commit.id}`;
     let ci_batch = commit.batches.default;
     if (ci_batch===undefined || (ci_batch.failed_outputs===0 && ci_batch.valid_outputs===0 && ci_batch.pending_outputs===0))
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
@@ -119,7 +119,7 @@ const CommitShortId = styled.a`
 class CommitRow extends React.Component {
   render() {
     const {commit, project, className, toaster} = this.props;
-    const commit_url = project === 'dvs/psp_swip' ? `http://gitlab-srv/${project}/commit/${commit.id}` : '#sorry-not-yet-available';
+    const commit_url = (project === 'dvs/psp_swip' || project === 'dvs/swip_tof') ? `http://gitlab-srv/${project}/commit/${commit.id}` : '#sorry-not-yet-available';
     return (
       <CommitRowWrapper className={className}>
         <Avatar alt={commit.committer_name} href={`/committer/${commit.committer_name}?project=${project}`} src={commit.committer_avatar_url} />
