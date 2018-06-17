@@ -31,7 +31,7 @@ const groupByObject = (array, prop) => {
 
 
 const shortId = (project, id) => {
-  if (project==='dvs/psp_swip')
+  if (project==='dvs/psp_swip' || project==='tof/swip_tof')
     return id.substring(0,8);
 
   let parts = id.split('/')
@@ -70,6 +70,7 @@ const sortOutputs = (sort_by, order) => {
   return ([ka,a], [kb,b]) => {
     const a_value = a.metrics[sort_by] || a[sort_by];
     const b_value = b.metrics[sort_by] || b[sort_by];
+    if (a_value === undefined || a_value === null) return 1;
     // console.log(a_value, b_value)
     if (a_value > b_value ) {
       return order;
