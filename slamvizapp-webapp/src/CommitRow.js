@@ -8,6 +8,7 @@ import { Avatar } from "./common/Avatar";
 import { DoneAtTag } from "./common/DoneAtTag";
 import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { shortId } from "./common/utils";
+import { metrics } from './metrics'
 
 
 const CommitDetails = styled.div`
@@ -47,10 +48,11 @@ class CommitResults extends React.Component {
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
-
     let tuning_batches_labels = Object.keys(commit.batches)
                                       .filter(label => label !== 'default' && label !== 'ci-android-rt');
     let has_android_batch = !!commit.batches['ci-android-rt'] && commit.batches['ci-android-rt'].valid_outputs>0;
+
+    const default_metric_info = metrics[project].available_metrics[metrics[project].default_metric];
 
     let status_messages = (
       <Fragment>
@@ -75,8 +77,8 @@ class CommitResults extends React.Component {
          }
          {ci_batch.valid_outputs>0 && ci_batch.aggregated_metrics.translation_rmse_median>0 &&
             <Fragment>
-              <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_rmse_median)}cm</strong> median </Tag>
-              <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(100*ci_batch.aggregated_metrics.translation_rmse_average)}cm</strong> avg RMSE</Tag>
+              <Tag className="pt-minimal" style={{marginRight:'4px'}}><strong>{formatter.format(default_metric_info.scale*ci_batch.aggregated_metrics[`${default_metric_info.key}_median`])}{default_metric_info.suffix}</strong> median </Tag>
+              <Tag style={{marginRight:'4px'}} className="pt-minimal"><strong>{formatter.format(default_metric_info.scale*ci_batch.aggregated_metrics[`${default_metric_info.key}_average`])}{default_metric_info.suffix}</strong> avg {default_metric_info.short_label}</Tag>
               <Tooltip modifiers>
                 <Tag className="pt-minimal pt-round">...</Tag>
                 <ul>
