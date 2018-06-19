@@ -274,9 +274,10 @@ const parse_poses = (text_string, test_input_path) => {
   let t=[];
   let confidence=[], tracking_state=[];
 
-  if (t0s[test_input_path]===undefined)
-    t0s[test_input_path] = data[0]['t'];
-  let t0 = t0s[test_input_path];
+  let starts_at_zero = parseFloat(data[0]['t'])===0.0;
+  if (!starts_at_zero && t0s[test_input_path]===undefined)
+    t0s[test_input_path] = parseFloat(data[0]['t']);
+  let t0 = !starts_at_zero ? t0s[test_input_path] : 0;
 
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
