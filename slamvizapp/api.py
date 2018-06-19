@@ -277,8 +277,8 @@ def get_ci_commit(commit_id=None):
       else:
         ci_commit = (CiCommit
                      .query.filter(
-                      CiCommit.project_id==project_id,
-                      CiCommit.id == commit_id,
+                       CiCommit.project_id==project_id,
+                       CiCommit.id.startswith(commit_id),
                      )
                      .one()
                     )
