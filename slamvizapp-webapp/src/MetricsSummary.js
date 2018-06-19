@@ -327,15 +327,15 @@ class MetricsSummary extends Component {
 
     let xaxis_labels = this.props.xaxis_labels || ['New', 'Reference'];
     let outputs_new = Object.values(new_batch.outputs)
-                                 .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
+                                 .filter(o => !o.is_pending);
     let run_types_new = new Set(outputs_new.map(o => run_type(o)))
     let outputs_ref = Object.values(ref_batch.outputs)
                                  .filter(o => run_types_new.has(run_type(o)))
-                                 .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
+                                 .filter(o => !o.is_pending);
     run_types_new = new Set(outputs_new.map(o => o.test_input_path))
     outputs_ref = Object.values(ref_batch.outputs)
                                  .filter(o => run_types_new.has(o.test_input_path))
-                                 .filter(o => !o.is_pending && !o.metrics['no_gt_final']);
+                                 .filter(o => !o.is_pending);
 
 
     const { selected_metrics } = this.state;

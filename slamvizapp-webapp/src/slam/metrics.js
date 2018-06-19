@@ -40,6 +40,15 @@ const available_metrics = {
     smaller_is_better: true,
   },
 
+  loop_drift_pc:{
+    key:'loop_drift_pc',
+    label: 'Drift, assuming we did a loop',
+    short_label: 'Loop Drift',
+    scale: 100,
+    suffix: '%',
+    threshold: 0.01,
+    smaller_is_better: true,
+  },
 
   translation_drift_pc:{
     key:'translation_drift_pc',
