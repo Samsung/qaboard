@@ -97,7 +97,6 @@ class TofOutputCard extends Component {
       var output = this.props.output_new;
     } else {
       output = this.props.output_ref;
-      // console.log(output)
       if (output.id===undefined) return
     }
     var url = `${output.output_dir_url}/Frame${frame_id}/pointcloud.pcd`
@@ -107,8 +106,8 @@ class TofOutputCard extends Component {
         if (pointcloud!==null) {
           pointcloud.name = label
           if (label==='reference') {
-            // pointcloud.visible = false;
-            pointcloud.material.size = 0.004;
+            pointcloud.visible = false;
+            pointcloud.material.size = 0.001;
             pointcloud.material.vertexColors = false;
             pointcloud.material.color.setHex(0x000000)
           }
