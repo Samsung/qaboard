@@ -87,7 +87,8 @@ class TofOutputCard extends Component {
 		window.addEventListener('keypress', this.keyboard);
     this.threeRoot.appendChild(this.renderer.domElement)
     this.start()
- 		this.getFrame(this.state.selected_frame, 'new')
+    this.getFrame(this.state.selected_frame, 'new')
+    this.getFrame(this.state.selected_frame, 'reference')
   }
 
   getFrame(frame_id, label) {
@@ -102,6 +103,10 @@ class TofOutputCard extends Component {
       url,
       pointcloud => {
         pointcloud.name = label
+        if (label==='reference') {
+          pointcloud.material.vertexColors = false;
+          pointcloud.material.color.setHex(0x000000)
+        }
         var previous_pointcloud = this.scene.getObjectByName(label);
         if (previous_pointcloud)
           previous_pointcloud = pointcloud
@@ -155,20 +160,42 @@ class TofOutputCard extends Component {
   onClick = e => {
     let selected_frame = e.points[0].pointNumber;
     this.getFrame(selected_frame, 'new')
+    this.getFrame(selected_frame, 'reference')
     this.setState({selected_frame})
   }
 
   keyboard = ev => {
-    var pointcloud = this.scene.getObjectByName('new');
-    console.log(pointcloud)
+    var pointcloud_new = this.scene.getObjectByName('new');
+    var pointcloud_ref = this.scene.getObjectByName('reference');
+    var pointcloud_gt = this.scene.getObjectByName('groundtruth');
     switch ( ev.key || String.fromCharCode( ev.keyCode || ev.charCode ) ) {
       case '+':
-        pointcloud.material.size*=1.2;
-        pointcloud.material.needsUpdate = true;
+        if (pointcloud_new!==undefined) {
+          pointcloud_new.material.size*=1.25;
+          pointcloud_new.material.needsUpdate = true;
+        }
+        if (pointcloud_ref!==undefined) {
+          pointcloud_ref.material.size*=1.25;
+          pointcloud_ref.material.needsUpdate = true;
+        }
         break;
       case '-':
-        pointcloud.material.size/=1.2;
-        pointcloud.material.needsUpdate = true;
+        if (pointcloud_new!==undefined) {
+          pointcloud_new.material.size/=1.25;
+          pointcloud_new.material.needsUpdate = true;
+        }
+        if (pointcloud_ref!==undefined) {
+          pointcloud_ref.material.size/=1.25;
+          pointcloud_ref.material.needsUpdate = true;
+        }
+        break;
+      case 'r':
+        if (pointcloud_ref!==undefined)
+          pointcloud_ref.visible = !pointcloud_ref.visible;
+        break;
+      case 'g':
+        if (pointcloud_gt!==undefined)
+          pointcloud_gt.visible = !pointcloud_gt.visible;
         break;
       default:
         return;
@@ -233,8 +260,9 @@ class TofOutputCard extends Component {
         </div>}
 
 
+        <p className="pt-text-muted">{is_loaded ? "Press R/G to toogle the reference/ground-truth, +/- to adjust point size." : 'Loading...'}</p>
         <div ref={(threeRoot) => { this.threeRoot = threeRoot }}>
-          {this.renderer.render(this.scene, this.camera)}
+          {is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
         <p className="pt-text-muted">{is_loaded ? "Click on a RMSE point below to select the corresponding frame." : 'Loading...'}</p>
