@@ -26,6 +26,7 @@ const colors = {
 
 
 var make_traces = function(metrics_over_frames, label) {
+  if (metrics_over_frames===undefined) return [];
   return {
     type: 'scatter',
     mode: 'lines+markers',
@@ -53,7 +54,10 @@ class TofOutputCard extends Component {
   constructor(props) {
     super(props);
     this.threeRoot = React.createRef();
-    let last_frame_id = props.output_new.metrics.frames.length - 1;
+    if (props.output_new.metrics.frames !==undefined)
+    	var last_frame_id = props.output_new.metrics.frames.length - 1;
+    else
+    	last_frame_id = 0;
     this.state = {
       selected_frame: last_frame_id,
       frames: {
@@ -84,7 +88,7 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
-		window.addEventListener('keypress', this.keyboard);
+    window.addEventListener('keypress', this.keyboard);
     this.threeRoot.appendChild(this.renderer.domElement)
     this.start()
     this.getFrame(this.state.selected_frame, 'new')
@@ -214,10 +218,15 @@ class TofOutputCard extends Component {
     const { frames, selected_frame } = this.state;
     let is_loaded = frames[selected_frame] && !!frames[selected_frame].is_loaded;
 
-    const empty_metrics = {frames:[]};
-    let metrics_new = output_new && output_new.metrics ? output_new.metrics : empty_metrics;
-    let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : empty_metrics;
-    if (!metrics_new || !metrics_ref)
+    const empty_metrics = {frames: []};
+    let metrics_new = output_new && output_new.metrics && output_new.metrics.frames ? output_new.metrics : empty_metrics;
+    let metrics_ref = output_ref && output_ref.metrics && output_ref.metrics.frames ? output_ref.metrics : empty_metrics;
+
+    const empty_data = {frames: []};
+    let data_new = output_new && output_new.data && output_new.data.frames ? output_new.metrics : empty_data;
+    let data_ref = output_ref && output_ref.data && output_ref.data.frames ? output_ref.metrics : empty_data;
+
+    if (!metrics_new || !metrics_ref || !data_new || !data_ref)
       return <span/>
 
     let tags = <span>
@@ -257,7 +266,7 @@ class TofOutputCard extends Component {
     return <div style={{flex: '0 0 auto', marginBottom: '20px', card_width}}>
       <Card className="output-card">
         {!no_header &&<div>
-          <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} <Tag className="pt-minimal" style={{marginRight:'10px'}}>Frame {selected_frame}/{output_new.data.frames.length-1}</Tag> {tags}</h5>
+          <h5 style={{fontSize:'.7rem', fontWeight: 500, lineHeight: 1.6, letterSpacing: '-1px'}}>{output_new.test_input_path} <Tag className="pt-minimal" style={{marginRight:'10px'}}>Frame {selected_frame}/{metrics_new.frames.length-1}</Tag> {tags}</h5>
           {main_metrics
            .filter( key => metrics_new[key] !== undefined)
            .map(key =>  <p key={key}>
@@ -275,7 +284,7 @@ class TofOutputCard extends Component {
         <p className="pt-text-muted">{is_loaded ? "Click on a RMSE point below to select the corresponding frame." : 'Loading...'}</p>
         <Plot data={traces} layout={layout_} onClick={this.onClick}/>
 
-        {output_new.data.frames.map( (f, index) => {
+        {data_new.frames.map( (f, index) => {
           return  <div key={index}>
             <h4><a href={`${output_ref.output_dir_url}/Frame${index}`} target="_blank">Frame {index}</a></h4>
             {output_types.map(output_type => {
@@ -290,7 +299,7 @@ class TofOutputCard extends Component {
         })}
 
 
-        {false && <p>{JSON.stringify(output_new.data)}</p>}
+        {false && <p>{JSON.stringify(output_new)}</p>}
       </Card>
     </div>
   }
