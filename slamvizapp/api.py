@@ -54,7 +54,7 @@ def get_group():
 def add_batch(hexsha):
   try:
     commit = repos['dvs/psp_swip'].commit(hexsha)
-    ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
+    ci_commit = CiCommit.query.filter(CiCommit.id.startswith(commit.hexsha)).one()
   except NoResultFound:
     return jsonify("Sorry, the commit id was not found"), 404
 
@@ -273,7 +273,7 @@ def get_ci_commit(commit_id=None):
       if project_id == 'dvs/psp_swip':
         repo = repos[project_id]
         commit = repo.commit(commit_id)
-        ci_commit = CiCommit.query.filter(CiCommit.id == commit.hexsha).one()
+        ci_commit = CiCommit.query.filter(CiCommit.id.startswith(commit.hexsha)).one()
       else:
         ci_commit = (CiCommit
                      .query.filter(
