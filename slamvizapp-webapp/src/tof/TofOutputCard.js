@@ -97,25 +97,31 @@ class TofOutputCard extends Component {
       var output = this.props.output_new;
     } else {
       output = this.props.output_ref;
+      // console.log(output)
+      if (output.id===undefined) return
     }
     var url = `${output.output_dir_url}/Frame${frame_id}/pointcloud.pcd`
     loader.load(
       url,
       pointcloud => {
-        pointcloud.name = label
-        if (label==='reference') {
-          pointcloud.material.vertexColors = false;
-          pointcloud.material.color.setHex(0x000000)
-        }
-        var previous_pointcloud = this.scene.getObjectByName(label);
-        if (previous_pointcloud)
-          previous_pointcloud = pointcloud
-        else {
-          var center = pointcloud.geometry.boundingSphere.center;
-          this.camera.position.z = center.y;
-          this.controls.target.set( center.x, center.y, center.z);
-          this.controls.update();
-          this.scene.add(pointcloud)          
+        if (pointcloud!==null) {
+          pointcloud.name = label
+          if (label==='reference') {
+            // pointcloud.visible = false;
+            pointcloud.material.size = 0.004;
+            pointcloud.material.vertexColors = false;
+            pointcloud.material.color.setHex(0x000000)
+          }
+          var previous_pointcloud = this.scene.getObjectByName(label);
+          if (previous_pointcloud)
+            previous_pointcloud = pointcloud
+          else {
+            var center = pointcloud.geometry.boundingSphere.center;
+            this.camera.position.z = center.y;
+            this.controls.target.set( center.x, center.y, center.z);
+            this.controls.update();
+            this.scene.add(pointcloud)          
+          }
         }
         this.setState( (previousState, props) => ({
         	frames: {
@@ -201,7 +207,6 @@ class TofOutputCard extends Component {
         return;
       // todo:
       // - use directionnal arrows to change point of view
-      // - toggle new/ref...
     }
   }
 
@@ -210,8 +215,11 @@ class TofOutputCard extends Component {
     const { frames, selected_frame } = this.state;
     let is_loaded = frames[selected_frame] && !!frames[selected_frame].is_loaded;
 
-    let metrics_new = output_new && output_new.metrics ? output_new.metrics : {};
-    let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : {};
+    const empty_metrics = {frames:[]};
+    let metrics_new = output_new && output_new.metrics ? output_new.metrics : empty_metrics;
+    let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : empty_metrics;
+    if (!metrics_new || !metrics_ref)
+      return <span/>
 
     let tags = <span>
       {Object.entries(output_new.extra_parameters).map(([k,v]) =>
@@ -223,8 +231,8 @@ class TofOutputCard extends Component {
 
 
     let traces = [
-      make_traces(output_new.metrics.frames, 'new'),
-      make_traces(output_ref.metrics.frames, 'reference'),
+      make_traces(metrics_new.frames, 'new'),
+      make_traces(metrics_ref.frames, 'reference'),
     ]
     let layout = this.props.layout || {};
     let card_width = layout.width!==undefined ? `${layout.width}px` : '840px';
