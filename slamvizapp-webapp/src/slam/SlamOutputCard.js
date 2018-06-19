@@ -79,7 +79,7 @@ class SlamOutputCard extends Component {
       var get_gt = () => {
         return get(`${output_new.output_dir_url}/GT_final.txt`, {cancelToken: source.token})
             .then(response => {
-              let poses = parse_poses(response.data);
+              let poses = parse_poses(response.data, output_new.test_input_path);
               this.setState((previous_state, props) => {
                 return {
                   traces_6dof: {...previous_state.traces_6dof, groundtruth: make_traces(poses, 'groundtruth')},
@@ -95,7 +95,7 @@ class SlamOutputCard extends Component {
     var get_new = () => {
       return get(`${output_new.output_dir_url}/camera_poses_debug.csv`, {cancelToken: source.token})
         .then(response => {
-          let poses = parse_poses(response.data);
+          let poses = parse_poses(response.data, output_new.test_input_path);
           this.setState((previous_state, props) => {
             return {
                traces_6dof: {...previous_state.traces_6dof, new: make_traces(poses, 'new')},
@@ -109,7 +109,7 @@ class SlamOutputCard extends Component {
       get_ref = () => {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`, {cancelToken: source.token})
           .then(response => {
-            let poses = parse_poses(response.data)
+            let poses = parse_poses(response.data, output_new.test_input_path)
             this.setState((previous_state, props) => {
               return {
                 traces_6dof: {...previous_state.traces_6dof, reference: make_traces(poses, 'reference')},
@@ -264,8 +264,9 @@ const parse_debug = (text_string) => {
 }
 
 
-
-const parse_poses = (text_string) => {
+// we want to share the same t0 for a given recording
+var t0s = {} // maps recording -> t0
+const parse_poses = (text_string, test_input_path) => {
   let headers = ["rX","rY","rZ","tX", "tY", "tZ", "t", "confidence", "tracking_state\n"].join('\t');
   let data = tsvParse(headers + text_string);
   let tX=[], tY=[], tZ=[];
@@ -273,7 +274,9 @@ const parse_poses = (text_string) => {
   let t=[];
   let confidence=[], tracking_state=[];
 
-  let t0 = data[0]['t'];
+  if (t0s[test_input_path]===undefined)
+    t0s[test_input_path] = data[0]['t'];
+  let t0 = t0s[test_input_path];
 
   // we ignore the 1st point, often far away in time...
   for (let i=1; i<data.length; i++) {
