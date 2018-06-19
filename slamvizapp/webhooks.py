@@ -25,7 +25,8 @@ def new_output_webhook():
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
-  test_input = TestInput.get_or_create(db_session, path=data['recording_path'], database=default_recordings_directory)
+  database = request.json.get('database', default_recordings_directory)
+  test_input = TestInput.get_or_create(db_session, path=data['recording_path'], database=database)
   if not test_input: return "KO", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
