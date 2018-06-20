@@ -105,7 +105,7 @@ class SlamOutputCard extends Component {
         }).catch(e=>{})
     }
     var get_ref;
-    if (output_ref!==undefined && output_ref!==null) {
+    if (output_ref!==undefined && output_ref!==null && output_ref.output_dir_url!==undefined) {
       get_ref = () => {
         return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`, {cancelToken: source.token})
           .then(response => {
