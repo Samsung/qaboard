@@ -73,11 +73,12 @@ def get_users_per_name(search_filter):
 # copy-pasted from psp_swip/tools/performance-evaluation/utils.py
 # database_directory->default_recordings_directory
 # we should create a python package...
-def iter_recordings(recording_groups, recording_groups_file):
+def iter_recordings(recording_groups, recording_groups_file, database_directory):
   """Returns an iterator over the recordings from the selected groups
   params:
   - recording_groups: array of group labels
   - recording_groups_file: yaml file
+  - database_directory: prefix of the test files
   """
   available_batches = yaml.load(Path(recording_groups_file).open())
   try:
@@ -87,8 +88,8 @@ def iter_recordings(recording_groups, recording_groups_file):
         print("Warning: the selected batch is empty")
         continue
       for location in locations:
-        yield from (default_recordings_directory/location).rglob('*.bin')
-        if location.endswith('.bin') and (default_recordings_directory/location).is_file():
-          yield Path(default_recordings_directory/location)
+        yield from (database_directory/location).rglob('*.bin')
+        if location.endswith('.bin') and (database_directory/location).is_file():
+          yield Path(database_directory/location)
   except:
     return []

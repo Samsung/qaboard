@@ -32,7 +32,6 @@ class CiCommitResults extends Component {
     super(props);
     const params = new URLSearchParams(this.props.location.search);
     const project = params.get('project') || 'dvs/psp_swip';
-    console.log()
     const available_metrics = metrics[project].available_metrics;
 
     this.state = {
@@ -533,9 +532,9 @@ class CiCommitResults extends Component {
           <Card elevation={2}>
           <Tabs id="tabs-summary">
               <Tab id="metrics" title="Performance Summary" panel={<MetricsSummary project={project} available_metrics={this.state.available_metrics} new_batch={new_batch_filtered} ref_batch={ref_batch_filtered} />} />
-              {project==='dvs/psp_swip' && <Tab id="parameters" title="Parameters" panel={<CommitParameters project={project} new_commit={new_commit}/>} />}
-              {project==='dvs/psp_swip' && <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm project={project} commit={new_commit} />} />}
-              {project==='dvs/psp_swip' && <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm project={project} commit={new_commit} />} />}
+              {(project==='dvs/psp_swip' || project==='tof/swip_tof') && <Tab id="parameters" title="Parameters" panel={<CommitParameters project={project} new_commit={new_commit}/>} />}
+              {(project==='dvs/psp_swip' || project==='tof/swip_tof') && <Tab id="recordings" title="Available Recordings" panel={<AddRecordingsForm project={project} commit={new_commit} />} />}
+              {(project==='dvs/psp_swip' || project==='tof/swip_tof') && <Tab id="tuning" title="Extra Runs & Tuning" panel={<TuningForm project={project} commit={new_commit} />} />}
           </Tabs>
           </Card>
         </Section>

@@ -12,7 +12,7 @@ from sqlalchemy import String, DateTime
 from slamvizapp import repos
 from slamvizapp.models import Base, Batch, Output
 from slamvizapp.models.LocalMocks import LocalGitCommit
-from ..utils import get_users_per_name, iter_recordings
+from ..utils import get_users_per_name
 from ..git_utils import find_branch
 from ..config import ci_directory
 

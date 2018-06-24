@@ -1,20 +1,20 @@
 import os
 from pathlib import Path
 
-# we clone our repositories here to access commit metadata
+# we clone our repositories locally here to access commit metadata
 git_server = os.getenv('SLAMVIZAPP_GIT_SERVER', 'gitlab-srv')
 app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '/var/slamvizapp')).resolve()
 
-
-# SLAM configuration #########################################################
-# users can request to run on new recordings - here we keep the list of available groups
-# it must be available from LSF
-recording_groups_filepath = Path('/home/arthurf/dvs/slamvizapp/data/extra-batches.yml')
+# shared network location where we save logs, and which recordings constitute which group...
+shared_data_directory = Path('/home/arthurf/dvs/slamvizapp/data/')
 
 # unix config
 ci_directory = Path('/home/arthurf/ci')
-default_recordings_directory = Path('/net/f2/algo_archive/DVS_SLAM_Database/')
-# default_recordings_directory  = Path('/stage/algo_archive/DVS_SLAM_Database/')
+database_directory = {
+	'dvs/psp_swip': Path('/net/f2/algo_archive/DVS_SLAM_Database/'),
+	'tof/swip_tof': Path('/net/f2/algo_archive/ToF_SW_Database/'),
+}
+default_recordings_directory = database_directory['dvs/psp_swip']
 
 # windows config
 is_windows = os.name == 'nt'

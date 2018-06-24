@@ -43,7 +43,7 @@ class AddRecordingsForm extends Component {
   }
 
   getGroups() {
-   get('/api/v1/recordings/groups')
+   get(`/api/v1/recordings/groups?project=${this.props.project}`, )
     .then(response => {
       this.setState({
         isLoaded: true,
@@ -74,6 +74,7 @@ class AddRecordingsForm extends Component {
     this.setState({submitted: true})
     OurToaster.show({ message: "The request was sent!", intent: Intent.PRIMARY});
     post(`/api/v1/commit/${this.props.commit.id}/batch`, {
+      project: this.props.project,
       batch_label: 'default',
       platform: 'lsf', configuration: 'serial-stereo',
       tuning_search: {},
@@ -94,7 +95,7 @@ class AddRecordingsForm extends Component {
   recomputeMetrics = e => {
     this.setState({submitted: true})
     OurToaster.show({ message: "The request was sent!", intent: Intent.PRIMARY});
-    post(`/metrics/${this.props.commit.id}`)
+    post(`/metrics/${this.props.commit.id}?project=${this.props.project}`)
     .then(response => {
       this.setState({submitted: false})
       OurToaster.show({ message: "Done!", intent: Intent.SUCCESS});
@@ -266,7 +267,7 @@ class TuningForm extends Component {
       this.getGroupInfo(selected_group);
   }
   getGroupInfo(group) {
-    get(`/api/v1/recordings/group?name=${group}`, {})
+    get(`/api/v1/recordings/group?project=${this.props.project}&name=${group}`, {})
     .then(response => {
       this.setState({selected_group_info_loading: false, selected_group_info: response.data})
     })
@@ -331,6 +332,7 @@ class TuningForm extends Component {
     this.setState({ submitted: true })
     OurToaster.show({ message: "The tuning experiment was sent!", intent: Intent.PRIMARY});
     post(`/api/v1/commit/${this.props.commit.id}/batch`, {
+      project: this.props.project,
       batch_label: experiment_name,
       platform, configuration,
       tuning_search: {
