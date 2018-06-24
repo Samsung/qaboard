@@ -88,8 +88,13 @@ def iter_recordings(recording_groups, recording_groups_file, database_directory)
         print("Warning: the selected batch is empty")
         continue
       for location in locations:
+        # find dvs bin files
         yield from (database_directory/location).rglob('*.bin')
         if location.endswith('.bin') and (database_directory/location).is_file():
           yield Path(database_directory/location)
+        # also TOF recordings...
+        yield from (f.parent for f in (database_directory/location).rglob('Frame0'))
+        # todo: refactor...
+
   except:
     return []
