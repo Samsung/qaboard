@@ -417,8 +417,8 @@ class TuningForm extends Component {
       </FormGroup>}
 
       <FormGroup
-          label="You can choose any of the available SLAM configuration"
-          helperText='"stereo-serial" is the default. Configurations are saved as $configuration.json, e.g. "mono_mode".'
+          label="You can choose any of the available configuration"
+          helperText='"stereo-serial" is the SLAM default, "stereo" the TOF default. Configurations are saved as $configuration.json, e.g. "mono_mode".'
           labelFor="input-configuration"
           requiredLabel={true}
       >
