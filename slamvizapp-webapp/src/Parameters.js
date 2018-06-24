@@ -39,9 +39,10 @@ class CommitParameters extends Component {
            {transformResponse: response=>response}) // avoid json parsing
         .then(response => {
           let previous_parameters = this.state.parameters;
-          this.setState({
-            parameters: {...previous_parameters, [c]: response.data},
-          })
+          if (response.data.length>0)
+            this.setState({
+              parameters: {...previous_parameters, [c]: response.data},
+            })
         })
      })
    ])
