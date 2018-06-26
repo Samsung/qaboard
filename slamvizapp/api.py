@@ -107,7 +107,7 @@ def add_batch(hexsha):
     batch_script = ''.join([
       '#!/bin/bash\n',
       'bsub -q alg_q -sp 4000 ', # highest priority
-      '-o /home/arthurf/dvs/slamvizapp/data/{project_id}/lsf.log ',
+      f'-o /home/arthurf/dvs/slamvizapp/data/{project_id}/lsf.log ',
       '<< EOF\n'
       f'  cd {ci_directory}/{project_id}/branches/{main_branch}/{project_name};\n',
       f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else '',
