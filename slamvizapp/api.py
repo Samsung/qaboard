@@ -121,7 +121,7 @@ def add_batch(hexsha):
     print(batch_script)
     now = datetime.datetime.now().timestamp()
     batch_script_directory = Path(f'/home/arthurf/dvs/slamvizapp/data/batches/{project_id}')
-    batch_script_directory.mkdir(exists_ok=True, parents=True)
+    batch_script_directory.mkdir(exist_ok=True, parents=True)
     batch_script_filepath = batch_script_directory/f'{ci_commit.gitcommit.hexsha}_{now}.sh'
     with batch_script_filepath.open('w') as f:
       f.write(batch_script)
