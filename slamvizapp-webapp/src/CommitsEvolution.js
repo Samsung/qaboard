@@ -133,12 +133,12 @@ class CommitsEvolutionPerBatch extends React.Component {
     let traces = []
     let traces_metadata = []
 
-    color_line = {
+    let color_line = {
     	'default': Colors.BLUE3,
     	'ci-android-rt': Colors.ORANGE4,
     	'manual-android-rt': Colors.ORANGE3,
     }
-    color_marker = {
+    let color_marker = {
     	'default': Colors.BLUE2,
     	'ci-android-rt': Colors.ORANGE2,
     	'manual-android-rt': Colors.ORANGE3,

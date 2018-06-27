@@ -97,7 +97,8 @@ class Dashboard extends React.Component {
     })
     .then(response => {
       let new_commits = response.data
-      let latest_commit_android_id = new_commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0 || !!c.batches['manual-android-rt'] && c.batches['manual-android-rt'].valid_outputs>0)[0].id
+      const has_outputs_in_batch = label =>  (commit => (!!commit.batches[label] && commit.batches[label].valid_outputs>0))
+      let latest_commit_android_id = new_commits.filter( c =>  has_outputs_in_batch('ci-android-rt')(c) || has_outputs_in_batch('manual-android-rt')(c))[0].id
       this.setState((previous_state, props) => ({
         commits: new Map([
           ...previous_state.commits,
