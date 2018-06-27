@@ -48,7 +48,7 @@ def init_slam_manual_runs(verbose=False):
     if not matches: continue
     matches = matches.groupdict()
     commid_id = matches['commit_id']
-    label = matches['label'] if matches['label'] else 'ci-android-rt'
+    label = matches['label'] if matches['label'] else 'manual-android-rt'
     if commid_id=='PC': continue
     if commid_id=='Android': continue
 

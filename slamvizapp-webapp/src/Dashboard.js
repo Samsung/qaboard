@@ -97,7 +97,7 @@ class Dashboard extends React.Component {
     })
     .then(response => {
       let new_commits = response.data
-      let latest_commit_android_id = new_commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0)[0].id
+      let latest_commit_android_id = new_commits.filter( c => !!c.batches['ci-android-rt'] && c.batches['ci-android-rt'].valid_outputs>0 || !!c.batches['manual-android-rt'] && c.batches['manual-android-rt'].valid_outputs>0)[0].id
       this.setState((previous_state, props) => ({
         commits: new Map([
           ...previous_state.commits,
@@ -261,7 +261,7 @@ class Dashboard extends React.Component {
           <li><strong>Android:</strong> {Object.keys(android_batch.outputs).length} results from <Link to={`/commit/${commit_android_id}`}><code className="pt-text-muted">{pretty_commit_android_id}</code></Link></li>
           <li><strong>LSF:</strong> {Object.keys(linux_batch.outputs).length} results from <Link to={`/commit/${commit_id}`}><code className="pt-text-muted">{pretty_commit_id}</code></Link></li>
           </ul>
-          <MetricsSummary selected_metrics={selected_metrics} project='dvs/psp_swip' new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
+          <MetricsSummary selected_metrics={selected_metrics} project={this.state.project} new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
       </Section>
 

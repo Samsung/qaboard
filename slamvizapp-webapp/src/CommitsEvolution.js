@@ -125,7 +125,7 @@ class CommitsEvolutionPerBatch extends React.Component {
   updateTraces(props) {
     const { commits, metrics, aggregation, available_metrics } = props;
     let shown_metrics = metrics;
-    let shown_batches = ['default', 'ci-android-rt']
+    let shown_batches = ['default', 'ci-android-rt', 'manual-android-rt']
     let shown_aggregation = aggregation || 'median';
     let valid_commits = commits.filter( c => !!c.batches.default )
                                .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
@@ -133,6 +133,16 @@ class CommitsEvolutionPerBatch extends React.Component {
     let traces = []
     let traces_metadata = []
 
+    color_line = {
+    	'default': Colors.BLUE3,
+    	'ci-android-rt': Colors.ORANGE4,
+    	'manual-android-rt': Colors.ORANGE3,
+    }
+    color_marker = {
+    	'default': Colors.BLUE2,
+    	'ci-android-rt': Colors.ORANGE2,
+    	'manual-android-rt': Colors.ORANGE3,
+    }
     shown_metrics.forEach( key => {
       let metric = available_metrics[key]
       shown_batches.forEach( label => {
@@ -145,15 +155,15 @@ class CommitsEvolutionPerBatch extends React.Component {
             x: commits_with_batch.map( c => c.authored_datetime ),
             y: commits_with_batch
                .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-               .map( x => x<20*metric.threshold ? x*metric.scale : null ),
-            // text: valid_commits.map( c => c.message ),
+               .map( x => x<20*metric.threshold ? x*metric.scale : 20*metric.threshold ),
+            text: valid_commits.map( c => c.message ),
             marker: {
               size: 10,
-              color: label==='default' ? Colors.BLUE2 : Colors.ORANGE2,
+              color: color_marker[label],
             },
             line: {
               width: 2,
-              color: label==='default' ? Colors.BLUE3 : Colors.ORANGE3,
+              color: color_line[label],
             },
           }
           let trace_metadata = {
