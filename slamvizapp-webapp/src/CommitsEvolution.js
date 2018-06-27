@@ -135,8 +135,8 @@ class CommitsEvolutionPerBatch extends React.Component {
 
     let color_line = {
     	'default': Colors.BLUE3,
-    	'ci-android-rt': Colors.ORANGE4,
-    	'manual-android-rt': Colors.ORANGE3,
+    	'ci-android-rt': Colors.ORANGE3,
+    	'manual-android-rt': Colors.ORANGE4,
     }
     let color_marker = {
     	'default': Colors.BLUE2,
@@ -155,7 +155,7 @@ class CommitsEvolutionPerBatch extends React.Component {
             x: commits_with_batch.map( c => c.authored_datetime ),
             y: commits_with_batch
                .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-               .map( x => x<20*metric.threshold ? x*metric.scale : 20*metric.threshold ),
+               .map( x => x<20*metric.threshold ? x*metric.scale : 20*metric.threshold*metric.scale ),
             text: valid_commits.map( c => c.message ),
             marker: {
               size: 10,
