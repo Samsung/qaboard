@@ -38,6 +38,8 @@ const CommitRowWrapper = styled.li`
 `;
 
 
+const has_outputs_in_batch = label =>  (commit => (!!commit.batches[label] && commit.batches[label].valid_outputs>0))
+
 
 class CommitResults extends React.Component {
   render() {
@@ -48,9 +50,10 @@ class CommitResults extends React.Component {
       return (<a style={{color:'grey'}} href={gitlab_commit_url}><Button intent={Intent.WARNING} className="pt-minimal">Check the pipeline status..</Button></a>);
 
     let formatter = new Intl.NumberFormat('en-US', {style:'decimal', minimumFractionDigits:2, maximumFractionDigits:2});
-    let tuning_batches_labels = Object.keys(commit.batches)
-                                      .filter(label => label !== 'default' && label !== 'ci-android-rt');
-    let has_android_batch = !!commit.batches['ci-android-rt'] && commit.batches['ci-android-rt'].valid_outputs>0;
+    let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== 'default' && ! label.startsWith('ci') && ! label.startsWith('manual'));
+
+    let has_android_manual_batch = has_outputs_in_batch('manual-android-rt')(commit);
+    let has_android_batch = has_outputs_in_batch('ci-android-rt')(commit);
 
     const default_metric_info = metrics[project].available_metrics[metrics[project].default_metric];
 
@@ -72,8 +75,11 @@ class CommitResults extends React.Component {
               )}</ul>
             </Tooltip>
          }
+         { has_android_manual_batch &&
+            <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{commit.batches['manual-android-rt'].valid_outputs} @android:manual</Tag>
+         }
          { has_android_batch &&
-            <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{commit.batches['ci-android-rt'].valid_outputs} @Android</Tag>
+            <Tag intent={Intent.SUCCESS} className="pt-minimal" style={{marginRight:'4px'}}>{commit.batches['ci-android-rt'].valid_outputs} @android:ci</Tag>
          }
          {ci_batch.valid_outputs>0 && ci_batch.aggregated_metrics.translation_rmse_median>0 &&
             <Fragment>

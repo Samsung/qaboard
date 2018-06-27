@@ -143,13 +143,18 @@ class CommitsEvolutionPerBatch extends React.Component {
     	'ci-android-rt': Colors.ORANGE2,
     	'manual-android-rt': Colors.ORANGE3,
     }
+    let name = {
+    	'default': 'Linux (LSF)',
+    	'ci-android-rt': 'Real-time (Android, CI)',
+    	'manual-android-rt': 'Real-time (Android, manual tests)',
+    }
     shown_metrics.forEach( key => {
       let metric = available_metrics[key]
       shown_batches.forEach( label => {
         let commits_with_batch = valid_commits.filter(c => c.batches[label]!==undefined)
         if (commits_with_batch.length>0) {
           let trace = {
-            name: `${label==='default' ? 'Linux (LSF)' : 'Real-time (Android)'} ${shown_metrics.length>1 ? metric.label : ''}`,
+            name: `${name[label]} ${shown_metrics.length>1 ? metric.label : ''}`,
             type: 'scatter',
             mode: 'lines+markers',
             x: commits_with_batch.map( c => c.authored_datetime ),
