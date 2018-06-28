@@ -160,7 +160,7 @@ class CommitsEvolutionPerBatch extends React.Component {
             x: commits_with_batch.map( c => c.authored_datetime ),
             y: commits_with_batch
                .map( c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-               .map( x => x<20*metric.threshold ? x*metric.scale : 20*metric.threshold*metric.scale ),
+               .map( x => (x===undefined || x===null) ? null : ( x<20*metric.threshold ? x*metric.scale : 20*metric.threshold*metric.scale) ),
             text: valid_commits.map( c => c.message ),
             marker: {
               size: 10,
@@ -220,7 +220,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     }
     return <div>
       {traces.length>0 && <Plot revision={revision} data={traces} layout={layout_} onHover={this.onHover}/>}
-      <p><span className="pt-text-muted" style={{fontSize: 10, }}>Outlier commits (>20x KPIs) are not shown. Their performance may not be evaluated on the same tests.</span></p>
+      <p><span className="pt-text-muted" style={{fontSize: 10, }}>Results are to clamped to >20x KPIs. The performance for each commit may not be evaluated on the same tests.</span></p>
       {legend}
     </div>
   }
