@@ -11,6 +11,7 @@ from gitdb.exc import BadName
 
 from flask import request, jsonify
 from sqlalchemy import func, and_, asc
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
 
@@ -37,38 +38,29 @@ def get_commits(branch=None):
   to_date = to_date + datetime.timedelta(hours=3) # fix timezones hahaha
 
   from_date_s = request.args.get('from', None)
-  from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(hours=3))
-
+  from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=4))
   latest_authored_datetime = db_session.query(func.max(CiCommit.authored_datetime)).scalar()
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
+  print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
+
+  ci_commits = (db_session
+                .query(CiCommit)
+                .options(joinedload(CiCommit.batches))
+                .filter(
+                  CiCommit.project_id == project_id,
+                  CiCommit.authored_datetime <= to_date,
+                  CiCommit.authored_datetime >= from_date
+                )
+                .order_by(CiCommit.authored_datetime.desc())
+               )
 
   committer_name = request.args.get('committer', None)
+  if committer_name:
+    ci_commits = ci_commits.filter_by(committer_name=committer_name)
 
-  if not branch:
-    if committer_name is None:
-      ci_commits = (db_session
-                    .query(CiCommit)
-                    .filter(
-                      CiCommit.project_id == project_id,
-                      CiCommit.authored_datetime <= to_date,
-                      CiCommit.authored_datetime >= from_date
-                    )
-                    .order_by(CiCommit.authored_datetime.desc())
-                   )
-    else:
-      ci_commits = (CiCommit
-                    .query
-                    .filter_by(committer_name=committer_name)
-                    .filter(
-                      CiCommit.project_id == project_id,
-                      CiCommit.authored_datetime <= to_date,
-                      CiCommit.authored_datetime >= from_date,
-                    )
-                    .order_by(CiCommit.authored_datetime.desc())
-                   )
-
-  else:
+  if branch:
     if project_id == 'dvs/psp_swip' and not request.args.get('only_when_first_pushed_as', False):
+      print(f'filtering by branch [{branch}] using git', file=sys.stderr)
       commits = []
       page = 0
       earliest_commit = None
@@ -83,22 +75,10 @@ def get_commits(branch=None):
 
       is_in_range = lambda c: c.authored_datetime >= from_date and c.authored_datetime <= to_date
       commit_ids = [c.hexsha for c in commits if is_in_range(c)]
-      ci_commits = (CiCommit
-                    .query
-                    .filter(CiCommit.id.in_(commit_ids))
-                    .order_by(CiCommit.authored_datetime.desc())
-                   )
+      ci_commits = ci_commits.filter(CiCommit.id.in_(commit_ids))
     else:
-      ci_commits = (db_session
-                    .query(CiCommit)
-                    .filter(
-                      CiCommit.project_id == project_id,
-                      CiCommit.branch == branch,
-                      CiCommit.authored_datetime <= to_date,
-                      CiCommit.authored_datetime >= from_date
-                    )
-                    .order_by(CiCommit.authored_datetime.desc())
-                   )
+      print(f'filtering by branch [{branch}] using SQL', file=sys.stderr)
+      ci_commits = ci_commits.filter(CiCommit.branch == branch)
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
   only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
@@ -111,12 +91,6 @@ def get_commits(branch=None):
 def list_branches():
   """Returns a list of that project's branches"""
   project_id = request.args.get('project')
-
-  # TODO: seperate git-based projects, and the rest..?
-  if project_id=='dvs/psp_swip':
-    repo = repos[project_id]
-    return jsonify([r.name for r in repo.refs if r.name.startswith('origin/')])
-
   branches = (db_session
               .query(CiCommit.branch)
               .filter(CiCommit.project_id==project_id)
