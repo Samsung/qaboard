@@ -38,14 +38,9 @@ def get_commits(branch=None):
 
   from_date_s = request.args.get('from', None)
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(hours=3))
-  latest_ci_commit = (db_session
-                      .query(CiCommit)
-                      .filter(CiCommit.project_id==project_id)
-                      .order_by(CiCommit.authored_datetime.desc())
-                      .first()
-                     )
-  # latest_ci_commit = db_session.query(func.max(CiCommit.authored_datetime))
-  from_date = min(latest_ci_commit.authored_datetime - (to_date - from_date), from_date)
+
+  latest_authored_datetime = db_session.query(func.max(CiCommit.authored_datetime)).scalar()
+  from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
 
   committer_name = request.args.get('committer', None)
 
