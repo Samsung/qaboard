@@ -104,7 +104,7 @@ class LocalOutput():
         'output_dir_url': str(self.output_dir_url),
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),
-        'test_input_tags': self.test_input.data['tags'] if 'tags' in self.test_input.data else [],
+        'test_input_tags': self.test_input.data['tags'] if (self.test_input.data and 'tags' in self.test_input.data) else [],
     }
 
 class LocalBatch():
