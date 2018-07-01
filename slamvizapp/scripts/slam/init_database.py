@@ -4,6 +4,7 @@ Initializes or updates the database using information from the filesystem.
 """
 import re
 import datetime
+import json
 from pathlib import Path
 
 from git.exc import BadName
@@ -23,6 +24,8 @@ def init_slam_database(verbose=False):
   Initializes the database with ci commits.
   We don't delete the old recordings.... and we don't replace either.
   """
+  # we update the database tags
+  init_recordings()
   # import QA's manual runs...
   init_slam_manual_runs(verbose=True)
 
@@ -181,41 +184,26 @@ def import_slam_manual_run(folder, commit_short_id, verbose=False):
   if verbose: print(f'  {batch_android}')
 
 
-# init_slam_manual_runs(verbose=True)
+def init_recordings():
+  """
+  Initializes the database with recordings.
+  We don't delete the old recordings.... but we replace.
+  """
+  session = Session()
+  for absolute_path in default_recordings_directory.rglob('*bin'):
+    recording_path = absolute_path.relative_to(default_recordings_directory)
+    test_input = TestInput.get_or_create(session, default_recordings_directory, recording_path)
 
-# manual_runs = [
-#   ('2018-03-04_13-40-55__local__avis__W9_Android_RT', 'feb2963'),
-#   ('2018-03-04_13-40-55__local__avis__W9_Android_RT', 'feb296353ddab8067c9b62a82c00c75299a6d173'),
-#   ('2018-03-15_17-23-43__local__avis__6a37ae63_Android_RT', '6a37ae63344ec481e349ef49e15ac483a4363711'),
-#   ('2018-04-08_10-26-08__local__irobot__8c049f68_DEMO_Android_RT', '8c049f684411c1f81d23aa8ee7730ed1e3464632'),
-#   ('2018-05-14_17-36-57__local__avis__19dade3c_Android_RT', '19dade3c6c367d7f8cb31db216654b443f5fe03e'),
-#   ('2018-01-10_10-55-36__local__avis_41e75c0f_Android_RT', '41e75c0f0c2e4d930e75c64cdcc69c45dca6d569'),
-#   ('2018-05-28_12-30-16__local__avis__DEMO_Android_RT', '1359ec9f3eea20dfa8bbd0943116c8d0aa03d4ba'),
-#   ('2018-05-28_18-47-34__local__avis__DEMO_Android_RT', 'f4d3f4af7f5e0e261cf0676fb48ab149d7e63d71'),
-#   ('2018-05-30_09-30-29__local__avis__DEMO_Android_RT', 'db834edb4a9892e659d127402c899c0f3c398f19'),
-#   ('2018-06-04_09-35-19__local__avis__DEMO_Android_RT', '9b5eff2de07d211506d0952258f05fb1f79622ff'),
-# ]
-# def init_slam_manual_runs(verbose=False):
-#   for folder, commit_short_id in manual_runs:
-#     if verbose: print(f'importing {commit_short_id} in {folder}')
-#     import_slam_manual_run(folder, commit_short_id)
-
-
-
-# def init_recordings():
-#   """
-#   Initializes the database with recordings.
-#   We don't delete the old recordings.... but we replace.
-#   """
-#   session = Session()
-#   for absolute_path in default_recordings_directory.rglob('*bin'):
-#     path = str(absolute_path.relative_to(default_recordings_directory))
-
-#     # it's a complete re-import, so I guess we should just drop the table...
-#     session.query(TestInput).filter_by(path=path, database=default_recordings_directory).delete()
-
-#     test_input = TestInput(path=path)
-#     session.add(test_input)
-#     print(test_input)
-#   session.commit()
+    metadata_path = absolute_path.with_suffix('.json')
+    if metadata_path.exists():
+      with metadata_path.open('r') as f:
+        metadata = json.load(f)
+      if 'tags' in metadata:
+        previous_data = test_input.data if test_input.data else {}
+        test_input.data = {
+          **previous_data,
+          'tags': metadata['tags'],
+        }
+    session.add(test_input)
+  session.commit()
 
