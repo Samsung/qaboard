@@ -27,6 +27,15 @@ sudo /etc/init.d/postgresql start &
 # sudo -u postgres /usr/lib/postgresql/9.6/bin/postgres \
 #   -D /var/lib/postgresql/9.6/main \
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &
+# sudo su postgres
+# psql -d slamvizapp
+# \dt
+# select count(*) from outputs;
+# alter table outputs rename to outputs_backup;
+# alembic stamp f6a4bc0b55f8
+# alembic upgrade +1
+# alembic stamp head
+# drop table..
 
 echo '...applying database migrations'
 cd /slamvizapp/slamvizapp
@@ -49,7 +58,7 @@ cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/
 
 # export LC_ALL=C.UTF-8
 # export LANG=C.UTF-8
-cd /slamvizapp && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
+cd /slamvizapp && SLAMVIZAPP_DB_ECHO=True FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
 
 # command
 # status=$?
