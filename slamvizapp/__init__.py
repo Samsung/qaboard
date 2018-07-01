@@ -28,9 +28,10 @@ from slamvizapp.database import db_session
 def shutdown_session(exception=None):
     db_session.remove()
 
-import slamvizapp.webhooks
+import slamvizapp.api.api
+import slamvizapp.api.webhooks
+import slamvizapp.api.tuning
 import slamvizapp.admin
-import slamvizapp.api
 
 # Enable cross-origin requests to avoid development headcaches  
 # cors = CORS(app, resources={r"/api/*": {"origins": "*"}})

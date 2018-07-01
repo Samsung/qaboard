@@ -3,9 +3,9 @@ from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repos, db_session
-from .models import Project, CiCommit, Output, TestInput
-from .git_utils import git_pull
-from .config import default_recordings_directory
+from ..models import Project, CiCommit, Output, TestInput
+from ..git_utils import git_pull
+from ..config import default_recordings_directory
 
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
