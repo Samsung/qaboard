@@ -26,7 +26,8 @@ class Batch(Base):
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
-  outputs = relationship("Output", 
+  outputs = relationship("Output",
+                         lazy='joined',
                          back_populates="batch",
                          cascade="all, delete-orphan"
                         )
