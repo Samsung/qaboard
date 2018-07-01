@@ -9,9 +9,12 @@ import json
 from hashlib import md5
 from pathlib import Path
 
+from slamvizapp import db_session
 from .Batch import aggregated_metrics
+from .TestInput import TestInput
 from .Output import Output
 from ..utils import get_users_per_name
+from ..config import database_directory
 
 class Committer():
   def  __init__(self, name):
@@ -30,12 +33,6 @@ class LocalGitCommit():
     self.parents = [self]
 
 
-class LocalTestInput():
-  def __init__(self, database, path):
-    self.database = database
-    self.path = path
-    self.data = {}
-
   @property
   def output_folder(self):
     """The path without .bin"""
@@ -49,7 +46,7 @@ class LocalTestInput():
 
 class LocalOutput():
   def __init__(self, test_input, platform, configuration, batch):
-    self.id = str(test_input.path)
+    self.id = f'{test_input.id}/{platform}/{configuration}'
     self.output_type = 'slam/6dof'
     self.test_input = test_input
     self.test_input_id = 0
@@ -107,6 +104,7 @@ class LocalOutput():
         'output_dir_url': str(self.output_dir_url),
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),
+        'test_input_tags': self.test_input.data['tags'] if 'tags' in self.test_input.data else [],
     }
 
 class LocalBatch():
@@ -132,7 +130,7 @@ class LocalBatch():
       platform, configuration, *rel_input_path = output_dir.relative_to(self.output_dir).parts
       rel_input_path = Path(*rel_input_path)
       rel_input_path = f'{rel_input_path}.bin'
-      test_input = LocalTestInput('/net/f2/algo_archive/DVS_SLAM_Database', rel_input_path)
+      test_input = TestInput.get_or_create(db_session, database=database_directory['dvs/psp_swip'], path=rel_input_path)
       output = LocalOutput(
           test_input=test_input,
           platform=platform,
