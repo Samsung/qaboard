@@ -1,13 +1,12 @@
 import React, { Fragment } from "react";
 
-
 class SyncedVideos extends React.Component {
   constructor(props) {
     super(props);
     this.syncReferenceVideo = this.syncReferenceVideo.bind(this);
   }
   play_ref = () => this.video_ref.play();
-  pause_ref = ()=> this.video_ref.pause();
+  pause_ref = () => this.video_ref.pause();
 
   componentDidMount() {
     // this.video_ref.addEventListener("canplay",
@@ -28,22 +27,41 @@ class SyncedVideos extends React.Component {
 
   syncReferenceVideo() {
     if (this.state.ref_video_ready)
-      return this.video_ref.currentTime = this.video_new.currentTime;
+      return (this.video_ref.currentTime = this.video_new.currentTime);
   }
 
-  render () {
-    const { src_new, src_ref, poster_new, poster_ref} = this.props;
-    return <Fragment>
-      <video ref={video => this.video_new = video}  preload="none" controls loop="loop" title="New" width={350} poster={poster_new} type="video/mp4">
-        <source src={src_new} />
-      </video>
-      {src_ref &&
-      <video ref={video => this.video_ref = video} preload="none" loop="loop" title="Reference" width={350} poster={poster_ref} type="video/mp4">
-         <source src={src_ref} />
-      </video>}
-    </Fragment>
+  render() {
+    const { src_new, src_ref, poster_new, poster_ref } = this.props;
+    return (
+      <Fragment>
+        <video
+          ref={video => (this.video_new = video)}
+          preload="none"
+          controls
+          loop="loop"
+          title="New"
+          width={350}
+          poster={poster_new}
+          type="video/mp4"
+        >
+          <source src={src_new} />
+        </video>
+        {src_ref && (
+          <video
+            ref={video => (this.video_ref = video)}
+            preload="none"
+            loop="loop"
+            title="Reference"
+            width={350}
+            poster={poster_ref}
+            type="video/mp4"
+          >
+            <source src={src_ref} />
+          </video>
+        )}
+      </Fragment>
+    );
   }
 }
-
 
 export { SyncedVideos };

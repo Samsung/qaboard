@@ -1,7 +1,7 @@
 import React from "react";
 import { MenuItem } from "@blueprintjs/core";
 
-const noMetrics = <MenuItem disabled={true} text="No matching metrics." />
+const noMetrics = <MenuItem disabled={true} text="No matching metrics." />;
 
 // const renderMetric = (metric, {handleClick, modifiers, query} ) => {
 //   if (!modifiers.matchesPredicate) {

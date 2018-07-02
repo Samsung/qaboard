@@ -1,19 +1,19 @@
 import React, { Component } from "react";
 import { BrowserRouter as Router, Route } from "react-router-dom";
 // import { Provider } from 'react-redux'
-import { CookiesProvider } from 'react-cookie';
+import { CookiesProvider } from "react-cookie";
 
-import AppNavbar from "./AppNavbar"
+import AppNavbar from "./AppNavbar";
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
 import Dashboard from "./Dashboard";
 
-import '../node_modules/@blueprintjs/core/lib/css/blueprint.css';
-import '../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css';
-import '../node_modules/@blueprintjs/select/lib/css/blueprint-select.css';
-import '../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css';
-import './App.css';
+import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
+import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
+import "../node_modules/@blueprintjs/select/lib/css/blueprint-select.css";
+import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
+import "./App.css";
 
 // const Root = ({ store }) => (
 //   <Provider store={store}>
@@ -28,17 +28,17 @@ class App extends Component {
     return (
       // <React.StrictMode>
       <CookiesProvider>
-      <Router>
-        <div className="pt-ui-text">
-          <AppNavbar />
-          <Route exact path="/" component={CiCommitList} />
-          <Route path="/branch/(.*)" component={CiCommitList} />
-          <Route path="/committer/(.*)" component={CiCommitList} />
-          <Route path="/commit/(.*)" component={CiCommitResults} />
-          <Route path="/projects" component={ProjectsList} />
-          <Route path="/dashboard" component={Dashboard} />
-        </div>
-      </Router>
+        <Router>
+          <div className="pt-ui-text">
+            <AppNavbar />
+            <Route exact path="/" component={CiCommitList} />
+            <Route path="/branch/(.*)" component={CiCommitList} />
+            <Route path="/committer/(.*)" component={CiCommitList} />
+            <Route path="/commit/(.*)" component={CiCommitResults} />
+            <Route path="/projects" component={ProjectsList} />
+            <Route path="/dashboard" component={Dashboard} />
+          </div>
+        </Router>
       </CookiesProvider>
       // </React.StrictMode>
     );
@@ -78,6 +78,5 @@ class App extends Component {
 //   mapDispatchToProps
 // )(App)
 // export default Root;
-
 
 export default App;

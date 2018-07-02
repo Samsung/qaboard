@@ -1,11 +1,11 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
-  
+
 const AvatarCell = styled.div`
   width: 46px;
-  color: rgba(0,0,0,0.85);
-`
+  color: rgba(0, 0, 0, 0.85);
+`;
 
 const AvatarImg = styled.img`
   width: 36px;
@@ -18,16 +18,17 @@ const AvatarImg = styled.img`
   float: left;
   transition: border-color 100ms linear
   vertical-align: middle;
-`
-
+`;
 
 //  <a href={href}>
 //  </a>
 
-const Avatar = ({src, href, alt}) => (
-	<AvatarCell>
-	    <Link to={href}><AvatarImg alt={alt} src={src}/></Link>
-	</AvatarCell>
-)
+const Avatar = ({ src, href, alt }) => (
+  <AvatarCell>
+    <Link to={href}>
+      <AvatarImg alt={alt} src={src} />
+    </Link>
+  </AvatarCell>
+);
 
 export { Avatar };
