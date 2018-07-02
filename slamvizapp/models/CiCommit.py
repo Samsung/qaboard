@@ -63,7 +63,7 @@ class CiCommit(Base):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override)
-    commit_dir_name = f'{self.authored_date}__git__{self.id[:8]}'
+    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
     return ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
