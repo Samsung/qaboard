@@ -6,7 +6,8 @@ import {
   Button,
   Tag,
   Intent,
-  NonIdealState
+  NonIdealState,
+  Icon
 } from "@blueprintjs/core";
 
 class OutputLog extends Component {
@@ -82,10 +83,17 @@ class OutputLog extends Component {
         {k}:{v}
       </Tag>
     ));
+    const download_link = <a
+        title="Show output files"
+        target="_blank"
+        href={output.output_dir_url}
+      >
+        <Icon icon="download" />
+    </a>;
     return (
       <div>
         <h6>
-          {show_button} <Tag intent={intent}>{tag_text}</Tag> {tag_config}{" "}
+          {show_button} <Tag intent={intent}>{tag_text}</Tag> {tag_config}{" "}{download_link}{" "}
           {output.test_input_path}
         </h6>
         {details}
@@ -108,9 +116,10 @@ class OutputLog extends Component {
 }
 
 const BatchLogs = ({ batch }) => {
-  let now = new Date();
+  // let now = new Date();
+  // .filter(o => !o.is_pending)
+  // || now - new Date(o.created_date) > 1e3)
   return Object.values(batch.outputs)
-    .filter(o => !o.is_pending || now - new Date(o.created_date) > 180e3)
     .map(output => <OutputLog key={output.id} output={output} />);
 };
 
