@@ -91,18 +91,15 @@ class CiCommit(Base):
     self.project = project
     if commit_type == 'git':
       self.commit_type = 'git'
-      self.repo = repos[project.id]
     else:
       self.commit_type = 'local'
       if not branch: branch='<NA>'
-      self.repo = ''
-    self.gitcommit = commit
     self.id = commit.hexsha
     self.message = commit.message
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
-      self.branch = find_branch(self.gitcommit.hexsha, self.repo)
+      self.branch = find_branch(commit.hexsha, self.repo)
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_batch = commit.authored_datetime
     self.committer_name = commit.committer.name
