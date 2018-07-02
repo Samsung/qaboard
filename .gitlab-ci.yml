@@ -29,7 +29,7 @@ stages:
 test-backend:
   stage: test
   script:
-    - pip install .
+    - pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org .
 
 test-frontend:
   stage: test
