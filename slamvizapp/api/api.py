@@ -7,9 +7,11 @@ import pytz
 import subprocess
 import json
 from pathlib import Path
-from gitdb.exc import BadName
 
-from flask import request, jsonify
+import ujson
+from gitdb.exc import BadName
+from flask import request, jsonify, Response
+
 from sqlalchemy import func, and_, asc
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
@@ -24,6 +26,10 @@ from ..models import latest_successful_commit
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("Asia/Tel_Aviv")
+
+
+
+from ..utils import profiled
 
 @app.route("/api/v1/commits")
 @app.route("/api/v1/commits/")
@@ -84,7 +90,9 @@ def get_commits(branch=None):
   only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
   with_batches = ['default', 'ci-android-rt', 'manual-android-rt'] if only_ci_batches else None
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
-  return jsonify([c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs) for c in ci_commits])
+  serializable_commits = [c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs)
+                          for c in ci_commits]
+  return Response(ujson.dumps(serializable_commits), mimetype='application/json')
 
 
 @app.route("/api/v1/project/branches")
@@ -163,8 +171,4 @@ def get_ci_commit(commit_id=None):
       return jsonify({'error': 'Sorry, the request failed.'}), 500
     # FIXME: we should add details about the outputs...
     # FIXME: how do we get the reference commit?
-  return jsonify(ci_commit.to_dict(with_outputs=True))
-
-
-
-
+  return Response(ujson.dumps(ci_commit.to_dict(with_outputs=True)), mimetype='application/json')
