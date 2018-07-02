@@ -563,7 +563,7 @@ class CiCommitResults extends Component {
                     {Object.keys(o.extra_parameters).length > 0 && (
                       <Fragment>
                         <br />
-                        <span>JSON.stringify(o.extra_parameters)</span>
+                        <span>{JSON.stringify(o.extra_parameters)}</span>
                       </Fragment>
                     )}
                   </li>
