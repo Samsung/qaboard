@@ -24,7 +24,10 @@ setup(
     'psycopg2-binary',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
-    'uwsgi'
+    'uwsgi',
+    'ujson',
+    'simplejson',
+    'python-rapidjson',
   ],
 
   entry_points= {
