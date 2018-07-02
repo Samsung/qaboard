@@ -4,10 +4,10 @@ A version of the code on which we ran SLAM performance test.
 from pathlib import Path
 from hashlib import md5
 
-from sqlalchemy.orm import relationship, reconstructor
+from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy import String, DateTime
+from sqlalchemy import String, DateTime, JSON
 
 from slamvizapp import repos
 from slamvizapp.models import Base, Batch, Output
@@ -31,6 +31,7 @@ class CiCommit(Base):
   branch = Column(String(), index=True) # first added as.. we ignore tags?
   committer_name = Column(String(), index=True)
   message = Column(String())
+  parents = Column(JSON())
 
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
@@ -62,7 +63,7 @@ class CiCommit(Base):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override)
-    commit_dir_name = f'{self.gitcommit.authored_date}__git__{self.gitcommit.hexsha[:8]}'
+    commit_dir_name = f'{self.authored_date}__git__{self.id[:8]}'
     return ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
@@ -79,7 +80,7 @@ class CiCommit(Base):
         return '/s/'/self.commit_dir.relative_to('/stage/algo_data')
       else:
         raise NotImplementedError
-    return '/s/'/self.commit_dir.relative_to(ci_directory)
+    return '/s/' / self.commit_dir.relative_to(ci_directory)
 
   def __repr__(self):
     return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
@@ -107,14 +108,20 @@ class CiCommit(Base):
     self.committer_name = commit.committer.name
 
 
-  @reconstructor
-  def init_on_load(self):
+  @property
+  def repo(self):
     if self.commit_type == 'git':
-      self.repo = repos[self.project.id]
-      self.gitcommit = self.repo.commit(self.id)
+      return repos[self.project.id]
     else:
-      self.repo = None
-      self.gitcommit = LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
+      return None    
+
+  @property
+  def gitcommit(self):
+    if self.commit_type == 'git':
+      return self.repo.commit(self.id)
+    else:
+      return LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
+
 
 
 
@@ -157,7 +164,7 @@ class CiCommit(Base):
         'id': self.id,
         'type': self.commit_type,
         'branch': self.branch,
-        'parents': [p.hexsha for p in self.gitcommit.parents],
+        'parents': [p for p in self.parents],
         'message': self.message,
         'committer_name': self.committer_name,
         'committer_avatar_url': committer_avatar_url,
@@ -174,40 +181,41 @@ class CiCommit(Base):
 
 
 
-def latest_successful_commit(session, project_id, branch):
-  """Returns the latest commit on a given branch where we got outputs."""
-  if project_id != 'dvs/psp_swip':
-    ci_commits = (session
-                  .query(CiCommit)
-                  .join(Batch, Output)
-                  .filter(
-                    CiCommit.project_id == project_id,
-                    # CiCommit.branch == branch,
-                    # Output.is_pending == False,
-                    # Output.is_failed == False,
-                  )
-                  .order_by(CiCommit.authored_datetime.desc())
-                  .group_by(CiCommit.id)
-                  .first()
-                 )
-    return ci_commits
+def latest_successful_commit(session, project_id, branch, within_last=5):
+  """
+  Returns the latest commit on a given branch where we got outputs.
+  Only the latest within_last commits are checked...
+  """
+  # if project_id != 'dvs/psp_swip':
+  ci_commits = (session
+                .query(CiCommit)
+                .options(joinedload(CiCommit.batches))
+                .filter(CiCommit.project_id==project_id)
+                .order_by(CiCommit.authored_datetime.desc())
+                .limit(within_last)
+               )
+  for ci_commit in ci_commits:
+    valid_outputs = [o for o in ci_commit.ci_batch.outputs
+                     if not o.is_failed and not o.is_pending]
+    if valid_outputs:
+      return ci_commit
 
-  else:
-    repo = repos[project_id]
-    page = 0
-    while page < 10:
-      commits = repo.iter_commits(branch, max_count=20, skip=20*page)
-      commit_ids = [c.hexsha for c in commits]
-      ci_commits = (CiCommit
-                    .query
-                    .filter(CiCommit.id.in_(commit_ids))
-                    .order_by(
-                      CiCommit.authored_datetime.desc()
-                    )
-                   )
-      ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
-      if ci_commits_successful: return ci_commits_successful[0]
-      page = page + 1
+  # else:
+  #   repo = repos[project_id]
+  #   page = 0
+  #   while page < 10:
+  #     commits = repo.iter_commits(branch, max_count=20, skip=20*page)
+  #     commit_ids = [c.hexsha for c in commits]
+  #     ci_commits = (CiCommit
+  #                   .query
+  #                   .filter(CiCommit.id.in_(commit_ids))
+  #                   .order_by(
+  #                     CiCommit.authored_datetime.desc()
+  #                   )
+  #                  )
+  #     ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
+  #     if ci_commits_successful: return ci_commits_successful[0]
+  #     page = page + 1
 
 
 
