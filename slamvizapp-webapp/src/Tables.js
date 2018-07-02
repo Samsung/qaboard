@@ -47,6 +47,9 @@ const QualityCell = ({metric, metrics}) => {
 const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, labels }) => {
   if (new_batch===null) return <span/>
   const [label_new, label_ref] = labels || ['new', 'ref']
+  let outputs = Object.entries(new_batch.outputs)
+                      .filter(([id, o]) => !o.is_pending)
+                      .sort(sortOutputs(sort_by, sort_order))
   return (
     <Section>
       {input}
@@ -59,17 +62,14 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
           )}
         </tr>
         <tr>
-          <th scope="col"><span className='pt-text-muted'>{Object.keys(new_batch.outputs).length} tests</span></th>
+          <th scope="col"><span className='pt-text-muted'>{Object.keys(outputs).length} tests</span></th>
           {metrics.map( m =>
             <th scope="col" key={m.key}>{label_new}-{label_ref}</th>
           )}
         </tr>
       </thead>
       <tbody>
-      {Object.entries(new_batch.outputs)
-             .filter(([id, o]) => !o.is_pending)
-             .sort(sortOutputs(sort_by, sort_order))
-             .map( ([id, output]) => {
+      {outputs.map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch});
           return (
             <tr key={id}>
@@ -94,6 +94,9 @@ const TableCompare = ({ new_batch, ref_batch, sort_order, sort_by, metrics, inpu
 const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, labels }) => {
   if (new_batch===null) return <span/>
   const [label_new, label_ref] = labels || ['New', 'Reference']
+  let outputs = Object.entries(new_batch.outputs)
+                      .filter(([id, o]) => !o.is_pending)
+                      .sort(sortOutputs(sort_by, sort_order))
   return (
     <Section>
       {input}
@@ -106,7 +109,7 @@ const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, l
           )}
         </tr>
         <tr>
-          <th scope="col"><span className='pt-text-muted'>{Object.keys(new_batch.outputs).length} tests</span></th>
+          <th scope="col"><span className='pt-text-muted'>{Object.keys(outputs).length} tests</span></th>
           {metrics.map( m =>
             <Fragment key={m.key}>
               <th scope="col">{label_new}</th>
@@ -116,10 +119,7 @@ const TableKpi = ({ new_batch, ref_batch, sort_order, sort_by, metrics, input, l
         </tr>
       </thead>
       <tbody>
-      {Object.entries(new_batch.outputs)
-             .filter(([id, o]) => !o.is_pending)
-             .sort(sortOutputs(sort_by, sort_order))
-             .map( ([id, output]) => {
+      {outputs.map( ([id, output]) => {
           let { output_ref, warning } = matching_output({output: output, batch: ref_batch, soft_match: false});
           return (
             <tr key={id}>

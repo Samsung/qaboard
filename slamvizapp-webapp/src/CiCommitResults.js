@@ -261,7 +261,7 @@ class CiCommitResults extends Component {
     Object.entries(batch.outputs).forEach( ([id, output])=> {
       let extra_parameters_s = Object.keys(output.extra_parameters).length>0 ? JSON.stringify(output.extra_parameters) : '';
       let extra_parameters = extra_parameters_s.replace(/"/g, '');
-      let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${extra_parameters}`.toLowerCase()
+      let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${output.test_input_tags.join()} ${extra_parameters}`.toLowerCase()
 
       let negative_filter_tokens = filter_tokens.filter(t=>t[0]==='-').map(t=>t.substring(1))
       if (negative_filter_tokens.some( token => searched.includes(token) )) return;
@@ -488,7 +488,7 @@ class CiCommitResults extends Component {
         <Section>
           <Card elevation={0}>
             <div style={{display:'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-              <div style={{flex:'1 1 auto', minWidth: '500px', maxWidth: '500px'}}>
+              <div style={{flex:'1 1 auto', minWidth: '510px', maxWidth: '510px'}}>
                 <SelectBatches
                   commit={new_commit}
                   selected={selected_batch_new}
@@ -498,14 +498,14 @@ class CiCommitResults extends Component {
                 <FormGroup labelFor="filter-new-input" helperText={`${!this.state.filter_batch_new ? 'You can filter outputs by all their properties. ' : ''}${Object.keys(new_batch_filtered.outputs).length} selected`}>
                   <InputGroup
                     value={this.state.filter_batch_new}
-                    placeholder="Input, platform, configuration, or tuning parameters (key:value)"
+                    placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
                     onChange={this.UpdateFilterBatchNew}
                     type="search"
                     leftIcon="search"
                   />
                 </FormGroup>
               </div>
-              <div style={{flex:'1 1 auto', minWidth: '450px', maxWidth: '450px',  textAlign: 'right'}}>
+              <div style={{flex:'1 1 auto', minWidth: '490px', maxWidth: '490px',  textAlign: 'right'}}>
                 <SelectBatches
                   commit={ref_commit}
                   selected={selected_batch_ref}
@@ -515,7 +515,7 @@ class CiCommitResults extends Component {
                 <FormGroup labelFor="filter-ref-input" helperText={`${Object.keys(ref_batch_filtered.outputs).length} selected.`}>
                 <InputGroup
                   value={this.state.filter_batch_ref}
-                  placeholder="Input, platform, configuration, or tuning parameters (key:value)"
+                  placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
                   onChange={this.UpdateFilterBatchRef}
                   type="search"
                   rightIcon="search"

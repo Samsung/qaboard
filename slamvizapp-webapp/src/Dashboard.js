@@ -98,7 +98,10 @@ class Dashboard extends React.Component {
     .then(response => {
       let new_commits = response.data
       const has_outputs_in_batch = label =>  (commit => (!!commit.batches[label] && commit.batches[label].valid_outputs>0))
-      let latest_commit_android_id = new_commits.filter( c =>  has_outputs_in_batch('ci-android-rt')(c) || has_outputs_in_batch('manual-android-rt')(c))[0].id
+      let latest_commits_android = new_commits.filter( c =>  has_outputs_in_batch('ci-android-rt')(c) ||
+                                                               has_outputs_in_batch('manual-android-rt')(c)
+                                                        )
+      let latest_commit_android_id = latest_commits_android.length > 0 ? latest_commits_android[0].id : new_commits[0].id
       this.setState((previous_state, props) => ({
         commits: new Map([
           ...previous_state.commits,
@@ -168,7 +171,6 @@ class Dashboard extends React.Component {
     const { is_loaded, commits, latest_commit_android_id, date_range } = this.state;
     var { selected_metrics } = this.state;
 
-    // console.log(commits)
     // console.log(commits.size)
     console.log(is_loaded)
     if (!is_loaded || commits.size===0) return <Container>
@@ -185,8 +187,14 @@ class Dashboard extends React.Component {
     let commit = commits.get(commit_id)
     let commit_android = commits.get(commit_android_id)
 
-    let linux_batch = commit.batches.default
-    let android_batch = commit_android.batches[commit_android.type==='git' ? 'ci-android-rt' : 'default']
+    let linux_batch = commit.batches.default;
+    let empty_batch = {outputs: {}, failed_outputs: 0, valid_outputs: 0, pending_outputs: 0};
+    let android_batch = commit_android.batches['manual-android-rt'] || commit_android.batches['ci-android-rt'] || empty_batch
+    let has_android = Object.keys(android_batch.outputs).length > 0;
+
+    // console.log(linux_batch)
+    // console.log(android_batch)
+    // console.log(has_android)
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = <MultiSelect
@@ -201,9 +209,6 @@ class Dashboard extends React.Component {
       popoverProps={Classes.MINIMAL}
     />
 
-    // console.log(Array.from(commits.values()))
-    // .map(([id, commit]) => commit)
-    // Array.from(commits.values()).forEach(c => {console.log(c)})
     let selected_commits = Array.from(commits.values())
                                 .filter(c => new Date(c.authored_datetime) >= date_range[0] &&
                                              new Date(c.authored_datetime) <= date_range[1]
@@ -255,7 +260,7 @@ class Dashboard extends React.Component {
        </Card>
       </Section>}
 
-      <Section style={{breakAfter: 'always', breakInside: 'avoid'}}>
+      {has_android && <Section style={{breakAfter: 'always', breakInside: 'avoid'}}>
         <Card elevation={0}>
           <h2>Metrics on Android <span style={{color: Colors.BLUE2}}>vs LSF</span></h2>
           <ul>
@@ -264,7 +269,7 @@ class Dashboard extends React.Component {
           </ul>
           <MetricsSummary selected_metrics={selected_metrics} project={this.state.project} new_batch={android_batch} ref_batch={linux_batch} xaxis_labels={['Android', 'LSF']} />
        </Card>
-      </Section>
+      </Section>}
 
       <Section>
         <div>
@@ -278,14 +283,14 @@ class Dashboard extends React.Component {
                 <TableKpi
                   sort_order={this.state.sort_order}
                   sort_by={this.state.sort_by}
-                  new_batch={android_batch}
-                  ref_batch={linux_batch}
-                  labels={['Android', 'LSF']}
+                  new_batch={has_android ? android_batch : linux_batch}
+                  ref_batch={has_android ? linux_batch : android_batch}
+                  labels={has_android ? ['Android', 'LSF'] : ['LSF', 'Android']}
                   metrics={selected_metrics}
                   input={metricTableSelect}
                 />}
             />
-            <Tab
+            {has_android && <Tab
               id="output-table-compare"
               title="Android vs LSF"
               panel={
@@ -298,7 +303,7 @@ class Dashboard extends React.Component {
                   metrics={selected_metrics}
                   input={metricTableSelect}
                 />}
-            />
+            />}
             <Tabs.Expander />
             <div className="pt-select">
               <select defaultValue={this.state.sort_by} onChange={this.selectSortBy}>
