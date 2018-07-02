@@ -91,7 +91,7 @@ const available_metrics = {
 
 
 // will be shown proeminently in the index page, and first for tuning exploration
-const default_metric = 'translation_rmse';
+const default_metric = 'rmse_median';
 // will be shown in the summary histogramms of each commit
 const summary_metrics = [
   'is_failed',
