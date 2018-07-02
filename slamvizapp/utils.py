@@ -98,3 +98,22 @@ def iter_recordings(recording_groups, recording_groups_file, database_directory)
 
   except:
     return []
+
+
+
+import cProfile, pstats, io
+import contextlib
+import sys
+
+@contextlib.contextmanager
+def profiled():
+    pr = cProfile.Profile()
+    pr.enable()
+    yield
+    pr.disable()
+    s = io.StringIO()
+    ps = pstats.Stats(pr, stream=s).sort_stats('cumulative') # tottime
+    ps.print_stats()
+    print(s.getvalue(), file=sys.stderr)
+    # uncomment this to see who's calling what
+    # ps.print_callers()
