@@ -161,7 +161,7 @@ class CiCommit(Base):
         'id': self.id,
         'type': self.commit_type,
         'branch': self.branch,
-        'parents': [p for p in self.parents],
+        'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,
         'committer_name': self.committer_name,
         'committer_avatar_url': committer_avatar_url,
