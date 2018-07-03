@@ -123,7 +123,8 @@ def init_slam_manual_runs(verbose=False):
   re_author = '(?P<author>[A-Za-z0-9]*)'
   re_commit_id = '(?P<commit_id>[A-Za-z0-9]*)'
   re_message = '(?P<message>.*)'
-  id_parser = re.compile(f'^{re_datetime}__local__{re_author}__EXPORT_{re_commit_id}(?:_{re_message})*')
+  re_label = '((?P<label>[a-zA-Z0-9-]))?'
+  id_parser = re.compile(f'^{re_datetime}__local__{re_author}__EXPORT{re_label}_{re_commit_id}(?:_{re_message})*')
 
   for folder in manual_runs_root.iterdir():
     if not folder.is_dir(): continue
@@ -131,10 +132,11 @@ def init_slam_manual_runs(verbose=False):
     if not matches: continue
     matches = matches.groupdict()
     commid_id = matches['commit_id']
+    label = matches['label'] if matches['label'] else 'manual-android-rt'
     if commid_id=='PC': continue
     if commid_id=='Android': continue
 
-    import_slam_manual_run(folder, commid_id, verbose=True)
+    import_slam_manual_run(folder, commid_id, label, verbose=True)
     if verbose: print(folder.name)
 
 
@@ -154,7 +156,7 @@ def import_slam_manual_run(folder, commit_short_id, verbose=False):
   commit = repo.commit(commit_short_id)
   ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
   # if verbose: print(f'  {ci_commit}')
-  batch_android = ci_commit.get_or_create_batch('ci-android-rt')
+  batch_android = ci_commit.get_or_create_batch(batch_label)
 
   output_dirs = [p.parent for p in folder_path.rglob('metrics.json')]
   # print(folder_path)
