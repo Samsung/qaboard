@@ -1,5 +1,7 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
+// import math from '@mathjs';
+const math = require('mathjs')
 
 const calendarStrings = {
   lastDay: "[Yesterday]",
@@ -14,8 +16,8 @@ const average = array => {
   return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
 };
 const median = array => {
-  // fixme
-  return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
+  let array_filtered = array.filter(x => x !== undefined)
+  return array_filtered.length>0 ? math.median(array_filtered) : null;
 };
 
 
