@@ -112,8 +112,7 @@ def profiled():
     yield
     pr.disable()
     s = io.StringIO()
-    ps = pstats.Stats(pr, stream=s).sort_stats('cumulative') # tottime
-    ps.print_stats()
+    ps = pstats.Stats(pr, stream=s).sort_stats('cumulative') # cumulative  tottime
+    ps.print_stats(35)
+    ps.print_callers(35)
     print(s.getvalue(), file=sys.stderr)
-    # uncomment this to see who's calling what
-    # ps.print_callers()

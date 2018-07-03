@@ -15,6 +15,7 @@ import { MultiSelect, Classes } from "@blueprintjs/select";
 
 import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
+import { plotly_palette } from "./common/utils";
 
 import createPlotlyComponent from "react-plotly.js/factory";
 const Plot = createPlotlyComponent(Plotly);
@@ -103,15 +104,10 @@ const MetricTile = styled.div`
   min-width: 355px; // manuall adjusted with the largest title..
 `;
 
-const HistogramComparaison = ({
-  new_values,
-  ref_values,
-  metric,
-  xaxis_labels
-}) => {
+const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors }) => {
   const xdata = xaxis_labels || ["New", "Reference"];
   let plot_scale = metric["plot_scale"] || "log";
-  let layout = {
+  let layout_ = {
     bargap: 0,
     bargroupgap: 0,
     barmode: "overlay",
@@ -140,11 +136,16 @@ const HistogramComparaison = ({
     height: 100,
     autosize: false,
     plot_bgcolor: "rgba(0,0,0,0)",
-    paper_bgcolor: "rgba(0,0,0,0)"
+    paper_bgcolor: "rgba(0,0,0,0)",
+    ...layout,
   };
 
   let threshold = metric.threshold * metric.scale;
-  let all_values = [...new_values, ...ref_values].filter(
+  let all_values = [];
+  series.forEach(values => {
+    values.forEach(v => all_values.push(v));
+  });
+  all_values = all_values.filter(
     x => x !== null && x !== undefined && !isNaN(x)
   );
   let min_y = Math.min(...all_values) * metric.scale;
@@ -157,7 +158,7 @@ const HistogramComparaison = ({
     : max_y >= threshold;
 
   if (!all_success)
-    layout.shapes.push({
+    layout_.shapes.push({
       type: "rect",
       layer: "below",
       xref: "paper",
@@ -173,7 +174,7 @@ const HistogramComparaison = ({
       }
     });
   if (!all_failed)
-    layout.shapes.push({
+    layout_.shapes.push({
       type: "rect",
       layer: "below",
       xref: "paper",
@@ -189,10 +190,7 @@ const HistogramComparaison = ({
       }
     });
 
-  var ydata = [
-    new_values.map(x => metric.scale * x),
-    ref_values.map(x => metric.scale * x)
-  ];
+  var ydata = series.map(values => values.map(x => metric.scale * x));
 
   var data = [];
   for (var i = 0; i < xdata.length; i++) {
@@ -200,17 +198,18 @@ const HistogramComparaison = ({
       type: "box",
       y: ydata[i],
       name: xdata[i],
+      namelength: -1,
       boxpoints: "all",
       jitter: 0.5,
       whiskerwidth: 0.3,
-      fillcolor: colors_a[i],
+      fillcolor: use_plotly_default_colors ? undefined : colors_a[i],
       marker: {
         size: 8,
-        color: colors_a[i]
+        color: use_plotly_default_colors ? undefined : colors_a[i],
       },
       line: {
         width: 2,
-        color: colors[i]
+        color: use_plotly_default_colors ? undefined : colors[i],
       }
     };
     data.push(result);
@@ -219,7 +218,7 @@ const HistogramComparaison = ({
   return (
     <Plot
       data={data}
-      layout={layout}
+      layout={layout_}
       config={{ displayModeBar: false }}
       useResizeHandler
       fit
@@ -367,8 +366,8 @@ class MetricsSummary extends Component {
     let search = query.toLowerCase();
     return searched.indexOf(search) >= 0;
   };
-  handleClear = () => this.setState({ selected_metrics: [] });
-  handleTagRemove = (_tag, index) => {
+  handleClearMetrics = () => this.setState({ selected_metrics: [] });
+  handleRemoveMetric = (_tag, index) => {
     this.deselectMetric(index);
   };
   getSelectedMetricIndex = metric => {
@@ -395,7 +394,7 @@ class MetricsSummary extends Component {
   };
 
   render() {
-    const { new_batch, ref_batch } = this.props;
+    const { new_batch, ref_batch, breakdown_by_tag } = this.props;
     if (new_batch === null) return <span />;
 
     let xaxis_labels = this.props.xaxis_labels || ["New", "Reference"];
@@ -414,7 +413,7 @@ class MetricsSummary extends Component {
     const { selected_metrics } = this.state;
     const clearButton =
       selected_metrics.length > 0 ? (
-        <Button icon="cross" minimal={true} onClick={this.handleClear} />
+        <Button icon="cross" minimal={true} onClick={this.handleClearMetrics} />
       ) : null;
 
     // what parameters were changed?
@@ -425,6 +424,28 @@ class MetricsSummary extends Component {
       });
     });
     let tuned_parameters_array = Array.from(tuned_parameters);
+
+    if (breakdown_by_tag) {
+      var tags = {};
+      Object.values(outputs_new).forEach(output => {
+        if (output.test_input_tags !== undefined)
+          output.test_input_tags.forEach(tag => {
+            if (tags[tag] === undefined) tags[tag] = 0;
+            tags[tag] += 1;
+          });
+      });
+      // console.log(tags)
+
+      var outputs_by_tag = {};
+      Object.values(outputs_new).forEach(output => {
+        if (output.test_input_tags !== undefined)
+          output.test_input_tags.forEach(tag => {
+            if (outputs_by_tag[tag] === undefined) outputs_by_tag[tag] = [];
+            outputs_by_tag[tag].push(output);
+          });
+      });
+      // console.log(outputs_by_tag)
+    }
 
     return (
       <div>
@@ -441,13 +462,21 @@ class MetricsSummary extends Component {
           onItemSelect={this.handleMetricSelect}
           tagRenderer={m => m.label}
           tagInputProps={{
-            onRemove: this.handleTagRemove,
+            onRemove: this.handleRemoveMetric,
             rightElement: clearButton
           }}
           noResults={noMetrics}
           selectedItems={selected_metrics}
           popoverProps={Classes.MINIMAL}
         />
+        <br/>
+        {breakdown_by_tag &&
+          Object.entries(tags).map( (tag_count, idx) => {
+            let [tag, count] = tag_count
+            return <Tag style={{ margin: '5px', background: plotly_palette(idx) }} key={tag}>
+              {count} @{tag}
+            </Tag>
+          })}
         {selected_metrics.map(m => {
           let new_values = outputs_new
             .map(o => o.metrics[m.key])
@@ -478,6 +507,15 @@ class MetricsSummary extends Component {
             else if (delta_relative > 0.01) intent = Intent.SUCCESS;
             else intent = Intent.DEFAULT;
           }
+
+          if (breakdown_by_tag) {
+            var series_by_tag = Object.values(outputs_by_tag).map(outputs =>
+              outputs
+                .map(o => o.metrics[m.key])
+                .filter(x => x !== undefined)
+                .map(o => 1 * o)
+            );
+          }
           return (
             <MetricRow key={m.key}>
               <MetricTile>
@@ -490,26 +528,43 @@ class MetricsSummary extends Component {
                 <SuccessBar success_frac={new_pc_good} />
               </MetricTile>
 
-              <MetricTile>
-                <h3 style={{ color: color_ref }}>
-                  vs {metric_formatter.format(m.scale * ref_avg)}
-                  {m.suffix}
-                </h3>
-                <h5>
-                  <Tag intent={intent}>
-                    {delta_relative > 0 ? "+" : ""}
-                    {percent_formatter.format(100 * delta_relative)}%
-                  </Tag>
-                </h5>
-                {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good} />}
-              </MetricTile>
+              {!breakdown_by_tag && (
+                <Fragment>
+                  <MetricTile>
+                    <h3 style={{ color: color_ref }}>
+                      vs {metric_formatter.format(m.scale * ref_avg)}
+                      {m.suffix}
+                    </h3>
+                    <h5>
+                      <Tag intent={intent}>
+                        {delta_relative > 0 ? "+" : ""}
+                        {percent_formatter.format(100 * delta_relative)}%
+                      </Tag>
+                    </h5>
+                    {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good} />}
+                  </MetricTile>
 
-              <HistogramComparaison
-                ref_values={ref_values}
-                new_values={new_values}
-                metric={m}
-                xaxis_labels={xaxis_labels}
-              />
+                  <HistogramComparaison
+                    series={[new_values, ref_values]}
+                    metric={m}
+                    xaxis_labels={xaxis_labels}
+                  />
+                </Fragment>
+              )}
+              {breakdown_by_tag && (
+                <Fragment>
+                  <HistogramComparaison
+                    series={series_by_tag}
+                    metric={m}
+                    xaxis_labels={Object.keys(outputs_by_tag)}
+                    use_plotly_default_colors
+                    layout={{
+                      width: 850,
+                      xaxis: { fixedrange: true, title: "", tickfont: { size: 8 }},
+                    }}
+                  />
+                </Fragment>
+              )}
             </MetricRow>
           );
         })}

@@ -91,6 +91,20 @@ const sortOutputs = (sort_by, order) => {
   };
 };
 
+const plotly_palette_colors = [
+    '#1f77b4',  // muted blue
+    '#ff7f0e',  // safety orange
+    '#2ca02c',  // cooked asparagus green
+    '#d62728',  // brick red
+    '#9467bd',  // muted purple
+    '#8c564b',  // chestnut brown
+    '#e377c2',  // raspberry yogurt pink
+    '#7f7f7f',  // middle gray
+    '#bcbd22',  // curry yellow-green
+    '#17becf'   // blue-teal
+]
+const plotly_palette = idx => plotly_palette_colors[idx % plotly_palette_colors.length]
+
 const input_test_color = (path, label) => {
   let hash = md5.array(path);
   let hash_numeric = hash.reduce(
@@ -110,5 +124,6 @@ export {
   calendarStrings,
   shortId,
   sortOutputs,
-  input_test_color
+  input_test_color,
+  plotly_palette
 };

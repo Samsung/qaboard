@@ -277,7 +277,7 @@ const make_output_filter = output_filter => {
   return o => {
     if (o.is_pending || o.is_failed) return false;
     if (output_filter.length === 0) return true;
-    let searched = `${o.test_input_path} ${o.platform} ${
+    let searched = `${o.test_input_path} ${o.platform} ${o.test_input_tags.join()} ${
       o.configuration
     }`.toLowerCase();
 

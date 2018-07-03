@@ -197,7 +197,7 @@ class Dashboard extends React.Component {
     var { selected_metrics } = this.state;
 
     // console.log(commits.size)
-    console.log(is_loaded);
+    // console.log(is_loaded);
     if (!is_loaded || commits.size === 0)
       return (
         <Container>
@@ -300,30 +300,26 @@ class Dashboard extends React.Component {
           </Card>
         </Section>
 
-        {false && (
-          <Section>
-            <Card elevation={1}>
-              <h2>KPI Status</h2>
-              <span />
-            </Card>
-          </Section>
-        )}
+        <Section>
+          <Card elevation={1}>
+            <h2>Algorithmic bottlenecks</h2>
+            <p className='pt-text-muted'>{Object.keys(linux_batch.outputs).length} offline results{" "}
+            <Link to={`/commit/${commit_id}`}>
+              <code className="pt-text-muted">
+                {pretty_commit_id}
+              </code>
+            </Link>
+            </p>
+            <MetricsSummary
+              breakdown_by_tag
+              selected_metrics={selected_metrics}
+              project={this.state.project}
+              new_batch={linux_batch}
+              ref_batch={empty_batch}
+            />
 
-        {false && (
-          <Section>
-            <Card elevation={1}>
-              <h2>Realtime on Android versus Linux on LSF</h2>
-            </Card>
-          </Section>
-        )}
-
-        {false && (
-          <Section>
-            <Card elevation={1}>
-              <h2>Algorithmic bottlenecks</h2>
-            </Card>
-          </Section>
-        )}
+          </Card>
+        </Section>
 
         {has_android && (
           <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
