@@ -19,8 +19,20 @@ db_port = os.getenv('SLAMVIZAPP_DB_PORT', 5432)
 db_name = os.getenv('SLAMVIZAPP_DB_NAME', 'slamvizapp')
 db_echo = bool(os.getenv('SLAMVIZAPP_DB_ECHO', False))
 
+
+import ujson
+import psycopg2.extras
+psycopg2.extras.register_default_json(loads=lambda x: ujson.loads)
+
 engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
-engine = create_engine(engine_url, echo=db_echo, pool_size=100, max_overflow=10)
+engine = create_engine(
+	engine_url,
+	echo=db_echo,
+	pool_size=100,
+	max_overflow=10,
+	json_deserializer=ujson.loads,
+	json_serializer=ujson.dumps,
+)
 
 try:
   if not database_exists(engine.url):
