@@ -187,7 +187,10 @@ def latest_successful_commit(session, project_id, branch, within_last=5):
   ci_commits = (session
                 .query(CiCommit)
                 .options(joinedload(CiCommit.batches))
-                .filter(CiCommit.project_id==project_id)
+                .filter(
+                  CiCommit.project_id==project_id,
+                  CiCommit.branch==branch
+                )
                 .order_by(CiCommit.authored_datetime.desc())
                 .limit(within_last)
                )
