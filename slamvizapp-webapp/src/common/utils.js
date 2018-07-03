@@ -91,6 +91,45 @@ const sortOutputs = (sort_by, order) => {
   };
 };
 
+
+
+const filter_batch = (batch, filter_values) => {
+  if (filter_values.length === 0) return batch;
+  let filter_tokens = filter_values
+    .toLowerCase()
+    .replace(/"/g, "")
+    .replace(/=+/g, ":")
+    .split(" ");
+
+  let batch_filtered = Object.create(batch); // copy
+  batch_filtered.outputs = {};
+
+  Object.entries(batch.outputs).forEach(([id, output]) => {
+    let extra_parameters_s =
+      Object.keys(output.extra_parameters).length > 0
+        ? JSON.stringify(output.extra_parameters)
+        : "";
+    let extra_parameters = extra_parameters_s.replace(/"/g, "");
+    let searched = `${output.test_input_path} ${output.platform} ${
+      output.configuration
+    } ${output.test_input_tags.join()} ${extra_parameters}`.toLowerCase();
+
+    let negative_filter_tokens = filter_tokens
+      .filter(t => t[0] === "-")
+      .map(t => t.substring(1));
+    if (negative_filter_tokens.some(token => searched.includes(token)))
+      return;
+
+    let positive_filter_tokens = filter_tokens.filter(t => t[0] !== "-");
+    let found = positive_filter_tokens.every(token =>
+      searched.includes(token)
+    );
+    if (positive_filter_tokens.length === 0 || found)
+      batch_filtered.outputs[id] = output;
+  });
+  return batch_filtered;
+};
+
 const plotly_palette_colors = [
     '#1f77b4',  // muted blue
     '#ff7f0e',  // safety orange
@@ -124,6 +163,7 @@ export {
   calendarStrings,
   shortId,
   sortOutputs,
+  filter_batch,
   input_test_color,
   plotly_palette
 };

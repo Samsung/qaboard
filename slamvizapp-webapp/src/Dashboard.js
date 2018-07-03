@@ -3,6 +3,7 @@ import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import { get } from "axios";
 import moment from "moment";
+import qs from "qs";
 
 import {
   Card,
@@ -12,14 +13,16 @@ import {
   Tab,
   Button,
   MenuItem,
-  Colors
+  Colors,
+  FormGroup,
+  InputGroup
 } from "@blueprintjs/core";
 import { MultiSelect, Classes } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
 import { Container, Section } from "./common/containers";
 import { noMetrics } from "./common/metricSelect";
-import { shortId } from "./common/utils";
+import { shortId, filter_batch } from "./common/utils";
 
 import { CommitsEvolution } from "./CommitsEvolution";
 import { MetricsSummary } from "./MetricsSummary";
@@ -45,6 +48,7 @@ class Dashboard extends React.Component {
       commits: new Map(),
 
       latest_commit: null,
+      filter: '',
       sort_by: metrics[project].default_metric,
       sort_order: -1,
       aggregation_metrics,
@@ -130,6 +134,20 @@ class Dashboard extends React.Component {
         });
     });
   }
+
+
+  UpdateFilter = e => {
+    this.setState({ filter: e.target.value });
+    let query = qs.parse(this.props.location.search);
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: qs.stringify({
+        ...query,
+        filter: e.target.value
+      })
+    });
+  };
+
 
   renderMetric = (metric, { handleClick, modifiers, query }) => {
     if (!modifiers.matchesPredicate) {
@@ -229,6 +247,10 @@ class Dashboard extends React.Component {
       empty_batch;
     let has_android = Object.keys(android_batch.outputs).length > 0;
 
+
+    linux_batch = filter_batch(linux_batch, this.state.filter);
+    android_batch = filter_batch(android_batch, this.state.filter);
+
     // console.log(linux_batch)
     // console.log(android_batch)
     // console.log(has_android)
@@ -269,7 +291,6 @@ class Dashboard extends React.Component {
       <Container>
         <Section>
           <h1>SLAM Dashboard</h1>
-
           <DateRangeInput
             value={date_range}
             maxDate={new Date()}
@@ -284,6 +305,23 @@ class Dashboard extends React.Component {
             }}
             shortcuts
           />
+          <FormGroup
+            labelFor="filter-input"
+            helperText={`${
+              !this.state.filter
+                ? "You can filter all the data - except the improvement over time plot below."
+                : ""
+            }`}
+          >
+            <InputGroup
+              value={this.state.filter}
+              placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
+              onChange={this.UpdateFilter}
+              type="search"
+              leftIcon="search"
+              style={{width: '490px'}}
+            />
+          </FormGroup>
           {!is_loaded && <Spinner />}
         </Section>
 
