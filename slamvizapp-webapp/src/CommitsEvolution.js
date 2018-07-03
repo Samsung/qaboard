@@ -7,7 +7,7 @@ import { Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 import { metrics } from "./metrics";
 import { OutputCard } from "./OutputCard";
-import { input_test_color, matching_output } from "./common/utils";
+import { input_test_color, matching_output, average, median } from "./common/utils";
 
 import { CommitRow } from "./CommitRow";
 
@@ -43,15 +43,6 @@ let layout = {
   // },
 };
 
-const has_all_metrics = (commit, metrics, aggregation) => {
-  for (var index in metrics) {
-    let metric = metrics[index];
-    if (!commit.batches.default.aggregated_metrics[`${metric}_${aggregation}`])
-      return false;
-  }
-  return true;
-};
-
 // const CommitsEvolution1D = ({ commits, metrics, aggregation, available_metrics }) => {
 //   let shown_metrics = metrics || [default_metric];
 //   let shown_aggregation = aggregation || 'median';
@@ -80,6 +71,16 @@ const has_all_metrics = (commit, metrics, aggregation) => {
 //               );
 //   return <Plot data={traces} layout={layout}/>
 // }
+
+const has_all_metrics = (commit, metrics, aggregation) => {
+  for (var index in metrics) {
+    let metric = metrics[index];
+    if (!commit.batches.default.aggregated_metrics[`${metric}_${aggregation}`])
+      return false;
+  }
+  return true;
+};
+
 
 class CommitsEvolutionPerBatch extends React.Component {
   constructor(props) {
@@ -116,6 +117,7 @@ class CommitsEvolutionPerBatch extends React.Component {
 
   componentWillReceiveProps(nextProps) {
     if (
+      nextProps.output_filter !== this.props.output_filter ||
       nextProps.commits !== this.props.commits ||
       nextProps.metrics[0] !== this.props.metrics[0] ||
       nextProps.aggregation !== this.props.aggregation
@@ -124,13 +126,21 @@ class CommitsEvolutionPerBatch extends React.Component {
   }
 
   updateTraces(props) {
-    const { commits, metrics, aggregation, available_metrics } = props;
+    const { commits, metrics, aggregation, available_metrics, per_output_granularity, output_filter } = props;
     let shown_metrics = metrics;
     let shown_batches = ["default", "ci-android-rt", "manual-android-rt"];
     let shown_aggregation = aggregation || "median";
-    let valid_commits = commits
-      .filter(c => !!c.batches.default)
-      .filter(c => has_all_metrics(c, metrics, shown_aggregation));
+
+    let valid_commits // fixme remove this shit
+    if (!per_output_granularity) {
+      valid_commits = commits
+        .filter(c => !!c.batches.default)
+        .filter(c => has_all_metrics(c, metrics, shown_aggregation));      
+    } else {
+      valid_commits = commits;
+    }
+    const output_filter_ = per_output_granularity ? make_output_filter(output_filter) : null;
+
     // TODO: remove outliers
     let traces = [];
     let traces_metadata = [];
@@ -157,6 +167,35 @@ class CommitsEvolutionPerBatch extends React.Component {
           c => c.batches[label] !== undefined
         );
         if (commits_with_batch.length > 0) {
+          let y;
+          if (!per_output_granularity) {
+            y = commits_with_batch
+                .map(
+                  c =>
+                    c.batches[label].aggregated_metrics[
+                      `${metric.key}_${shown_aggregation}`
+                    ]
+                )
+
+          } else {
+            let aggregation_func = shown_aggregation === 'median' ? median : average;
+            y = commits_with_batch
+                  .map(c => Object.values(c.batches[label].outputs)
+                                  .filter(output_filter_)
+                  )
+                  .map(outputs => outputs.map(o=> o.metrics[metric.key]) )
+                  .map(values => aggregation_func(values) )
+            console.log(y)
+          }
+
+          // clamp ouliers
+          y = y.map(x =>
+                    x === undefined || x === null || isNaN(x)
+                      ? null
+                      : x < 20 * metric.threshold
+                        ? x * metric.scale
+                        : 20 * metric.threshold * metric.scale
+          )
           let trace = {
             name: `${name[label]} ${
               shown_metrics.length > 1 ? metric.label : ""
@@ -164,21 +203,7 @@ class CommitsEvolutionPerBatch extends React.Component {
             type: "scatter",
             mode: "lines+markers",
             x: commits_with_batch.map(c => c.authored_datetime),
-            y: commits_with_batch
-              .map(
-                c =>
-                  c.batches[label].aggregated_metrics[
-                    `${metric.key}_${shown_aggregation}`
-                  ]
-              )
-              .map(
-                x =>
-                  x === undefined || x === null
-                    ? null
-                    : x < 20 * metric.threshold
-                      ? x * metric.scale
-                      : 20 * metric.threshold * metric.scale
-              ),
+            y: y,
             text: valid_commits.map(c => c.message),
             marker: {
               size: 10,
@@ -277,7 +302,7 @@ const make_output_filter = output_filter => {
   return o => {
     if (o.is_pending || o.is_failed) return false;
     if (output_filter.length === 0) return true;
-    let searched = `${o.test_input_path} ${o.platform} ${o.test_input_tags.join()} ${
+    let searched = `${o.test_input_path} ${o.platform} ${(o.test_input_tags || []).join()} ${
       o.configuration
     }`.toLowerCase();
 
@@ -547,7 +572,7 @@ class CommitsEvolution extends Component {
       main_metrics: metrics[project].main_metrics,
       selected_metric: metrics[project].default_metric,
       selected_aggregation: "median",
-      output_filter: "lsf",
+      output_filter: "",
       relative: true,
       details_on_hover: false
     };
@@ -561,7 +586,7 @@ class CommitsEvolution extends Component {
   };
 
   render() {
-    const { project, commits, style, offer_breakdown_per_test } = this.props;
+    const { project, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
@@ -636,19 +661,20 @@ class CommitsEvolution extends Component {
                     this.setState({ details_on_hover: !details_on_hover });
                   }}
                 />
-                <FormGroup labelFor="filter-input" inline>
-                  <InputGroup
-                    value={output_filter}
-                    placeholder="filter by input path"
-                    onChange={e =>
-                      this.setState({ output_filter: e.target.value })
-                    }
-                    type="search"
-                    leftIcon="search"
-                  />
-                </FormGroup>
               </Fragment>
             )}
+          { (per_output_granularity || (offer_breakdown_per_test && breakdown_per_test)) &&
+              <FormGroup labelFor="filter-input" inline>
+                <InputGroup
+                  value={output_filter}
+                  placeholder="filter by input path, tag, configuration..."
+                  onChange={e =>
+                    this.setState({ output_filter: e.target.value })
+                  }
+                  type="search"
+                  leftIcon="search"
+                />
+              </FormGroup>}
         </FormGroup>
         {breakdown_per_test ? (
           <CommitsEvolutionPerMovie
@@ -663,8 +689,10 @@ class CommitsEvolution extends Component {
           <CommitsEvolutionPerBatch
             commits={commits}
             metrics={[selected_metric]}
+            output_filter={output_filter}
             aggregation={selected_aggregation}
             available_metrics={available_metrics}
+            per_output_granularity={per_output_granularity}
           />
         )}
       </div>

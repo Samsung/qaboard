@@ -305,23 +305,6 @@ class Dashboard extends React.Component {
             }}
             shortcuts
           />
-          <FormGroup
-            labelFor="filter-input"
-            helperText={`${
-              !this.state.filter
-                ? "You can filter all the data - except the improvement over time plot below."
-                : ""
-            }`}
-          >
-            <InputGroup
-              value={this.state.filter}
-              placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
-              onChange={this.UpdateFilter}
-              type="search"
-              leftIcon="search"
-              style={{width: '490px'}}
-            />
-          </FormGroup>
           {!is_loaded && <Spinner />}
         </Section>
 
@@ -329,7 +312,7 @@ class Dashboard extends React.Component {
           <Card elevation={1} style={{ breakInside: "avoid" }}>
             <h2>Improvement over time</h2>
             <CommitsEvolution
-              selected_metrics={["translation_aape", "rotation_error"]}
+              per_output_granularity
               offer_breakdown_per_test={true}
               project={this.state.project}
               commits={selected_commits}
@@ -337,6 +320,24 @@ class Dashboard extends React.Component {
             />
           </Card>
         </Section>
+
+        <FormGroup
+          labelFor="filter-input"
+          helperText={`${
+            !this.state.filter
+              ? "You can filter all the data below."
+              : ""
+          }`}
+        >
+          <InputGroup
+            value={this.state.filter}
+            placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
+            onChange={this.UpdateFilter}
+            type="search"
+            leftIcon="search"
+            style={{width: '800px'}}
+          />
+        </FormGroup>
 
         <Section>
           <Card elevation={1}>

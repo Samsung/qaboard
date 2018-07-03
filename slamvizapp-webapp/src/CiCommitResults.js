@@ -26,7 +26,7 @@ import { Container, Section } from "./common/containers";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { MetricsSummary } from "./MetricsSummary";
 
-import { matching_output, sortOutputs } from "./common/utils";
+import { matching_output, sortOutputs, filter_batch } from "./common/utils";
 import { TableCompare, TableKpi } from "./Tables";
 import { BatchLogs } from "./BatchLogs";
 import { CommitParameters } from "./Parameters";
@@ -275,43 +275,6 @@ class CiCommitResults extends Component {
     }
   };
 
-  filter_batch = (batch, filter_values) => {
-    if (filter_values.length === 0) return batch;
-    let filter_tokens = filter_values
-      .toLowerCase()
-      .replace(/"/g, "")
-      .replace(/=+/g, ":")
-      .split(" ");
-
-    let batch_filtered = Object.create(batch); // copy
-    batch_filtered.outputs = {};
-
-    Object.entries(batch.outputs).forEach(([id, output]) => {
-      let extra_parameters_s =
-        Object.keys(output.extra_parameters).length > 0
-          ? JSON.stringify(output.extra_parameters)
-          : "";
-      let extra_parameters = extra_parameters_s.replace(/"/g, "");
-      let searched = `${output.test_input_path} ${output.platform} ${
-        output.configuration
-      } ${output.test_input_tags.join()} ${extra_parameters}`.toLowerCase();
-
-      let negative_filter_tokens = filter_tokens
-        .filter(t => t[0] === "-")
-        .map(t => t.substring(1));
-      if (negative_filter_tokens.some(token => searched.includes(token)))
-        return;
-
-      let positive_filter_tokens = filter_tokens.filter(t => t[0] !== "-");
-      let found = positive_filter_tokens.every(token =>
-        searched.includes(token)
-      );
-      if (positive_filter_tokens.length === 0 || found)
-        batch_filtered.outputs[id] = output;
-    });
-    return batch_filtered;
-  };
-
   selectSortBy = e => {
     this.setState({ sort_by: e.target.value });
   };
@@ -463,8 +426,8 @@ class CiCommitResults extends Component {
     let new_batch = new_commit.batches[selected_batch_new];
     let ref_batch = ref_commit.batches[selected_batch_ref];
 
-    let new_batch_filtered = this.filter_batch(new_batch, filter_batch_new);
-    let ref_batch_filtered = this.filter_batch(ref_batch, filter_batch_ref);
+    let new_batch_filtered = filter_batch(new_batch, filter_batch_new);
+    let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
     let nb_running = Object.values(new_batch_filtered.outputs).filter(
       o => o.is_running
     ).length;

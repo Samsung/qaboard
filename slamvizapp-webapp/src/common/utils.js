@@ -10,6 +10,15 @@ const calendarStrings = {
   sameElse: "L"
 };
 
+const average = array => {
+  return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
+};
+const median = array => {
+  // fixme
+  return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
+};
+
+
 const groupBy = (array, prop) => {
   return array.reduce(function(groups, item) {
     var val = item[prop];
@@ -157,6 +166,8 @@ const input_test_color = (path, label) => {
 };
 
 export {
+  average,
+  median,
   groupBy,
   groupByObject,
   matching_output,

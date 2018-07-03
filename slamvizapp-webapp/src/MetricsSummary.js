@@ -15,7 +15,7 @@ import { MultiSelect, Classes } from "@blueprintjs/select";
 
 import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
-import { plotly_palette } from "./common/utils";
+import { average, plotly_palette } from "./common/utils";
 
 import createPlotlyComponent from "react-plotly.js/factory";
 const Plot = createPlotlyComponent(Plotly);
@@ -236,9 +236,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
 const run_type = output =>
   `${output.test_input_path}-${output.platform}-${output.configuration}`;
 
-const average = array => {
-  return array.reduce((a, b) => a + b, 0) / array.length;
-};
 const pc_under_threshold = (array, threshold) => {
   return array.filter(x => x <= threshold).length / array.length;
 };
@@ -484,8 +481,7 @@ class MetricsSummary extends Component {
             .map(o => 1 * o);
           if (new_values.length === 0) return <Fragment key={m.key} />;
           let ref_values = outputs_ref
-            .map(o => o.metrics[m.key])
-            .filter(x => x !== undefined);
+            .map(o => o.metrics[m.key]);
           let new_avg = average(new_values);
           let ref_avg = average(ref_values);
           let new_pc_good = m.smaller_is_better
