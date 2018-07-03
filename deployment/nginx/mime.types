@@ -10,7 +10,7 @@ types {
     application/rss+xml                   rss;
 
     text/mathml                           mml;
-    text/plain                            txt log;
+    text/plain                            txt csv log;
     text/vnd.sun.j2me.app-descriptor      jad;
     text/vnd.wap.wml                      wml;
     text/x-component                      htc;
