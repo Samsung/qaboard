@@ -5,9 +5,9 @@ It might by a CI job, or tuning experiments.
 import datetime
 import json
 from pathlib import Path
+from functools import lru_cache
 
 import numpy as np
-
 from sqlalchemy import ForeignKey, Integer, String, DateTime
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
@@ -42,6 +42,7 @@ class Batch(Base):
     return self.ci_commit.commit_dir / self.output_folder
 
   @property
+  @lru_cache()
   def output_dir_url(self):
     return self.ci_commit.commit_dir_url / self.output_folder
 
