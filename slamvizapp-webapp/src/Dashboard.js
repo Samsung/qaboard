@@ -290,7 +290,7 @@ class Dashboard extends React.Component {
     return (
       <Container>
         <Section>
-          <h1>SLAM Dashboard</h1>
+          <h1>Dashboard</h1>
           <DateRangeInput
             value={date_range}
             maxDate={new Date()}
@@ -339,27 +339,6 @@ class Dashboard extends React.Component {
           />
         </FormGroup>
 
-        <Section>
-          <Card elevation={1}>
-            <h2>Algorithmic bottlenecks</h2>
-            <p className='pt-text-muted'>{Object.keys(linux_batch.outputs).length} offline results{" "}
-            <Link to={`/commit/${commit_id}`}>
-              <code className="pt-text-muted">
-                {pretty_commit_id}
-              </code>
-            </Link>
-            </p>
-            <MetricsSummary
-              breakdown_by_tag
-              selected_metrics={selected_metrics}
-              project={this.state.project}
-              new_batch={linux_batch}
-              ref_batch={empty_batch}
-            />
-
-          </Card>
-        </Section>
-
         {has_android && (
           <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
             <Card elevation={0}>
@@ -395,6 +374,28 @@ class Dashboard extends React.Component {
             </Card>
           </Section>
         )}
+
+
+        <Section>
+          <Card elevation={1}>
+            <h2>Algorithmic bottlenecks</h2>
+            <p className='pt-text-muted'>{Object.keys(linux_batch.outputs).length} offline results{" "}
+            <Link to={`/commit/${commit_id}`}>
+              <code className="pt-text-muted">
+                {pretty_commit_id}
+              </code>
+            </Link>
+            </p>
+            <MetricsSummary
+              breakdown_by_tag
+              selected_metrics={selected_metrics}
+              project={this.state.project}
+              new_batch={linux_batch}
+              ref_batch={empty_batch}
+            />
+
+          </Card>
+        </Section>
 
         <Section>
           <div>
