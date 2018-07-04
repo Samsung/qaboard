@@ -15,7 +15,7 @@ import { MultiSelect, Classes } from "@blueprintjs/select";
 
 import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
-import { average, plotly_palette } from "./common/utils";
+import { median, plotly_palette } from "./common/utils";
 
 import createPlotlyComponent from "react-plotly.js/factory";
 const Plot = createPlotlyComponent(Plotly);
@@ -482,16 +482,16 @@ class MetricsSummary extends Component {
           if (new_values.length === 0) return <Fragment key={m.key} />;
           let ref_values = outputs_ref
             .map(o => o.metrics[m.key]);
-          let new_avg = average(new_values);
-          let ref_avg = average(ref_values);
+          let new_med = median(new_values);
+          let ref_med = median(ref_values);
           let new_pc_good = m.smaller_is_better
             ? pc_under_threshold(new_values, m.threshold)
             : pc_over_threshold(new_values, m.threshold);
           let ref_pc_good = m.smaller_is_better
             ? pc_under_threshold(ref_values, m.threshold)
             : pc_over_threshold(ref_values, m.threshold);
-          let delta = new_avg - ref_avg;
-          let delta_relative = delta / ref_avg;
+          let delta = new_med - ref_med;
+          let delta_relative = delta / ref_med;
 
           var intent;
           if (m.smaller_is_better) {
@@ -516,9 +516,9 @@ class MetricsSummary extends Component {
             <MetricRow key={m.key}>
               <MetricTile>
                 <h3>
-                  {metric_formatter.format(m.scale * new_avg)}
+                  {metric_formatter.format(m.scale * new_med)}
                   {m.suffix}
-                  <span style={{ color: "#ccc" }}> avg</span>
+                  <span style={{ color: "#ccc" }}> median</span>
                 </h3>
                 <h5>{m.label}</h5>
                 <SuccessBar success_frac={new_pc_good} />
@@ -528,7 +528,7 @@ class MetricsSummary extends Component {
                 <Fragment>
                   <MetricTile>
                     <h3 style={{ color: color_ref }}>
-                      vs {metric_formatter.format(m.scale * ref_avg)}
+                      vs {metric_formatter.format(m.scale * ref_med)}
                       {m.suffix}
                     </h3>
                     <h5>
