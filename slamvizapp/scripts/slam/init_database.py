@@ -28,6 +28,7 @@ def init_slam_database(verbose=False):
   init_recordings()
   # import QA's manual runs...
   init_slam_manual_runs(verbose=True)
+  return
 
   session = Session()
   project = Project.get_or_create(session=session, id='dvs/psp_swip')
@@ -124,11 +125,13 @@ def init_slam_manual_runs(verbose=False):
   re_commit_id = '(?P<commit_id>[A-Za-z0-9]*)'
   re_message = '(?P<message>.*)'
   re_label = '((?P<label>[a-zA-Z0-9-]))?'
-  id_parser = re.compile(f'^{re_datetime}__local__{re_author}__EXPORT{re_label}_{re_commit_id}(?:_{re_message})*')
+  id_parser = re.compile(f'^{re_datetime}__local__{re_author}__EXPORT{re_label}_{re_commit_id}(:?_{re_message})*')
 
   for folder in manual_runs_root.iterdir():
     if not folder.is_dir(): continue
     matches = id_parser.match(str(folder.name))
+    print(folder.name)
+    print(matches)
     if not matches: continue
     matches = matches.groupdict()
     commid_id = matches['commit_id']
@@ -136,13 +139,12 @@ def init_slam_manual_runs(verbose=False):
     if commid_id=='PC': continue
     if commid_id=='Android': continue
 
+    if verbose: print(f'{folder.name}   {label}')
     import_slam_manual_run(folder, commid_id, label, verbose=True)
-    if verbose: print(folder.name)
 
 
 
-
-def import_slam_manual_run(folder, commit_short_id, verbose=False):
+def import_slam_manual_run(folder, commit_short_id, label, verbose=False):
   session = Session()
   project = Project.get_or_create(session=session, id='dvs/psp_swip')
   repo = repos[project.id]
@@ -156,7 +158,7 @@ def import_slam_manual_run(folder, commit_short_id, verbose=False):
   commit = repo.commit(commit_short_id)
   ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
   # if verbose: print(f'  {ci_commit}')
-  batch_android = ci_commit.get_or_create_batch(batch_label)
+  batch_android = ci_commit.get_or_create_batch(label)
 
   output_dirs = [p.parent for p in folder_path.rglob('metrics.json')]
   # print(folder_path)
