@@ -572,7 +572,7 @@ class CommitsEvolution extends Component {
       main_metrics: metrics[project].main_metrics,
       selected_metric: metrics[project].default_metric,
       selected_aggregation: "median",
-      output_filter: "",
+      output_filter: "small-scale",
       relative: true,
       details_on_hover: false
     };
