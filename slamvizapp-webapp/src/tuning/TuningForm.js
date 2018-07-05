@@ -325,12 +325,14 @@ class TuningForm extends Component {
   constructor(props) {
     super(props);
     const { cookies } = this.props;
+    let legacy_bad_config = cookies.get("configuration") === "stereo-serial";
+    let configuration = legacy_bad_config ?  "serial-stereo" : ( cookies.get("configuration") || "serial-stero" )
     this.state = {
       submitted: false,
       experiment_name: cookies.get("experiment_name") || "",
       platform: cookies.get("platform") || "lsf",
       android_device: "openstf",
-      configuration: cookies.get("configuration") || "serial-stereo",
+      configuration,
       selected_group: cookies.get("selected_group") || "",
       selected_group_info: {
         number_of_recordings: 0
@@ -608,7 +610,7 @@ class TuningForm extends Component {
 
         <FormGroup
           label="You can choose any of the available configuration"
-          helperText="&quot;stereo-serial&quot; is the SLAM default, &quot;stereo&quot; the TOF default. Configurations are saved as $configuration.json, e.g. &quot;mono_mode&quot;."
+          helperText="&quot;serial-stereo&quot; is the SLAM default, &quot;stereo&quot; the TOF default. Configurations are saved as $configuration.json, e.g. &quot;mono_mode&quot;."
           labelFor="input-configuration"
           requiredLabel={true}
         >
@@ -617,7 +619,7 @@ class TuningForm extends Component {
             className="pt-input"
             style={{ width: "300px" }}
             value={configuration}
-            placeholder="stereo-serial"
+            placeholder="serial-stereo"
             onChange={this.updateConfiguration}
             type="text"
             dir="auto"
