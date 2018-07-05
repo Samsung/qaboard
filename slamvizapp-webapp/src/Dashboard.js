@@ -48,12 +48,13 @@ class Dashboard extends React.Component {
       commits: new Map(),
 
       latest_commit: null,
-      filter: '',
+      filter: 'small-scale',
       sort_by: metrics[project].default_metric,
       sort_order: -1,
       aggregation_metrics,
 
       available_metrics,
+      evolution_metrics: metrics[project].dashboard_evolution_metrics || metrics[project].main_metrics,
       selected_metrics: metrics[project].dashboard_metrics.map(
         k => available_metrics[k]
       )
@@ -312,10 +313,11 @@ class Dashboard extends React.Component {
           <Card elevation={1} style={{ breakInside: "avoid" }}>
             <h2>Improvement over time</h2>
             <CommitsEvolution
-              per_output_granularity
-              offer_breakdown_per_test={true}
               project={this.state.project}
               commits={selected_commits}
+              select_metrics={this.state.evolution_metrics}
+              per_output_granularity
+              offer_breakdown_per_test={true}
               style={{ marginTop: "20px" }}
             />
           </Card>

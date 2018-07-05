@@ -225,6 +225,16 @@ const main_metrics = [
   "rotation_mean",
   "translation_drift_pc"
 ];
+
+const dashboard_evolution_metrics = [
+  "translation_aape",
+  "translation_rmse",
+  "translation_aape_pc",
+  "translation_rmse_pc",
+  "rotation_mean",
+  "translation_drift_pc"
+]
+
 const dashboard_metrics = [
   "is_failed",
   "translation_aape",
@@ -242,5 +252,6 @@ export {
   default_metric,
   main_metrics,
   summary_metrics,
-  dashboard_metrics
+  dashboard_metrics,
+  dashboard_evolution_metrics
 };

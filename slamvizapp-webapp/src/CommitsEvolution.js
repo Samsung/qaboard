@@ -104,6 +104,29 @@ class CommitsEvolutionPerBatch extends React.Component {
       e.points[0].curveNumber
     ];
     let commit = commits[e.points[0].pointNumber];
+    if (this.props.per_output_granularity && this.props.output_filter.length>0) {
+      const output_filter_ = make_output_filter(this.props.output_filter);
+      Object.keys(commit.batches).forEach(label => {
+        let outputs = commit.batches[label].outputs
+        commit.batches[label].failed_outputs = 0;
+        commit.batches[label].valid_outputs = 0;
+        commit.batches[label].pending_outputs = 0;
+        let filtered_outputs = {}
+        Object.entries(outputs).forEach( ([key, output]) => {
+          if (output_filter_(output)) {
+            filtered_outputs[key] = output
+            if (output.is_pending) {
+              commit.batches[label].pending_outputs += 1
+            } else if (output.is_failed) {
+              commit.batches[label].failed_outputs += 1;
+            } else {
+              commit.batches[label].valid_outputs += 1;
+            }
+          }
+        })
+        commit.batches[label].outputs = filtered_outputs;
+      })
+    }
     this.setState({
       hovered: true,
       hovered_label: label,
@@ -185,7 +208,6 @@ class CommitsEvolutionPerBatch extends React.Component {
                   )
                   .map(outputs => outputs.map(o=> o.metrics[metric.key]) )
                   .map(values => aggregation_func(values) )
-            console.log(y)
           }
 
           // clamp ouliers
@@ -569,7 +591,7 @@ class CommitsEvolution extends Component {
     const { project } = props;
     this.state = {
       available_metrics: metrics[project].available_metrics,
-      main_metrics: metrics[project].main_metrics,
+      select_metrics: this.props.select_metrics || metrics[project].main_metrics,
       selected_metric: metrics[project].default_metric,
       selected_aggregation: "median",
       output_filter: "small-scale",
@@ -595,7 +617,7 @@ class CommitsEvolution extends Component {
       relative,
       details_on_hover
     } = this.state;
-    const { available_metrics, main_metrics } = this.state;
+    const { available_metrics, select_metrics } = this.state;
 
     if (project !== "dvs/psp_swip" && project !== "tof/swip_tof")
       return <div>This project is not supported yet!</div>;
@@ -609,7 +631,7 @@ class CommitsEvolution extends Component {
               defaultValue={metrics[this.state.project].default_metric}
               onChange={this.selectMetric}
             >
-              {main_metrics.map(m => (
+              {select_metrics.map(m => (
                 <option key={available_metrics[m].key} value={m}>
                   {available_metrics[m].label}
                 </option>
