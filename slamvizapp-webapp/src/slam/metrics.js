@@ -30,6 +30,26 @@ const available_metrics = {
     smaller_is_better: true
   },
 
+  translation_rmse_pc: {
+    key: "translation_rmse_pc",
+    label: "Relative Translation RMSE",
+    short_label: "tRMSE",
+    scale: 100,
+    suffix: "%",
+    threshold: 0.015,
+    smaller_is_better: true
+  },
+
+  translation_aape_pc: {
+    key: "translation_aape_pc",
+    label: "Relative Translation AAPE",
+    short_label: "tAAPE",
+    scale: 100,
+    suffix: "%",
+    threshold: 0.015,
+    smaller_is_better: true
+  },
+
   relative_translation_error: {
     key: "relative_translation_error",
     label: "Relative Translation Error",
@@ -209,6 +229,8 @@ const dashboard_metrics = [
   "is_failed",
   "translation_aape",
   "translation_rmse",
+  "translation_aape_pc",
+  "translation_rmse_pc",
   "rotation_mean",
   "translation_drift_pc",
   "processing_time_med",
