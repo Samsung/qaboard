@@ -907,6 +907,7 @@ class OutputList extends React.Component {
                   show_debug={show_debug}
                   show_videos={show_videos}
                   show_3d={show_3d}
+                  select_debug={this.state.select_debug}
                 />
               );
             })}
