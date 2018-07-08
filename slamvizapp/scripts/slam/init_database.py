@@ -130,8 +130,8 @@ def init_slam_manual_runs(verbose=False):
   for folder in manual_runs_root.iterdir():
     if not folder.is_dir(): continue
     matches = id_parser.match(str(folder.name))
-    print(folder.name)
-    print(matches)
+    # print(folder.name)
+    # print(matches)
     if not matches: continue
     matches = matches.groupdict()
     commid_id = matches['commit_id']
