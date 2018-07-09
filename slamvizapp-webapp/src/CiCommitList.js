@@ -198,7 +198,7 @@ class CiCommitList extends React.Component {
         <Section>
           <h3>
             Reports for{" "}
-            <Link to="/branch/origin/develop">
+            <Link to={`/branch/origin/develop?project=${project}`}>
               <Button icon="git-branch">develop</Button>
             </Link>
           </h3>
@@ -269,11 +269,11 @@ class CiCommitList extends React.Component {
       );
 
     let link_to_tag = is_branch ? (
-      <Link to={`/branch/${tag}`}>
+      <Link to={`/branch/${tag}?project=${project}`}>
         <Button icon="git-branch">{tag}</Button>
       </Link>
     ) : is_committer ? (
-      <Link to={`/committer/${tag}`}>
+      <Link to={`/committer/${tag}?project=${project}`}>
         <Button icon="user">{tag}</Button>
       </Link>
     ) : (

@@ -97,7 +97,7 @@ class CommitResults extends React.Component {
           </Tag>
         )}
         {ci_batch.failed_outputs > 0 && (
-          <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}`}>
+          <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
             <Button intent={Intent.DANGER} className="pt-minimal">
               {ci_batch.failed_outputs} crashed
             </Button>
