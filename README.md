@@ -6,6 +6,7 @@
 ## Usage
 1. Create a cli.py file, and a configuration file.
 2. CLI usage
+
 ```bash
 qa --test-input-path my/test run
 qa --platform android --configuration real-time --test-input-path my/test run
