@@ -326,7 +326,7 @@ class TuningForm extends Component {
     super(props);
     const { cookies } = this.props;
     let legacy_bad_config = cookies.get("configuration") === "stereo-serial";
-    let configuration = legacy_bad_config ?  "serial-stereo" : ( cookies.get("configuration") || "serial-stero" )
+    let configuration = legacy_bad_config ?  "serial-stereo" : ( cookies.get("configuration") || "serial-stereo" )
     this.state = {
       submitted: false,
       experiment_name: cookies.get("experiment_name") || "",
