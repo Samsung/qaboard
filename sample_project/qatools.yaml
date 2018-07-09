@@ -1,0 +1,42 @@
+project:
+  name: my_group/sample_project
+  type: git
+  url: git@gitlab-srv/my_group/sample_project
+
+inputs:
+  default_database: /stage/algo_data/my_database
+  # when running a batch of recording
+  # we need to identify recordings
+  suffix: '.bin' # identifies files ending in .bin
+  # in_folder: 'Frame0/' # identifies folders containing a subfolder named Frame0
+  # this determines how the GUI application displays the results
+  default_output_type: tof/depth
+
+executable:
+  windows: x64/release/UnitTests.exe
+  unix: build/psp_swip_test
+  ci: build_lsf/psp_swip_test
+
+# for local runs, usually overridden by the CI
+working_directory: swip_slam/UnitTests/RunningTime
+# bit-accuracy tests need data from previous commits
+default_ci_root_directory: /home/arthurf/ci
+
+# After the build, you should invoke `save_artifacts` (TODO)
+# This lets you eg run the tests on LSF or view the configurations used in the web UI
+# Note: we don't use standard (even gitlab's) tools for artifact management. Maybe we should.
+artifacts:
+  - binary:
+    path: ''
+    to: ''
+    glob: ''
+  # We will our configuration files for easy access from the QA's UI.
+  - configuration: 
+    path: swip_slam/UnitTests/RunningTime
+    to: ''
+    glob: '*.json'
+  - android_application:
+    path: ''
+    to: ''
+    glob: ''
+

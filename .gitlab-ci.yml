@@ -1,0 +1,13 @@
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  script:
+    - pip install .
+
+test:
+  stage: test
+  script:
+    - python -munittest
