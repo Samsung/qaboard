@@ -15,14 +15,17 @@ setup(
 
   python_requires='>3.6',
   install_requires=[
-    'requests',
-    'click',
+    'click', # CLI for humans
+    'requests', # HTTP for humans
+    'gitpython',
+    'sklearn', # machine learning, used only for parameter sampling
   ],
 
   entry_points='''
       [console_scripts]
+      qa=qatools.qatools:cli
       on_lsf=qatools.cli:on_lsf
-      qa_save_artifacts=qatools.cli:save_artifacts
+      qatools_save_artifacts=qatools.cli:save_artifacts
   ''',
 
   # https://setuptools.readthedocs.io/en/latest/setuptools.html#including-data-files

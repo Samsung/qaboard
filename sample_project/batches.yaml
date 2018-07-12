@@ -1,0 +1,26 @@
+---
+# list of pre-selected batches
+
+small:
+  # none: base config...
+  configuration: base
+  configuration:
+    - base
+    - d1
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+  test_with_config:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
+      - base
+      - d2
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
+      - base
+      - d2
+      
+
+  # How do we deal with a list of recordings?
+  # each get K different configurations in different orders...
+
+...
+

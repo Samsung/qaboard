@@ -4,7 +4,12 @@
 performance:
   stage: performance
   script:
-    - qa batch --recording-group small
+    - python main.py --recording=$my_recording run
+    # will use the list of batch from the file defined in the configuration 
+    - python main.py batch --group small
+
+
+    - python main.py batch --recording-group small
     # tip: you can use the `--batch-label` flag to split your tests results
 
 # FIXME: need to fix magic ENV SAMSUNG_$ variables
