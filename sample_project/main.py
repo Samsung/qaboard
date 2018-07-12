@@ -1,5 +1,5 @@
 """
-Sample implementation of a CLI wrapper using qatools
+Sample implementation of a CLI wrapper using qatools.
 """
 import subprocess
 import time
@@ -11,7 +11,6 @@ from qatools.config import database
 from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 # Whis will identify runs through GitlabCI or Jenkins.
 from qatools.config import is_ci
-
 
 def find_executable():
   """Returns the executable's path.
@@ -40,7 +39,6 @@ def find_working_directory(context):
   return Path(working_directory)
 
 
-
 # To access the CLI arguments from the user, use the context object passed to run() and postprocess().
 # Reference: http://click.pocoo.org/6/complex/
 #
@@ -54,19 +52,18 @@ def find_working_directory(context):
 #   2. read when doing post-processing
 # - etc
 
-
-
 def run(context):
-  print(context.obj)
-  filepath_abs = database / context.obj['recording_path']
+  """Sample implementation of a run() function."""
   command = ' '.join([
        f"{find_executable(context)}",
        f'--working_directory "{working_directory}"',
        f'--paramfile params.json',
        f'--paramfile {context.obj["configuration"]}',
        f'--paramfile {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
-       f'--input_path "{filepath_abs}"',
+       f'--input_path "{database / context.obj['recording_path']}"',
        f'--output_path "{context.obj["output_directory"]}"',
+       # extra flags are passed here
+       context.obj['forwarded_args'],
   ])
   print(command)
   if dryrun: return
@@ -78,14 +75,10 @@ def run(context):
   print(std_err.strip(), std_out.strip())
   return {'compute_time': time.time()-start}
 
+
 # from my_metrics import my_favorite_metric
 def postprocess(context, runtime_metrics):
-  # ground_truth = context["recording_path"] / context["recording_path"]
+  ground_truth = database / context["recording_path"].parent / 'groundtruth.txt'
   # metrics = my_favorite_metric(context["output_directory"], ground_truth)
   # save_metrics({**runtime_metrics, **metrics})
   return {}
-
-# if __name__=="__main__main"
-#   # qacli(postprocessing=postprocessing, run=run)
-#   # working directory?
-#   # add CLI options? eg --roi or --only-metric..
