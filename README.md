@@ -1,14 +1,8 @@
 # qatools
+The QA tools give you CLI tools to help you organize your results and view them in the [visualization web application](http://dvs:5000/projects).
 
-> Work in progress!
-> Refer to the [tutorial](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial)
 
-## Usage
-1. Create a cli.py file, and a configuration file.
-2. CLI usage
+## Installation and usage
+Follow the [tutorial](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial) to learn how to use this package.
 
-```bash
-qa --test-input-path my/test run
-qa --platform android --configuration real-time --test-input-path my/test run
-qa batch --group hard-tests
-```
+**work in progress**
