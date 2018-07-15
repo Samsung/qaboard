@@ -3,11 +3,13 @@ Sample implementation of a CLI wrapper using qatools.
 """
 import subprocess
 import time
+from pathlib import Path
 
 # We provide an easy way to know in which environment your code executes
 from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 # Whis will identify runs through GitlabCI or Jenkins.
 from qatools.config import is_ci
+
 
 def find_executable():
   """Returns the executable's path.
@@ -100,7 +102,7 @@ def postprocess(context, runtime_metrics):
 
 
   # Depending on the input type, you could implement different postprocessing flows
-  # if context.obj["recording_path"] == 'cis/siemens-star':
+  # if context.obj["output_type"] == 'cis/siemens-star':
   #   resolution_from_center = find_resolution_from_center(context["output_directory"]/'image.bmp')
   #   create_plot(resolution_from_center, context["output_directory"]/'resolution.jpg')
   #   ...
@@ -108,9 +110,3 @@ def postprocess(context, runtime_metrics):
   # those will be written into metrics.json
   return {**runtime_metrics, **metrics}
   return {}
-
-
-
-# FYI: if needed, this gives you direct access to the the qatools.yaml configuration, parsed
-from qatools.config import config
-# TODO: document what's availble

@@ -41,13 +41,14 @@ except Exception as e:
 @click.option('--configuration', default='base', help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="Json file with extra parameters for tuning")
-def cli(ctx, platform, configuration, batch_label, tuning_filepath):
+@click.option('--output-type', default=config['inputs']['default_output_type'], help="Override if your project needs multiple customized visualizations")
+def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type):
   """Wraps all the CLI commands, identifies the TOF run we are talking about"""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
   ctx.obj['project'] = config['project']['name']
-  ctx.obj['output_type'] = config['inputs']['default_output_type']
+  ctx.obj['output_type'] = output_type
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['database'] = database
@@ -89,7 +90,7 @@ def run(ctx, recording_path, forwarded_args):
 
     if all_metrics['is_failed']:
       click.secho('[ERROR] Your program seems to have crashed.', fg='red', err=True)
-      click.secho('Either `metric.json` is missing in the output directory, or your postprocessing set is_failed=true.', dim=True, err=True)
+      click.secho('Either `metrics.json` is missing in the output directory, or your postprocessing set "{is_failed: true}".', dim=True, err=True)
       exit(1)
 
 
@@ -104,6 +105,8 @@ def postprocess_(runtime_metrics, context):
 
 
   save_metrics(output_directory, **metrics)
+  with (output_directory/'output').open('r') as f:
+    json.dumps({'output_type': context.obj['output_type']})
   notify_qa_database(**context)
   pass
 
@@ -174,9 +177,6 @@ def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, d
     wait = Job(name, 'echo "finished waiting for jobs on LSF."')
     wait.send(interactive=True, dependencies=jobs)
 
-
-
-#   # write the output_type?
 
 if __name__ == '__main__':
   cli(obj={}, auto_envvar_prefix='QATOOLS')
