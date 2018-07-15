@@ -42,9 +42,9 @@ inputs:
     linux: /net/f2/algo_archive/DVS_SLAM_Database
     windows: F:/DVS_SLAM_Database
 
+  # where we define groups
   # relative to the root of the project
-  database_batches: qatools/batches.yml
-  metrics: qatools/metrics.json
+  groups: qatools/input_groups.yml
 
   # if you want to run all recordings under $database/sub_folder
   # you need a way to identify test inputs
@@ -53,13 +53,15 @@ inputs:
   # maybe your tests are actually the folder containing the match (eg movies with Frame0, Frame1...)
   # use_parent_folder: true
 
+
+outputs:
+  metrics: qatools/metrics.json
   # to view the qualitative results, the GUI application needs to know
   # what resources to fetch (images, movies, 6dof...).
   # Currently supported: cis/image, slam/6dof, tof/depth
   # Note: if your project create differents types of results, change accordingly
   #   ctx.obj['output_type'] = 'my/type'
-  default_output_type: slam/6dof
-
+  output_type: slam/6dof
 
 
 # After the build, you must defined what is needed to run your software:

@@ -39,10 +39,10 @@ def notify_qa_database(**kwargs):
     r = requests.post(url, json=data)
     r.raise_for_status()
   except:
+    print('WARNING: Failed to update the QA database.')
     print(r.request.headers)
     print(r.request.body)
     print(f'{r.status_code}: {r.text}')
-    print('WARNING: Failed to update the QA database.')
 
 
 def save_metrics(output_directory, **kwargs):
@@ -94,40 +94,24 @@ def slugify(s):
     s_slugified = s_slugified.replace(c, '-')
   return s_slugified
 
-def iter_recordings(recording_groups, recording_groups_file, database=database):
+def iter_recordings(groups, groups_file, database=database):
   """Returns an iterator over the recordings from the selected groups
   params:
-  - recording_groups: array of group labels
-  - recording_groups_file: yaml file
+  - groups: array of group labels
+  - groups_file: yaml file
   """
-  available_batches = yaml.load(Path(recording_groups_file).open())
-  for group in recording_groups:
+  available_batches = yaml.load(Path(groups_file).open())
+  for group in groups:
     locations = available_batches[group]
     if not locations:
       print("Warning: the selected batch is empty")
       continue
     for location in locations:
       print(location)
-      yield from [f.parent for f in (database/location).rglob('Frame0')]
-      if location.endswith('Frame0') and (database/location).is_dir():
-        yield Path(database/location).parent
-
-def iter_recordings(recording_groups, recording_groups_file, database=database):
-  """Returns an iterator over the recordings from the selected groups
-  params:
-  - recording_groups: array of group labels
-  - recording_groups_file: yaml file
-  """
-  available_batches = yaml.load(Path(recording_groups_file).open())
-  for group in recording_groups:
-    locations = available_batches[group]
-    if not locations:
-      print("Warning: the selected batch is empty")
-      continue
-    for location in locations:
-      yield from (database/location).rglob('*.bin')
-      if location.endswith('.bin') and (database/location).is_file():
-        yield Path(database/location)
+      maybe_parent = lambda path: path.parent if config['inputs']['is_parents'] else path
+      yield from [maybe_parent(f) for f in (database/location).rglob(config['inputs']['glob'])]
+      if location.endswith(config['inputs']['glob']):
+        yield maybe_parent(Path(database/location))
 
 
 def iter_parameters(tuning_search=None):
