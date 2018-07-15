@@ -3,9 +3,11 @@
 CLI tool to runs various tasks related to TOF.
 """
 import os
+import sys
 import errno
 import json
 import importlib
+import traceback
 from pathlib import Path
 
 import click
@@ -25,10 +27,12 @@ try:
     entrypoint_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(entrypoint_module)
 except Exception as e:
+    exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True)
-    click.secho(str(e), fg='red', dim=True, err=True)
+    # click.secho(''.join(traceback.format_tb(exc_traceback)), fg='yellow', dim=True)
+    click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
     click.secho(
-        'It must implement both `run` and `postprocess` functions.\n'
+        f'{entrypoint} must implement both `run` and `postprocess` functions.\n'
         'Please read the tutorial, and ask @arthurf for help\n'
         'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
         dim=True, err=True)
@@ -41,13 +45,14 @@ except Exception as e:
 @click.option('--configuration', default='base', help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="Json file with extra parameters for tuning")
-def cli(ctx, platform, configuration, batch_label, tuning_filepath):
+@click.option('--output-type', default=config['inputs']['default_output_type'], help="Override if your project needs multiple customized visualizations")
+def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type):
   """Wraps all the CLI commands, identifies the TOF run we are talking about"""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
   ctx.obj['project'] = config['project']['name']
-  ctx.obj['output_type'] = config['inputs']['default_output_type']
+  ctx.obj['output_type'] = output_type
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['database'] = database
@@ -71,8 +76,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath):
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def run(ctx, recording_path, forwarded_args):
     """
-    Runs the TOF algorithms over a given recording and computes various success metrics and outputs.
-    Wraps tof_on_linux and tof_on_android.
+    Runs over a given recording/input/test and computes various success metrics and outputs.
     """
     ctx.obj['recording_path'] =  recording_path
     ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / recording_path.parent / recording_path.stem
@@ -89,7 +93,7 @@ def run(ctx, recording_path, forwarded_args):
 
     if all_metrics['is_failed']:
       click.secho('[ERROR] Your program seems to have crashed.', fg='red', err=True)
-      click.secho('Either `metric.json` is missing in the output directory, or your postprocessing set is_failed=true.', dim=True, err=True)
+      click.secho('Either `metrics.json` is missing in the output directory, or your postprocessing set "{is_failed: true}".', dim=True, err=True)
       exit(1)
 
 
@@ -104,6 +108,8 @@ def postprocess_(runtime_metrics, context):
 
 
   save_metrics(output_directory, **metrics)
+  with (output_directory/'output').open('r') as f:
+    json.dumps({'output_type': context.obj['output_type']})
   notify_qa_database(**context)
   pass
 
@@ -130,7 +136,7 @@ def postprocess(ctx, recording_path, forwarded_args):
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
 @click.pass_context
 def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, dryrun, overwrite):
-  """Run TOF on all the recordings in a given batch using the LSF cluster.
+  """Run on all the recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
   running_jobs_names = running_lsf_job_names()
@@ -156,9 +162,9 @@ def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, d
             f'--batch-label "{ctx.obj["batch_label"]}"',
             f'--platform "{ctx.obj["platform"]}"',
             f'--configuration "{ctx.obj["configuration"]}"',
-            f'--recording-path "{recording_path}"',
             f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
-            'tof --no-live-view --no-movie' if should_run else 'metrics',
+            'run' if should_run else 'metrics',
+            f'--recording-path "{recording_path}"',
         ])
         print(command)
         jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))
@@ -174,9 +180,6 @@ def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, d
     wait = Job(name, 'echo "finished waiting for jobs on LSF."')
     wait.send(interactive=True, dependencies=jobs)
 
-
-
-#   # write the output_type?
 
 if __name__ == '__main__':
   cli(obj={}, auto_envvar_prefix='QATOOLS')

@@ -3,11 +3,13 @@ Sample implementation of a CLI wrapper using qatools.
 """
 import subprocess
 import time
+from pathlib import Path
 
 # We provide an easy way to know in which environment your code executes
 from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 # Whis will identify runs through GitlabCI or Jenkins.
 from qatools.config import is_ci
+
 
 def find_executable():
   """Returns the executable's path.
@@ -57,14 +59,16 @@ def run(context):
        # you MUST implement a way to override the default configuration with diffs/deltas, from a base configuration
        # with partial configurations, corresponding to settings from an upstream block, or modes of operation
        f'--paramfile params.json', # default (TODO: rename base.json)
+       # you will often want to disable debug features in CI runs       
+       f'--no-live-view --no-movie' if is_ci else '',
        # you could support only 1 configuration
        f'--paramfile {context.obj["configuration"]}',
        # you could support arrays of configurations, eg --configuration low_light:very_low_light
-       ' '.join([f'--paramfile {c}' for c in configuration.split(':')])
+       ' '.join([f'--paramfile {c}' for c in configuration.split(':')]),
        # you MUST support parameter tuning
        f'--paramfile {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
        # that the absolute path to the test
-       f'--input_path "{context.obj['database'] / context.obj['recording_path']}"',
+       f'--input_path "{context.obj["database"]/context.obj["recording_path"]}"',
        # that where you should save your results
        f'--output_path "{context.obj["output_directory"]}"',
        # extra flags are passed here
@@ -100,7 +104,7 @@ def postprocess(context, runtime_metrics):
 
 
   # Depending on the input type, you could implement different postprocessing flows
-  # if context.obj["recording_path"] == 'cis/siemens-star':
+  # if context.obj["output_type"] == 'cis/siemens-star':
   #   resolution_from_center = find_resolution_from_center(context["output_directory"]/'image.bmp')
   #   create_plot(resolution_from_center, context["output_directory"]/'resolution.jpg')
   #   ...
@@ -108,9 +112,3 @@ def postprocess(context, runtime_metrics):
   # those will be written into metrics.json
   return {**runtime_metrics, **metrics}
   return {}
-
-
-
-# FYI: if needed, this gives you direct access to the the qatools.yaml configuration, parsed
-from qatools.config import config
-# TODO: document what's availble
