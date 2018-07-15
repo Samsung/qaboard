@@ -1,15 +1,41 @@
-# .gitlab-ci.sample.yml
-# reminder: `qatools` needs to be installed in your test runner's environment
+# For more information on GitlabCI's pipelines, read the docs:
+# https://docs.gitlab.com/ee/ci/yaml/
+#
+# If you use Jenkins, you should be able to adapt this easily into a Jenkinsfile
+# https://jenkins.io/doc/book/pipeline/jenkinsfile/
+
+# Reminder: `qatools` needs to be installed in your test runner's environment
+# To solve those dependencies issues, a good solution is Docker.
+# image: my_image_with_everything_installed
+
+
+# a real project would have jobs for coverage, generating the documentation, ...
+stages:
+  - build
+  - test
+  - performance
+
+
+build:
+  stage: build
+  script:
+    - mkdir build; cd build
+    - export BOOST_ROOT=/home/arthurf/opt
+    - export BOOST_FLAGS="-DBOOST_ROOT=$BOOST_ROOT -DBOOST_INCLUDEDIR=$BOOST_ROOT/include -DBOOST_LIBRARYDIR=$BOOST_ROOT/lib -DBoost_USE_MULTITHREADED=False"
+    - cmake $BOOST_FLAGS -GNinja ..
+    - ninja
+
+test:
+  stage: build
+  script:
+     - ninja -C build test
 
 performance:
   stage: performance
   script:
-    - python main.py --recording=$my_recording run
+    - qa run --recording=$my_recording
     # will use the list of batch from the file defined in the configuration 
-    - python main.py batch --group small
-
-
-    - python main.py batch --recording-group small
+    - qa batch --group small
     # tip: you can use the `--batch-label` flag to split your tests results
 
 # FIXME: need to fix magic ENV SAMSUNG_$ variables

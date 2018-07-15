@@ -128,14 +128,15 @@ def postprocess(ctx, recording_path, forwarded_args):
 
 
 @cli.command()
-@click.option('--recording-groups-file', default='swip_tof/UnitTests/batches.yaml', help="YAML file listing groups of recordings selected from the database.")
-@click.option('--recording-group', '-g', default=['small'], multiple=True, help="We run over all recordings in those groups")
+@click.option('--groups-file', default='swip_tof/UnitTests/batches.yaml', help="YAML file listing groups of recordings selected from the database.")
+@click.option('--group', '-g', default=['small'], multiple=True, help="We run over all recordings in those groups")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
+@click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, dryrun, overwrite):
+def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, dryrun, overwrite, forwarded_args):
   """Run on all the recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -165,6 +166,7 @@ def batch(ctx, recording_group, recording_groups_file, tuning_search, no_wait, d
             f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
             'run' if should_run else 'metrics',
             f'--recording-path "{recording_path}"',
+            f'{forwarded_args}'
         ])
         print(command)
         jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))

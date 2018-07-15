@@ -54,19 +54,21 @@ def find_working_directory(context):
 def run(context):
   """Sample implementation of a run() function."""
   command = ' '.join([
+       'cd "{find_working_directory(context)}";'
        f"{find_executable(context)}",
-       f'--working_directory "{find_working_directory(context)}"',
+       # sometimes your binary uses a working directory specified on the command line
+       # f'--working_directory "{find_working_directory(context)}"',
+
        # you MUST implement a way to override the default configuration with diffs/deltas, from a base configuration
        # with partial configurations, corresponding to settings from an upstream block, or modes of operation
-       f'--paramfile params.json', # default (TODO: rename base.json)
+       f'--paramfile base.json',
        # you will often want to disable debug features in CI runs       
        f'--no-live-view --no-movie' if is_ci else '',
-       # you could support only 1 configuration
-       f'--paramfile {context.obj["configuration"]}',
        # you could support arrays of configurations, eg --configuration low_light:very_low_light
        ' '.join([f'--paramfile {c}' for c in configuration.split(':')]),
        # you MUST support parameter tuning
        f'--paramfile {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
+
        # that the absolute path to the test
        f'--input_path "{context.obj["database"]/context.obj["recording_path"]}"',
        # that where you should save your results
@@ -89,19 +91,32 @@ def run(context):
   return {'compute_time': time.time()-start}
 
 
-
-# from my_metrics import my_favorite_metric # ....
+from utils import read_poses, drift_after_loop_metrics, objective_metrics
 
 def postprocess(context, runtime_metrics):
   """
-  Example of a postprocessing function.
-  context: Click.Context, context.obj has information from the CLI arguments
-  runtime_metrics: metrics that the 
+  Postprocessing functions should
+    1. return a dict with metrics to save in metrics.json
+    2. Create any qualitative outputs you would like to view later (images, movies...)
+  args:
+    context: Click.Context, context.obj has information from the CLI arguments
+    runtime_metrics: metrics from the run
   """
-  # you are responsible knowing where the groundtruth is (if it exists)
-  ground_truth = database / context.obj["recording_path"].parent / 'groundtruth.txt'
-  # metrics = my_favorite_metric(context["output_directory"], ground_truth)
+  poses_estimated = read_poses(context["output_directory"] / 'camera_poses_debug.txt')
+  metrics = {
+    **runtime_metrics,
+    **drift_after_loop_metrics(poses_estimated),
+  }
 
+  # You are responsible knowing where the groundtruth is (if it exists)
+  ground_truth_path = database / context.obj["recording_path"].parent / 'GT_final.txt'
+  if ground_truth_path.exists():
+    poses_groundtruth = read_poses(ground_truth_path)
+    # you may need to do more work, eg 6dof alignment...
+    metrics = {
+      **metrics,
+      **objective_metrics(poses_estimated, poses_groundtruth),
+    }
 
   # Depending on the input type, you could implement different postprocessing flows
   # if context.obj["output_type"] == 'cis/siemens-star':
@@ -110,5 +125,6 @@ def postprocess(context, runtime_metrics):
   #   ...
 
   # those will be written into metrics.json
-  return {**runtime_metrics, **metrics}
-  return {}
+  return metrics
+
+
