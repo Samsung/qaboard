@@ -14,15 +14,16 @@ import click
 
 from .lsf import Job, running_lsf_job_names, Priority
 from .utils import tuning_foldername, hash_parameters
-from .utils import notify_qa_database, iter_parameters, iter_recordings
+from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
 
 from .config import database, platform, is_ci, config
 
 
-entrypoint = config['project']['entrypoint']
+entrypoint = Path(config['project']['entrypoint'])
 try:
     # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+    sys.path.append(str(entrypoint.parent)) # for imports from within the entrypoint's directory
     spec = importlib.util.spec_from_file_location('entrypoint', entrypoint)
     entrypoint_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(entrypoint_module)
@@ -45,7 +46,8 @@ except Exception as e:
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="Json file with extra parameters for tuning")
 @click.option('--output-type', default=config['outputs']['output_type'], help="Override if your project needs multiple customized visualizations")
-def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type):
+@click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
+def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type, dryrun):
   """Wraps all the CLI commands, identifies the TOF run we are talking about"""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
@@ -67,6 +69,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type)
   # this prefix lacks information on tuning parameters
   ctx.obj['incomplete_prefix_output_dir'] = Path().resolve() / batch_output_folder / platform / configuration
   ctx.obj['prefix_output_dir'] = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], hash_parameters(tuning_filepath))
+  ctx.obj['dryrun'] = dryrun
 
 
 @cli.command()
@@ -79,18 +82,25 @@ def run(ctx, input_path, forwarded_args):
     """
     ctx.obj['input_path'] =  input_path
     ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
-    ctx.obj['forwarded_args'] = forwarded_args
+    ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
+    ctx.obj['forwarded_args'] = forwarded_args[1:]
 
     try:
       runtime_metrics = entrypoint_module.run(ctx)
     except Exception as e:
-      click.secho(f'[ERROR] The `run` function in {entrypoint} raised an exception:', fg='red', err=True)
-      click.secho(str(e), err=True)
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      click.secho(f'[ERROR] The `run` function in {entrypoint} raised an exception:', fg='red', bold=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       exit(1)
 
-    all_metrics = postprocess_(runtime_metrics, ctx.obj)
+    metrics = postprocess_(runtime_metrics, ctx)
+    print(metrics)
 
-    if all_metrics['is_failed']:
+    if 'is_failed' not in metrics:
+      click.secho("[ERROR] Please have the postprocessing return among its metrics `is_failed` (bool)", fg='red')
+      exit(1)
+
+    if metrics['is_failed']:
       click.secho('[ERROR] Your program seems to have crashed.', fg='red', err=True)
       click.secho('Either `metrics.json` is missing in the output directory, or your postprocessing set "{is_failed: true}".', dim=True, err=True)
       exit(1)
@@ -102,18 +112,15 @@ def postprocess_(runtime_metrics, context):
     metrics = entrypoint_module.postprocess(runtime_metrics, context)
   except Exception as e:
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', err=True)
-    click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
-    click.secho(str(e), err=True)
-    exit(1)
+    click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', bold=True)
+    click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+    metrics = {"is_failed": True}
 
-
-  save_metrics(output_directory, **metrics)
-  with (output_directory/'output').open('r') as f:
+  save_metrics(context.obj['output_directory'], **metrics)
+  with (context.obj['output_directory']/'output.json').open('w') as f:
     json.dumps({'output_type': context.obj['output_type']})
-  notify_qa_database(**context)
-  pass
-
+  notify_qa_database(**context.obj)
+  return metrics
 
 @cli.command()
 @click.pass_context
@@ -123,8 +130,8 @@ def postprocess(ctx, input_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   ctx.obj['input_path'] =  input_path
   ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
-  ctx.obj['forwarded_args'] = forwarded_args
-  postprocessing(runtime_metrics={}, **ctx.obj)
+  ctx.obj['forwarded_args'] = forwarded_args[1:]
+  postprocess_({}, ctx)
 
 
 
@@ -133,11 +140,10 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
-@click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, no_wait, dryrun, overwrite, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -167,7 +173,7 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, dryrun, overwrite, fo
             f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
             'run' if should_run else 'metrics',
             f'--input-path "{input_path}"',
-            f'{forwarded_args}'
+            ' '.join(forwarded_args),
         ])
         print(command)
         jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))

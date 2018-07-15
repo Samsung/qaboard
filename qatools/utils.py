@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 import requests
-from .config import config, is_ci, commit_id, database
+from .config import config, is_ci, commit_type, commit_id, database
 
 
 def notify_qa_database(**kwargs):

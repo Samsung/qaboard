@@ -1,4 +1,11 @@
-# Copied from our SLAM project
+"""
+Small utilities and metric functions for the sample project.
+(Copied from our SLAM project)
+"""
+import numpy as np
+import pandas as pd
+from pandas.api.types import CategoricalDtype
+
 def read_poses(path):
   """Load a monoslam output file into a pandas dataframe describing tracked poses."""
   df = pd.read_csv(
@@ -36,6 +43,14 @@ def drift_after_loop_metrics(poses):
   return {'loop_drift_pc': float(error/loop_length), "loop_translation_rmse": error, 'dvs_trajectory_length': float(loop_length)}
 
 
+def trajectory_length(poses):
+  poses_ = poses[['x', 'y', 'z']]
+  poses_delta = poses_.shift(1)-poses_
+  poses_delta2 = poses_delta**2
+  poses_dl2 = np.sum(poses_delta2, axis=1)
+  poses_dl = np.sqrt(poses_dl2)
+  return float(np.sum(poses_dl.tail(-1)))
+
 
 def objective_metrics(poses_est, poses_gt):
   """
@@ -51,27 +66,15 @@ def objective_metrics(poses_est, poses_gt):
   errors_xyz = poses_est[['x', 'y', 'z']] - poses_gt[['x', 'y', 'z']]
   errors_abc = poses_est[['a', 'b', 'c']] - poses_gt[['a', 'b', 'c']]
 
-  # Rotation errors
-  rotations_est = np.array(poses_est[['a', 'b', 'c']])
-  rotations_gt  = np.array(poses_gt[['a', 'b', 'c']])
-  rot_errors = np.zeros([rotations_est.shape[0]])
-  for i in range(poses_est.shape[0]):
-    rot_errors[i] = geodesic_distance_so3(rotations_est[i,:], rotations_gt[i,:])
   rad_to_degree = 360/(2*np.pi)
-  metrics['rotation_mean'] = np.mean(rot_errors) * rad_to_degree
-  metrics['rotation_rmse'] = np.sqrt(np.mean(rot_errors**2)) * rad_to_degree
   # This is an approximation when the results are good
-  # metrics['rotation_rmse'] = np.linalg.norm((errors_abc**2).mean()) * rad_to_degree
+  metrics['rotation_rmse'] = np.linalg.norm((errors_abc**2).mean()) * rad_to_degree
 
   # AAPE: average over trajectory of distance between estimate and ground-truth
   #       we pick the L2 distance, although AAPE suggests L2 distance
   #       it's a slightly easier metric
   metrics['translation_aape'] = np.linalg.norm(errors_xyz, axis=1, ord=2).mean()
   metrics['translation_aape_pc'] = metrics['translation_aape'] / metrics['trajectory_length'] if metrics['trajectory_length']>0 else 0
-  # Relative positional error over 10% of signal length
-  metrics['relative_translation_error'] = relative_error(errors_xyz, round(poses_est.shape[0] / 10))
-  #metrics['relative_translation_error_all'] = relative_error_all(errors_xyz)
-  metrics['relative_translation_error_pc'] = metrics['relative_translation_error'] / metrics['trajectory_length'] if metrics['trajectory_length']>0 else 0
   # RMSE: we sum the squares of all the errors over the trajectory for all components
   #       then we normalize by dividing by the trajectory length
   metrics['translation_rmse'] = np.linalg.norm(errors_xyz, ord='fro') / np.sqrt(errors_xyz.shape[0])

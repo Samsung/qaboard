@@ -38,15 +38,16 @@ int main (int argc, char *argv[])
 
    // Write the dummy SLAM results
    std::string output_directory = vm["output"].as<std::string>();
-   std::ofstream fout(output_directory + "camera_poses_debug.txt");
-   std::cout << "DEBUG: writing to " <<  output_directory << std::endl;
+   std::string camera_poses_filepath = output_directory + "/camera_poses_debug.txt";
+   std::ofstream fout(camera_poses_filepath);
+   std::cout << "DEBUG: writing to " <<  camera_poses_filepath << std::endl;
    std::cout << "DEBUG: poses: " <<  settings.m_nb_poses << std::endl;
 
    for (int i=0; i<settings.m_nb_poses; i++) {
        // zeroes in 3d
        auto zeroes = "0\t0\t0\t";
        // rotations, translations, time, confidence, tracking_good
-       fout << zeroes << zeroes << i << "\t100" << 1<< std::endl;
+       fout << zeroes << zeroes << i << "\t100\t1" << std::endl;
    }
   return 0;
 }

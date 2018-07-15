@@ -17,15 +17,15 @@ def find_executable():
   should be where the executable is located.
   Of course, if your code is pure python, you don't have to worry about this.
   """
-  if is_ci or is_lsf or is_vdi:
-    executable = 'build_lsf/psp_swip_test'
+  if is_ci or on_lsf or on_vdi:
+    executable = 'build/sample_project'
   elif on_windows:
-    executable = 'x64/release/UnitTests.exe'
+    executable = 'x64/release/sample_project.exe'
   else:
-    executable = 'build/psp_swip_test'
+    executable = 'build/sample_project'
   return Path(executable)
 
-def find_working_directory(context):
+def find_working_directory():
   """
   It's usually best to execute programs from what "should" be their working directory.
   The QA tools are executed from the project's root; but maybe you expect a different location.
@@ -34,7 +34,7 @@ def find_working_directory(context):
   if is_ci:
     working_directory = ''
   else:
-    working_directory = 'swip_slam/UnitTests/RunningTime'
+    working_directory = ''
   return Path(working_directory)
 
 
@@ -54,30 +54,30 @@ def find_working_directory(context):
 def run(context):
   """Sample implementation of a run() function."""
   command = ' '.join([
-       'cd "{find_working_directory(context)}";'
-       f"{find_executable(context)}",
+       f'cd "{find_working_directory()}";'
+       f"{find_executable()}",
        # sometimes your binary uses a working directory specified on the command line
        # f'--working_directory "{find_working_directory(context)}"',
 
        # you MUST implement a way to override the default configuration with diffs/deltas, from a base configuration
        # with partial configurations, corresponding to settings from an upstream block, or modes of operation
-       f'--paramfile base.json',
+       f'--paramfile configurations/base.json',
        # you will often want to disable debug features in CI runs       
        f'--no-live-view --no-movie' if is_ci else '',
        # you could support arrays of configurations, eg --configuration low_light:very_low_light
-       ' '.join([f'--paramfile {c}' for c in configuration.split(':')]),
+       ' '.join([f'--paramfile configurations/{c}.json' for c in context.obj["configuration"].split(':')]),
        # you MUST support parameter tuning
        f'--paramfile {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
 
        # that the absolute path to the test
-       f'--input_path "{context.obj["database"]/context.obj["recording_path"]}"',
+       f'--input "{context.obj["database"]/context.obj["input_path"]}"',
        # that where you should save your results
-       f'--output_path "{context.obj["output_directory"]}"',
+       f'--output "{context.obj["output_directory"]}"',
        # extra flags are passed here
-       context.obj['forwarded_args'],
+       ' '.join(context.obj['forwarded_args']),
   ])
   print(command)
-  if dryrun: return
+  if context.obj['dryrun']: return
   start = time.time()
   pipes = subprocess.Popen(command,
                            shell=True,
@@ -93,7 +93,7 @@ def run(context):
 
 from utils import read_poses, drift_after_loop_metrics, objective_metrics
 
-def postprocess(context, runtime_metrics):
+def postprocess(runtime_metrics, context):
   """
   Postprocessing functions should
     1. return a dict with metrics to save in metrics.json
@@ -102,15 +102,22 @@ def postprocess(context, runtime_metrics):
     context: Click.Context, context.obj has information from the CLI arguments
     runtime_metrics: metrics from the run
   """
-  poses_estimated = read_poses(context["output_directory"] / 'camera_poses_debug.txt')
+  poses_path = context.obj["output_directory"] / 'camera_poses_debug.txt'
+  # ideally we should get our program's return code via runtime_metrics
+  metrics = {"is_failed": not poses_path.exists()}
+  if metrics["is_failed"]: return metrics
+
+  poses_estimated = read_poses(poses_path)
   metrics = {
+    **metrics,
     **runtime_metrics,
     **drift_after_loop_metrics(poses_estimated),
   }
 
   # You are responsible knowing where the groundtruth is (if it exists)
-  ground_truth_path = database / context.obj["recording_path"].parent / 'GT_final.txt'
+  ground_truth_path = context.obj['database'] / context.obj["input_path"].parent / 'GT_final.txt'
   if ground_truth_path.exists():
+    print('INFO: found ground truth')
     poses_groundtruth = read_poses(ground_truth_path)
     # you may need to do more work, eg 6dof alignment...
     metrics = {
