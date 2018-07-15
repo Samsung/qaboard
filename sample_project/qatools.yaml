@@ -5,7 +5,7 @@ project:
   # the latest commit on this branch is the reference for bit-accuracy tests
   reference_branch: develop
   # where the script implementing run and postprocess is located relative to the project's root
-  entrypoint: main.py
+  entrypoint: qatools/main.py
 
 
 # Depending on your project, you should use different job queues
@@ -39,25 +39,26 @@ inputs:
   # In other words, your database is the longest common prefix of your inputs
   # It's usually a different path on linux and windows
   database:
-    linux: /stage/algo_data/my_database
-    windows: F:/my_database
+    linux: /net/f2/algo_archive/DVS_SLAM_Database
+    windows: F:/DVS_SLAM_Database
 
   # relative to the root of the project
-  database_batches: batches.yml 
+  database_batches: qatools/batches.yml
+  metrics: qatools/metrics.json
 
   # if you want to run all recordings under $database/sub_folder
   # you need a way to identify test inputs
   # either your inputs are files/directories, matching a globbing expression
   glob_match: '*.bin'
-  # maybe your tests is actually the folder containing the match (eg Frame0)
-  use_parent_folder: true
+  # maybe your tests are actually the folder containing the match (eg movies with Frame0, Frame1...)
+  # use_parent_folder: true
 
   # to view the qualitative results, the GUI application needs to know
   # what resources to fetch (images, movies, 6dof...).
   # Currently supported: cis/image, slam/6dof, tof/depth
   # Note: if your project create differents types of results, change accordingly
   #   ctx.obj['output_type'] = 'my/type'
-  default_output_type: tof/depth
+  default_output_type: slam/6dof
 
 
 
@@ -69,17 +70,15 @@ inputs:
 artifacts:
   # We will our configuration files for easy access from the QA's UI.
   - configuration: 
-    glob: swip_slam/UnitTests/RunningTime/*.json
-    # relative output folder, where the QA tools should save them
-    to: '.' 
-
+    glob: configuration/*.json
   - binary:
-    glob: 'build_lsf/psp_swip_test'
-    to: 'build_lsf'
+    glob: 'build/sample_project'
 
   # results will be saved as:
   # 
   # commit_folder
-  # ├── build_lsf
-  # │  └── psp_swip_test
-  # └── params.json
+  # ├── build
+  # │  └── sample_project
+  # └── configurations
+  #    ├── params.json
+  #    └── low-light.json
