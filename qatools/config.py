@@ -88,7 +88,7 @@ else:
     # with git we could check if the repo is dirty though
     commit_type = 'local'
     commit_id = '<local>'
-    user = os.getenv('USERNAME', os.environ['USER'])
+    user = os.getenv('USERNAME', os.environ.get('USER'))
     commit_branch = f'<local:{user}>'
 
 if verbose:
