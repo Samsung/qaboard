@@ -132,7 +132,7 @@ def running_lsf_job_names():
 
   From Windows we return an empty set, but if you really want to, you should be able to find a way to connect to LSF.
   """
-    if is_windows:
+    if on_windows:
         click.secho(
             "Warning: on Windows we don't check for running LSF jobs'",
             fg="yellow",

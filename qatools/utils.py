@@ -109,8 +109,8 @@ def iter_recordings(groups, groups_file, database=database):
     for location in locations:
       print(location)
       maybe_parent = lambda path: path.parent if config['inputs']['is_parents'] else path
-      yield from [maybe_parent(f) for f in (database/location).rglob(config['inputs']['glob'])]
-      if location.endswith(config['inputs']['glob']):
+      yield from [maybe_parent(f) for f in (database/location).rglob(config['inputs']['glob_match'])]
+      if location.endswith(config['inputs']['glob_match']):
         yield maybe_parent(Path(database/location))
 
 
