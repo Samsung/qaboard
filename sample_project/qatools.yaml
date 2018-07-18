@@ -20,21 +20,11 @@ lsf:
   fast_queue: alg_q_fast
 
 
-# Bit-accuracy tests need data from previous commits
-# each commit's folder should be saved sat $ci_root/$project_name
-ci_root:
-  linux: /home/arthurf/ci
-  windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
-
-
-bit_accuracy:
-  patterns:
-    - x.hex
-    - y.hex
-    - depth.hex
-
 
 inputs:
+  # the default configuration.
+  # Usually you will use it in your `run` function to read from $configuration.json/yaml
+  configuration: base
   # Your inputs are located at $database/$path
   # In other words, your database is the longest common prefix of your inputs
   # It's usually a different path on linux and windows
@@ -49,9 +39,9 @@ inputs:
   # if you want to run all recordings under $database/sub_folder
   # you need a way to identify test inputs
   # either your inputs are files/directories, matching a globbing expression
-  glob_match: '*.bin'
+  glob: '*.bin'
   # maybe your tests are actually the folder containing the match (eg movies with Frame0, Frame1...)
-  # use_parent_folder: true
+  use_parent_folder: false
 
 
 outputs:
@@ -59,8 +49,6 @@ outputs:
   # to view the qualitative results, the GUI application needs to know
   # what resources to fetch (images, movies, 6dof...).
   # Currently supported: cis/image, slam/6dof, tof/depth
-  # Note: if your project create differents types of results, change accordingly
-  #   ctx.obj['output_type'] = 'my/type'
   output_type: slam/6dof
 
 
@@ -84,3 +72,17 @@ artifacts:
   # └── configurations
   #    ├── params.json
   #    └── low-light.json
+
+# Bit-accuracy tests need data from previous commits
+# each commit's folder should be saved sat $ci_root/$project_name
+ci_root:
+  linux: /home/arthurf/ci
+  windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
+
+
+bit_accuracy:
+  patterns:
+    - x.hex
+    - y.hex
+    - depth.hex
+

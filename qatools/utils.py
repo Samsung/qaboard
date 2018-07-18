@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 import requests
-from .config import config, is_ci, commit_type, commit_id, database
+from .config import config, is_ci, commit_type, commit_id
 
 
 def notify_qa_database(**kwargs):
@@ -94,30 +94,51 @@ def slugify(s):
     s_slugified = s_slugified.replace(c, '-')
   return s_slugified
 
-def iter_recordings(groups, groups_file, database=database):
-  """Returns an iterator over the recordings from the selected groups
+def iter_recordings(groups, groups_file, database, default_configuration):
+  """Returns an iterator over the (recording, configuration) from the selected groups
   params:
   - groups: array of group labels
   - groups_file: yaml file
+  - configuration, is none is specified
   """
   available_batches = yaml.load(Path(groups_file).open())
   for group in groups:
-    locations = available_batches[group]
+    print(available_batches[group])
+    if 'configuration' in available_batches[group]:
+      group_configuration = available_batches[group]['configuration']
+      if isinstance(group_configuration, list):
+        group_configuration = ':'.join(group_configuration)
+    else:
+      group_configuration = default_configuration
+
+    locations = available_batches[group]['tests']
     if not locations:
       print("Warning: the selected batch is empty")
       continue
-    for location in locations:
-      print(location)
-      maybe_parent = lambda path: path.parent if config['inputs']['is_parents'] else path
-      yield from [maybe_parent(f) for f in (database/location).rglob(config['inputs']['glob'])]
+
+    if isinstance(locations, list):
+      locations = {l:group_configuration for l in locations}
+
+    for location, location_configuration in locations.items():
+      if not location_configuration:
+        location_configuration = group_configuration
+      click.secho(str(location), bold=True, fg='cyan')
+      maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
+      yield from [(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])]
       if location.endswith(config['inputs']['glob']):
-        yield maybe_parent(Path(database/location))
+        yield maybe_parent(Path(database/location)), location_configuration
+
+
+
+hash_empty_tuning = hashlib.md5(json.dumps({}).encode()).hexdigest()
 
 
 def iter_parameters(tuning_search=None):
   # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
   from sklearn.model_selection import ParameterGrid, ParameterSampler
-  if not tuning_search: return (None, params_hash, {})
+  if not tuning_search:
+    yield (None, hash_empty_tuning, {})
+    return
   if isinstance(tuning_search['parameter_search'], list):
     for param_search in tuning_search['parameter_search']:
       tuning_search_ = tuning_search

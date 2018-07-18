@@ -64,9 +64,9 @@ def run(context):
        f'--paramfile configurations/base.json',
        # you will often want to disable debug features in CI runs       
        f'--no-live-view --no-movie' if is_ci else '',
-       # you could support arrays of configurations, eg --configuration low_light:very_low_light
+       # you MUST support arrays of :-separeted configurations, eg --configuration low_light:very_low_light
        ' '.join([f'--paramfile configurations/{c}.json' for c in context.obj["configuration"].split(':')]),
-       # you MUST support parameter tuning
+       # you MUST support parameter tuning via a JSON file
        f'--paramfile {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
 
        # that the absolute path to the test

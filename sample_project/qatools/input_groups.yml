@@ -1,6 +1,11 @@
 ---
+test:
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
 easy:
-  configuration: base
+  configuration: test
   tests:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
@@ -16,11 +21,15 @@ large-scale:
 
 
 hard:
-  test_with_config:
-    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
+  configuration:
+    - base
+    - mono
+  tests:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_7c:
       - base
       - low-light
-    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_1f:
       - base
       - low-light
       - extra-low-light

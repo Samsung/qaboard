@@ -13,7 +13,7 @@ setup(
   description="The QA tools help you organize and visualize your results.",
   license="Samsung SIRC - all rights reserved",
 
-  python_requires='>3.6',
+  python_requires='>=3.6',
   install_requires=[
     'click', # CLI for humans
     'requests', # HTTP for humans

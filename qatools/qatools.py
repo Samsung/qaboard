@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 """
-CLI tool to runs various tasks related to TOF.
+CLI tool to runs various tasks related to QA.
 """
-import os
 import sys
 import errno
 import json
 import importlib
-import traceback
+from traceback import format_exception
 from pathlib import Path
 
 import click
@@ -42,13 +41,13 @@ except Exception as e:
 @click.group()
 @click.pass_context
 @click.option('--platform', default=platform)
-@click.option('--configuration', default='base', help="Load an additional partial configurations (eg $configuration.json).")
+@click.option('--configuration', default=config['inputs']['configuration'], help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="Json file with extra parameters for tuning")
 @click.option('--output-type', default=config['outputs']['output_type'], help="Override if your project needs multiple customized visualizations")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type, dryrun):
-  """Wraps all the CLI commands, identifies the TOF run we are talking about"""
+  """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
@@ -147,6 +146,8 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, forwarded_
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
+  dryrun = ctx.obj['dryrun']
+
   running_jobs_names = running_lsf_job_names()
   def not_started(output_directory):
     is_done = (output_directory/'metrics.json').exists()
@@ -155,28 +156,28 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, forwarded_
 
   jobs = []
 
-  for path in iter_recordings(group, groups_file):
-    input_path = path.relative_to(database)
-    click.secho(input_path, bold=True)
+  for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
+    input_path = input_path_abs.relative_to(database)
+    click.secho(str(input_path), fg='blue', bold=True)
     tuning_search_dict = json.loads(tuning_search) if tuning_search else None
 
-    if tuning_search_dict:
-      tuning_iterator = iter_parameters(tuning_search_dict)
-      for tuning_file, tuning_hash, tuning_params in tuning_iterator:
-        output_directory = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], tuning_hash) / input_path.parent / input_path.stem
-        should_run = overwrite or not_started(output_directory)
-        command = ' '.join([
-            f"python {config['project']['entrypoint']}",
-            f'--batch-label "{ctx.obj["batch_label"]}"',
-            f'--platform "{ctx.obj["platform"]}"',
-            f'--configuration "{ctx.obj["configuration"]}"',
-            f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
-            'run' if should_run else 'metrics',
-            f'--input-path "{input_path}"',
-            ' '.join(forwarded_args),
-        ])
-        print(command)
-        jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))
+    tuning_iterator = iter_parameters(tuning_search_dict)
+    for tuning_file, tuning_hash, tuning_params in tuning_iterator:
+      output_directory = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], tuning_hash) / input_path.parent / input_path.stem
+      should_run = overwrite or not_started(output_directory)
+      command = ' '.join([
+          f"python {config['project']['entrypoint']}",
+          f'--batch-label "{ctx.obj["batch_label"]}"',
+          f'--platform "{ctx.obj["platform"]}"',
+          f'--configuration "{input_configuration}"',
+          f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
+          'run' if should_run else 'metrics',
+          f'--input-path "{input_path}"',
+          ' '.join(forwarded_args),
+      ])
+      click.secho(command, dim=True)
+      jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))
+      if not dryrun:
         notify_qa_database(**ctx.obj, input_path=input_path, extra_parameters=tuning_params, is_pending=True)
 
   for job in jobs:
