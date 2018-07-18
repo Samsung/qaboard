@@ -54,7 +54,8 @@ def find_working_directory():
 def run(context):
   """Sample implementation of a run() function."""
   command = ' '.join([
-       f'cd "{find_working_directory()}";'
+       f'cd "{find_working_directory()}"',
+       "&&" if on_windows else ";",
        f"{find_executable()}",
        # sometimes your binary uses a working directory specified on the command line
        # f'--working_directory "{find_working_directory(context)}"',

@@ -16,7 +16,7 @@ from .utils import tuning_foldername, hash_parameters
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
 
-from .config import database, platform, is_ci, config
+from .config import database, platform, is_ci, config, commit_type, commit_id
 
 
 entrypoint = Path(config['project']['entrypoint'])
@@ -140,9 +140,10 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
+@click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
