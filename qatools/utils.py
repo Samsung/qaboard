@@ -131,7 +131,7 @@ def iter_recordings(groups, groups_file, database, default_configuration):
         location_configuration = f'{group_configuration}:{location_configuration}'
       click.secho(str(location), bold=True, fg='cyan')
       maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
-      yield from [(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])]
+      yield from set([(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
       if location.endswith(config['inputs']['glob']):
         yield maybe_parent(Path(database/location)), location_configuration
 
