@@ -14,7 +14,7 @@ stages:
   - build
   - test
   - performance
-
+  - analysis
 
 build:
   stage: build
@@ -44,3 +44,9 @@ performance:
     # we automatically use the LSF cluster to distribute the work
     - qa batch --group easy
     # tip: you can use the `--batch-label` flag to split your tests results
+
+
+bit-accuracy:
+  stage: analysis
+  script:
+    - qa check_bit_accuracy
