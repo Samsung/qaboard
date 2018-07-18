@@ -16,6 +16,18 @@ stages:
   - performance
   - analysis
 
+
+# enables incremental recompilation, per branch
+# https://docs.gitlab.com/ee/ci/yaml/#cache
+cache:
+  key: "$CI_COMMIT_REF_NAME"
+  paths:
+    - build/
+
+# save the binaries, ouputs...
+after_script:
+  - qa save_artifacts
+
 build:
   stage: build
   script:

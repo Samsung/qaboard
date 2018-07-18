@@ -215,6 +215,7 @@ def save_artifacts():
     for path in Path('.').glob(artifact_config['glob']):
       if not path.is_file():
         continue
+      # we may want to check size/mtime before copying
       click.secho(str(path), dim=True)
       destination = commit_ci_dir / path
       destination.parent.mkdir(parents=True, exist_ok=True)
