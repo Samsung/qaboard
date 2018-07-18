@@ -117,11 +117,15 @@ def iter_recordings(groups, groups_file, database, default_configuration):
       continue
 
     if isinstance(locations, list):
-      locations = {l:group_configuration for l in locations}
+      locations = {l:None for l in locations}
 
     for location, location_configuration in locations.items():
       if not location_configuration:
         location_configuration = group_configuration
+      else:
+        if isinstance(location_configuration, list):
+          location_configuration = ':'.join(location_configuration)
+        location_configuration = f'{group_configuration}:{location_configuration}'
       click.secho(str(location), bold=True, fg='cyan')
       maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
       yield from [(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])]
