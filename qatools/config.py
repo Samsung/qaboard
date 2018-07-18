@@ -40,17 +40,6 @@ elif on_vdi or on_lsf:
 else: # unknown linux
     platform = 'linux'
 
-# This flag identifies runs that happen within the CI or tuning experiments
-# Those use artifacts, that may be at a different location than when building locally
-ci_env_variables = [
-    # set by the qatools's on_lsf
-    'SAMSUNG_CI_COMMIT_DIR',
-    # set by GitlabCI
-    'CI_COMMIT_SHA',
-    # set by Jenkins' git plugin
-    'GIT_COMMIT',
-]
-is_ci = any([v in os.environ for v in ci_env_variables])
 
 # All recordings used should be stored at the same location
 # We will refer to them by their relative path related to the "database"
@@ -61,20 +50,51 @@ except KeyError:
     exit(1)
 database = Path(database)
 
+
+# This flag identifies runs that happen within the CI or tuning experiments
+# Those use artifacts, that may be at a different location than when building locally
+ci_env_variables = [
+    # set for tuning runs
+    'QATOOlS_CI_COMMIT_DIR',
+    # set by GitlabCI
+    'CI_COMMIT_SHA',
+    # set by Jenkins' git plugin
+    'GIT_COMMIT',
+]
+is_ci = any([v in os.environ for v in ci_env_variables])
+
+
 # bit-accuracy tests need data from previous commits
 try:    
     ci_root = config['ci_root'][mount_flavor]
 except KeyError:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     exit(1)
-ci_root = Path(ci_root) / config['project']['name']
+ci_dir = Path(ci_root) / config['project']['name']
 
+
+
+if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
+    commit_ci_dir = os.environ['QATOOLS_CI_COMMIT_DIR']
+else:
+    import git
+    try:
+        try:
+            repo = git.Repo('.')
+        except: # just to make `qa` work in the sample_project
+            repo = git.Repo('..')
+        commit = repo.head.commit
+        commit_ci_dir = ci_dir / 'commits' / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
+    except:
+        commit_ci_dir = None
+        commit = None
+        repo = None
 
 if verbose:
     click.secho(f'platform: {platform}', dim=True)
     click.secho(f'database: {database}', dim=True)
     click.secho(f'is_ci: {is_ci}', dim=True)
-    click.secho(f'ci results: {ci_root}', dim=True)
+    click.secho(f'commit_ci_dir: {commit_ci_dir}', dim=True)
 
 # We need to identify the version of the code we run on, and which branch
 if is_ci:

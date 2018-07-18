@@ -23,11 +23,16 @@ build:
     - export BOOST_ROOT=/home/arthurf/opt
     - export BOOST_FLAGS="-DBOOST_ROOT=$BOOST_ROOT -DBOOST_INCLUDEDIR=$BOOST_ROOT/include -DBOOST_LIBRARYDIR=$BOOST_ROOT/lib -DBoost_USE_MULTITHREADED=False"
     - cmake $BOOST_FLAGS -GNinja ..
-    - ninja
+    # We use bsub to compile on our LSF cluster
+    # You may want to specify the queue with -q, just be sure to
+    # use one with small memory constraints as compiling is sometimes demanding
+    - bsub ninja
+    - qa save_artifacts
 
 test:
   stage: build
   script:
+     # here the tests are executed on the test runner itself
      - ninja -C build test
 
 performance:
@@ -35,12 +40,7 @@ performance:
   script:
     - export filepath=DualGen3_WideAngle_IMU_BL15cm/Demo_set/2017-11-29-Scene_3.1/2017-11-29-Scene_3.1.bin
     - qa run --input-path=$filepath
-    # will use the list of batch from the file defined in the configuration 
+    # will run on all the tests from the group of inputs named "easy" (more details on qatools.yaml and qatools/input-groups.yaml)
+    # we automatically use the LSF cluster to distribute the work
     - qa batch --group easy
     # tip: you can use the `--batch-label` flag to split your tests results
-
-# FIXME: need to fix magic ENV SAMSUNG_$ variables
-# FIXME: straightforward way to work/compile on LSF (`on_lsf`, `update_lsf`)
-#        maybe via small CLI tools installed with `qatools`, that use the `CI_$` ENV variables
-# FIXME: straightforward way to copy artifacts and parameters after build
-

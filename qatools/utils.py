@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 import requests
-from .config import config, is_ci, commit_type, commit_id
+from .config import config, is_ci, commit_type, commit_id, ci_dir, repo
 
 
 def notify_qa_database(**kwargs):
@@ -61,11 +61,14 @@ def save_metrics(output_directory, **kwargs):
       json.dump(new_metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
 
 
-def commit_dir_name(commit):
-    """Returns the name of the directory under which the QA tools save the results
-    args: commit, gitpython Commit.
-    """
-    return f'{reference_commit.authored_date}__git__{reference_commit.hexsha[:8]}'
+
+def latest_commit(branch):
+    """Returns the latest commit on a branch."""
+    # FIXME: couldn't we just use the project's git repo URL from the configuration?
+    # Here we find a local copy of the repo and use it to iterate through commits
+    # TODO: we should use the branch slug.... but it will work for develop/master/release...
+    return list(repo.iter_commits(branch, max_count=1))[0]
+
 
 
 def tuning_foldername(batch_label, tuning_parameters_hash):

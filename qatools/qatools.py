@@ -16,7 +16,7 @@ from .utils import tuning_foldername, hash_parameters
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
 
-from .config import database, platform, is_ci, config, commit_type, commit_id
+from .config import database, platform, is_ci, config, commit_type, commit_id, commit_ci_dir
 
 
 entrypoint = Path(config['project']['entrypoint'])
@@ -190,6 +190,74 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
     name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
     wait = Job(name, 'echo "finished waiting for jobs on LSF."')
     wait.send(interactive=True, dependencies=jobs)
+
+
+@cli.command()
+def save_artifacts():
+  """Save the results at a standard location"""
+  import shutil
+  click.secho(str(commit_ci_dir), bold=True, underline=True)
+
+  # default artifacts
+  config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
+  config['artifacts']['qatools'] = {"glob": 'qatools/*'}
+  config['artifacts']['output'] = {"glob": 'output/**'}
+
+
+  if not commit_ci_dir:
+      click.secho(
+          "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
+          fg='yellow', dim=True)
+      exit(1)
+
+  for artifact_name, artifact_config in config['artifacts'].items():
+    click.secho(f'Saving artifacts: {artifact_name}', bold=True)
+    for path in Path('.').glob(artifact_config['glob']):
+      if not path.is_file():
+        continue
+      click.secho(str(path), dim=True)
+      destination = commit_ci_dir / path
+      destination.parent.mkdir(parents=True, exist_ok=True)
+      shutil.copy(str(path), str(commit_ci_dir/path))
+
+
+@cli.command()
+@click.option(
+    "--reference-branch",
+    default=f"origin/{config['project']['reference_branch']}",
+)
+def check_bit_accuracy(reference_branch):
+    """
+  Checks the bit accuracy of the results in the current ouput directory
+  versus the latest commit on origin/develop.
+  """
+    from .utils import latest_commit
+    from .config import commit_branch, repo
+    from .bit_accuracy import assert_bit_accurate_to
+
+    if config["project"]["type"] != "git":
+        click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
+        exit(1)
+
+    if not repo:
+        click.secho(
+            "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
+            fg='yellow', dim=True)
+
+    if commit_branch not in [reference_branch, f"origin/{reference_branch}"]:
+        assert assert_bit_accurate_to(
+            latest_commit(reference_branch)
+        ), "ERRROR: the bit-accuracy test has failed"
+
+    # bit-accuracy on the reference branch is check on the commit's parents
+    else:
+        all_bit_accurate = True
+        for commit_ref in reference_commit().parents:
+            if not assert_bit_accurate_to(commit_ref):
+                all_bit_accurate = False
+        assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
+
+
 
 
 if __name__ == '__main__':

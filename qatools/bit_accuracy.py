@@ -9,56 +9,8 @@ import filecmp
 import click
 import git
 
-from .config import config, commit_branch
-from .utils import commit_dir_name
+from .config import config, commit_branch, ci_dir, commit_ci_dir, is_ci
 
-
-@click.command()
-@click.option(
-    "--reference-branch",
-    default=f"origin/{config['project']['reference_branch']}",
-)
-def test_bit_accuracy(reference_branch):
-    """
-  Checks the bit accuracy of the results in the current ouput directory
-  versus the latest commit on origin/develop.
-  """
-    if config["project"]["type"] != "git":
-        click.secho(
-            "Bit-accuracy tests are only supported for git-based projects", err=True
-        )
-        exit(1)
-
-    if commit_branch not in [reference_branch, f"origin/{reference_branch}"]:
-        assert assert_bit_accurate_to(
-            latest_commit(reference_branch)
-        ), "ERRROR: the bit-accuracy test has failed"
-
-    # bit-accuracy on the reference branch is check on the commit's parents
-    else:
-        all_bit_accurate = True
-        for commit_ref in reference_commit().parents:
-            if not assert_bit_accurate_to(commit_ref):
-                all_bit_accurate = False
-        assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
-
-
-def latest_commit(branch):
-    """Returns the latest commit on a branch."""
-    if config["project"]["type"] != "git":
-        click.secho(
-            "Bit-accuracy tests are only support for git-based projects", err=True
-        )
-        exit(1)
-
-    # FIXME: couldn't we just use the project's git repo URL from the configuration?
-    # Here we find a local copy of the repo and use it to iterate through commits
-    # TODO: we should use the branch slug.... but it will work for develop/master/release...
-    repo_name = config["project"]["name"].split("/")[-1]
-    # Who makes sure this exists? This is very fragile....
-    repo_path = ci_root / "branches" / branch / repo_name
-    repo = git.Repo(str(repo_path))
-    return list(repo.iter_commits(branch, max_count=1))[0]
 
 
 def compare_folders(dir_1=Path(), dir_2=Path(), patterns=None):
@@ -82,9 +34,13 @@ def compare_folders(dir_1=Path(), dir_2=Path(), patterns=None):
 
 def assert_bit_accurate_to(reference_commit):
     """Throws if the results of the current output directory are not bit-accurate to the reference commit"""
-    reference_folder = commit_dir_name(reference_commit)
-    reference_output_directory = ci_root / "commits" / reference_folder / "output"
-    output_directory = Path() / "output"
+    reference_folder = f'{reference_commit.authored_date}__git__{reference_commit.hexsha[:8]}'
+    reference_output_directory = ci_dir / "commits" / reference_folder / "output"
+    if is_ci:
+      output_directory = ci_commit_dir / "output"
+    else:
+      output_directory = Path() / "output"
+    
     print(f"Current output directory  : {output_directory}")
     print(f"Reference output directory: {reference_output_directory}")
     return compare_folders(

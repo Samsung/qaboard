@@ -3,7 +3,8 @@ project:
   type: git
   url: git@gitlab-srv/my_group/sample_project
   # the latest commit on this branch is the reference for bit-accuracy tests
-  reference_branch: develop
+  # typical choices are master, develop, or release
+  reference_branch: master
   # where the script implementing run and postprocess is located relative to the project's root
   entrypoint: qatools/main.py
 
@@ -58,10 +59,11 @@ outputs:
 # The qatools give you (TODO) a command, `save_artifacts`, to save them
 # Note: we don't use standard (even gitlab's) tools for artifact management. Maybe we should.
 artifacts:
+  # .qatools.yaml and qatools/ are saved automatically
   # We will our configuration files for easy access from the QA's UI.
-  - configuration: 
-    glob: configuration/*.json
-  - binary:
+  configurations: 
+    glob: configurations/*.json
+  binary:
     glob: 'build/sample_project'
 
   # results will be saved as:
@@ -73,10 +75,11 @@ artifacts:
   #    ├── params.json
   #    └── low-light.json
 
-# Bit-accuracy tests need data from previous commits
-# each commit's folder should be saved sat $ci_root/$project_name
+# Each commit's outputs and artifacts will be saved sat $ci_root/$project_name
+# All the content has to be readable by `arthurf`
 ci_root:
   linux: /home/arthurf/ci
+  # from windows you can still run bit-accuracy tests
   windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
 
 
