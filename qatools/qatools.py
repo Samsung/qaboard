@@ -173,7 +173,7 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
       output_directory = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], tuning_hash) / input_path.parent / input_path.stem
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
-          f"python {config['project']['entrypoint']}",
+          f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
           f'--configuration "{input_configuration}"',
