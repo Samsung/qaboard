@@ -14,12 +14,15 @@ try:
     with Path('qatools.yaml').open('r') as f:
         config = yaml.load(f)
         if verbose: click.secho(str(config), dim=True)
-except:
-    click.secho('ERROR: Could not find the `qatools.yml` configuration file.', fg='red', err=True)
+except FileNotFoundError:
+    click.secho('ERROR: Could not find the `qatools.yaml` configuration file.', fg='red', err=True)
     click.secho(
         'Please read the tutorial, and ask @arthurf for help\n'
         'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
         dim=True, err=True)
+    exit(1)
+except:
+    click.secho('ERROR: Could not parse the configuration file `qatools.yaml`.', fg='red', err=True)
     exit(1)
 
 

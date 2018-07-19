@@ -123,7 +123,9 @@ def postprocess_(runtime_metrics, context):
   notify_qa_database(**context.obj)
   return metrics
 
-@cli.command()
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
 @click.pass_context
 @click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
@@ -131,7 +133,7 @@ def postprocess(ctx, input_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   ctx.obj['input_path'] =  input_path
   ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
-  ctx.obj['forwarded_args'] = forwarded_args[1:]
+  ctx.obj['forwarded_args'] = forwarded_args
   postprocess_({}, ctx)
 
 
@@ -207,7 +209,7 @@ def save_artifacts():
   # default artifacts
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
-  config['artifacts']['output'] = {"glob": 'output/**'}
+  config['artifacts']['output'] = {"glob": 'output/**/*'}
 
 
   if not commit_ci_dir:
