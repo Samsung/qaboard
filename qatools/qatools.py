@@ -84,7 +84,7 @@ def run(ctx, input_path, forwarded_args):
     ctx.obj['input_path'] =  input_path
     ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
     ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
-    ctx.obj['forwarded_args'] = forwarded_args[1:]
+    ctx.obj['forwarded_args'] = forwarded_args
 
     try:
       runtime_metrics = entrypoint_module.run(ctx)
@@ -136,7 +136,9 @@ def postprocess(ctx, input_path, forwarded_args):
 
 
 
-@cli.command()
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
 @click.option('--group', '-g', default=['small'], multiple=True, help="We run over all recordings in those groups")
 @click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
