@@ -14,11 +14,13 @@ project:
 # In doubt, ask advice from your manager or the CAD team.
 # Find some quota information with `bqueues`
 lsf:
+  # errors will be sent to this email
+  email: arthur.flam@samsung.com
   # This queue doesn't have a max number of pending jobs and has medium priority
   queue: alg_q
   # we will use a fast queue to launch jobs that create subsequent LSF jobs
   # it helps get a fast feeback about which outputs are pending
-  fast_queue: alg_q_fast
+  fast_queue: alg_fast_q
 
 
 
