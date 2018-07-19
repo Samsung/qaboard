@@ -205,7 +205,7 @@ def save_artifacts():
   # default artifacts
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
-  config['artifacts']['output'] = {"glob": 'output/**'}
+  config['artifacts']['output'] = {"glob": 'output/**/*'}
 
 
   if not commit_ci_dir:
