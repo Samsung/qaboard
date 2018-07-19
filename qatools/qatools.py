@@ -71,7 +71,9 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   ctx.obj['dryrun'] = dryrun
 
 
-@cli.command()
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
 @click.pass_context
 @click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
@@ -196,6 +198,8 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
 def save_artifacts():
   """Save the results at a standard location"""
   import shutil
+  import filecmp
+  import os
   click.secho(str(commit_ci_dir), bold=True, underline=True)
 
   # default artifacts
@@ -215,12 +219,14 @@ def save_artifacts():
     for path in Path('.').glob(artifact_config['glob']):
       if not path.is_file():
         continue
-      # we may want to check size/mtime before copying
-      click.secho(str(path), dim=True)
       destination = commit_ci_dir / path
+      if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
+        continue
+      click.secho(str(path), dim=True)
       destination.parent.mkdir(parents=True, exist_ok=True)
-      shutil.copy(str(path), str(commit_ci_dir/path))
-
+      shutil.copy(str(path), str(destination))
+      # we may want to do this for the parent folders also
+      os.chmod(destination, 0o777)
 
 @cli.command()
 @click.option(

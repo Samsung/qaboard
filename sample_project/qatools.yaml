@@ -46,6 +46,7 @@ inputs:
 
 
 outputs:
+  # each metric should have a label, a quality treshold, a scale, unit...
   metrics: qatools/metrics.json
   # to view the qualitative results, the GUI application needs to know
   # what resources to fetch (images, movies, 6dof...).
@@ -69,18 +70,13 @@ artifacts:
   # results will be saved as:
   # 
   # commit_folder
+  # ├── .qatools.yaml
+  # ├── qatools/*
   # ├── build
   # │  └── sample_project
   # └── configurations
   #    ├── params.json
   #    └── low-light.json
-
-# Each commit's outputs and artifacts will be saved sat $ci_root/$project_name
-# All the content has to be readable by `arthurf`
-ci_root:
-  linux: /home/arthurf/ci
-  # from windows you can still run bit-accuracy tests
-  windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
 
 
 bit_accuracy:
@@ -89,3 +85,15 @@ bit_accuracy:
     - y.hex
     - depth.hex
 
+
+# DON'T CHANGE THIS SETTING FOR NOW
+# TODO: use //f2/algo_data/ci
+#       1  check the file copy/retry issues: why have to try twice...
+#       2. the folder should be writable by anyone (?)
+#       3. move the /home/arthurf/ci/*/*/commits` there
+#       4. update the slamvizapp/slamvizapp/config.py
+# Each commit's outputs and artifacts will be saved sat $ci_root/$project_name
+ci_root:
+  linux: /home/arthurf/ci
+  # from windows you can still run bit-accuracy tests
+  windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'

@@ -17,8 +17,9 @@ stages:
   - analysis
 
 
-# enables incremental recompilation, per branch
+# enables incremental recompilation, per branch.
 # https://docs.gitlab.com/ee/ci/yaml/#cache
+# https://docs.gitlab.com/ee/ci/caching/index.html#good-caching-practices
 cache:
   key: "$CI_COMMIT_REF_NAME"
   paths:
