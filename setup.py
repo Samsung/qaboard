@@ -24,11 +24,17 @@ setup(
     'psycopg2-binary',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
-    'uwsgi',
+    # 'uwsgi', # actually required, see below
     'ujson',
-    'simplejson',
-    'python-rapidjson',
   ],
+
+  extras_require={
+      # REQUIRED, but currently doesn't build on LSF, so moved here.....
+      'server': ['uwsgi'],
+      # we started testing alternative json libraries, since a lot of time is
+      # spend serializing results from the database.
+      'test-json': ["python-rapidjson", "simplejson"],
+  },
 
   entry_points= {
     'console_scripts': [
