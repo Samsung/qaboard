@@ -63,6 +63,7 @@ def get_commits(branch=None):
 
   if branch:
       print(f'filtering by branch [{branch}] using SQL', file=sys.stderr)
+      branch = branch.replace('origin/', '')
       ci_commits = ci_commits.filter(CiCommit.branch == branch or CiCommit.branch == f'origin/{branch}')
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
