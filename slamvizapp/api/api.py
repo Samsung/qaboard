@@ -96,7 +96,7 @@ def get_commits(branch=None):
   return response
 
 @app.route("/api/v1/project/branches")
-def list_branches():
+def get_branches():
   """Returns a list of that project's branches"""
   project_id = request.args.get('project')
   branches = (db_session
@@ -110,7 +110,7 @@ def list_branches():
 
 
 @app.route("/api/v1/projects")
-def list_projects():
+def get_projects():
   # projects = db_session.query(Project).all()
   projects = (db_session
               .query(
@@ -126,10 +126,23 @@ def list_projects():
              )
   return jsonify({
     project_id: {
+      # TODO: drop qatools_config
+      # TODO: drop qatools_metrics
       'information': information,
       'latest_commit_datetime': latest_commit_datetime,
       'total_commits': total_commits,
     } for project_id, information, latest_commit_datetime, total_commits  in projects })
+
+@app.route("/api/v1/project")
+def get_project():
+  project_id = request.args.get('project', 'dvs/psp_swip')
+  project = (Project
+               .query.filter(
+                 Project.id==project_id,
+               )
+               .one()
+              )
+  return jsonify(project.information)
 
 
 @app.route("/api/v1/commit")

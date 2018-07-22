@@ -156,7 +156,11 @@ def import_slam_manual_run(folder, commit_short_id, label, verbose=False):
       raise ValueError
 
   commit = repo.commit(commit_short_id)
-  ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
+  try:
+    ci_commit = session.query(CiCommit).filter_by(id=commit.hexsha).one()
+  except:
+    print(f'ERROR: could not find a CiCommit for {commit.hexsha}')
+    return
   # if verbose: print(f'  {ci_commit}')
   batch_android = ci_commit.get_or_create_batch(label)
 

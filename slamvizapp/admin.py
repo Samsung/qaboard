@@ -29,7 +29,7 @@ class TestInputModelView(ModelView):
   column_exclude_list = one_to_many_columns
   form_excluded_columns = one_to_many_columns
   can_view_details = True
-  column_searchable_list = ['path', 'database']
+  column_searchable_list = ['path', 'database', 'data']
   column_filters = editable_columns
   column_editable_list = editable_columns
   form_override = dict(
@@ -38,7 +38,9 @@ class TestInputModelView(ModelView):
 
 class ProjectModelView(ModelView):
   column_list = ['id', 'information']
+  column_searchable_list = ['id', 'information']
   can_delete = False
+
 
 
 admin.add_view(TestInputModelView(TestInput, db_session))

@@ -1,4 +1,7 @@
+import sys
 import json
+import yaml
+
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -9,8 +12,6 @@ from ..config import default_recordings_directory
 
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
-@app.route('/api/v1/slam_output', methods=['POST'])
-@app.route('/api/v1/slam_output/', methods=['POST'])
 def new_output_webhook():
   data = request.get_json()
   project_id = request.json.get('project', 'dvs/psp_swip')
@@ -25,8 +26,11 @@ def new_output_webhook():
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
 
+  test_input_path = request.json.get('recording_path', request.json.get('input_path'))
+  if not test_input_path:
+    return jsonify({"error": "the input path was not provided"}, 400)
   database = request.json.get('database', default_recordings_directory)
-  test_input = TestInput.get_or_create(db_session, path=data['recording_path'], database=database)
+  test_input = TestInput.get_or_create(db_session, path=test_input_path, database=database)
   if not test_input: return "KO", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
@@ -58,15 +62,17 @@ def gitlab_webhook():
   # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
   print(data)
-  # dvs/psp_swip
-  project_path = data['project']['path_with_namespace']
+  # data['ref'] => 'refs/heads/feature/Imu_preintegration'
+  branch = data['ref'][11:]
+  project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
   project = Project.get_or_create(session=db_session, id=project_path)
-  project.information = {'git': data['project']}
+  project.information = {
+    **project.information,
+    'git': data['project'],
+  }
   repo = repos[project_path]
   git_pull(repo)
 
-  # we can't create a commit now as we're missing default params.json
-  # we should look into the commit data etc...
   try: # no work to do if our commit is already in the database
     ci_commit = (db_session
                  .query(CiCommit)
@@ -83,14 +89,59 @@ def gitlab_webhook():
       ci_commit = CiCommit(
           commit,
           project=project,
-          branch='origin/'+data['ref'][11:], #  'refs/heads/feature/Imu_preintegration'
+          branch=branch,
       )
-      print(ci_commit)
+      print(ci_commit, file=sys.stderr)
     except ValueError:
       print(f'WARNING: could not create a commit for {commit.hexsha}')
       return "{status:'OK'}"
     if ci_commit is None: # something is wrong, maybe an error opening param.json
       return "{status:'OK'}"
+
   db_session.add(ci_commit)
   db_session.commit()
+
+
+  # we update the project configuration stored in the database
+  try:
+    qatools_config_contents = repo.git.show('{}:{}'.format(ci_commit.id, 'qatools.yaml'))
+  except:
+    qatools_config_contents = None
+  if qatools_config_contents:
+    qatools_config = yaml.load(qatools_config_contents)
+
+  if qatools_config:
+    is_initialization = 'qatools_config' not in project.information
+    try:
+      is_reference = not is_initialization and branch == project.information['qatools_config']['project']['reference_branch']
+    except:
+      is_reference = False
+    ci_commit.data = {**ci_commit.data, 'qatools_config': qatools_config}
+    if is_initialization or is_reference:
+      project.information = {
+        **project.information,
+        'qatools_config': qatools_config,
+      }
+
+  # we update the project metrics
+  if 'qatools_config' in project.information:
+    metrics_path = project.information['qatools_config']['outputs']['metrics']
+    try:
+      metrics_content = repo.git.show('{}:{}'.format(ci_commit.id, metrics_path))
+    except:
+      metrics_content = None
+
+    if metrics_content:
+      if metrics_path.endswith('yaml'):
+          metrics = yaml.load(metrics_content)        
+      elif metrics_path.endswith('json'):
+        metrics = json.loads(metrics_content)
+      project.information = {
+        **project.information,
+        'qatools_metrics': metrics,
+      }
+
+  db_session.add(project)
+  db_session.commit()
+  # print(project.information)
   return "{status:'OK'}"
