@@ -97,7 +97,7 @@ class CiCommit(Base):
       if not branch: branch='<NA>'
     self.id = commit.hexsha
     self.message = commit.message
-    self.parents = [p.hexsha for c in commit.parents]
+    self.parents = [c.hexsha for c in commit.parents]
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
