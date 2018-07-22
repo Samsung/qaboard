@@ -12,7 +12,7 @@ import ujson
 from gitdb.exc import BadName
 from flask import request, jsonify, make_response
 
-from sqlalchemy import func, and_, asc
+from sqlalchemy import func, and_, asc, or_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
@@ -64,7 +64,7 @@ def get_commits(branch=None):
   if branch:
       print(f'filtering by branch [{branch}] using SQL', file=sys.stderr)
       branch = branch.replace('origin/', '')
-      ci_commits = ci_commits.filter(CiCommit.branch == branch or CiCommit.branch == f'origin/{branch}')
+      ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
   only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
