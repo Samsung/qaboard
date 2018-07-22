@@ -32,6 +32,7 @@ class CiCommit(Base):
   committer_name = Column(String(), index=True)
   message = Column(String())
   parents = Column(JSON())
+  data = Column(JSON())
 
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
@@ -96,6 +97,7 @@ class CiCommit(Base):
       if not branch: branch='<NA>'
     self.id = commit.hexsha
     self.message = commit.message
+    self.parents = [p.hexsha for c in commit.parents]
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
