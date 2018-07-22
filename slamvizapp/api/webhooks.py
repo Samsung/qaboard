@@ -107,6 +107,7 @@ def gitlab_webhook():
     qatools_config_contents = repo.git.show('{}:{}'.format(ci_commit.id, 'qatools.yaml'))
   except:
     qatools_config_contents = None
+    qatools_config = None
   if qatools_config_contents:
     qatools_config = yaml.load(qatools_config_contents)
 
