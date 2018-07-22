@@ -52,7 +52,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     metrics_new[metric.key] === undefined ||
     metrics_new[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>New missing</td>;
+    return <td style={{ background: "#bbb" }}>New missing: {JSON.stringify(metrics_new)}</td>;
   if (
     !metrics_ref ||
     metrics_ref[metric.key] === undefined ||
