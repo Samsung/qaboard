@@ -62,26 +62,8 @@ def get_commits(branch=None):
     ci_commits = ci_commits.filter_by(committer_name=committer_name)
 
   if branch:
-    if project_id == 'dvs/psp_swip' and not request.args.get('only_when_first_pushed_as', False):
-      print(f'filtering by branch [{branch}] using git', file=sys.stderr)
-      commits = []
-      page = 0
-      earliest_commit = None
-      new_commits = []
-      while page==0 or earliest_commit.authored_datetime >= from_date:
-        repo = repos[project_id]
-        new_commits = list(repo.iter_commits(branch, max_count=20, skip=20*page))
-        if not new_commits: break
-        earliest_commit = new_commits[-1]
-        page = page + 1
-        commits = commits + new_commits
-
-      is_in_range = lambda c: c.authored_datetime >= from_date and c.authored_datetime <= to_date
-      commit_ids = [c.hexsha for c in commits if is_in_range(c)]
-      ci_commits = ci_commits.filter(CiCommit.id.in_(commit_ids))
-    else:
       print(f'filtering by branch [{branch}] using SQL', file=sys.stderr)
-      ci_commits = ci_commits.filter(CiCommit.branch == branch)
+      ci_commits = ci_commits.filter(CiCommit.branch == branch or CiCommit.branch == f'origin/{branch}')
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
   only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
