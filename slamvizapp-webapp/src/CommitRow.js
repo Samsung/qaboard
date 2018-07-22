@@ -215,10 +215,7 @@ const CommitShortId = styled.a`
 class CommitRow extends React.Component {
   render() {
     const { commit, project, className, toaster } = this.props;
-    const commit_url =
-      project === "dvs/psp_swip" || project === "tof/swip_tof"
-        ? `http://gitlab-srv/${project}/commit/${commit.id}`
-        : "#sorry-not-yet-available";
+    const commit_url = `http://gitlab-srv/${project}/commit/${commit.id}`
     return (
       <CommitRowWrapper className={className}>
         <Avatar

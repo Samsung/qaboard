@@ -172,6 +172,16 @@ class CiCommitList extends React.Component {
     var information = (
       <Fragment>
         <Section>
+          {project !== "dvs/psp_swip" && project !== "tof/swip_tof" && <Callout
+              icon="info-sign"
+              intent={Intent.PRIMARY}
+              title="Want to view your CI results here?"
+              style={{ marginBottom: "20px" }}
+            >
+              <p>
+                Read the <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools introduction</a>.
+              </p>
+            </Callout>}
           <Callout
             icon="info-sign"
             intent={Intent.PRIMARY}
@@ -216,57 +226,17 @@ class CiCommitList extends React.Component {
                 src={`http://gitlab-srv/${project}/badges/develop/coverage.svg`}
               />
             </a>
-            <a href={`/s/${project}/branches/develop/doxygen/index.html`}>
+            {project === 'dvs/psp_swip' && <a href={`/s/${project}/branches/develop/doxygen/index.html`}>
               {" "}
               <img
                 src="https://img.shields.io/badge/docs-develop-green.svg"
                 alt="documentation"
               />
-            </a>
+            </a>}
           </p>
         </Section>
       </Fragment>
     );
-    let show_integration_todos =
-      project !== "dvs/psp_swip" && project !== "tof/swip_tof";
-    if (show_integration_todos)
-      information = (
-        <Fragment>
-          <Section>
-            <Callout
-              icon="info-sign"
-              intent={Intent.PRIMARY}
-              title="How do we make a CI like the SLAM's ?"
-              style={{ marginBottom: "20px" }}
-            >
-              <ul>
-                <li>
-                  <strong>TODO</strong> Output viewer
-                </li>
-                <li>
-                  <strong>TODO</strong> KPI, metrics
-                </li>
-                <li>
-                  <strong>TODO</strong> Links to the build status, docs,
-                  jenkins/gitlab, coverage reports...
-                </li>
-                <li>
-                  <strong>TODO</strong> Links to build status, docs
-                </li>
-                <li>
-                  <strong>TODO</strong> Dashboard
-                </li>
-                <li>
-                  <strong>TODO</strong> Hooks to keep in sync
-                </li>
-                <li>
-                  <strong>TODO</strong> Tuning
-                </li>
-              </ul>
-            </Callout>
-          </Section>
-        </Fragment>
-      );
 
     let link_to_tag = is_branch ? (
       <Link to={`/branch/${tag}?project=${project}`}>

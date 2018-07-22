@@ -40,8 +40,8 @@ const groupByObject = (array, prop) => {
 };
 
 const shortId = (project, id) => {
-  if (project === "dvs/psp_swip" || project === "tof/swip_tof")
-    return id.substring(0, 8);
+  //if (project === "dvs/psp_swip" || project === "tof/swip_tof")
+  return id.substring(0, 8);
 
   let parts = id.split("/");
   let name = parts[parts.length - 1];

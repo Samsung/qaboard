@@ -608,7 +608,7 @@ class CommitsEvolution extends Component {
   };
 
   render() {
-    const { project, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
+    const { commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
@@ -619,8 +619,8 @@ class CommitsEvolution extends Component {
     } = this.state;
     const { available_metrics, select_metrics } = this.state;
 
-    if (project !== "dvs/psp_swip" && project !== "tof/swip_tof")
-      return <div>This project is not supported yet!</div>;
+    if (!metrics[this.state.project].default_metric)
+      return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;
 
     return (
       <div style={style}>
