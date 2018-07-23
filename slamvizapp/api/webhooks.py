@@ -96,6 +96,7 @@ def gitlab_webhook():
       print(f'WARNING: could not create a commit for {commit.hexsha}')
       return "{status:'OK'}"
     if ci_commit is None: # something is wrong, maybe an error opening param.json
+      print(f'WARNING: ci_commit is None for {commit.hexsha}')
       return "{status:'OK'}"
 
   db_session.add(ci_commit)
@@ -112,9 +113,10 @@ def gitlab_webhook():
     qatools_config = yaml.load(qatools_config_contents)
 
   if qatools_config:
+    print('Found qatools.yaml')
     is_initialization = 'qatools_config' not in project.information
     try:
-      is_reference = not is_initialization and branch == project.information['qatools_config']['project']['reference_branch']
+      is_reference = not is_initialization and branch == qatools_config['project']['reference_branch']
     except:
       is_reference = False
     ci_commit.data = {**(ci_commit.data if ci_commit.data else {}), 'qatools_config': qatools_config}
@@ -127,6 +129,7 @@ def gitlab_webhook():
   # we update the project metrics
   if 'qatools_config' in project.information:
     metrics_path = project.information['qatools_config']['outputs']['metrics']
+    print(f'found metrics at {metrics_path}')
     try:
       metrics_content = repo.git.show('{}:{}'.format(ci_commit.id, metrics_path))
     except:
@@ -137,12 +140,14 @@ def gitlab_webhook():
           metrics = yaml.load(metrics_content)        
       elif metrics_path.endswith('json'):
         metrics = json.loads(metrics_content)
+      # print(metrics)
       project.information = {
         **(project.information if project.information else {}),
         'qatools_metrics': metrics,
       }
+      # print(project.information)
 
   db_session.add(project)
   db_session.commit()
-  # print(project.information)
+  print(project.information)
   return "{status:'OK'}"
