@@ -67,7 +67,7 @@ def gitlab_webhook():
   project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
   project = Project.get_or_create(session=db_session, id=project_path)
   project.information = {
-    **project.information,
+    **(project.information if project.information else {}),
     'git': data['project'],
   }
   repo = repos[project_path]
@@ -117,10 +117,10 @@ def gitlab_webhook():
       is_reference = not is_initialization and branch == project.information['qatools_config']['project']['reference_branch']
     except:
       is_reference = False
-    ci_commit.data = {**ci_commit.data, 'qatools_config': qatools_config}
+    ci_commit.data = {**(ci_commit.data if ci_commit.data else {}), 'qatools_config': qatools_config}
     if is_initialization or is_reference:
       project.information = {
-        **project.information,
+        **(project.information if project.information else {}),
         'qatools_config': qatools_config,
       }
 
@@ -138,7 +138,7 @@ def gitlab_webhook():
       elif metrics_path.endswith('json'):
         metrics = json.loads(metrics_content)
       project.information = {
-        **project.information,
+        **(project.information if project.information else {}),
         'qatools_metrics': metrics,
       }
 
