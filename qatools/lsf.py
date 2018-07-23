@@ -37,7 +37,7 @@ class Job:
         self.priority = priority  # max: 4000, LSF-default: 2000
 
     def send(
-        self, dependencies=None, interactive=False, mail_to="arthur.flam@samsung.com"
+        self, dependencies=None, interactive=False, mail_to=config["lsf"]["email"]
     ):
         """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
