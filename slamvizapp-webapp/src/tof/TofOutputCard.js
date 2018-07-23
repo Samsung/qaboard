@@ -224,13 +224,16 @@ class TofOutputCard extends Component {
 
     const empty_data = { frames: [] };
     let data_new =
-      output_new && output_new.data && output_new.data.frames
+      output_new && output_new.metrics && output_new.metrics.frames
         ? output_new.metrics
         : empty_data;
     let data_ref =
-      output_ref && output_ref.data && output_ref.data.frames
+      output_ref && output_ref.metrics && output_ref.metrics.frames
         ? output_ref.metrics
         : empty_data;
+
+    // console.log(output_new)
+    // console.log(data_new.frames)
 
     if (!metrics_new || !metrics_ref || !data_new || !data_ref) return <span />;
 
