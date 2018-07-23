@@ -178,7 +178,7 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
           f'--platform "{ctx.obj["platform"]}"',
           f'--configuration "{input_configuration}"',
           f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
-          'run' if should_run else 'postprocessing',
+          'run' if should_run else 'postprocess',
           f'--input-path "{input_path}"',
           ' '.join(forwarded_args),
       ])
