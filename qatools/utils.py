@@ -28,7 +28,7 @@ def notify_qa_database(**kwargs):
   port = os.getenv('QATOOLS_DB_PORT', '5000')
   url = f'{protocol}://{host}:{port}/api/v1/output/'
   data= {
-    'job_type': commit_type,
+    'job_type': 'ci' if is_ci else 'local',
     'git_commit_sha': commit_id,
     **kwargs,
   }
