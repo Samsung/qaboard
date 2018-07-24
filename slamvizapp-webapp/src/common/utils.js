@@ -16,7 +16,7 @@ const average = array => {
   return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
 };
 const median = array => {
-  let array_filtered = array.filter(x => x !== undefined)
+  let array_filtered = array.filter(x => x !== undefined && x !== null)
   return array_filtered.length>0 ? math.median(array_filtered) : null;
 };
 
