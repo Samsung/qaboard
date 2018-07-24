@@ -49,8 +49,10 @@ def new_output_webhook():
   elif request.json.get('is_pending', False):
     output.is_pending = True
   else:
-    output.update_metrics()
-
+    if request.json.get('metrics', False):
+      output.update_metrics()
+    else:
+      output.metrics = request.json.get('metrics', {})
   db_session.add(output)
   db_session.commit()
   return "OK"
