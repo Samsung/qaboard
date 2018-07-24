@@ -120,7 +120,7 @@ def postprocess_(runtime_metrics, context):
   save_metrics(context.obj['output_directory'], **metrics)
   with (context.obj['output_directory']/'output.json').open('w') as f:
     json.dumps({'output_type': context.obj['output_type']})
-  notify_qa_database(**context.obj)
+  notify_qa_database(**context.obj, metrics=metrics)
   return metrics
 
 @cli.command(context_settings=dict(
