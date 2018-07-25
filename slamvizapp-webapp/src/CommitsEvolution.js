@@ -263,7 +263,7 @@ class CommitsEvolutionPerBatch extends React.Component {
         >
           <CommitRow
             commit={hovered_commit}
-            project="dvs/psp_swip"
+            project={this.props.project}
             toaster={toaster}
           />
         </div>
@@ -551,7 +551,7 @@ class CommitsEvolutionPerMovie extends React.Component {
           </Tag>
           <CommitRow
             commit={hovered_commit}
-            project="dvs/psp_swip"
+            project={this.props.project}
             toaster={toaster}
           />
           {details_on_hover && (
@@ -608,7 +608,7 @@ class CommitsEvolution extends Component {
   };
 
   render() {
-    const { commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
+    const { project, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
@@ -619,7 +619,7 @@ class CommitsEvolution extends Component {
     } = this.state;
     const { available_metrics, select_metrics } = this.state;
 
-    if (!metrics[this.state.project].default_metric)
+    if (!metrics[project].default_metric)
       return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;
 
     return (
@@ -700,6 +700,7 @@ class CommitsEvolution extends Component {
         </FormGroup>
         {breakdown_per_test ? (
           <CommitsEvolutionPerMovie
+            project={project}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}
@@ -709,6 +710,7 @@ class CommitsEvolution extends Component {
           />
         ) : (
           <CommitsEvolutionPerBatch
+            project={project}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}
