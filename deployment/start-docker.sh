@@ -82,6 +82,8 @@ fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs2:/etc/nginx/ssl/dvs2"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/init.sh:/slamvizapp/deployment/init.sh"
 
 # Networking:
