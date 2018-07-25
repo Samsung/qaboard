@@ -13,6 +13,9 @@ verbose = os.getenv('QATOOLS_VERBOSE', False)
 
 # The `init` command is implemented here to avoid lots of try/catch or fake values in the import
 if sys.argv[1] == 'init':
+  if Path('qatools.yaml').exists():
+    click.secho('You already have a qatools.yaml configuration.', fg='green')
+    exit(0)
   import shutil
   try: # fast, available from python3.7
     from importlib import resources
