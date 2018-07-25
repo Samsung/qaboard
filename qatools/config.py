@@ -10,20 +10,29 @@ import click
 
 verbose = os.getenv('QATOOLS_VERBOSE', False)
 
-try:
-    with Path('qatools.yaml').open('r') as f:
-        config = yaml.load(f)
-        if verbose: click.secho(str(config), dim=True)
-except FileNotFoundError:
-    click.secho('ERROR: Could not find the `qatools.yaml` configuration file.', fg='red', err=True)
-    click.secho(
-        'Please read the tutorial, and ask @arthurf for help\n'
-        'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
-        dim=True, err=True)
-    exit(1)
-except:
-    click.secho('ERROR: Could not parse the configuration file `qatools.yaml`.', fg='red', err=True)
-    exit(1)
+
+# The `init` command is implemented here to avoid lots of try/catch or fake values in the import
+if sys.argv[1] == 'init':
+  import shutil
+  try: # fast, available from python3.7
+    from importlib import resources
+    with resources.path('qatools', '') as qatools_dir:
+      pass
+  except:
+      import pkg_resources
+      qatools_dir = Path(pkg_resources.resource_filename('qatools', ''))
+  click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
+  shutil.copy(str(qatools_dir/'sample_project/qatools.yaml'), 'qatools.yaml')
+  click.secho('...added qatools.yaml', fg='green', dim=True)
+  shutil.copytree(str(qatools_dir/'sample_project/qatools'), 'qatools')
+  click.secho('...added qatools/', fg='green', dim=True)
+  click.secho(
+    'If you need help configuring qatools. please read the tutorial, and ask @arthurf for help\n'
+    'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
+    fg='blue'
+  )
+  exit(0)
+
 
 
 # It's useful to know what's the platform since code is often compiled a different locations
@@ -42,6 +51,23 @@ elif on_vdi or on_lsf:
     platform = 'lsf'
 else: # unknown linux
     platform = 'linux'
+
+
+
+try:
+    with Path('qatools.yaml').open('r') as f:
+        config = yaml.load(f)
+        if verbose: click.secho(str(config), dim=True)
+except FileNotFoundError:
+    click.secho('ERROR: Could not find the `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
+    click.secho(
+        'Please read the tutorial, and ask @arthurf for help\n'
+        'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
+        dim=True, err=True)
+    exit(1)
+except:
+    click.secho('ERROR: Could not parse the configuration file `qatools.yaml`.', fg='red', err=True)
+    exit(1)
 
 
 # All recordings used should be stored at the same location

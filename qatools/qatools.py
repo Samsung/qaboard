@@ -16,7 +16,9 @@ from .utils import tuning_foldername, hash_parameters
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
 
-from .config import database, platform, is_ci, config, commit_type, commit_id, commit_ci_dir
+# The `init` command is implemented in config.py
+# it helps avoiding try/catch on the import and providing lots of NA values
+from .config import database, platform, config, commit_id, commit_ci_dir
 
 
 entrypoint = Path(config['project']['entrypoint'])
@@ -164,7 +166,7 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
   jobs = []
 
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
-    input_path = input_path_abs.relative_to(database)
+    input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', bold=True)
     tuning_search_dict = json.loads(tuning_search) if tuning_search else None
 
@@ -231,6 +233,7 @@ def save_artifacts():
       shutil.copy(str(path), str(destination))
       # we may want to do this for the parent folders also
       os.chmod(destination, 0o777)
+
 
 @cli.command()
 @click.option(
