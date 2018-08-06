@@ -1,7 +1,5 @@
 /* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component } from "react";
-// import { get, all, spread } from "axios";
 import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
@@ -56,6 +54,7 @@ class TofOutputCard extends Component {
       var last_frame_id = props.output_new.metrics.frames.length - 1;
     else last_frame_id = 0;
     this.state = {
+      show_pointcloud: false,
       selected_frame: last_frame_id,
       frames: {
         [last_frame_id]: {
@@ -65,31 +64,6 @@ class TofOutputCard extends Component {
         }
       }
     };
-
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(75, aspect_ratio, 0.1, 1000);
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true
-    });
-    this.renderer.setSize(width, height);
-    this.camera.up.set(0, -1, 0);
-
-    // https://threejs.org/docs/#examples/controls/OrbitControls
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.25;
-    this.controls.screenSpacePanning = false;
-    this.controls.minDistance = 1;
-    this.controls.maxDistance = 5 * 1000;
-  }
-
-  componentDidMount() {
-    window.addEventListener("keypress", this.keyboard);
-    this.threeRoot.appendChild(this.renderer.domElement);
-    this.start();
-    this.getFrame(this.state.selected_frame, "new");
-    this.getFrame(this.state.selected_frame, "reference");
   }
 
   getFrame(frame_id, label) {
@@ -103,6 +77,11 @@ class TofOutputCard extends Component {
     var url = `${output.output_dir_url}/Frame${frame_id}/pointcloud.pcd`;
     loader.load(url, pointcloud => {
       if (pointcloud !== null) {
+        var previous_pointcloud = this.scene.getObjectByName(label);
+        console.log(previous_pointcloud)
+        if (previous_pointcloud) 
+          this.scene.remove(previous_pointcloud);
+
         pointcloud.name = label;
         if (label === "reference") {
           pointcloud.visible = false;
@@ -110,8 +89,6 @@ class TofOutputCard extends Component {
           pointcloud.material.vertexColors = false;
           pointcloud.material.color.setHex(0x000000);
         }
-        var previous_pointcloud = this.scene.getObjectByName(label);
-        if (previous_pointcloud) previous_pointcloud = pointcloud;
         else {
           var center = pointcloud.geometry.boundingSphere.center;
           this.camera.position.z = center.y;
@@ -134,36 +111,58 @@ class TofOutputCard extends Component {
   }
 
   componentWillUnmount() {
-    this.stop();
-    this.threeRoot.removeChild(this.renderer.domElement);
-    // window.removeEventListenner(this.keyboard)
+    if (this.state.show_pointcloud) {
+      this.stop();
+      this.threeRoot.removeChild(this.renderer.domElement);      
+      // window.removeEventListenner(this.keyboard)
+    }
   }
 
-  start() {
+  startPointCloud() {
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(75, aspect_ratio, 0.1, 1000);
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true
+    });
+    this.renderer.setSize(width, height);
+    this.camera.up.set(0, -1, 0);
+
+    // https://threejs.org/docs/#examples/controls/OrbitControls
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.25;
+    this.controls.screenSpacePanning = false;
+    this.controls.minDistance = 1;
+    this.controls.maxDistance = 5 * 1000;
+
+    window.addEventListener("keypress", this.keyboard);
+    this.threeRoot.appendChild(this.renderer.domElement);
+
     if (!this.frameId) {
       this.frameId = requestAnimationFrame(this.animate);
     }
   }
 
-  stop() {
+  updatePointCloud(selected_frame) {
+    if (!this.state.show_pointcloud) {
+      this.setState({show_pointcloud: true})
+      this.startPointCloud()
+    }
+    console.log(selected_frame)
+    this.getFrame(selected_frame, "new");
+    this.getFrame(selected_frame, "reference");
+    this.setState({ selected_frame });
+  }
+
+  stopPointCloud() {
     cancelAnimationFrame(this.frameId);
   }
 
   animate = () => {
     this.controls.update();
-    this.renderScene();
-    this.frameId = window.requestAnimationFrame(this.animate);
-  };
-
-  renderScene() {
     this.renderer.render(this.scene, this.camera);
-  }
-
-  onClick = e => {
-    let selected_frame = e.points[0].pointNumber;
-    this.getFrame(selected_frame, "new");
-    this.getFrame(selected_frame, "reference");
-    this.setState({ selected_frame });
+    this.frameId = window.requestAnimationFrame(this.animate);
   };
 
   keyboard = ev => {
@@ -172,6 +171,7 @@ class TofOutputCard extends Component {
     var pointcloud_gt = this.scene.getObjectByName("groundtruth");
     switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "+":
+      case "=":
         if (pointcloud_new !== undefined) {
           pointcloud_new.material.size *= 1.25;
           pointcloud_new.material.needsUpdate = true;
@@ -182,6 +182,7 @@ class TofOutputCard extends Component {
         }
         break;
       case "-":
+      case "_":
         if (pointcloud_new !== undefined) {
           pointcloud_new.material.size /= 1.25;
           pointcloud_new.material.needsUpdate = true;
@@ -208,7 +209,7 @@ class TofOutputCard extends Component {
 
   render() {
     const { output_new, output_ref, warning, no_header } = this.props;
-    const { frames, selected_frame } = this.state;
+    const { show_pointcloud, frames, selected_frame } = this.state;
     let is_loaded =
       frames[selected_frame] && !!frames[selected_frame].is_loaded;
 
@@ -320,9 +321,9 @@ class TofOutputCard extends Component {
           )}
 
           <p className="pt-text-muted">
-            {is_loaded
-              ? "Press R/G to toogle the reference/ground-truth, +/- to adjust point size."
-              : "Loading..."}
+            {show_pointcloud ? (is_loaded
+                          ? "Press R/G to toogle the reference/ground-truth, +/- to adjust point size."
+                          : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
           </p>
           <div
             ref={threeRoot => {
@@ -337,7 +338,7 @@ class TofOutputCard extends Component {
               ? "Click on a RMSE point below to select the corresponding frame."
               : "Loading..."}
           </p>
-          <Plot data={traces} layout={layout_} onClick={this.onClick} />
+          <Plot data={traces} layout={layout_} onClick={e => { this.updatePointCloud(e.points[0].pointNumber)}} />
 
           {data_new.frames.map((f, index) => {
             return (
@@ -359,12 +360,8 @@ class TofOutputCard extends Component {
                   }/Frame${index}/${output_type}.png`;
                   return (
                     <div key={output_type}>
-                      <a href={img_new}>
-                        <img width={400} alt="New" src={img_new} />
-                      </a>
-                      <a href={img_ref}>
-                        <img width={400} alt="Reference" src={img_ref} />
-                      </a>
+                      <img width={400} onClick={e => this.updatePointCloud(index)} alt="New" src={img_new} />
+                      <img width={400} onClick={e => this.updatePointCloud(index)} alt="Reference" src={img_ref} />
                     </div>
                   );
                 })}
