@@ -281,7 +281,7 @@ PCDLoader.prototype = {
 
 		// build material
 
-		var material = new THREE.PointsMaterial( { size: 0.005 } );
+		var material = new THREE.PointsMaterial( { size: 1 } );
 
 		if ( color.length > 0 ) {
 
