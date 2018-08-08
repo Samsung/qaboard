@@ -1,3 +1,4 @@
+
 """
 Simple REST API to list the objects in our database.
 """
@@ -172,6 +173,22 @@ def get_ci_commit(commit_id=None):
       return jsonify({'error': 'Sorry, the request failed.'}), 500
     # FIXME: we should add details about the outputs...
     # FIXME: how do we get the reference commit?
+
+  # we allow searching in the commit folder for artifacts via globbing
+  # it's useful to eg inspect the available configurations
+  artifacts = request.args.get('artifacts', False)
+  if artifacts:
+    try:
+      project = Project.query.filter(Project.id==project_id).one()
+      globbing = project.information['qatools_config']['artifacts'][artifacts]['glob']
+    except: # for legacy projects...
+      globbing = '*.json'
+    # print(globbing)
+    commit_dir = ci_commit.commit_dir
+    # print(commit_dir)
+    files =  [str(f.relative_to(commit_dir)) for f in commit_dir.glob(globbing)]
+    return jsonify(files)
+
   response = make_response(ujson.dumps(ci_commit.to_dict(with_outputs=True)))
   response.headers['Content-Type'] = 'application/json'
   return response
