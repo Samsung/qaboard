@@ -64,7 +64,7 @@ class CiCommitResults extends Component {
 
       // for the kpi/improvement/details/tuningExplore tabs
       selectedTabId:
-        project === "dvs/psp_swip" ? "output-table-compare" : "output-list",
+        project === "tof/swip_tof" ? "output-list" : "output-table-compare",
 
       filter_batch_new: params.get("filter") || "",
       filter_batch_ref: params.get("filter_ref") || "",
@@ -668,42 +668,33 @@ class CiCommitResults extends Component {
                         />
                       }
                     />
-                    {(project === "dvs/psp_swip" ||
-                      project === "tof/swip_tof") && (
-                      <Tab
-                        id="parameters"
-                        title="Parameters"
-                        panel={
-                          <CommitParameters
-                            project={project}
-                            new_commit={new_commit}
-                          />
-                        }
-                      />
-                    )}
-                    {(project === "dvs/psp_swip" ||
-                      project === "tof/swip_tof") && (
-                      <Tab
-                        id="recordings"
-                        title="Available Recordings"
-                        panel={
-                          <AddRecordingsForm
-                            project={project}
-                            commit={new_commit}
-                          />
-                        }
-                      />
-                    )}
-                    {(project === "dvs/psp_swip" ||
-                      project === "tof/swip_tof") && (
-                      <Tab
-                        id="tuning"
-                        title="Extra Runs & Tuning"
-                        panel={
-                          <TuningForm project={project} commit={new_commit} />
-                        }
-                      />
-                    )}
+                    <Tab
+                      id="parameters"
+                      title="Parameters"
+                      panel={
+                        <CommitParameters
+                          project={project}
+                          new_commit={new_commit}
+                        />
+                      }
+                    />
+                    <Tab
+                      id="recordings"
+                      title="Available Recordings"
+                      panel={
+                        <AddRecordingsForm
+                          project={project}
+                          commit={new_commit}
+                        />
+                      }
+                    />
+                    <Tab
+                      id="tuning"
+                      title="Extra Runs & Tuning"
+                      panel={
+                        <TuningForm project={project} commit={new_commit} />
+                      }
+                    />
                   </Tabs>
                 </Card>
               </Section>
