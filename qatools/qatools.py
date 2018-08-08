@@ -88,6 +88,8 @@ def run(ctx, input_path, forwarded_args):
     ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
     ctx.obj['forwarded_args'] = forwarded_args
 
+    notify_qa_database(**ctx.obj, is_pending=True)
+
     try:
       runtime_metrics = entrypoint_module.run(ctx)
     except Exception as e:
