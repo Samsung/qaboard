@@ -10,7 +10,7 @@ from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, repos, db_session
-from ..models import CiCommit
+from ..models import CiCommit, Project
 from ..utils import iter_recordings
 from ..config import database_directory
 from ..config import shared_data_directory, ci_directory
@@ -31,12 +31,15 @@ def get_groups():
 @app.route("/api/v1/recordings/group")
 def get_group():
   project_id = request.args.get('project', 'dvs/psp_swip')
-  recordings = list(iter_recordings(
-    [request.args.get('name', '')],
-    shared_data_directory / project_id / 'extra-batches.yml',
-    database_directory[project_id]
-  ))
-  return jsonify({'number_of_recordings': len(recordings)})
+  try:
+    recordings = list(iter_recordings(
+      [request.args.get('name', '')],
+      shared_data_directory / project_id / 'extra-batches.yml',
+      database_directory[project_id]
+    ))
+    return jsonify({'number_of_recordings': len(recordings)})
+  except:
+    return jsonify({'number_of_recordings': 0})    
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
