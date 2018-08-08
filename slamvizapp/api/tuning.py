@@ -61,7 +61,7 @@ def add_batch(hexsha):
     ci_commit = (CiCommit
                  .query.filter(
                    CiCommit.project_id==project_id,
-                   CiCommit.id.startswith(commit_id),
+                   CiCommit.id.startswith(hexsha),
                  )
                  .one()
                 )
