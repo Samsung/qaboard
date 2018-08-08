@@ -123,7 +123,7 @@ def postprocess_(runtime_metrics, context):
 
   save_metrics(context.obj['output_directory'], **metrics)
   with (context.obj['output_directory']/'output.json').open('w') as f:
-    json.dumps({'output_type': context.obj['output_type']})
+    json.dump({'output_type': context.obj['output_type']}, f)
   notify_qa_database(**context.obj, metrics=metrics)
   return metrics
 
@@ -189,7 +189,14 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
       click.secho(command, dim=True)
       jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))
       if not dryrun:
-        notify_qa_database(**ctx.obj, input_path=input_path, extra_parameters=tuning_params, is_pending=True)
+        run_info = {
+          **ctx.obj,
+          "configuration": input_configuration,
+          "input_path": input_path,
+          "extra_parameters": tuning_params,
+          "is_pending": True,
+        }
+        notify_qa_database(**run_info)
 
   for job in jobs:
     if dryrun: continue
