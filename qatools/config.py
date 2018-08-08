@@ -107,7 +107,7 @@ ci_dir = Path(ci_root) / config['project']['name']
 
 
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
-    commit_ci_dir = os.environ['QATOOLS_CI_COMMIT_DIR']
+    commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
 else:
     import git
     try:
