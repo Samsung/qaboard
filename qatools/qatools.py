@@ -68,7 +68,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
 
   batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   # this prefix lacks information on tuning parameters
-  ctx.obj['incomplete_prefix_output_dir'] = Path().resolve() / batch_output_folder / platform / configuration
+  ctx.obj['incomplete_prefix_output_dir'] = commit_ci_dir / batch_output_folder / platform / configuration
   ctx.obj['prefix_output_dir'] = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], hash_parameters(tuning_filepath))
   ctx.obj['dryrun'] = dryrun
 
@@ -220,8 +220,6 @@ def save_artifacts():
   # default artifacts
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
-  config['artifacts']['output'] = {"glob": 'output/**/*'}
-
 
   if not commit_ci_dir:
       click.secho(
