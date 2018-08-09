@@ -78,13 +78,18 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
 ))
 @click.pass_context
 @click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('--output-path', type=PathType(), default=None, help='Custom output path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
-def run(ctx, input_path, forwarded_args):
+def run(ctx, input_path, output_path, forwarded_args):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
+    if not output_path:
+        output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+    else:
+        output_path = (commit_ci_dir if commit_ci_dir else Path()) / output_path
     ctx.obj['input_path'] =  input_path
-    ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+    ctx.obj['output_directory'] =  output_path
     ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
     ctx.obj['forwarded_args'] = forwarded_args
 
