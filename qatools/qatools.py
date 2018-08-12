@@ -39,6 +39,11 @@ except Exception as e:
         dim=True, err=True)
     exit(1)
 
+def prefix_output_dir_gen(batch_label, platform, configuration, tuning_filepath):
+  batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  incomplete_prefix_output_dir = (commit_ci_dir if commit_ci_dir else Path()) / batch_output_folder / platform / configuration.replace(":","_")
+  prefix_output_dir = incomplete_prefix_output_dir / tuning_foldername(batch_label, hash_parameters(tuning_filepath))
+  return prefix_output_dir
 
 @click.group()
 @click.pass_context
@@ -66,10 +71,8 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
     with Path(tuning_filepath).open('r') as f:
       ctx.obj['extra_parameters'] = json.load(f)
 
-  batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   # this prefix lacks information on tuning parameters
-  ctx.obj['incomplete_prefix_output_dir'] = (commit_ci_dir if commit_ci_dir else Path()) / batch_output_folder / platform / configuration
-  ctx.obj['prefix_output_dir'] = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], hash_parameters(tuning_filepath))
+  ctx.obj['prefix_output_dir'] = prefix_output_dir_gen(batch_label, platform, configuration, tuning_filepath)
   ctx.obj['dryrun'] = dryrun
 
 
@@ -155,10 +158,11 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
+@click.option('--output-path', type=PathType(), default=None, help='Custom output path base for the batch. If not provided, defaults to ctx.obj["prefix_output_dir"]')
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, output_path, dryrun, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -179,7 +183,11 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
 
     tuning_iterator = iter_parameters(tuning_search_dict)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
-      output_directory = ctx.obj['incomplete_prefix_output_dir'] / tuning_foldername(ctx.obj['batch_label'], tuning_hash) / input_path.parent / input_path.stem
+      if not output_path:
+          prefix_output_dir = prefix_output_dir_gen(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
+      else:
+          prefix_output_dir = (commit_ci_dir if commit_ci_dir else Path()) / output_path
+      output_directory = prefix_output_dir / input_path.parent / input_path.stem
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
           f"qa",
@@ -189,6 +197,7 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, dryrun, fo
           f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
           'run' if should_run else 'postprocess',
           f'--input-path "{input_path}"',
+          f'--output-path "{output_directory}"',
           ' '.join(forwarded_args),
       ])
       click.secho(command, dim=True)
