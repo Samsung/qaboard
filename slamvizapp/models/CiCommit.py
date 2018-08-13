@@ -5,7 +5,7 @@ from pathlib import Path
 from hashlib import md5
 
 from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
-from sqlalchemy import _or
+from sqlalchemy import or_
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -192,7 +192,7 @@ def latest_successful_commit(session, project_id, branch, within_last=5):
                 .filter(
                   CiCommit.project_id==project_id,
                   # we try to be accomodating with the usual remote branch name
-                  _or(CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}')
+                  or_(CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}')
                 )
                 .order_by(CiCommit.authored_datetime.desc())
                 .limit(within_last)
