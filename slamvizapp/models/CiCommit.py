@@ -4,10 +4,10 @@ A version of the code on which we ran SLAM performance test.
 from pathlib import Path
 from hashlib import md5
 
+from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
+from sqlalchemy import _or
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy import Column, ForeignKey
-from sqlalchemy import String, DateTime, JSON
 
 from slamvizapp import repos
 from slamvizapp.models import Base, Batch, Output
@@ -191,7 +191,8 @@ def latest_successful_commit(session, project_id, branch, within_last=5):
                 .options(joinedload(CiCommit.batches))
                 .filter(
                   CiCommit.project_id==project_id,
-                  CiCommit.branch==branch
+                  # we try to be accomodating with the usual remote branch name
+                  _or(CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}')
                 )
                 .order_by(CiCommit.authored_datetime.desc())
                 .limit(within_last)
