@@ -9,7 +9,7 @@ test:
     - python -munittest
 
 install:
-  when: manual
-  stage: build
+  stage: install
   script:
     - pip install .
+  when: manual
