@@ -4,8 +4,8 @@ CLI tool to runs various tasks related to QA.
 """
 import sys
 import errno
-import json
-import importlib
+import json, yaml
+import importlib, hashlib
 from traceback import format_exception
 from pathlib import Path
 
@@ -192,27 +192,29 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     return not (is_done or is_pending)
 
   jobs = []
+  if not tuning_search and tuning_search_file:
+    with Path(tuning_search_file).open('r') as f:
+      tuning_search = f.read()
+    if Path(tuning_search_file).suffix.lower() == '.yaml':
+      tuning_search_dict = yaml.load(tuning_search)
+      filetype = 'yaml'
+    else:
+      tuning_search_dict = json.loads(tuning_search)
+      filetype = 'json'
+  else:
+    tuning_search_dict = json.loads(tuning_search) if tuning_search else None
+    filetype = None
 
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', bold=True, err=True)
-    if not tuning_search and tuning_search_file:
-      with Path(tuning_search_file).open('r') as f:
-        tuning_search = f.read()
-      if tuning_search_file[:-4].lower() == 'yaml':
-        tuning_search_dict = yaml.load(tuning_search)
-        filetype = 'yaml'
-      else:
-        tuning_search_dict = json.loads(tuning_search)
-        filetype = 'json'
-    else:
-      tuning_search_dict = json.loads(tuning_search) if tuning_search else None
-      filetype = None
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
+      if tuning_file:
+        input_configuration_full = ":".join([input_configuration, tuning_file])
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
+          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration_full, None)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
       output_directory = prefix_output_dir / input_path.parent / input_path.stem
@@ -223,19 +225,19 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
-          f'--configuration "{input_configuration}"',
-          f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
+          f'--configuration "{input_configuration_full}"',
+          #f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
           'run' if should_run else 'postprocess',
           f'--input-path "{input_path}"',
           f'--output-path "{output_directory}"',
           ' '.join(forwarded_args),
       ])
       click.secho(command, dim=True, err=True)
-      jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))
+      jobs.append(Job(output_directory, command, output_directory, Priority.NORMAL))
       if not dryrun:
         run_info = {
           **ctx.obj,
-          "configuration": input_configuration,
+          "configuration": input_configuration_full,
           "input_path": input_path,
           "extra_parameters": tuning_params,
           "is_pending": True,

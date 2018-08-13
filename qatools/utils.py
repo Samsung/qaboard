@@ -73,6 +73,8 @@ def latest_commit(branch):
 
 def make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath):
   batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  if tuning_filepath:
+    configuration = ":".join([configuration, tuning_filepath])
   return (
     commit_ci_dir /
     batch_output_folder /
@@ -99,7 +101,10 @@ def hash_parameters(filepath):
     params = {}
   else:
     with filepath.open('r') as f:
-      params = json.load(f)
+      if filepath.suffix.lower() == '.yaml':
+        params = yaml.load(f)
+      else:
+        params = json.load(f)
   params_s = json.dumps(params, sort_keys=True)
   return hashlib.md5(params_s.encode()).hexdigest()
 
@@ -153,6 +158,12 @@ def iter_recordings(groups, groups_file, database, default_configuration):
 
 hash_empty_tuning = hashlib.md5(json.dumps({}).encode()).hexdigest()
 
+def make_filename(paramstring):
+  params_filename = paramstring.replace(",","_")
+  for ch in "{}:[] \r\n":
+    params_filename = params_filename.replace(ch,"")
+  return params_filename
+
 
 def iter_parameters(tuning_search=None, filetype = 'json'):
   # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
@@ -194,14 +205,17 @@ def iter_parameters(tuning_search=None, filetype = 'json'):
     elif filetype == 'yaml':
       params_s = yaml.dump(params)
     params_hash = hashlib.md5(params_s.encode()).hexdigest()
-    params_file = working_directory/'tuning'/'params'/f'{params_hash[:2]}/{params_hash}.{filetype}'
+    working_directory = Path('.')
+    params_filename = make_filename(params_s)
+    #params_file = working_directory/'tuning'/'params'/f'{params_hash[:2]}/{params_hash}.{filetype}'
+    params_file = working_directory/'configurations'/f'{params_filename}.{filetype}'
     params_file.parent.mkdir(parents=True, exist_ok=True)
     with params_file.open('w') as f:
       if filetype == 'json':
         json.dump(params, f)
       elif filetype == 'yaml':
         yaml.dump(params, f)
-    yield params_file, params_hash, params
+    yield params_filename, params_hash, params
 
 
 class PathType(click.ParamType):
