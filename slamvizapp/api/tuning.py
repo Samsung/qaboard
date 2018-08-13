@@ -120,7 +120,7 @@ def add_batch(hexsha):
     print(working_directory)
     print(batch_command)
 
-    queue = 'develop' if is_legacy_project else project.information['qatools_config']['lsf']['fast_queue']
+    queue = 'alg_q' if is_legacy_project else project.information['qatools_config']['lsf']['fast_queue']
     # openstf is our device farm
     use_openstf = data['android_device'].lower() == 'openstf'
     batch_script = ''.join([
