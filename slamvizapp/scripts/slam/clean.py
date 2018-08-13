@@ -27,7 +27,7 @@ def clean(days, verbose):
   repo = repos['dvs/psp_swip']
 
   # We don't want to touch the commits from that branch
-  protected_refs = set(['origin/develop'])
+  protected_refs = set(['origin/develop', 'origin/Release/AugustDemo'])
   protected_commits = set()
   for ref in protected_refs:
     for c in repo.iter_commits(ref):
