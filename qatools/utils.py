@@ -154,7 +154,7 @@ def iter_recordings(groups, groups_file, database, default_configuration):
 hash_empty_tuning = hashlib.md5(json.dumps({}).encode()).hexdigest()
 
 
-def iter_parameters(tuning_search=None):
+def iter_parameters(tuning_search=None, filetype = 'json'):
   # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
   from sklearn.model_selection import ParameterGrid, ParameterSampler
   if not tuning_search:
@@ -164,7 +164,7 @@ def iter_parameters(tuning_search=None):
     for param_search in tuning_search['parameter_search']:
       tuning_search_ = tuning_search
       tuning_search_['parameter_search'] = param_search
-      yield from iter_parameters(tuning_search=tuning_search_)
+      yield from iter_parameters(tuning_search=tuning_search_, filetype=filetype)
     return
 
   for parameter, values in tuning_search['parameter_search'].items():
@@ -189,12 +189,18 @@ def iter_parameters(tuning_search=None):
   else:
     raise ValueError
   for params in params_iterator:
-    params_s = json.dumps(params, sort_keys=True)
+    if filetype == 'json':
+      params_s = json.dumps(params, sort_keys=True)
+    elif filetype == 'yaml':
+      params_s = yaml.dump(params)
     params_hash = hashlib.md5(params_s.encode()).hexdigest()
-    params_file = working_directory/'tuning'/'params'/f'{params_hash[:2]}/{params_hash}.json'
+    params_file = working_directory/'tuning'/'params'/f'{params_hash[:2]}/{params_hash}.{filetype}'
     params_file.parent.mkdir(parents=True, exist_ok=True)
     with params_file.open('w') as f:
-      json.dump(params, f)
+      if filetype == 'json':
+        json.dump(params, f)
+      elif filetype == 'yaml':
+        yaml.dump(params, f)
     yield params_file, params_hash, params
 
 

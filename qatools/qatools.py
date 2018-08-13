@@ -171,6 +171,7 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--group', '-g', default=['small'], multiple=True, help="We run over all recordings in those groups")
 @click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
+@click.option('--tuning-search-file', help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
@@ -178,7 +179,7 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -195,9 +196,20 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, prefix_out
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', bold=True, err=True)
-    tuning_search_dict = json.loads(tuning_search) if tuning_search else None
+    if not tuning_search and tuning_search_file:
+      with Path(tuning_search_file).open('r') as f:
+        tuning_search = f.read()
+      if tuning_search_file[:-4].lower() == 'yaml':
+        tuning_search_dict = yaml.load(tuning_search)
+        filetype = 'yaml'
+      else:
+        tuning_search_dict = json.loads(tuning_search)
+        filetype = 'json'
+    else:
+      tuning_search_dict = json.loads(tuning_search) if tuning_search else None
+      filetype = None
 
-    tuning_iterator = iter_parameters(tuning_search_dict)
+    tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
           prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
