@@ -1,13 +1,15 @@
 stages:
-  - build
   - test
+  - install
 
-build:
-  stage: build
-  script:
-    - pip install .
 
 test:
   stage: test
   script:
     - python -munittest
+
+install:
+  when: manual
+  stage: build
+  script:
+    - pip install .
