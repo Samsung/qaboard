@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 import requests
-from .config import config, is_ci, commit_type, commit_id, ci_dir, repo
+from .config import config, is_ci, commit_type, commit_id, ci_dir, commit_ci_dir, repo
 
 
 def notify_qa_database(**kwargs):
@@ -39,10 +39,11 @@ def notify_qa_database(**kwargs):
     r = requests.post(url, json=data)
     r.raise_for_status()
   except:
-    print('WARNING: Failed to update the QA database.')
-    print(r.request.headers)
-    print(r.request.body)
-    print(f'{r.status_code}: {r.text}')
+    click.secho(command, fg='yellow', err=True)
+    click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
+    click.secho(r.request.headers, fg='yellow', dim=True, err=True)
+    click.secho(r.request.body, fg='yellow', dim=True, err=True)
+    click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
 
 
 def save_metrics(output_directory, **kwargs):
@@ -69,6 +70,17 @@ def latest_commit(branch):
     # TODO: we should use the branch slug.... but it will work for develop/master/release...
     return list(repo.iter_commits(branch, max_count=1))[0]
 
+
+def make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath):
+  batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  return (
+    commit_ci_dir /
+    batch_output_folder /
+    platform /
+    # safer on windows
+    configuration.replace(":","_") /
+    tuning_foldername(batch_label, hash_parameters(tuning_filepath))
+  )
 
 
 def tuning_foldername(batch_label, tuning_parameters_hash):
@@ -106,7 +118,9 @@ def iter_recordings(groups, groups_file, database, default_configuration):
   """
   available_batches = yaml.load(Path(groups_file).open())
   for group in groups:
-    print(available_batches[group])
+    if group not in available_batches:
+      click.secho(f"Warning: the selected group was not found ({group})", fg='yellow', err=True)
+      continue
     if 'configuration' in available_batches[group]:
       group_configuration = available_batches[group]['configuration']
       if isinstance(group_configuration, list):
@@ -116,7 +130,7 @@ def iter_recordings(groups, groups_file, database, default_configuration):
 
     locations = available_batches[group]['tests']
     if not locations:
-      print("Warning: the selected batch is empty")
+      click.secho(f"Warning: the selected group is empty ({group})", fg='yellow', err=True)
       continue
 
     if isinstance(locations, list):
@@ -129,7 +143,7 @@ def iter_recordings(groups, groups_file, database, default_configuration):
         if isinstance(location_configuration, list):
           location_configuration = ':'.join(location_configuration)
         location_configuration = f'{group_configuration}:{location_configuration}'
-      click.secho(str(location), bold=True, fg='cyan')
+      click.secho(str(location), bold=True, fg='cyan', err=True)
       maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
       yield from set([(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
       if location.endswith(config['inputs']['glob']):

@@ -12,13 +12,13 @@ from pathlib import Path
 import click
 
 from .lsf import Job, running_lsf_job_names, Priority
-from .utils import tuning_foldername, hash_parameters
+from .utils import make_prefix_outputs_path
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
-from .config import database, platform, config, commit_id, commit_ci_dir
+from .config import database, platform, config, commit_id, commit_ci_dir, repo
 
 
 entrypoint = Path(config['project']['entrypoint'])
@@ -39,11 +39,6 @@ except Exception as e:
         dim=True, err=True)
     exit(1)
 
-def prefix_output_dir_gen(batch_label, platform, configuration, tuning_filepath):
-  batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
-  incomplete_prefix_output_dir = (commit_ci_dir if commit_ci_dir else Path()) / batch_output_folder / platform / configuration.replace(":","_")
-  prefix_output_dir = incomplete_prefix_output_dir / tuning_foldername(batch_label, hash_parameters(tuning_filepath))
-  return prefix_output_dir
 
 @click.group()
 @click.pass_context
@@ -58,6 +53,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
+  ctx.obj['dryrun'] = dryrun
   ctx.obj['project'] = config['project']['name']
   ctx.obj['output_type'] = output_type
   # Note: to support multiple databases per project,
@@ -70,10 +66,29 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
     ctx.obj['tuning_filepath'] = tuning_filepath
     with Path(tuning_filepath).open('r') as f:
       ctx.obj['extra_parameters'] = json.load(f)
+  # batch runs will override this since batches may have different configurations
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath)
 
-  # this prefix lacks information on tuning parameters
-  ctx.obj['prefix_output_dir'] = prefix_output_dir_gen(batch_label, platform, configuration, tuning_filepath)
-  ctx.obj['dryrun'] = dryrun
+
+@cli.command()
+@click.option('--input-path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('--output-path', type=PathType(), default=None, help='Custom output path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+@click.argument('variable')
+@click.pass_context
+def get(ctx, input_path, output_path, variable):
+  """Prints the value of the requested variable."""
+  try:
+    if not output_path:
+        output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+    else:
+        output_path = commit_ci_dir / output_path
+  except:
+    pass
+  locals().update(globals())
+  if variable in locals():
+    print(locals().get(variable))
+  else:
+    print(f"Could not find {variable}", file=sys.stderr)
 
 
 @cli.command(context_settings=dict(
@@ -90,7 +105,7 @@ def run(ctx, input_path, output_path, forwarded_args):
     if not output_path:
         output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
     else:
-        output_path = (commit_ci_dir if commit_ci_dir else Path()) / output_path
+        output_path = commit_ci_dir / output_path
     ctx.obj['input_path'] =  input_path
     ctx.obj['output_directory'] =  output_path
     ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
@@ -158,15 +173,16 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
-@click.option('--output-path', type=PathType(), default=None, help='Custom output path base for the batch. If not provided, defaults to ctx.obj["prefix_output_dir"]')
+@click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
+@click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, output_path, dryrun, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
-  dryrun = ctx.obj['dryrun']
+  dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
 
   running_jobs_names = running_lsf_job_names()
   def not_started(output_directory):
@@ -178,16 +194,18 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, output_pat
 
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
-    click.secho(str(input_path), fg='blue', bold=True)
+    click.secho(str(input_path), fg='blue', bold=True, err=True)
     tuning_search_dict = json.loads(tuning_search) if tuning_search else None
 
     tuning_iterator = iter_parameters(tuning_search_dict)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
-      if not output_path:
-          prefix_output_dir = prefix_output_dir_gen(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
+      if not prefix_outputs_path:
+          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
       else:
-          prefix_output_dir = (commit_ci_dir if commit_ci_dir else Path()) / output_path
+          prefix_output_dir = commit_ci_dir / prefix_outputs_path
       output_directory = prefix_output_dir / input_path.parent / input_path.stem
+      if return_prefix_outputs_path:
+        print(output_directory)
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
           f"qa",
@@ -200,7 +218,7 @@ def batch(ctx, group, groups_file, tuning_search, no_wait, overwrite, output_pat
           f'--output-path "{output_directory}"',
           ' '.join(forwarded_args),
       ])
-      click.secho(command, dim=True)
+      click.secho(command, dim=True, err=True)
       jobs.append(Job(output_directory, command, output_directory, Priority.LOW if tuning_file else Priority.NORMAL))
       if not dryrun:
         run_info = {
@@ -235,7 +253,7 @@ def save_artifacts():
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
 
-  if not commit_ci_dir:
+  if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
           fg='yellow', dim=True)

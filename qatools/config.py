@@ -60,7 +60,7 @@ else: # unknown linux
 try:
     with Path('qatools.yaml').open('r') as f:
         config = yaml.load(f)
-        if verbose: click.secho(str(config), dim=True)
+        if verbose: click.secho(str(config), dim=True, err=True)
 except FileNotFoundError:
     click.secho('ERROR: Could not find the `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
     click.secho(
@@ -106,6 +106,7 @@ ci_dir = Path(ci_root) / config['project']['name']
 
 
 
+# we find were we should save our results
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
 else:
@@ -114,19 +115,19 @@ else:
         try:
             repo = git.Repo('.')
         except: # just to make `qa` work in the sample_project
-            repo = git.Repo('..')
+            repo = git.Repo('../..')
         commit = repo.head.commit
         commit_ci_dir = ci_dir / 'commits' / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
     except:
-        commit_ci_dir = None
+        commit_ci_dir = Path()
         commit = None
         repo = None
 
 if verbose:
-    click.secho(f'platform: {platform}', dim=True)
-    click.secho(f'database: {database}', dim=True)
-    click.secho(f'is_ci: {is_ci}', dim=True)
-    click.secho(f'commit_ci_dir: {commit_ci_dir}', dim=True)
+    click.secho(f'platform: {platform}', dim=True, err=True)
+    click.secho(f'database: {database}', dim=True, err=True)
+    click.secho(f'is_ci: {is_ci}', dim=True, err=True)
+    click.secho(f'commit_ci_dir: {commit_ci_dir}', dim=True, err=True)
 
 # We need to identify the version of the code we run on, and which branch
 if is_ci:
@@ -144,6 +145,6 @@ else:
     commit_branch = f'<local:{user}>'
 
 if verbose:
-    click.secho(f'commit_type: {commit_type}', dim=True)
-    click.secho(f'commit_id: {commit_id}', dim=True)
-    click.secho(f'commit_branch: {commit_branch}', dim=True)
+    click.secho(f'commit_type: {commit_type}', dim=True, err=True)
+    click.secho(f'commit_id: {commit_id}', dim=True, err=True)
+    click.secho(f'commit_branch: {commit_branch}', dim=True, err=True)

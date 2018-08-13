@@ -48,7 +48,3 @@ def assert_bit_accurate_to(reference_commit):
         dir_2=reference_output_directory,
         patterns=config["bit_accuracy"]["patterns"],
     )
-
-
-if __name__ == "__main__":
-    test_bit_accuracy()
