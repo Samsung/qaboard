@@ -225,10 +225,10 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         print(output_directory)
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
-          f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
+          f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f'--configuration "{input_configuration_full}"',
           #f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
           'run' if should_run else 'postprocess',
