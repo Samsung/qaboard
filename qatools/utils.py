@@ -6,6 +6,7 @@ import hashlib
 import json
 import yaml
 from pathlib import Path
+import re
 
 import click
 import requests
@@ -70,6 +71,15 @@ def latest_commit(branch):
     # TODO: we should use the branch slug.... but it will work for develop/master/release...
     return list(repo.iter_commits(branch, max_count=1))[0]
 
+def make_filename(paramstring, maxlen=20):
+  params_filename = paramstring.replace(",","_")
+  for ch in "{}:[] \r\n":
+    params_filename = params_filename.replace(ch,"")
+  if len(params_filename) > maxlen:
+    params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
+  if len(params_filename) > maxlen:
+    params_filename = params_filename[:maxlen-5] + hashlib.md5(paramstring.replace(",","_").encode()).hexdigest()[:5]
+  return params_filename
 
 def make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath):
   batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
@@ -157,13 +167,6 @@ def iter_recordings(groups, groups_file, database, default_configuration):
 
 
 hash_empty_tuning = hashlib.md5(json.dumps({}).encode()).hexdigest()
-
-def make_filename(paramstring):
-  params_filename = paramstring.replace(",","_")
-  for ch in "{}:[] \r\n":
-    params_filename = params_filename.replace(ch,"")
-  return params_filename
-
 
 def iter_parameters(tuning_search=None, filetype = 'json'):
   # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
