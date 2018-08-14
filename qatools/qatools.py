@@ -48,7 +48,8 @@ except Exception as e:
 @click.option('--tuning-filepath', type=PathType(), default=None, help="Json file with extra parameters for tuning")
 @click.option('--output-type', default=config['outputs']['output_type'], help="Override if your project needs multiple customized visualizations")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type, dryrun):
+@click.option('--no-qa-database', is_flag=True, help="Do not notify qa database for jobs")
+def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type, dryrun, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
@@ -62,6 +63,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   ctx.obj['batch_label'] = batch_label
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
+  ctx.obj['no_qa_database'] = no_qa_database
   if tuning_filepath:
     ctx.obj['tuning_filepath'] = tuning_filepath
     with Path(tuning_filepath).open('r') as f:
@@ -110,8 +112,8 @@ def run(ctx, input_path, output_path, forwarded_args):
     ctx.obj['output_directory'] =  output_path
     ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
     ctx.obj['forwarded_args'] = forwarded_args
-
-    notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
+    if not ctx.obj['no_qa_database']:
+        notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
     try:
       runtime_metrics = entrypoint_module.run(ctx)
@@ -147,7 +149,8 @@ def postprocess_(runtime_metrics, context):
   save_metrics(context.obj['output_directory'], **metrics)
   with (context.obj['output_directory']/'output.json').open('w') as f:
     json.dump({'output_type': context.obj['output_type']}, f)
-  notify_qa_database(**context.obj, metrics=metrics)
+  if not ctx.obj['no_qa_database']:
+    notify_qa_database(**context.obj, metrics=metrics)
   return metrics
 
 @cli.command(context_settings=dict(
@@ -242,7 +245,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           "extra_parameters": tuning_params,
           "is_pending": True,
         }
-        notify_qa_database(**run_info)
+        if not ctx.obj['no_qa_database']:
+            notify_qa_database(**run_info)
 
   for job in jobs:
     if dryrun: continue
