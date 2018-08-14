@@ -149,7 +149,7 @@ def postprocess_(runtime_metrics, context):
   save_metrics(context.obj['output_directory'], **metrics)
   with (context.obj['output_directory']/'output.json').open('w') as f:
     json.dump({'output_type': context.obj['output_type']}, f)
-  if not ctx.obj['no_qa_database']:
+  if not context.obj['no_qa_database']:
     notify_qa_database(**context.obj, metrics=metrics)
   return metrics
 
@@ -225,6 +225,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         print(output_directory)
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
+          f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
