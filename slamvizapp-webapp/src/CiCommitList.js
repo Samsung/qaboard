@@ -226,10 +226,10 @@ class CiCommitList extends React.Component {
                 src={`http://gitlab-srv/${project}/badges/develop/coverage.svg`}
               />
             </a>
-            {(project === 'dvs/psp_swip' || project === 'tof/swip_tof') && <a href={`/s/${project}/branches/develop/doxygen/index.html`}>
+            {<a href={`/s/${project}/branches/develop/doxygen/index.html`}>
               {" "}
               <img
-                src="https://img.shields.io/badge/docs-develop-green.svg"
+                src="https://img.shields.io/badge/docs-develop-blue.svg"
                 alt="documentation"
               />
             </a>}
