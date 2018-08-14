@@ -16,6 +16,9 @@ stages:
   - performance
   - analysis
 
+# saves in $COMMIT_CI_DIR the default output folder prefix of qa run
+before_script:
+  - COMMIT_CI_DIR=$(qa get commit_ci_dir)
 
 # enables incremental recompilation, per branch.
 # https://docs.gitlab.com/ee/ci/yaml/#cache
