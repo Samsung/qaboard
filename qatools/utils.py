@@ -189,17 +189,19 @@ def iter_parameters(tuning_search=None, filetype = 'json'):
         if 'step' not in args: args['step']=1
         tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
+  n_iter = tuning_search.get('search_options', {}).get('n_iter', 10)
   if tuning_search['search_type'] == 'grid':
     params_iterator = ParameterGrid(tuning_search['parameter_search'])
   elif tuning_search['search_type'] == 'sampler':
-    if 'search_options' in tuning_search and 'n_iter' in tuning_search['search_options']:
-      n_iter = tuning_search['search_options']['n_iter']
-    else:
-      n_iter = 10
     params_iterator = ParameterSampler(tuning_search['parameter_search'], n_iter=n_iter)
   else:
     raise ValueError
+  counter = 0
   for params in params_iterator:
+    counter += 1
+    if (counter > n_iter):
+        print("got more iterations than n_iter, stopping... (%s)"%n_iter)
+        return
     if filetype == 'json':
       params_s = json.dumps(params, sort_keys=True)
     elif filetype == 'yaml':
