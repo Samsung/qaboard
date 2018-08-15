@@ -20,7 +20,7 @@ from .utils import PathType
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
-from .config import database, platform, config, commit_id, commit_ci_dir, repo
+from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci
 
 
 entrypoint = Path(config['project']['entrypoint'])
@@ -72,6 +72,8 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
       ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
   ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath)
+  if is_ci: # we always want colors in the CI
+    ctx.color = True
 
 
 @cli.command()
