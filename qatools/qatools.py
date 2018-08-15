@@ -4,15 +4,17 @@ CLI tool to runs various tasks related to QA.
 """
 import sys
 import errno
-import json, yaml
-import importlib, hashlib
-from traceback import format_exception
+import json
+import yaml
+import importlib
+import hashlib
 from pathlib import Path
+from traceback import format_exception
 
 import click
 
 from .lsf import Job, running_lsf_job_names, Priority
-from .utils import make_prefix_outputs_path
+from .utils import make_prefix_outputs_path, load_tuning_search
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
 
@@ -45,10 +47,10 @@ except Exception as e:
 @click.option('--platform', default=platform)
 @click.option('--configuration', default=config['inputs']['configuration'], help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
-@click.option('--tuning-filepath', type=PathType(), default=None, help="Json file with extra parameters for tuning")
+@click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--output-type', default=config['outputs']['output_type'], help="Override if your project needs multiple customized visualizations")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--no-qa-database', is_flag=True, help="Do not notify qa database for jobs")
+@click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
 def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type, dryrun, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
@@ -150,7 +152,7 @@ def postprocess_(runtime_metrics, context):
   with (context.obj['output_directory']/'output.json').open('w') as f:
     json.dump({'output_type': context.obj['output_type']}, f)
   if not context.obj['no_qa_database']:
-    notify_qa_database(**context.obj, metrics=metrics)
+    notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
   return metrics
 
 @cli.command(context_settings=dict(
@@ -174,7 +176,7 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--group', '-g', default=['small'], multiple=True, help="We run over all recordings in those groups")
 @click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
-@click.option('--tuning-search-file', help='tuning file describing the tuning parameters to explore')
+@click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
@@ -195,18 +197,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     return not (is_done or is_pending)
 
   jobs = []
-  if not tuning_search and tuning_search_file:
-    with Path(tuning_search_file).open('r') as f:
-      tuning_search = f.read()
-    if Path(tuning_search_file).suffix.lower() == '.yaml':
-      tuning_search_dict = yaml.load(tuning_search)
-      filetype = 'yaml'
-    else:
-      tuning_search_dict = json.loads(tuning_search)
-      filetype = 'json'
-  else:
-    tuning_search_dict = json.loads(tuning_search) if tuning_search else None
-    filetype = None
+
+  tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
@@ -214,9 +206,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
-      input_configuration_full = ":".join([input_configuration, tuning_file]) if tuning_file else input_configuration
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration_full, None)
+          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
       output_directory = prefix_output_dir / input_path.parent / input_path.stem
@@ -228,7 +219,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
           f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
-          f'--configuration "{input_configuration_full}"',
+          f'--configuration "{input_configuration}"',
           #f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
           'run' if should_run else 'postprocess',
           f'--input-path "{input_path}"',
@@ -236,11 +227,12 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           ' '.join(forwarded_args),
       ])
       click.secho(command, dim=True, err=True)
-      jobs.append(Job(output_directory, command, output_directory, Priority.LOW))
+      priority = Priority.LOW if tuning_params else Priority.NORMAL
+      jobs.append(Job(output_directory, command, output_directory, priority))
       if not dryrun:
         run_info = {
           **ctx.obj,
-          "configuration": input_configuration_full,
+          "configuration": input_configuration,
           "input_path": input_path,
           "extra_parameters": tuning_params,
           "is_pending": True,

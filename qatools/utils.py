@@ -71,20 +71,16 @@ def latest_commit(branch):
     # TODO: we should use the branch slug.... but it will work for develop/master/release...
     return list(repo.iter_commits(branch, max_count=1))[0]
 
-def make_filename(paramstring, maxlen=20):
-  params_filename = paramstring.replace(",","_")
-  for ch in "{}:[] \r\n":
-    params_filename = params_filename.replace(ch,"")
-  if len(params_filename) > maxlen:
-    params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
-  if len(params_filename) > maxlen:
-    params_filename = params_filename[:maxlen-5] + hashlib.md5(paramstring.replace(",","_").encode()).hexdigest()[:5]
-  return params_filename
+
+def slugify(s):
+  s_slugified = s
+  for c in ' /': # baaaaad
+    s_slugified = s_slugified.replace(c, '-')
+  return s_slugified
+
 
 def make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath):
   batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
-  if tuning_filepath:
-    configuration = ":".join([configuration, tuning_filepath])
   return (
     commit_ci_dir /
     batch_output_folder /
@@ -106,23 +102,40 @@ def tuning_foldername(batch_label, tuning_parameters_hash):
     parameters_folder = ''
   return parameters_folder 
 
+
+def load_tuning_search(tuning_search, tuning_search_file):
+  if tuning_search and tuning_search_file:
+    click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
+    exit(1)
+  if tuning_search_file:
+    if not tuning_search_file.exist():
+      click.secho('Error: could not find the file specified by --tuning-search-file', fg='red', err=True)
+      exit(1)
+    with tuning_search_file.open('r') as f:
+      tuning_search = f.read()
+    if tuning_search_file.suffix == '.yaml':
+      tuning_search_dict = yaml.load(tuning_search)
+      filetype = 'yaml'
+    else:
+      tuning_search_dict = json.loads(tuning_search)
+      filetype = 'json'
+  else:
+    tuning_search_dict = json.loads(tuning_search) if tuning_search else None
+    filetype = 'json' # we default to json
+  return tuning_search_dict, filetype
+
 def hash_parameters(filepath):
   if not filepath:
     params = {}
   else:
     with filepath.open('r') as f:
-      if filepath.suffix.lower() == '.yaml':
+      if filepath.suffix == '.yaml':
         params = yaml.load(f)
       else:
         params = json.load(f)
   params_s = json.dumps(params, sort_keys=True)
   return hashlib.md5(params_s.encode()).hexdigest()
 
-def slugify(s):
-  s_slugified = s
-  for c in ' /': # baaaaad
-    s_slugified = s_slugified.replace(c, '-')
-  return s_slugified
 
 def iter_recordings(groups, groups_file, database, default_configuration):
   """Returns an iterator over the (recording, configuration) from the selected groups
@@ -168,7 +181,20 @@ def iter_recordings(groups, groups_file, database, default_configuration):
 
 hash_empty_tuning = hashlib.md5(json.dumps({}).encode()).hexdigest()
 
-def iter_parameters(tuning_search=None, filetype = 'json'):
+
+def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
+  """Best effort attempt at making a human-readable name from tuning parameters"""
+  params_filename = paramstring.replace(",","_")
+  for ch in "{}:[] \r\n":
+    params_filename = params_filename.replace(ch,"")
+  if len(params_filename) > maxlen:
+    params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
+  if len(params_filename) > maxlen:
+    params_filename = params_filename[:maxlen-10] + hashlib.md5(paramstring.replace(",","_").encode()).hexdigest()[:10]
+  return "{params_filename}.{filetype}"
+
+
+def iter_parameters(tuning_search=None, filetype='json'):
   # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
   from sklearn.model_selection import ParameterGrid, ParameterSampler
   if not tuning_search:
@@ -199,28 +225,25 @@ def iter_parameters(tuning_search=None, filetype = 'json'):
     params_iterator = ParameterSampler(tuning_search['parameter_search'], n_iter=n_iter)
   else:
     raise ValueError
-  counter = 0
-  for params in params_iterator:
-    counter += 1
-    if (counter > n_iter):
-        print("got more iterations than n_iter, stopping... (%s)"%n_iter)
+  for counter, params in enumerate(params_iterator):
+    if counter > n_iter:
+        click.secho(f"Stopping tuning combination after {n_iter} iteractions", fg='yellow', err=True)
         return
-    if filetype == 'json':
-      params_s = json.dumps(params, sort_keys=True)
-    elif filetype == 'yaml':
-      params_s = yaml.dump(params)
-    params_hash = hashlib.md5(params_s.encode()).hexdigest()
-    working_directory = Path('.')
-    params_filename = make_filename(params_s)
-    #params_file = working_directory/'tuning'/'params'/f'{params_hash[:2]}/{params_hash}.{filetype}'
-    params_file = working_directory/'configurations'/f'{params_filename}.{filetype}'
+    # we sort to avoid ordering issues; we want a unique hash per tuning configuration
+    params_s = json.dumps(params, sort_keys=True)
+    params_hash = hashlib.md5(params_s_json.encode()).hexdigest()
+
+
+    working_directory = Path('.') # can we do something smarter?
+    params_file = working_directory / 'configurations' / 'tuning' / make_pretty_tuning_filename(params_s, filetype)
     params_file.parent.mkdir(parents=True, exist_ok=True)
+
     with params_file.open('w') as f:
       if filetype == 'json':
-        json.dump(params, f)
+        f.write(params_s)
       elif filetype == 'yaml':
         yaml.dump(params, f)
-    yield params_filename, params_hash, params
+    yield params_file, params_hash, params
 
 
 class PathType(click.ParamType):
