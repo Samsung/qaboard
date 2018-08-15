@@ -23,7 +23,7 @@ old_cpu_architectures = ["IBMX5667", "IBMX5570", "IBMX5690"]
 lsf_select = " && ".join([f"!(model=={arch})" for arch in old_cpu_architectures])
 
 class Priority:
-    LOW, NORMAL, HIGH = [1000, 2000, 4000]
+    LOW, NORMAL, HIGH = 1000, 2000, 4000
 
 
 class Job:
