@@ -214,8 +214,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
-      if tuning_file:
-        input_configuration_full = ":".join([input_configuration, tuning_file])
+      input_configuration_full = ":".join([input_configuration, tuning_file]) if tuning_file else input_configuration
       if not prefix_outputs_path:
           prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration_full, None)
       else:
@@ -237,7 +236,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           ' '.join(forwarded_args),
       ])
       click.secho(command, dim=True, err=True)
-      jobs.append(Job(output_directory, command, output_directory, Priority.NORMAL))
+      jobs.append(Job(output_directory, command, output_directory, Priority.LOW))
       if not dryrun:
         run_info = {
           **ctx.obj,
