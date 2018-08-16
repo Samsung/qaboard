@@ -108,7 +108,7 @@ def load_tuning_search(tuning_search, tuning_search_file):
     click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
     exit(1)
   if tuning_search_file:
-    if not tuning_search_file.exist():
+    if not tuning_search_file.exists():
       click.secho('Error: could not find the file specified by --tuning-search-file', fg='red', err=True)
       exit(1)
     with tuning_search_file.open('r') as f:
