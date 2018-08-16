@@ -46,24 +46,25 @@ class CommitParameters extends Component {
   getConfigurations() {
     get(`/api/v1/commit/${this.props.new_commit.id}?project=${this.props.project}&artifacts=configurations`)
     .then( response => {
-      console.log(response.data)
-      var configurations = []
-      // to be user-friendly
-      // we show at the top the base configuration
+      // to be user-friendly we show at the top the base configuration
+      // this will be a list of configurations, the "default" ones at the beginning
+      var configurations = [];
+      // we separate the base/default configurations from the rest
+      var base_configurations = [];
       response.data.forEach(c => {
         let is_base_configuration = (
-          c.includes('params.json') ||
+          c === 'params.json' ||
           c.includes('base.json') ||
           c.includes('default.json') ||
           c.includes('base.yaml') ||
           c.includes('default.yaml')
         )
-        if (is_base_configuration) return;
-        configurations.append(c)
+        if (is_base_configuration)
+          base_configurations.push(c);
+        else
+          configurations.push(c);
       })
-      response.data.forEach(c => {
-        configurations.append(c)
-      })
+      configurations.unshift(...base_configurations)
       this.setState({configurations}, this.getParameters)      
     })
   }
