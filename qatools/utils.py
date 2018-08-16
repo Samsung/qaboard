@@ -191,7 +191,7 @@ def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
     params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
   if len(params_filename) > maxlen:
     params_filename = params_filename[:maxlen-10] + hashlib.md5(paramstring.replace(",","_").encode()).hexdigest()[:10]
-  return "{params_filename}.{filetype}"
+  return f"{params_filename}.{filetype}"
 
 
 def iter_parameters(tuning_search=None, filetype='json'):
@@ -231,7 +231,7 @@ def iter_parameters(tuning_search=None, filetype='json'):
         return
     # we sort to avoid ordering issues; we want a unique hash per tuning configuration
     params_s = json.dumps(params, sort_keys=True)
-    params_hash = hashlib.md5(params_s_json.encode()).hexdigest()
+    params_hash = hashlib.md5(params_s.encode()).hexdigest()
 
 
     working_directory = Path('.') # can we do something smarter?
