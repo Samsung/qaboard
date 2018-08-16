@@ -9,25 +9,27 @@ from gitdb.exc import BadName
 
 from slamvizapp import repos, db_session
 from slamvizapp.models import CiCommit
-from slamvizapp.config import *
+from slamvizapp.config import ci_directory
 
 
 
 
 @click.command()
+@click.argument('project', required=True)
+@click.option('--protected-branch', multiple=True, help='Artifacts from this branch wont be removed.')
 @click.option('--days', default=5, help='Outputs folders older than this will be removed.')
 @click.option('--verbose', is_flag=True)
-def clean(days, verbose):
+def clean(project, protected_branch, days, verbose):
   """Removes the outputs from old commits from the disk. This saves storage..."""
   now = datetime.datetime.now().astimezone()
   threshold = datetime.timedelta(days=days)
   def is_old(commit):
     return now - commit.authored_datetime > threshold
 
-  repo = repos['dvs/psp_swip']
+  repo = repos[project]
 
   # We don't want to touch the commits from that branch
-  protected_refs = set(['origin/develop', 'origin/Release/AugustDemo'])
+  protected_refs = set(protected_branch)
   protected_commits = set()
   for ref in protected_refs:
     for c in repo.iter_commits(ref):
@@ -37,13 +39,13 @@ def clean(days, verbose):
   if verbose: print(f'{len(protected_commits)} protected')
 
 
-  cicommits_dir = ci_directory/'dvs/psp_swip'/'commits'
+  cicommits_dir = ci_directory / project / 'commits'
   for cicommit_dir in cicommits_dir.glob('*__git__*'):
     commit_short_id = str(cicommit_dir)[-8:]
     try:
       commit = repo.commit(commit_short_id)
     except BadName:
-      if verbose: print(f'{cicommit_dir}')
+      if verbose: print(f'BadName: {cicommit_dir}')
       continue
 
     if is_old(commit):
@@ -51,12 +53,11 @@ def clean(days, verbose):
         print(f'DELETE: {commit.hexsha} on {commit.authored_datetime} by {commit.author.name}')
         subprocess.Popen(f'rm -rf {cicommit_dir}', shell=True)
       else:
-        if verbose:  print(f"find {cicommit_dir} -name '*mp4' -delete -print")  
-        subprocess.Popen(f"find {cicommit_dir} -name '*mp4' -delete -print", shell=True)
+        subprocess.Popen(f"find {cicommit_dir} -type f \( -iname \*.mp4 -o -iname \*.pcd \) -delete -print", shell=True)
 
   # we remove core dumps, they are soooo heavy...
   # we could update the LSF params to avoid creating them at all I guess
-  subprocess.Popen("find /home/arthurf/ci/dvs/psp_swip/branches -maxdepth 3 -name '*core*' -delete -print", shell=True)
+  subprocess.Popen(f"find {ci_directory/project}/branches -maxdepth 3 -name '*core*' -delete -print", shell=True)
 
 
 
