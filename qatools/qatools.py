@@ -250,7 +250,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         jobs_sent.append(job)
     
       if not dryrun and not no_wait:
-        try:
             tuning_search_hash = hash64(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "finished waiting for jobs on LSF."')
