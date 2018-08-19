@@ -31,7 +31,7 @@ class Job:
 
     def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000):
         self.name = str(name).replace(" ", "-")
-        self.command = command
+        self.command = '"%s"'%command
         self.log_file = log_dir / "log.txt"
         self.project = config["project"]["name"]
         self.priority = priority  # max: 4000, LSF-default: 2000
@@ -116,6 +116,23 @@ class Job:
 
         out = subprocess.run(
             q_command,
+            shell=True,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        click.secho(out.stdout, err=True)
+        click.secho(out.stderr, fg="red", err=True)
+        return out
+
+def killJobs(jobs=jobs, on_lsf = False):
+    command = " && ".join("bkill -J %s 0"%job for job in jobs)
+    if on_lsf:
+        killer = Job("killer", command, priority = Priority.HIGH)
+        killer.send()
+    else:
+        out = subprocess.run(
+            command,
             shell=True,
             encoding="utf-8",
             stdout=subprocess.PIPE,

@@ -7,16 +7,16 @@ import errno
 import json
 import yaml
 import importlib
-import hashlib
 from pathlib import Path
 from traceback import format_exception
 
 import click
 
-from .lsf import Job, running_lsf_job_names, Priority
+from .lsf import Job, running_lsf_job_names, Priority, killJobs
 from .utils import make_prefix_outputs_path, load_tuning_search
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
+from .utils import hash64
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
@@ -247,10 +247,13 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     job.send()
 
   if not dryrun and not no_wait:
-    tuning_search_hash = hashlib.md5(tuning_search.encode()).hexdigest() if tuning_search else ''
-    name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
-    wait = Job(name, 'echo "finished waiting for jobs on LSF."')
-    wait.send(interactive=True, dependencies=jobs)
+    try:
+        tuning_search_hash = hash64(tuning_search) if tuning_search else ''
+        name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
+        wait = Job(name, 'echo "finished waiting for jobs on LSF."')
+        wait.send(interactive=True, dependencies=jobs)
+    except:
+        killJobs(jobs, on_lsf = True)
 
 
 @cli.command()
