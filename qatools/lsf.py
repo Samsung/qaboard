@@ -125,7 +125,7 @@ class Job:
         click.secho(out.stderr, fg="red", err=True)
         return out
 
-def killJobs(jobs=jobs, on_lsf = False):
+def killJobs(jobs, on_lsf = False):
     command = " && ".join("bkill -J %s 0"%job for job in jobs)
     if on_lsf:
         killer = Job("killer", command, priority = Priority.HIGH)
