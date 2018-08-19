@@ -242,18 +242,21 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         if not ctx.obj['no_qa_database']:
             notify_qa_database(**run_info)
 
-  for job in jobs:
-    if dryrun: continue
-    job.send()
-
-  if not dryrun and not no_wait:
-    try:
-        tuning_search_hash = hash64(tuning_search) if tuning_search else ''
-        name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
-        wait = Job(name, 'echo "finished waiting for jobs on LSF."')
-        wait.send(interactive=True, dependencies=jobs)
-    except:
-        killJobs(jobs, on_lsf = True)
+  jobs_sent = []
+  try:
+      for job in jobs:
+        if dryrun: continue
+        job.send()
+        jobs_sent.append(job)
+    
+      if not dryrun and not no_wait:
+        try:
+            tuning_search_hash = hash64(tuning_search) if tuning_search else ''
+            name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
+            wait = Job(name, 'echo "finished waiting for jobs on LSF."')
+            wait.send(interactive=True, dependencies=jobs)
+  except:
+      killJobs(jobs_sent, on_lsf = True)
 
 
 @cli.command()
