@@ -202,6 +202,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     return not (is_done or is_pending)
 
   jobs = []
+  batch_hash = hash64([ctx, tuning_search, tuning_search_file])
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
@@ -238,7 +239,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(output_directory, command, output_directory, priority))
+      jobs.append(Job(batch_hash[:10] + output_directory, command, output_directory, priority))
       if not dryrun:
         run_info = {
           **ctx.obj,
@@ -250,6 +251,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         if not ctx.obj['no_qa_database']:
             notify_qa_database(**run_info)
 
+  wildcard_job = [Job(batch_hash[:10] + "*")]
   jobs_sent = []
   try:
       for job in jobs:
@@ -261,9 +263,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
             tuning_search_hash = hash64(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "finished waiting for jobs on LSF."')
-            wait.send(interactive=True, dependencies=jobs)
+            wait.send(interactive=True, dependencies=wildcard_job)
   except:
-      killJobs(jobs_sent, on_lsf = True)
+      killJobs(wildcard_job, on_lsf = True)
 
 
 @cli.command()
