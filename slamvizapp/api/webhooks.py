@@ -49,6 +49,8 @@ def new_output_webhook():
   elif request.json.get('is_pending', False):
     output.is_pending = True
   else:
+    output.is_pending = False
+    output.is_running = False
     metrics = request.json.get('metrics', {})
     if not metrics:
       # we look for metrics.json in the output directory
