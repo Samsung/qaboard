@@ -202,7 +202,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     return not (is_done or is_pending)
 
   jobs = []
-  batch_hash = hash64([ctx, tuning_search, tuning_search_file])
+  batch_hash = hash64([str(output_directory), group, tuning_search, str(tuning_search_file)])
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
