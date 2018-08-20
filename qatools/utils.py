@@ -188,7 +188,7 @@ hash_empty_tuning = hash64({})
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
   params_filename = paramstring.replace(",","_")
-  for ch in "{}:[] \r\n":
+  for ch in "{}:[] \r\n\"":
     params_filename = params_filename.replace(ch,"")
   if len(params_filename) > maxlen:
     params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)

@@ -68,8 +68,8 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   ctx.obj['no_qa_database'] = no_qa_database
   if tuning_filepath:
     ctx.obj['tuning_filepath'] = tuning_filepath
-    with Path(tuning_filepath).open('r') as f:
-      ctx.obj['extra_parameters'] = json.load(f)
+    #with Path(tuning_filepath).open('r') as f:
+    #  ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
   ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath)
   if is_ci: # we always want colors in the CI
@@ -209,7 +209,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
+          #prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
+          prefix_output_dir = make_prefix_outputs_path("tuning", ctx.obj["platform"], input_configuration, tuning_file)
+          print("prefix_output_dir=%s"%prefix_output_dir)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
