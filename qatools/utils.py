@@ -229,8 +229,8 @@ def iter_parameters(tuning_search=None, filetype='json'):
   else:
     raise ValueError
   for counter, params in enumerate(params_iterator):
-    if counter > n_iter:
-        click.secho(f"Stopping tuning combination after {n_iter} iteractions", fg='yellow', err=True)
+    if counter >= n_iter:
+        click.secho(f"Stopping tuning combination after {n_iter} iterations", fg='yellow', err=True)
         return
     # we sort to avoid ordering issues; we want a unique hash per tuning configuration
     params_s = json.dumps(params, sort_keys=True)
