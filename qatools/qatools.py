@@ -239,7 +239,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(batch_hash[:10] + output_directory, command, output_directory, priority))
+      jobs.append(Job(batch_hash[:10] + str(output_directory), command, output_directory, priority))
       if not dryrun:
         run_info = {
           **ctx.obj,
