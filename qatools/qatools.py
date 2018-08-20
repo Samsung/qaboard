@@ -214,7 +214,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       if not prefix_outputs_path:
           #prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
           prefix_output_dir = make_prefix_outputs_path("tuning", ctx.obj["platform"], input_configuration, tuning_file)
-          print("prefix_output_dir=%s"%prefix_output_dir)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
@@ -222,6 +221,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       output_directory = prefix_output_dir / input_path.parent / input_path.stem
       if return_prefix_outputs_path:
         print(output_directory)
+        break
+
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
           f"qa",
