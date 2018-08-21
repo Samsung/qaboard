@@ -187,9 +187,10 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
+@click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -248,7 +249,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           "extra_parameters": tuning_params,
           "is_pending": True,
         }
-        if not ctx.obj['no_qa_database']:
+        if not ctx.obj['no_qa_database'] and not no_batch_qa_database:
             notify_qa_database(**run_info)
 
   wildcard_job = [Job(batch_hash[:10] + "*")]
