@@ -180,7 +180,7 @@ class CiCommit(Base):
 
 
 
-def latest_successful_commit(session, project_id, branch, within_last=5):
+def latest_successful_commit(session, project_id, branch, within_last=20):
   """
   Returns the latest commit on a given branch where we got outputs.
   Only the latest within_last commits are checked...
