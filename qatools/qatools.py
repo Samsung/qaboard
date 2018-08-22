@@ -20,7 +20,7 @@ from .utils import hash64
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
-from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci
+from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci, commit_ci_postfix
 
 
 entrypoint = Path(config['project']['entrypoint'])
