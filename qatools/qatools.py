@@ -214,8 +214,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
-          #prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
-          prefix_output_dir = make_prefix_outputs_path("tuning", ctx.obj["platform"], input_configuration, tuning_file)
+          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
