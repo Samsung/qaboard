@@ -108,6 +108,7 @@ ci_dir = Path(ci_root) / config['project']['name']
 
 # we find were we should save our results
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
+    commit_ci_postfix = None
     commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
 else:
     import git
@@ -117,8 +118,10 @@ else:
         except: # just to make `qa` work in the sample_project
             repo = git.Repo('../..')
         commit = repo.head.commit
-        commit_ci_dir = ci_dir / 'commits' / f'{commit.authored_date}__git__{commit.hexsha[:8]}'
+        commit_ci_postfix = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
+        commit_ci_dir = ci_dir / 'commits' / commit_ci_postfix
     except:
+        commit_ci_postfix = None
         commit_ci_dir = Path()
         commit = None
         repo = None

@@ -125,6 +125,23 @@ class Job:
         click.secho(out.stderr, fg="red", err=True)
         return out
 
+def killJobs(jobs, on_lsf = False):
+    command = " && ".join("bkill -J %s 0"%job.name.replace('"','') for job in jobs)
+    if on_lsf:
+        killer = Job("killer", '"%s"'%command, priority = Priority.HIGH)
+        killer.send()
+    else:
+        out = subprocess.run(
+            command,
+            shell=True,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        click.secho(out.stdout, err=True)
+        click.secho(out.stderr, fg="red", err=True)
+        return out
+
 
 def running_lsf_job_names():
     """

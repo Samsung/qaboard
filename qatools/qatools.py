@@ -7,20 +7,20 @@ import errno
 import json
 import yaml
 import importlib
-import hashlib
 from pathlib import Path
 from traceback import format_exception
 
 import click
 
-from .lsf import Job, running_lsf_job_names, Priority
+from .lsf import Job, running_lsf_job_names, Priority, killJobs
 from .utils import make_prefix_outputs_path, load_tuning_search
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
+from .utils import hash64
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
-from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci
+from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci, commit_ci_postfix
 
 
 entrypoint = Path(config['project']['entrypoint'])
@@ -68,8 +68,11 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   ctx.obj['no_qa_database'] = no_qa_database
   if tuning_filepath:
     ctx.obj['tuning_filepath'] = tuning_filepath
-    with Path(tuning_filepath).open('r') as f:
-      ctx.obj['extra_parameters'] = json.load(f)
+    with tuning_filepath.open('r') as f:
+      if tuning_filepath.suffix == '.yaml':
+        ctx.obj['extra_parameters'] = yaml.load(f)
+      else:
+        ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
   ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath)
   if is_ci: # we always want colors in the CI
@@ -184,9 +187,10 @@ def postprocess(ctx, input_path, forwarded_args):
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
+@click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -199,6 +203,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     return not (is_done or is_pending)
 
   jobs = []
+  batch_hash = hash64([group, tuning_search, str(tuning_search_file)])
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
@@ -212,9 +217,13 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
+          if tuning_file:
+              prefix_output_dir = prefix_output_dir / Path(tuning_file).stem
       output_directory = prefix_output_dir / input_path.parent / input_path.stem
       if return_prefix_outputs_path:
         print(output_directory)
+        break
+
       should_run = overwrite or not_started(output_directory)
       command = ' '.join([
           f"qa",
@@ -222,7 +231,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           f'--platform "{ctx.obj["platform"]}"',
           f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f'--configuration "{input_configuration}"',
-          #f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
+          f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
           'run' if should_run else 'postprocess',
           f'--input-path "{input_path}"',
           f'--output-path "{output_directory}"',
@@ -230,7 +239,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(output_directory, command, output_directory, priority))
+      jobs.append(Job(batch_hash[:10] + str(output_directory), command, output_directory, priority))
       if not dryrun:
         run_info = {
           **ctx.obj,
@@ -239,18 +248,24 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           "extra_parameters": tuning_params,
           "is_pending": True,
         }
-        if not ctx.obj['no_qa_database']:
+        if not ctx.obj['no_qa_database'] and not no_batch_qa_database:
             notify_qa_database(**run_info)
 
-  for job in jobs:
-    if dryrun: continue
-    job.send()
-
-  if not dryrun and not no_wait:
-    tuning_search_hash = hashlib.md5(tuning_search.encode()).hexdigest() if tuning_search else ''
-    name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
-    wait = Job(name, 'echo "finished waiting for jobs on LSF."')
-    wait.send(interactive=True, dependencies=jobs)
+  wildcard_job = [Job(batch_hash[:10] + "*")]
+  jobs_sent = []
+  try:
+      for job in jobs:
+        if dryrun: continue
+        job.send()
+        jobs_sent.append(job)
+    
+      if not dryrun and not no_wait:
+            tuning_search_hash = hash64(tuning_search) if tuning_search else ''
+            name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
+            wait = Job(name, 'echo "finished waiting for jobs on LSF."')
+            wait.send(interactive=True, dependencies=wildcard_job)
+  except:
+      killJobs(wildcard_job, on_lsf = True)
 
 
 @cli.command()
