@@ -16,6 +16,9 @@ RUN apt-get update
 RUN apt-get install -y git wget
 RUN git config --global http.proxy http://dlp-wcg01:8080
 
+# Essential utilities
+RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
+
 # Useful utilities when debugging the container
 RUN apt-get install -y zsh htop tree less nano
 
@@ -23,11 +26,11 @@ RUN apt-get install -y zsh htop tree less nano
 RUN wget --no-check-certificate https://repo.continuum.io/archive/Anaconda3-5.0.1-Linux-x86_64.sh
 RUN bash Anaconda3-5.0.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
-RUN conda install pandas
-RUN pip install pipenv
+# ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
+RUN conda install -k pandas
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson
 
 # uwsgi and matplotlib dependencies
-RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
 
 # postgresql database
 RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' > /etc/apt/sources.list.d/pgdg.list
@@ -60,7 +63,9 @@ RUN update-ca-certificates
 # RUN yes | dpkg-reconfigure ca-certificates --
 
 # nodejs
-RUN curl -ksL https://deb.nodesource.com/setup_9.x | bash -
+RUN echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf
+RUN echo 'Acquire::https::Verify-Host "false";' >> /etc/apt/apt.conf
+RUN curl -ksL https://deb.nodesource.com/setup_10.x | sed 's/wget -/wget --no-check-certificate -/g' | bash -
 RUN apt-get install -y nodejs
 
 # yarn
@@ -94,6 +99,7 @@ RUN yarn build
 # our API
 WORKDIR /slamvizapp
 # RUN pip install --editable . # proxy madness
+RUn pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/common-infrastructure/qatools'
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
