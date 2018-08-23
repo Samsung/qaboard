@@ -10,7 +10,6 @@ import re
 
 import click
 import requests
-from .config import config, is_ci, commit_type, commit_id, ci_dir, commit_ci_dir, repo
 
 
 def notify_qa_database(**kwargs):
@@ -18,6 +17,7 @@ def notify_qa_database(**kwargs):
   Send a notification to the server updating the QA database.
   It will know that it should look for new results
   """
+  from .config import is_ci, commit_id
   # some light custom serialization
   for key, value in kwargs.items():
     if issubclass(type(value), Path):
@@ -64,7 +64,7 @@ def save_metrics(output_directory, **kwargs):
 
 
 
-def latest_commit(branch):
+def latest_commit(repo, branch):
     """Returns the latest commit on a branch."""
     # FIXME: couldn't we just use the project's git repo URL from the configuration?
     # Here we find a local copy of the repo and use it to iterate through commits
@@ -79,7 +79,7 @@ def slugify(s):
   return s_slugified
 
 
-def make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath):
+def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath):
   batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return (
     commit_ci_dir /
@@ -137,7 +137,7 @@ def hash_parameters(filepath):
   return hashlib.md5(params_s.encode()).hexdigest()
 
 
-def iter_recordings(groups, groups_file, database, default_configuration):
+def iter_recordings(config, groups, groups_file, database, default_configuration):
   """Returns an iterator over the (recording, configuration) from the selected groups
   params:
   - groups: array of group labels

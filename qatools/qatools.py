@@ -71,7 +71,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
     with Path(tuning_filepath).open('r') as f:
       ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(batch_label, platform, configuration, tuning_filepath)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath)
   if is_ci: # we always want colors in the CI
     ctx.color = True
 
@@ -202,14 +202,14 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
-  for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration']):
+  for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], config):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', bold=True, err=True)
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
+          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
       output_directory = prefix_output_dir / input_path.parent / input_path.stem
@@ -311,7 +311,7 @@ def check_bit_accuracy(reference_branch):
 
     if commit_branch not in [reference_branch, f"origin/{reference_branch}"]:
         assert assert_bit_accurate_to(
-            latest_commit(reference_branch)
+            latest_commit(repo, reference_branch)
         ), "ERRROR: the bit-accuracy test has failed"
 
     # bit-accuracy on the reference branch is check on the commit's parents
