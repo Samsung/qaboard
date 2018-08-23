@@ -8,32 +8,44 @@ from sqlalchemy.orm.exc import NoResultFound
 from slamvizapp import app, repos, db_session
 from ..models import Project, CiCommit, Output, TestInput
 from ..git_utils import git_pull
-from ..config import default_recordings_directory
+
+
 
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
 def new_output_webhook():
+  """Updates the database when we get new results."""
   data = request.get_json()
-  project_id = request.json.get('project', 'dvs/psp_swip')
-  if data['job_type'] != 'ci': # we do nothing for now with local runs
+  # For now, we do nothing with local runs
+  if data['job_type'] != 'ci':
     print(data['output_directory'])
     return "OK"
 
-  hexsha = request.json['git_commit_sha']
+  # We get a handle on the Commit object related to our new output
   try:
-    repo = repos[project_id]
-    ci_commit = CiCommit.get_or_create(session=db_session, hexsha=hexsha, repo=repo)
+    ci_commit = CiCommit.get_or_create(
+      session=db_session,
+      hexsha=request.json['git_commit_sha'],
+      repo=repos[request.json.get('project', 'dvs/psp_swip')],
+    )
   except:
-    return f"404 ERROR:\n there is an issue with your commit id ({hexsha})", 404
+    return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
 
+  # The output belongs to this batch of outputs
+  batch = ci_commit.get_or_create_batch(data['batch_label'])
+
+  # We make sure the Test on which we ran exists in the database 
   test_input_path = request.json.get('recording_path', request.json.get('input_path'))
   if not test_input_path:
     return jsonify({"error": "the input path was not provided"}, 400)
-  database = request.json.get('database', default_recordings_directory)
-  test_input = TestInput.get_or_create(db_session, path=test_input_path, database=database)
+  test_input = TestInput.get_or_create(
+    db_session,
+    path=test_input_path,
+    database=request.json.get('database', ci_commit.project.database),
+  )
   if not test_input: return "KO", 404
 
-  batch = ci_commit.get_or_create_batch(data['batch_label'])
+  # We save the basic information about our result
   output = Output.get_or_create(db_session,
                                          batch=batch,
                                          platform=data['platform'],
@@ -43,20 +55,25 @@ def new_output_webhook():
                                         )
   output.output_type = request.json.get('output_type', 'slam/6dof')
   output.data = request.json.get('data', {})
-  if request.json.get('is_running', False):
-    output.is_running = True
-    output.is_pending = True
-  elif request.json.get('is_pending', False):
+
+  # We allow users to save their data in custom locations
+  if 'output_directory' in request.json:
+    if request.json['output_directory'] != output.output_dir:
+      output.output_dir_override = request.json['output_directory']
+
+  # We update the output's status
+  output.is_running = request.json.get('is_running', False)
+  if output.is_running:
     output.is_pending = True
   else:
-    output.is_pending = False
-    output.is_running = False
-    metrics = request.json.get('metrics', {})
-    if not metrics:
-      # we look for metrics.json in the output directory
+    output.is_pending = request.json.get('is_pending', False)
+
+  # We save the output's metrics
+  if not is_pending:
+    output.metrics = request.json.get('metrics', {})
+    if not metrics: # we look for metrics.json in the output directory
       output.update_metrics()
-    else:
-      output.metrics = metrics
+
   db_session.add(output)
   db_session.commit()
   return "OK"
@@ -71,6 +88,9 @@ def gitlab_webhook():
   # data['ref'] => 'refs/heads/feature/Imu_preintegration'
   branch = data['ref'][11:]
   project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
+
+
+
   project = Project.get_or_create(session=db_session, id=project_path)
   project.information = {
     **(project.information if project.information else {}),
@@ -110,6 +130,7 @@ def gitlab_webhook():
 
 
   # we update the project configuration stored in the database
+  # using the information found in this commit's qatools.yaml
   try:
     qatools_config_contents = repo.git.show('{}:{}'.format(ci_commit.id, 'qatools.yaml'))
   except:

@@ -10,18 +10,11 @@ shared_data_directory = Path('/home/arthurf/dvs/slamvizapp/data/')
 
 # unix config
 ci_directory = Path('/home/arthurf/ci')
-database_directory = {
-	'dvs/psp_swip': Path('/net/f2/algo_archive/DVS_SLAM_Database/'),
-	'tof/swip_tof': Path('/net/f2/algo_archive/ToF_SW_Database/'),
-}
-default_recordings_directory = database_directory['dvs/psp_swip']
 
 # windows config
 is_windows = os.name == 'nt'
 if is_windows:
   ci_directory = Path('//mars/homes/arthurf/ci')
-  default_recordings_directory = Path('//f2/algo_archive/DVS_SLAM_Database/')
-
   
 # CIS configuration #########################################################
 # there is more at other locations...

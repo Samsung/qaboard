@@ -179,13 +179,10 @@ def get_ci_commit(commit_id=None):
   artifacts = request.args.get('artifacts', False)
   if artifacts:
     try:
-      project = Project.query.filter(Project.id==project_id).one()
-      globbing = project.information['qatools_config']['artifacts'][artifacts]['glob']
+      globbing = ci_commit.project.information['qatools_config']['artifacts'][artifacts]['glob']
     except: # for legacy projects...
       globbing = '*.json'
-    # print(globbing)
     commit_dir = ci_commit.commit_dir
-    # print(commit_dir)
     files =  [str(f.relative_to(commit_dir)) for f in commit_dir.glob(globbing)]
     return jsonify(files)
 

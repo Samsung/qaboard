@@ -14,7 +14,6 @@ from .Batch import aggregated_metrics
 from .TestInput import TestInput
 from .Output import Output
 from ..utils import get_users_per_name
-from ..config import database_directory
 
 class Committer():
   def  __init__(self, name):
@@ -130,7 +129,7 @@ class LocalBatch():
       platform, configuration, *rel_input_path = output_dir.relative_to(self.output_dir).parts
       rel_input_path = Path(*rel_input_path)
       rel_input_path = f'{rel_input_path}.bin'
-      test_input = TestInput.get_or_create(db_session, database=database_directory['dvs/psp_swip'], path=rel_input_path)
+      test_input = TestInput.get_or_create(db_session, database=Path('/net/f2/algo_archive/DVS_SLAM_Database/'), path=rel_input_path)
       output = LocalOutput(
           test_input=test_input,
           platform=platform,

@@ -7,8 +7,6 @@ import datetime
 import requests
 from pathlib import Path
 
-from .config import default_recordings_directory
-
 
 # Until we get a proper database, we need to cache things a bit
 def cache(minutes=1440, func_skip_cache=None):
@@ -70,15 +68,13 @@ def get_users_per_name(search_filter):
   return users_db
 
 
-# copy-pasted from psp_swip/tools/performance-evaluation/utils.py
-# database_directory->default_recordings_directory
-# we should create a python package...
 def iter_recordings(recording_groups, recording_groups_file, database_directory):
   """Returns an iterator over the recordings from the selected groups
   params:
   - recording_groups: array of group labels
   - recording_groups_file: yaml file
   - database_directory: prefix of the test files
+  DEPRECATED: we should use the one defined in qatools.utils
   """
   available_batches = yaml.load(Path(recording_groups_file).open())
   try:
