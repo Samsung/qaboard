@@ -24,6 +24,7 @@ def get_groups():
   recording_groups_filepath = shared_data_directory / project_id / 'extra-batches.yml'
   if not recording_groups_filepath.exists():
     return ''
+  recording_groups_filepath.parent.mkdir(parents=True, exist_ok=True)
   with (recording_groups_filepath).open('r') as f:
     return f.read()
 
