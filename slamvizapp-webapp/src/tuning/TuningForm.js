@@ -93,7 +93,7 @@ class AddRecordingsForm extends Component {
       message: "The request was sent!",
       intent: Intent.PRIMARY
     });
-    post(`/api/v1/commit/${this.props.commit.id}/batch`, {
+    post(`/api/v1/commit/${this.props.commit.id}/batch?project=${this.props.project}`, {
       project: this.props.project,
       batch_label: "default",
       platform: "lsf",
@@ -452,7 +452,7 @@ class TuningForm extends Component {
       message: "The tuning experiment was sent!",
       intent: Intent.PRIMARY
     });
-    post(`/api/v1/commit/${this.props.commit.id}/batch`, {
+    post(`/api/v1/commit/${this.props.commit.id}/batch?project=${this.props.project}`, {
       project: this.props.project,
       batch_label: experiment_name,
       platform,
