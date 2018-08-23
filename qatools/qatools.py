@@ -338,7 +338,8 @@ def check_bit_accuracy(reference_branch):
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
 
 
-
+def main()
+  cli(obj={}, auto_envvar_prefix='QATOOLS')
 
 if __name__ == '__main__':
-  cli(obj={}, auto_envvar_prefix='QATOOLS')
+  main()
