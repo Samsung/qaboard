@@ -85,7 +85,10 @@ def hash64(obj):
   return base64.urlsafe_b64encode(hash.digest())[:-2].decode()
 
 def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath):
-  batch_output_folder = 'output' if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  if not tuning_filepath:
+    batch_output_folder = Path('output') if batch_label == 'default' else Path('output') / slugify(batch_label)
+  else:
+    batch_output_folder = Path('output/tuning') if batch_label == 'default' else Path('output/tuning') / slugify(batch_label)
   return (
     commit_ci_dir /
     batch_output_folder /
