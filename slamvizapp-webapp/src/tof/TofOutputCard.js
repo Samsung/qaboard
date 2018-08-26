@@ -50,11 +50,17 @@ class TofOutputCard extends Component {
   constructor(props) {
     super(props);
     this.threeRoot = React.createRef();
-    if (props.output_new.metrics.frames !== undefined)
-      var last_frame_id = props.output_new.metrics.frames.length - 1;
-    else last_frame_id = 0;
+    if (props.output_new.metrics.frames !== undefined) {
+		var last_frame_id = props.output_new.metrics.frames.length - 1;
+		var curr_frame_path_idx = props.output_new.metrics.frames[last_frame_id].frame_path_idx; }
+    else {
+		console.log(`could not find metrics`)
+		console.log(props)
+		last_frame_id = 0; 
+		curr_frame_path_idx = 0 }
     this.state = {
-      show_pointcloud: false,
+	  selectedFramePathIdx: curr_frame_path_idx,
+	  show_pointcloud: false,
       selected_frame: last_frame_id,
       frames: {
         [last_frame_id]: {
@@ -338,36 +344,33 @@ class TofOutputCard extends Component {
               ? "Click on a RMSE point below to select the corresponding frame."
               : "Loading..."}
           </p>
-          <Plot data={traces} layout={layout_} onClick={e => { this.updatePointCloud(e.points[0].pointNumber)}} />
-
-          {data_new.frames.map((f, index) => {
-            return (
-              <div key={index}>
-                <h4>
-                  <a
-                    href={`${output_ref.output_dir_url}/Frame${index}`}
-                    target="_blank"
-                  >
-                    Frame {index}
-                  </a>
-                </h4>
-                {output_types.map(output_type => {
-                  let img_new = `${
-                    output_new.output_dir_url
-                  }/Frame${index}/${output_type}.png`;
-                  let img_ref = `${
-                    output_ref.output_dir_url
-                  }/Frame${index}/${output_type}.png`;
-                  return (
-                    <div key={output_type}>
-                      <img width={400} onClick={e => this.updatePointCloud(index)} alt="New" src={img_new} />
-                      <img width={400} onClick={e => this.updatePointCloud(index)} alt="Reference" src={img_ref} />
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+          <Plot data={traces} layout={layout_} onClick={e => { this.setState({selectedFramePathIdx: output_new.metrics.frames[e.points[0].pointNumber].frame_path_idx , 
+		  selected_frame: e.points[0].pointNumber})}}/>
+		
+          <div key={this.state.selectedFramePathIdx}>
+			<h4>
+			  <a
+				href={`${output_ref.output_dir_url}/Frame${this.state.selectedFramePathIdx}`}
+				target="_blank"
+			  >
+				Frame {this.state.selectedFramePathIdx}
+			  </a>
+			</h4>
+			{output_types.map(output_type => {
+			  let img_new = `${
+				output_new.output_dir_url
+			  }/Frame${this.state.selectedFramePathIdx}/${output_type}.png`;
+			  let img_ref = `${
+				output_ref.output_dir_url
+			  }/Frame${this.state.selectedFramePathIdx}/${output_type}.png`;
+			  return (
+				<div key={output_type}>
+				  <img width={400} onClick={e => this.updatePointCloud(this.state.selectedFramePathIdx)} alt="New" src={img_new} />
+				  <img width={400} onClick={e => this.updatePointCloud(this.state.selectedFramePathIdx)} alt="Reference" src={img_ref} />
+				</div>
+			  );
+			})}
+		  </div>
 
           {false && <p>{JSON.stringify(output_new)}</p>}
         </Card>
