@@ -19,6 +19,16 @@ const available_metrics = {
     threshold: 0.1,
     smaller_is_better: true
   },
+  
+  pcmd_mean: {
+	  key: "pcmd_mean",
+	  label: "Average PCMD",
+	  short_label: "PCMD avg",
+	  scale: 1,
+	  suffix: "cm",
+	  threshold: 0.1,
+	  smaller_is_better: true
+  },
 
   rmse_median: {
     key: "rmse_median",
@@ -101,7 +111,7 @@ const summary_metrics = [
   "processing_time_q95"
 ];
 // will be shown in the table and 6dof output cards
-const main_metrics = ["rmse_mean", "rmse_median"];
+const main_metrics = ["rmse_mean", "pcmd_mean"];
 const dashboard_metrics = ["is_failed", "rmse_mean", "rmse_median"];
 
 export {
