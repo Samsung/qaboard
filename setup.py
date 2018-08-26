@@ -23,7 +23,7 @@ setup(
 
   entry_points='''
       [console_scripts]
-      qa=qatools.qatools:cli
+      qa=qatools.qatools:main
   ''',
 
   # https://setuptools.readthedocs.io/en/latest/setuptools.html#including-data-files
