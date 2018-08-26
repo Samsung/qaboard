@@ -13,7 +13,6 @@ from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
 from slamvizapp.models import Base, Output
-from ..config import default_recordings_directory
 
 class Batch(Base):
   __tablename__ = 'batches'
@@ -34,7 +33,6 @@ class Batch(Base):
 
   @property
   def output_folder(self):
-    print
     return Path('output') if self.label == 'default' else Path('tuning') / slugify(self.label)
 
   @property

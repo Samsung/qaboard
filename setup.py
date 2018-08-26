@@ -16,7 +16,7 @@ setup(
   install_requires=[
     'pandas>=0.22',
     'gitpython', # manipulate git repositories
-    'Click',     # build CLI tools easily
+    'click',     # build CLI tools easily
     'flask',     # HTTP server
     'flask_cors',
     'sqlalchemy',       # ORM
@@ -24,7 +24,7 @@ setup(
     'psycopg2-binary',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
-    # 'uwsgi', # actually required, see below
+    'uwsgi', # actually required, see below
     'ujson',
   ],
 

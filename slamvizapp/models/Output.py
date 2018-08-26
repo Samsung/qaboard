@@ -52,6 +52,7 @@ class Output(Base):
   is_pending = Column(Boolean(), default=False)
   is_running = Column(Boolean(), default=False) # in addition to pending
   is_failed = Column(Boolean(), default=False)
+
   metrics = Column(JSON(), default={})
   data = Column(JSON(), default={})
 
@@ -84,7 +85,8 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
+    return f'{self.platform}/{self.configuration}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    # return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property
   def output_dir(self):

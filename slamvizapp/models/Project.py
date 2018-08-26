@@ -1,6 +1,8 @@
 """
 Describes a project
 """
+from pathlib import Path
+
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, DateTime, JSON
@@ -8,7 +10,7 @@ from sqlalchemy import cast, type_coerce
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp.models import Base, CiCommit
-
+from ..config import ci_directory
 
 class Project(Base):
   __tablename__ = 'projects'
@@ -20,6 +22,31 @@ class Project(Base):
   # Various conventions
   information = Column(JSON())
 
+
+  # deprecated
+  _legacy_database_directory = {
+    'dvs/psp_swip': Path('/net/f2/algo_archive/DVS_SLAM_Database/'),
+    'tof/swip_tof': Path('/net/f2/algo_archive/ToF_SW_Database/'),
+  }
+
+  @property
+  def database(self):
+    try:
+      return Path(self.information['qatools_config']['inputs']['database']['linux'])
+    except:
+      try:
+        return self._legacy_database_directory[self.id]
+      except:
+        return self._legacy_database_directory['dvs/psp_swip'] 
+
+
+  @property
+  def ci_directory(self):
+    try:
+      return Path(self.information['qatools_config']['inputs']['database']['linux'])
+    except:
+      return ci_directory
+  
 
   @staticmethod
   def get_or_create(session, **kwargs):

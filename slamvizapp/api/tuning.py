@@ -12,8 +12,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from slamvizapp import app, repos, db_session
 from ..models import CiCommit, Project
 from ..utils import iter_recordings
-from ..config import database_directory
-from ..config import shared_data_directory, ci_directory
+from ..config import shared_data_directory
 
 
 
@@ -22,21 +21,33 @@ from ..config import shared_data_directory, ci_directory
 def get_groups():
   project_id = request.args.get('project', 'dvs/psp_swip')
   recording_groups_filepath = shared_data_directory / project_id / 'extra-batches.yml'
-  if not recording_groups_filepath.exists():
+  try:
+    with (recording_groups_filepath).open('r') as f:
+      return f.read()
+  except:
     return ''
-  with (recording_groups_filepath).open('r') as f:
-    return f.read()
-
 
 @app.route("/api/v1/recordings/group")
 def get_group():
   project_id = request.args.get('project', 'dvs/psp_swip')
+  project = Project.get_or_create(session=db_session, id=project_path)
+  recording_groups_filepath = shared_data_directory / project_id / 'extra-batches.yml'
   try:
-    recordings = list(iter_recordings(
-      [request.args.get('name', '')],
-      shared_data_directory / project_id / 'extra-batches.yml',
-      database_directory[project_id]
-    ))
+    is_legacy_project = project_id in ['dvs/psp_swip', 'tof/swip_tof']
+    if is_legacy_project:
+      recordings = list(iter_recordings(
+        [request.args.get('name', '')],
+        recording_groups_filepath,
+        project.database
+      ))
+    else:
+      import qatools
+      recordings = list(qatools.utils.iter_recordings(
+        [request.args.get('name', '')],
+        recording_groups_filepath,
+        project.database
+      ))
+
     return jsonify({'number_of_recordings': len(recordings)})
   except:
     return jsonify({'number_of_recordings': 0})    
@@ -46,16 +57,6 @@ def get_group():
 @app.route("/api/v1/commit/<hexsha>/batch", methods=['POST'])
 def add_batch(hexsha):
   project_id = request.args.get('project', 'dvs/psp_swip')
-  try:
-    project = (Project
-                 .query.filter(
-                   Project.id==project_id,
-                 )
-                 .one()
-                )
-  except NoResultFound:
-    return jsonify("Sorry, the project was not found"), 404
-
   try:
     commit = repos[project_id].commit(hexsha)
     ci_commit = (CiCommit
@@ -69,13 +70,14 @@ def add_batch(hexsha):
     return jsonify("Sorry, the commit id was not found"), 404
 
   is_legacy_project = project_id in ['dvs/psp_swip', 'tof/swip_tof']
-  if 'qatools_config' not in project.information and not is_legacy_project:
+  if 'qatools_config' not in ci_commit.project.information and not is_legacy_project:
     return jsonify("Please configure `qatools first`"), 404
 
 
   data = request.get_json()
   recording_groups_filepath = shared_data_directory / project_id / 'extra-batches.yml'
   if 'groups' in data:
+    recording_groups_filepath.parent.mkdir(parents=True, exist_ok=True)
     with recording_groups_filepath.open('w') as f:
       f.write(data['groups'])
 
@@ -100,7 +102,7 @@ def add_batch(hexsha):
         f'--no-wait',
         '\n',
       ])
-      working_directory = ci_directory / project_id / 'branches' / 'develop' / project_id.split('/')[1]
+      working_directory = ci_commit.project.ci_directory / project_id / 'branches' / 'develop' / project_id.split('/')[1]
     else:
       batch_command = ' '.join([
         'qa',
@@ -115,12 +117,12 @@ def add_batch(hexsha):
         f'--no-wait',
         '\n',
       ])
-      config = project.information['qatools_config']
+      config = ci_commit.project.information['qatools_config']
       working_directory = Path(config['ci_root']['linux']) / config['project']['name'] / 'commits' / f'{commit.authored_date}__git__{commit.id[:8]}'
     print(working_directory)
     print(batch_command)
 
-    queue = 'alg_q' if is_legacy_project else project.information['qatools_config']['lsf']['fast_queue']
+    queue = 'alg_q' if is_legacy_project else ci_commit.project.information['qatools_config']['lsf']['fast_queue']
     # openstf is our device farm
     use_openstf = data['android_device'].lower() == 'openstf'
     batch_script = ''.join([
