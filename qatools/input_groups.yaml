@@ -1,0 +1,39 @@
+---
+# Uses the project's default configuration, or the one specified on the CLI with --configuration
+test:
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+# Overrides the previous configuration
+easy:
+  configuration: test
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+# Overrides the previous configuration
+# The final configuration will be "base:low-light"
+large-scale:
+  configuration:
+    - base
+    - low-light
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+
+# Here the final configurations will be
+# "modified_base:low-light" and "modified_base:low-light:extra-low-light"
+hard:
+  configuration:
+    - modified_base
+  tests:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_7c:
+      - low-light
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_1f:
+      - low-light
+      - extra-low-light
+...
+
