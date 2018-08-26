@@ -22,7 +22,6 @@ from .utils import hash64
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci, commit_ci_postfix
 
-
 entrypoint = Path(config['project']['entrypoint'])
 try:
     # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
@@ -31,6 +30,7 @@ try:
     entrypoint_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(entrypoint_module)
 except Exception as e:
+    import traceback
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
@@ -105,7 +105,7 @@ def get(ctx, input_path, output_path, variable):
 ))
 @click.pass_context
 @click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('--output-path', type=PathType(), default=None, help='Custom output path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def run(ctx, input_path, output_path, forwarded_args):
     """
@@ -338,7 +338,7 @@ def check_bit_accuracy(reference_branch):
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
 
 
-def main()
+def main():
   cli(obj={}, auto_envvar_prefix='QATOOLS')
 
 if __name__ == '__main__':
