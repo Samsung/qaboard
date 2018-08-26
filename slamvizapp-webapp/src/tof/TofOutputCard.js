@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
-import { Card, Icon, Tag, Intent, Popover, Colors } from "@blueprintjs/core";
+import { Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { main_metrics, available_metrics } from "./metrics";
 
@@ -12,8 +12,8 @@ import createPlotlyComponent from "react-plotly.js/factory";
 const Plot = createPlotlyComponent(Plotly);
 
 const aspect_ratio = 4 / 3;
-const width = 640; // window.innerWidth;
-const height = width / aspect_ratio; // window.innerHeight;
+const width = 640; // full screen would be window.innerWidth;
+const height = width / aspect_ratio; // full screen would be window.innerHeight;
 
 const colors = {
   groundtruth: `${Colors.GREEN2}dd`,
@@ -22,19 +22,24 @@ const colors = {
 };
 
 var make_traces = function(metrics_over_frames, label) {
+  /*
+  Parameters:
+    metrics_over_frames: Map
+    label: string
+  */
   if (metrics_over_frames === undefined) return [];
   return {
     type: "scatter",
     mode: "lines+markers",
-    x: Object.keys(metrics_over_frames),
-    y: Object.values(metrics_over_frames).map(m => m.rmse),
+    x: Array.from(metrics_over_frames.keys()),
+    y: Array.from(metrics_over_frames.values()).map(m => m.rmse),
     line: {
       color: colors[label],
-      width: label === "reference" ? 3 : 2 // ref wider to highlight bit accuracy
+      width: label === "reference" ? 3 : 2, // ref wider to highlight bit accuracy
     },
     marker: {
       color: colors[label],
-      size: 10
+      size: label === 'reference' ? 12 : 10,
     },
     name: label,
     legendgroup: label,
@@ -50,23 +55,52 @@ class TofOutputCard extends Component {
   constructor(props) {
     super(props);
     this.threeRoot = React.createRef();
-    if (props.output_new.metrics.frames !== undefined)
-      var last_frame_id = props.output_new.metrics.frames.length - 1;
-    else last_frame_id = 0;
+    // we check that the results metric include per-frame information
+    // if the tof crashed for instance, they won't be there
+    let has_frames_info = props.output_new.metrics.frames !== undefined
+
+    // we will first display the last frame of each recording
+    let last_frame_id = has_frames_info ? props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1].frame_path_idx : 0;
+
     this.state = {
-      show_pointcloud: false,
       selected_frame: last_frame_id,
-      frames: {
+      show_pointcloud: false,
+      pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
           new: null,
-          reference: null
+          reference: null,
         }
       }
     };
   }
 
-  getFrame(frame_id, label) {
+  // to access information about each frame and
+  // keep information about the frame order, we turn frame.outputs_new.frames
+  // into a Map (~ordered dict~)
+  updateFrames(props) {
+    const to_map = outputs => outputs.metrics.frames !== undefined
+                              ? new Map(outputs.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
+                              : new Map();
+    this.setState({
+        frames: {
+            new: to_map(props.output_new),
+            reference: to_map(props.output_ref),
+        }
+    })
+  }
+
+  componentDidMount() {
+    this.updateFrames(this.props)
+  }
+
+  componentDidUpdate(nextProps, prevState) {
+    if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref) {
+        this.updateFrames(nextProps)
+    }
+  }
+
+  getPointcloud(frame_id, label) {
     var loader = new PCDLoader();
     if (label === "new") {
       var output = this.props.output_new;
@@ -98,10 +132,10 @@ class TofOutputCard extends Component {
         }
       }
       this.setState((previousState, props) => ({
-        frames: {
-          ...previousState.frames,
+        pointclouds: {
+          ...previousState.pointclouds,
           [frame_id]: {
-            ...previousState.frames[frame_id],
+            ...previousState.pointclouds[frame_id],
             is_loaded: true,
             [label]: pointcloud
           }
@@ -109,6 +143,7 @@ class TofOutputCard extends Component {
       }));
     });
   }
+
 
   componentWillUnmount() {
     if (this.state.show_pointcloud) {
@@ -149,9 +184,8 @@ class TofOutputCard extends Component {
       this.setState({show_pointcloud: true})
       this.startPointCloud()
     }
-    console.log(selected_frame)
-    this.getFrame(selected_frame, "new");
-    this.getFrame(selected_frame, "reference");
+    this.getPointcloud(selected_frame, "new");
+    this.getPointcloud(selected_frame, "reference");
     this.setState({ selected_frame });
   }
 
@@ -209,11 +243,10 @@ class TofOutputCard extends Component {
 
   render() {
     const { output_new, output_ref, warning, no_header } = this.props;
-    const { show_pointcloud, frames, selected_frame } = this.state;
-    let is_loaded =
-      frames[selected_frame] && !!frames[selected_frame].is_loaded;
+    const { show_pointcloud, pointclouds, frames, selected_frame } = this.state;
+    let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
 
-    const empty_metrics = { frames: [] };
+    const empty_metrics = { frames: new Map() };
     let metrics_new =
       output_new && output_new.metrics && output_new.metrics.frames
         ? output_new.metrics
@@ -223,20 +256,7 @@ class TofOutputCard extends Component {
         ? output_ref.metrics
         : empty_metrics;
 
-    const empty_data = { frames: [] };
-    let data_new =
-      output_new && output_new.metrics && output_new.metrics.frames
-        ? output_new.metrics
-        : empty_data;
-    let data_ref =
-      output_ref && output_ref.metrics && output_ref.metrics.frames
-        ? output_ref.metrics
-        : empty_data;
-
-    // console.log(output_new)
-    // console.log(data_new.frames)
-
-    if (!metrics_new || !metrics_ref || !data_new || !data_ref) return <span />;
+    if (!metrics_new || !metrics_ref || !frames) return <span />;
 
     let tags = (
       <span>
@@ -263,8 +283,8 @@ class TofOutputCard extends Component {
     );
 
     let traces = [
-      make_traces(metrics_new.frames, "new"),
-      make_traces(metrics_ref.frames, "reference")
+      make_traces(frames['reference'], "reference"),
+      make_traces(frames['new'], "new"),
     ];
     let layout = this.props.layout || {};
     let card_width = layout.width !== undefined ? `${layout.width}px` : "840px";
@@ -302,7 +322,7 @@ class TofOutputCard extends Component {
               >
                 {output_new.test_input_path}{" "}
                 <Tag className="pt-minimal" style={{ marginRight: "10px" }}>
-                  Frame {selected_frame}/{metrics_new.frames.length - 1}
+                  Frame {selected_frame}
                 </Tag>{" "}
                 {tags}
               </h5>
@@ -322,10 +342,10 @@ class TofOutputCard extends Component {
 
           <p className="pt-text-muted">
             {show_pointcloud ? (is_loaded
-                          ? "Press R/G to toogle the reference/ground-truth, +/- to adjust point size."
+                          ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
                           : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
           </p>
-          <div
+          <div style={{hidden: !show_pointcloud}}
             ref={threeRoot => {
               this.threeRoot = threeRoot;
             }}
@@ -333,41 +353,32 @@ class TofOutputCard extends Component {
             {is_loaded && this.renderer.render(this.scene, this.camera)}
           </div>
 
-          <p className="pt-text-muted">
-            {is_loaded
-              ? "Click on a RMSE point below to select the corresponding frame."
-              : "Loading..."}
-          </p>
-          <Plot data={traces} layout={layout_} onClick={e => { this.updatePointCloud(e.points[0].pointNumber)}} />
-
-          {data_new.frames.map((f, index) => {
-            return (
-              <div key={index}>
-                <h4>
-                  <a
-                    href={`${output_ref.output_dir_url}/Frame${index}`}
-                    target="_blank"
-                  >
-                    Frame {index}
-                  </a>
-                </h4>
-                {output_types.map(output_type => {
-                  let img_new = `${
-                    output_new.output_dir_url
-                  }/Frame${index}/${output_type}.png`;
-                  let img_ref = `${
-                    output_ref.output_dir_url
-                  }/Frame${index}/${output_type}.png`;
-                  return (
-                    <div key={output_type}>
-                      <img width={400} onClick={e => this.updatePointCloud(index)} alt="New" src={img_new} />
-                      <img width={400} onClick={e => this.updatePointCloud(index)} alt="Reference" src={img_ref} />
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+          <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
+        
+          <div>
+            <h4>
+              <a
+                href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
+                target="_blank"
+              >
+                Frame {selected_frame}
+              </a>
+            </h4>
+            {output_types.map(output_type => {
+              let img_new = `${
+                output_new.output_dir_url
+              }/Frame${selected_frame}/${output_type}.png`;
+              let img_ref = `${
+                output_ref.output_dir_url
+              }/Frame${selected_frame}/${output_type}.png`;
+              return (
+                <div key={output_type}>
+                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
+                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
+                </div>
+              );
+            })}
+          </div>
 
           {false && <p>{JSON.stringify(output_new)}</p>}
         </Card>
