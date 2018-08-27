@@ -345,7 +345,7 @@ class TofOutputCard extends Component {
                           ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
                           : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
           </p>
-          <div style={{hidden: !show_pointcloud}}
+          <div hidden={!show_pointcloud}
             ref={threeRoot => {
               this.threeRoot = threeRoot;
             }}
