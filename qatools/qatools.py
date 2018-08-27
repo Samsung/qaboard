@@ -95,6 +95,7 @@ def get(ctx, input_path, output_path, variable):
   except:
     pass
   locals().update(globals())
+  locals().update(ctx.obj)
   if variable in locals():
     print(locals().get(variable))
   else:
