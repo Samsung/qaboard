@@ -43,7 +43,7 @@ class Project(Base):
   @property
   def ci_directory(self):
     try:
-      return Path(config['ci_root']['linux'])
+      return Path(self.information['qatools_config']['ci_root']['linux'])
     except:
       return ci_directory
   
