@@ -202,6 +202,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
       boxpoints: "all",
       jitter: 0.5,
       whiskerwidth: 0.3,
+      boxmean: true,
       fillcolor: use_plotly_default_colors ? undefined : colors_a[i],
       marker: {
         size: 8,
