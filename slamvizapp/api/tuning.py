@@ -120,7 +120,7 @@ def add_batch(hexsha):
         '\n',
       ])
       config = ci_commit.project.information['qatools_config']
-      working_directory = Path(config['ci_root']['linux']) / config['project']['name'] / 'commits' / f'{commit.authored_date}__git__{commit.id[:8]}'
+      working_directory = Path(config['ci_root']['linux']) / config['project']['name'] / 'commits' / f'{ci_commit.authored_date}__git__{ci_commit.id[:8]}'
     print(working_directory)
     print(batch_command)
 
