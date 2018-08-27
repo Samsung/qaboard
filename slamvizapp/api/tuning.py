@@ -30,7 +30,7 @@ def get_groups():
 @app.route("/api/v1/recordings/group")
 def get_group():
   project_id = request.args.get('project', 'dvs/psp_swip')
-  project = Project.get_or_create(session=db_session, id=project_path)
+  project = Project.get_or_create(session=db_session, id=project_id)
   recording_groups_filepath = shared_data_directory / project_id / 'extra-batches.yml'
   try:
     is_legacy_project = project_id in ['dvs/psp_swip', 'tof/swip_tof']
@@ -41,13 +41,15 @@ def get_group():
         project.database
       ))
     else:
-      import qatools
+      import qatools.utils
+      test = [request.args.get('name', '')]
       recordings = list(qatools.utils.iter_recordings(
+        project.information['qatools_config'],
         [request.args.get('name', '')],
         recording_groups_filepath,
-        project.database
+        project.database,
+        project.information['qatools_config']['inputs']['configuration'],  
       ))
-
     return jsonify({'number_of_recordings': len(recordings)})
   except:
     return jsonify({'number_of_recordings': 0})    
