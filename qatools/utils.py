@@ -143,7 +143,7 @@ def hash_parameters(filepath):
         params = json.load(f)
   return hash64(params)
 
-def iter_recordings(config, groups, groups_file, database, default_configuration):
+def iter_recordings(groups, groups_file, database, default_configuration, config):
   """Returns an iterator over the (recording, configuration) from the selected groups
   params:
   - groups: array of group labels
