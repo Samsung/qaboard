@@ -58,6 +58,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   ctx.obj = {}
   ctx.obj['dryrun'] = dryrun
   ctx.obj['project'] = config['project']['name']
+  ctx.obj['commit_ci_dir'] = commit_ci_dir
   ctx.obj['output_type'] = output_type
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
