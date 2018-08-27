@@ -43,11 +43,11 @@ class Project(Base):
   @property
   def ci_directory(self):
     try:
-      return Path(self.information['qatools_config']['inputs']['database']['linux'])
+      return Path(config['ci_root']['linux'])
     except:
       return ci_directory
   
-
+ 
   @staticmethod
   def get_or_create(session, **kwargs):
     try:
