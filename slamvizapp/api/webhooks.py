@@ -71,8 +71,8 @@ def new_output_webhook():
     output.is_pending = request.json.get('is_pending', False)
 
   # We save the output's metrics
-  if not is_pending:
-    output.metrics = request.json.get('metrics', {})
+  if not output.is_pending:
+    metrics = request.json.get('metrics', {})
     if not metrics: # we look for metrics.json in the output directory
       output.update_metrics()
 
@@ -90,8 +90,6 @@ def gitlab_webhook():
   # data['ref'] => 'refs/heads/feature/Imu_preintegration'
   branch = data['ref'][11:]
   project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
-
-
 
   project = Project.get_or_create(session=db_session, id=project_path)
   project.information = {
