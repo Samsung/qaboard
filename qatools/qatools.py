@@ -3,6 +3,7 @@
 CLI tool to runs various tasks related to QA.
 """
 import sys
+import os
 import errno
 import json
 import yaml
@@ -40,6 +41,11 @@ except Exception as e:
         'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
         dim=True, err=True)
     exit(1)
+
+
+# we want open permissions on outputs and artifacts
+# it makes collaboration among mutliple users / automated tools so much easier...
+os.umask(0)
 
 
 @click.group()
@@ -275,7 +281,7 @@ def save_artifacts():
   """Save the results at a standard location"""
   import shutil
   import filecmp
-  import os
+
   click.secho(str(commit_ci_dir), bold=True, underline=True)
 
   # default artifacts
@@ -299,7 +305,7 @@ def save_artifacts():
       click.secho(str(path), dim=True)
       destination.parent.mkdir(parents=True, exist_ok=True)
       shutil.copy(str(path), str(destination))
-      # we may want to do this for the parent folders also
+      # we already use umask 0, but just to be sure, we set the permissions to be open
       os.chmod(destination, 0o777)
 
 
