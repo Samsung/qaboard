@@ -110,6 +110,8 @@ ci_dir = Path(ci_root) / config['project']['name']
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit_ci_postfix = None
     commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
+    commit = None
+    repo = None
 else:
     import git
     try:
