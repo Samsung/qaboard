@@ -196,7 +196,9 @@ const Sensibility2DContour = ({
       let aggregated_metrics = {}
       Object.values(available_metrics).forEach(m => {
         let values = metrics.map(metric => metric[m.key])
-        aggregated_metrics[m.key] = median(values);
+        let aggregated_value = median(values)
+        if (aggregated_value !== null)
+          aggregated_metrics[m.key] = aggregated_value;
       });
       return [extra_parameters, aggregated_metrics];
     }
@@ -387,7 +389,7 @@ class TuningExploration extends Component {
         <FormGroup
           inline
           labelFor="select-metric"
-          helperText="Shown on the Y-axis"
+          helperText={show_2d_sensibility ? "Shown via a color-scale on the 2d sensibility plot, on the Y-axis elsewhere" : "Shown on the Y-axis"}
         >
           <div className="pt-select pt-minimal">
             <select
@@ -405,13 +407,16 @@ class TuningExploration extends Component {
         </FormGroup>
         {show_2d_sensibility && (
           <div>
-            <p>Everything is interpolated, so don't rush to conclusions.</p>
             <Sensibility2DContour
               outputs={batch.outputs}
               metric={metric}
               available_metrics={available_metrics}
               parameters={[selected_parameter, selected_parameter_2]}
             />
+            <div className="pt-text-muted" style={{ fontSize: 10 }}>
+            <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title="Median over all selected inputs">Aggregated scores</span> are computed for each set of tuning parameters.</p>
+            <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title="median">aggregated</span>.</p>
+            </div>
           </div>
         )}
         <Sensibility1DBoxplots
@@ -421,7 +426,7 @@ class TuningExploration extends Component {
           parameter={selected_parameter}
           layout={layout}
         />
-        <h4>Breakdown by recording</h4>
+        <h4>Breakdown by test</h4>
         <Switch
           label="Relative"
           defaultChecked={relative}
