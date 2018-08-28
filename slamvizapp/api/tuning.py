@@ -44,11 +44,11 @@ def get_group():
       import qatools.utils
       test = [request.args.get('name', '')]
       recordings = list(qatools.utils.iter_recordings(
-        project.information['qatools_config'],
         [request.args.get('name', '')],
         recording_groups_filepath,
         project.database,
         project.information['qatools_config']['inputs']['configuration'],  
+        project.information['qatools_config'],
       ))
     return jsonify({'number_of_recordings': len(recordings)})
   except:
