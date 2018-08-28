@@ -143,6 +143,67 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
 //   values: outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
+const ParallelTuningPlot = ({
+  outputs,
+  metric,
+  available_metrics,
+  parameters,
+}) => {
+  let outputs_ok = Object.values(outputs).filter(
+    o => !o.is_pending && !o.is_failed
+  );
+  // first we group outputs by all their tuning / extra parameters
+  // this avoid giving more weights to tunings that ran on more tests
+  let outputs_by_params = new Map();
+  outputs_ok.forEach(output => {
+    let outputs_with_same_params = outputs_by_params.get(output.extra_parameters) || [];
+    outputs_with_same_params.push(output);
+    outputs_by_params.set(output.extra_parameters, outputs_with_same_params);
+  })
+  // we aggregate
+  let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
+    ([extra_parameters, outputs]) => {
+      let aggregated_metrics = {}
+      Object.values(available_metrics).forEach(m => {
+        let values = outputs
+          .map(o => o.metrics[m.key])
+          .filter(x => x !== undefined);
+        aggregated_metrics[m.key] = median(values);
+      });
+      return [extra_parameters, aggregated_metrics];
+    }
+  )
+  let metric_values =  metrics_aggregated_by_params.map( ([params, metrics]) => metrics[metric.key] * metric.scale)
+  let traces = [{
+    type: 'parcoords',
+    line: {
+      // color: 'blue', // or metric?
+      color: metrics_aggregated_by_params.map( ([params, metrics]) => metrics[metric.key]),
+      showscale: true,
+      colorscale: 'Viridis',
+    },
+    dimensions: [
+      // metric 
+      {
+        label: metric.label,
+        values: metric_values,
+        // range: [1, 5],
+        // constraintrange: [1, 2],
+      },
+      // tuning parameters
+      ...parameters.map(p => {
+        return {
+          label: p,
+          values: metrics_aggregated_by_params.map( ([params, metrics]) => params[p]),
+        }
+      })
+    ]
+  }]
+  return <Plot data={traces} config={config} />;
+}
+
+
+
 const Sensibility2DContour = ({
   outputs,
   metric,
@@ -203,6 +264,7 @@ const Sensibility2DContour = ({
       return [extra_parameters, aggregated_metrics];
     }
   )
+
 
   let traces = [
     {
@@ -405,6 +467,7 @@ class TuningExploration extends Component {
             </select>
           </div>
         </FormGroup>
+        {show_2d_sensibility && <ParallelTuningPlot outputs={batch.outputs} metric={metric} available_metrics={available_metrics} parameters={sorted_parameters}/>}
         {show_2d_sensibility && (
           <div>
             <Sensibility2DContour
