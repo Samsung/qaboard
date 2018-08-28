@@ -145,8 +145,8 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
 
 const ParallelTuningPlot = ({
   outputs,
-  metric,
-  available_metrics,
+  metrics,
+  main_metric,
   parameters,
 }) => {
   let outputs_ok = Object.values(outputs).filter(
@@ -164,7 +164,7 @@ const ParallelTuningPlot = ({
   let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
     ([extra_parameters, outputs]) => {
       let aggregated_metrics = {}
-      Object.values(available_metrics).forEach(m => {
+      metrics.forEach(m => {
         let values = outputs
           .map(o => o.metrics[m.key])
           .filter(x => x !== undefined);
@@ -173,28 +173,28 @@ const ParallelTuningPlot = ({
       return [extra_parameters, aggregated_metrics];
     }
   )
-  let metric_values =  metrics_aggregated_by_params.map( ([params, metrics]) => metrics[metric.key] * metric.scale)
+  let main_metric_values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => agg_metrics[main_metric.key] * main_metric.scale)
   let traces = [{
     type: 'parcoords',
     line: {
-      // color: 'blue', // or metric?
-      color: metrics_aggregated_by_params.map( ([params, metrics]) => metrics[metric.key]),
-      showscale: true,
+      color: main_metric_values,
       colorscale: 'Viridis',
+      showscale: true,
+      reversescale: !main_metric.smaller_is_better,
     },
     dimensions: [
-      // metric 
-      {
-        label: metric.label,
-        values: metric_values,
-        // range: [1, 5],
-        // constraintrange: [1, 2],
-      },
-      // tuning parameters
+      ...metrics.map( metric => {
+        return {
+          label: metric.label,
+          values: metrics_aggregated_by_params.map( ([params, agg_metrics]) => agg_metrics[metric.key] * metric.scale),
+          // range: [1, 5],
+          // constraintrange: [1, 2],
+        }
+      }),
       ...parameters.map(p => {
         return {
           label: p,
-          values: metrics_aggregated_by_params.map( ([params, metrics]) => params[p]),
+          values: metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p]),
         }
       })
     ]
@@ -311,6 +311,7 @@ class TuningExploration extends Component {
     this.state = {
       selected_parameter: null,
       available_metrics: metrics[project].available_metrics,
+      main_metrics: metrics[project].main_metrics,
       selected_metric: metrics[project].default_metric,
       relative: true,
       layout: {
@@ -345,7 +346,7 @@ class TuningExploration extends Component {
 
   render() {
     const { batch, project } = this.props;
-    const { layout, relative, available_metrics } = this.state;
+    const { layout, relative, available_metrics, main_metrics } = this.state;
     if (!batch) return <p>Loading...</p>;
     if (batch.label === "default")
       return (
@@ -467,7 +468,7 @@ class TuningExploration extends Component {
             </select>
           </div>
         </FormGroup>
-        {show_2d_sensibility && <ParallelTuningPlot outputs={batch.outputs} metric={metric} available_metrics={available_metrics} parameters={sorted_parameters}/>}
+        {show_2d_sensibility && <ParallelTuningPlot outputs={batch.outputs} main_metric={metric} metrics={main_metrics.map(m => available_metrics[m])} parameters={sorted_parameters}/>}
         {show_2d_sensibility && (
           <div>
             <Sensibility2DContour
