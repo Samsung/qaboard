@@ -7,7 +7,6 @@ import json
 import yaml
 from pathlib import Path
 import re
-import base64
 
 import click
 import requests
@@ -79,10 +78,9 @@ def slugify(s):
     s_slugified = s_slugified.replace(c, '-')
   return s_slugified
 
-def hash64(obj):
+def make_hash(obj):
   params_s = json.dumps(obj, sort_keys=True)
-  hash = hashlib.md5(params_s.encode())
-  return base64.urlsafe_b64encode(hash.digest())[:-2].decode()
+  return hashlib.md5(params_s.encode()).hexdigest()
 
 def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath):
   if not tuning_filepath:
@@ -102,7 +100,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
 def tuning_foldername(batch_label, tuning_parameters_hash):
   if batch_label != 'default':
     if not tuning_parameters_hash:
-      param_hash = hash64({})
+      param_hash = make_hash({})
     else:
       param_hash = tuning_parameters_hash
     parameters_folder = Path(param_hash[:2]) / param_hash
@@ -141,7 +139,7 @@ def hash_parameters(filepath):
         params = yaml.load(f)
       else:
         params = json.load(f)
-  return hash64(params)
+  return make_hash(params)
 
 def iter_recordings(groups, groups_file, database, default_configuration, config):
   """Returns an iterator over the (recording, configuration) from the selected groups
@@ -185,7 +183,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
 
 
 
-hash_empty_tuning = hash64({})
+hash_empty_tuning = make_hash({})
 
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
@@ -196,7 +194,7 @@ def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   if len(params_filename) > maxlen:
     params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
   if len(params_filename) > maxlen:
-    params_filename = params_filename[:maxlen-10] + hash64(paramstring)[:10]
+    params_filename = params_filename[:maxlen-10] + make_hash(paramstring)[:10]
   return f"{params_filename}.{filetype}"
 
 
@@ -237,7 +235,7 @@ def iter_parameters(tuning_search=None, filetype='json'):
         return
     # we sort to avoid ordering issues; we want a unique hash per tuning configuration
     params_s = json.dumps(params, sort_keys=True)
-    params_hash = hash64(params)
+    params_hash = make_hash(params)
 
     working_directory = Path('.') # can we do something smarter?
     params_file = working_directory / 'configurations' / 'tuning' / make_pretty_tuning_filename(params_s, filetype)
