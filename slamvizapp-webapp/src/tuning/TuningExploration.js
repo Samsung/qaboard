@@ -163,7 +163,6 @@ const ParallelTuningPlot = ({
     outputs_with_same_params.push(output);
     outputs_by_params.set(key, outputs_with_same_params);
   })
-  console.log(outputs_by_params)
 
   // we aggregate
   let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
@@ -180,7 +179,6 @@ const ParallelTuningPlot = ({
       return [JSON.parse(extra_parameters_s), aggregated_metrics];
     }
   )
-  console.log(metrics_aggregated_by_params)
 
   let main_metric_values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => agg_metrics[main_metric.key] * main_metric.scale)
   let traces = [{
@@ -210,7 +208,6 @@ const ParallelTuningPlot = ({
       })
     ]
   }]
-  console.log(traces)
   return <Plot data={traces} config={config} />;
 }
 
@@ -471,6 +468,7 @@ class TuningExploration extends Component {
             labelFor="aggregation"
             helperText="Aggregation method"
           >
+          <div className="pt-select pt-minimal">
               <select
                 id="aggregation"
                 defaultValue={aggregation}
@@ -479,6 +477,7 @@ class TuningExploration extends Component {
                 <option key="median" value="median">median</option>
                 <option key="average" value="average">average</option>
               </select>
+          </div>
           </FormGroup>
           </Fragment>
         )}
