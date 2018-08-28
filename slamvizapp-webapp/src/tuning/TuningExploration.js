@@ -168,7 +168,9 @@ const ParallelTuningPlot = ({
         let values = outputs
           .map(o => o.metrics[m.key])
           .filter(x => x !== undefined);
-        aggregated_metrics[m.key] = median(values);
+        let aggregated_value = median(values);
+        if (aggregated_value !== null)
+          aggregated_metrics[m.key] = aggregated_value;
       });
       return [extra_parameters, aggregated_metrics];
     }
@@ -180,7 +182,7 @@ const ParallelTuningPlot = ({
       color: main_metric_values,
       colorscale: 'Viridis',
       showscale: true,
-      reversescale: !main_metric.smaller_is_better,
+      reversescale: main_metric.smaller_is_better,
     },
     dimensions: [
       ...metrics.map( metric => {
