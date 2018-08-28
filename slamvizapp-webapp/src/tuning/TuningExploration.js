@@ -1,11 +1,11 @@
 /* global Plotly:true */
 // import Plot from 'react-plotly.js'
-import React, { Component } from "react";
+import React, { Component, Fragment } from "react";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
-import { groupBy, input_test_color, median } from "../common/utils";
+import { groupBy, input_test_color, median, average } from "../common/utils";
 import { metrics } from "../metrics";
 
 const Plot = createPlotlyComponent(Plotly);
@@ -148,33 +148,40 @@ const ParallelTuningPlot = ({
   metrics,
   main_metric,
   parameters,
+  aggregation,
 }) => {
   let outputs_ok = Object.values(outputs).filter(
     o => !o.is_pending && !o.is_failed
   );
+
   // first we group outputs by all their tuning / extra parameters
   // this avoid giving more weights to tunings that ran on more tests
   let outputs_by_params = new Map();
   outputs_ok.forEach(output => {
-    let outputs_with_same_params = outputs_by_params.get(output.extra_parameters) || [];
+    let key = JSON.stringify(output.extra_parameters);
+    let outputs_with_same_params = outputs_by_params.get(key) || [];
     outputs_with_same_params.push(output);
-    outputs_by_params.set(output.extra_parameters, outputs_with_same_params);
+    outputs_by_params.set(key, outputs_with_same_params);
   })
+  console.log(outputs_by_params)
+
   // we aggregate
   let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
-    ([extra_parameters, outputs]) => {
+    ([extra_parameters_s, outputs]) => {
       let aggregated_metrics = {}
       metrics.forEach(m => {
         let values = outputs
           .map(o => o.metrics[m.key])
           .filter(x => x !== undefined);
-        let aggregated_value = median(values);
+        let aggregated_value = aggregation==='median' ? median(values) : average(values);
         if (aggregated_value !== null)
           aggregated_metrics[m.key] = aggregated_value;
       });
-      return [extra_parameters, aggregated_metrics];
+      return [JSON.parse(extra_parameters_s), aggregated_metrics];
     }
   )
+  console.log(metrics_aggregated_by_params)
+
   let main_metric_values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => agg_metrics[main_metric.key] * main_metric.scale)
   let traces = [{
     type: 'parcoords',
@@ -196,11 +203,14 @@ const ParallelTuningPlot = ({
       ...parameters.map(p => {
         return {
           label: p,
+          // TODO: add jitter? splines?
+          // https://github.com/plotly/plotly.js/issues/2229
           values: metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p]),
         }
       })
     ]
   }]
+  console.log(traces)
   return <Plot data={traces} config={config} />;
 }
 
@@ -211,7 +221,8 @@ const Sensibility2DContour = ({
   metric,
   parameters,
   layout,
-  available_metrics
+  available_metrics,
+  aggregation,
 }) => {
   // https://plot.ly/javascript/reference/#contour
   // https://plot.ly/javascript/contour-plots/
@@ -223,47 +234,50 @@ const Sensibility2DContour = ({
   // this avoid giving more weights to tunings that ran on more tests
   let outputs_by_params = new Map();
   outputs_ok.forEach(output => {
-    let outputs_with_same_params = outputs_by_params.get(output.extra_parameters) || [];
+    let key = JSON.stringify(output.extra_parameters);
+    let outputs_with_same_params = outputs_by_params.get(key) || [];
     outputs_with_same_params.push(output);
-    outputs_by_params.set(output.extra_parameters, outputs_with_same_params);
+    outputs_by_params.set(key, outputs_with_same_params);
   })
   // we aggregate
   let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
-    ([extra_parameters, outputs]) => {
+    ([extra_parameters_s, outputs]) => {
       let aggregated_metrics = {}
       Object.values(available_metrics).forEach(m => {
         let values = outputs
           .map(o => o.metrics[m.key])
           .filter(x => x !== undefined);
-        aggregated_metrics[m.key] = median(values);
+        aggregated_metrics[m.key] = aggregation==='median' ? median(values) : average(values);
       });
-      return [extra_parameters, aggregated_metrics];
+      return [extra_parameters_s, aggregated_metrics];
     }
   )
 
   // then we focus on the variables that are interesting to us
   let metrics_aggregated_by_shown_params = new Map();
-  metrics_aggregated_by_params.forEach(([extra_parameters, metrics]) => {
+  metrics_aggregated_by_params.forEach(([extra_parameters_s, metrics]) => {
+    let extra_parameters = JSON.parse(extra_parameters_s);
     let shown_params = {
       [parameters[0]]: extra_parameters[parameters[0]],
       [parameters[1]]: extra_parameters[parameters[1]],
     }
-    let outputs_with_same_params = metrics_aggregated_by_shown_params.get(shown_params) || [];
+    let key = JSON.stringify(shown_params);
+    let outputs_with_same_params = metrics_aggregated_by_shown_params.get(key) || [];
     outputs_with_same_params.push(metrics);
-    metrics_aggregated_by_shown_params.set(shown_params, outputs_with_same_params);
+    metrics_aggregated_by_shown_params.set(key, outputs_with_same_params);
   })
 
   // and re-aggregate
   let metrics_by_shown_params_aggregated = Array.from(metrics_aggregated_by_shown_params.entries()).map(
-    ([extra_parameters, metrics]) => {
+    ([extra_parameters_s, metrics]) => {
       let aggregated_metrics = {}
       Object.values(available_metrics).forEach(m => {
         let values = metrics.map(metric => metric[m.key])
-        let aggregated_value = median(values)
+        let aggregated_value = aggregation==='median' ? median(values) : average(values);
         if (aggregated_value !== null)
           aggregated_metrics[m.key] = aggregated_value;
       });
-      return [extra_parameters, aggregated_metrics];
+      return [JSON.parse(extra_parameters_s), aggregated_metrics];
     }
   )
 
@@ -316,6 +330,7 @@ class TuningExploration extends Component {
       main_metrics: metrics[project].main_metrics,
       selected_metric: metrics[project].default_metric,
       relative: true,
+      aggregation: 'median',
       layout: {
         xaxis: {
           type: "linear"
@@ -348,7 +363,7 @@ class TuningExploration extends Component {
 
   render() {
     const { batch, project } = this.props;
-    const { layout, relative, available_metrics, main_metrics } = this.state;
+    const { layout, relative, available_metrics, main_metrics, aggregation } = this.state;
     if (!batch) return <p>Loading...</p>;
     if (batch.label === "default")
       return (
@@ -427,6 +442,7 @@ class TuningExploration extends Component {
           />
         </FormGroup>
         {show_2d_sensibility && (
+          <Fragment>
           <FormGroup
             inline
             labelFor="select-parameter-2"
@@ -450,6 +466,21 @@ class TuningExploration extends Component {
               </select>
             </div>
           </FormGroup>
+          <FormGroup
+            inline
+            labelFor="aggregation"
+            helperText="Aggregation method"
+          >
+              <select
+                id="aggregation"
+                defaultValue={aggregation}
+                onChange={e =>this.setState({aggregation: e.target.value})}
+              >
+                <option key="median" value="median">median</option>
+                <option key="average" value="average">average</option>
+              </select>
+          </FormGroup>
+          </Fragment>
         )}
         <FormGroup
           inline
@@ -470,7 +501,13 @@ class TuningExploration extends Component {
             </select>
           </div>
         </FormGroup>
-        {show_2d_sensibility && <ParallelTuningPlot outputs={batch.outputs} main_metric={metric} metrics={main_metrics.map(m => available_metrics[m])} parameters={sorted_parameters}/>}
+        {show_2d_sensibility && <ParallelTuningPlot
+                                 outputs={batch.outputs}
+                                 main_metric={metric}
+                                 metrics={main_metrics.map(m => available_metrics[m])}
+                                 parameters={sorted_parameters}
+                                 aggregation={this.state.aggregation}
+                                />}
         {show_2d_sensibility && (
           <div>
             <Sensibility2DContour
@@ -478,10 +515,11 @@ class TuningExploration extends Component {
               metric={metric}
               available_metrics={available_metrics}
               parameters={[selected_parameter, selected_parameter_2]}
+              aggregation={this.state.aggregation}
             />
             <div className="pt-text-muted" style={{ fontSize: 10 }}>
-            <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title="Median over all selected inputs">Aggregated scores</span> are computed for each set of tuning parameters.</p>
-            <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title="median">aggregated</span>.</p>
+            <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
+            <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={aggregation}>aggregated</span>.</p>
             </div>
           </div>
         )}
