@@ -41,6 +41,9 @@ class ProjectModelView(ModelView):
   column_searchable_list = ['id', 'information']
   can_delete = False
 
+class CommitModelView(ModelView):
+  column_list = ['id', 'project_id', 'committer_name', 'message']
+  column_searchable_list = ['id', 'project_id', 'committer_name', 'message']
 
 
 admin.add_view(TestInputModelView(TestInput, db_session))
