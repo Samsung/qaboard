@@ -79,8 +79,8 @@ class TofOutputCard extends Component {
   // keep information about the frame order, we turn frame.outputs_new.frames
   // into a Map (~ordered dict~)
   updateFrames(props) {
-    const to_map = outputs => outputs.metrics.frames !== undefined
-                              ? new Map(outputs.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
+    const to_map = output => (output.metrics !== undefined && output.metrics.frames !== undefined)
+                              ? new Map(output.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
                               : new Map();
     this.setState({
         frames: {
@@ -147,7 +147,7 @@ class TofOutputCard extends Component {
 
   componentWillUnmount() {
     if (this.state.show_pointcloud) {
-      this.stop();
+      this.stopPointCloud();
       this.threeRoot.removeChild(this.renderer.domElement);      
       // window.removeEventListenner(this.keyboard)
     }
