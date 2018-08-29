@@ -57,16 +57,18 @@ class CommitResults extends React.Component {
         ci_batch.pending_outputs === 0)
     )
       return (
+        <Fragment>
         <a style={{ color: "grey" }} href={gitlab_commit_url}>
           <Button intent={Intent.WARNING} className="pt-minimal">
             Check the pipeline status..
           </Button>
-          <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
-            <Button intent={Intent.DANGER} className="pt-minimal">
-              No results
-            </Button>
-          </Link>
         </a>
+        <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
+          <Button intent={Intent.DANGER} className="pt-minimal">
+            No results
+          </Button>
+        </Link>
+        </Fragment>
       );
 
     let formatter = new Intl.NumberFormat("en-US", {
