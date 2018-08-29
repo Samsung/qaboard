@@ -30,6 +30,16 @@ server {
   access_log off;
  }
 
+ location ^~ /s/home/ {
+  alias /home/;
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/home/arthurf {
+    deny all; 
+ }
+
  location ^~ /s/algo_archive/ {
   alias /net/f2/algo_archive/; 
   autoindex on;
@@ -86,6 +96,16 @@ server {
   alias /home/arthurf/ci/;
   autoindex on;
   access_log off;
+ }
+
+ location ^~ /s/home/ {
+  alias /home/;
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/home/arthurf {
+    deny all; 
  }
 
  location ^~ /s/algo_archive/ {
