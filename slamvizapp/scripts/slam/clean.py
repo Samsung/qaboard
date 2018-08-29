@@ -45,7 +45,7 @@ def clean(project, protected_branch, days, verbose):
     try:
       commit = repo.commit(commit_short_id)
     except BadName:
-      if verbose: print(f'BadName: {cicommit_dir}')
+      if verbose: print(f'BadName: {commit_short_id} in {cicommit_dir}')
       continue
 
     if is_old(commit):
@@ -53,7 +53,9 @@ def clean(project, protected_branch, days, verbose):
         print(f'DELETE: {commit.hexsha} on {commit.authored_datetime} by {commit.author.name}')
         subprocess.Popen(f'rm -rf {cicommit_dir}', shell=True)
       else:
-        subprocess.Popen(f"find {cicommit_dir} -type f \( -iname \*.mp4 -o -iname \*.pcd \) -delete -print", shell=True)
+        command = f"find {cicommit_dir} -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.hex \) -delete -print"
+        print(command)
+        subprocess.Popen(command, shell=True)
 
   # we remove core dumps, they are soooo heavy...
   # we could update the LSF params to avoid creating them at all I guess
