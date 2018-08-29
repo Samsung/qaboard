@@ -131,7 +131,6 @@ class CiCommitResults extends Component {
 
   updateState() {
     const params = new URLSearchParams(this.props.location.search);
-    console.log(params)
     const new_commit_id =
       params.get("commit_folder") || this.props.match.params[0];
     const ref_commit_id =
@@ -758,11 +757,7 @@ class CiCommitResults extends Component {
                   />
                   <Tab
                     id="output-list"
-                    title={
-                      project === "dvs/psp_swip"
-                        ? "6DoF Details"
-                        : "Detailed outputs"
-                    }
+                    title="Detailed outputs"
                     panel={
                       <OutputList
                         project={project}
