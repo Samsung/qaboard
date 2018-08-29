@@ -253,6 +253,64 @@ const ParallelTuningPlot = ({
   return <Plot layout={layout} data={traces} config={config} />;
 }
 
+const EfficientFrontierPlot = ({
+  outputs,
+  metric_x,
+  metric_y,
+  available_metrics,
+  aggregation,
+}) => {
+  let outputs_ok = Object.values(outputs).filter(
+    o => !o.is_pending && !o.is_failed
+  );
+
+  // first we group outputs by all their tuning / extra parameters
+  // this avoid giving more weights to tunings that ran on more tests
+  let outputs_by_params = new Map();
+  outputs_ok.forEach(output => {
+    let key = JSON.stringify(output.extra_parameters);
+    let outputs_with_same_params = outputs_by_params.get(key) || [];
+    outputs_with_same_params.push(output);
+    outputs_by_params.set(key, outputs_with_same_params);
+  })
+  // we aggregate
+  let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
+    ([extra_parameters_s, outputs]) => {
+      let aggregated_metrics = {}
+      Object.values(available_metrics).forEach(m => {
+        let values = outputs
+          .map(o => o.metrics[m.key])
+          .filter(x => x !== undefined);
+        aggregated_metrics[m.key] = aggregation==='median' ? median(values) : average(values);
+      });
+      return [extra_parameters_s, aggregated_metrics];
+    }
+  )
+
+  let traces = [{
+    type: 'scatter',
+    mode: 'markers',
+    marker: { size: 12 },
+    x: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => aggregated_metrics[metric_x.key]),
+    y: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => aggregated_metrics[metric_y.key]),
+    text: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => extra_parameters_s),
+  }];
+
+  let layout_ = {
+    xaxis: {
+      title: metric_x.label,
+      ticksuffix: metric_x.suffix || '',
+      showticksuffix: 'last',
+    },
+    yaxis: {
+      title: metric_y.label,
+      ticksuffix: metric_y.suffix || '',
+      showticksuffix: 'last',
+    },
+  };
+  return <Plot data={traces} layout={layout_} config={config} />;
+}
+
 
 
 const Sensibility2DContour = ({
@@ -368,6 +426,7 @@ class TuningExploration extends Component {
       available_metrics: metrics[project].available_metrics,
       main_metrics: metrics[project].main_metrics,
       selected_metric: metrics[project].default_metric,
+      selected_metric2: metrics[project].main_metrics.filter(l=>l!==metrics[project].default_metric)[0],
       relative: true,
       aggregation: 'median',
       layout: {
@@ -386,6 +445,9 @@ class TuningExploration extends Component {
   };
   selectMetric = e => {
     this.setState({ selected_metric: e.target.value });
+  };
+  selectMetric2 = e => {
+    this.setState({ selected_metric2: e.target.value });
   };
   updateXScale = e => {
     const toogleScale = scale => (scale === "log" ? "linear" : "log");
@@ -436,6 +498,7 @@ class TuningExploration extends Component {
 
     // what metric are we looking at?
     let metric = available_metrics[this.state.selected_metric];
+    let metric2 = available_metrics[this.state.selected_metric2];
 
     let show_2d_sensibility =
       sorted_parameters.length > 1 &&
@@ -587,6 +650,38 @@ class TuningExploration extends Component {
           relative={relative}
           layout={layout}
         />
+
+        {show_2d_sensibility &&<Fragment>
+        <h4>Tuning tradeoffs</h4>
+        <FormGroup
+          inline
+          labelFor="select-metric-2"
+          helperText="Metric on Y-axis"
+        >
+          <div className="pt-select pt-minimal">
+            <select
+              id="select-metric-2"
+              defaultValue={metrics[project].main_metrics[1] || metrics[project].main_metrics[0]}
+              onChange={this.selectMetric2}
+            >
+              {Object.values(available_metrics).map(m => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </FormGroup>
+        <EfficientFrontierPlot
+          outputs={batch.outputs}
+          metric_x={metric}
+          metric_y={metric2}
+          available_metrics={available_metrics}
+          aggregation={this.state.aggregation}
+        />
+        </Fragment>
+      }
+
       </Section>
     );
   }
