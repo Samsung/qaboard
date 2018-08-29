@@ -45,7 +45,11 @@ class CommitResults extends React.Component {
     const gitlab_commit_url = `http://gitlab-srv/${project}/commit/${
       commit.id
     }`;
-    let ci_batch = commit.batches.default;
+    let batches_with_results = Object.entries(commit.batches)
+                               .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
+                               .map( ([label, batch]) => label )
+    let valid_outputs_not_in_default_batch = (!has_outputs_in_batch('default')(commit) && batches_with_results.length>0)
+    let ci_batch = valid_outputs_not_in_default_batch ? commit.batches[batches_with_results[0]] : commit.batches.default;
     if (
       ci_batch === undefined ||
       (ci_batch.failed_outputs === 0 &&
@@ -57,6 +61,11 @@ class CommitResults extends React.Component {
           <Button intent={Intent.WARNING} className="pt-minimal">
             Check the pipeline status..
           </Button>
+          <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
+            <Button intent={Intent.DANGER} className="pt-minimal">
+              No results
+            </Button>
+          </Link>
         </a>
       );
 
@@ -103,25 +112,22 @@ class CommitResults extends React.Component {
             </Button>
           </Link>
         )}
-        {tuning_batches_labels.length > 1 && (
-          <Tooltip>
+        {tuning_batches_labels.length > 0 && (
+          <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000}>
             <Tag
               intent={Intent.SUCCESS}
               className="pt-minimal"
               style={{ marginRight: "4px" }}
             >
-              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length >
-              1
+              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 0
                 ? "es"
                 : ""}
             </Tag>
-            <ul>
+            <div>
               {tuning_batches_labels.map(label => (
-                <li key={label}>
-                  <strong>{label}</strong>
-                </li>
+                  <Link to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}><Button style={{margin: '5px'}}>{label}</Button></Link>
               ))}
-            </ul>
+            </div>
           </Tooltip>
         )}
         {has_android_manual_batch && (
