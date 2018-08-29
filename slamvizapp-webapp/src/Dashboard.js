@@ -139,7 +139,7 @@ class Dashboard extends React.Component {
 
   UpdateFilter = e => {
     this.setState({ filter: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({

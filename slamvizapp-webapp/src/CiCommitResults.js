@@ -131,6 +131,7 @@ class CiCommitResults extends Component {
 
   updateState() {
     const params = new URLSearchParams(this.props.location.search);
+    console.log(params)
     const new_commit_id =
       params.get("commit_folder") || this.props.match.params[0];
     const ref_commit_id =
@@ -181,7 +182,7 @@ class CiCommitResults extends Component {
           );
 
         if (to_update === "ref_commit_id") {
-          let query = qs.parse(this.props.location.search);
+          let query = qs.parse(this.props.location.search.substring(1));
           if (query.reference && query.reference !== response.data.id) {
             this.props.history.push({
               pathname: this.props.location.pathname,
@@ -211,7 +212,8 @@ class CiCommitResults extends Component {
             commits: {
               ...previous_state.commits,
               [commit_id]: {
-                isLoaded: true
+                ...previous_state.commits[commit_id],
+                isLoaded: true,
               }
             }
           };
@@ -222,8 +224,9 @@ class CiCommitResults extends Component {
               commits: {
                 ...this.state.commits,
                 [commit_id]: {
+                  ...previous_state.commits[commit_id],
                   isLoaded: true,
-                  error: error.response.data.error
+                  error: error.response.data.error,
                 }
               }
             };
@@ -255,7 +258,7 @@ class CiCommitResults extends Component {
         new_ref_commit_id.substring(0, 8) !== ref_commit_id.substring(0, 8)) ||
       (!is_git && new_ref_commit_id !== ref_commit_id)
     ) {
-      let query = qs.parse(this.props.location.search);
+      let query = qs.parse(this.props.location.search.substring(1));
       this.props.history.push({
         pathname: this.props.location.pathname,
         search: qs.stringify({
@@ -284,7 +287,7 @@ class CiCommitResults extends Component {
 
   selectBatchNew = e => {
     this.setState({ selected_batch_new: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -296,7 +299,7 @@ class CiCommitResults extends Component {
 
   selectBatchRef = e => {
     this.setState({ selected_batch_ref: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -308,7 +311,7 @@ class CiCommitResults extends Component {
 
   UpdateFilterBatchNew = e => {
     this.setState({ filter_batch_new: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -319,7 +322,7 @@ class CiCommitResults extends Component {
   };
   UpdateFilterBatchRef = e => {
     this.setState({ filter_batch_ref: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -440,6 +443,7 @@ class CiCommitResults extends Component {
 
     let status_messages = (
       <Section>
+        {warning_messages}
         {nb_running > 0 && (
           <Callout
             icon="info-sign"
