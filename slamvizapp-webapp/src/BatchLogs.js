@@ -34,7 +34,8 @@ class OutputLog extends Component {
     )
       var logfile = "log.txt";
     else if (output.output_type === "cis/image") {
-      logfile = `command_line_sw_log_${output.data.config_folder}.txt`;
+      logfile = "log.txt";
+      // logfile = `command_line_sw_log_${output.data.config_folder}.txt`;
     } else {
       return;
     }
