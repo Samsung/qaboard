@@ -188,6 +188,12 @@ const ParallelTuningPlot = ({
       colorscale: 'Viridis',
       showscale: true,
       reversescale: main_metric.smaller_is_better,
+      colorbar: {
+        title: main_metric.label,
+        thickness: 20, // default: 30
+        outlinewidth: 0,
+        borderwidth: 0,
+      },
     },
     dimensions: [
       ...metrics.map( metric => {
@@ -199,16 +205,48 @@ const ParallelTuningPlot = ({
         }
       }),
       ...parameters.map(p => {
-        return {
-          label: p,
-          // TODO: add jitter? splines?
-          // https://github.com/plotly/plotly.js/issues/2229
-          values: metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p]),
+        let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p])
+        let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
+        let integer = values.every(v => Number.isInteger(v));
+        // console.log(p, 'int:', integer, 'num:', numeric)
+        // console.log(values)
+        if (!numeric) {
+          // we need to remap the values to categorical integers values
+          var remapped_values = new Array(values.length);
+          var unique_values = new Map(...[undefined, 0]);
+          values.forEach( (v, idx) => {
+            if (!unique_values.get(v))
+              unique_values.set(v, unique_values.size+1)
+            remapped_values[idx] = unique_values.get(v)
+          })
         }
+        // console.log(unique_values)
+        let dimension = {
+          values: numeric ? values : remapped_values,
+          integer,
+          label: p,
+        }
+        if (!numeric) {
+          // TODO: try to differentiate the lines going to the same points...
+          //       the best would be using splines, like Google Vizier
+          //       adding a bit of jitter could also work
+          //         https://github.com/plotly/plotly.js/issues/2229
+          //         https://github.com/plotly/plotly.js/issues/2229
+          dimension.tickvals = Array.from(unique_values.values());
+          dimension.ticktext = Array.from(unique_values.keys()).map(k=> k===undefined ? '<no-tuning>' : k);
+          dimension.integer = true;    
+        }
+        // console.log(dimension)
+        return dimension;
       })
     ]
   }]
-  return <Plot data={traces} config={config} />;
+  // console.log(traces)
+  let layout = {
+    width: 500+100*parameters.length,
+    autosize: false,
+  }
+  return <Plot layout={layout} data={traces} config={config} />;
 }
 
 
