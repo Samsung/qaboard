@@ -2,12 +2,12 @@ import React, { Component } from "react";
 import { BrowserRouter as Router, Route } from "react-router-dom";
 // import { Provider } from 'react-redux'
 import { CookiesProvider } from "react-cookie";
+import Loadable from 'react-loadable';
 
 import AppNavbar from "./AppNavbar";
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
-import Dashboard from "./Dashboard";
 
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
 import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
@@ -23,6 +23,20 @@ import "./App.css";
 //   </Provider>
 // )
 
+const Loading = props => {
+  if (props.error) {
+    return <div>Error!</div>;
+  } else {
+    return <div>Loading...</div>;
+  }
+};
+const LoadableDashboard = Loadable({
+  loader: () => import('./Dashboard' /* webpackChunkName: "dashboard" */),
+  loading: Loading,
+});
+
+
+
 class App extends Component {
   render() {
     return (
@@ -36,7 +50,7 @@ class App extends Component {
             <Route path="/committer/(.*)" component={CiCommitList} />
             <Route path="/commit/(.*)" component={CiCommitResults} />
             <Route path="/projects" component={ProjectsList} />
-            <Route path="/dashboard" component={Dashboard} />
+            <Route path="/dashboard" component={LoadableDashboard} />
           </div>
         </Router>
       </CookiesProvider>
@@ -44,6 +58,11 @@ class App extends Component {
     );
   }
 }
+
+// store:
+//   projects: qatools_config, metrics...
+//   
+
 
 // ​const getVisibleTodos = (todos, filter) => {
 //   switch (filter) {

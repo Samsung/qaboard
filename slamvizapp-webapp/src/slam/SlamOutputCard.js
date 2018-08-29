@@ -581,4 +581,4 @@ const layout3d = {
   }
 };
 
-export { SlamOutputCard };
+export default SlamOutputCard;

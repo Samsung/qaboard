@@ -391,4 +391,4 @@ class TofOutputCard extends Component {
 // <div ref={this.threeRoot}>{renderer.domElement}</div>
 // <div dangerouslySetInnerHTML={{__html: renderer.domElement}} ></div>
 
-export { TofOutputCard };
+export default TofOutputCard;

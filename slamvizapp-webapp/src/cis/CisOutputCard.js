@@ -152,4 +152,4 @@ class CisOutputCard extends Component {
   }
 }
 
-export { CisOutputCard };
+export default CisOutputCard;
