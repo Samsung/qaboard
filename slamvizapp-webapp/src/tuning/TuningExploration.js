@@ -193,6 +193,8 @@ const ParallelTuningPlot = ({
         thickness: 20, // default: 30
         outlinewidth: 0,
         borderwidth: 0,
+        ticksuffix: main_metric.suffix || '',
+        showticksuffix: 'last',
       },
     },
     dimensions: [
@@ -237,6 +239,8 @@ const ParallelTuningPlot = ({
           dimension.integer = true;    
         }
         // console.log(dimension)
+        // TODO: hover
+        //       https://github.com/plotly/dash-core-components/issues/157
         return dimension;
       })
     ]

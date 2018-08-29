@@ -294,6 +294,8 @@ class CommitsEvolutionPerBatch extends React.Component {
         }
       ]
     };
+    layout_.yaxis.ticksuffix = metric.suffix || '';
+    layout_.yaxis.showticksuffix = 'last';
     return (
       <div>
         {traces.length > 0 && (
@@ -502,6 +504,8 @@ class CommitsEvolutionPerMovie extends React.Component {
       ...layout,
       height: 250
     };
+    layout_.yaxis.ticksuffix = metric.suffix || '';
+    layout_.yaxis.showticksuffix = 'last';
 
     if (!relative)
       layout_.shapes = [
