@@ -76,6 +76,8 @@ def new_output_webhook():
     metrics = request.json.get('metrics', {})
     if not metrics: # we look for metrics.json in the output directory
       output.update_metrics()
+    else 
+      output.metrics = metrics
 
   db_session.add(output)
   db_session.commit()
