@@ -17,7 +17,7 @@ from .lsf import Job, running_lsf_job_names, Priority, killJobs
 from .utils import make_prefix_outputs_path, load_tuning_search
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
-from .utils import hash64
+from .utils import make_hash
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
@@ -211,7 +211,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
     return not (is_done or is_pending)
 
   jobs = []
-  batch_hash = hash64([group, tuning_search, str(tuning_search_file)])
+  batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
@@ -268,7 +268,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         jobs_sent.append(job)
     
       if not dryrun and not no_wait:
-            tuning_search_hash = hash64(tuning_search) if tuning_search else ''
+            tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "finished waiting for jobs on LSF."')
             wait.send(interactive=True, dependencies=wildcard_job)
