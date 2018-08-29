@@ -55,12 +55,14 @@ class AppNavbar extends Component {
   renderInputValue = branch => branch;
   handleBranchChange = branch => {
     const params = new URLSearchParams(this.props.location.search);
+    let is_home = this.props.location.pathname.startsWith("/projects");
     let project = is_home ? "SIRC" : params.get("project") || "dvs/psp_swip";
     this.props.history.push(`/branch/${branch}?project=${project}`);
   };
 
   handleCommitChange = event => {
     const params = new URLSearchParams(this.props.location.search);
+    let is_home = this.props.location.pathname.startsWith("/projects");
     let project = is_home ? "SIRC" : params.get("project") || "dvs/psp_swip";
     this.props.history.push(`/commit/${event.target.value}?project=${project}`);
   };
