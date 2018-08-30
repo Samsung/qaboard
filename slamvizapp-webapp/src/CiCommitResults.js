@@ -6,6 +6,7 @@ import qs from "qs";
 
 import { FormGroup, HTMLSelect, Switch } from "@blueprintjs/core";
 import {
+  Classes,
   Button,
   MenuItem,
   Tag,
@@ -19,7 +20,7 @@ import {
   Tabs,
   Intent
 } from "@blueprintjs/core";
-import { MultiSelect, Classes } from "@blueprintjs/select";
+import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./common/metricSelect";
 
 import { Container, Section } from "./common/containers";
