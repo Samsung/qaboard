@@ -2,7 +2,7 @@
 // import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
 import createPlotlyComponent from "react-plotly.js/factory";
-import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
+import { Classes, Callout, Colors, Intent, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
 import { groupBy, input_test_color, median, average } from "../common/utils";
@@ -511,31 +511,30 @@ class TuningExploration extends Component {
 
     return (
       <Section>
-        <h3>
+        <h3 className={Classes.HEADING}>
           {total_outputs} SLAM results over {number_inputs} recordings
         </h3>
-        <h4>Sensibility analysis</h4>
+        <h4 className={Classes.HEADING}>Sensibility analysis</h4>
         <FormGroup
           inline
           labelFor="select-parameter"
           helperText="Shown on the X-axis"
         >
-          <div className="pt-select pt-minimal">
-            <select
-              id="select-parameter"
-              defaultValue={default_selected_parameter}
-              onChange={this.selectParameter}
-            >
-              {sorted_parameters.map(p => (
-                <option key={p} value={p}>
-                  {p} ({tuned_parameters[p].size} different{tuned_parameters[p]
-                    .size > 1
-                    ? "s"
-                    : ""})
-                </option>
-              ))}
-            </select>
-          </div>
+          <HTMLSelect
+            id="select-parameter"
+            defaultValue={default_selected_parameter}
+            onChange={this.selectParameter}
+            minimal
+          >
+            {sorted_parameters.map(p => (
+              <option key={p} value={p}>
+                {p} ({tuned_parameters[p].size} different{tuned_parameters[p]
+                  .size > 1
+                  ? "s"
+                  : ""})
+              </option>
+            ))}
+          </HTMLSelect>
           <Switch
             inline
             label="Log-scale"
@@ -550,39 +549,37 @@ class TuningExploration extends Component {
             labelFor="select-parameter-2"
             helperText="Shown on the Y-axis in the 2D sensibility plot"
           >
-            <div className="pt-select pt-minimal">
-              <select
-                id="select-parameter-2"
-                defaultValue={default_selected_parameter_2}
-                onChange={this.selectParameter2}
-              >
-                {sorted_parameters.map(p => (
-                  <option key={p} value={p}>
-                    {p} ({tuned_parameters[p].size} different{tuned_parameters[
-                      p
-                    ].size > 1
-                      ? "s"
-                      : ""})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <HTMLSelect
+              id="select-parameter-2"
+              defaultValue={default_selected_parameter_2}
+              onChange={this.selectParameter2}
+              minimal
+            >
+              {sorted_parameters.map(p => (
+                <option key={p} value={p}>
+                  {p} ({tuned_parameters[p].size} different{tuned_parameters[
+                    p
+                  ].size > 1
+                    ? "s"
+                    : ""})
+                </option>
+              ))}
+            </HTMLSelect>
           </FormGroup>
           <FormGroup
             inline
             labelFor="aggregation"
             helperText="Aggregation method"
           >
-          <div className="pt-select pt-minimal">
-              <select
-                id="aggregation"
-                defaultValue={aggregation}
-                onChange={e =>this.setState({aggregation: e.target.value})}
-              >
-                <option key="median" value="median">median</option>
-                <option key="average" value="average">average</option>
-              </select>
-          </div>
+            <HTMLSelect
+              id="aggregation"
+              defaultValue={aggregation}
+              onChange={e =>this.setState({aggregation: e.target.value})}
+              minimal
+            >
+              <option key="median" value="median">median</option>
+              <option key="average" value="average">average</option>
+            </HTMLSelect>
           </FormGroup>
           </Fragment>
         )}
@@ -591,19 +588,18 @@ class TuningExploration extends Component {
           labelFor="select-metric"
           helperText={show_2d_sensibility ? "Shown via a color-scale on the 2d sensibility plot, on the Y-axis elsewhere" : "Shown on the Y-axis"}
         >
-          <div className="pt-select pt-minimal">
-            <select
-              id="select-metric"
-              defaultValue={metrics[project].default_metric}
-              onChange={this.selectMetric}
-            >
-              {Object.values(available_metrics).map(m => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <HTMLSelect
+            id="select-metric"
+            defaultValue={metrics[project].default_metric}
+            onChange={this.selectMetric}
+            minimal
+          >
+            {Object.values(available_metrics).map(m => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </HTMLSelect>
         </FormGroup>
         {show_2d_sensibility && <ParallelTuningPlot
                                  outputs={batch.outputs}
@@ -621,7 +617,7 @@ class TuningExploration extends Component {
               parameters={[selected_parameter, selected_parameter_2]}
               aggregation={this.state.aggregation}
             />
-            <div className="pt-text-muted" style={{ fontSize: 10 }}>
+            <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
             <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
             <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={aggregation}>aggregated</span>.</p>
             </div>
@@ -634,7 +630,7 @@ class TuningExploration extends Component {
           parameter={selected_parameter}
           layout={layout}
         />
-        <h4>Breakdown by test</h4>
+        <h4 className={Classes.HEADING}>Breakdown by test</h4>
         <Switch
           label="Relative"
           defaultChecked={relative}
@@ -652,25 +648,24 @@ class TuningExploration extends Component {
         />
 
         {show_2d_sensibility &&<Fragment>
-        <h4>Tuning tradeoffs</h4>
+        <h4 className={Classes.HEADING}>Tuning tradeoffs</h4>
         <FormGroup
           inline
           labelFor="select-metric-2"
           helperText="Metric on Y-axis"
         >
-          <div className="pt-select pt-minimal">
-            <select
-              id="select-metric-2"
-              defaultValue={metrics[project].main_metrics[1] || metrics[project].main_metrics[0]}
-              onChange={this.selectMetric2}
-            >
-              {Object.values(available_metrics).map(m => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <HTMLSelect
+            id="select-metric-2"
+            defaultValue={metrics[project].main_metrics[1] || metrics[project].main_metrics[0]}
+            onChange={this.selectMetric2}
+            minimal
+          >
+            {Object.values(available_metrics).map(m => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </HTMLSelect>
         </FormGroup>
         <EfficientFrontierPlot
           outputs={batch.outputs}

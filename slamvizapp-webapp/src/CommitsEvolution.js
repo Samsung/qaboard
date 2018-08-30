@@ -3,7 +3,7 @@
 import React, { Component, Fragment } from "react";
 
 import createPlotlyComponent from "react-plotly.js/factory";
-import { Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 import { metrics } from "./metrics";
 import { OutputCard } from "./OutputCard";
@@ -307,7 +307,7 @@ class CommitsEvolutionPerBatch extends React.Component {
           />
         )}
         <p>
-          <span className="pt-text-muted" style={{ fontSize: 10 }}>
+          <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
             Results are to clamped to >20x KPIs. The performance for each commit
             may not be evaluated on the same tests.
           </span>
@@ -629,34 +629,32 @@ class CommitsEvolution extends Component {
     return (
       <div style={style}>
         <FormGroup inline>
-          <div className="pt-select pt-minimal">
-            <select
-              id="select-metric"
-              defaultValue={metrics[this.state.project].default_metric}
-              onChange={this.selectMetric}
-            >
-              {select_metrics.map(m => (
-                <option key={available_metrics[m].key} value={m}>
-                  {available_metrics[m].label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <HTMLSelect
+            id="select-metric"
+            defaultValue={metrics[this.state.project].default_metric}
+            onChange={this.selectMetric}
+            minimal
+          >
+            {select_metrics.map(m => (
+              <option key={available_metrics[m].key} value={m}>
+                {available_metrics[m].label}
+              </option>
+            ))}
+          </HTMLSelect>
           {!breakdown_per_test && (
-            <div className="pt-select pt-minimal">
-              <select
-                id="select-aggregation"
-                defaultValue={selected_metric}
-                onChange={this.selectAggregation}
-              >
-                <option key="median" value="median">
-                  median
-                </option>
-                <option key="average" value="average">
-                  average
-                </option>
-              </select>
-            </div>
+            <HTMLSelect
+              id="select-aggregation"
+              defaultValue={selected_metric}
+              onChange={this.selectAggregation}
+              minimal
+            >
+              <option key="median" value="median">
+                median
+              </option>
+              <option key="average" value="average">
+                average
+              </option>
+            </HTMLSelect>
           )}
           {offer_breakdown_per_test && (
             <Switch

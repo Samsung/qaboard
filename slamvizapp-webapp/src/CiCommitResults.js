@@ -4,7 +4,7 @@ import { get } from "axios";
 import qs from "qs";
 // import List from 'react-virtualized'
 
-import { FormGroup, Switch } from "@blueprintjs/core";
+import { FormGroup, HTMLSelect, Switch } from "@blueprintjs/core";
 import {
   Button,
   MenuItem,
@@ -370,7 +370,7 @@ class CiCommitResults extends Component {
             <NonIdealState
               title="No commit selected"
               description="Please first select a commit."
-              visual="folder-open"
+              icon="folder-open"
             />
           </Section>
         </Container>
@@ -401,7 +401,7 @@ class CiCommitResults extends Component {
           <NonIdealState
             title="Network Error"
             description={error_description}
-            visual="error"
+            icon="error"
           />
         </Section>
       );
@@ -410,7 +410,7 @@ class CiCommitResults extends Component {
     if (!new_commit_.isLoaded || !ref_commit_.isLoaded)
       warning_messages = (
         <Section>
-          <NonIdealState title="Loading" visual={<Spinner />} />
+          <NonIdealState title="Loading" icon={<Spinner />} />
         </Section>
       );
 
@@ -452,7 +452,7 @@ class CiCommitResults extends Component {
                 <span>
                   {nb_running} result{nb_running > 1 ? "s" : ""} running
                 </span>
-                <ul>
+                <ul className={Classes.LIST}>
                   {Object.values(new_batch_filtered.outputs)
                     .filter(o => o.is_running)
                     .map(o => (
@@ -478,7 +478,7 @@ class CiCommitResults extends Component {
                 <span>
                   {nb_pending} result{nb_pending > 1 ? "s" : ""} pending
                 </span>
-                <ul>
+                <ul className={Classes.LIST}>
                   {Object.values(new_batch_filtered.outputs)
                     .filter(o => o.is_pending && !o.is_running)
                     .map(o => (
@@ -508,7 +508,7 @@ class CiCommitResults extends Component {
               <p>
                 Consider running the{" "}
                 <a href="http://gitlab-srv/dvs/psp_swip/pipelines">
-                  <code>debug</code>
+                  <code className={Classes.CODE}>debug</code>
                 </a>{" "}
                 manual CI job, or adding{" "}
                 <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">
@@ -517,12 +517,12 @@ class CiCommitResults extends Component {
                 for the compiler.
               </p>
             )}
-            <ul>
+            <ul className={Classes.LIST}>
               {Object.values(new_batch_filtered.outputs)
                 .filter(o => o.is_failed)
                 .map(o => (
                   <li key={o.id}>
-                    <Tag intent={Intent.DANGER} className="pt-minimal">{`${
+                    <Tag intent={Intent.DANGER} minimal>{`${
                       o.configuration
                     } @${o.platform}`}</Tag>{" "}
                     <strong>{o.test_input_path}</strong>
@@ -716,7 +716,7 @@ class CiCommitResults extends Component {
                     title="Improvement"
                     panel={
                       <div>
-                        <h2>Improvement report</h2>
+                        <h2 className={Classes.HEADING}>Improvement report</h2>
                         <TableCompare
                           sort_order={this.state.order}
                           sort_by={this.state.sort_by}
@@ -733,7 +733,7 @@ class CiCommitResults extends Component {
                     title="KPI report"
                     panel={
                       <div>
-                        <h2>Quality report</h2>
+                        <h2 className={Classes.HEADING}>Quality report</h2>
                         <TableKpi
                           sort_order={this.state.order}
                           sort_by={this.state.sort_by}
@@ -799,8 +799,7 @@ class CiCommitResults extends Component {
                         label="3d"
                         onChange={this.toogleShow3d}
                       />
-                      <div className="pt-select">
-                        <select
+                        <HTMLSelect
                           defaultValue={this.state.sort_by}
                           onChange={this.selectSortBy}
                         >
@@ -812,15 +811,14 @@ class CiCommitResults extends Component {
                               </option>
                             )
                           )}
-                        </select>
-                        <select
+                        </HTMLSelect>
+                        <HTMLSelect
                           defaultValue="descending"
                           onChange={this.selectOrder}
                         >
                           <option value={-1}>descending</option>
                           <option value={1}>ascending</option>
-                        </select>
-                      </div>
+                        </HTMLSelect>
                     </Fragment>
                   ) : (
                     <Fragment />

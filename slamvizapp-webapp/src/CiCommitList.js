@@ -9,6 +9,7 @@ import moment from "moment";
 import "moment-timezone";
 
 import {
+  Classes,
   Button,
   Intent,
   NonIdealState,
@@ -188,7 +189,7 @@ class CiCommitList extends React.Component {
             title="Useful links"
             style={{ marginBottom: "20px" }}
           >
-            <ul>
+            <ul className={Classes.LIST}>
               <li>
                 <a href={`http://gitlab-srv/${project}/pipelines`}>
                   Gitlab CI pipelines
@@ -206,7 +207,7 @@ class CiCommitList extends React.Component {
           </Callout>
         </Section>
         <Section>
-          <h3>
+          <h3 className={Classes.HEADING}>
             Reports for{" "}
             <Link to={`/branch/origin/develop?project=${project}`}>
               <Button icon="git-branch">develop</Button>
@@ -254,7 +255,7 @@ class CiCommitList extends React.Component {
         {isLoaded &&
           !error && (
             <div>
-              <h3>Evolution for {link_to_tag}</h3>
+              <h3 className={Classes.HEADING}>Evolution for {link_to_tag}</h3>
               <DateRangeInput
                 value={date_range}
                 maxDate={new Date()}
@@ -285,10 +286,10 @@ class CiCommitList extends React.Component {
     var warning_messages;
     if (error)
       warning_messages = (
-        <NonIdealState description={error.message} visual="error" />
+        <NonIdealState description={error.message} icon="error" />
       );
     if (!isLoaded)
-      warning_messages = <NonIdealState title="Loading" visual={<Spinner />} />;
+      warning_messages = <NonIdealState title="Loading" icon={<Spinner />} />;
     if (commits.length === 0 && isLoaded)
       warning_messages = (
         <NonIdealState
@@ -296,7 +297,7 @@ class CiCommitList extends React.Component {
           description={`Searched commits from ${date_range[0]} to ${
             date_range[1]
           }`}
-          visual="folder-open"
+          icon="folder-open"
         />
       );
 
@@ -304,7 +305,7 @@ class CiCommitList extends React.Component {
 
     list = (
       <Fragment>
-        <h3>Selected commits</h3>
+        <h3 className={Classes.HEADING}>Selected commits</h3>
         {Object.keys(commits_by_day).map(day => (
           <Fragment key={day}>
             <HeaderDay>

@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import { get } from "axios";
 
 import {
+  Classes,
   Collapse,
   Button,
   Tag,
@@ -80,7 +81,7 @@ class OutputLog extends Component {
       <Tag>{`${output.configuration} @${output.platform}`}</Tag>
     );
     const details = Object.entries(output.extra_parameters).map(([k, v]) => (
-      <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">
+      <Tag key={k} intent={Intent.PRIMARY} minimal round>
         {k}:{v}
       </Tag>
     ));
@@ -93,11 +94,10 @@ class OutputLog extends Component {
     </a>;
     return (
       <div>
-        <h6>
+        <h6 className={Classes.HEADING}>
           {show_button} <Tag intent={intent}>{tag_text}</Tag> {tag_config}{" "}{download_link}{" "}
-          {output.test_input_path}
+          {output.test_input_path} {details}
         </h6>
-        {details}
         {is_supported && (
           <Collapse isOpen={is_open}>
             {error && (
@@ -108,7 +108,7 @@ class OutputLog extends Component {
                 }
               />
             )}
-            <pre>{logs || ""}</pre>
+            <pre className={Classes.CODE_BLOCK}>{logs || ""}</pre>
           </Collapse>
         )}
       </div>

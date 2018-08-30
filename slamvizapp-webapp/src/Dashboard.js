@@ -6,6 +6,7 @@ import moment from "moment";
 import qs from "qs";
 
 import {
+  Classes,
   Card,
   Spinner,
   NonIdealState,
@@ -15,9 +16,10 @@ import {
   MenuItem,
   Colors,
   FormGroup,
-  InputGroup
+  InputGroup,
+  HTMLSelect
 } from "@blueprintjs/core";
-import { MultiSelect, Classes } from "@blueprintjs/select";
+import { MultiSelect } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
 import { Container, Section } from "./common/containers";
@@ -220,11 +222,11 @@ class Dashboard extends React.Component {
     if (!is_loaded || commits.size === 0)
       return (
         <Container>
-          <NonIdealState title="Loading" visual={<Spinner />} />
+          <NonIdealState title="Loading" icon={<Spinner />} />
         </Container>
       );
     // if (commits.size===0) return <Container>
-    //   <NonIdealState title="Empty" visual='folder' />
+    //   <NonIdealState title="Empty" icon='folder' />
     // </Container>
     // console.log(commits)
 
@@ -291,7 +293,7 @@ class Dashboard extends React.Component {
     return (
       <Container>
         <Section>
-          <h1>Dashboard</h1>
+          <h1 className={Classes.HEADING}>Dashboard</h1>
           <DateRangeInput
             value={date_range}
             maxDate={new Date()}
@@ -311,7 +313,7 @@ class Dashboard extends React.Component {
 
         <Section>
           <Card elevation={1} style={{ breakInside: "avoid" }}>
-            <h2>Improvement over time</h2>
+            <h2 className={Classes.HEADING}>Improvement over time</h2>
             <CommitsEvolution
               project={this.state.project}
               commits={selected_commits}
@@ -344,16 +346,16 @@ class Dashboard extends React.Component {
         {has_android && (
           <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
             <Card elevation={0}>
-              <h2>
+              <h2 className={Classes.HEADING}>
                 Metrics on Android{" "}
                 <span style={{ color: Colors.BLUE2 }}>vs LSF</span>
               </h2>
-              <ul>
+              <ul className={Classes.LIST}>
                 <li>
                   <strong>Android:</strong>{" "}
                   {Object.keys(android_batch.outputs).length} results from{" "}
                   <Link to={`/commit/${commit_android_id}`}>
-                    <code className="pt-text-muted">
+                    <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
                       {pretty_commit_android_id}
                     </code>
                   </Link>
@@ -362,7 +364,7 @@ class Dashboard extends React.Component {
                   <strong>LSF:</strong>{" "}
                   {Object.keys(linux_batch.outputs).length} results from{" "}
                   <Link to={`/commit/${commit_id}`}>
-                    <code className="pt-text-muted">{pretty_commit_id}</code>
+                    <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>{pretty_commit_id}</code>
                   </Link>
                 </li>
               </ul>
@@ -380,10 +382,10 @@ class Dashboard extends React.Component {
 
         <Section>
           <Card elevation={1}>
-            <h2>Algorithmic bottlenecks</h2>
-            <p className='pt-text-muted'>{Object.keys(linux_batch.outputs).length} offline results{" "}
+            <h2 className={Classes.HEADING}>Algorithmic bottlenecks</h2>
+            <p className={Classes.TEXT_MUTED}>{Object.keys(linux_batch.outputs).length} offline results{" "}
             <Link to={`/commit/${commit_id}`}>
-              <code className="pt-text-muted">
+              <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
                 {pretty_commit_id}
               </code>
             </Link>
@@ -401,7 +403,7 @@ class Dashboard extends React.Component {
 
         <Section>
           <div>
-            <h2>Individual tests</h2>
+            <h2 className={Classes.HEADING}>Individual tests</h2>
 
             <Tabs
               renderActiveTabPanelOnly
@@ -446,8 +448,7 @@ class Dashboard extends React.Component {
                 />
               )}
               <Tabs.Expander />
-              <div className="pt-select">
-                <select
+                <HTMLSelect
                   defaultValue={this.state.sort_by}
                   onChange={this.selectSortBy}
                 >
@@ -457,12 +458,11 @@ class Dashboard extends React.Component {
                       Sort by {m.label}
                     </option>
                   ))}
-                </select>
-                <select defaultValue="descending" onChange={this.selectOrder}>
-                  <option value={-1}>descending</option>
-                  <option value={1}>ascending</option>
-                </select>
-              </div>
+              </HTMLSelect>
+              <HTMLSelect defaultValue="descending" onChange={this.selectOrder}>
+                <option value={-1}>descending</option>
+                <option value={1}>ascending</option>
+              </HTMLSelect>
             </Tabs>
           </div>
         </Section>

@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 // import { get, all, spread } from "axios";
-import { Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
+import { Classes, Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
 class CisOutputCard extends Component {
   constructor(props) {
@@ -15,10 +15,10 @@ class CisOutputCard extends Component {
 
     let tags = (
       <span>
-        <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">
+        <Tag intent={Intent.PRIMARY}round minimal>
           {output_new.platform}
         </Tag>
-        <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">
+        <Tag intent={Intent.PRIMARY} round minimal>
           {output_new.configuration}
         </Tag>
         <a
@@ -30,7 +30,7 @@ class CisOutputCard extends Component {
           <Icon icon="download" />
         </a>
         {Object.entries(output_new.extra_parameters).map(([k, v]) => (
-          <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">
+          <Tag key={k} intent={Intent.PRIMARY} round minimal>
             {k}:{v}
           </Tag>
         ))}
@@ -93,7 +93,7 @@ class CisOutputCard extends Component {
       <div style={{ flex: "0 0 auto", marginBottom: "20px" }}>
         <Card className="output-card">
           <div style={{ padding: "  " }}>
-            <h5
+            <h5 className={Classes.HEADING}
               style={{
                 fontSize: ".7rem",
                 fontWeight: 500,

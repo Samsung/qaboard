@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
-import { Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
+import { Classes, Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { main_metrics, available_metrics } from "./metrics";
 
@@ -261,7 +261,7 @@ class TofOutputCard extends Component {
     let tags = (
       <span>
         {Object.entries(output_new.extra_parameters).map(([k, v]) => (
-          <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">
+          <Tag key={k} intent={Intent.PRIMARY} round minimal>
             {k}:{v}
           </Tag>
         ))}
@@ -312,7 +312,7 @@ class TofOutputCard extends Component {
         <Card className="output-card">
           {!no_header && (
             <div>
-              <h5
+              <h5 className={Classes.HEADING}
                 style={{
                   fontSize: ".7rem",
                   fontWeight: 500,
@@ -321,7 +321,7 @@ class TofOutputCard extends Component {
                 }}
               >
                 {output_new.test_input_path}{" "}
-                <Tag className="pt-minimal" style={{ marginRight: "10px" }}>
+                <Tag minimal style={{ marginRight: "10px" }}>
                   Frame {selected_frame}
                 </Tag>{" "}
                 {tags}
@@ -340,7 +340,7 @@ class TofOutputCard extends Component {
             </div>
           )}
 
-          <p className="pt-text-muted">
+          <p className={Classes.TEXT_MUTED}>
             {show_pointcloud ? (is_loaded
                           ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
                           : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
@@ -356,7 +356,7 @@ class TofOutputCard extends Component {
           <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
         
           <div>
-            <h4>
+            <h4 className={Classes.HEADING}>
               <a
                 href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
                 target="_blank"

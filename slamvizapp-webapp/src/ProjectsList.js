@@ -6,6 +6,7 @@ import Moment from "react-moment";
 
 import { Container } from "./common/containers";
 import {
+  Classes,
   Intent,
   Card,
   Callout,
@@ -62,9 +63,9 @@ class ProjectsList extends React.Component {
     const { error, is_loaded, projects } = this.state;
     let warnings;
     if (error)
-      warnings = <NonIdealState description={error.message} visual="error" />;
+      warnings = <NonIdealState description={error.message} icon="error" />;
     if (!is_loaded)
-      warnings = <NonIdealState title="Loading" visual={<Spinner />} />;
+      warnings = <NonIdealState title="Loading" icon={<Spinner />} />;
 
     let list_projects = (
       <div>
@@ -83,7 +84,7 @@ class ProjectsList extends React.Component {
                 elevation={2}
                 onClick={e => this.props.history.push(`/?project=${id}`)}
               >
-                <h5>
+                <h5 className={Classes.HEADING}>
                   <Link to={`/?project=${id}`}>{id}</Link>{" "}
                   {details.information &&
                     details.information.git && (
@@ -106,7 +107,7 @@ class ProjectsList extends React.Component {
     return (
       <Container>
         <Callout intent={Intent.PRIMARY}>
-          <h4>Your project is missing?</h4>
+          <h4 className={Classes.HEADING}>Your project is missing?</h4>
           <p>
             Ask <a href="mailto:arthur.flam@samsung.com">Arthur</a>!
           </p>

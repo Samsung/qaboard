@@ -14,14 +14,17 @@ import "brace/ext/searchbox";
 // import 'brace/ext/language_tools';
 
 import {
+  Classes,
   Callout,
   Intent,
   Spinner,
   NonIdealState,
   Button,
   FormGroup,
+  HTMLSelect,
   Radio,
-  RadioGroup
+  RadioGroup,
+  Switch
 } from "@blueprintjs/core";
 import { Toaster } from "@blueprintjs/core";
 
@@ -151,76 +154,20 @@ class AddRecordingsForm extends Component {
           description={JSON.stringify(error.response)}
         />
       );
-    let number_of_recordings = this.state.selected_group_info
-      .number_of_recordings;
+    // let number_of_recordings = this.state.selected_group_info.number_of_recordings;
     return (
       <form onSubmit={this.onSubmit}>
-        <div className="pt-form-group pt-inline">
-          {false && (
-            <label className="pt-label" htmlFor="selected-group">
-              Requested Group
-              <span className="pt-text-muted">(optionnal)</span>
-            </label>
-          )}
-          {false && (
-            <div className="pt-form-content">
-              <input
-                onChange={this.updateSelectedGroup}
-                id="selected-group"
-                className="pt-input"
-                style={{ width: "300px" }}
-                placeholder="Go_around_set"
-                type="text"
-                dir="auto"
-              />
-              <div className="pt-form-helper-text">
-                {number_of_recordings === 0
-                  ? "Select a group of recordings from the list below"
-                  : `${number_of_recordings} recording${
-                      number_of_recordings > 1 ? "s" : ""
-                    } selected`}
-              </div>
-            </div>
-          )}
-          {false && (
-            <label className="pt-label" htmlFor="overwrite-old-outputs" />
-          )}
-          {false && (
-            <div className="pt-form-content">
-              <label className="pt-control pt-switch">
-                <input
-                  onChange={this.updateOverwrite}
-                  defaultValue="off"
-                  id="overwrite-old-outputs"
-                  type="checkbox"
-                />
-                <span className="pt-control-indicator" />
-                Overwrite previous runs
-              </label>
-              <div className="pt-form-helper-text">
-                By default we won't run the SLAM twice on the same recordings{" "}
-              </div>
-            </div>
-          )}
-          {false && (
-            <Button
-              onClick={this.recomputeMetrics}
-              disabled={this.state.submitted}
-              type="button"
-            >
-              Recompute CI metrics
-            </Button>
-          )}
+        <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
           <Button
             disabled={this.state.submitted}
             type="submit"
             intent={Intent.PRIMARY}
           >
-            {this.state.selected_group ? "Run SLAM" : "Update list"}
+          <span>Update list</span>
           </Button>
         </div>
 
-        <div className="pt-form-group pt-inline" />
+        <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
         <AceEditor
           mode="yaml"
           theme="github"
@@ -521,18 +468,18 @@ class TuningForm extends Component {
         <FormGroup
           helperText={
             <span>
-              Re-using a name adds more results. The <code>default</code> batch
+              Re-using a name adds more results. The <code className={Classes.CODE}>default</code> batch
               corresponds to the CI results
             </span>
           }
           label="Choose a name for the batch/tuning experiment"
           labelFor="batch-label"
           intent={Intent.PRIMARY}
-          requiredLabel={true}
+          labelInfo="(required)"
         >
           <input
             id="batch-label"
-            className="pt-input"
+            className={Classes.INPUT}
             style={{ width: "300px" }}
             placeholder="search-radius-sensibility"
             value={experiment_name}
@@ -550,11 +497,11 @@ class TuningForm extends Component {
               : ""
           }Choose a small group of recordings if you want results quickly.`}
           labelFor="selected-group"
-          requiredLabel={true}
+          labelInfo="(required)"
         >
           <input
             id="selected-group"
-            className="pt-input"
+            className={Classes.INPUT}
             style={{ width: "300px" }}
             placeholder="Loop_closure_set"
             onChange={this.updateSelectedGroup}
@@ -575,10 +522,10 @@ class TuningForm extends Component {
             label={
               <span>
                 Android<br />
-                <span className="pt-text-muted">
-                  Available on <code>develop</code> or if you ran the{" "}
+                <span className={Classes.TEXT_MUTED}>
+                  Available on <code className={Classes.CODE}>develop</code> or if you ran the{" "}
                   <a href="http://gitlab-srv/dvs/psp_swip/pipelines">
-                    <code>performance:android:manual</code> job
+                    <code className={Classes.CODE}>performance:android:manual</code> job
                   </a>
                 </span>
               </span>
@@ -593,11 +540,11 @@ class TuningForm extends Component {
             label="Android device"
             helperText="Choose a device from the openstf farm, or your own (host:port)"
             labelFor="input-android-device"
-            requiredLabel={true}
+            labelInfo="(required)"
           >
             <input
               id="input-android-device"
-              className="pt-input"
+              className={Classes.INPUT}
               style={{ width: "300px" }}
               value={android_device}
               placeholder="openstf"
@@ -612,11 +559,11 @@ class TuningForm extends Component {
           label="You can choose any of the available configuration"
           helperText="&quot;serial-stereo&quot; is the SLAM default, &quot;stereo&quot; the TOF default. Configurations are saved as $configuration.json, e.g. &quot;mono_mode&quot;."
           labelFor="input-configuration"
-          requiredLabel={true}
+          labelInfo="(required)"
         >
           <input
             id="input-configuration"
-            className="pt-input"
+            className={Classes.INPUT}
             style={{ width: "300px" }}
             value={configuration}
             placeholder="serial-stereo"
@@ -626,7 +573,7 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
-        <h3>Tuning search</h3>
+        <h3 className={Classes.HEADING}>Tuning search</h3>
         <p>
           Be inspired by those tuning templates:{" "}
           {["basic", "list", "function"].map(x => (
@@ -651,11 +598,11 @@ class TuningForm extends Component {
               : `Uniform sampling of ${combinations} combinations`
           }
         >
-          <div className="pt-select pt-minimal">
-            <select
+            <HTMLSelect
               id="select-search-type"
               defaultValue="grid"
               onChange={this.selectSearchType}
+              minimal
             >
               <option key="grid" value="grid">
                 Grid search
@@ -663,12 +610,12 @@ class TuningForm extends Component {
               <option key="sampler" value="sampler">
                 Sampling
               </option>
-            </select>
+            </HTMLSelect>
             {search_type === "sampler" && (
               <input
                 id="input-iterations"
                 value={search_options.n_iter}
-                className="pt-input"
+                className={Classes.INPUT}
                 style={{ marginLeft: "30px", width: "70px" }}
                 placeholder="50"
                 onChange={this.updateIterations}
@@ -676,7 +623,6 @@ class TuningForm extends Component {
                 dir="auto"
               />
             )}
-          </div>
         </FormGroup>
         <AceEditor
           mode="javascript"
@@ -710,19 +656,19 @@ class TuningForm extends Component {
           Send
         </Button>
 
-        <label className="pt-label" htmlFor="overwrite-old-outputs" />
-        <div className="pt-form-content">
-          <label className="pt-control pt-switch">
-            <input
-              onChange={this.updateOverwrite}
-              defaultValue="off"
-              id="overwrite-old-outputs"
-              type="checkbox"
-            />
-            <span className="pt-control-indicator" />
-            Overwrite previous runs if already computed.
-          </label>
-        </div>
+
+        <FormGroup
+            label="Overwrite previous runs"
+            helperText="By default we won't run the SLAM twice on the same recordings"
+            labelFor="overwrite-old-outputs"
+            inline
+        >
+          <Switch
+            id="overwrite-old-outputs"
+            onChange={this.updateOverwrite}
+            defaultChecked={false}
+          />
+        </FormGroup>
 
         <FormGroup
           label="Run as"
@@ -733,7 +679,7 @@ class TuningForm extends Component {
           <input
             disabled
             id="input-user"
-            className="pt-input"
+            className={Classes.INPUT}
             style={{ width: "300px" }}
             value={user}
             placeholder="arthurf"

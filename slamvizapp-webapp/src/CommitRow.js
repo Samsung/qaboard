@@ -2,7 +2,7 @@ import React, { Fragment } from "react";
 import { Link } from "react-router-dom";
 
 import styled from "styled-components";
-import { Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
+import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
 
 import { Avatar } from "./common/Avatar";
 import { DoneAtTag } from "./common/DoneAtTag";
@@ -59,12 +59,13 @@ class CommitResults extends React.Component {
       return (
         <Fragment>
         <a style={{ color: "grey" }} href={gitlab_commit_url}>
-          <Button intent={Intent.WARNING} className="pt-minimal">
+          <Button intent={Intent.WARNING} minimal>
+          
             Check the pipeline status..
           </Button>
         </a>
         <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
-          <Button intent={Intent.DANGER} className="pt-minimal">
+          <Button intent={Intent.DANGER} minimal>
             No results
           </Button>
         </Link>
@@ -94,13 +95,13 @@ class CommitResults extends React.Component {
     let status_messages = (
       <Fragment>
         {ci_batch.pending_outputs - ci_batch.running_outputs > 0 && (
-          <Tag className="pt-minimal" style={{ marginRight: "4px" }}>
+          <Tag minimal style={{ marginRight: "4px" }}>
             {ci_batch.pending_outputs - ci_batch.running_outputs} pending
           </Tag>
         )}
         {ci_batch.running_outputs > 0 && (
           <Tag
-            className="pt-minimal"
+            minimal
             style={{ marginRight: "4px" }}
             intent={Intent.PRIMARY}
           >
@@ -109,7 +110,7 @@ class CommitResults extends React.Component {
         )}
         {ci_batch.failed_outputs > 0 && (
           <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
-            <Button intent={Intent.DANGER} className="pt-minimal">
+            <Button intent={Intent.DANGER} minimal>
               {ci_batch.failed_outputs} crashed
             </Button>
           </Link>
@@ -118,7 +119,7 @@ class CommitResults extends React.Component {
           <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000}>
             <Tag
               intent={Intent.SUCCESS}
-              className="pt-minimal"
+              minimal
               style={{ marginRight: "4px" }}
             >
               {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 0
@@ -126,16 +127,21 @@ class CommitResults extends React.Component {
                 : ""}
             </Tag>
             <div>
-              {tuning_batches_labels.map(label => (
-                  <Link to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}><Button style={{margin: '5px'}}>{label}</Button></Link>
-              ))}
+              {tuning_batches_labels.map(label => {
+                  let batch = commit.batches[label];
+                  let status = `${batch.valid_outputs}/${batch.valid_outputs+batch.pending_outputs+batch.failed_outputs} ✅`;
+                  let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
+                  return <Link key={label} to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}>
+                    <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
+                  </Link>
+              })}
             </div>
           </Tooltip>
         )}
         {has_android_manual_batch && (
           <Tag
             intent={Intent.SUCCESS}
-            className="pt-minimal"
+            minimal
             style={{ marginRight: "4px" }}
           >
             {commit.batches["manual-android-rt"].valid_outputs} @android:manual
@@ -144,7 +150,7 @@ class CommitResults extends React.Component {
         {has_android_batch && (
           <Tag
             intent={Intent.SUCCESS}
-            className="pt-minimal"
+            minimal
             style={{ marginRight: "4px" }}
           >
             {commit.batches["ci-android-rt"].valid_outputs} @android:ci
@@ -153,7 +159,7 @@ class CommitResults extends React.Component {
         {ci_batch.valid_outputs > 0 &&
           ci_batch.aggregated_metrics.translation_rmse_median > 0 && (
             <Fragment>
-              <Tag className="pt-minimal" style={{ marginRight: "4px" }}>
+              <Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
                   {formatter.format(
                     default_metric_info.scale *
@@ -165,7 +171,7 @@ class CommitResults extends React.Component {
                 </strong>{" "}
                 median{" "}
               </Tag>
-              <Tag style={{ marginRight: "4px" }} className="pt-minimal">
+              <Tag style={{ marginRight: "4px" }} minimal>
                 <strong>
                   {formatter.format(
                     default_metric_info.scale *
@@ -178,8 +184,8 @@ class CommitResults extends React.Component {
                 avg {default_metric_info.short_label}
               </Tag>
               <Tooltip modifiers>
-                <Tag className="pt-minimal pt-round">...</Tag>
-                <ul>
+                <Tag minimal round>...</Tag>
+                <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics).map(([k, v]) => (
                     <li key={k}>
                       <strong>{k}:</strong> {formatter.format(v)}
@@ -252,13 +258,13 @@ class CommitRow extends React.Component {
                   <Icon
                     title="copy to clipboard"
                     intent={Intent.PRIMARY}
-                    className="pt-minimal pt-small"
+                    iconSize={Icon.SIZE_SMALL}
                     icon="clipboard"
                   />
                 </CopyToClipboard>
                 <span>Copy to clipboard</span>
               </Tooltip>
-              <Icon icon="pt-icon-git-branch" />
+              <Icon icon="git-branch" />
               <Link
                 style={{ color: "rgba(0,0,0,0.85)" }}
                 to={`/branch/${commit.branch}?project=${project}`}

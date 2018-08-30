@@ -4,6 +4,8 @@ import { BrowserRouter as Router, Route } from "react-router-dom";
 import { CookiesProvider } from "react-cookie";
 import Loadable from 'react-loadable';
 
+import { Classes } from "@blueprintjs/core";
+
 import AppNavbar from "./AppNavbar";
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
@@ -27,7 +29,7 @@ const Loading = props => {
   if (props.error) {
     return <div>Error!</div>;
   } else {
-    return <div>Loading...</div>;
+    return <div></div>;
   }
 };
 const LoadableDashboard = Loadable({
@@ -43,7 +45,7 @@ class App extends Component {
       // <React.StrictMode>
       <CookiesProvider>
         <Router>
-          <div className="pt-ui-text">
+          <div className={Classes.UI_TEXT}>
             <AppNavbar />
             <Route exact path="/" component={CiCommitList} />
             <Route path="/branch/(.*)" component={CiCommitList} />

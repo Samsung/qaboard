@@ -4,7 +4,7 @@ import React, { Component, Fragment } from "react";
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
-import { Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
+import { Classes, Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { SyncedVideos } from "../common/SyncedVideos";
 import { main_metrics, available_metrics } from "./metrics";
@@ -269,10 +269,10 @@ class SlamOutputCard extends Component {
 
     let tags = (
       <span>
-        <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">
+        <Tag intent={Intent.PRIMARY} round minimal>
           {output_new.platform}
         </Tag>
-        <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">
+        <Tag intent={Intent.PRIMARY} round minimal>
           {output_new.configuration}
         </Tag>
         <a
@@ -284,7 +284,7 @@ class SlamOutputCard extends Component {
           <Icon icon="download" />
         </a>
         {Object.entries(output_new.extra_parameters).map(([k, v]) => (
-          <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">
+          <Tag key={k} intent={Intent.PRIMARY} round minimal>
             {k}:{v}
           </Tag>
         ))}
@@ -318,7 +318,7 @@ class SlamOutputCard extends Component {
               <SlimCard className="output-card">
                 {!no_header && (
                   <div style={{ padding: "  " }}>
-                    <h5
+                    <h5 className={Classes.HEADING}
                       style={{
                         fontSize: ".7rem",
                         fontWeight: 500,

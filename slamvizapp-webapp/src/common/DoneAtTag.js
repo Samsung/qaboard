@@ -14,7 +14,7 @@ class DoneAtTagUnstyled extends React.Component {
       <span className={className}>
         <Icon
           style={{ color: "#999", marginRight: "4px" }}
-          iconName="pt-icon-calendar"
+          icon="calendar"
         />
         <Tooltip content={commit.authored_datetime}>
           <Moment fromNow tz="Asia/Jerusalem" date={commit.authored_datetime} />

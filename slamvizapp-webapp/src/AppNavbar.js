@@ -72,7 +72,7 @@ class AppNavbar extends Component {
     let is_home = this.props.location.pathname.startsWith("/projects");
     let project = is_home ? "SIRC" : params.get("project") || "dvs/psp_swip";
     return (
-      <Navbar className="pt-dark">
+      <Navbar className={Classes.DARK}>
         <NavbarGroup>
           <NavbarHeading>
             {is_home ? (
@@ -85,7 +85,7 @@ class AppNavbar extends Component {
           </NavbarHeading>
           {!is_home && (
             <Fragment>
-              <Button disabled className="pt-minimal" icon="git-branch" />
+              <Button disabled minimal icon="git-branch" />
               <Suggest
                 itemPredicate={filterBranch}
                 items={this.state.branches}
@@ -96,7 +96,6 @@ class AppNavbar extends Component {
                 popoverProps={Classes.MINIMAL}
                 placeholder="Filter by branch..."
                 initialContent="Filter by branch..."
-                onFocus={this.getBranches}
               />
               <NavbarDivider />
               <InputGroup
@@ -110,7 +109,7 @@ class AppNavbar extends Component {
         <NavbarGroup align="right">
           {!is_home && (
             <Link to="/projects">
-              <Button className="pt-minimal" icon="home">
+              <Button minimal icon="home">
                 All projects
               </Button>
             </Link>

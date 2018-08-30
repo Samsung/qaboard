@@ -1,5 +1,5 @@
 import React from "react";
-import { FormGroup } from "@blueprintjs/core";
+import { FormGroup, HTMLSelect } from "@blueprintjs/core";
 
 const SelectBatches = ({ commit, prefix, onChange, selected }) => {
   const batches_to_options = batches =>
@@ -31,16 +31,15 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
           : " "
       }
     >
-      <div className="pt-select pt-minimal">
-        <select
-          disabled={!has_tuning_batches}
-          id="batch-select-new"
-          defaultValue={selected}
-          onChange={onChange}
-        >
-          {batches_to_options(commit.batches)}
-        </select>
-      </div>
+      <HTMLSelect
+        minimal
+        disabled={!has_tuning_batches}
+        id="batch-select-new"
+        defaultValue={selected}
+        onChange={onChange}
+      >
+        {batches_to_options(commit.batches)}
+      </HTMLSelect>
     </FormGroup>
   );
 };

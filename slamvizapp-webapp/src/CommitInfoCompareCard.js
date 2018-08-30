@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import {
+  Classes,
   Card,
   Tag,
   Button,
@@ -40,7 +41,7 @@ const CommitInfoCompareCard = ({
         }}
       >
         <div style={{ flex: "1 1 auto", minWidth: "450px" }}>
-          <h1 style={{ display: "flex", alignItems: "baseline" }}>
+          <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "baseline" }}>
             <Avatar
               href={`/committer/${new_commit.committer_name}`}
               alt={new_commit.committer_name}
@@ -91,7 +92,7 @@ const CommitInfoCompareCard = ({
           </div>
           <p
             style={{ marginTop: "10px", maxWidth: "450px" }}
-            className="pt-monospace-text"
+            className={Classes.MONOSPACE_TEXT}
           >
             {new_commit.message}
           </p>
@@ -100,7 +101,7 @@ const CommitInfoCompareCard = ({
           <Icon icon="small-cross" />
         </div>
         <div style={{ flex: "1 1 auto" }}>
-          <h1
+          <h1 className={Classes.HEADING}
             style={{
               display: "flex",
               justifyContent: "flex-end",
@@ -166,7 +167,7 @@ const CommitInfoCompareCard = ({
               textAlign: "right",
               marginTop: "10px"
             }}
-            className="pt-monospace-text"
+            className={Classes.MONOSPACE_TEXT}
           >
             {ref_commit.message}
           </p>

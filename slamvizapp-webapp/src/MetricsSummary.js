@@ -4,6 +4,7 @@ import React, { Component, Fragment } from "react";
 import styled from "styled-components";
 
 import {
+  Classes,
   Tag,
   Button,
   Intent,
@@ -11,7 +12,7 @@ import {
   MenuItem,
   Colors
 } from "@blueprintjs/core";
-import { MultiSelect, Classes } from "@blueprintjs/select";
+import { MultiSelect } from "@blueprintjs/select";
 
 import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
@@ -60,7 +61,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       ? Intent.DANGER
       : Intent.SUCCESS;
   let metric_tag = (
-    <Tag className="pt-minimal" intent={intent}>
+    <Tag minimal intent={intent}>
       {formatted_valued}
     </Tag>
   );
@@ -73,7 +74,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -0.01) intent_compare = Intent.SUCCESS;
     else intent_compare = Intent.DEFAULT;
     var compare_tag = (
-      <Tag className="pt-minimal" intent={intent_compare}>
+      <Tag minimal intent={intent_compare}>
         {percent_formatter.format(100 * delta_relative)}%
       </Tag>
     );
@@ -516,23 +517,23 @@ class MetricsSummary extends Component {
           return (
             <MetricRow key={m.key}>
               <MetricTile>
-                <h3>
+                <h3 className={Classes.HEADING}>
                   {metric_formatter.format(m.scale * new_med)}
                   {m.suffix}
                   <span style={{ color: "#ccc" }}> median</span>
                 </h3>
-                <h5>{m.label}</h5>
+                <h5 className={Classes.HEADING}>{m.label}</h5>
                 <SuccessBar success_frac={new_pc_good} />
               </MetricTile>
 
               {!breakdown_by_tag && (
                 <Fragment>
                   <MetricTile>
-                    <h3 style={{ color: color_ref }}>
+                    <h3 className={Classes.HEADING} style={{ color: color_ref }}>
                       vs {metric_formatter.format(m.scale * ref_med)}
                       {m.suffix}
                     </h3>
-                    <h5>
+                    <h5 className={Classes.HEADING}>
                       <Tag intent={intent}>
                         {delta_relative > 0 ? "+" : ""}
                         {percent_formatter.format(100 * delta_relative)}%
