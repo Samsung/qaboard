@@ -57,7 +57,7 @@ class CommitResults extends React.Component {
         ci_batch.pending_outputs === 0)
     )
       return (
-        <Fragment>
+        <div>
         <a style={{ color: "grey" }} href={gitlab_commit_url}>
           <Button intent={Intent.WARNING} minimal>
           
@@ -69,7 +69,7 @@ class CommitResults extends React.Component {
             No results
           </Button>
         </Link>
-        </Fragment>
+        </div>
       );
 
     let formatter = new Intl.NumberFormat("en-US", {
