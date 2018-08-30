@@ -1,14 +1,11 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
-import createPlotlyComponent from "react-plotly.js/factory";
+import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
 import { groupBy, input_test_color, median, average } from "../common/utils";
 import { metrics } from "../metrics";
 
-const Plot = createPlotlyComponent(Plotly);
 const config = {};
 
 const Sensibility1DLines = ({

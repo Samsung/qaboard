@@ -1,6 +1,5 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
+import Plot from 'react-plotly.js';
 import styled from "styled-components";
 
 import {
@@ -18,8 +17,7 @@ import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
 import { median, plotly_palette } from "./common/utils";
 
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
+
 
 // todo: we should use the colors defined by @blueprint, and JS helpers to alpha-ize, darken, etc.
 const color = "rgba(255, 157, 0, 1)";

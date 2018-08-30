@@ -1,5 +1,5 @@
-/* global Plotly:true */
 import React, { Component } from "react";
+import Plot from 'react-plotly.js';
 import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
@@ -7,9 +7,6 @@ import { OrbitControls } from "./OrbitControls";
 import { Classes, Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { main_metrics, available_metrics } from "./metrics";
-
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
 
 const aspect_ratio = 4 / 3;
 const width = 640; // full screen would be window.innerWidth;

@@ -1,6 +1,5 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
+import Plot from 'react-plotly.js';
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
 import styled from "styled-components";
@@ -8,9 +7,6 @@ import { Classes, Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { SyncedVideos } from "../common/SyncedVideos";
 import { main_metrics, available_metrics } from "./metrics";
-
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
 
 var colors = {
   groundtruth: "#4daf4a",

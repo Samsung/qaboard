@@ -1,8 +1,6 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
+import Plot from 'react-plotly.js';
 
-import createPlotlyComponent from "react-plotly.js/factory";
 import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 import { metrics } from "./metrics";
@@ -14,7 +12,6 @@ import { CommitRow } from "./CommitRow";
 import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();
 
-const Plot = createPlotlyComponent(Plotly);
 let layout = {
   width: 1200,
   height: 150,
