@@ -109,7 +109,7 @@ class ProjectsList extends React.Component {
         <Callout intent={Intent.PRIMARY}>
           <h4 className={Classes.HEADING}>Your project is missing?</h4>
           <p>
-            Ask <a href="mailto:arthur.flam@samsung.com">Arthur</a>!
+            Learn about <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial">qatools</a>!
           </p>
         </Callout>
         {warnings}
