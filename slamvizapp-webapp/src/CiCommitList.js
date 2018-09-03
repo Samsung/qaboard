@@ -67,9 +67,8 @@ class CiCommitList extends React.Component {
 
   componentDidUpdate(prevProps) {
     let changed = (this.props.project            !== prevProps.project            ||
-                   this.props.branch             !== prevProps.branch             ||      
-                   this.props.aggregated_metrics !== prevProps.aggregated_metrics ||
-                   this.props.date_range         !== prevProps.date_range          )
+                   this.props.branch.name        !== prevProps.branch.name        ||      
+                   this.props.branch.committer   !== prevProps.branch.committer)
     if (!this.props.is_loading && changed) {
       this.getData(this.props);
     }
@@ -184,6 +183,14 @@ class CiCommitList extends React.Component {
     ) : (
       tag
     );
+    var effective_date_range = date_range;
+    if (commits.length > 0){
+      effective_date_range = [
+        new Date(commits[commits.length - 1].authored_datetime),
+        new Date(commits[0].authored_datetime)
+      ]
+    }
+
     let qa_report = (
       <Section>
         {is_loaded &&
@@ -191,7 +198,7 @@ class CiCommitList extends React.Component {
             <div>
               <h3 className={Classes.HEADING}>Evolution for {link_to_tag}</h3>
               <DateRangeInput
-                value={date_range}
+                value={effective_date_range}
                 maxDate={new Date()}
                 allowSingleDayRange
                 formatDate={date =>
@@ -199,10 +206,8 @@ class CiCommitList extends React.Component {
                 }
                 parseDate={str => new Date(Date.parse(str))}
                 onChange={new_date_range => {
-                  this.setState(
-                    { date_range: new_date_range, is_loaded: false },
-                    c => this.getData(this.props)
-                  );
+                  const { project, branch, aggregated_metrics, dispatch } = this.props; 
+                  dispatch(fetchCommits(project, branch, new_date_range, aggregated_metrics))
                 }}
                 shortcuts
               />
