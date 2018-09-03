@@ -135,14 +135,14 @@ class CommitsEvolutionPerBatch extends React.Component {
     this.updateTraces(this.props);
   }
 
-  componentWillReceiveProps(nextProps) {
+  componentDidUpdate(prevProps) {
     if (
-      nextProps.output_filter !== this.props.output_filter ||
-      nextProps.commits !== this.props.commits ||
-      nextProps.metrics[0] !== this.props.metrics[0] ||
-      nextProps.aggregation !== this.props.aggregation
+      prevProps.output_filter !== this.props.output_filter ||
+      prevProps.commits !== this.props.commits ||
+      prevProps.metrics[0] !== this.props.metrics[0] ||
+      prevProps.aggregation !== this.props.aggregation
     )
-      this.updateTraces(nextProps);
+      this.updateTraces(this.props);
   }
 
   updateTraces(props) {
@@ -374,14 +374,14 @@ class CommitsEvolutionPerMovie extends React.Component {
     this.updateTraces(this.props);
   }
 
-  componentWillReceiveProps(nextProps) {
+  componentDidUpdate(prevProps) {
     if (
-      nextProps.commits !== this.props.commits ||
-      nextProps.metrics[0] !== this.props.metrics[0] ||
-      nextProps.relative !== this.props.relative ||
-      nextProps.output_filter !== this.props.output_filter
+      prevProps.commits !== this.props.commits ||
+      prevProps.metrics[0] !== this.props.metrics[0] ||
+      prevProps.relative !== this.props.relative ||
+      prevProps.output_filter !== this.props.output_filter
     )
-      this.updateTraces(nextProps);
+      this.updateTraces(this.props);
   }
 
   updateTraces(props) {

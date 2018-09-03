@@ -1,4 +1,5 @@
 import React, { Component, Fragment } from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { get } from "axios";
 import qs from "qs";
@@ -37,6 +38,7 @@ import { metrics } from "./metrics";
 import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
 import { TuningExploration } from "./tuning/TuningExploration";
 import { SelectBatches } from "./tuning/SelectBatches";
+
 
 class CiCommitResults extends Component {
   constructor(props) {
@@ -161,8 +163,8 @@ class CiCommitResults extends Component {
 
   componentWillUnmount() {}
 
-  componentWillReceiveProps(nextProps) {
-    if (this.props.match.url !== nextProps.match.url) {
+  componentDidUpdate(prevProps) {
+    if (this.props.match.url !== prevProps.match.url) {
       this.updateState();
     }
   }
@@ -906,4 +908,39 @@ class OutputList extends React.Component {
   }
 }
 
-export default withRouter(CiCommitResults);
+
+const mapStateToProps = (state, ownProps) => {
+    // const params = new URLSearchParams(ownProps.location.search);
+    // let project = params.get("project") || state.selected.project;
+    // let project_data = state.projects.data[project] || default_project
+
+    // let project_metrics = project_data.information.qatools_metrics
+    // let aggregated_metrics = {};
+    // project_metrics.main_metrics.forEach(
+    //   m =>
+    //     (aggregated_metrics[m] = project_metrics.available_metrics[m].threshold)
+    // );
+
+    // var branch;
+    // if (ownProps.match.path.startsWith("/committer")) {
+    //   branch = {committer: ownProps.match.params[0]}
+    // } else {
+    //   branch = {name: ownProps.match.params[0]}
+    // }
+    // let branch_key = branch.name || branch.committer || 'default'
+    // let commits_data = project_data.commits[branch_key] || default_commits_data;
+
+    // return {
+    //   project,
+    //   project_data,
+    //   branch,
+    //   aggregated_metrics,
+    //   date_range: commits_data.date_range || default_date_range,
+    //   commits: commits_data.ids.map(id=>state.commits[id]),
+    //   error: commits_data.error,
+    //   is_loaded: commits_data.is_loaded,
+    //   is_loading: commits_data.is_loading,
+    // };
+}
+
+export default withRouter(connect(mapStateToProps)(CiCommitResults) );

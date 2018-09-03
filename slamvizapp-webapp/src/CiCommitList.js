@@ -65,13 +65,13 @@ const CommitRows = ({ commits, project, className }) => (
 
 class CiCommitList extends React.Component {
 
-  componentWillReceiveProps(nextProps) {
-    let changed = (this.props.project            !== nextProps.project            ||
-                   this.props.branch             !== nextProps.branch             ||      
-                   this.props.aggregated_metrics !== nextProps.aggregated_metrics ||
-                   this.props.date_range         !== nextProps.date_range          )
-    if (!nextProps.is_loading && changed) {
-      this.getData(nextProps);
+  componentDidUpdate(prevProps) {
+    let changed = (this.props.project            !== prevProps.project            ||
+                   this.props.branch             !== prevProps.branch             ||      
+                   this.props.aggregated_metrics !== prevProps.aggregated_metrics ||
+                   this.props.date_range         !== prevProps.date_range          )
+    if (!this.props.is_loading && changed) {
+      this.getData(this.props);
     }
   }
 
