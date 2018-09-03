@@ -1,65 +1,51 @@
-import React, { Component } from "react";
+import React from "react";
+import { Provider } from 'react-redux'
 import { BrowserRouter as Router, Route } from "react-router-dom";
-// import { Provider } from 'react-redux'
 import { CookiesProvider } from "react-cookie";
+
 import Loadable from 'react-loadable';
-
-import { Classes } from "@blueprintjs/core";
-
 import AppNavbar from "./AppNavbar";
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
+import EmptyLoading from "./components/EmptyLoading";
 
+import { Classes } from "@blueprintjs/core";
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
 import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "../node_modules/@blueprintjs/select/lib/css/blueprint-select.css";
 import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
-// const Root = ({ store }) => (
-//   <Provider store={store}>
-//     <Router>
-//       <Route path="/" component={App} />
-//     </Router>
-//   </Provider>
-// )
 
-const Loading = props => {
-  if (props.error) {
-    return <div>Error!</div>;
-  } else {
-    return <div></div>;
-  }
-};
 const LoadableDashboard = Loadable({
   loader: () => import('./Dashboard' /* webpackChunkName: "dashboard" */),
-  loading: Loading,
+  loading: EmptyLoading,
 });
 
 
 
-class App extends Component {
-  render() {
-    return (
-      // <React.StrictMode>
-      <CookiesProvider>
-        <Router>
-          <div className={Classes.UI_TEXT}>
-            <AppNavbar />
-            <Route exact path="/" component={CiCommitList} />
-            <Route path="/branch/(.*)" component={CiCommitList} />
-            <Route path="/committer/(.*)" component={CiCommitList} />
-            <Route path="/commit/(.*)" component={CiCommitResults} />
-            <Route path="/projects" component={ProjectsList} />
-            <Route path="/dashboard" component={LoadableDashboard} />
-          </div>
-        </Router>
-      </CookiesProvider>
-      // </React.StrictMode>
-    );
-  }
-}
+const App = ({ store }) => (
+  <Provider store={store}>
+    <CookiesProvider>
+      <Router>
+        <div className={Classes.UI_TEXT}>
+          <AppNavbar />
+          <Route path="/projects" component={ProjectsList} />
+
+          <Route exact path="/" component={CiCommitList} />
+          <Route path="/branch/(.*)" component={CiCommitList} />
+          <Route path="/committer/(.*)" component={CiCommitList} />
+
+          <Route path="/commit/(.*)" component={CiCommitResults} />
+
+          <Route path="/dashboard" component={LoadableDashboard} />
+        </div>
+      </Router>
+    </CookiesProvider>
+  </Provider>
+)
+
 
 // store:
 //   projects: qatools_config, metrics...
@@ -81,8 +67,10 @@ class App extends Component {
 // const mapStateToProps = state => {
 //   return {
 //     selected_project: state.selected_project,
-//     projects: state.projects,
+//     projects: state.selected_projects,
 
+//     commits: state.commits,
+//     new_batch: 
 //     getVisibleTodos(state.todos, state.visibilityFilter)
 //   }
 // }
@@ -94,10 +82,10 @@ class App extends Component {
 //     }
 //   }
 // }
-// const ConnectedApp = connect(
-//   mapStateToProps,
-//   mapDispatchToProps
-// )(App)
-// export default Root;
 
+
+
+// localstroage
+// https://github.com/elgerlambert/redux-localstorage/tree/1.0-breaking-changes
+// http://yeoman.io/codelab/local-storage.html
 export default App;

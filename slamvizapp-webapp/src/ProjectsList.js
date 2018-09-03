@@ -1,7 +1,8 @@
-import React from "react";
+import React, { Component } from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
-import { get } from "axios";
+
 import Moment from "react-moment";
 
 import { Container } from "./common/containers";
@@ -15,7 +16,10 @@ import {
 } from "@blueprintjs/core";
 import { Icon, Tooltip } from "@blueprintjs/core";
 
-class LastCommitAt extends React.Component {
+import { fetchProjects } from './actions'
+
+
+class LastCommitAt extends Component {
   render() {
     const { project, className } = this.props;
     let date = project.latest_commit_datetime;
@@ -35,37 +39,19 @@ class LastCommitAt extends React.Component {
   }
 }
 
-class ProjectsList extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      error: null,
-      is_loaded: false,
-      projects: {}
-    };
-  }
-
+class ProjectsList extends Component {
   componentDidMount() {
-    get("/api/v1/projects")
-      .then(response => {
-        this.setState({
-          projects: response.data,
-          is_loaded: true
-        });
-      })
-      .catch(error => {
-        this.setState({ is_loaded: true });
-        console.error(error);
-      });
+    this.props.dispatch(fetchProjects())
   }
 
   render() {
-    const { error, is_loaded, projects } = this.state;
+    const { error, is_loaded, projects } = this.props;
+    console.log(this.props)
     let warnings;
     if (error)
       warnings = <NonIdealState description={error.message} icon="error" />;
     if (!is_loaded)
-      warnings = <NonIdealState title="Loading" icon={<Spinner />} />;
+      warnings = <NonIdealState title="Loading projects..." icon={<Spinner />} />;
 
     let list_projects = (
       <div>
@@ -119,4 +105,13 @@ class ProjectsList extends React.Component {
   }
 }
 
-export default withRouter(ProjectsList);
+
+const mapStateToProps = state => {
+  return {
+    error: state.projects.error || null,
+    is_loaded: state.projects.is_loaded || false,
+    projects: state.projects.data,
+  }
+}
+
+export default withRouter(connect(mapStateToProps)(ProjectsList) );

@@ -32,6 +32,8 @@
     "react-router-dom": "^4.3.1",
     "react-scripts": "1.1.5",
     "redux": "^4.0.0",
+    "redux-devtools-extension": "^2.13.5",
+    "redux-thunk": "^2.3.0",
     "styled-components": "^3.3.3",
     "three": "^0.95.0"
   },
@@ -39,6 +41,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
+    "analyse": "source-map-explorer --html build/static/js/main.*.js build/static/js/main.*.js.map > ~/test.html",
     "eject": "react-scripts eject"
   }
 }
