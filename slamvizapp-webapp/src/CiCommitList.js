@@ -1,7 +1,7 @@
 import React, { Fragment } from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
-import { get } from "axios";
 import styled from "styled-components";
 
 import Moment from "react-moment";
@@ -22,9 +22,12 @@ import { CommitRow } from "./CommitRow";
 import { Container, Section } from "./common/containers";
 import { groupBy, calendarStrings } from "./common/utils";
 import { CommitsEvolution } from "./CommitsEvolution";
-import { metrics } from "./metrics";
+
+import { fetchCommits } from './actions'
+import { default_project, default_reference_data, default_date_range } from "./defaults"
 
 import { Toaster } from "@blueprintjs/core";
+
 export const toaster = Toaster.create();
 
 const HeaderDay = styled.li`
@@ -62,96 +65,27 @@ const CommitRows = ({ commits, project, className }) => (
 );
 
 class CiCommitList extends React.Component {
-  constructor(props) {
-    super(props);
-    const params = new URLSearchParams(this.props.location.search);
-    const project = params.get("project") || "dvs/psp_swip";
-    let aggregation_metrics = {};
-    metrics[project].main_metrics.forEach(
-      m =>
-        (aggregation_metrics[m] =
-          metrics[project].available_metrics[m].threshold)
-    );
-    this.state = {
-      project,
-      date_range: [new Date(moment().subtract(3, "d")), new Date()],
-      error: null,
-      isLoaded: false,
-      commits: [],
-      aggregation_metrics
-    };
-  }
 
   componentWillReceiveProps(nextProps) {
-    if (
-      this.props.location.pathname !== nextProps.location.pathname ||
-      this.props.location.search !== nextProps.location.search
-    ) {
+    let changed = (this.props.project            !== nextProps.project             ||
+                   this.props.reference          !== nextProps.reference           ||      
+                   this.props.aggregated_metrics!== nextProps.aggregated_metrics   ||
+                   this.props.date_range         !== nextProps.date_range           )
+    if (!nextProps.is_loading && changed) {
       this.getData(nextProps);
     }
   }
 
   getData(props) {
-    const { match } = props;
-    const { project, date_range } = this.state;
-
-    var url;
-    if (match.path.startsWith("/committer")) {
-      url = `/api/v1/commits?committer=${match.params[0]}`;
-    } else {
-      var branch = "";
-      if (match.params[0]) branch = `/${match.params[0]}`;
-      url = `/api/v1/commits${branch}`;
-    }
-    document.title = match.params[0] || project;
-
-    get(url, {
-      params: {
-        project,
-        from: date_range[0],
-        to: date_range[1],
-        metrics: JSON.stringify(this.state.aggregation_metrics)
-      }
-    })
-      .then(response => {
-        let commits = response.data;
-        this.setState({
-          isLoaded: true,
-          commits
-        });
-        if (commits.length > 0)
-          this.setState({
-            date_range: [
-              new Date(commits[commits.length - 1].authored_datetime),
-              new Date(commits[0].authored_datetime)
-            ]
-          });
-      })
-      .catch(error => {
-        this.setState({
-          isLoaded: true,
-          error
-        });
-        if (error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          console.log(error.response.data);
-          console.log(error.response.status);
-          console.log(error.response.headers);
-        } else if (error.request) {
-          // The request was made but no response was received
-          // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-          // http.ClientRequest in node.js
-          console.log(error.request);
-        } else {
-          // Something happened in setting up the request that triggered an Error
-          console.log("Error", error.message);
-        }
-        console.log(error.config);
-      });
+    const { is_loading, dispatch, project, date_range, aggregated_metrics, reference } = this.props;
+    if (!is_loading)
+      dispatch(fetchCommits(project, reference, date_range, aggregated_metrics))
   }
 
   componentDidMount() {
+    const { match, project } = this.props;
+    document.title = match.params[0] || project;    
+
     this.getData(this.props);
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
   }
@@ -161,7 +95,7 @@ class CiCommitList extends React.Component {
   }
 
   render() {
-    const { error, isLoaded, project, commits, date_range } = this.state;
+    const { error, is_loaded, is_loading, project, project_data, commits, date_range } = this.props;
     const { match } = this.props;
     let is_committer = match.path.startsWith("/committer");
     let is_branch = match.path.startsWith("/branch");
@@ -170,6 +104,7 @@ class CiCommitList extends React.Component {
 
     // commits.filter( c => c.batches.default!==undefined )
     // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
+    let reference_branch = project_data.information.qatools_config.project.reference_branch;
     var information = (
       <Fragment>
         <Section>
@@ -209,14 +144,14 @@ class CiCommitList extends React.Component {
         <Section>
           <h3 className={Classes.HEADING}>
             Reports for{" "}
-            <Link to={`/branch/origin/develop?project=${project}`}>
+            <Link to={`/branch/origin/${reference_branch}?project=${project}`}>
               <Button icon="git-branch">develop</Button>
             </Link>
           </h3>
           <p>
-            <a href={`http://gitlab-srv/${project}/commits/develop`}>
+            <a href={`http://gitlab-srv/${project}/commits/${reference_branch}`}>
               <img
-                src={`http://gitlab-srv/${project}/badges/develop/build.svg`}
+                src={`http://gitlab-srv/${project}/badges/${reference_branch}/build.svg`}
                 alt="build status"
               />
             </a>
@@ -224,13 +159,13 @@ class CiCommitList extends React.Component {
               {" "}
               <img
                 alt="coverage report"
-                src={`http://gitlab-srv/${project}/badges/develop/coverage.svg`}
+                src={`http://gitlab-srv/${project}/badges/${reference_branch}/coverage.svg`}
               />
             </a>
-            {<a href={`/s/${project}/branches/develop/doxygen/index.html`}>
+            {<a href={`/s/${project}/branches/${reference_branch}/doxygen/index.html`}>
               {" "}
               <img
-                src="https://img.shields.io/badge/docs-develop-blue.svg"
+                src={`https://img.shields.io/badge/docs-${reference_branch}-blue.svg`}
                 alt="documentation"
               />
             </a>}
@@ -252,7 +187,7 @@ class CiCommitList extends React.Component {
     );
     let qa_report = (
       <Section>
-        {isLoaded &&
+        {is_loaded &&
           !error && (
             <div>
               <h3 className={Classes.HEADING}>Evolution for {link_to_tag}</h3>
@@ -266,14 +201,14 @@ class CiCommitList extends React.Component {
                 parseDate={str => new Date(Date.parse(str))}
                 onChange={new_date_range => {
                   this.setState(
-                    { date_range: new_date_range, isLoaded: false },
+                    { date_range: new_date_range, is_loaded: false },
                     c => this.getData(this.props)
                   );
                 }}
                 shortcuts
               />
               <CommitsEvolution
-                project={this.state.project}
+                project={project}
                 commits={commits}
                 style={{ marginTop: "20px" }}
               />
@@ -288,9 +223,9 @@ class CiCommitList extends React.Component {
       warning_messages = (
         <NonIdealState description={error.message} icon="error" />
       );
-    if (!isLoaded)
+    if (is_loading)
       warning_messages = <NonIdealState title="Loading" icon={<Spinner />} />;
-    if (commits.length === 0 && isLoaded)
+    if (commits.length === 0 && is_loaded)
       warning_messages = (
         <NonIdealState
           title="No results"
@@ -326,10 +261,50 @@ class CiCommitList extends React.Component {
         {information}
         {qa_report}
         {warning_messages}
-        {isLoaded && list}
+        {is_loaded && list}
       </Container>
     );
   }
 }
 
-export default withRouter(CiCommitList);
+
+
+
+const mapStateToProps = (state, ownProps) => {
+    const params = new URLSearchParams(ownProps.location.search);
+    let project = params.get("project") || state.selected.project;
+    let project_data = state.projects.data[project] || default_project
+
+    let project_metrics = project_data.information.qatools_metrics
+    let aggregated_metrics = {};
+    project_metrics.main_metrics.forEach(
+      m =>
+        (aggregated_metrics[m] = project_metrics.available_metrics[m].threshold)
+    );
+
+    var reference;
+    if (ownProps.match.path.startsWith("/committer")) {
+      reference = {committer: ownProps.match.params[0]}
+    } else {
+      reference = {name: ownProps.match.params[0]}
+    }
+    // console.log(reference)
+    let reference_key = reference.name || reference.committer || 'default'
+    let reference_data = project_data.commits[reference_key] || default_reference_data;
+    // console.log(reference_key)
+    // console.log(project_data.commits)
+    // console.log(project_data)
+    return {
+      project,
+      project_data,
+      reference,
+      aggregated_metrics,
+      date_range: reference_data.date_range || default_date_range,
+      commits: reference_data.ids.map(id=>state.commits[id]),
+      error: reference_data.error,
+      is_loaded: reference_data.is_loaded,
+      is_loading: reference_data.is_loading,
+    };
+}
+
+export default withRouter(connect(mapStateToProps)(CiCommitList) );

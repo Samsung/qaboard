@@ -4,42 +4,61 @@ import {
 	UPDATE_PROJECTS,
 	FETCH_BRANCHES,
 	UPDATE_BRANCHES,
+	FETCH_COMMITS,
+	UPDATE_COMMITS,
 } from '../actions'
+import { default_project_id, default_project, default_qatools_config } from "../defaults"
+// legacy
+import * as slam_metrics from "../slam/metrics";
+import * as tof_metrics from "../tof/metrics";
 
 
 // default with the URL parameters?
+// check we listen to url changes...
 // each container will call shouldFetch...
 
 
-const default_store = {}
 
-function selected(state = {}, action) {
-	// project
+
+
+function selected(state = {project: default_project_id}, action) {
 	// commit
 	// batch { new, reference, ... }
 	return state
 }
 
 
-
-function update_project(state = {
-	branches: [],
-	branches_loading: false,
-}, data) {
+function update_project(state=default_project, data) {
 	return {
 		...state,
 		...data,
+		// for some reason we get null for projects that are not configured with qatools
+		information: {...state.information, ...data.information},
 	}	
 }
 
+const reference_key = reference => (reference.name || reference.committer || 'default');
+
 function projects(state = {
-	data: {},
+	data: {
+		[default_project_id]: default_project,
+		// legacy
+		'dvs/psp_swip': {...default_project, information: {qatools_config: default_qatools_config, qatools_metrics: slam_metrics}},
+		'tof/swip_tof': {...default_project, information: {qatools_config: default_qatools_config, qatools_metrics: tof_metrics}},
+	},
 	is_loaded: false,
+	is_loading: false,
 	error: null
 }, action) {
+	var new_state;
   switch (action.type) {
+	  case FETCH_PROJECTS:
+	  	return {
+	  		...state,
+	  		is_loaded: false,
+	  	}
     case UPDATE_PROJECTS:
-    	let new_state = {
+    	new_state = {
     		...state,
     		is_loaded: true,
     		error: null,
@@ -48,6 +67,60 @@ function projects(state = {
       	new_state.data[project] = update_project(state.data[project], data)
       })
       return new_state;
+
+    case UPDATE_COMMITS:
+    	// console.log(state)
+      var reference = reference_key(action.reference);
+      let previous_ids = state.data[action.project].commits[reference] && state.data[action.project].commits[reference].ids;
+    	new_state = {
+    		...state,
+    		data: {
+    			...state.data,
+	  			[action.project]: {
+	  				...state.data[action.project],
+	  				commits: {
+	  					...state.data[action.project].commits,
+	  					[reference]: {
+	  						...state.data[action.project].commits[reference],
+	  						is_loaded: true,
+				    		is_loading: false,
+	  						// in case of error, we keep the previous list of commits
+	  						ids: action.commits.map(c => c.id) || previous_ids,
+	  						error: action.error,
+	  					}
+	  				}
+	  			}
+    		}
+    	}
+      if (action.commits.length > 0)
+      	new_state.data[action.project].commits[reference].date_range =  [
+          new Date(action.commits[action.commits.length - 1].authored_datetime),
+          new Date(action.commits[0].authored_datetime)
+        ]
+      return new_state;
+	  case FETCH_COMMITS:
+      reference = reference_key(action.reference);
+	  	return {
+	  		...state,
+	  		data: {
+	  			...state.data,
+	  			[action.project]: {
+	  				...state.data[action.project],
+  					commits: {
+  						[reference]: {
+  							...state.data[action.project].commits[reference],
+  							ids: (state.data[action.project].commits[reference] && state.data[action.project].commits[reference].ids) || [],
+				    		is_loading: true,
+  							error: null,
+  							date_range: action.date_range,
+  						}
+  					}
+	  			}
+	  		}
+	  	}
+
+
+
     case UPDATE_BRANCHES:
     	return {
     		...state,
@@ -55,7 +128,7 @@ function projects(state = {
     			...state.data,
 	  			[action.project]: update_project(state.data[action.project], {
 	    			branches: action.branches,
-	  				branch_loading: false,
+	  				branches_loading: false,
 	  			}),	
     		}
     	}
@@ -64,21 +137,28 @@ function projects(state = {
 	  		...state,
 	  		data: {
 	  			...state.data,
-	  			[action.project]: update_project(state.data[action.project], {branch_loading: true}),	
+	  			[action.project]: update_project(state.data[action.project], {branches_loading: true}),	
 	  		}
 	  	}
-	  case FETCH_PROJECTS:
-	  	return {
-	  		...state,
-	  		is_loaded: false,
-	  	}
+
     default:
       return state
 	}
 }
 
+
 function commits(state = {}, action) {
-	return state
+	var new_state;
+  switch (action.type) {
+    case UPDATE_COMMITS:
+    	new_state = {...state}
+    	action.commits.forEach( c => {
+    		new_state[c.id] = c
+    	})
+    	return new_state;
+   	default:
+			return state
+	}
 }
 
 const rootReducer = combineReducers({
@@ -86,4 +166,8 @@ const rootReducer = combineReducers({
 	projects,
 	commits,
 })
+
+
+const default_store = {}
+
 export { rootReducer, default_store };

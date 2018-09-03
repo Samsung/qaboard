@@ -15,7 +15,7 @@ import {
   InputGroup
 } from "@blueprintjs/core";
 
-import { fetchBranches } from './actions'
+import { fetchBranches, fetchProjects } from './actions'
 
 
 const renderBranch = (item, { handleClick, modifiers, query }) => {
@@ -45,6 +45,7 @@ class AppNavbar extends Component {
 
   componentDidMount() {
     this.maybeFetchBranches({force_fetch: true});
+    this.props.dispatch(fetchProjects())
   }
 
 
@@ -120,7 +121,7 @@ const mapStateToProps = (state, ownProps) => {
   // console.log(is_home)
   if (is_home) return {is_home: true}
 
-  let project = params.get("project") || state.selected_project;
+  let project = params.get("project") || state.selected.project;
   // console.log(project)
   if (!state.projects.data[project]) {
     return {

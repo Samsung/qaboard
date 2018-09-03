@@ -47,41 +47,16 @@ const App = ({ store }) => (
 )
 
 
-// store:
-//   projects: qatools_config, metrics...
-//   
-
-
-// ​const getVisibleTodos = (todos, filter) => {
-//   switch (filter) {
-//     case 'SHOW_COMPLETED':
-//       return todos.filter(t => t.completed)
-//     case 'SHOW_ACTIVE':
-//       return todos.filter(t => !t.completed)
-//     case 'SHOW_ALL':
-//     default:
-//       return todos
-//   }
-// }
-// ​
-// const mapStateToProps = state => {
-//   return {
-//     selected_project: state.selected_project,
-//     projects: state.selected_projects,
-
-//     commits: state.commits,
-//     new_batch: 
-//     getVisibleTodos(state.todos, state.visibilityFilter)
-//   }
-// }
-
-// const mapDispatchToProps = dispatch => {
-//   return {
-//     updatedSelectedProject: id => {
-//       dispatch(toggleTodo(id))
-//     }
-//   }
-// }
+// add to the project list
+// select project
+// select commit
+// select batch
+// init with url
+// filter and shown metrics?
+// reselect memoiation for filtered_batch and tuning aggregation
+// localstorage..
+// output_type refactor.. <ImageViewer<ImageView>er> <HexViewer>
+// dont redner all tabs, split editor?
 
 
 
