@@ -16,7 +16,7 @@ import {
 } from "@blueprintjs/core";
 import { Icon, Tooltip } from "@blueprintjs/core";
 
-import { fetchProjects } from './actions'
+import { fetchProjects } from './actions/projects'
 
 
 class LastCommitAt extends Component {

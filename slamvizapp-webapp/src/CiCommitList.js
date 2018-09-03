@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import styled from "styled-components";
 
 import Moment from "react-moment";
-import moment from "moment";
 import "moment-timezone";
 
 import {
@@ -23,8 +22,8 @@ import { Container, Section } from "./common/containers";
 import { groupBy, calendarStrings } from "./common/utils";
 import { CommitsEvolution } from "./CommitsEvolution";
 
-import { fetchCommits } from './actions'
-import { default_project, default_reference_data, default_date_range } from "./defaults"
+import { fetchCommits } from './actions/projects'
+import { default_project, default_commits_data, default_date_range } from "./defaults"
 
 import { Toaster } from "@blueprintjs/core";
 
@@ -67,24 +66,24 @@ const CommitRows = ({ commits, project, className }) => (
 class CiCommitList extends React.Component {
 
   componentWillReceiveProps(nextProps) {
-    let changed = (this.props.project            !== nextProps.project             ||
-                   this.props.reference          !== nextProps.reference           ||      
-                   this.props.aggregated_metrics!== nextProps.aggregated_metrics   ||
-                   this.props.date_range         !== nextProps.date_range           )
+    let changed = (this.props.project            !== nextProps.project            ||
+                   this.props.branch             !== nextProps.branch             ||      
+                   this.props.aggregated_metrics !== nextProps.aggregated_metrics ||
+                   this.props.date_range         !== nextProps.date_range          )
     if (!nextProps.is_loading && changed) {
       this.getData(nextProps);
     }
   }
 
   getData(props) {
-    const { is_loading, dispatch, project, date_range, aggregated_metrics, reference } = this.props;
+    const { is_loading, dispatch, project, date_range, aggregated_metrics, branch } = this.props;
     if (!is_loading)
-      dispatch(fetchCommits(project, reference, date_range, aggregated_metrics))
+      dispatch(fetchCommits(project, branch, date_range, aggregated_metrics))
   }
 
   componentDidMount() {
-    const { match, project } = this.props;
-    document.title = match.params[0] || project;    
+    const { project, branch } = this.props;
+    document.title = branch.name || branch.committer || project;    
 
     this.getData(this.props);
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
@@ -95,11 +94,11 @@ class CiCommitList extends React.Component {
   }
 
   render() {
-    const { error, is_loaded, is_loading, project, project_data, commits, date_range } = this.props;
-    const { match } = this.props;
-    let is_committer = match.path.startsWith("/committer");
-    let is_branch = match.path.startsWith("/branch");
-    if (is_branch || is_committer) var tag = this.props.match.params[0];
+    const { error, is_loaded, is_loading, project, project_data, branch, commits, date_range } = this.props;
+    let is_committer = !!branch.committer;
+    let is_branch = !!branch.name;
+    if (is_branch || is_committer)
+      var tag = branch.name || branch.committer;
     else tag = "all latest commits";
 
     // commits.filter( c => c.batches.default!==undefined )
@@ -282,28 +281,25 @@ const mapStateToProps = (state, ownProps) => {
         (aggregated_metrics[m] = project_metrics.available_metrics[m].threshold)
     );
 
-    var reference;
+    var branch;
     if (ownProps.match.path.startsWith("/committer")) {
-      reference = {committer: ownProps.match.params[0]}
+      branch = {committer: ownProps.match.params[0]}
     } else {
-      reference = {name: ownProps.match.params[0]}
+      branch = {name: ownProps.match.params[0]}
     }
-    // console.log(reference)
-    let reference_key = reference.name || reference.committer || 'default'
-    let reference_data = project_data.commits[reference_key] || default_reference_data;
-    // console.log(reference_key)
-    // console.log(project_data.commits)
-    // console.log(project_data)
+    let branch_key = branch.name || branch.committer || 'default'
+    let commits_data = project_data.commits[branch_key] || default_commits_data;
+
     return {
       project,
       project_data,
-      reference,
+      branch,
       aggregated_metrics,
-      date_range: reference_data.date_range || default_date_range,
-      commits: reference_data.ids.map(id=>state.commits[id]),
-      error: reference_data.error,
-      is_loaded: reference_data.is_loaded,
-      is_loading: reference_data.is_loading,
+      date_range: commits_data.date_range || default_date_range,
+      commits: commits_data.ids.map(id=>state.commits[id]),
+      error: commits_data.error,
+      is_loaded: commits_data.is_loaded,
+      is_loading: commits_data.is_loading,
     };
 }
 

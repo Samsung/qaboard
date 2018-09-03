@@ -1,0 +1,14 @@
+export const FETCH_PROJECTS = 'FETCH_PROJECTS'
+export const UPDATE_PROJECTS = 'UPDATE_PROJECTS'
+
+export const FETCH_BRANCHES = 'FETCH_BRANCHES'
+export const UPDATE_BRANCHES = 'UPDATE_BRANCHES'
+
+export const FETCH_COMMITS = 'FETCH_COMMITS'
+export const UPDATE_COMMITS = 'UPDATE_COMMITS'
+
+// export const FETCH_COMMIT = 'FETCH_COMMIT'
+// export const UPDATE_COMMIT = 'UPDATE_COMMIT'
+
+
+// export const UPDATE_OUTPUT_FILTER = 'UPDATE_OUTPUT_FILTER' // label=new, 

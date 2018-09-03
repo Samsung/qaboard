@@ -24,7 +24,6 @@ const LoadableDashboard = Loadable({
 });
 
 
-
 const App = ({ store }) => (
   <Provider store={store}>
     <CookiesProvider>
@@ -47,20 +46,4 @@ const App = ({ store }) => (
 )
 
 
-// add to the project list
-// select project
-// select commit
-// select batch
-// init with url
-// filter and shown metrics?
-// reselect memoiation for filtered_batch and tuning aggregation
-// localstorage..
-// output_type refactor.. <ImageViewer<ImageView>er> <HexViewer>
-// dont redner all tabs, split editor?
-
-
-
-// localstroage
-// https://github.com/elgerlambert/redux-localstorage/tree/1.0-breaking-changes
-// http://yeoman.io/codelab/local-storage.html
 export default App;

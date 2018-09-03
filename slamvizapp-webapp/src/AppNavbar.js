@@ -15,7 +15,7 @@ import {
   InputGroup
 } from "@blueprintjs/core";
 
-import { fetchBranches, fetchProjects } from './actions'
+import { fetchBranches, fetchProjects } from './actions/projects'
 
 
 const renderBranch = (item, { handleClick, modifiers, query }) => {
