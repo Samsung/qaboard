@@ -1,6 +1,6 @@
 // https://redux.js.org/recipes/configuringyourstore
 import { createStore, applyMiddleware } from 'redux'
-// import { compose } from 'redux'
+import { compose } from 'redux'
 import thunkMiddleware from 'redux-thunk'
 import { composeWithDevTools } from 'redux-devtools-extension'
 
@@ -11,20 +11,12 @@ import { rootReducer } from './reducers'
 
 
 export default function configureStore(preloadedState) {
-  if (process.env.NODE_ENV !== 'production') {
-    const middlewares = [loggerMiddleware, thunkMiddleware]
-  } else {
-    const middlewares = [thunkMiddleware]
-  }
-  const middlewareEnhancer = applyMiddleware(...middlewares)
-  if (process.env.NODE_ENV !== 'production') {
-    const enhancers = [middlewareEnhancer, monitorReducersEnhancer]
-    const composedEnhancers = compose(...enhancers)
-  } else {
-    enhancers = [middlewareEnhancer]
-    composedEnhancers = composeWithDevTools(...enhancers)
-  }
+  let is_prod = process.env.NODE_ENV !== 'production'
 
+  let middlewares = is_prod ? [thunkMiddleware] : [loggerMiddleware, thunkMiddleware]
+  let middlewareEnhancer = applyMiddleware(...middlewares)
+  let enhancers = is_prod ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
+  let composedEnhancers = is_prod ? compose(...enhancers) : composeWithDevTools(...enhancers)
   const store = createStore(rootReducer, preloadedState, composedEnhancers)
 
   if (process.env.NODE_ENV !== 'production' && module.hot) {
