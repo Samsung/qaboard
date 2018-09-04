@@ -2,6 +2,9 @@ import React from "react";
 import { FormGroup, HTMLSelect } from "@blueprintjs/core";
 
 const SelectBatches = ({ commit, prefix, onChange, selected }) => {
+  if (!commit || !commit.batches)
+    return <span/>
+
   const batches_to_options = batches =>
     Object.keys(batches).map(label => {
       let outputs = Object.values(batches[label].outputs);
@@ -20,6 +23,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
         </option>
       );
     });
+
   let has_tuning_batches = Object.values(commit.batches).length > 1;
   return (
     <FormGroup

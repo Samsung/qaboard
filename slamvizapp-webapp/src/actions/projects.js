@@ -13,9 +13,10 @@ import {
 } from "./constants";
 
 
-export const updateProjects = (projects) => ({
+export const updateProjects = (projects, error) => ({
   type: UPDATE_PROJECTS,
   projects,
+  error: error,
 })
 
 export const fetchProjects = () => {
@@ -26,7 +27,7 @@ export const fetchProjects = () => {
         dispatch(updateProjects(response.data))
       })
       .catch(error => {
-        console.error(error);
+        dispatch(updateProjects(null, error))
       });
   }
 }
@@ -43,15 +44,16 @@ export const fetchBranches = project => {
         dispatch(updateBranches(project, response.data))
       })
       .catch(error => {
-        console.error(error);
+        dispatch(updateBranches(project, null, error))
       });
   }
 }
 
-export const updateBranches = (project, branches) => ({
+export const updateBranches = (project, branches, error) => ({
   type: UPDATE_BRANCHES,
   project,
   branches,
+  error: error,
 })
 
 
@@ -78,7 +80,7 @@ export const fetchCommits = (project, reference, date_range, aggregation_metrics
         dispatch({type: UPDATE_COMMITS, project, reference, commits: response.data})
       })
       .catch(error => {
-        dispatch({type: UPDATE_COMMITS, project, reference, error})
+        dispatch({type: UPDATE_COMMITS, project, reference, error, commits: []})
       });
   }  
 }

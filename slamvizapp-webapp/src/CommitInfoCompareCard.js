@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Fragment } from "react";
 import { Link } from "react-router-dom";
 import {
   Classes,
@@ -14,6 +14,13 @@ import { Avatar } from "./common/Avatar";
 import { DoneAtTag } from "./common/DoneAtTag";
 import { shortId } from "./common/utils";
 
+const empty_batch = {
+  failed_outputs: 0,
+  valid_outputs: 0,
+  pending_outputs: 0
+};
+
+
 const CommitInfoCompareCard = ({
   project,
   new_commit,
@@ -22,17 +29,13 @@ const CommitInfoCompareCard = ({
   ref_label,
   onConfirmReference
 }) => {
-  const empty_batch = {
-    failed_outputs: 0,
-    valid_outputs: 0,
-    pending_outputs: 0
-  };
-  let new_ci_batch = new_commit.batches[new_label] || empty_batch;
-  let ref_ci_batch = ref_commit.batches[ref_label] || empty_batch;
-  const id_new = shortId(project, new_commit.id);
-  const id_ref = shortId(project, ref_commit.id);
+  if(!new_commit || !ref_commit)
+    return <span/>
+
+  let new_ci_batch = (new_commit.batches && new_commit.batches[new_label]) || empty_batch;
+  let ref_ci_batch = (ref_commit.batches && ref_commit.batches[ref_label]) || empty_batch;
   return (
-    <Card elevation={4}>
+    <Card elevation={4} style={{minHeight: '193px'}}>
       <div
         style={{
           display: "flex",
@@ -40,6 +43,7 @@ const CommitInfoCompareCard = ({
           alignItems: "center"
         }}
       >
+        {new_commit && new_commit.id &&
         <div style={{ flex: "1 1 auto", minWidth: "450px" }}>
           <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "baseline" }}>
             <Avatar
@@ -47,7 +51,7 @@ const CommitInfoCompareCard = ({
               alt={new_commit.committer_name}
               src={new_commit.committer_avatar_url}
             />
-            {id_new}
+            {shortId(project, new_commit.id)}
           </h1>
           <Link to={`/branch/${new_commit.branch}`}>
             <Button icon="git-branch">{new_commit.branch}</Button>
@@ -96,7 +100,10 @@ const CommitInfoCompareCard = ({
           >
             {new_commit.message}
           </p>
-        </div>
+        </div>}
+
+        {ref_commit && ref_commit.id &&
+        <Fragment>
         <div style={{ minWidth: "40px", textAlign: "center" }}>
           <Icon icon="small-cross" />
         </div>
@@ -116,7 +123,7 @@ const CommitInfoCompareCard = ({
               }}
               onConfirm={onConfirmReference}
               intent={Intent.PRIMARY}
-              defaultValue={id_ref}
+              defaultValue={shortId(project, ref_commit.id)}
             />
             <Avatar
               href={`/committer/${ref_commit.committer_name}`}
@@ -171,7 +178,7 @@ const CommitInfoCompareCard = ({
           >
             {ref_commit.message}
           </p>
-        </div>
+        </div></Fragment>}
       </div>
     </Card>
   );

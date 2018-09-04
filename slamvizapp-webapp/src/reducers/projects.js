@@ -70,7 +70,7 @@ export function projects(state = {
                 is_loaded: true,
                 is_loading: false,
                 // in case of error, we keep the previous list of commits
-                ids: action.commits.map(c => c.id) || previous_ids,
+                ids: (action.commits && action.commits.map(c => c.id)) || previous_ids,
                 error: action.error,
               }
             }

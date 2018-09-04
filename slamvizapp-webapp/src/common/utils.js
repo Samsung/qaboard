@@ -139,6 +139,21 @@ const filter_batch = (batch, filter_values) => {
     if (positive_filter_tokens.length === 0 || found)
       batch_filtered.outputs[id] = output;
   });
+  // we update the summary metrics
+  batch_filtered.valid_outputs = 0
+  batch_filtered.running_outputs = 0
+  batch_filtered.pending_outputs = 0
+  batch_filtered.failed_outputs = 0
+  Object.values(batch_filtered.outputs).forEach(o => {
+    if (o.is_running)
+      batch_filtered.running_outputs += 1
+    else if (o.is_pending && !o.is_running)
+      batch_filtered.pending_outputs += 1
+    else if (o.is_failed)
+      batch_filtered.failed_outputs += 1
+    else
+      batch_filtered.valid_outputs += 1
+  })
   return batch_filtered;
 };
 

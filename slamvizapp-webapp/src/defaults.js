@@ -39,3 +39,14 @@ export const default_project = {
 	branches: [],
 	branches_loading: false,	
 }
+
+// FIXME: get the /commit/X part...
+let commit_from_pathname = window.location.pathname.includes('/commit') && window.location.pathname.slice(8)
+export const default_new_commit_id = params.get("commit_folder") || commit_from_pathname || null;
+export const default_ref_commit_id = params.get("reference") || params.get("commit_ref_folder") || null;
+
+export const default_batch_new = params.get("batch_new") || "default";
+export const default_batch_ref = params.get("batch_reference") || "default";
+
+export const default_filter_batch_new = params.get("filter") || "";
+export const default_filter_batch_ref = params.get("filter_ref") || "";

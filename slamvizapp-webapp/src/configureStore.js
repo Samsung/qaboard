@@ -11,12 +11,19 @@ import { rootReducer } from './reducers'
 
 
 export default function configureStore(preloadedState) {
-  const middlewares = [loggerMiddleware, thunkMiddleware]
+  if (process.env.NODE_ENV !== 'production') {
+    const middlewares = [loggerMiddleware, thunkMiddleware]
+  } else {
+    const middlewares = [thunkMiddleware]
+  }
   const middlewareEnhancer = applyMiddleware(...middlewares)
-
-  const enhancers = [middlewareEnhancer, monitorReducersEnhancer]
-  // const composedEnhancers = compose(...enhancers)
-  const composedEnhancers = composeWithDevTools(...enhancers)
+  if (process.env.NODE_ENV !== 'production') {
+    const enhancers = [middlewareEnhancer, monitorReducersEnhancer]
+    const composedEnhancers = compose(...enhancers)
+  } else {
+    enhancers = [middlewareEnhancer]
+    composedEnhancers = composeWithDevTools(...enhancers)
+  }
 
   const store = createStore(rootReducer, preloadedState, composedEnhancers)
 
@@ -25,10 +32,6 @@ export default function configureStore(preloadedState) {
       store.replaceReducer(rootReducer)
     )
   }
-
-	// if (process.env === 'development') {
-	//   middlewares.push(secretMiddleware)
-	// }
 
   return store
 }
