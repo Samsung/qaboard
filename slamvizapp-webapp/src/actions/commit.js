@@ -54,7 +54,7 @@ export const fetchCommit = (project, id, used_for) => {
       })
       .catch(error => {
       	if (error.response)
-        	dispatch(updateCommit(project, null, error.response.data.error))
+        	dispatch(updateCommit(project, {id}, error.response.data.error))
       });
   }
 }

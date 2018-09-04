@@ -90,6 +90,7 @@ class AddRecordingsForm extends Component {
   };
 
   onSubmit = e => {
+    e.preventDefault();
     const { selected_group, overwrite, groups } = this.state;
     this.setState({ submitted: true });
     OurToaster.show({
@@ -121,7 +122,6 @@ class AddRecordingsForm extends Component {
           intent: Intent.DANGER
         });
       });
-    e.preventDefault();
   };
 
   recomputeMetrics = e => {

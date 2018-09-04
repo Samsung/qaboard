@@ -409,6 +409,7 @@ class CiCommitResults extends Component {
                       panel={
                         <AddRecordingsForm
                           project={project}
+                          project_data={this.props.project_data}
                           commit={new_commit}
                         />
                       }
