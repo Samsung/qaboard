@@ -46,7 +46,6 @@ class ProjectsList extends Component {
 
   render() {
     const { error, is_loaded, projects } = this.props;
-    console.log(this.props)
     let warnings;
     if (error)
       warnings = <NonIdealState description={error.message} icon="error" />;

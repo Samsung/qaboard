@@ -663,8 +663,8 @@ const mapStateToProps = (state, ownProps) => {
       ref_batch.outputs = {}
     // filtering
     // FIXME: add missing null/undefined checks
-    let filter_batch_new = (state.selected[project] && state.selected[project].filter) || default_selected_.filter_batch_new
-    let filter_batch_ref = (state.selected[project] && state.selected[project].filter_ref) || default_selected_.filter_batch_ref
+    let filter_batch_new = (state.selected[project] && state.selected[project].filter_batch_new) || default_selected_.filter_batch_new
+    let filter_batch_ref = (state.selected[project] && state.selected[project].filter_batch_ref) || default_selected_.filter_batch_ref
     let new_batch_filtered = filter_batch(new_batch, filter_batch_new);
     let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
     // summary results
