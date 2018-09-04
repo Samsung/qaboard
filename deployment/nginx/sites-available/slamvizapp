@@ -3,6 +3,13 @@ server {
   listen [::]:5000;
   server_name qa, dvs, gpu09-dt, planet31, planet33, localhost;
 
+  # CSS and Javascript
+  location ~* \.(?:css|js)$ {
+    expires 1y;
+    access_log off;
+    add_header Cache-Control "public";
+  }
+
   location / {
     root /slamvizapp/slamvizapp-webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
@@ -70,6 +77,13 @@ server {
   ssl_certificate /etc/nginx/ssl/dvs2/dvs-cert.pem;
 
 
+
+  # CSS and Javascript
+  location ~* \.(?:css|js)$ {
+    expires 1y;
+    access_log off;
+    add_header Cache-Control "public";
+  }
 
   location / {
     root /slamvizapp/slamvizapp-webapp/build;
