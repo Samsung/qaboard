@@ -8,6 +8,8 @@ server {
     expires 1y;
     access_log off;
     add_header Cache-Control "public";
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
   }
 
   location / {
@@ -83,6 +85,8 @@ server {
     expires 1y;
     access_log off;
     add_header Cache-Control "public";
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
   }
 
   location / {
