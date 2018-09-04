@@ -8,10 +8,10 @@ import configureStore from './configureStore';
 import { default_store } from './reducers';
 
 
-const store = configureStore(default_store)
+const { store, persistor } = configureStore(default_store)
 
 const renderApp = () => render(
-	<App store={store}/>,
+	<App store={store} persistor={persistor} />,
 	document.getElementById("root")
 );
 

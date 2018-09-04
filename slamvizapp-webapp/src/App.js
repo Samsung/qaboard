@@ -2,6 +2,7 @@ import React from "react";
 import { Provider } from 'react-redux'
 import { BrowserRouter as Router, Route } from "react-router-dom";
 import { CookiesProvider } from "react-cookie";
+import { PersistGate } from 'redux-persist/integration/react'
 
 import Loadable from 'react-loadable';
 import AppNavbar from "./AppNavbar";
@@ -24,25 +25,22 @@ const LoadableDashboard = Loadable({
 });
 
 
-const App = ({ store }) => (
-  <Provider store={store}>
+const App = ({ store, persistor }) => (
+  <Provider store={store}><PersistGate loading={null} persistor={persistor}>
     <CookiesProvider>
       <Router>
         <div className={Classes.UI_TEXT}>
           <AppNavbar />
-          <Route path="/projects" component={ProjectsList} />
-
-          <Route exact path="/" component={CiCommitList} />
-          <Route path="/branch/(.*)" component={CiCommitList} />
-          <Route path="/committer/(.*)" component={CiCommitList} />
-
-          <Route path="/commit/(.*)" component={CiCommitResults} />
-
-          <Route path="/dashboard" component={LoadableDashboard} />
+            <Route path="/projects" component={ProjectsList} />
+            <Route exact path="/" component={CiCommitList} />
+            <Route path="/branch/(.*)" component={CiCommitList} />
+            <Route path="/committer/(.*)" component={CiCommitList} />
+            <Route path="/commit/(.*)" component={CiCommitResults} />
+            <Route path="/dashboard" component={LoadableDashboard} />
         </div>
       </Router>
     </CookiesProvider>
-  </Provider>
+  </PersistGate></Provider>
 )
 
 
