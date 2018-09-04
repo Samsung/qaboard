@@ -43,12 +43,7 @@ import { SelectBatches } from "./tuning/SelectBatches";
 
 import {
   default_project,
-  default_ref_commit_id,
-  default_new_commit_id,
-  default_batch_new,
-  default_batch_ref,
-  default_filter_batch_new,
-  default_filter_batch_ref
+  default_selected
 } from "./defaults"
 
 
@@ -422,7 +417,7 @@ class CiCommitResults extends Component {
                       id="tuning"
                       title="Extra Runs & Tuning"
                       panel={
-                        <TuningForm project={project} commit={new_commit} />
+                        <TuningForm project={project} project_data={this.props.project_data} commit={new_commit} />
                       }
                     />
                   </Tabs>
@@ -649,17 +644,17 @@ const mapStateToProps = (state, ownProps) => {
     // metrics
     let project_metrics = project_data.information.qatools_metrics
     let available_metrics = project_metrics.available_metrics
-
     // selected commit
     // FIXME: remove except state/default?
-    let new_commit_id = params.get("commit_folder") || ownProps.match.params[0] || state.selected[project].new_commit_id || default_new_commit_id
-    let ref_commit_id = params.get("reference") || params.get("commit_ref_folder") || state.selected[project].ref_commit_id || default_ref_commit_id
+    let default_selected_ = default_selected();
+    let new_commit_id = (state.selected[project] && state.selected[project].new_commit_id) || default_selected_.new_commit_id
+    let ref_commit_id = (state.selected[project] && state.selected[project].ref_commit_id) || default_selected_.ref_commit_id
 
     let new_commit = state.commits[new_commit_id];
     let ref_commit = ref_commit_id && state.commits[ref_commit_id];
     // selected batch
-    let selected_batch_new = params.get("batch_new") || state.selected[project].batch_new || default_batch_new
-    let selected_batch_ref = params.get("batch_reference") || state.selected[project].batch_ref || default_batch_ref
+    let selected_batch_new = (state.selected[project] && state.selected[project].batch_new) || default_selected_.batch_new
+    let selected_batch_ref = (state.selected[project] && state.selected[project].batch_ref) || default_selected_.batch_ref
     let new_batch = (!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch;
     let ref_batch = (!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch;
     if (!new_batch.outputs)
@@ -668,8 +663,8 @@ const mapStateToProps = (state, ownProps) => {
       ref_batch.outputs = {}
     // filtering
     // FIXME: add missing null/undefined checks
-    let filter_batch_new = params.get("filter") || state.selected[project].filter || default_filter_batch_new
-    let filter_batch_ref = params.get("filter_ref") || state.selected[project].filter_ref || default_filter_batch_ref
+    let filter_batch_new = (state.selected[project] && state.selected[project].filter) || default_selected_.filter_batch_new
+    let filter_batch_ref = (state.selected[project] && state.selected[project].filter_ref) || default_selected_.filter_batch_ref
     let new_batch_filtered = filter_batch(new_batch, filter_batch_new);
     let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
     // summary results
@@ -697,8 +692,8 @@ const mapStateToProps = (state, ownProps) => {
       // FIXME: memoize with reselect
       // getFilteredBatch() ...
 
-      sort_by: state.selected[project].sort_by || project_metrics.default_metric || "input_test_path",
-      order: state.selected[project].order || -1,
+      sort_by: (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
+      order: (state.selected[project] && state.selected[project].order) || -1,
     }
 }
 

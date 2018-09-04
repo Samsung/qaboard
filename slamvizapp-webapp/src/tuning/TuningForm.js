@@ -100,7 +100,7 @@ class AddRecordingsForm extends Component {
       project: this.props.project,
       batch_label: "default",
       platform: "lsf",
-      configuration: "serial-stereo",
+      configuration: this.props.project_data.information.qatools_config.inputs.configuration || "serial-stereo",
       tuning_search: {},
       selected_group,
       groups,
@@ -272,8 +272,7 @@ class TuningForm extends Component {
   constructor(props) {
     super(props);
     const { cookies } = this.props;
-    let legacy_bad_config = cookies.get("configuration") === "stereo-serial";
-    let configuration = legacy_bad_config ?  "serial-stereo" : ( cookies.get("configuration") || "serial-stereo" )
+    let configuration = this.props.project_data.information.qatools_config.inputs.configuration;
     this.state = {
       submitted: false,
       experiment_name: cookies.get("experiment_name") || "",
@@ -518,7 +517,7 @@ class TuningForm extends Component {
           selectedValue={platform}
         >
           <Radio labelElement={<span>Linux</span>} value="lsf" large />
-          <Radio
+          {(this.props.project==='dvs/psp_swip' || this.props.project==='tof/swip_tof' ) && <Radio
             label={
               <span>
                 Android<br />
@@ -532,7 +531,7 @@ class TuningForm extends Component {
             }
             value="s8"
             large
-          />
+          />}
         </RadioGroup>
 
         {platform === "s8" && (
@@ -557,7 +556,7 @@ class TuningForm extends Component {
 
         <FormGroup
           label="You can choose any of the available configuration"
-          helperText="&quot;serial-stereo&quot; is the SLAM default, &quot;stereo&quot; the TOF default. Configurations are saved as $configuration.json, e.g. &quot;mono_mode&quot;."
+          helperText="Configurations are saved as $configuration.json/yaml"
           labelFor="input-configuration"
           labelInfo="(required)"
         >
@@ -566,7 +565,7 @@ class TuningForm extends Component {
             className={Classes.INPUT}
             style={{ width: "300px" }}
             value={configuration}
-            placeholder="serial-stereo"
+            placeholder={this.props.project_data.information.qatools_config.inputs.configuration}
             onChange={this.updateConfiguration}
             type="text"
             dir="auto"

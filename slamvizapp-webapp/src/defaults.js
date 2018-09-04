@@ -26,6 +26,9 @@ export const default_qatools_config = {
 	project: {
 		reference_branch: 'develop',
 	},
+	inputs: {
+		configuration: 'base'
+	}
 } 
 
 export const default_project = {
@@ -41,12 +44,17 @@ export const default_project = {
 }
 
 // FIXME: get the /commit/X part...
-let commit_from_pathname = window.location.pathname.includes('/commit') && window.location.pathname.slice(8)
-export const default_new_commit_id = params.get("commit_folder") || commit_from_pathname || null;
-export const default_ref_commit_id = params.get("reference") || params.get("commit_ref_folder") || null;
 
-export const default_batch_new = params.get("batch_new") || "default";
-export const default_batch_ref = params.get("batch_reference") || "default";
+export const default_selected = () => {
+	let commit_from_pathname = window.location.pathname.includes('/commit') && window.location.pathname.slice(8)
+	return {
+		new_commit_id: params.get("commit_folder") || commit_from_pathname || null,
+		ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
 
-export const default_filter_batch_new = params.get("filter") || "";
-export const default_filter_batch_ref = params.get("filter_ref") || "";
+		batch_new: params.get("batch_new") || "default",
+		batch_ref: params.get("batch_reference") || "default",
+
+		filter_batch_new: params.get("filter") || "",
+		filter_batch_ref: params.get("filter_ref") || "",
+	}
+}

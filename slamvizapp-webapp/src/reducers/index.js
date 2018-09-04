@@ -8,26 +8,15 @@ import {
 import { projects } from './projects'
 import {
 	default_project_id,
-	default_ref_commit_id,
-	default_new_commit_id,
-	default_batch_new,
-	default_batch_ref,
-	default_filter_batch_new,
-	default_filter_batch_ref
+	default_selected,
 } from "../defaults"
-
 
 
 function selected(state = {
 	// we select a default project based on the current URL
 	project: default_project_id,
 	[default_project_id] : {
-		new_commit_id: default_new_commit_id,
-		ref_commit_id: default_ref_commit_id,
-		batches_new: default_batch_new,
-		batches_ref: default_batch_ref,
-		filter_new: default_filter_batch_new,
-		filter_ref: default_filter_batch_ref,		
+		...default_selected(),
 	}	
 }, action) {
   switch (action.type) {
@@ -36,6 +25,7 @@ function selected(state = {
 				...state,
     		project: action.project,
 				[action.project]: {
+					...default_selected(),
 					...state[action.project],
 					...action.selected,
 				},

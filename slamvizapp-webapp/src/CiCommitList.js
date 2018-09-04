@@ -2,6 +2,7 @@ import React, { Fragment } from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
+import qs from "qs";
 import styled from "styled-components";
 
 import Moment from "react-moment";
@@ -83,6 +84,14 @@ class CiCommitList extends React.Component {
   componentDidMount() {
     const { project, branch } = this.props;
     document.title = branch.name || branch.committer || project;    
+    let query = qs.parse(this.props.location.search.substring(1));
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: qs.stringify({
+        ...query,
+        project,
+      })
+    });
 
     this.getData(this.props);
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
