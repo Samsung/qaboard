@@ -331,7 +331,7 @@ class CiCommitResults extends Component {
                             ? "You can filter outputs by all their properties. "
                             : ""
                         }${
-                          Object.keys(new_batch_filtered.outputs).length
+                          Object.keys(new_batch_filtered.outputs || []).length
                         } selected`}
                       >
                         <InputGroup
@@ -362,7 +362,7 @@ class CiCommitResults extends Component {
                       <FormGroup
                         labelFor="filter-ref-input"
                         helperText={`${
-                          Object.keys(ref_batch_filtered.outputs).length
+                          Object.keys(ref_batch_filtered.outputs || []).length
                         } selected.`}
                       >
                         <InputGroup
@@ -662,6 +662,10 @@ const mapStateToProps = (state, ownProps) => {
     let selected_batch_ref = params.get("batch_reference") || state.selected[project].batch_ref || default_batch_ref
     let new_batch = (!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch;
     let ref_batch = (!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch;
+    if (!new_batch.outputs)
+      new_batch.outputs = {}
+    if (!ref_batch.outputs)
+      ref_batch.outputs = {}
     // filtering
     // FIXME: add missing null/undefined checks
     let filter_batch_new = params.get("filter") || state.selected[project].filter || default_filter_batch_new

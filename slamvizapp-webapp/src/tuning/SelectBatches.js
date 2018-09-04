@@ -7,7 +7,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
 
   const batches_to_options = batches =>
     Object.keys(batches).map(label => {
-      let outputs = Object.values(batches[label].outputs);
+      let outputs = Object.values(batches[label].outputs || {});
       let title = label === "default" ? "CI results" : label;
       let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed)
         .length;
