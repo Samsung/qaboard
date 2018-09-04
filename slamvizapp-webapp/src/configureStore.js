@@ -11,7 +11,7 @@ import { rootReducer } from './reducers'
 
 
 export default function configureStore(preloadedState) {
-  let is_prod = process.env.NODE_ENV !== 'production'
+  let is_prod = process.env.NODE_ENV === 'production'
 
   let middlewares = is_prod ? [thunkMiddleware] : [loggerMiddleware, thunkMiddleware]
   let middlewareEnhancer = applyMiddleware(...middlewares)
