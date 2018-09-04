@@ -31,6 +31,12 @@ class Batch(Base):
                          cascade="all, delete-orphan"
                         )
 
+  # experiments = relationship("Experiment",
+  #                            lazy='joined',
+  #                            back_populates="batch",
+  #                            cascade="all, delete-orphan"
+  #                            )
+
   @property
   def output_folder(self):
     return Path('output') if self.label == 'default' else Path('tuning') / slugify(self.label)
@@ -58,7 +64,9 @@ class Batch(Base):
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
-      outputs = {'outputs': {}}
+      # we don't even supply a key, to make it easier for the JS code to
+      # just update the batch properties when it get the full version  
+      outputs = {}
     return {
         'id': self.id,
         'commit_id': self.ci_commit_id,
