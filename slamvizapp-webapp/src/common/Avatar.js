@@ -40,7 +40,7 @@ class CommitAvatar extends React.PureComponent {
       href={!!commit && commit.committer_name && commit.committer_name && `/committer/${commit.committer_name}`}
       alt={!!commit && commit.committer_name}
       src={!!commit && commit.committer_avatar_url}
-      className={(!!commit &&!!commit.committer_name) ? Classes.SKELETON : null}    
+      className={(!commit || !commit.committer_name) ? Classes.SKELETON : null}    
     />
 
   }

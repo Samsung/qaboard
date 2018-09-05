@@ -71,6 +71,7 @@ class CommitParents extends React.PureComponent {
       return <Fragment/>
 
     return <Fragment>
+      {git_commit_icon}{" "}
       {commit.parents.length > 1 ? "parents" : "parent"}:{" "}
       {commit.parents.map( p => 
         <Button key={p} onClick={e => { onClick(p);}}>{shortId(project, p)}</Button>
@@ -83,13 +84,27 @@ class CommitParents extends React.PureComponent {
 class CommitMessage extends React.PureComponent {
   render() {
     const { commit, style } = this.props;
-
     if (!commit)
       return <p className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`}>This is a placeholder for the commit message. Yep.</p>
-
     return <p style={{ marginTop: "10px", ...style}} className={Classes.MONOSPACE_TEXT} >
       {commit.message}
     </p>
+  }
+}
+
+
+class CommitBranchButton extends React.PureComponent {
+  render() {
+    const { commit, align_right } = this.props;
+    const outer_style_align_right = { display: "flex", justifyContent: "flex-end" }
+    const inner_style_align_right = { flex: "1 1 auto", margin: "auto" }
+    return <span style={align_right && outer_style_align_right}>
+      <Link to={commit ? `/branch/${commit.branch}` : '#'}>
+        <Button className={!!commit ? null : Classes.SKELETON} style={align_right &&  inner_style_align_right} icon="git-branch" >
+          {!!commit ? commit.branch : 'master'}
+        </Button>
+      </Link>
+    </span>
   }
 }
 
@@ -118,10 +133,7 @@ class CommitInfoCompareCard extends React.PureComponent {
               <CommitAvatar commit={new_commit} />
               {(!!new_commit && !!new_commit.id) ? shortId(project, new_commit.id) : null}
             </h1>
-            <Link to={!!new_commit && `/branch/${new_commit.branch}`}>
-              <Button icon="git-branch">{!!new_commit && new_commit.branch}</Button>
-            </Link>
-            {git_commit_icon}{" "}
+            <CommitBranchButton commit={new_commit}/>
             <CommitParents commit={new_commit} project={project} onClick={onConfirmReference} />
             <br />
             <div style={{ marginTop: "10px" }}>
@@ -150,13 +162,7 @@ class CommitInfoCompareCard extends React.PureComponent {
               {(!ref_commit || !ref_commit.id) && <span className={Classes.SKELETON}>XXXXXXXX</span>}
               <CommitAvatar commit={ref_commit} />
             </h1>
-            <span style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Link to={!!ref_commit && `/branch/${ref_commit.branch}`}>
-                <Button style={{ flex: "1 1 auto", margin: "auto" }} icon="git-branch" >
-                  {!!ref_commit && ref_commit.branch}
-                </Button>
-              </Link>
-            </span>
+            <CommitBranchButton commit={new_commit} align_right/>
             <div style={{ marginTop: "10px", textAlign: "right" }}>
               <DoneAtTag commit={ref_commit} />{" "}
               <BatchTags batch={ref_ci_batch}/>
