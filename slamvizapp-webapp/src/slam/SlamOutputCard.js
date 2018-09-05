@@ -228,8 +228,6 @@ class SlamOutputCard extends Component {
       show_debug,
       show_3d,
       show_videos,
-      warning,
-      no_header
     } = this.props;
     const { is_loaded, plot_revision } = this.state;
     const layout = this.props.layout || {};
@@ -255,37 +253,36 @@ class SlamOutputCard extends Component {
     }
 
     return <Fragment>
-            {show_videos && (
-              <SyncedVideos
-                src_new={`${output_new.output_dir_url}/results.mp4`}
-                src_ref={
-                  output_ref && `${output_ref.output_dir_url}/results.mp4`
-                }
-                poster_new={`${output_new.output_dir_url}/poster.jpg`}
-                poster_ref={
-                  output_ref && `${output_ref.output_dir_url}/poster.jpg`
-                }
-              />
-            )}
-            {show_3d &&
-              is_loaded && (
-                <Plot
-                  data={traces_3d}
-                  layout={layout3d}
-                  revision={plot_revision}
-                />
-              )}
-            {is_loaded && (
-              <Plot
-                data={traces}
-                layout={{
-                  ...make_layout(show_debug, this.state.traces_debug.new),
-                  ...layout
-                }}
-                revision={plot_revision}
-              />
-            )}
-    );
+      {show_videos &&
+        <SyncedVideos
+          src_new={`${output_new.output_dir_url}/results.mp4`}
+          src_ref={
+            output_ref && `${output_ref.output_dir_url}/results.mp4`
+          }
+          poster_new={`${output_new.output_dir_url}/poster.jpg`}
+          poster_ref={
+            output_ref && `${output_ref.output_dir_url}/poster.jpg`
+          }
+        />
+      }
+      {show_3d && is_loaded && 
+        <Plot
+          data={traces_3d}
+          layout={layout3d}
+          revision={plot_revision}
+        />
+      }
+      {is_loaded &&
+        <Plot
+          data={traces}
+          layout={{
+            ...make_layout(show_debug, this.state.traces_debug.new),
+            ...layout
+          }}
+          revision={plot_revision}
+        />
+      }
+    </Fragment>
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { Component, Fragment } from "react";
-// import Loadable from 'react-loadable';
+import Loadable from 'react-loadable';
 
 import styled from "styled-components";
 import { Card, Icon, Intent, Tag, Classes, Popover } from "@blueprintjs/core";
@@ -13,27 +13,27 @@ const SlimCard = styled(Card)`
 `;
 
 
-// const Loading = props => {
-//   if (props.error) {
-//     return <div>Error!</div>;
-//   } else {
-//     return <div></div>;
-//   }
-// };
+const Loading = props => {
+  if (props.error) {
+    return <div>Error!</div>;
+  } else {
+    return <div></div>;
+  }
+};
 
 
-// const LoadableSlamOutputCard = Loadable({
-//   loader: () => import('./slam/SlamOutputCard' /* webpackChunkName: "slam" */),
-//   loading: Loading,
-// });
-// const LoadableTofOutputCard = Loadable({
-//   loader: () => import('./tof/TofOutputCard' /* webpackChunkName: "tof" */),
-//   loading: Loading,
-// });
-// const LoadableCisOutputCard = Loadable({
-//   loader: () => import('./cis/CisOutputCard' /* webpackChunkName: "cis" */),
-//   loading: Loading,
-// });
+const LoadableSlamOutputCard = Loadable({
+  loader: () => import('./slam/SlamOutputCard' /* webpackChunkName: "slam" */),
+  loading: Loading,
+});
+const LoadableTofOutputCard = Loadable({
+  loader: () => import('./tof/TofOutputCard' /* webpackChunkName: "tof" */),
+  loading: Loading,
+});
+const LoadableCisOutputCard = Loadable({
+  loader: () => import('./cis/CisOutputCard' /* webpackChunkName: "cis" */),
+  loading: Loading,
+});
 
 
 class MetricsTags extends React.PureComponent {
@@ -62,7 +62,7 @@ class OutputHeader extends React.PureComponent {
       fontSize: ".7rem",
       fontWeight: 500,
       lineHeight: 1.6,
-      letterSpacing: "-1px"
+      letterSpacing: "-1px",
     }
     return <h5 className={Classes.HEADING} style={style} >
       {output.test_input_path} <OutputTags output={output} warning={warning}/>
@@ -70,7 +70,6 @@ class OutputHeader extends React.PureComponent {
 
   }
 }
-
 
 
 class OutputTags extends React.PureComponent {
@@ -103,51 +102,46 @@ class OutputTags extends React.PureComponent {
   }
 }
 
+
+class OutputViewer extends React.Component {
+  render() {
+    const { type, ...props } = this.props;
+    console.log(type)
+    if (type === "6dof/txt")
+      return  <LoadableSlamOutputCard {...props}/>
+    else if (type === "pointcloud/txt")
+      return <LoadableTofOutputCard {...props} />
+    else if (type === "cis/image")
+      return <LoadableCisOutputCard {...props} />
+    else return <span>Unsupported output type</span>;
+  }
+}
+
+
+
 class OutputCard extends Component {
   render() {
     const { main_metrics, available_metrics } = this.props.project_data.information.qatools_metrics;
     const { output_new, output_ref, warning } = this.props;
+    const { project_data } = this.props;
+    console.log(project_data);
     // layout should be plotly-like. You could also pass down a props named style.
     const { no_header, layout, ...props } = this.props;
     if (!output_new || output_new.is_failed || output_new.is_pending)
       return <Fragment/>
 
-    let metrics_new = output_new.metrics ? output_new.metrics : {};
-    let metrics_ref = output_ref && output_ref.metrics ? output_ref.metrics : {};
-
-    let viewers = <span/> 
-    // output_types =  
-    // if (output_new.output_type === "slam/6dof")
-    //   return (
-    //     <LoadableSlamOutputCard
-    //       output_new={output_new}
-    //       output_ref={output_ref}
-    //       warning={warning}
-    //       layout={layout}
-    //       {...props}
-    //     />
-    //   );
-    // else if (output_new.output_type === "cis/image")
-    //   return (
-    //     <LoadableCisOutputCard
-    //       output_new={output_new}
-    //       output_ref={output_ref}
-    //       warning={warning}
-    //       layout={layout}
-    //       {...props}
-    //     />
-    //   );
-    // else if (output_new.output_type === "tof/depth")
-    //   return (
-    //     <LoadableTofOutputCard
-    //       output_new={output_new}
-    //       output_ref={output_ref}
-    //       warning={warning}
-    //       layout={layout}
-    //       {...props}
-    //     />
-    //   );
-    // else return <span>Unsupport output type</span>;
+    const descriptions = project_data.information.qatools_config.outputs.descriptions;
+    console.log(descriptions)
+    let views = Object.entries(descriptions).map( ([key, description]) => 
+      <OutputViewer
+        key={key}
+        output_new={output_new}
+        output_ref={output_ref}
+        {...description}
+        {...props}
+        layout={layout}
+      />
+    )
 
     let container_style = {
       flex: "0 0 auto",
@@ -161,10 +155,10 @@ class OutputCard extends Component {
           <MetricsTags
             selected_metrics={main_metrics}
             available_metrics={available_metrics}
-            metrics_new={metrics_new}
-            metrics_ref={metrics_ref}
+            metrics_new={output_new.metrics ? output_new.metrics : {}}
+            metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
           />        
-          {viewers}
+          {views}
       </SlimCard>
     </div>
   }

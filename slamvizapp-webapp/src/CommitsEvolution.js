@@ -485,7 +485,9 @@ class CommitsEvolutionPerMovie extends React.Component {
       metrics,
       available_metrics,
       relative,
-      details_on_hover
+      details_on_hover,
+      project,
+      project_data,
     } = this.props;
     const {
       revision,
@@ -557,6 +559,8 @@ class CommitsEvolutionPerMovie extends React.Component {
           />
           {details_on_hover && (
             <OutputCard
+              project={project}
+              project_data={project_data}
               output_new={hovered_output}
               output_ref={output_ref}
               warning={warning}
@@ -609,7 +613,7 @@ class CommitsEvolution extends Component {
   };
 
   render() {
-    const { project, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
+    const { project, project_data, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
@@ -700,6 +704,7 @@ class CommitsEvolution extends Component {
         {breakdown_per_test ? (
           <CommitsEvolutionPerMovie
             project={project}
+            project_data={project_data}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}

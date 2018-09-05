@@ -29,28 +29,67 @@ export const default_qatools_config = {
 	inputs: {
 		configuration: 'base',
 	},
+	outputs: {
+		descriptions: {},
+	}
 }
 
 // legacy
-export var slam_qatools_config = {...default_qatools_config};
-slam_qatools_config.inputs.configuration = 'serial-stereo'
-slam_qatools_config.inputs.database = {
-	linux: '/net/f2/algo_archive/DVS_SLAM_Database',
-	windows: '/net/f2/algo_archive/DVS_SLAM_Database',
+export const slam_qatools_config = {
+	project: {
+		reference_branch: 'develop',
+	},
+	inputs: {
+		configuration: 'serial-stereo',
+		database: {
+			linux: '/net/f2/algo_archive/DVS_SLAM_Database',
+			windows: '/net/f2/algo_archive/DVS_SLAM_Database',
+		},
+	},
+	outputs: {},
 }
 // legacy
-export var tof_qatools_config = {...default_qatools_config};
-tof_qatools_config.inputs.database = {
-	linux: '/net/f2/algo_archive/ToF_SW_Database',
-	windows: '/net/f2/algo_archive/ToF_SW_Database',
+export const tof_qatools_config = {
+	project: {
+		reference_branch: 'develop',
+	},
+	inputs: {
+		configuration: 'xrMode',
+		database: {
+			linux: '/net/f2/algo_archive/ToF_SW_Database',
+			windows: '/net/f2/algo_archive/ToF_SW_Database',
+		},
+	},
+	outputs: {},
 }
-tof_qatools_config.inputs.configuration = 'xrMode'
-
-
+slam_qatools_config.outputs.descriptions = {
+	"frames": {
+		type: 'movie/mp4',
+		filename: 'results.mp4',
+		poster: 'poster.jpg',
+		hidden: true,
+	},
+	"trajectories": {
+		type: '6dof/txt',
+		filename: 'camera_poses_debug.txt',
+		filename_debug: 'DebugExtensions.txt',
+	},
+}
+tof_qatools_config.outputs.descriptions = {
+	"pointcloud": {
+		type: 'pointcloud/txt',
+		filename: 'pointcloud.pcd',
+		// in folders, from keys in metrics.json ?
+		one_for_each: 'frames',
+	},
+}
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values
-	information: {qatools_metrics: default_metrics, qatools_config: default_qatools_config},
+	information: {
+		qatools_metrics: default_metrics,
+		qatools_config: default_qatools_config
+	},
 	// for each reference (branch, tag...), we keep a list of relevant commits
 	commits: {
 
