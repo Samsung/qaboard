@@ -75,3 +75,13 @@ export const default_selected = () => {
 		filter_batch_ref: params.get("filter_ref") || "",
 	}
 }
+
+
+
+export const empty_batch = {
+  valid_outputs: 0,
+  running_outputs: 0,
+  pending_outputs: 0,
+  failed_outputs: 0,
+  outputs: {},
+};

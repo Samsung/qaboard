@@ -42,7 +42,8 @@ import { SelectBatches } from "./tuning/SelectBatches";
 
 import {
   default_project,
-  default_selected
+  default_selected,
+  empty_batch,
 } from "./defaults"
 
 
@@ -83,7 +84,9 @@ class CiCommitResults extends Component {
     let search = query.toLowerCase();
     return searched.indexOf(search) >= 0;
   };
-  handleClear = () => this.setState({ selected_metrics: [] });
+
+
+  handleClear = () => this.props.dispatch(updateSelected(this.props.project, {selected_metrics: []}));
   handleTagRemove = (_tag, index) => {
     this.deselectMetric(index);
   };
@@ -94,17 +97,17 @@ class CiCommitResults extends Component {
     return this.getSelectedMetricIndex(metric) !== -1;
   }
   deselectMetric = index => {
-    this.setState({
-      selected_metrics: this.props.selected_metrics.filter(
-        (metric, i) => i !== index
-      )
-    });
+    this.props.dispatch(updateSelected(
+      this.props.project, {
+        selected_metrics: this.props.selected_metrics.filter((metric, i) => i !== index)
+      }))
   };
   handleMetricSelect = metric => {
     if (!this.isMetricSelected(metric)) {
-      this.setState({
-        selected_metrics: [...this.props.selected_metrics, metric]
-      });
+      this.props.dispatch(updateSelected(
+        this.props.project, {
+          selected_metrics: [...this.props.selected_metrics, metric] 
+        }))
     } else {
       this.deselectMetric(this.getSelectedMetricIndex(metric));
     }
@@ -615,14 +618,6 @@ class OutputList extends Component {
 
 
 
-const empty_batch = {
-  valid_outputs: 0,
-  running_outputs: 0,
-  pending_outputs: 0,
-  failed_outputs: 0,
-  outputs: {},
-};
-
 const mapStateToProps = (state, ownProps) => {
     const params = new URLSearchParams(ownProps.location.search);
     // project information
@@ -656,13 +651,15 @@ const mapStateToProps = (state, ownProps) => {
     let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
     // summary results
 
+    let selected_metrics = (state.selected[project] && state.selected[project].selected_metrics) || project_metrics.main_metrics.map(k => available_metrics[k])
+
     return {
       // project information
       project,
       project_data,
       // metrics
       available_metrics,
-      selected_metrics: project_metrics.main_metrics.map(k => available_metrics[k]),
+      selected_metrics,
       // selected commit
       new_commit_id,
       ref_commit_id,

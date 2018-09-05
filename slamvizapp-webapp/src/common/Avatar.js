@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
+import { Classes } from "@blueprintjs/core";
 
 const AvatarCell = styled.div`
   width: 46px;
@@ -20,15 +21,30 @@ const AvatarImg = styled.img`
   vertical-align: middle;
 `;
 
-//  <a href={href}>
-//  </a>
+class Avatar extends React.PureComponent {
+  render() {
+    const { src, href, alt } = this.props;
+    return <AvatarCell>
+      <Link to={href||'#'}>
+        <AvatarImg alt={alt} src={src} />
+      </Link>
+    </AvatarCell>
+  }
+}
 
-const Avatar = ({ src, href, alt }) => (
-  <AvatarCell>
-    <Link to={href}>
-      <AvatarImg alt={alt} src={src} />
-    </Link>
-  </AvatarCell>
-);
 
-export { Avatar };
+class CommitAvatar extends React.PureComponent {
+  render() {
+    const { commit } = this.props;
+    return <Avatar
+      href={!!commit && commit.committer_name && commit.committer_name && `/committer/${commit.committer_name}`}
+      alt={!!commit && commit.committer_name}
+      src={!!commit && commit.committer_avatar_url}
+      className={(!!commit &&!!commit.committer_name) ? Classes.SKELETON : null}    
+    />
+
+  }
+}
+
+
+export { Avatar, CommitAvatar };
