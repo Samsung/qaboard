@@ -1,4 +1,5 @@
 import React from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import { get } from "axios";
@@ -29,21 +30,19 @@ import { shortId, filter_batch } from "./common/utils";
 import { CommitsEvolution } from "./CommitsEvolution";
 import { MetricsSummary } from "./MetricsSummary";
 import { TableCompare, TableKpi } from "./Tables";
-import { metrics } from "./metrics";
+
+import { default_project, empty_batch } from "./defaults"
 
 class Dashboard extends React.Component {
   constructor(props) {
     super(props);
-    const params = new URLSearchParams(this.props.location.search);
-    const project = params.get("project") || "dvs/psp_swip";
-    const available_metrics = metrics[project].available_metrics;
+    const { available_metrics, dashboard_metrics, dashboard_evolution_metrics, default_metric, main_metrics } = this.props;
+
     let aggregation_metrics = {};
-    metrics[project].dashboard_metrics.forEach(m => {
+    dashboard_metrics.forEach(m => {
       aggregation_metrics[m] = available_metrics[m].threshold;
     });
     this.state = {
-      project,
-      branch: params.get("branch") || "develop",
       date_range: [new Date(moment().subtract(31, "d")), new Date()],
       // error: null,
       is_loaded: false,
@@ -51,20 +50,19 @@ class Dashboard extends React.Component {
 
       latest_commit: null,
       filter: 'small-scale',
-      sort_by: metrics[project].default_metric,
+      sort_by: default_metric,
       sort_order: -1,
       aggregation_metrics,
 
-      available_metrics,
-      evolution_metrics: metrics[project].dashboard_evolution_metrics || metrics[project].main_metrics,
-      selected_metrics: metrics[project].dashboard_metrics.map(
+      evolution_metrics: dashboard_evolution_metrics || main_metrics,
+      selected_metrics: dashboard_metrics.map(
         k => available_metrics[k]
       )
     };
   }
 
   componentDidMount() {
-    document.title = `Dashboard - ${this.state.project}`;
+    document.title = `Dashboard - ${this.props.project}`;
     this.getData(this.props);
   }
 
@@ -83,7 +81,7 @@ class Dashboard extends React.Component {
   getCommit(commit_id) {
     if (commit_id === null || commit_id === undefined) return;
     get(`/api/v1/commit/${commit_id}`, {
-      params: { project: this.state.project }
+      params: { project: this.props.project }
     }).then(response => {
       this.setState((previous_state, props) => ({
         commits: new Map([
@@ -95,8 +93,9 @@ class Dashboard extends React.Component {
   }
 
   getCommits(props) {
-    var url = `/api/v1/commits/origin/${this.state.branch}`;
-    const { project, date_range } = this.state;
+    const { project, branch } = this.props;
+    const { date_range, aggregation_metrics } = this.state;
+    var url = `/api/v1/commits/origin/${branch}`;
     get(url, {
       params: {
         project,
@@ -105,7 +104,7 @@ class Dashboard extends React.Component {
         with_outputs: true,
         from: date_range[0],
         to: date_range[1],
-        metrics: JSON.stringify(this.state.aggregation_metrics),
+        metrics: JSON.stringify(aggregation_metrics),
         commits: new Map()
       }
     }).then(response => {
@@ -209,13 +208,15 @@ class Dashboard extends React.Component {
   };
 
   render() {
+    const { project_data, project, available_metrics } = this.props;
     const {
       is_loaded,
       commits,
       latest_commit_android_id,
-      date_range
+      date_range,
+      selected_metrics,
+      evolution_metrics,
     } = this.state;
-    var { selected_metrics } = this.state;
 
     // console.log(commits.size)
     // console.log(is_loaded);
@@ -238,12 +239,6 @@ class Dashboard extends React.Component {
     let commit_android = commits.get(commit_android_id);
 
     let linux_batch = commit.batches.default;
-    let empty_batch = {
-      outputs: {},
-      failed_outputs: 0,
-      valid_outputs: 0,
-      pending_outputs: 0
-    };
     let android_batch =
       commit_android.batches["manual-android-rt"] ||
       commit_android.batches["ci-android-rt"] ||
@@ -264,7 +259,7 @@ class Dashboard extends React.Component {
       ) : null;
     let metricTableSelect = (
       <MultiSelect
-        items={Object.values(this.state.available_metrics)}
+        items={Object.values(available_metrics)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -286,9 +281,9 @@ class Dashboard extends React.Component {
     );
     let pretty_commit_android_id =
       commit_android.type === "git"
-        ? shortId(this.state.project, commit_android_id)
+        ? shortId(project, commit_android_id)
         : commit_android_id.replace("/f2/algo_archive/PTAM_Results/", "");
-    let pretty_commit_id = shortId(this.state.project, commit_id);
+    let pretty_commit_id = shortId(project, commit_id);
 
     return (
       <Container>
@@ -315,9 +310,10 @@ class Dashboard extends React.Component {
           <Card elevation={1} style={{ breakInside: "avoid" }}>
             <h2 className={Classes.HEADING}>Improvement over time</h2>
             <CommitsEvolution
-              project={this.state.project}
+              project={project}
+              project_data={project_data}              
               commits={selected_commits}
-              select_metrics={this.state.evolution_metrics}
+              select_metrics={evolution_metrics}
               per_output_granularity
               offer_breakdown_per_test={true}
               style={{ marginTop: "20px" }}
@@ -370,7 +366,7 @@ class Dashboard extends React.Component {
               </ul>
               <MetricsSummary
                 selected_metrics={selected_metrics}
-                project={this.state.project}
+                project={project}
                 new_batch={android_batch}
                 ref_batch={linux_batch}
                 xaxis_labels={["Android", "LSF"]}
@@ -393,7 +389,7 @@ class Dashboard extends React.Component {
             <MetricsSummary
               breakdown_by_tag
               selected_metrics={selected_metrics}
-              project={this.state.project}
+              project={project}
               new_batch={linux_batch}
               ref_batch={empty_batch}
             />
@@ -453,7 +449,7 @@ class Dashboard extends React.Component {
                   onChange={this.selectSortBy}
                 >
                   <option value="test_input_path">Sort by Name</option>
-                  {Object.values(this.state.available_metrics).map(m => (
+                  {Object.values(available_metrics).map(m => (
                     <option key={m.key} value={m.key}>
                       Sort by {m.label}
                     </option>
@@ -471,4 +467,29 @@ class Dashboard extends React.Component {
   }
 }
 
-export default withRouter(Dashboard);
+
+const mapStateToProps = (state, ownProps) => {
+    const params = new URLSearchParams(ownProps.location.search);
+    // project information
+    let project = params.get("project") || state.selected.project;
+    let project_data = state.projects.data[project] || default_project
+    // selection...
+    let branch = params.get("branch") || project_data.information.qatools_config.project.reference_branch;
+    // metrics
+    let project_metrics = project_data.information.qatools_metrics    
+    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
+    return {
+      // project information
+      project,
+      project_data,
+      branch,
+      // metrics
+      default_metric,
+      main_metrics,
+      available_metrics,
+      dashboard_metrics,
+      dashboard_evolution_metrics,
+    }
+}
+
+export default withRouter(connect(mapStateToProps)(Dashboard) );
