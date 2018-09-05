@@ -10,9 +10,9 @@ import {
   EditableText
 } from "@blueprintjs/core";
 
-import { CommitAvatar } from "./common/Avatar";
-import { DoneAtTag } from "./common/DoneAtTag";
-import { shortId } from "./common/utils";
+import { CommitAvatar } from "./components/Avatar";
+import { DoneAtTag } from "./components/DoneAtTag";
+import { shortId } from "./utils";
 
 import { empty_batch } from "./defaults"
 

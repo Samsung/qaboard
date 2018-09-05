@@ -2,8 +2,8 @@ import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
-import { Section } from "../common/containers";
-import { groupBy, input_test_color, median, average } from "../common/utils";
+import { Section } from "../components/layout";
+import { groupBy, input_test_color, median, average } from "../utils";
 import { metrics } from "../metrics";
 
 const config = {};

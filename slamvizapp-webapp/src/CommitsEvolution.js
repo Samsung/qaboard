@@ -5,7 +5,7 @@ import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from 
 
 import { metrics } from "./metrics";
 import { OutputCard } from "./OutputCard";
-import { input_test_color, matching_output, average, median } from "./common/utils";
+import { input_test_color, matching_output, average, median } from "./utils";
 
 import { CommitRow } from "./CommitRow";
 

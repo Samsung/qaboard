@@ -4,10 +4,10 @@ import { Link } from "react-router-dom";
 import styled from "styled-components";
 import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
 
-import { Avatar } from "./common/Avatar";
-import { DoneAtTag } from "./common/DoneAtTag";
+import { Avatar } from "./components/avatars";
+import { DoneAtTag } from "./components/DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { shortId } from "./common/utils";
+import { shortId } from "./utils";
 import { metrics } from "./metrics";
 
 const CommitDetails = styled.div`

@@ -2,8 +2,8 @@ import React, { Fragment } from "react";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
 import { HTMLTable, Classes, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
-import { Section } from "./common/containers";
-import { matching_output, sortOutputs } from "./common/utils";
+import { Section } from "./components/containers";
+import { matching_output, sortOutputs } from "./utils";
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",

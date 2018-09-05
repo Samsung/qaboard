@@ -19,8 +19,8 @@ import {
 import { DateRangeInput } from "@blueprintjs/datetime";
 
 import { CommitRow } from "./CommitRow";
-import { Container, Section } from "./common/containers";
-import { groupBy, calendarStrings } from "./common/utils";
+import { Container, Section } from "./components/layout";
+import { groupBy, calendarStrings } from "./utils";
 import { CommitsEvolution } from "./CommitsEvolution";
 
 import { fetchCommits } from './actions/projects'

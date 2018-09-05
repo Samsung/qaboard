@@ -23,9 +23,9 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
-import { Container, Section } from "./common/containers";
+import { Container, Section } from "./components/layout";
 import { noMetrics } from "./common/metricSelect";
-import { shortId, filter_batch } from "./common/utils";
+import { shortId, filter_batch } from "./utils";
 
 import { CommitsEvolution } from "./CommitsEvolution";
 import { MetricsSummary } from "./MetricsSummary";

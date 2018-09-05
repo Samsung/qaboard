@@ -16,7 +16,7 @@ import { MultiSelect } from "@blueprintjs/select";
 
 import { metrics } from "./metrics";
 import { noMetrics } from "./common/metricSelect";
-import { median, plotly_palette } from "./common/utils";
+import { median, plotly_palette } from "./utils";
 
 
 

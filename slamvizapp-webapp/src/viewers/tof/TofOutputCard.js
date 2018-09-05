@@ -5,8 +5,6 @@ import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
 import { Classes, Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
-import { MetricTag } from "../MetricsSummary";
-import { main_metrics, available_metrics } from "./metrics";
 
 const aspect_ratio = 4 / 3;
 const width = 640; // full screen would be window.innerWidth;
@@ -239,7 +237,7 @@ class TofOutputCard extends Component {
   };
 
   render() {
-    const { output_new, output_ref, warning, no_header } = this.props;
+    const { output_new, output_ref } = this.props;
     const { show_pointcloud, pointclouds, frames, selected_frame } = this.state;
     let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
 
@@ -254,30 +252,6 @@ class TofOutputCard extends Component {
         : empty_metrics;
 
     if (!metrics_new || !metrics_ref || !frames) return <span />;
-
-    let tags = (
-      <span>
-        {Object.entries(output_new.extra_parameters).map(([k, v]) => (
-          <Tag key={k} intent={Intent.PRIMARY} round minimal>
-            {k}:{v}
-          </Tag>
-        ))}
-        <a
-          title="Show output files"
-          style={{ paddingLeft: "5px" }}
-          target="_blank"
-          href={output_new.output_dir_url}
-        >
-          <Icon icon="download" />
-        </a>
-        {warning && (
-          <Popover interactionKind="hover">
-            <Icon intent={Intent.WARNING} icon="warning-sign" />
-            <span>{warning}</span>
-          </Popover>
-        )}
-      </span>
-    );
 
     let traces = [
       make_traces(frames['reference'], "reference"),
@@ -305,87 +279,51 @@ class TofOutputCard extends Component {
     const output_types = ["depth"]; //, 'intensity'];
 
     return (
-      <div style={{ flex: "0 0 auto", marginBottom: "20px", card_width }}>
-        <Card className="output-card">
-          {!no_header && (
-            <div>
-              <h5 className={Classes.HEADING}
-                style={{
-                  fontSize: ".7rem",
-                  fontWeight: 500,
-                  lineHeight: 1.6,
-                  letterSpacing: "-1px"
-                }}
-              >
-                {output_new.test_input_path}{" "}
-                <Tag minimal style={{ marginRight: "10px" }}>
-                  Frame {selected_frame}
-                </Tag>{" "}
-                {tags}
-              </h5>
-              {main_metrics
-                .filter(key => metrics_new[key] !== undefined)
-                .map(key => (
-                  <p key={key}>
-                    <MetricTag
-                      metrics_new={metrics_new}
-                      metrics_ref={metrics_ref}
-                      metric_info={available_metrics[key]}
-                    />
-                  </p>
-                ))}
-            </div>
-          )}
+      <Fragment>
+        <p className={Classes.TEXT_MUTED}>
+          {show_pointcloud ? (is_loaded
+                        ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
+                        : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
+        </p>
+        <div hidden={!show_pointcloud}
+          ref={threeRoot => {
+            this.threeRoot = threeRoot;
+          }}
+        >
+          {is_loaded && this.renderer.render(this.scene, this.camera)}
+        </div>
 
-          <p className={Classes.TEXT_MUTED}>
-            {show_pointcloud ? (is_loaded
-                          ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
-                          : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
-          </p>
-          <div hidden={!show_pointcloud}
-            ref={threeRoot => {
-              this.threeRoot = threeRoot;
-            }}
-          >
-            {is_loaded && this.renderer.render(this.scene, this.camera)}
-          </div>
+        <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
+      
+        <div>
+          <h4 className={Classes.HEADING}>
+            <a
+              href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
+              target="_blank"
+            >
+              Frame {selected_frame}
+            </a>
+          </h4>
+          {output_types.map(output_type => {
+            let img_new = `${
+              output_new.output_dir_url
+            }/Frame${selected_frame}/${output_type}.png`;
+            let img_ref = `${
+              output_ref.output_dir_url
+            }/Frame${selected_frame}/${output_type}.png`;
+            return (
+              <div key={output_type}>
+                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
+                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
+              </div>
+            );
+          })}
+        </div>
 
-          <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
-        
-          <div>
-            <h4 className={Classes.HEADING}>
-              <a
-                href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
-                target="_blank"
-              >
-                Frame {selected_frame}
-              </a>
-            </h4>
-            {output_types.map(output_type => {
-              let img_new = `${
-                output_new.output_dir_url
-              }/Frame${selected_frame}/${output_type}.png`;
-              let img_ref = `${
-                output_ref.output_dir_url
-              }/Frame${selected_frame}/${output_type}.png`;
-              return (
-                <div key={output_type}>
-                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
-                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
-                </div>
-              );
-            })}
-          </div>
-
-          {false && <p>{JSON.stringify(output_new)}</p>}
-        </Card>
-      </div>
+        {false && <p>{JSON.stringify(output_new)}</p>}
+      </Fragment>
     );
   }
 }
-
-// <div ref={(threeRoot) => { this.threeRoot = threeRoot }}>{renderer.domElement}</div>
-// <div ref={this.threeRoot}>{renderer.domElement}</div>
-// <div dangerouslySetInnerHTML={{__html: renderer.domElement}} ></div>
 
 export default TofOutputCard;

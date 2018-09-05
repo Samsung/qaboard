@@ -21,12 +21,12 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./common/metricSelect";
 
-import { Container, Section } from "./common/containers";
+import { Container, Section } from "./components/layout";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
 import { MetricsSummary } from "./MetricsSummary";
 import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
-import { matching_output, sortOutputs, filter_batch } from "./common/utils";
+import { matching_output, sortOutputs, filter_batch } from "./utils";
 import { TableCompare, TableKpi } from "./Tables";
 import { BatchLogs } from "./BatchLogs";
 import { CommitParameters } from "./Parameters";
@@ -35,7 +35,7 @@ import { fetchCommit } from "./actions/commit";
 import { updateSelected } from "./actions/selected";
 
 
-import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
+import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
 import { TuningExploration } from "./tuning/TuningExploration";
 import { SelectBatches } from "./tuning/SelectBatches";
 

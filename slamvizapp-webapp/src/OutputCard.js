@@ -23,15 +23,15 @@ const Loading = props => {
 
 
 const LoadableSlamOutputCard = Loadable({
-  loader: () => import('./slam/SlamOutputCard' /* webpackChunkName: "slam" */),
+  loader: () => import('./viewers/slam/SlamOutputCard' /* webpackChunkName: "slam" */),
   loading: Loading,
 });
 const LoadableTofOutputCard = Loadable({
-  loader: () => import('./tof/TofOutputCard' /* webpackChunkName: "tof" */),
+  loader: () => import('./viewers/tof/TofOutputCard' /* webpackChunkName: "tof" */),
   loading: Loading,
 });
 const LoadableCisOutputCard = Loadable({
-  loader: () => import('./cis/CisOutputCard' /* webpackChunkName: "cis" */),
+  loader: () => import('./viewers/cis/CisOutputCard' /* webpackChunkName: "cis" */),
   loading: Loading,
 });
 

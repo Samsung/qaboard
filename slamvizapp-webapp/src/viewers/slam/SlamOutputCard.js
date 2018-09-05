@@ -2,7 +2,7 @@ import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
-import { SyncedVideos } from "../common/SyncedVideos";
+import { SyncedVideos } from "../video";
 
 var colors = {
   groundtruth: "#4daf4a",
