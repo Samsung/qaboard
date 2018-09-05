@@ -17,7 +17,6 @@ import {
   Tab,
   Tabs,
   Intent,
-  ProgressBar,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./common/metricSelect";
@@ -243,19 +242,6 @@ class CiCommitResults extends Component {
                               [new_commit_id]: new_commit,
                               [ref_commit_id]: ref_commit
                             }} />;
-    if (!new_commit_id              ||
-        !new_commit_id              ||
-        new_commit === undefined    ||
-        ref_commit === undefined    ||
-        new_batch_filtered === null ||
-        ref_batch_filtered === null )
-      return (
-        <ProgressBar/>
-      );
-        // <Container>
-        //   <Section>{warning_messages}</Section>
-        // </Container>
-
 
     let clearButton =
       selected_metrics.length > 0 ? (
@@ -630,11 +616,11 @@ class OutputList extends Component {
 
 
 const empty_batch = {
-  outputs: {},
   valid_outputs: 0,
   running_outputs: 0,
   pending_outputs: 0,
   failed_outputs: 0,
+  outputs: {},
 };
 
 const mapStateToProps = (state, ownProps) => {
@@ -656,8 +642,8 @@ const mapStateToProps = (state, ownProps) => {
     // selected batch
     let selected_batch_new = (state.selected[project] && state.selected[project].batch_new) || default_selected_.batch_new
     let selected_batch_ref = (state.selected[project] && state.selected[project].batch_ref) || default_selected_.batch_ref
-    let new_batch = (!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch;
-    let ref_batch = (!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch;
+    let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
+    let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
     if (!new_batch.outputs)
       new_batch.outputs = {}
     if (!ref_batch.outputs)

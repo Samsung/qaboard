@@ -6,6 +6,7 @@ import {
   Classes,
   Tag,
   Button,
+  Icon,
   Intent,
   Callout,
   MenuItem,
@@ -528,7 +529,7 @@ class MetricsSummary extends Component {
                 <Fragment>
                   <MetricTile>
                     <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                      vs {metric_formatter.format(m.scale * ref_med)}
+                      <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter.format(m.scale * ref_med)}
                       {m.suffix}
                     </h3>
                     <h5 className={Classes.HEADING}>

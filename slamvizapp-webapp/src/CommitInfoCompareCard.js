@@ -34,6 +34,8 @@ const CommitInfoCompareCard = ({
 
   let new_ci_batch = (new_commit.batches && new_commit.batches[new_label]) || empty_batch;
   let ref_ci_batch = (ref_commit.batches && ref_commit.batches[ref_label]) || empty_batch;
+
+
   return (
     <Card elevation={4} style={{minHeight: '193px'}}>
       <div
@@ -56,7 +58,7 @@ const CommitInfoCompareCard = ({
           <Link to={`/branch/${new_commit.branch}`}>
             <Button icon="git-branch">{new_commit.branch}</Button>
           </Link>
-          <Icon icon="git-commit" />{" "}
+          <Icon icon="git-commit" style={{verticalAlign: 'middle', margin: '5px'}} />{" "}
           {new_commit.parents.length > 1 ? "parents" : "parent"}:{" "}
           {new_commit.parents.map(p => (
             <Button
@@ -105,7 +107,7 @@ const CommitInfoCompareCard = ({
         {ref_commit && ref_commit.id &&
         <Fragment>
         <div style={{ minWidth: "40px", textAlign: "center" }}>
-          <Icon icon="small-cross" />
+          <span/>
         </div>
         <div style={{ flex: "1 1 auto" }}>
           <h1 className={Classes.HEADING}
