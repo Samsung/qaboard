@@ -10,7 +10,7 @@ DOCKER_VOLUMES=""
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
 HOME_DOCKER=/opt/dockermounts$HOME
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa" # helps avoid mount errors...
-DOCKER_VOLUMES+=" --volume=/stage:/stage"
+DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage/algo_data:/stage/algo_data"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database"

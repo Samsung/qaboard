@@ -29,11 +29,11 @@ const CommitInfoCompareCard = ({
   ref_label,
   onConfirmReference
 }) => {
-  if(!new_commit || !ref_commit)
-    return <span/>
+  // if(!new_commit || !ref_commit)
+  //   return <span/>
 
-  let new_ci_batch = (new_commit.batches && new_commit.batches[new_label]) || empty_batch;
-  let ref_ci_batch = (ref_commit.batches && ref_commit.batches[ref_label]) || empty_batch;
+  let new_ci_batch = (new_commit && new_commit.batches && new_commit.batches[new_label]) || empty_batch;
+  let ref_ci_batch = (ref_commit && ref_commit.batches && ref_commit.batches[ref_label]) || empty_batch;
 
 
   return (
