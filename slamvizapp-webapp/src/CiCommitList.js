@@ -231,23 +231,18 @@ class CiCommitList extends React.Component {
     );
 
     var list;
-    var warning_messages;
-    if (error)
-      warning_messages = (
-        <NonIdealState description={error.message} icon="error" />
-      );
-    if (is_loading)
-      warning_messages = <NonIdealState title="Loading" icon={<Spinner />} />;
-    if (commits.length === 0 && is_loaded)
-      warning_messages = (
-        <NonIdealState
+    var warning_messages = <Fragment>
+      {error && <NonIdealState description={error.message} icon="error" />}
+      {is_loading && <NonIdealState title="Loading" icon={<Spinner />} />}
+      {is_loaded && !error && commits.length === 0 &&
+      <NonIdealState
           title="No results"
           description={`Searched commits from ${date_range[0]} to ${
             date_range[1]
           }`}
           icon="folder-open"
-        />
-      );
+      />}
+    </Fragment>
 
     let commits_by_day = groupBy(commits, "authored_date");
 
@@ -274,7 +269,7 @@ class CiCommitList extends React.Component {
         {information}
         {qa_report}
         {warning_messages}
-        {is_loaded && list}
+        {is_loaded && commits.length>0 && list}
       </Container>
     );
   }

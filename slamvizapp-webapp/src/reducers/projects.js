@@ -46,8 +46,9 @@ export function projects(state = {
       new_state = {
         ...state,
         is_loaded: true,
-        error: null,
+        error: action.error,
       };
+      if (!action.projects) return new_state
       Object.entries(action.projects).forEach( ([project, data]) => {
         new_state.data[project] = update_project(state.data[project], data)
       })
