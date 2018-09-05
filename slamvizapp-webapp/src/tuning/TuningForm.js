@@ -167,6 +167,8 @@ class AddRecordingsForm extends Component {
           </Button>
         </div>
 
+        <div><span>Paths are relative to {this.props.project_data.information.qatools_config.inputs.database.linux}</span></div>
+
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
         <AceEditor
           mode="yaml"
@@ -494,7 +496,7 @@ class TuningForm extends Component {
             number_of_recordings > 0
               ? number_of_recordings + " recordings. "
               : ""
-          }Choose a small group of recordings if you want results quickly.`}
+          }Groups in defined in the "Available Recordings" tab. Choose a small group of recordings if you want results quickly.`}
           labelFor="selected-group"
           labelInfo="(required)"
         >

@@ -27,9 +27,26 @@ export const default_qatools_config = {
 		reference_branch: 'develop',
 	},
 	inputs: {
-		configuration: 'base'
-	}
-} 
+		configuration: 'base',
+	},
+}
+
+// legacy
+export var slam_qatools_config = {...default_qatools_config};
+slam_qatools_config.inputs.configuration = 'serial-stereo'
+slam_qatools_config.inputs.database = {
+	linux: '/net/f2/algo_archive/DVS_SLAM_Database',
+	windows: '/net/f2/algo_archive/DVS_SLAM_Database',
+}
+// legacy
+export var tof_qatools_config = {...default_qatools_config};
+tof_qatools_config.inputs.database = {
+	linux: '/net/f2/algo_archive/ToF_SW_Database',
+	windows: '/net/f2/algo_archive/ToF_SW_Database',
+}
+tof_qatools_config.inputs.configuration = 'xrMode'
+
+
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values

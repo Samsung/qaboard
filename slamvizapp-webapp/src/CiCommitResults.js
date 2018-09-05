@@ -158,7 +158,7 @@ class CiCommitResults extends Component {
   };
 
   selectBatchNew = e => {
-    this.props.dispatch(updateSelected(this.props.project, { selected_batch_new: e.target.value }))
+    this.props.dispatch(updateSelected(this.props.project, { batch_new: e.target.value }))
     let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
@@ -170,7 +170,7 @@ class CiCommitResults extends Component {
   };
 
   selectBatchRef = e => {
-    this.props.dispatch(updateSelected(this.props.project, { selected_batch_ref: e.target.value }))
+    this.props.dispatch(updateSelected(this.props.project, { batch_ref: e.target.value }))
     let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,

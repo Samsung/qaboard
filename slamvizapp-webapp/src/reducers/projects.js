@@ -6,7 +6,7 @@ import {
   FETCH_COMMITS,
   UPDATE_COMMITS,
 } from '../actions/constants'
-import { default_project_id, default_project, default_qatools_config } from "../defaults"
+import { default_project_id, default_project, slam_qatools_config, tof_qatools_config } from "../defaults"
 
 import * as slam_metrics from "../slam/metrics";
 import * as tof_metrics from "../tof/metrics";
@@ -28,8 +28,8 @@ export function projects(state = {
   data: {
     [default_project_id]: default_project,
     // legacy
-    'dvs/psp_swip': {...default_project, information: {qatools_config: default_qatools_config, qatools_metrics: slam_metrics}},
-    'tof/swip_tof': {...default_project, information: {qatools_config: default_qatools_config, qatools_metrics: tof_metrics}},
+    'dvs/psp_swip': {...default_project, information: {qatools_config: slam_qatools_config, qatools_metrics: slam_metrics}},
+    'tof/swip_tof': {...default_project, information: {qatools_config: tof_qatools_config, qatools_metrics: tof_metrics}},
   },
   is_loaded: false,
   is_loading: false,
