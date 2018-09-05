@@ -229,6 +229,7 @@ class CiCommitResults extends Component {
   render() {
     const {
       project,
+      project_data,
       ref_commit_id,
       new_commit_id,
       new_commit,
@@ -473,6 +474,7 @@ class CiCommitResults extends Component {
                     panel={
                       <OutputList
                         project={project}
+                        project_data={project_data}
                         sort_order={this.props.order}
                         sort_by={this.props.sort_by}
                         new_batch={new_batch_filtered}
@@ -555,6 +557,7 @@ class OutputList extends Component {
   render() {
     const { new_batch, ref_batch, sort_by, sort_order } = this.props;
     const { show_debug, show_videos, show_3d } = this.props;
+    const { project, project_data } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return (
@@ -599,6 +602,8 @@ class OutputList extends Component {
               return (
                 <OutputCard
                   key={id}
+                  project={project}
+                  project_data={project_data}
                   output_type={output.output_type}
                   output_new={output}
                   output_ref={output_ref}

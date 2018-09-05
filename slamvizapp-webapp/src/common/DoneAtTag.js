@@ -10,7 +10,7 @@ import { Icon, Tooltip, Classes } from "@blueprintjs/core";
 
 const defaults = {
   committer_name: 'Place Holder',
-  date: '1 days ago',
+  date: '2018-08-08T06:00:00Z',
 }
 
 class DoneAtTagUnstyled extends React.Component {

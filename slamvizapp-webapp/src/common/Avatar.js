@@ -26,7 +26,7 @@ class Avatar extends React.PureComponent {
     const { src, href, alt } = this.props;
     return <AvatarCell>
       <Link to={href||'#'}>
-        <AvatarImg alt={alt} src={src} />
+        <AvatarImg alt={alt||''} src={src||''} />
       </Link>
     </AvatarCell>
   }
@@ -37,7 +37,7 @@ class CommitAvatar extends React.PureComponent {
   render() {
     const { commit } = this.props;
     return <Avatar
-      href={!!commit && commit.committer_name && commit.committer_name && `/committer/${commit.committer_name}`}
+      href={!!commit && !!commit.committer_name && `/committer/${commit.committer_name}`}
       alt={!!commit && commit.committer_name}
       src={!!commit && commit.committer_avatar_url}
       className={(!commit || !commit.committer_name) ? Classes.SKELETON : null}    
