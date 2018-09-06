@@ -70,30 +70,31 @@ export const tof_qatools_config = {
 	outputs: {
 		style: {
 			width: '840px',
-		}
+		},
+		descriptions: [],
 	},
 }
-slam_qatools_config.outputs.descriptions = {
-	"frames": {
+slam_qatools_config.outputs.descriptions = [
+	{
+		path: 'results.mp4',
 		type: 'movie/mp4',
-		filename: 'results.mp4',
 		poster: 'poster.jpg',
 		hidden: true,
 	},
-	"trajectories": {
+	{
 		type: '6dof/txt',
-		filename: 'camera_poses_debug.txt',
-		filename_debug: 'DebugExtensions.txt',
+		path: 'camera_poses_debug.txt',
+		path_debug: 'DebugExtensions.txt',
 	},
-}
-tof_qatools_config.outputs.descriptions = {
-	"pointcloud": {
+]
+tof_qatools_config.outputs.descriptions = [
+	{
+		path: 'pointcloud.pcd',
 		type: 'pointcloud/txt',
-		filename: 'pointcloud.pcd',
 		// in folders, from keys in metrics.json ?
 		one_for_each: 'frames',
 	},
-}
+]
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values

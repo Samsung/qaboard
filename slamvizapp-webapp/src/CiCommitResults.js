@@ -51,7 +51,8 @@ class CiCommitResults extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      selectedTabId: this.props.project === "tof/swip_tof" ? "output-list" : "output-table-compare",
+      selectedTabId: "output-list",
+      // selectedTabId: this.props.project === "tof/swip_tof" ? "output-list" : "output-table-compare",
       // FIX: SLAM-specific
       show_videos: false,
       show_3d: false,

@@ -22,16 +22,20 @@ const Loading = props => {
 };
 
 
-const LoadableSlamOutputCard = Loadable({
+const LoadableSlamViewer = Loadable({
   loader: () => import('./slam/SlamOutputCard' /* webpackChunkName: "slam" */),
   loading: Loading,
 });
-const LoadableTofOutputCard = Loadable({
+const LoadableTofViewer = Loadable({
   loader: () => import('./tof/TofOutputCard' /* webpackChunkName: "tof" */),
   loading: Loading,
 });
-const LoadableCisOutputCard = Loadable({
+const LoadableCisViewer = Loadable({
   loader: () => import('./cis/CisOutputCard' /* webpackChunkName: "cis" */),
+  loading: Loading,
+});
+const LoadablePlotlyViewer = Loadable({
+  loader: () => import('./plotly' /* webpackChunkName: "plotly-viewer" */),
   loading: Loading,
 });
 
@@ -108,11 +112,13 @@ class OutputViewer extends React.Component {
     const { type, ...props } = this.props;
     console.log(type)
     if (type === "6dof/txt")
-      return  <LoadableSlamOutputCard {...props}/>
+      return  <LoadableSlamViewer {...props}/>
     else if (type === "pointcloud/txt")
-      return <LoadableTofOutputCard {...props} />
+      return <LoadableTofViewer {...props} />
     else if (type === "cis/image")
-      return <LoadableCisOutputCard {...props} />
+      return <LoadableCisViewer {...props} />
+    else if (type === "plotly/json")
+      return <LoadablePlotlyViewer {...props} />
     else return <span></span>;
   }
 }
@@ -124,17 +130,21 @@ class OutputCard extends Component {
     const { main_metrics, available_metrics } = this.props.project_data.information.qatools_metrics;
     const { output_new, output_ref, warning } = this.props;
     const { project_data } = this.props;
-    console.log(project_data);
+
     // layout should be plotly-like. You could also pass down a props named style.
     const { no_header, layout, ...props } = this.props;
     if (!output_new || output_new.is_failed || output_new.is_pending)
       return <span/>
 
-    const { descriptions, width } = project_data.information.qatools_config.outputs;
-    console.log(descriptions)
-    let views = Object.entries(descriptions).map( ([key, description]) => 
+    const default_description =   [{
+      path: 'cdf_noncon.json',
+      type: 'plotly/json',
+    }]
+    const descriptions = project_data.information.qatools_config.outputs.descriptions || default_description; // [];
+
+    let views = descriptions.map( (description, idx) => 
       <OutputViewer
-        key={key}
+        key={idx}
         output_new={output_new}
         output_ref={output_ref}
         {...description}
@@ -143,8 +153,7 @@ class OutputCard extends Component {
       />
     )
 
-    // let card_width = layout.width !== undefined ? `${layout.width}px` : "840px";
-
+    const { width } = project_data.information.qatools_config.outputs.style || '400px';
     let container_style = {
       flex: "0 0 auto",
       width: (!!layout && layout.width !== undefined) ? `${layout.width}px` : width,
