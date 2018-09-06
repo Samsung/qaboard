@@ -1,6 +1,4 @@
 import React, { Component } from "react";
-// import { get, all, spread } from "axios";
-import { Classes, Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
 class CisOutputCard extends Component {
   constructor(props) {
@@ -11,7 +9,7 @@ class CisOutputCard extends Component {
   }
 
   render() {
-    const { output_new, output_ref, warning } = this.props;
+    const { output_new, output_ref } = this.props;
 
     // loading DNJ (HEX???) image: http://dev.tag.is/rawson.js/
     // 1c 1c 1c
@@ -60,7 +58,7 @@ class CisOutputCard extends Component {
     // toggle keyboard: display ref/new/diff (like faststone)
 
     return (
-      <Fragment>
+      <>
         <p>{output_new.data.output_picture_format}</p>
         <div>
           <a
@@ -102,7 +100,7 @@ class CisOutputCard extends Component {
             Output registers
           </a>
         </p>
-      </Fragment>
+      </>
     );
   }
 }

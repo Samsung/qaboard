@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 
 import Moment from "react-moment";
 
-import { Container } from "./common/containers";
+import { Container } from "./components/layout";
 import {
   Classes,
   Intent,

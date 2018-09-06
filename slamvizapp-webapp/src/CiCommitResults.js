@@ -1,4 +1,4 @@
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import qs from "qs";
@@ -19,7 +19,7 @@ import {
   Intent,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
-import { noMetrics } from "./common/metricSelect";
+import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
 import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
@@ -27,7 +27,7 @@ import { MetricsSummary } from "./MetricsSummary";
 import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
 import { matching_output, sortOutputs, filter_batch } from "./utils";
-import { TableCompare, TableKpi } from "./Tables";
+import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./BatchLogs";
 import { CommitParameters } from "./Parameters";
 import { OutputCard } from "./OutputCard";
@@ -36,8 +36,8 @@ import { updateSelected } from "./actions/selected";
 
 
 import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
-import { TuningExploration } from "./tuning/TuningExploration";
-import { SelectBatches } from "./tuning/SelectBatches";
+import { TuningExploration } from "./components/tuning/TuningExploration";
+import { SelectBatches } from "./components/tuning/SelectBatches";
 
 
 import {
@@ -286,7 +286,7 @@ class CiCommitResults extends Component {
         </Section>}
 
         {(!!new_commit && !!ref_commit) && (
-            <Fragment>
+            <>
               <Section>
                 <Card elevation={0}>
                   <div
@@ -377,6 +377,7 @@ class CiCommitResults extends Component {
                       panel={
                         <MetricsSummary
                           project={project}
+                          project_data={project_data}
                           available_metrics={this.props.available_metrics}
                           new_batch={new_batch_filtered}
                           ref_batch={ref_batch_filtered}
@@ -491,13 +492,14 @@ class CiCommitResults extends Component {
                     panel={
                       <TuningExploration
                         project={project}
+                        project_data={project_data}
                         batch={new_batch_filtered}
                       />
                     }
                   />
                   <Tabs.Expander />
                   {project === "dvs/psp_swip" ? (
-                    <Fragment>
+                    <>
                       <Switch
                         checked={this.state.show_debug}
                         label="Debug"
@@ -533,13 +535,11 @@ class CiCommitResults extends Component {
                           <option value={-1}>descending</option>
                           <option value={1}>ascending</option>
                         </HTMLSelect>
-                    </Fragment>
-                  ) : (
-                    <Fragment />
-                  )}
+                    </>
+                  ) : <span/>}
                 </Tabs>
               </Section>
-            </Fragment>
+            </>
           )}
       </Container>
     );
@@ -561,7 +561,7 @@ class OutputList extends Component {
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return (
-      <Fragment>
+      <>
         {show_debug && (
           <FormGroup
             label="Show debug outputs matching"
@@ -616,7 +616,7 @@ class OutputList extends Component {
               );
             })}
         </div>
-      </Fragment>
+      </>
     );
   }
 }

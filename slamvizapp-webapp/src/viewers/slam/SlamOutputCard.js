@@ -1,8 +1,8 @@
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
 import Plot from 'react-plotly.js';
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
-import { SyncedVideos } from "../video";
+import { SyncedVideos } from "../videos";
 
 var colors = {
   groundtruth: "#4daf4a",
@@ -252,7 +252,7 @@ class SlamOutputCard extends Component {
       });
     }
 
-    return <Fragment>
+    return <>
       {show_videos &&
         <SyncedVideos
           src_new={`${output_new.output_dir_url}/results.mp4`}
@@ -282,7 +282,7 @@ class SlamOutputCard extends Component {
           revision={plot_revision}
         />
       }
-    </Fragment>
+    </>
   }
 }
 

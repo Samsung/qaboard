@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
-import { Classes, Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
+import { Classes, Colors, Button } from "@blueprintjs/core";
 
 const aspect_ratio = 4 / 3;
 const width = 640; // full screen would be window.innerWidth;
@@ -258,7 +258,6 @@ class TofOutputCard extends Component {
       make_traces(frames['new'], "new"),
     ];
     let layout = this.props.layout || {};
-    let card_width = layout.width !== undefined ? `${layout.width}px` : "840px";
     let layout_ = {
       height: 150,
       margin: { l: 50, r: 10, b: 50, t: 50, pad: 5 },
@@ -279,7 +278,7 @@ class TofOutputCard extends Component {
     const output_types = ["depth"]; //, 'intensity'];
 
     return (
-      <Fragment>
+      <>
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded
                         ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
@@ -321,7 +320,7 @@ class TofOutputCard extends Component {
         </div>
 
         {false && <p>{JSON.stringify(output_new)}</p>}
-      </Fragment>
+      </>
     );
   }
 }

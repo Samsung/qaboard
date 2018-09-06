@@ -24,12 +24,12 @@ import { MultiSelect } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
 import { Container, Section } from "./components/layout";
-import { noMetrics } from "./common/metricSelect";
+import { noMetrics } from "./components/metricSelect";
 import { shortId, filter_batch } from "./utils";
 
 import { CommitsEvolution } from "./CommitsEvolution";
 import { MetricsSummary } from "./MetricsSummary";
-import { TableCompare, TableKpi } from "./Tables";
+import { TableCompare, TableKpi } from "./components/tables";
 
 import { default_project, empty_batch } from "./defaults"
 
@@ -367,6 +367,7 @@ class Dashboard extends React.Component {
               <MetricsSummary
                 selected_metrics={selected_metrics}
                 project={project}
+                project_data={project_data}
                 new_batch={android_batch}
                 ref_batch={linux_batch}
                 xaxis_labels={["Android", "LSF"]}
@@ -390,6 +391,7 @@ class Dashboard extends React.Component {
               breakdown_by_tag
               selected_metrics={selected_metrics}
               project={project}
+              project_data={project_data}
               new_batch={linux_batch}
               ref_batch={empty_batch}
             />

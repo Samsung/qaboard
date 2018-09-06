@@ -31,6 +31,9 @@ export const default_qatools_config = {
 	},
 	outputs: {
 		descriptions: {},
+		style: {
+			width: '350px',
+		},
 	}
 }
 
@@ -46,7 +49,11 @@ export const slam_qatools_config = {
 			windows: '/net/f2/algo_archive/DVS_SLAM_Database',
 		},
 	},
-	outputs: {},
+	outputs: {
+		style: {
+			width: '350px',			
+		}
+	},
 }
 // legacy
 export const tof_qatools_config = {
@@ -60,7 +67,11 @@ export const tof_qatools_config = {
 			windows: '/net/f2/algo_archive/ToF_SW_Database',
 		},
 	},
-	outputs: {},
+	outputs: {
+		style: {
+			width: '840px',
+		}
+	},
 }
 slam_qatools_config.outputs.descriptions = {
 	"frames": {
@@ -103,6 +114,7 @@ export const default_project = {
 
 export const default_selected = () => {
 	let commit_from_pathname = window.location.pathname.includes('/commit') && window.location.pathname.slice(8)
+    var params = new URLSearchParams(window.location.search);
 	return {
 		new_commit_id: params.get("commit_folder") || commit_from_pathname || null,
 		ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,

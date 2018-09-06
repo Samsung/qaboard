@@ -1,4 +1,4 @@
-import React, { Fragment } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import {
   Classes,
@@ -10,7 +10,7 @@ import {
   EditableText
 } from "@blueprintjs/core";
 
-import { CommitAvatar } from "./components/Avatar";
+import { CommitAvatar } from "./components/avatars";
 import { DoneAtTag } from "./components/DoneAtTag";
 import { shortId } from "./utils";
 
@@ -27,7 +27,7 @@ const outer_div_style = {
 class BatchTags extends React.PureComponent {
   render() {
     const { valid_outputs, running_outputs, pending_outputs, failed_outputs } = this.props.batch;
-    return <Fragment>
+    return <>
       {valid_outputs > 0 && (
         <Tag intent={Intent.SUCCESS}>
           {valid_outputs} outputs
@@ -49,7 +49,7 @@ class BatchTags extends React.PureComponent {
           {failed_outputs} crashed
         </Tag>
       )}
-    </Fragment>
+    </>
   }
 }
 
@@ -68,15 +68,15 @@ class CommitParents extends React.PureComponent {
     if (commit === undefined)
       return <Button className={Classes.SKELETON}>XXXXXXXX</Button>
     if (!commit.parents)
-      return <Fragment/>
+      return <span/>
 
-    return <Fragment>
+    return <>
       {git_commit_icon}{" "}
       {commit.parents.length > 1 ? "parents" : "parent"}:{" "}
       {commit.parents.map( p => 
         <Button key={p} onClick={e => { onClick(p);}}>{shortId(project, p)}</Button>
       )}
-    </Fragment>
+    </>
   }
 }
 

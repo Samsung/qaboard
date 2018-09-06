@@ -3,7 +3,6 @@ import Plot from 'react-plotly.js';
 
 import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
-import { metrics } from "./metrics";
 import { OutputCard } from "./OutputCard";
 import { input_test_color, matching_output, average, median } from "./utils";
 
@@ -250,7 +249,7 @@ class CommitsEvolutionPerBatch extends React.Component {
   }
 
   render() {
-    const { metrics, available_metrics } = this.props;
+    const { metrics, available_metrics, project_data, project } = this.props;
     const { revision, hovered, hovered_commit, traces } = this.state;
 
     if (hovered) {
@@ -260,7 +259,8 @@ class CommitsEvolutionPerBatch extends React.Component {
         >
           <CommitRow
             commit={hovered_commit}
-            project={this.props.project}
+            project={project}
+            project_data={project_data}
             toaster={toaster}
           />
         </div>
@@ -555,6 +555,7 @@ class CommitsEvolutionPerMovie extends React.Component {
           <CommitRow
             commit={hovered_commit}
             project={this.props.project}
+            project_data={project_data}
             toaster={toaster}
           />
           {details_on_hover && (
@@ -593,11 +594,10 @@ class CommitsEvolutionPerMovie extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
-    const { project } = props;
+    const { main_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
     this.state = {
-      available_metrics: metrics[project].available_metrics,
-      select_metrics: this.props.select_metrics || metrics[project].main_metrics,
-      selected_metric: metrics[project].default_metric,
+      select_metrics: this.props.select_metrics || main_metrics,
+      selected_metric: default_metric,
       selected_aggregation: "median",
       output_filter: "small-scale",
       relative: true,
@@ -622,9 +622,11 @@ class CommitsEvolution extends Component {
       relative,
       details_on_hover
     } = this.state;
-    const { available_metrics, select_metrics } = this.state;
+    const { select_metrics } = this.state;
 
-    if (!metrics[project].default_metric)
+    const { available_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
+
+    if (!default_metric)
       return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;
 
     return (
@@ -632,7 +634,7 @@ class CommitsEvolution extends Component {
         <FormGroup inline>
           <HTMLSelect
             id="select-metric"
-            defaultValue={metrics[this.state.project].default_metric}
+            defaultValue={default_metric}
             onChange={this.selectMetric}
             minimal
           >
@@ -715,6 +717,7 @@ class CommitsEvolution extends Component {
         ) : (
           <CommitsEvolutionPerBatch
             project={project}
+            project_data={project_data}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}

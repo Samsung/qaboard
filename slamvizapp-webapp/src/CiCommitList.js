@@ -1,4 +1,4 @@
-import React, { Fragment } from "react";
+import React from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
@@ -47,7 +47,7 @@ const WrapperCommitRows = styled.ul`
   padding: 0;
 `;
 
-const CommitRows = ({ commits, project, className }) => (
+const CommitRows = ({ commits, project, project_data, className }) => (
   <div className={className}>
     <DayRows>
       <WrapperCommitRows>
@@ -55,6 +55,7 @@ const CommitRows = ({ commits, project, className }) => (
           <CommitRow
             commit={commit}
             project={project}
+            project_data={project_data}
             key={commit.id}
             toaster={toaster}
           />
@@ -113,7 +114,7 @@ class CiCommitList extends React.Component {
     // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
     let reference_branch = project_data.information.qatools_config.project.reference_branch;
     var information = (
-      <Fragment>
+      <>
         <Section>
           {project !== "dvs/psp_swip" && project !== "tof/swip_tof" && <Callout
               icon="info-sign"
@@ -178,7 +179,7 @@ class CiCommitList extends React.Component {
             </a>}
           </p>
         </Section>
-      </Fragment>
+      </>
     );
 
     let link_to_tag = is_branch ? (
@@ -222,6 +223,7 @@ class CiCommitList extends React.Component {
               />
               <CommitsEvolution
                 project={project}
+                project_data={project_data}
                 commits={commits}
                 style={{ marginTop: "20px" }}
               />
@@ -231,7 +233,7 @@ class CiCommitList extends React.Component {
     );
 
     var list;
-    var warning_messages = <Fragment>
+    var warning_messages = <>
       {error && <NonIdealState description={error.message} icon="error" />}
       {is_loading && <NonIdealState title="Loading" icon={<Spinner />} />}
       {is_loaded && !error && commits.length === 0 &&
@@ -242,15 +244,15 @@ class CiCommitList extends React.Component {
           }`}
           icon="folder-open"
       />}
-    </Fragment>
+    </>
 
     let commits_by_day = groupBy(commits, "authored_date");
 
     list = (
-      <Fragment>
+      <>
         <h3 className={Classes.HEADING}>Selected commits</h3>
         {Object.keys(commits_by_day).map(day => (
-          <Fragment key={day}>
+          <React.Fragment key={day}>
             <HeaderDay>
               <Moment
                 calendar={calendarStrings}
@@ -259,10 +261,10 @@ class CiCommitList extends React.Component {
               />{" "}
               &#8212; {commits_by_day[day].length} commits
             </HeaderDay>
-            <CommitRows project={project} commits={commits_by_day[day]} />
-          </Fragment>
+            <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
+          </React.Fragment>
         ))}
-      </Fragment>
+      </>
     );
     return (
       <Container>

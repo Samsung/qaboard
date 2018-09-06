@@ -8,7 +8,6 @@ import { Avatar } from "./components/avatars";
 import { DoneAtTag } from "./components/DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { shortId } from "./utils";
-import { metrics } from "./metrics";
 
 const CommitDetails = styled.div`
   display: flex;
@@ -41,7 +40,7 @@ const has_outputs_in_batch = label => commit =>
 
 class CommitResults extends React.Component {
   render() {
-    const { project, commit } = this.props;
+    const { project, project_data, commit } = this.props;
     const gitlab_commit_url = `http://gitlab-srv/${project}/commit/${
       commit.id
     }`;
@@ -89,8 +88,8 @@ class CommitResults extends React.Component {
     );
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
 
-    const default_metric_info =
-      metrics[project].available_metrics[metrics[project].default_metric];
+    const { available_metrics, default_metric } = project_data.information.qatools_metrics;
+    const default_metric_info = available_metrics[default_metric];
 
     let status_messages = (
       <Fragment>
@@ -228,7 +227,7 @@ const CommitShortId = styled.a`
 
 class CommitRow extends React.Component {
   render() {
-    const { commit, project, className, toaster } = this.props;
+    const { commit, project, project_data, className, toaster } = this.props;
     const commit_url = `http://gitlab-srv/${project}/commit/${commit.id}`
     return (
       <CommitRowWrapper className={className}>
@@ -275,7 +274,7 @@ class CommitRow extends React.Component {
             </div>
           </CommitContent>
 
-          <CommitResultsStyled project={project} commit={commit} />
+          <CommitResultsStyled project={project} project_data={project_data} commit={commit} />
         </CommitDetails>
       </CommitRowWrapper>
     );

@@ -14,8 +14,7 @@ import {
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 
-import { metrics } from "./metrics";
-import { noMetrics } from "./common/metricSelect";
+import { noMetrics } from "./components/metricSelect";
 import { median, plotly_palette } from "./utils";
 
 
@@ -330,10 +329,8 @@ const SuccessBar = ({ success_frac }) => (
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
-    const { project } = props;
-    const available_metrics = metrics[project].available_metrics;
-    const default_selected_metrics =
-      metrics[project].summary_metrics.map(k => available_metrics[k]) || [];
+    const { available_metrics, summary_metrics } = this.props.project_data.information.qatools_metrics;
+    const default_selected_metrics = summary_metrics.map(k => available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
       available_metrics,

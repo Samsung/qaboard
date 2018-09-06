@@ -1,4 +1,4 @@
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
 import Loadable from 'react-loadable';
 
 import styled from "styled-components";
@@ -113,7 +113,7 @@ class OutputViewer extends React.Component {
       return <LoadableTofOutputCard {...props} />
     else if (type === "cis/image")
       return <LoadableCisOutputCard {...props} />
-    else return <span>Unsupported output type</span>;
+    else return <span></span>;
   }
 }
 
@@ -128,9 +128,9 @@ class OutputCard extends Component {
     // layout should be plotly-like. You could also pass down a props named style.
     const { no_header, layout, ...props } = this.props;
     if (!output_new || output_new.is_failed || output_new.is_pending)
-      return <Fragment/>
+      return <span/>
 
-    const descriptions = project_data.information.qatools_config.outputs.descriptions;
+    const { descriptions, width } = project_data.information.qatools_config.outputs;
     console.log(descriptions)
     let views = Object.entries(descriptions).map( ([key, description]) => 
       <OutputViewer
@@ -143,9 +143,11 @@ class OutputCard extends Component {
       />
     )
 
+    // let card_width = layout.width !== undefined ? `${layout.width}px` : "840px";
+
     let container_style = {
       flex: "0 0 auto",
-      width: (!!layout && layout.width !== undefined) ? `${layout.width}px` : "350px",
+      width: (!!layout && layout.width !== undefined) ? `${layout.width}px` : width,
       marginBottom: "20px"
     }
 

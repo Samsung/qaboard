@@ -2,9 +2,8 @@ import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
-import { Section } from "../components/layout";
-import { groupBy, input_test_color, median, average } from "../utils";
-import { metrics } from "../metrics";
+import { Section } from "../../components/layout";
+import { groupBy, input_test_color, median, average } from "../../utils";
 
 const config = {};
 
@@ -417,13 +416,14 @@ const Sensibility2DContour = ({
 class TuningExploration extends Component {
   constructor(props) {
     super(props);
-    const project = props.project || "dvs/psp_swip";
+    const { main_metrics, available_metrics, default_metric } = this.props.project_data.information.qatools_metrics;
     this.state = {
       selected_parameter: null,
-      available_metrics: metrics[project].available_metrics,
-      main_metrics: metrics[project].main_metrics,
-      selected_metric: metrics[project].default_metric,
-      selected_metric2: metrics[project].main_metrics.filter(l=>l!==metrics[project].default_metric)[0],
+      available_metrics,
+      main_metrics,
+      default_metric,
+      selected_metric: default_metric,
+      selected_metric2: main_metrics.filter(l=>l!==default_metric)[0],
       relative: true,
       aggregation: 'median',
       layout: {
@@ -460,8 +460,9 @@ class TuningExploration extends Component {
   };
 
   render() {
-    const { batch, project } = this.props;
-    const { layout, relative, available_metrics, main_metrics, aggregation } = this.state;
+    const { batch } = this.props;
+    const { layout, relative, available_metrics, default_metric, main_metrics, aggregation } = this.state;
+
     if (!batch) return <p>Loading...</p>;
     if (batch.label === "default")
       return (
@@ -587,7 +588,7 @@ class TuningExploration extends Component {
         >
           <HTMLSelect
             id="select-metric"
-            defaultValue={metrics[project].default_metric}
+            defaultValue={default_metric}
             onChange={this.selectMetric}
             minimal
           >
@@ -653,7 +654,7 @@ class TuningExploration extends Component {
         >
           <HTMLSelect
             id="select-metric-2"
-            defaultValue={metrics[project].main_metrics[1] || metrics[project].main_metrics[0]}
+            defaultValue={main_metrics[1] || main_metrics[0]}
             onChange={this.selectMetric2}
             minimal
           >
