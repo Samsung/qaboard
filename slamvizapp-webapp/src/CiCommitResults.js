@@ -22,15 +22,15 @@ import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
-import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
-import { MetricsSummary } from "./MetricsSummary";
+import { CommitInfoCompareCard } from "./components/CommitInfoCompareCard";
+import { MetricsSummary } from "./components/metrics";
 import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
 import { matching_output, sortOutputs, filter_batch } from "./utils";
 import { TableCompare, TableKpi } from "./components/tables";
-import { BatchLogs } from "./BatchLogs";
-import { CommitParameters } from "./Parameters";
-import { OutputCard } from "./OutputCard";
+import { BatchLogs } from "./components/BatchLogs";
+import { CommitParameters } from "./components/Parameters";
+import { OutputCard } from "./viewers/OutputCard";
 import { fetchCommit } from "./actions/commit";
 import { updateSelected } from "./actions/selected";
 

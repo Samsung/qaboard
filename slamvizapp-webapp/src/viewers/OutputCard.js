@@ -3,7 +3,7 @@ import Loadable from 'react-loadable';
 
 import styled from "styled-components";
 import { Card, Icon, Intent, Tag, Classes, Popover } from "@blueprintjs/core";
-import { MetricTag } from "./MetricsSummary";
+import { MetricTag } from "../components/metrics";
 
 
 
@@ -23,21 +23,21 @@ const Loading = props => {
 
 
 const LoadableSlamOutputCard = Loadable({
-  loader: () => import('./viewers/slam/SlamOutputCard' /* webpackChunkName: "slam" */),
+  loader: () => import('./slam/SlamOutputCard' /* webpackChunkName: "slam" */),
   loading: Loading,
 });
 const LoadableTofOutputCard = Loadable({
-  loader: () => import('./viewers/tof/TofOutputCard' /* webpackChunkName: "tof" */),
+  loader: () => import('./tof/TofOutputCard' /* webpackChunkName: "tof" */),
   loading: Loading,
 });
 const LoadableCisOutputCard = Loadable({
-  loader: () => import('./viewers/cis/CisOutputCard' /* webpackChunkName: "cis" */),
+  loader: () => import('./cis/CisOutputCard' /* webpackChunkName: "cis" */),
   loading: Loading,
 });
 
 
 class MetricsTags extends React.PureComponent {
-  render() {    
+  render() {
     const { metrics_new, metrics_ref } = this.props;
     const { available_metrics, selected_metrics } = this.props;
     return selected_metrics

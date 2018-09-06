@@ -3,10 +3,10 @@ import Plot from 'react-plotly.js';
 
 import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
-import { OutputCard } from "./OutputCard";
+import { OutputCard } from "./viewers/OutputCard";
 import { input_test_color, matching_output, average, median } from "./utils";
 
-import { CommitRow } from "./CommitRow";
+import { CommitRow } from "./components/CommitRow";
 
 import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();

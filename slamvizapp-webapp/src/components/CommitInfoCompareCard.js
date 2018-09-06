@@ -10,11 +10,11 @@ import {
   EditableText
 } from "@blueprintjs/core";
 
-import { CommitAvatar } from "./components/avatars";
-import { DoneAtTag } from "./components/DoneAtTag";
-import { shortId } from "./utils";
+import { CommitAvatar } from "./avatars";
+import { DoneAtTag } from "./DoneAtTag";
 
-import { empty_batch } from "./defaults"
+import { shortId } from "../utils";
+import { empty_batch } from "../defaults"
 
 
 const outer_div_style = {

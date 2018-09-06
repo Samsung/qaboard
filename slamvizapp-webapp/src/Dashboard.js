@@ -28,7 +28,7 @@ import { noMetrics } from "./components/metricSelect";
 import { shortId, filter_batch } from "./utils";
 
 import { CommitsEvolution } from "./CommitsEvolution";
-import { MetricsSummary } from "./MetricsSummary";
+import { MetricsSummary } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
 
 import { default_project, empty_batch } from "./defaults"
