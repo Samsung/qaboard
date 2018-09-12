@@ -496,7 +496,7 @@ class TuningForm extends Component {
             number_of_recordings > 0
               ? number_of_recordings + " recordings. "
               : ""
-          }Groups in defined in the "Available Recordings" tab. Choose a small group of recordings if you want results quickly.`}
+          }Path, or one of the groups defined in the "Available Recordings" tab.`}
           labelFor="selected-group"
           labelInfo="(required)"
         >
