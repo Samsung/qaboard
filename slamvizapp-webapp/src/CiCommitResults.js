@@ -47,17 +47,38 @@ import {
 } from "./defaults"
 
 
+
+
 class CiCommitResults extends Component {
   constructor(props) {
     super(props);
     this.state = {
       // selectedTabId: "output-list",
       selectedTabId: this.props.project === "tof/swip_tof" ? "output-list" : "output-table-compare",
-      // FIX: SLAM-specific
-      show_videos: false,
-      show_3d: false,
-      show_debug: false
+      controls: {},
     }
+  }
+
+
+  toggle = name => () => {
+    this.setState( (previousState, props) => ({
+      controls: {
+        ...previousState.controls,
+        [name]: !this.state[name],
+      }
+    }))    
+  }
+
+  toggle_show = idx => () => {
+    this.setState( (previousState, props) => ({
+      controls: {
+        ...previousState.controls,
+        show: {
+          ...previousState.controls.show,          
+          [idx]: !this.state[idx],
+        }
+      }
+    }))    
   }
 
 
@@ -208,24 +229,6 @@ class CiCommitResults extends Component {
     });
   };
 
-  toogleShowDebug = () => {
-    let previous_value = this.state.show_debug;
-    this.setState({
-      show_debug: !previous_value
-    });
-  };
-  toogleShowVideos = () => {
-    let previous_value = this.state.show_videos;
-    this.setState({
-      show_videos: !previous_value
-    });
-  };
-  toogleShow3d = () => {
-    let previous_value = this.state.show_3d;
-    this.setState({
-      show_3d: !previous_value
-    });
-  };
 
   render() {
     const {
@@ -268,6 +271,29 @@ class CiCommitResults extends Component {
         popoverProps={Classes.MINIMAL}
       />
     );
+
+    let controls_extra = project_data.information.qatools_config.outputs.controls || []
+    let descriptions = project_data.information.qatools_config.outputs.descriptions || []
+    let controls = <>
+      {descriptions.map( (description, idx) => {
+        if (!description.default_hidden) return <></>
+        return <Switch
+                key={idx}
+                hidden={!description.default_hidden}
+                defaultChecked={false}
+                onChange={this.toggle_show(idx)}
+                label={description.label || description.name || description.path}
+               />
+      })}
+      {controls_extra.map(control => {
+        return <Switch
+                defaultChecked={control.default || false}
+                onChange={this.toggle(control.name)}
+                label={control.label || control.name}
+               />
+      })}
+    </>
+
 
     return (
       <Container>
@@ -481,9 +507,7 @@ class CiCommitResults extends Component {
                         sort_by={this.props.sort_by}
                         new_batch={new_batch_filtered}
                         ref_batch={ref_batch_filtered}
-                        show_videos={this.state.show_videos}
-                        show_3d={this.state.show_3d}
-                        show_debug={this.state.show_debug}
+                        controls={this.state.controls}
                       />
                     }
                   />
@@ -499,45 +523,27 @@ class CiCommitResults extends Component {
                     }
                   />
                   <Tabs.Expander />
-                  {project === "dvs/psp_swip" ? (
-                    <>
-                      <Switch
-                        checked={this.state.show_debug}
-                        label="Debug"
-                        onChange={this.toogleShowDebug}
-                      />
-                      <Switch
-                        checked={this.state.show_videos}
-                        label="Videos"
-                        onChange={this.toogleShowVideos}
-                      />
-                      <Switch
-                        checked={this.state.show_3d}
-                        label="3d"
-                        onChange={this.toogleShow3d}
-                      />
-                        <HTMLSelect
-                          defaultValue={this.props.sort_by}
-                          onChange={this.selectSortBy}
-                        >
-                          <option value="test_input_path">Sort by Name</option>
-                          {Object.values(this.props.available_metrics).map(
-                            m => (
-                              <option key={m.key} value={m.key}>
-                                Sort by {m.label}
-                              </option>
-                            )
-                          )}
-                        </HTMLSelect>
-                        <HTMLSelect
-                          defaultValue="descending"
-                          onChange={this.selectOrder}
-                        >
-                          <option value={-1}>descending</option>
-                          <option value={1}>ascending</option>
-                        </HTMLSelect>
-                    </>
-                  ) : <span/>}
+                  {controls}
+                  <HTMLSelect
+                    defaultValue={this.props.sort_by}
+                    onChange={this.selectSortBy}
+                  >
+                    <option value="test_input_path">Sort by Name</option>
+                    {Object.values(this.props.available_metrics).map(
+                      m => (
+                        <option key={m.key} value={m.key}>
+                          Sort by {m.label}
+                        </option>
+                      )
+                    )}
+                  </HTMLSelect>
+                  <HTMLSelect
+                    defaultValue="descending"
+                    onChange={this.selectOrder}
+                  >
+                    <option value={-1}>descending</option>
+                    <option value={1}>ascending</option>
+                  </HTMLSelect>
                 </Tabs>
               </Section>
             </>
@@ -556,14 +562,13 @@ class OutputList extends Component {
   }
 
   render() {
-    const { new_batch, ref_batch, sort_by, sort_order } = this.props;
-    const { show_debug, show_videos, show_3d } = this.props;
+    const { new_batch, ref_batch, sort_by, sort_order, controls } = this.props;
     const { project, project_data } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return (
       <>
-        {show_debug && (
+        {controls.show_debug && (
           <FormGroup
             label="Show debug outputs matching"
             labelFor="show-debug-input"
@@ -609,9 +614,7 @@ class OutputList extends Component {
                   output_new={output}
                   output_ref={output_ref}
                   warning={warning}
-                  show_debug={show_debug}
-                  show_videos={show_videos}
-                  show_3d={show_3d}
+                  controls={controls}
                   select_debug={this.state.select_debug}
                 />
               );

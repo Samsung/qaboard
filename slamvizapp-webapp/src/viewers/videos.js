@@ -31,7 +31,8 @@ class SyncedVideos extends React.Component {
   }
 
   render() {
-    const { src_new, src_ref, poster_new, poster_ref } = this.props;
+    const { output_new, output_ref, path, poster, type } = this.props;
+
     return (
       <Fragment>
         <video
@@ -41,22 +42,22 @@ class SyncedVideos extends React.Component {
           loop="loop"
           title="New"
           width={350}
-          poster={poster_new}
-          type="video/mp4"
+          poster={`${output_new.output_dir_url}/${poster}`}
+          type={type}
         >
-          <source src={src_new} />
+          <source src={`${output_new.output_dir_url}/${path}`} />
         </video>
-        {src_ref && (
+        {output_ref && (
           <video
             ref={video => (this.video_ref = video)}
             preload="none"
             loop="loop"
             title="Reference"
-            width={350}
-            poster={poster_ref}
-            type="video/mp4"
+            width={(this.props.style && this.props.style.width) || 350}
+            poster={`${output_ref.output_dir_url}/${poster}`}
+            type={type}
           >
-            <source src={src_ref} />
+            <source src={`${output_ref.output_dir_url}/${path}`} />
           </video>
         )}
       </Fragment>
@@ -64,4 +65,4 @@ class SyncedVideos extends React.Component {
   }
 }
 
-export { SyncedVideos };
+export default SyncedVideos;

@@ -40,6 +40,11 @@ const LoadablePlotlyViewer = Loadable({
   loader: () => import('./plotly' /* webpackChunkName: "plotly-viewer" */),
   loading: Loading,
 });
+const LoadableVideoViewer = Loadable({
+  loader: () => import('./videos' /* webpackChunkName: "plotly-viewer" */),
+  loading: Loading,
+});
+
 
 
 class MetricsTags extends React.PureComponent {
@@ -149,7 +154,9 @@ class OutputViewer extends React.Component {
       return <LoadableCisViewer {...props} />
     else if (type === "plotly/json")
       return <LoadablePlotlyViewer {...props} />
-    else return <span></span>;
+    else if (type.startsWith('video'))
+      return <LoadableVideoViewer {...props} type={type} />
+    else return <span>No viewer is defined for type: {type}</span>;
   }
 }
 
@@ -158,7 +165,7 @@ class OutputViewer extends React.Component {
 class OutputCard extends Component {
   render() {
     const { main_metrics, available_metrics } = this.props.project_data.information.qatools_metrics;
-    const { output_new, output_ref, warning } = this.props;
+    const { output_new, output_ref, warning, controls } = this.props;
     const { qatools_config } = this.props.project_data.information;
 
     // layout should be plotly-like. You could also pass down a props named style.
@@ -171,16 +178,21 @@ class OutputCard extends Component {
       ...qatools_config.outputs.style,
     }
 
-    let views = descriptions.map( (description, idx) => 
-      <OutputViewer
-        key={idx}
-        output_new={output_new}
-        output_ref={output_ref}
-        {...description}
-        {...this.props}
-        style={style}
-      />
-    )
+    let views = descriptions.map( (description, idx) => {
+        let hidden = description.default_hidden===true && !(!!controls.show && controls.show[idx]===true)
+        if (hidden)
+          return <span key={idx}/>
+
+        return <OutputViewer
+          key={idx}
+          output_new={output_new}
+          output_ref={output_ref}
+          {...description}
+          {...controls}
+          style={style}
+        />
+
+    })
 
     let container_style = {
       flex: "0 0 auto",

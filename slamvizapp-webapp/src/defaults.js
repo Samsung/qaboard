@@ -50,9 +50,37 @@ export const slam_qatools_config = {
 		},
 	},
 	outputs: {
-		// style: {
-		// 	width: '350px',			
-		// }
+		 style: {
+		 	width: '350px',			
+		 },
+		descriptions: [
+			{
+				label: "Video",
+				type: 'video/mp4',
+				path: 'results.mp4',
+				poster: 'poster.jpg',
+				default_hidden: true,
+			},
+			{
+				type: '6dof/txt',
+				path: 'camera_poses_debug.txt',
+				path_debug: 'DebugExtensions.txt',
+			},
+		],
+		 controls: [
+		 	{	
+		 		name: 'show_3d',
+		 		default: false,
+		 		label: '3d',
+		 		type: 'toggle',
+		 	},
+		 	{
+		 		name: 'show_debug',
+		 		default: false,
+		 		label: 'Debug',
+		 		type: 'toggle',
+		 	},
+		 ]
 	},
 }
 // legacy
@@ -71,30 +99,18 @@ export const tof_qatools_config = {
 		style: {
 			width: '840px',
 		},
-		descriptions: [],
+		descriptions: [
+			{
+				path: 'pointcloud.pcd',
+				type: 'pointcloud/txt',
+				// in folders, from keys in metrics.json ?
+				one_for_each: 'frames',
+			},
+		],
 	},
 }
-slam_qatools_config.outputs.descriptions = [
-	{
-		path: 'results.mp4',
-		type: 'movie/mp4',
-		poster: 'poster.jpg',
-		hidden: true,
-	},
-	{
-		type: '6dof/txt',
-		path: 'camera_poses_debug.txt',
-		path_debug: 'DebugExtensions.txt',
-	},
-]
-tof_qatools_config.outputs.descriptions = [
-	{
-		path: 'pointcloud.pcd',
-		type: 'pointcloud/txt',
-		// in folders, from keys in metrics.json ?
-		one_for_each: 'frames',
-	},
-]
+
+
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values

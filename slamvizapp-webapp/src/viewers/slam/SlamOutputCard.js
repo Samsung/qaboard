@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import Plot from 'react-plotly.js';
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
-import { SyncedVideos } from "../videos";
 
 var colors = {
   groundtruth: "#4daf4a",
@@ -23,7 +22,7 @@ class SlamOutputCard extends Component {
       traces_debug: {},
       data_debug: {},
 
-      plot_revision: 0
+      plot_revision: 0,
     };
   }
 
@@ -222,13 +221,7 @@ class SlamOutputCard extends Component {
   }
 
   render() {
-    const {
-      output_new,
-      output_ref,
-      show_debug,
-      show_3d,
-      show_videos,
-    } = this.props;
+    const { show_debug, show_3d } = this.props;
     const { is_loaded, plot_revision } = this.state;
     const layout = this.props.layout || {};
 
@@ -253,18 +246,6 @@ class SlamOutputCard extends Component {
     }
 
     return <>
-      {show_videos &&
-        <SyncedVideos
-          src_new={`${output_new.output_dir_url}/results.mp4`}
-          src_ref={
-            output_ref && `${output_ref.output_dir_url}/results.mp4`
-          }
-          poster_new={`${output_new.output_dir_url}/poster.jpg`}
-          poster_ref={
-            output_ref && `${output_ref.output_dir_url}/poster.jpg`
-          }
-        />
-      }
       {show_3d && is_loaded && 
         <Plot
           data={traces_3d}
