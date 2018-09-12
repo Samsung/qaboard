@@ -172,14 +172,14 @@ class OutputCard extends Component {
     if (!output_new || output_new.is_failed || output_new.is_pending)
       return <span/>
 
-    const descriptions = qatools_config.outputs.descriptions || [];
+    const views = qatools_config.outputs.detailed_views || [];
     const style = {
       ...this.props.style,
       ...qatools_config.outputs.style,
     }
 
-    let views = descriptions.map( (description, idx) => {
-        let hidden = description.default_hidden===true && !(!!controls.show && controls.show[idx]===true)
+    let viewers = views.map( (view, idx) => {
+        let hidden = view.default_hidden===true && !(!!controls.show && controls.show[idx]===true)
         if (hidden)
           return <span key={idx}/>
 
@@ -208,7 +208,7 @@ class OutputCard extends Component {
             metrics_new={output_new.metrics ? output_new.metrics : {}}
             metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
           />        
-          {views}
+          {viewers}
       </SlimCard>
     </div>
   }

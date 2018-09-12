@@ -30,7 +30,7 @@ export const default_qatools_config = {
 		configuration: 'base',
 	},
 	outputs: {
-		descriptions: {},
+		detailed_views: {},
 		style: {
 			width: '350px',
 		},
@@ -53,7 +53,7 @@ export const slam_qatools_config = {
 		 style: {
 		 	width: '350px',			
 		 },
-		descriptions: [
+		detailed_views: [
 			{
 				label: "Video",
 				type: 'video/mp4',
@@ -99,7 +99,7 @@ export const tof_qatools_config = {
 		style: {
 			width: '840px',
 		},
-		descriptions: [
+		detailed_views: [
 			{
 				path: 'pointcloud.pcd',
 				type: 'pointcloud/txt',

@@ -273,16 +273,16 @@ class CiCommitResults extends Component {
     );
 
     let controls_extra = project_data.information.qatools_config.outputs.controls || []
-    let descriptions = project_data.information.qatools_config.outputs.descriptions || []
+    let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
     let controls = <>
-      {descriptions.map( (description, idx) => {
-        if (!description.default_hidden) return <></>
+      {detailed_views.map( (view, idx) => {
+        if (!view.default_hidden) return <></>
         return <Switch
                 key={idx}
-                hidden={!description.default_hidden}
+                hidden={!view.default_hidden}
                 defaultChecked={false}
                 onChange={this.toggle_show(idx)}
-                label={description.label || description.name || description.path}
+                label={view.label || view.name || view.path}
                />
       })}
       {controls_extra.map(control => {
