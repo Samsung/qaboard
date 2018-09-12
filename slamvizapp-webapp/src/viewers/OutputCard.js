@@ -187,7 +187,7 @@ class OutputCard extends Component {
           key={idx}
           output_new={output_new}
           output_ref={output_ref}
-          {...description}
+          {...view}
           {...controls}
           style={style}
         />
