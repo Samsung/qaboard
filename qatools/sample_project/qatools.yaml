@@ -48,12 +48,61 @@ inputs:
 
 
 outputs:
-  # each metric should have a label, a quality treshold, a scale, unit...
+  # Each metric should have a label, a quality treshold, a scale, unit...
+  # It is all defined in this file
   metrics: qatools/metrics.yaml
-  # to view the qualitative results, the GUI application needs to know
-  # what resources to fetch (images, movies, 6dof...).
-  # Currently supported: cis/image, slam/6dof, tof/depth
-  output_type: slam/6dof
+
+  # To view the qualitative results, we must describe to the UI application
+  # what type of results we computed (images, movies...) and where.
+  # We describe them with an array of results.
+  detailed_views:
+  - name: My plot
+    # If you use plotly, it is very simple to view yours plots in the web UI
+    type: plotly/json 
+    # Save your plot's data and layout in a json file
+    # Note: To find the data they will display, some viewers might rely on conventions
+    #       but it is best to be explicit
+    path: data.json
+    # { 
+    #   layout: {...},        // regular plotly layout
+    #   data: [{...}, {...}]  // data (array) of regular plotly traces
+    # }
+    #
+    # If you add parameters, they will be passed down to the viewer
+    # For instance, you may want to adjust optionnal displays, styling, etc.
+    # Each viewer will have its own options....
+    # 
+    # Some results are too heavy to show all the time, or are only there for debug purposes.
+    # You can define them as optionnal:
+    # default_hidden: true
+
+  - name: Augmented frames
+    type: video/mp4 # shows synced videos
+    path: movie.mp4
+
+  # [OPTIONNAL] We style the card where we display the results with
+  # those CSS style attributes
+  # style:
+  #   width: 840px
+
+
+  # How can we create viewers that 
+  # ...optionnaly/incrementally  show more complex data?
+  # ...on the same plots, on a shared axis
+  # ...with downloading data twice
+
+  # [OPTIONNAL] The UI will let you control optional parameters passed down to all viewers
+  controls:
+    # - type: toggle   # TODO: Only toggle is supported for now.
+    #                  #       Soon all HTML inputs: text_input, select, ...
+    #                  #       It would be fairly easy to implement
+    #   label: Debug   # shown near the input
+    #   name: show_debug
+    #   default: false
+    #   # other parameters would be passed down as appropriate:
+    #   # default: false
+    #   # options: [A, B, C]
+
 
 
 # After the build, you must defined what is needed to run your software:
@@ -82,21 +131,16 @@ artifacts:
   #    └── low-light.json
 
 
+# Bit accuray tests will look for those files
 bit_accuracy:
   patterns:
-    - x.hex
-    - y.hex
-    - depth.hex
+    - output.csv
+    - *.hex
 
-
-# DON'T CHANGE THIS SETTING FOR NOW
-# TODO: use //f2/algo_data/ci
-#       1  check the file copy/retry issues: why have to try twice...
-#       2. the folder should be writable by anyone (?)
-#       3. move the /home/arthurf/ci/*/*/commits` there
-#       4. update the slamvizapp/slamvizapp/config.py
-# Each commit's outputs and artifacts will be saved sat $ci_root/$project_name
+# You artifacts will be saved under this location.
+# Note: for now there is not support for migrations...
 ci_root:
   linux: /home/arthurf/ci
-  # from windows you can still run bit-accuracy tests
+  # it's useful to write the windows path,
+  # it lets your run locally bit-accuracy tests
   windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
