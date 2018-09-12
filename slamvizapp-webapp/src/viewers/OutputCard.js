@@ -73,7 +73,7 @@ class OutputHeader extends React.PureComponent {
         {output.test_input_path} <OutputTags output={output} warning={warning}/>
       </h5>
       <p>{Object.entries(output.extra_parameters).map(([k, v]) => (
-        <Tag key={k} round minimal>
+        <Tag key={k} round minimal style={{margin: '3px'}}>
           {k}:{JSON.stringify(v)}
         </Tag>
       ))}
