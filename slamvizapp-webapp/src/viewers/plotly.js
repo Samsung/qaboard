@@ -1,7 +1,7 @@
 import React, { PureComponent } from "react";
 import { get, all, CancelToken } from "axios";
 import Plot from 'react-plotly.js';
-import { Colors } from "@blueprintjs/core";
+import { Classes, Colors } from "@blueprintjs/core";
 
 
 const colors = {
@@ -44,6 +44,7 @@ class PlotlyViewer extends PureComponent {
     super(props);
     this.state = {
       is_loaded: false,
+      error: null,
       cancel_source: CancelToken.source(),
       data: {},
       layouts: {},
@@ -67,11 +68,7 @@ class PlotlyViewer extends PureComponent {
     if (!!path_groundtruth)
       results.push( ['groundtruth', `${output_new.output_dir_url}/${path_groundtruth}`] )
 
-    console.log(results)
-
     const load_data = label => response => {
-      console.log(response.data)
-      // response.data is the parsed json data
       this.setState((previous_state, props) => ({
         data: {
           ...previous_state.data,
@@ -87,11 +84,14 @@ class PlotlyViewer extends PureComponent {
     all(results.map( ([label, url]) => {
       return () =>  get(url, {cancelToken: cancel_source.token})
                     .then(load_data(label))
-                    .catch(e => {console.log(e)});
+                    .catch(response => {
+                      // we don't really care about errors for reference / groundtruth outputs
+                      if (label==='new' && !!response)
+                        this.setState({error: response.data})
+                    });
     }).map(f=>f()) )
     // now we loaded and parsed all the data
     .then( () => this.setState({is_loaded: true}) )
-    .then( () => {console.log('done')} )
   }
 
 
@@ -102,19 +102,22 @@ class PlotlyViewer extends PureComponent {
 
 
   render() {
-    const { data, layouts, is_loaded } = this.state;
-    if (!is_loaded) return <span/>
+    const { data, layouts, is_loaded, error } = this.state;
+    if (!is_loaded) return <span/>;
+    if (!!error) return <span>{JSON.stringify(error)}</span>
+
     let traces = [
       ...( data.groundtruth || []),
       ...( data.reference || [] ),
       ...( data.new || []),
     ]
-    console.log(traces)
+    if (traces.length===0)
+      return <span className={Classes.TEXT_MUTED}>no data</span>
+
     let layout_ = {
       ...layouts['new'],
       ...this.props.layout,
     };
-    console.log(layout_)
     return <Plot data={traces} layout={layout_}/>;
   }
 }

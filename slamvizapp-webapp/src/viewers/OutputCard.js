@@ -8,7 +8,7 @@ import { MetricTag } from "../components/metrics";
 
 
 const SlimCard = styled(Card)`
-  padding: 1px !important;
+  padding: 5px !important;
   overflow: "auto";
 `;
 
@@ -68,10 +68,17 @@ class OutputHeader extends React.PureComponent {
       lineHeight: 1.6,
       letterSpacing: "-1px",
     }
-    return <h5 className={Classes.HEADING} style={style} >
-      {output.test_input_path} <OutputTags output={output} warning={warning}/>
-    </h5>
-
+    return <>
+      <h5 className={Classes.HEADING} style={style} >
+        {output.test_input_path} <OutputTags output={output} warning={warning}/>
+      </h5>
+      <p>{Object.entries(output.extra_parameters).map(([k, v]) => (
+        <Tag key={k} round minimal>
+          {k}:{JSON.stringify(v)}
+        </Tag>
+      ))}
+      </p>
+      </>
   }
 }
 
@@ -91,11 +98,6 @@ class OutputTags extends React.PureComponent {
       >
         <Icon icon="download" />
       </a>
-      {Object.entries(extra_parameters).map(([k, v]) => (
-        <Tag key={k} intent={Intent.PRIMARY} round minimal>
-          {k}:{v}
-        </Tag>
-      ))}
       {warning && (
         <Popover interactionKind="hover">
           <Icon intent={Intent.WARNING} icon="warning-sign" />
@@ -159,6 +161,8 @@ class OutputCard extends Component {
       width: (!!layout && layout.width !== undefined) ? `${layout.width}px` : width,
       marginBottom: "20px"
     }
+    console.log(width)
+    console.log(container_style)
 
     return <div style={container_style}>
       <SlimCard className="output-card">
