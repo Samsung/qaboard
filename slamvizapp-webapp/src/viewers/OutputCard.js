@@ -2,10 +2,12 @@ import React, { Component } from "react";
 import Loadable from 'react-loadable';
 
 import styled from "styled-components";
-import { Card, Icon, Intent, Tag, Classes, Popover } from "@blueprintjs/core";
+import { Card, Icon, Intent, Tag, Classes, Popover, Toaster, Tooltip } from "@blueprintjs/core";
+import { CopyToClipboard } from "react-copy-to-clipboard";
 import { MetricTag } from "../components/metrics";
 
 
+export const toaster = Toaster.create();
 
 const SlimCard = styled(Card)`
   padding: 5px !important;
@@ -87,17 +89,44 @@ class OutputTags extends React.PureComponent {
   render() {
     const { platform, configuration, output_dir_url } = this.props.output;
     const { warning } = this.props;
+    let windows_path = output_dir_url
+                         .replace('/s', '')
+                         .replace('/home', '//mars/raid/users')
+    if (!windows_path.startsWith('//mars'))
+      windows_path = `//mars/raid/users/arthurf${windows_path}` 
+    windows_path = windows_path.replace(/\//g, '\\')
     return <span>
       <Tag intent={Intent.PRIMARY} round minimal>{platform}</Tag>
       <Tag intent={Intent.PRIMARY} round minimal>{configuration}</Tag>
       <a
         title="Show output files"
-        style={{ paddingLeft: "8px" }}
+        style={{ marginLeft: "4px" }}
         target="_blank"
         href={output_dir_url}
       >
         <Icon icon="download" />
       </a>
+      <Tooltip>
+        <CopyToClipboard
+          text={windows_path}
+          onCopy={() => {
+            toaster.show({
+              message: "Copied the output directory's windows-path to clipboard!",
+              intent: Intent.PRIMARY
+            });
+          }}
+        >
+          <Icon
+            title="copy to clipboard"
+            intent={Intent.PRIMARY}
+            iconSize={Icon.SIZE_SMALL}
+            icon="clipboard"
+            style={{ marginLeft: "4px" }}
+          />
+        </CopyToClipboard>
+        <span>Copy to clipboard</span>
+      </Tooltip>
+
       {warning && (
         <Popover interactionKind="hover">
           <Icon intent={Intent.WARNING} icon="warning-sign" />
@@ -136,12 +165,7 @@ class OutputCard extends Component {
     if (!output_new || output_new.is_failed || output_new.is_pending)
       return <span/>
 
-    const default_description =   [{
-      path: 'cdf_noncon.json',
-      type: 'plotly/json',
-    }]
-    const descriptions = qatools_config.outputs.descriptions || default_description; // [];
-
+    const descriptions = qatools_config.outputs.descriptions || [];
     const style = {
       ...this.props.style,
       ...qatools_config.outputs.style,
