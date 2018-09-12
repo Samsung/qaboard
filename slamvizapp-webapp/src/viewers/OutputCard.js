@@ -104,7 +104,7 @@ class OutputTags extends React.PureComponent {
         target="_blank"
         href={output_dir_url}
       >
-        <Icon icon="download" />
+        <Icon icon="download" style={{verticalAlign: 'baseline'}}/>
       </a>
       <Tooltip>
         <CopyToClipboard
@@ -129,7 +129,7 @@ class OutputTags extends React.PureComponent {
 
       {warning && (
         <Popover interactionKind="hover">
-          <Icon intent={Intent.WARNING} icon="warning-sign" />
+          <Icon intent={Intent.WARNING} icon="warning-sign" style={{verticalAlign: 'baseline'}} />
           <span>{warning}</span>
         </Popover>
       )}
