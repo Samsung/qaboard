@@ -157,9 +157,11 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
       # Have support for this makes test selection easier from the web UI,
       # because users don't have to define groups of tests all the time...
       location = group
+      click.secho(str(location), bold=True, fg='cyan', err=True)
       yield from set([(maybe_parent(f), default_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
       if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
         yield maybe_parent(Path(database/location)), default_configuration
+      return
 
     if 'configuration' in available_batches[group]:
       group_configuration = available_batches[group]['configuration']
