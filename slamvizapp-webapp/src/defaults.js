@@ -30,7 +30,7 @@ export const default_qatools_config = {
 		configuration: 'base',
 	},
 	outputs: {
-		detailed_views: {},
+		detailed_views: [],
 		style: {
 			width: '350px',
 		},
