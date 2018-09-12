@@ -54,10 +54,9 @@ os.umask(0)
 @click.option('--configuration', default=config['inputs']['configuration'], help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
-@click.option('--output-type', default=config['outputs']['output_type'], help="Override if your project needs multiple customized visualizations")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type, dryrun, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning_filepath, dryrun, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
@@ -65,7 +64,6 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, output_type,
   ctx.obj['dryrun'] = dryrun
   ctx.obj['project'] = config['project']['name']
   ctx.obj['commit_ci_dir'] = commit_ci_dir
-  ctx.obj['output_type'] = output_type
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['database'] = database
@@ -162,8 +160,6 @@ def postprocess_(runtime_metrics, context):
     metrics = {"is_failed": True}
 
   save_metrics(context.obj['output_directory'], **metrics)
-  with (context.obj['output_directory']/'output.json').open('w') as f:
-    json.dump({'output_type': context.obj['output_type']}, f)
   if not context.obj['no_qa_database']:
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
   return metrics
