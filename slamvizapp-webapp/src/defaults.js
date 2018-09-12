@@ -50,9 +50,9 @@ export const slam_qatools_config = {
 		},
 	},
 	outputs: {
-		style: {
-			width: '350px',			
-		}
+		// style: {
+		// 	width: '350px',			
+		// }
 	},
 }
 // legacy

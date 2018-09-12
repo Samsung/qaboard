@@ -565,7 +565,7 @@ class CommitsEvolutionPerMovie extends React.Component {
               output_new={hovered_output}
               output_ref={output_ref}
               warning={warning}
-              layout={{ width: 1180, height: 300 }}
+              style={{ width: '1180px', height: '300px' }}
               no_header={true}
             />
           )}

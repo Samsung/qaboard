@@ -85,7 +85,7 @@ class OutputHeader extends React.PureComponent {
 
 class OutputTags extends React.PureComponent {
   render() {
-    const { platform, configuration, output_dir_url, extra_parameters } = this.props.output;
+    const { platform, configuration, output_dir_url } = this.props.output;
     const { warning } = this.props;
     return <span>
       <Tag intent={Intent.PRIMARY} round minimal>{platform}</Tag>
@@ -112,7 +112,6 @@ class OutputTags extends React.PureComponent {
 class OutputViewer extends React.Component {
   render() {
     const { type, ...props } = this.props;
-    console.log(type)
     if (type === "6dof/txt")
       return  <LoadableSlamViewer {...props}/>
     else if (type === "pointcloud/txt")
@@ -131,10 +130,9 @@ class OutputCard extends Component {
   render() {
     const { main_metrics, available_metrics } = this.props.project_data.information.qatools_metrics;
     const { output_new, output_ref, warning } = this.props;
-    const { project_data } = this.props;
+    const { qatools_config } = this.props.project_data.information;
 
     // layout should be plotly-like. You could also pass down a props named style.
-    const { no_header, layout, ...props } = this.props;
     if (!output_new || output_new.is_failed || output_new.is_pending)
       return <span/>
 
@@ -142,7 +140,12 @@ class OutputCard extends Component {
       path: 'cdf_noncon.json',
       type: 'plotly/json',
     }]
-    const descriptions = project_data.information.qatools_config.outputs.descriptions || default_description; // [];
+    const descriptions = qatools_config.outputs.descriptions || default_description; // [];
+
+    const style = {
+      ...this.props.style,
+      ...qatools_config.outputs.style,
+    }
 
     let views = descriptions.map( (description, idx) => 
       <OutputViewer
@@ -150,23 +153,19 @@ class OutputCard extends Component {
         output_new={output_new}
         output_ref={output_ref}
         {...description}
-        {...props}
-        layout={layout}
+        {...this.props}
+        style={style}
       />
     )
 
-    const { width } = project_data.information.qatools_config.outputs.style || '400px';
     let container_style = {
       flex: "0 0 auto",
-      width: (!!layout && layout.width !== undefined) ? `${layout.width}px` : width,
+      width: style.width || '400px',
       marginBottom: "20px"
     }
-    console.log(width)
-    console.log(container_style)
-
     return <div style={container_style}>
       <SlimCard className="output-card">
-          {!no_header && <OutputHeader output={output_new} warning={warning}/>}
+          {!this.props.no_header && <OutputHeader output={output_new} warning={warning}/>}
           <MetricsTags
             selected_metrics={main_metrics}
             available_metrics={available_metrics}

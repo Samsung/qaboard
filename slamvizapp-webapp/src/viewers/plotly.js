@@ -114,7 +114,12 @@ class PlotlyViewer extends PureComponent {
     if (traces.length===0)
       return <span className={Classes.TEXT_MUTED}>no data</span>
 
+    const { style } = this.props;
+    const width = (!!style && style.width) || '400px';
+    // const { height } = style.width || '400px';
     let layout_ = {
+      width: parseFloat(width.substring(0, width.length-2)),
+      // height: parseFloat(style.heigth),
       ...layouts['new'],
       ...this.props.layout,
     };
