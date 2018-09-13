@@ -53,8 +53,6 @@ class CiCommitResults extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      // selectedTabId: "output-list",
-      selectedTabId: this.props.project === "tof/swip_tof" ? "output-list" : "output-table-compare",
       controls: {},
     }
   }
@@ -397,7 +395,14 @@ class CiCommitResults extends Component {
 
               <Section>
                 <Card elevation={2}>
-                  <Tabs id="tabs-summary">
+                  <Tabs
+                    renderActiveTabPanelOnly
+                    id="tabs-summary"
+                    onChange={(newTabId, prevTabId, event) => {
+                      this.props.dispatch(updateSelected(this.props.project, { selected_tab_summary: newTabId }))
+                    }}
+                    selectedTabId={this.props.selected_tab_summary}
+                  >
                     <Tab
                       id="metrics"
                       title="Performance Summary"
@@ -413,7 +418,7 @@ class CiCommitResults extends Component {
                     />
                     <Tab
                       id="parameters"
-                      title="Parameters"
+                      title="Configurations"
                       panel={
                         <CommitParameters
                           project={project}
@@ -423,7 +428,7 @@ class CiCommitResults extends Component {
                     />
                     <Tab
                       id="recordings"
-                      title="Available Recordings"
+                      title="Recording Groups"
                       panel={
                         <AddRecordingsForm
                           project={project}
@@ -448,9 +453,9 @@ class CiCommitResults extends Component {
                   renderActiveTabPanelOnly
                   id="tabs-outputs"
                   onChange={(newTabId, prevTabId, event) => {
-                    this.setState({ selectedTabId: newTabId });
+                    this.props.dispatch(updateSelected(this.props.project, { selected_tab_details: newTabId }))
                   }}
-                  selectedTabId={this.props.selectedTabId}
+                  selectedTabId={this.props.selected_tab_details}
                 >
                   <Tab
                     id="output-table-compare"
@@ -662,6 +667,9 @@ const mapStateToProps = (state, ownProps) => {
 
     let selected_metrics = (state.selected[project] && state.selected[project].selected_metrics) || project_metrics.main_metrics.map(k => available_metrics[k])
 
+    let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "metrics";
+    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || "output-table-compare";
+
     return {
       // project information
       project,
@@ -684,6 +692,8 @@ const mapStateToProps = (state, ownProps) => {
       ref_batch_filtered,
       // FIXME: memoize with reselect
       // getFilteredBatch() ...
+      selected_tab_summary,
+      selected_tab_details,
 
       sort_by: (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
       order: (state.selected[project] && state.selected[project].order) || -1,
