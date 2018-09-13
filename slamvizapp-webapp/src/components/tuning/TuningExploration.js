@@ -510,7 +510,7 @@ class TuningExploration extends Component {
     return (
       <Section>
         <h3 className={Classes.HEADING}>
-          {total_outputs} SLAM results over {number_inputs} recordings
+          {total_outputs} SLAM results over {number_inputs} tests
         </h3>
         <h4 className={Classes.HEADING}>Sensibility analysis</h4>
         <FormGroup
@@ -621,13 +621,13 @@ class TuningExploration extends Component {
             </div>
           </div>
         )}
-        <Sensibility1DBoxplots
+        {number_inputs>1 && <Sensibility1DBoxplots
           outputs={batch.outputs}
           metric={metric}
           available_metrics={available_metrics}
           parameter={selected_parameter}
           layout={layout}
-        />
+        />}
         <h4 className={Classes.HEADING}>Breakdown by test</h4>
         <Switch
           label="Relative"
