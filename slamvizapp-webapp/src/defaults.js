@@ -46,7 +46,7 @@ export const slam_qatools_config = {
 		configuration: 'serial-stereo',
 		database: {
 			linux: '/net/f2/algo_archive/DVS_SLAM_Database',
-			windows: '/net/f2/algo_archive/DVS_SLAM_Database',
+			windows: '\\\\f2\\algo_archive\\DVS_SLAM_Database',
 		},
 	},
 	outputs: {
@@ -92,7 +92,7 @@ export const tof_qatools_config = {
 		configuration: 'xrMode',
 		database: {
 			linux: '/net/f2/algo_archive/ToF_SW_Database',
-			windows: '/net/f2/algo_archive/ToF_SW_Database',
+			windows: '\\\\f2\\algo_archive\\ToF_SW_Database',
 		},
 	},
 	outputs: {
