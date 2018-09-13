@@ -72,14 +72,15 @@ const BatchStatusMessages = ({batch}) => {
       }
     />
   )
-  let pending_message = batch.pending_outputs > 0 && (
+  let nb_pending = batch.pending_outputs - batch.running_outputs;
+  let pending_message = nb_pending > 0 && (
     <Callout
       icon="info-sign"
       intent={Intent.WARNING}
       title={
         <Tooltip>
           <span>
-            {batch.pending_outputs} result{batch.pending_outputs > 1 ? "s" : ""} pending
+            {nb_pending} result{nb_pending > 1 ? "s" : ""} pending
           </span>
           <SimpleOutputList
             outputs={Object.values(batch.outputs).filter(o => o.is_pending && !o.is_running)}
