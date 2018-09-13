@@ -100,7 +100,7 @@ class AppNavbar extends Component {
         </NavbarGroup>
         <NavbarGroup align="right">
           {!is_home && (
-            <Link to="/projects">
+            <Link style={{ color: "#fff" }}  to="/projects">
               <Button minimal icon="home">
                 All projects
               </Button>
