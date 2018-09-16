@@ -28,16 +28,24 @@ def clean(project, protected_branch, days, verbose):
 
   repo = repos[project]
 
-  # We don't want to touch the commits from that branch
+  # We don't want to touch delete artifacts from commits in those "protected" branches
   protected_refs = set(protected_branch)
   protected_commits = set()
+  # Even for the protected branches, we remove the heaviest artifacts after a while (eg movies..)
+  # Since it can be problematic for bit-accuracy tests, we make sure their latests commits are kept as-is.
+  latest_protected_commits = set()
+
   for ref in protected_refs:
     for c in repo.iter_commits(ref):
       protected_commits.add(c)
+
+  for ref in protected_refs:
+    for c in repo.iter_commits(ref, max_count=1):
+      latest_protected_commits.add(c)
+
   # for c in protected_commits:
   #   print(f'{c.hexsha} on {c.authored_datetime} by {c.author.name}')
-  if verbose: print(f'{len(protected_commits)} protected')
-
+  # if verbose: print(f'{len(protected_commits)} protected')
 
   cicommits_dir = ci_directory / project / 'commits'
   for cicommit_dir in cicommits_dir.glob('*__git__*'):
@@ -53,9 +61,10 @@ def clean(project, protected_branch, days, verbose):
         print(f'DELETE: {commit.hexsha} on {commit.authored_datetime} by {commit.author.name}')
         subprocess.Popen(f'rm -rf {cicommit_dir}', shell=True)
       else:
-        command = f"find {cicommit_dir} -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.hex \) -delete -print"
-        print(command)
-        subprocess.Popen(command, shell=True)
+        if commit not in latest_protected_commits:
+          command = f"find {cicommit_dir} -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.hex \) -delete -print"
+          # print(command)
+          subprocess.Popen(command, shell=True)
 
   # we remove core dumps, they are soooo heavy...
   # we could update the LSF params to avoid creating them at all I guess
