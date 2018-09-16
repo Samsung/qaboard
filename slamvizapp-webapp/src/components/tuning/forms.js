@@ -148,7 +148,7 @@ class TuningForm extends Component {
         : tuning_templates["auto"],
 
       // legacy?
-      user: "arthurf",
+      user: cookies.get("user") || "arthurf",
       android_device: "openstf",
 
     };
@@ -186,18 +186,10 @@ class TuningForm extends Component {
       experiment_name: e.target.value.replace(/[^\w_.@:=]/g, "-")
     });
   };
-  updateAndroidDevice = e => {
-    this.props.cookies.set("android_device", e.target.value, { path: "/" });
-    this.setState({ android_device: e.target.value });
-  };
-  updateConfiguration = e => {
-    this.props.cookies.set("configuration", e.target.value, { path: "/" });
-    this.setState({ configuration: e.target.value });
-  };
-  updateUser = e => {
-    this.props.cookies.set("user", e.target.value, { path: "/" });
-    this.setState({ user: e.target.value });
-  };
+  update = name => e => {
+    this.props.cookies.set(name, e.target.value, { path: "/" });
+    this.setState({ [name]: e.target.value });      
+  }
   updatePlatform = e => {
     this.setState({ platform: e.target.value });
     this.props.cookies.set("platform", e.target.value, { path: "/" });
@@ -406,7 +398,7 @@ class TuningForm extends Component {
               style={{ width: "300px" }}
               value={android_device}
               placeholder="openstf"
-              onChange={this.updateAndroidDevice}
+              onChange={this.update('android_device')}
               type="text"
               dir="auto"
             />
@@ -424,7 +416,7 @@ class TuningForm extends Component {
             style={{ width: "300px" }}
             value={configuration}
             placeholder={this.props.project_data.information.qatools_config.inputs.configuration}
-            onChange={this.updateConfiguration}
+            onChange={this.update('configuration')}
             type="text"
             dir="auto"
           />
@@ -529,24 +521,23 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
-        {false && <FormGroup
+        <FormGroup
           label="Run as"
           helperText="Be nice."
           labelFor="input-user"
           inline
         >
           <input
-            disabled
             id="input-user"
             className={Classes.INPUT}
             style={{ width: "300px" }}
             value={user}
             placeholder="arthurf"
-            onChange={this.updateUser}
+            onChange={this.update('user')}
             type="text"
             dir="auto"
           />
-        </FormGroup>}
+        </FormGroup>
 
         <h3 className={Classes.HEADING}>Automated tuning search <Tag intent={Intent.WARNING}>Experimental</Tag></h3>
         <Callout icon="info-sign">
