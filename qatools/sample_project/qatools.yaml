@@ -135,7 +135,7 @@ artifacts:
 bit_accuracy:
   patterns:
     - output.csv
-    - *.hex
+    # - *.hex ...
 
 # You artifacts will be saved under this location.
 # Note: for now there is not support for migrations...
