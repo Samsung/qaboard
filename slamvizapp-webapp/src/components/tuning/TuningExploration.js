@@ -464,12 +464,6 @@ class TuningExploration extends Component {
     const { layout, relative, available_metrics, default_metric, main_metrics, aggregation } = this.state;
 
     if (!batch) return <p>Loading...</p>;
-    if (batch.label === "default")
-      return (
-        <Callout intent={Intent.PRIMARY}>
-          First select a tuning experiment
-        </Callout>
-      );
 
     // tuned_parameters holds all tuning values used for each parameter
     let tuned_parameters = {};
@@ -509,6 +503,11 @@ class TuningExploration extends Component {
 
     return (
       <Section>
+        {batch.label === "default" &&
+          <Callout intent={Intent.PRIMARY}>
+            If you do tuning, consider giving each experiment a label
+          </Callout>
+        }
         <h3 className={Classes.HEADING}>
           {total_outputs} SLAM results over {number_inputs} tests
         </h3>
