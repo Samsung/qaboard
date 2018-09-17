@@ -52,7 +52,7 @@ function selected(state = {
 // }
 
 
-export const reference_key = reference => (reference.name || reference.committer || 'default');
+// export const branch_key = branch => (branch.name || branch.committer || 'default');
 
 function commits(state = {}, action) {
 	var new_state;

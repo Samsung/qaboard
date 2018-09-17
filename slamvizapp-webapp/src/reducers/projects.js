@@ -22,7 +22,7 @@ function update_project(state=default_project, data) {
 }
 
 
-export const reference_key = reference => (reference.name || reference.committer || 'default');
+export const branch_key = branch => (branch.name || branch.committer || 'default');
 
 export function projects(state = {
   data: {
@@ -56,8 +56,8 @@ export function projects(state = {
 
     case UPDATE_COMMITS:
       // console.log(state)
-      var reference = reference_key(action.reference);
-      let previous_ids = state.data[action.project].commits[reference] && state.data[action.project].commits[reference].ids;
+      var branch = branch_key(action.branch);
+      let previous_ids = state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids;
       new_state = {
         ...state,
         data: {
@@ -66,8 +66,8 @@ export function projects(state = {
             ...state.data[action.project],
             commits: {
               ...state.data[action.project].commits,
-              [reference]: {
-                ...state.data[action.project].commits[reference],
+              [branch]: {
+                ...state.data[action.project].commits[branch],
                 is_loaded: true,
                 is_loading: false,
                 // in case of error, we keep the previous list of commits
@@ -79,14 +79,14 @@ export function projects(state = {
         }
       }
       if (action.commits.length > 0)
-        new_state.data[action.project].commits[reference].date_range =  [
+        new_state.data[action.project].commits[branch].date_range =  [
           new Date(action.commits[action.commits.length - 1].authored_datetime),
           new Date(action.commits[0].authored_datetime)
         ]
       return new_state;
 
     case FETCH_COMMITS:
-      reference = reference_key(action.reference);
+      branch = branch_key(action.branch);
       return {
         ...state,
         data: {
@@ -94,9 +94,9 @@ export function projects(state = {
           [action.project]: {
             ...state.data[action.project],
             commits: {
-              [reference]: {
-                ...state.data[action.project].commits[reference],
-                ids: (state.data[action.project].commits[reference] && state.data[action.project].commits[reference].ids) || [],
+              [branch]: {
+                ...state.data[action.project].commits[branch],
+                ids: (state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids) || [],
                 is_loading: true,
                 error: null,
                 date_range: action.date_range,

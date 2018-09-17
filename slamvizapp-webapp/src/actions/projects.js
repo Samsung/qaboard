@@ -57,16 +57,17 @@ export const updateBranches = (project, branches, error) => ({
 })
 
 
-export const fetchCommits = (project, reference, date_range, aggregation_metrics) => {
+export const fetchCommits = (project, branch, date_range, aggregation_metrics) => {
   return dispatch => {
-    dispatch({type: FETCH_COMMITS, project, reference, date_range})
+    dispatch({type: FETCH_COMMITS, project, branch, date_range})
+    console.log(branch)
     var url
-    if (reference.committer)
-      url =`/api/v1/commits?committer=${reference.committer}`;
+    if (branch.committer)
+      url =`/api/v1/commits?committer=${branch.committer}`;
     else {
-      let branch = "";
-      if (reference.branch) branch = `/${reference.branch}`;
-      url = `/api/v1/commits${branch}`;
+      let branch_ = "";
+      if (branch.name) branch_ = `/${branch.name}`;
+      url = `/api/v1/commits${branch_}`;
     }
     get(url, {
       params: {
@@ -77,10 +78,10 @@ export const fetchCommits = (project, reference, date_range, aggregation_metrics
       }
     })
       .then(response => {
-        dispatch({type: UPDATE_COMMITS, project, reference, commits: response.data})
+        dispatch({type: UPDATE_COMMITS, project, branch, commits: response.data})
       })
       .catch(error => {
-        dispatch({type: UPDATE_COMMITS, project, reference, error, commits: []})
+        dispatch({type: UPDATE_COMMITS, project, branch, error, commits: []})
       });
   }  
 }
