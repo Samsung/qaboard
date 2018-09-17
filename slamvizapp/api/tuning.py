@@ -136,7 +136,7 @@ def add_batch(hexsha):
     f'bsub_su {user} -q {queue} -sp 4000 ', # highest priority
     f'-o /home/arthurf/dvs/slamvizapp/data/{project_id}/lsf.log ',
     '<< EOF\n'
-    f'  cd {working_directory};\n',
+    f'  cd "{working_directory}";\n',
     # android options
     f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else '',
     f"  export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else '',
