@@ -631,7 +631,7 @@ class AddRecordingsForm extends Component {
       message: "The request was sent!",
       intent: Intent.PRIMARY
     });
-    post(`/api/v1//api/v1/recordings/groups?project=${this.props.project}`, {
+    post(`/api/v1/recordings/groups?project=${this.props.project}`, {
       project: this.props.project,
       groups,
     })
