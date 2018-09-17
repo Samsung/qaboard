@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { Card, Icon, Intent, Tag, Classes, Popover, Toaster, Tooltip } from "@blueprintjs/core";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { MetricTag } from "../components/metrics";
+import ImgViewer from './image';
 
 
 export const toaster = Toaster.create();
@@ -156,6 +157,8 @@ class OutputViewer extends React.Component {
       return <LoadablePlotlyViewer {...props} />
     else if (type.startsWith('video'))
       return <LoadableVideoViewer {...props} type={type} />
+    else if (type.startsWith('image'))
+      return <ImgViewer {...props} type={type} />
     else return <span>No viewer is defined for type: {type}</span>;
   }
 }
