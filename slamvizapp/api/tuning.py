@@ -152,7 +152,7 @@ def add_batch(hexsha):
   batch_script_filepath = batch_script_directory/f'{ci_commit.gitcommit.hexsha}_{now}.sh'
   with batch_script_filepath.open('w') as f:
     f.write(batch_script)
-  cmd = f'ssh -o StrictHostKeyChecking=no -i /home/arthurf/.ssh/ispq.id_rsa ispq@planet31 bash {batch_script_filepath}'
+  cmd = f'ssh -t -o StrictHostKeyChecking=no -i /home/arthurf/.ssh/ispq.id_rsa ispq@planet31 bash {batch_script_filepath}'
   print(cmd)
   subprocess.run(cmd, shell=True, encoding='utf-8')
   return jsonify({'command': batch_script})
