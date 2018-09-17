@@ -130,9 +130,10 @@ def add_batch(hexsha):
   queue = 'alg_q' if is_legacy_project else ci_commit.project.information['qatools_config']['lsf']['fast_queue']
   # openstf is our device farm
   use_openstf = data['android_device'].lower() == 'openstf'
+  user = data['user'] if 'user' in data else 'arthurf'
   batch_script = ''.join([
     '#!/bin/bash\n',
-    f'bsub -q {queue} -sp 4000 ', # highest priority
+    f'bsub_su {user} -q {queue} -sp 4000 ', # highest priority
     f'-o /home/arthurf/dvs/slamvizapp/data/{project_id}/lsf.log ',
     '<< EOF\n'
     f'  cd {working_directory};\n',
@@ -140,8 +141,7 @@ def add_batch(hexsha):
     f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else '',
     f"  export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else '',
     f"  export {'SAMSUNG_CI_COMMIT_DIR' if is_legacy_project else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n",
-    f"  export GITLAB_USER_LOGIN='{data['user']}';\n" if data['user'] != 'arthurf' else '',
-    f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+    f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n  ",
     batch_command,
     'EOF',
   ])
@@ -152,9 +152,7 @@ def add_batch(hexsha):
   batch_script_filepath = batch_script_directory/f'{ci_commit.gitcommit.hexsha}_{now}.sh'
   with batch_script_filepath.open('w') as f:
     f.write(batch_script)
-  cmd = f'ssh -o StrictHostKeyChecking=no arthurf@planet31 bash {batch_script_filepath}',
+  cmd = f'ssh -o StrictHostKeyChecking=no -i /home/arthurf/.ssh/ispq.id_rsa ispq@planet31 bash {batch_script_filepath}'
   print(cmd)
   subprocess.run(cmd, shell=True, encoding='utf-8')
   return jsonify({'command': batch_script})
-
-
