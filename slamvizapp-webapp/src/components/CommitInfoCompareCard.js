@@ -86,9 +86,14 @@ class CommitMessage extends React.PureComponent {
     const { commit, style } = this.props;
     if (!commit)
       return <p className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`}>This is a placeholder for the commit message. Yep.</p>
-    return <p style={{ marginTop: "10px", ...style}} className={Classes.MONOSPACE_TEXT} >
-      {commit.message}
-    </p>
+    return <>
+      <p style={{ marginTop: "10px", ...style}} className={Classes.MONOSPACE_TEXT} >
+        {commit.message}
+      </p>
+      <p style={style}>
+        <a href={`/api/v1/commit/${commit.id}`}><Button className={Classes.TEXT_MUTED} minimal icon="import">JSON</Button></a>
+      </p>
+    </>
   }
 }
 
