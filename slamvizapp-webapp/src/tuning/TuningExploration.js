@@ -5,7 +5,7 @@ import createPlotlyComponent from "react-plotly.js/factory";
 import { Callout, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { Section } from "../common/containers";
-import { groupBy, groupByObject, input_test_color } from "../common/utils";
+import { groupBy, input_test_color, median } from "../common/utils";
 import { metrics } from "../metrics";
 
 const Plot = createPlotlyComponent(Plotly);
@@ -37,7 +37,6 @@ const Sensibility1DLines = ({
       let v0 = metric.smaller_is_better
         ? Math.min(...values)
         : Math.max(...values);
-      console.log(v0);
       let y = relative ? values.map(v => 100 * v / v0) : values;
       return {
         type: "scatter",
@@ -76,7 +75,12 @@ const Sensibility1DLines = ({
       gridcolor: "rgb(255, 255, 255)",
       gridwidth: 1
     },
-    ...layout
+    ...layout,
+    // eslint-disable-next-line
+    xaxis: {
+      ...layout.axis,
+      title: parameter,
+    },
   };
   return <Plot data={traces} layout={layout_} config={config} />;
 };
@@ -97,6 +101,7 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
         name: param_value,
         x: outputs.map(o => o.extra_parameters[parameter]),
         y: outputs.map(o => o.metrics[metric.key] * metric.scale),
+        boxmean: true,
         marker: {
           color: Colors.ORANGE3
         }
@@ -108,9 +113,6 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
     boxgap: 0,
     boxgroupgap: 0,
     showlegend: false,
-    xaxis: {
-      title: parameter
-    },
     yaxis: {
       title: metric.label,
       type: "log",
@@ -122,7 +124,11 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
       gridcolor: "rgb(255, 255, 255)",
       gridwidth: 1
     },
-    ...layout
+    ...layout,
+    xaxis: {
+      ...layout.axis,
+      title: parameter,
+    },
   };
   return <Plot data={traces} layout={layout_} config={config} />;
 };
@@ -137,10 +143,6 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
 //   values: outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
-const average = array => {
-  return array.reduce((a, b) => a + b, 0) / array.length;
-};
-
 const Sensibility2DContour = ({
   outputs,
   metric,
@@ -153,31 +155,59 @@ const Sensibility2DContour = ({
   let outputs_ok = Object.values(outputs).filter(
     o => !o.is_pending && !o.is_failed
   );
-  // todo: aggregate median/mean per recording..
 
-  let outputs_by_param = groupByObject(outputs_ok, "extra_parameters");
-  // console.log(outputs_by_param)
-
-  let outputs_aggregated = Object.entries(outputs_by_param).map(
+  // first we group outputs by all their tuning / extra parameters
+  // this avoid giving more weights to tunings that ran on more tests
+  let outputs_by_params = new Map();
+  outputs_ok.forEach(output => {
+    let outputs_with_same_params = outputs_by_params.get(output.extra_parameters) || [];
+    outputs_with_same_params.push(output);
+    outputs_by_params.set(output.extra_parameters, outputs_with_same_params);
+  })
+  // we aggregate
+  let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
     ([extra_parameters, outputs]) => {
+      let aggregated_metrics = {}
       Object.values(available_metrics).forEach(m => {
         let values = outputs
           .map(o => o.metrics[m.key])
           .filter(x => x !== undefined);
-        outputs[0].metrics[m.key] = average(values);
+        aggregated_metrics[m.key] = median(values);
       });
-      return outputs[0];
+      return [extra_parameters, aggregated_metrics];
     }
-  );
-  // console.log(outputs_aggregated)
+  )
+
+  // then we focus on the variables that are interesting to us
+  let metrics_aggregated_by_shown_params = new Map();
+  metrics_aggregated_by_params.forEach(([extra_parameters, metrics]) => {
+    let shown_params = {
+      [parameters[0]]: extra_parameters[parameters[0]],
+      [parameters[1]]: extra_parameters[parameters[1]],
+    }
+    let outputs_with_same_params = metrics_aggregated_by_shown_params.get(shown_params) || [];
+    outputs_with_same_params.push(metrics);
+    metrics_aggregated_by_shown_params.set(shown_params, outputs_with_same_params);
+  })
+
+  // and re-aggregate
+  let metrics_by_shown_params_aggregated = Array.from(metrics_aggregated_by_shown_params.entries()).map(
+    ([extra_parameters, metrics]) => {
+      let aggregated_metrics = {}
+      Object.values(available_metrics).forEach(m => {
+        let values = metrics.map(metric => metric[m.key])
+        aggregated_metrics[m.key] = median(values);
+      });
+      return [extra_parameters, aggregated_metrics];
+    }
+  )
 
   let traces = [
     {
       type: "contour",
-      x: outputs_aggregated.map(o => o.extra_parameters[parameters[0]]),
-      y: outputs_aggregated.map(o => o.extra_parameters[parameters[1]]),
-      // a matrix???/
-      z: outputs_aggregated.map(o => o.metrics[metric.key] * metric.scale),
+      x: metrics_by_shown_params_aggregated.map(([p,m]) => p[parameters[0]]),
+      y: metrics_by_shown_params_aggregated.map(([p,m]) => p[parameters[1]]),
+      z: metrics_by_shown_params_aggregated.map(([p,m]) => m[metric.key] * metric.scale),
       contours: {
         coloring: "heatmap", // apply a gradient within each contour
         showlabels: true,
@@ -207,7 +237,6 @@ const Sensibility2DContour = ({
       title: parameters[1]
     }
   };
-  console.log(traces);
   return <Plot data={traces} layout={layout_} config={config} />;
 };
 

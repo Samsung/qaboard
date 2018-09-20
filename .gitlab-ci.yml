@@ -45,7 +45,7 @@ deploy_cis_integration:
   stage: deploy
   script:
     - update_lsf
-    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project NOPT2 --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
+    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
@@ -60,7 +60,7 @@ deploy_staging:
   stage: deploy
   script:
     - update_lsf
-    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project NOPT2 --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
+    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
@@ -75,7 +75,7 @@ deploy_production:
   stage: deploy
   script:
     - update_lsf
-    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project NOPT2 --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
+    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"

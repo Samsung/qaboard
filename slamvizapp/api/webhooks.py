@@ -57,9 +57,11 @@ def new_output_webhook():
   output.data = request.json.get('data', {})
 
   # We allow users to save their data in custom locations
-  if 'output_directory' in request.json:
-    if request.json['output_directory'] != output.output_dir:
-      output.output_dir_override = request.json['output_directory']
+  # at the commit and output levels
+  if request.json.get('commit_ci_dir', ci_commit.commit_dir) != ci_commit.commit_dir:
+    ci_commit.commit_dir_override = request.json.get('commit_ci_dir')
+  if request.json.get('output_directory', output.output_dir) != output.output_dir:
+    output.output_dir_override = request.json.get('output_directory')
 
   # We update the output's status
   output.is_running = request.json.get('is_running', False)
@@ -69,9 +71,9 @@ def new_output_webhook():
     output.is_pending = request.json.get('is_pending', False)
 
   # We save the output's metrics
-  if not is_pending:
-    output.metrics = request.json.get('metrics', {})
-    if not metrics: # we look for metrics.json in the output directory
+  if not output.is_pending:
+    metrics = request.json.get('metrics', {})
+    if metrics: # we look for metrics.json in the output directory
       output.update_metrics()
 
   db_session.add(output)
@@ -88,8 +90,6 @@ def gitlab_webhook():
   # data['ref'] => 'refs/heads/feature/Imu_preintegration'
   branch = data['ref'][11:]
   project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
-
-
 
   project = Project.get_or_create(session=db_session, id=project_path)
   project.information = {

@@ -79,7 +79,7 @@ class CiCommit(Base):
       elif '/stage/algo_data' in self.commit_dir_override:
         return '/s/'/self.commit_dir.relative_to('/stage/algo_data')
       else:
-        raise NotImplementedError
+        return f'/s{self.commit_dir_override}' 
     return '/s/' / self.commit_dir.relative_to(self.project.ci_directory)
 
   def __repr__(self):
