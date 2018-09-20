@@ -7,6 +7,8 @@ import { OrbitControls } from "./OrbitControls";
 import { Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
 import { MetricTag } from "../MetricsSummary";
 import { main_metrics, available_metrics } from "./metrics";
+import { get } from "axios";
+import { parse_hex } from "./Sys_Tools"
 
 import createPlotlyComponent from "react-plotly.js/factory";
 const Plot = createPlotlyComponent(Plotly);
@@ -91,7 +93,8 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
-    this.updateFrames(this.props)
+    this.updateFrames(this.props);
+    this.getData(this.props);
   }
 
   componentDidUpdate(nextProps, prevState) {
@@ -99,7 +102,19 @@ class TofOutputCard extends Component {
         this.updateFrames(nextProps)
     }
   }
-
+  
+  getData(props) {
+    const { output_new, output_ref } = props;
+    const { selected_frame }  = this.state;
+    get(`${output_new.output_dir_url}/Frame${selected_frame}/depth.hex`)
+    .then(response => {
+	  this.setState({
+	    depth: parse_hex(response.data, 'depth')
+	  }) 
+	})
+    .catch(e => {console.log(e)});
+  }
+  
   getPointcloud(frame_id, label) {
     var loader = new PCDLoader();
     if (label === "new") {
@@ -306,7 +321,7 @@ class TofOutputCard extends Component {
       ...layout
     };
     const output_types = ["depth"]; //, 'intensity'];
-
+	let output_layout = { yaxis: { autorange: "reversed" } };
     return (
       <div style={{ flex: "0 0 auto", marginBottom: "20px", card_width }}>
         <Card className="output-card">
