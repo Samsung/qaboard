@@ -187,6 +187,9 @@ class TofOutputCard extends Component {
     this.controls.maxDistance = 5 * 1000;
 
     window.addEventListener("keypress", this.keyboard);
+    while (this.threeRoot.hasChildNodes()) {
+      this.threeRoot.removeChild(this.threeRoot.lastChild);
+    }
     this.threeRoot.appendChild(this.renderer.domElement);
 
     if (!this.frameId) {
