@@ -1,5 +1,5 @@
-/* global Plotly:true */
 import React, { Component } from "react";
+import Plot from 'react-plotly.js';
 import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
@@ -81,8 +81,8 @@ class TofOutputCard extends Component {
   // keep information about the frame order, we turn frame.outputs_new.frames
   // into a Map (~ordered dict~)
   updateFrames(props) {
-    const to_map = outputs => outputs.metrics.frames !== undefined
-                              ? new Map(outputs.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
+    const to_map = output => (output.metrics !== undefined && output.metrics.frames !== undefined)
+                              ? new Map(output.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
                               : new Map();
     this.setState({
         frames: {
@@ -162,7 +162,7 @@ class TofOutputCard extends Component {
 
   componentWillUnmount() {
     if (this.state.show_pointcloud) {
-      this.stop();
+      this.stopPointCloud();
       this.threeRoot.removeChild(this.renderer.domElement);      
       // window.removeEventListenner(this.keyboard)
     }
@@ -260,7 +260,7 @@ class TofOutputCard extends Component {
   };
 
   render() {
-    const { output_new, output_ref, warning, no_header } = this.props;
+    const { output_new, output_ref } = this.props;
     const { show_pointcloud, pointclouds, frames, selected_frame } = this.state;
     let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
 
@@ -276,36 +276,11 @@ class TofOutputCard extends Component {
 
     if (!metrics_new || !metrics_ref || !frames) return <span />;
 
-    let tags = (
-      <span>
-        {Object.entries(output_new.extra_parameters).map(([k, v]) => (
-          <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">
-            {k}:{v}
-          </Tag>
-        ))}
-        <a
-          title="Show output files"
-          style={{ paddingLeft: "5px" }}
-          target="_blank"
-          href={output_new.output_dir_url}
-        >
-          <Icon icon="download" />
-        </a>
-        {warning && (
-          <Popover interactionKind="hover">
-            <Icon intent={Intent.WARNING} icon="warning-sign" />
-            <span>{warning}</span>
-          </Popover>
-        )}
-      </span>
-    );
-
     let traces = [
       make_traces(frames['reference'], "reference"),
       make_traces(frames['new'], "new"),
     ];
     let layout = this.props.layout || {};
-    let card_width = layout.width !== undefined ? `${layout.width}px` : "840px";
     let layout_ = {
       height: 150,
       margin: { l: 50, r: 10, b: 50, t: 50, pad: 5 },
@@ -326,87 +301,51 @@ class TofOutputCard extends Component {
     const output_types = ["depth"]; //, 'intensity'];
 	let output_layout = { yaxis: { autorange: "reversed" } };
     return (
-      <div style={{ flex: "0 0 auto", marginBottom: "20px", card_width }}>
-        <Card className="output-card">
-          {!no_header && (
-            <div>
-              <h5
-                style={{
-                  fontSize: ".7rem",
-                  fontWeight: 500,
-                  lineHeight: 1.6,
-                  letterSpacing: "-1px"
-                }}
-              >
-                {output_new.test_input_path}{" "}
-                <Tag className="pt-minimal" style={{ marginRight: "10px" }}>
-                  Frame {selected_frame}
-                </Tag>{" "}
-                {tags}
-              </h5>
-              {main_metrics
-                .filter(key => metrics_new[key] !== undefined)
-                .map(key => (
-                  <p key={key}>
-                    <MetricTag
-                      metrics_new={metrics_new}
-                      metrics_ref={metrics_ref}
-                      metric_info={available_metrics[key]}
-                    />
-                  </p>
-                ))}
-            </div>
-          )}
+      <>
+        <p className={Classes.TEXT_MUTED}>
+          {show_pointcloud ? (is_loaded
+                        ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
+                        : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
+        </p>
+        <div hidden={!show_pointcloud}
+          ref={threeRoot => {
+            this.threeRoot = threeRoot;
+          }}
+        >
+          {is_loaded && this.renderer.render(this.scene, this.camera)}
+        </div>
 
-          <p className="pt-text-muted">
-            {show_pointcloud ? (is_loaded
-                          ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
-                          : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
-          </p>
-          <div hidden={!show_pointcloud}
-            ref={threeRoot => {
-              this.threeRoot = threeRoot;
-            }}
-          >
-            {is_loaded && this.renderer.render(this.scene, this.camera)}
-          </div>
+        <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
+      
+        <div>
+          <h4 className={Classes.HEADING}>
+            <a
+              href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
+              target="_blank"
+            >
+              Frame {selected_frame}
+            </a>
+          </h4>
+          {output_types.map(output_type => {
+            let img_new = `${
+              output_new.output_dir_url
+            }/Frame${selected_frame}/${output_type}.png`;
+            let img_ref = `${
+              output_ref.output_dir_url
+            }/Frame${selected_frame}/${output_type}.png`;
+            return (
+              <div key={output_type}>
+                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
+                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
+              </div>
+            );
+          })}
+        </div>
 
-          <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
-        
-          <div>
-            <h4>
-              <a
-                href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
-                target="_blank"
-              >
-                Frame {selected_frame}
-              </a>
-            </h4>
-            {output_types.map(output_type => {
-              let img_new = `${
-                output_new.output_dir_url
-              }/Frame${selected_frame}/${output_type}.png`;
-              let img_ref = `${
-                output_ref.output_dir_url
-              }/Frame${selected_frame}/${output_type}.png`;
-              return (
-                <div key={output_type}>
-                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
-                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
-                </div>
-              );
-            })}
-          </div>
-
-          {false && <p>{JSON.stringify(output_new)}</p>}
-        </Card>
-      </div>
+        {false && <p>{JSON.stringify(output_new)}</p>}
+      </>
     );
   }
 }
 
-// <div ref={(threeRoot) => { this.threeRoot = threeRoot }}>{renderer.domElement}</div>
-// <div ref={this.threeRoot}>{renderer.domElement}</div>
-// <div dangerouslySetInnerHTML={{__html: renderer.domElement}} ></div>
-
-export { TofOutputCard };
+export default TofOutputCard;

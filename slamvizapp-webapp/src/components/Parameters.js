@@ -1,6 +1,6 @@
 import React, { Component, Fragment } from "react";
 import { get, all } from "axios";
-import { Spinner, NonIdealState } from "@blueprintjs/core";
+import { Classes, Spinner, NonIdealState } from "@blueprintjs/core";
 
 import AceEditor from "react-ace";
 
@@ -107,7 +107,7 @@ class CommitParameters extends Component {
       );
     let configuration_parameters = this.state.configurations.map(c => (
       <Fragment key={c}>
-        <h4>{c}</h4>
+        <h4 className={Classes.HEADING}>{c}</h4>
         <AceEditor
           mode={c.includes('json') ? "json" : 'yaml'}
           theme="github"

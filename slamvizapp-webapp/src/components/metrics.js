@@ -1,24 +1,23 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
+import Plot from 'react-plotly.js';
 import styled from "styled-components";
 
 import {
+  Classes,
   Tag,
   Button,
+  Icon,
   Intent,
   Callout,
   MenuItem,
   Colors
 } from "@blueprintjs/core";
-import { MultiSelect, Classes } from "@blueprintjs/select";
+import { MultiSelect } from "@blueprintjs/select";
 
-import { metrics } from "./metrics";
-import { noMetrics } from "./common/metricSelect";
-import { median, plotly_palette } from "./common/utils";
+import { noMetrics } from "./metricSelect";
+import { median, plotly_palette } from "../utils";
 
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
+
 
 // todo: we should use the colors defined by @blueprint, and JS helpers to alpha-ize, darken, etc.
 const color = "rgba(255, 157, 0, 1)";
@@ -60,7 +59,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       ? Intent.DANGER
       : Intent.SUCCESS;
   let metric_tag = (
-    <Tag className="pt-minimal" intent={intent}>
+    <Tag minimal intent={intent}>
       {formatted_valued}
     </Tag>
   );
@@ -73,7 +72,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -0.01) intent_compare = Intent.SUCCESS;
     else intent_compare = Intent.DEFAULT;
     var compare_tag = (
-      <Tag className="pt-minimal" intent={intent_compare}>
+      <Tag minimal intent={intent_compare}>
         {percent_formatter.format(100 * delta_relative)}%
       </Tag>
     );
@@ -330,10 +329,8 @@ const SuccessBar = ({ success_frac }) => (
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
-    const { project } = props;
-    const available_metrics = metrics[project].available_metrics;
-    const default_selected_metrics =
-      metrics[project].summary_metrics.map(k => available_metrics[k]) || [];
+    const { available_metrics, summary_metrics } = this.props.project_data.information.qatools_metrics;
+    const default_selected_metrics = summary_metrics.map(k => available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
       available_metrics,
@@ -516,23 +513,23 @@ class MetricsSummary extends Component {
           return (
             <MetricRow key={m.key}>
               <MetricTile>
-                <h3>
+                <h3 className={Classes.HEADING}>
                   {metric_formatter.format(m.scale * new_med)}
                   {m.suffix}
                   <span style={{ color: "#ccc" }}> median</span>
                 </h3>
-                <h5>{m.label}</h5>
+                <h5 className={Classes.HEADING}>{m.label}</h5>
                 <SuccessBar success_frac={new_pc_good} />
               </MetricTile>
 
               {!breakdown_by_tag && (
                 <Fragment>
                   <MetricTile>
-                    <h3 style={{ color: color_ref }}>
-                      vs {metric_formatter.format(m.scale * ref_med)}
+                    <h3 className={Classes.HEADING} style={{ color: color_ref }}>
+                      <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter.format(m.scale * ref_med)}
                       {m.suffix}
                     </h3>
-                    <h5>
+                    <h5 className={Classes.HEADING}>
                       <Tag intent={intent}>
                         {delta_relative > 0 ? "+" : ""}
                         {percent_formatter.format(100 * delta_relative)}%

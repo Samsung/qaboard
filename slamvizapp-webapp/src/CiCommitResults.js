@@ -1,82 +1,84 @@
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import { get } from "axios";
 import qs from "qs";
-// import List from 'react-virtualized'
 
-import { FormGroup, Switch } from "@blueprintjs/core";
 import {
+  FormGroup,
+  HTMLSelect,
+  Switch,
+  Classes,
   Button,
   MenuItem,
   Tag,
   InputGroup,
-  Tooltip,
   Callout,
   Card,
-  NonIdealState,
-  Spinner,
   Tab,
   Tabs,
-  Intent
+  Intent,
 } from "@blueprintjs/core";
-import { MultiSelect, Classes } from "@blueprintjs/select";
-import { noMetrics } from "./common/metricSelect";
+import { MultiSelect } from "@blueprintjs/select";
+import { noMetrics } from "./components/metricSelect";
 
-import { Container, Section } from "./common/containers";
-import { CommitInfoCompareCard } from "./CommitInfoCompareCard";
-import { MetricsSummary } from "./MetricsSummary";
+import { Container, Section } from "./components/layout";
+import { CommitInfoCompareCard } from "./components/CommitInfoCompareCard";
+import { MetricsSummary } from "./components/metrics";
+import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
-import { matching_output, sortOutputs, filter_batch } from "./common/utils";
-import { TableCompare, TableKpi } from "./Tables";
-import { BatchLogs } from "./BatchLogs";
-import { CommitParameters } from "./Parameters";
-import { OutputCard } from "./OutputCard";
-import { metrics } from "./metrics";
+import { matching_output, sortOutputs, filter_batch } from "./utils";
+import { TableCompare, TableKpi } from "./components/tables";
+import { BatchLogs } from "./components/BatchLogs";
+import { CommitParameters } from "./components/Parameters";
+import { OutputCard } from "./viewers/OutputCard";
+import { fetchCommit } from "./actions/commit";
+import { updateSelected } from "./actions/selected";
 
-import { AddRecordingsForm, TuningForm } from "./tuning/TuningForm";
-import { TuningExploration } from "./tuning/TuningExploration";
-import { SelectBatches } from "./tuning/SelectBatches";
+
+import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
+import { TuningExploration } from "./components/tuning/TuningExploration";
+import { SelectBatches } from "./components/tuning/SelectBatches";
+
+
+import {
+  default_project,
+  default_selected,
+  empty_batch,
+} from "./defaults"
+
+
+
 
 class CiCommitResults extends Component {
   constructor(props) {
     super(props);
-    const params = new URLSearchParams(this.props.location.search);
-    const project = params.get("project") || "dvs/psp_swip";
-    const available_metrics = metrics[project].available_metrics;
-
     this.state = {
-      project,
-      available_metrics,
-      selected_metrics: metrics[project].main_metrics.map(
-        k => available_metrics[k]
-      ),
-
-      new_commit_id: null, // current commit to display
-      ref_commit_id: params.get("reference") || null, // reference commit to display
-
-      commits: {
-        // store of commit information
-        default: { isLoaded: false }
-      },
-
-      selected_batch_new: params.get("batch_new") || "default",
-      selected_batch_ref: params.get("batch_reference") || "default",
-
-      // for the kpi/improvement/details/tuningExplore tabs
-      selectedTabId:
-        project === "tof/swip_tof" ? "output-list" : "output-table-compare",
-
-      filter_batch_new: params.get("filter") || "",
-      filter_batch_ref: params.get("filter_ref") || "",
-      sort_by: metrics[project].default_metric || "input_test_path",
-      order: -1,
-
-      // FIX: SLAM-specific
-      show_videos: false,
-      show_3d: false,
-      show_debug: false
-    };
+      controls: {},
+    }
   }
+
+
+  toggle = name => () => {
+    this.setState( (previousState, props) => ({
+      controls: {
+        ...previousState.controls,
+        [name]: !this.state[name],
+      }
+    }))    
+  }
+
+  toggle_show = idx => () => {
+    this.setState( (previousState, props) => ({
+      controls: {
+        ...previousState.controls,
+        show: {
+          ...previousState.controls.show,          
+          [idx]: !this.state[idx],
+        }
+      }
+    }))    
+  }
+
 
   // these members help us define the metric selector
   renderMetric = (metric, { handleClick, modifiers, query }) => {
@@ -102,160 +104,62 @@ class CiCommitResults extends Component {
     let search = query.toLowerCase();
     return searched.indexOf(search) >= 0;
   };
-  handleClear = () => this.setState({ selected_metrics: [] });
+
+
+  handleClear = () => this.props.dispatch(updateSelected(this.props.project, {selected_metrics: []}));
   handleTagRemove = (_tag, index) => {
     this.deselectMetric(index);
   };
   getSelectedMetricIndex = metric => {
-    return this.state.selected_metrics.indexOf(metric);
+    return this.props.selected_metrics.indexOf(metric);
   };
   isMetricSelected(metric) {
     return this.getSelectedMetricIndex(metric) !== -1;
   }
   deselectMetric = index => {
-    this.setState({
-      selected_metrics: this.state.selected_metrics.filter(
-        (metric, i) => i !== index
-      )
-    });
+    this.props.dispatch(updateSelected(
+      this.props.project, {
+        selected_metrics: this.props.selected_metrics.filter((metric, i) => i !== index)
+      }))
   };
   handleMetricSelect = metric => {
     if (!this.isMetricSelected(metric)) {
-      this.setState({
-        selected_metrics: [...this.state.selected_metrics, metric]
-      });
+      this.props.dispatch(updateSelected(
+        this.props.project, {
+          selected_metrics: [...this.props.selected_metrics, metric] 
+        }))
     } else {
       this.deselectMetric(this.getSelectedMetricIndex(metric));
     }
   };
 
-  updateState() {
-    const params = new URLSearchParams(this.props.location.search);
-    const new_commit_id =
-      params.get("commit_folder") || this.props.match.params[0];
-    const ref_commit_id =
-      this.state.ref_commit_id ||
-      params.get("reference") ||
-      params.get("commit_ref_folder") ||
-      "default";
-    document.title = new_commit_id;
-    this.setState((previous_state, props) => {
-      return {
-        new_commit_id,
-        ref_commit_id,
-        commits: {
-          ...previous_state.commits,
-          [new_commit_id]: { isLoaded: false },
-          [ref_commit_id]: { isLoaded: false }
-        }
-      };
-    });
-    this.getCiCommit(new_commit_id, "new_commit_id");
-    this.getCiCommit(ref_commit_id, "ref_commit_id");
+  fetchCommits() {
+    const { project, new_commit_id, ref_commit_id, dispatch } = this.props;    
+    dispatch(fetchCommit(project, new_commit_id, "new_commit_id"));
+    dispatch(fetchCommit(project, ref_commit_id, "ref_commit_id"));
   }
 
   componentDidMount() {
-    this.updateState();
+    document.title = this.props.new_commit_id;
+    this.fetchCommits();
   }
 
-  componentWillUnmount() {}
-
-  componentWillReceiveProps(nextProps) {
-    if (this.props.match.url !== nextProps.match.url) {
-      this.updateState();
+  componentDidUpdate(prevProps) {
+    if (this.props.match.url !== prevProps.match.url) {
+      this.fetchCommits();
     }
-  }
-
-  getCiCommit(commit_id, to_update) {
-    // the API defaults to the latest commit on develop
-    // we want to use this default
-    let query = commit_id === "default" ? "" : `/${commit_id}`;
-    get(`/api/v1/commit${query}`, { params: { project: this.state.project } })
-      .then(response => {
-        // we want to keep updated
-        // we could use setInterval and update the reference but it makes the logic more complicated...
-        if (to_update === "new_commit_id")
-          setTimeout(
-            x => this.getCiCommit(response.data.id, to_update),
-            60 * 1000
-          );
-
-        if (to_update === "ref_commit_id") {
-          let query = qs.parse(this.props.location.search);
-          if (query.reference && query.reference !== response.data.id) {
-            this.props.history.push({
-              pathname: this.props.location.pathname,
-              search: qs.stringify({
-                ...query,
-                reference: response.data.id
-              })
-            });
-          }
-        }
-        this.setState((previous_state, props) => {
-          return {
-            [to_update]: response.data.id,
-            commits: {
-              ...previous_state.commits,
-              [response.data.id]: {
-                data: response.data,
-                isLoaded: true
-              }
-            }
-          };
-        });
-      })
-      .catch(error => {
-        this.setState((previous_state, props) => {
-          return {
-            commits: {
-              ...previous_state.commits,
-              [commit_id]: {
-                isLoaded: true
-              }
-            }
-          };
-        });
-        if (error.response) {
-          this.setState((previous_state, props) => {
-            return {
-              commits: {
-                ...this.state.commits,
-                [commit_id]: {
-                  isLoaded: true,
-                  error: error.response.data.error
-                }
-              }
-            };
-          });
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          console.log(error.response.data);
-          console.log(error.response.status);
-          console.log(error.response.headers);
-        } else if (error.request) {
-          // The request was made but no response was received
-          // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-          // http.ClientRequest in node.js
-          console.log(error.request);
-        } else {
-          // Something happened in setting up the request that triggered an Error
-          console.log("Error", error.message);
-        }
-        console.log(error.config);
-      });
   }
 
   // callbacl used when the user want to change the reference commit
   handleSubmitReference = new_ref_commit_id => {
-    const { commits, ref_commit_id } = this.state;
-    let is_git = commits[ref_commit_id].data.type === "git";
+    const { project, ref_commit, ref_commit_id, dispatch } = this.props;
+    let is_git = ref_commit.type === "git";
     if (
       (is_git &&
         new_ref_commit_id.substring(0, 8) !== ref_commit_id.substring(0, 8)) ||
       (!is_git && new_ref_commit_id !== ref_commit_id)
     ) {
-      let query = qs.parse(this.props.location.search);
+      let query = qs.parse(this.props.location.search.substring(1));
       this.props.history.push({
         pathname: this.props.location.pathname,
         search: qs.stringify({
@@ -263,28 +167,21 @@ class CiCommitResults extends Component {
           reference: new_ref_commit_id
         })
       });
-      this.setState((previous_state, props) => {
-        return {
-          ref_commit_id: new_ref_commit_id,
-          commits: {
-            ...this.state.commits,
-            [new_ref_commit_id]: { isLoaded: false }
-          }
-        };
-      }, this.updateState);
+      dispatch(fetchCommit(project, new_ref_commit_id, "ref_commit_id"));
+      dispatch(updateSelected(project, { ref_commit_id: new_ref_commit_id }))
     }
   };
 
   selectSortBy = e => {
-    this.setState({ sort_by: e.target.value });
+    this.props.dispatch(updateSelected(this.props.project, { sort_by: e.target.value }))
   };
   selectOrder = e => {
-    this.setState({ order: e.target.value });
+    this.props.dispatch(updateSelected(this.props.project, { order: e.target.value }))
   };
 
   selectBatchNew = e => {
-    this.setState({ selected_batch_new: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    this.props.dispatch(updateSelected(this.props.project, { batch_new: e.target.value }))
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -295,8 +192,8 @@ class CiCommitResults extends Component {
   };
 
   selectBatchRef = e => {
-    this.setState({ selected_batch_ref: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    this.props.dispatch(updateSelected(this.props.project, { batch_ref: e.target.value }))
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -307,8 +204,8 @@ class CiCommitResults extends Component {
   };
 
   UpdateFilterBatchNew = e => {
-    this.setState({ filter_batch_new: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    this.props.dispatch(updateSelected(this.props.project, { filter_batch_new: e.target.value }))
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -318,8 +215,9 @@ class CiCommitResults extends Component {
     });
   };
   UpdateFilterBatchRef = e => {
+    this.props.dispatch(updateSelected(this.props.project, { filter_batch_ref: e.target.value }))
     this.setState({ filter_batch_ref: e.target.value });
-    let query = qs.parse(this.props.location.search);
+    let query = qs.parse(this.props.location.search.substring(1));
     this.props.history.push({
       pathname: this.props.location.pathname,
       search: qs.stringify({
@@ -329,213 +227,27 @@ class CiCommitResults extends Component {
     });
   };
 
-  toogleShowDebug = () => {
-    let previous_value = this.state.show_debug;
-    this.setState({
-      show_debug: !previous_value
-    });
-  };
-  toogleShowVideos = () => {
-    let previous_value = this.state.show_videos;
-    this.setState({
-      show_videos: !previous_value
-    });
-  };
-  toogleShow3d = () => {
-    let previous_value = this.state.show_3d;
-    this.setState({
-      show_3d: !previous_value
-    });
-  };
 
   render() {
-    // console.log(this.state);
-    var {
+    const {
       project,
-      commits,
-      new_commit_id,
+      project_data,
       ref_commit_id,
+      new_commit_id,
+      new_commit,
+      ref_commit,
       selected_batch_new,
       selected_batch_ref,
-      selected_metrics
-    } = this.state;
-    var { filter_batch_new, filter_batch_ref } = this.state;
+      selected_metrics,
+      new_batch_filtered,
+      ref_batch_filtered,
+    } = this.props;
 
-    if (!new_commit_id || !new_commit_id)
-      return (
-        <Container>
-          <Section>
-            <NonIdealState
-              title="No commit selected"
-              description="Please first select a commit."
-              visual="folder-open"
-            />
-          </Section>
-        </Container>
-      );
-
-    var new_commit_ = commits[new_commit_id];
-    var ref_commit_ = commits[ref_commit_id];
-
-    var warning_messages;
-    if (new_commit_.error || ref_commit_.error) {
-      var error_description = (
-        <span>
-          {new_commit_.error && (
-            <span>
-              <strong>{new_commit_id}:</strong> {new_commit_.error}
-            </span>
-          )}
-          {new_commit_.error && ref_commit_.error && <br />}
-          {ref_commit_.error && (
-            <span>
-              <strong>{ref_commit_id}:</strong> {ref_commit_.error}
-            </span>
-          )}
-        </span>
-      );
-      warning_messages = (
-        <Section>
-          <NonIdealState
-            title="Network Error"
-            description={error_description}
-            visual="error"
-          />
-        </Section>
-      );
-    }
-
-    if (!new_commit_.isLoaded || !ref_commit_.isLoaded)
-      warning_messages = (
-        <Section>
-          <NonIdealState title="Loading" visual={<Spinner />} />
-        </Section>
-      );
-
-    var new_commit = new_commit_.data;
-    var ref_commit = ref_commit_.data;
-
-    if (
-      new_commit === undefined ||
-      ref_commit === undefined ||
-      new_commit.batches[selected_batch_new] === undefined ||
-      ref_commit.batches[selected_batch_ref] === undefined
-    )
-      return <Container>{warning_messages}</Container>;
-
-    let new_batch = new_commit.batches[selected_batch_new];
-    let ref_batch = ref_commit.batches[selected_batch_ref];
-
-    let new_batch_filtered = filter_batch(new_batch, filter_batch_new);
-    let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
-    let nb_running = Object.values(new_batch_filtered.outputs).filter(
-      o => o.is_running
-    ).length;
-    let nb_pending = Object.values(new_batch_filtered.outputs).filter(
-      o => o.is_pending && !o.is_running
-    ).length;
-    let nb_failed = Object.values(new_batch_filtered.outputs).filter(
-      o => o.is_failed
-    ).length;
-
-    let status_messages = (
-      <Section>
-        {nb_running > 0 && (
-          <Callout
-            icon="info-sign"
-            intent={Intent.SUCCESS}
-            title={
-              <Tooltip>
-                <span>
-                  {nb_running} result{nb_running > 1 ? "s" : ""} running
-                </span>
-                <ul>
-                  {Object.values(new_batch_filtered.outputs)
-                    .filter(o => o.is_running)
-                    .map(o => (
-                      <li key={o}>
-                        {o.test_input_path}{" "}
-                        {Object.keys(o.extra_parameters).length > 0
-                          ? JSON.stringify(o.extra_parameters)
-                          : ""}
-                        <br />@{o.configuration} on {o.platform}
-                      </li>
-                    ))}
-                </ul>
-              </Tooltip>
-            }
-          />
-        )}
-        {nb_pending > 0 && (
-          <Callout
-            icon="info-sign"
-            intent={Intent.WARNING}
-            title={
-              <Tooltip>
-                <span>
-                  {nb_pending} result{nb_pending > 1 ? "s" : ""} pending
-                </span>
-                <ul>
-                  {Object.values(new_batch_filtered.outputs)
-                    .filter(o => o.is_pending && !o.is_running)
-                    .map(o => (
-                      <li key={o}>
-                        {o.test_input_path}{" "}
-                        {Object.keys(o.extra_parameters).length > 0
-                          ? JSON.stringify(o.extra_parameters)
-                          : ""}
-                        <br />@{o.configuration} on {o.platform}
-                      </li>
-                    ))}
-                </ul>
-              </Tooltip>
-            }
-          />
-        )}
-        {nb_failed > 0 && (
-          <Callout
-            icon="error"
-            intent={Intent.DANGER}
-            title={`${nb_failed} crashed`}
-          >
-            {new_batch_filtered.label === "default" && (
-              <p>Maybe the logs (below) can help debug this.</p>
-            )}
-            {project === "dvs/psp_swip" && (
-              <p>
-                Consider running the{" "}
-                <a href="http://gitlab-srv/dvs/psp_swip/pipelines">
-                  <code>debug</code>
-                </a>{" "}
-                manual CI job, or adding{" "}
-                <a href="http://gitlab-srv/dvs/psp_swip/blob/develop/CMakeLists.txt#L43">
-                  instrumentation flags
-                </a>{" "}
-                for the compiler.
-              </p>
-            )}
-            <ul>
-              {Object.values(new_batch_filtered.outputs)
-                .filter(o => o.is_failed)
-                .map(o => (
-                  <li key={o.id}>
-                    <Tag intent={Intent.DANGER} className="pt-minimal">{`${
-                      o.configuration
-                    } @${o.platform}`}</Tag>{" "}
-                    <strong>{o.test_input_path}</strong>
-                    {Object.keys(o.extra_parameters).length > 0 && (
-                      <Fragment>
-                        <br />
-                        <span>{JSON.stringify(o.extra_parameters)}</span>
-                      </Fragment>
-                    )}
-                  </li>
-                ))}
-            </ul>
-          </Callout>
-        )}
-      </Section>
-    );
+    var warning_messages = <CommitsWarningMessages
+                            commits={{
+                              [new_commit_id]: new_commit,
+                              [ref_commit_id]: ref_commit
+                            }} />;
 
     let clearButton =
       selected_metrics.length > 0 ? (
@@ -543,7 +255,7 @@ class CiCommitResults extends Component {
       ) : null;
     let metricTableSelect = (
       <MultiSelect
-        items={Object.values(this.state.available_metrics)}
+        items={Object.values(this.props.available_metrics)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -558,9 +270,31 @@ class CiCommitResults extends Component {
       />
     );
 
-    var result = (
+    let controls_extra = project_data.information.qatools_config.outputs.controls || []
+    let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
+    let controls = <>
+      {detailed_views.map( (view, idx) => {
+        if (!view.default_hidden) return <></>
+        return <Switch
+                key={idx}
+                hidden={!view.default_hidden}
+                defaultChecked={false}
+                onChange={this.toggle_show(idx)}
+                label={view.label || view.name || view.path}
+               />
+      })}
+      {controls_extra.map(control => {
+        return <Switch
+                defaultChecked={control.default || false}
+                onChange={this.toggle(control.name)}
+                label={control.label || control.name}
+               />
+      })}
+    </>
+
+
+    return (
       <Container>
-        {warning_messages}
         <Section>
           <CommitInfoCompareCard
             project={project}
@@ -572,10 +306,13 @@ class CiCommitResults extends Component {
           />
         </Section>
 
-        {new_commit !== undefined &&
-          ref_commit !== undefined && (
-            <Fragment>
-              <Section>
+        {(!new_commit || !ref_commit) && <Section>
+          {warning_messages}
+        </Section>}
+
+        {(!!new_commit && !!ref_commit) && (
+            <>
+              <Section key="high-level">
                 <Card elevation={0}>
                   <div
                     style={{
@@ -600,15 +337,15 @@ class CiCommitResults extends Component {
                       <FormGroup
                         labelFor="filter-new-input"
                         helperText={`${
-                          !this.state.filter_batch_new
+                          !this.props.filter_batch_new
                             ? "You can filter outputs by all their properties. "
                             : ""
                         }${
-                          Object.keys(new_batch_filtered.outputs).length
+                          Object.keys(new_batch_filtered.outputs || []).length
                         } selected`}
                       >
                         <InputGroup
-                          value={this.state.filter_batch_new}
+                          value={this.props.filter_batch_new}
                           placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
                           onChange={this.UpdateFilterBatchNew}
                           type="search"
@@ -635,11 +372,11 @@ class CiCommitResults extends Component {
                       <FormGroup
                         labelFor="filter-ref-input"
                         helperText={`${
-                          Object.keys(ref_batch_filtered.outputs).length
+                          Object.keys(ref_batch_filtered.outputs || []).length
                         } selected.`}
                       >
                         <InputGroup
-                          value={this.state.filter_batch_ref}
+                          value={this.props.filter_batch_ref}
                           placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
                           onChange={this.UpdateFilterBatchRef}
                           type="search"
@@ -651,18 +388,29 @@ class CiCommitResults extends Component {
                 </Card>
               </Section>
 
-              {status_messages}
+              <Section key="filters">
+                {warning_messages}
+                <BatchStatusMessages batch={new_batch_filtered} />
+              </Section>
 
-              <Section>
+              <Section key="summary">
                 <Card elevation={2}>
-                  <Tabs id="tabs-summary">
+                  <Tabs
+                    renderActiveTabPanelOnly
+                    id="tabs-summary"
+                    onChange={(newTabId, prevTabId, event) => {
+                      this.props.dispatch(updateSelected(this.props.project, { selected_tab_summary: newTabId }))
+                    }}
+                    selectedTabId={this.props.selected_tab_summary}
+                  >
                     <Tab
                       id="metrics"
                       title="Performance Summary"
                       panel={
                         <MetricsSummary
                           project={project}
-                          available_metrics={this.state.available_metrics}
+                          project_data={project_data}
+                          available_metrics={this.props.available_metrics}
                           new_batch={new_batch_filtered}
                           ref_batch={ref_batch_filtered}
                         />
@@ -670,7 +418,7 @@ class CiCommitResults extends Component {
                     />
                     <Tab
                       id="parameters"
-                      title="Parameters"
+                      title="Configurations"
                       panel={
                         <CommitParameters
                           project={project}
@@ -680,10 +428,11 @@ class CiCommitResults extends Component {
                     />
                     <Tab
                       id="recordings"
-                      title="Available Recordings"
+                      title="Recording Groups"
                       panel={
                         <AddRecordingsForm
                           project={project}
+                          project_data={this.props.project_data}
                           commit={new_commit}
                         />
                       }
@@ -692,31 +441,31 @@ class CiCommitResults extends Component {
                       id="tuning"
                       title="Extra Runs & Tuning"
                       panel={
-                        <TuningForm project={project} commit={new_commit} />
+                        <TuningForm project={project} project_data={this.props.project_data} commit={new_commit} />
                       }
                     />
                   </Tabs>
                 </Card>
               </Section>
 
-              <Section>
+              <Section key="details">
                 <Tabs
                   renderActiveTabPanelOnly
                   id="tabs-outputs"
                   onChange={(newTabId, prevTabId, event) => {
-                    this.setState({ selectedTabId: newTabId });
+                    this.props.dispatch(updateSelected(this.props.project, { selected_tab_details: newTabId }))
                   }}
-                  selectedTabId={this.state.selectedTabId}
+                  selectedTabId={this.props.selected_tab_details}
                 >
                   <Tab
                     id="output-table-compare"
                     title="Improvement"
                     panel={
                       <div>
-                        <h2>Improvement report</h2>
+                        <h2 className={Classes.HEADING}>Improvement report</h2>
                         <TableCompare
-                          sort_order={this.state.order}
-                          sort_by={this.state.sort_by}
+                          sort_order={this.props.order}
+                          sort_by={this.props.sort_by}
                           new_batch={new_batch_filtered}
                           ref_batch={ref_batch_filtered}
                           metrics={selected_metrics}
@@ -730,10 +479,10 @@ class CiCommitResults extends Component {
                     title="KPI report"
                     panel={
                       <div>
-                        <h2>Quality report</h2>
+                        <h2 className={Classes.HEADING}>Quality report</h2>
                         <TableKpi
-                          sort_order={this.state.order}
-                          sort_by={this.state.sort_by}
+                          sort_order={this.props.order}
+                          sort_by={this.props.sort_by}
                           new_batch={new_batch_filtered}
                           ref_batch={ref_batch_filtered}
                           metrics={selected_metrics}
@@ -748,27 +497,22 @@ class CiCommitResults extends Component {
                     panel={
                       <BatchLogs
                         batch={new_batch_filtered}
-                        batch_label={new_batch.label}
+                        batch_label={new_batch_filtered.label}
                       />
                     }
                   />
                   <Tab
                     id="output-list"
-                    title={
-                      project === "dvs/psp_swip"
-                        ? "6DoF Details"
-                        : "Detailed outputs"
-                    }
+                    title="Detailed outputs"
                     panel={
                       <OutputList
                         project={project}
-                        sort_order={this.state.order}
-                        sort_by={this.state.sort_by}
+                        project_data={project_data}
+                        sort_order={this.props.order}
+                        sort_by={this.props.sort_by}
                         new_batch={new_batch_filtered}
                         ref_batch={ref_batch_filtered}
-                        show_videos={this.state.show_videos}
-                        show_3d={this.state.show_3d}
-                        show_debug={this.state.show_debug}
+                        controls={this.state.controls}
                       />
                     }
                   />
@@ -778,65 +522,43 @@ class CiCommitResults extends Component {
                     panel={
                       <TuningExploration
                         project={project}
+                        project_data={project_data}
                         batch={new_batch_filtered}
                       />
                     }
                   />
                   <Tabs.Expander />
-                  {project === "dvs/psp_swip" ? (
-                    <Fragment>
-                      <Switch
-                        checked={this.state.show_debug}
-                        label="Debug"
-                        onChange={this.toogleShowDebug}
-                      />
-                      <Switch
-                        checked={this.state.show_videos}
-                        label="Videos"
-                        onChange={this.toogleShowVideos}
-                      />
-                      <Switch
-                        checked={this.state.show_3d}
-                        label="3d"
-                        onChange={this.toogleShow3d}
-                      />
-                      <div className="pt-select">
-                        <select
-                          defaultValue={this.state.sort_by}
-                          onChange={this.selectSortBy}
-                        >
-                          <option value="test_input_path">Sort by Name</option>
-                          {Object.values(this.state.available_metrics).map(
-                            m => (
-                              <option key={m.key} value={m.key}>
-                                Sort by {m.label}
-                              </option>
-                            )
-                          )}
-                        </select>
-                        <select
-                          defaultValue="descending"
-                          onChange={this.selectOrder}
-                        >
-                          <option value={-1}>descending</option>
-                          <option value={1}>ascending</option>
-                        </select>
-                      </div>
-                    </Fragment>
-                  ) : (
-                    <Fragment />
-                  )}
+                  {controls}
+                  <HTMLSelect
+                    defaultValue={this.props.sort_by}
+                    onChange={this.selectSortBy}
+                  >
+                    <option value="test_input_path">Sort by Name</option>
+                    {Object.values(this.props.available_metrics).map(
+                      m => (
+                        <option key={m.key} value={m.key}>
+                          Sort by {m.label}
+                        </option>
+                      )
+                    )}
+                  </HTMLSelect>
+                  <HTMLSelect
+                    defaultValue="descending"
+                    onChange={this.selectOrder}
+                  >
+                    <option value={-1}>descending</option>
+                    <option value={1}>ascending</option>
+                  </HTMLSelect>
                 </Tabs>
               </Section>
-            </Fragment>
+            </>
           )}
       </Container>
     );
-    return result;
   }
 }
 
-class OutputList extends React.Component {
+class OutputList extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -845,13 +567,13 @@ class OutputList extends React.Component {
   }
 
   render() {
-    const { new_batch, ref_batch, sort_by, sort_order } = this.props;
-    const { show_debug, show_videos, show_3d } = this.props;
+    const { new_batch, ref_batch, sort_by, sort_order, controls } = this.props;
+    const { project, project_data } = this.props;
     // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
     return (
-      <Fragment>
-        {show_debug && (
+      <>
+        {controls.show_debug && (
           <FormGroup
             label="Show debug outputs matching"
             labelFor="show-debug-input"
@@ -891,21 +613,91 @@ class OutputList extends React.Component {
               return (
                 <OutputCard
                   key={id}
+                  project={project}
+                  project_data={project_data}
                   output_type={output.output_type}
                   output_new={output}
                   output_ref={output_ref}
                   warning={warning}
-                  show_debug={show_debug}
-                  show_videos={show_videos}
-                  show_3d={show_3d}
+                  controls={controls}
                   select_debug={this.state.select_debug}
                 />
               );
             })}
         </div>
-      </Fragment>
+      </>
     );
   }
 }
 
-export default withRouter(CiCommitResults);
+
+
+const mapStateToProps = (state, ownProps) => {
+    const params = new URLSearchParams(ownProps.location.search);
+    // project information
+    let project = params.get("project") || state.selected.project;
+    let project_data = state.projects.data[project] || default_project
+    // metrics
+    let project_metrics = project_data.information.qatools_metrics
+    let available_metrics = project_metrics.available_metrics
+    // selected commit
+    // FIXME: remove except state/default?
+    let default_selected_ = default_selected();
+    let new_commit_id = (state.selected[project] && state.selected[project].new_commit_id) || default_selected_.new_commit_id
+    let ref_commit_id = (state.selected[project] && state.selected[project].ref_commit_id) || default_selected_.ref_commit_id
+
+    let new_commit = state.commits[new_commit_id];
+    let ref_commit = ref_commit_id && state.commits[ref_commit_id];
+    // selected batch
+    let selected_batch_new = (state.selected[project] && state.selected[project].batch_new) || default_selected_.batch_new
+    let selected_batch_ref = (state.selected[project] && state.selected[project].batch_ref) || default_selected_.batch_ref
+    let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
+    let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
+    if (!new_batch.outputs)
+      new_batch.outputs = {}
+    if (!ref_batch.outputs)
+      ref_batch.outputs = {}
+    // filtering
+    // FIXME: add missing null/undefined checks
+    let filter_batch_new = (state.selected[project] && state.selected[project].filter_batch_new) || default_selected_.filter_batch_new
+    let filter_batch_ref = (state.selected[project] && state.selected[project].filter_batch_ref) || default_selected_.filter_batch_ref
+    let new_batch_filtered = filter_batch(new_batch, filter_batch_new);
+    let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
+    // summary results
+
+    let selected_metrics = (state.selected[project] && state.selected[project].selected_metrics) || project_metrics.main_metrics.map(k => available_metrics[k])
+
+    let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "metrics";
+    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || "output-table-compare";
+
+    return {
+      // project information
+      project,
+      project_data,
+      // metrics
+      available_metrics,
+      selected_metrics,
+      // selected commit
+      new_commit_id,
+      ref_commit_id,
+      new_commit,
+      ref_commit,
+      // selected batch
+      selected_batch_new,
+      selected_batch_ref,
+      // filters
+      filter_batch_new,
+      filter_batch_ref,
+      new_batch_filtered,
+      ref_batch_filtered,
+      // FIXME: memoize with reselect
+      // getFilteredBatch() ...
+      selected_tab_summary,
+      selected_tab_details,
+
+      sort_by: (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
+      order: (state.selected[project] && state.selected[project].order) || -1,
+    }
+}
+
+export default withRouter(connect(mapStateToProps)(CiCommitResults) );

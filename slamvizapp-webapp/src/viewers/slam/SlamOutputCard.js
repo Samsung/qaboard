@@ -1,27 +1,13 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
+import Plot from 'react-plotly.js';
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
-import styled from "styled-components";
-import { Card, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
-import { MetricTag } from "../MetricsSummary";
-import { SyncedVideos } from "../common/SyncedVideos";
-import { main_metrics, available_metrics } from "./metrics";
-
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
 
 var colors = {
   groundtruth: "#4daf4a",
   new: "rgba(255, 131, 0, .9)",
   reference: "rgb(25,34,231)"
 };
-
-const SlimCard = styled(Card)`
-  padding: 0px !important;
-  overflow: "auto";
-`;
 
 class SlamOutputCard extends Component {
   constructor(props) {
@@ -36,7 +22,7 @@ class SlamOutputCard extends Component {
       traces_debug: {},
       data_debug: {},
 
-      plot_revision: 0
+      plot_revision: 0,
     };
   }
 
@@ -235,15 +221,7 @@ class SlamOutputCard extends Component {
   }
 
   render() {
-    const {
-      output_new,
-      output_ref,
-      show_debug,
-      show_3d,
-      show_videos,
-      warning,
-      no_header
-    } = this.props;
+    const { show_debug, show_3d } = this.props;
     const { is_loaded, plot_revision } = this.state;
     const layout = this.props.layout || {};
 
@@ -267,115 +245,25 @@ class SlamOutputCard extends Component {
       });
     }
 
-    let tags = (
-      <span>
-        <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">
-          {output_new.platform}
-        </Tag>
-        <Tag intent={Intent.PRIMARY} className="pt-round pt-minimal">
-          {output_new.configuration}
-        </Tag>
-        <a
-          title="Show output files"
-          style={{ paddingLeft: "8px" }}
-          target="_blank"
-          href={output_new.output_dir_url}
-        >
-          <Icon icon="download" />
-        </a>
-        {Object.entries(output_new.extra_parameters).map(([k, v]) => (
-          <Tag key={k} intent={Intent.PRIMARY} className="pt-round pt-minimal">
-            {k}:{v}
-          </Tag>
-        ))}
-        {warning && (
-          <Popover interactionKind="hover">
-            <Icon intent={Intent.WARNING} icon="warning-sign" />
-            <span>{warning}</span>
-          </Popover>
-        )}
-      </span>
-    );
-
-    let metrics_new =
-      output_new && output_new.metrics ? output_new.metrics : {};
-    let metrics_ref =
-      output_ref && output_ref.metrics ? output_ref.metrics : {};
-
-    return (
-      <Fragment>
-        {" "}
-        {!output_new.is_failed &&
-          !output_new.is_pending && (
-            <div
-              style={{
-                flex: "0 0 auto",
-                width:
-                  layout.width !== undefined ? `${layout.width}px` : "350px",
-                marginBottom: "20px"
-              }}
-            >
-              <SlimCard className="output-card">
-                {!no_header && (
-                  <div style={{ padding: "  " }}>
-                    <h5
-                      style={{
-                        fontSize: ".7rem",
-                        fontWeight: 500,
-                        lineHeight: 1.6,
-                        letterSpacing: "-1px"
-                      }}
-                    >
-                      {output_new.test_input_path} {tags}
-                    </h5>
-                    {main_metrics
-                      .filter(key => metrics_new[key] !== undefined)
-                      .map(key => (
-                        <p key={key}>
-                          <MetricTag
-                            metrics_new={metrics_new}
-                            metrics_ref={metrics_ref}
-                            metric_info={available_metrics[key]}
-                          />
-                        </p>
-                      ))}
-                  </div>
-                )}
-                {show_videos && (
-                  <SyncedVideos
-                    src_new={`${output_new.output_dir_url}/results.mp4`}
-                    src_ref={
-                      output_ref && `${output_ref.output_dir_url}/results.mp4`
-                    }
-                    poster_new={`${output_new.output_dir_url}/poster.jpg`}
-                    poster_ref={
-                      output_ref && `${output_ref.output_dir_url}/poster.jpg`
-                    }
-                  />
-                )}
-                {show_3d &&
-                  is_loaded && (
-                    <Plot
-                      data={traces_3d}
-                      layout={layout3d}
-                      revision={plot_revision}
-                    />
-                  )}
-                {is_loaded && (
-                  <Plot
-                    data={traces}
-                    layout={{
-                      ...make_layout(show_debug, this.state.traces_debug.new),
-                      ...layout
-                    }}
-                    revision={plot_revision}
-                  />
-                )}
-              </SlimCard>
-            </div>
-          )}
-      </Fragment>
-    );
+    return <>
+      {show_3d && is_loaded && 
+        <Plot
+          data={traces_3d}
+          layout={layout3d}
+          revision={plot_revision}
+        />
+      }
+      {is_loaded &&
+        <Plot
+          data={traces}
+          layout={{
+            ...make_layout(show_debug, this.state.traces_debug.new),
+            ...layout
+          }}
+          revision={plot_revision}
+        />
+      }
+    </>
   }
 }
 
@@ -581,4 +469,4 @@ const layout3d = {
   }
 };
 
-export { SlamOutputCard };
+export default SlamOutputCard;

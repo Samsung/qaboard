@@ -3,15 +3,12 @@ body {
   font-size: 14px;
   line-height: 1.42857143;
   color: rgba(0,0,0,0.85);
+
+  margin: 0;
+  padding: 0;
+  /*font-family: sans-serif;*/
 }
 
-a {
-    color: #1b69b6;
-    transition: background-color 100ms linear, color 100ms linear, border 100ms linear;
-    text-decoration: none;
-    background-color: transparent;
-}
-
-span.pt-popover-wrapper {
+span.bp3-popover-wrapper {
   vertical-align: baseline !important;
 }

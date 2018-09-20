@@ -2,13 +2,14 @@ import React, { Fragment } from "react";
 import { Link } from "react-router-dom";
 
 import styled from "styled-components";
-import { Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
+import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
 
-import { Avatar } from "./common/Avatar";
-import { DoneAtTag } from "./common/DoneAtTag";
+import { updateSelected } from "../actions/selected";
+
+import { Avatar } from "./avatars";
+import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { shortId } from "./common/utils";
-import { metrics } from "./metrics";
+import { shortId } from "../utils";
 
 const CommitDetails = styled.div`
   display: flex;
@@ -39,13 +40,18 @@ const CommitRowWrapper = styled.li`
 const has_outputs_in_batch = label => commit =>
   !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
 
+
 class CommitResults extends React.Component {
   render() {
-    const { project, commit } = this.props;
+    const { project, project_data, commit } = this.props;
     const gitlab_commit_url = `http://gitlab-srv/${project}/commit/${
       commit.id
     }`;
-    let ci_batch = commit.batches.default;
+    let batches_with_results = Object.entries(commit.batches)
+                               .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
+                               .map( ([label, batch]) => label )
+    let valid_outputs_not_in_default_batch = (!has_outputs_in_batch('default')(commit) && batches_with_results.length>0)
+    let ci_batch = valid_outputs_not_in_default_batch ? commit.batches[batches_with_results[0]] : commit.batches.default;
     if (
       ci_batch === undefined ||
       (ci_batch.failed_outputs === 0 &&
@@ -53,11 +59,23 @@ class CommitResults extends React.Component {
         ci_batch.pending_outputs === 0)
     )
       return (
+        <div>
         <a style={{ color: "grey" }} href={gitlab_commit_url}>
-          <Button intent={Intent.WARNING} className="pt-minimal">
+          <Button intent={Intent.WARNING} minimal>
+          
             Check the pipeline status..
           </Button>
         </a>
+        <Link
+          style={{ marginLeft: "10px" }}
+          to={`/commit/${commit.id}?project=${project}`}
+          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+        >
+          <Button intent={Intent.DANGER} minimal>
+            No results
+          </Button>
+        </Link>
+        </div>
       );
 
     let formatter = new Intl.NumberFormat("en-US", {
@@ -77,19 +95,19 @@ class CommitResults extends React.Component {
     );
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
 
-    const default_metric_info =
-      metrics[project].available_metrics[metrics[project].default_metric];
+    const { available_metrics, default_metric } = project_data.information.qatools_metrics;
+    const default_metric_info = available_metrics[default_metric];
 
     let status_messages = (
       <Fragment>
         {ci_batch.pending_outputs - ci_batch.running_outputs > 0 && (
-          <Tag className="pt-minimal" style={{ marginRight: "4px" }}>
+          <Tag minimal style={{ marginRight: "4px" }}>
             {ci_batch.pending_outputs - ci_batch.running_outputs} pending
           </Tag>
         )}
         {ci_batch.running_outputs > 0 && (
           <Tag
-            className="pt-minimal"
+            minimal
             style={{ marginRight: "4px" }}
             intent={Intent.PRIMARY}
           >
@@ -97,37 +115,47 @@ class CommitResults extends React.Component {
           </Tag>
         )}
         {ci_batch.failed_outputs > 0 && (
-          <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
-            <Button intent={Intent.DANGER} className="pt-minimal">
+          <Link
+            style={{ marginLeft: "10px" }}
+            to={`/commit/${commit.id}?project=${project}`}
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+          >
+            <Button intent={Intent.DANGER} minimal>
               {ci_batch.failed_outputs} crashed
             </Button>
           </Link>
         )}
-        {tuning_batches_labels.length > 1 && (
-          <Tooltip>
+        {tuning_batches_labels.length > 0 && (
+          <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000}>
             <Tag
               intent={Intent.SUCCESS}
-              className="pt-minimal"
+              minimal
               style={{ marginRight: "4px" }}
             >
-              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length >
-              1
+              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 0
                 ? "es"
                 : ""}
             </Tag>
-            <ul>
-              {tuning_batches_labels.map(label => (
-                <li key={label}>
-                  <strong>{label}</strong>
-                </li>
-              ))}
-            </ul>
+            <div>
+              {tuning_batches_labels.map(label => {
+                  let batch = commit.batches[label];
+                  let status = `${batch.valid_outputs}/${batch.valid_outputs+batch.pending_outputs+batch.failed_outputs} ✅`;
+                  let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
+                  return <Link
+                          key={label}
+                          to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}
+                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: label, batch_ref: null}))}
+                         >
+                    <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
+                  </Link>
+              })}
+            </div>
           </Tooltip>
         )}
         {has_android_manual_batch && (
           <Tag
             intent={Intent.SUCCESS}
-            className="pt-minimal"
+            minimal
             style={{ marginRight: "4px" }}
           >
             {commit.batches["manual-android-rt"].valid_outputs} @android:manual
@@ -136,7 +164,7 @@ class CommitResults extends React.Component {
         {has_android_batch && (
           <Tag
             intent={Intent.SUCCESS}
-            className="pt-minimal"
+            minimal
             style={{ marginRight: "4px" }}
           >
             {commit.batches["ci-android-rt"].valid_outputs} @android:ci
@@ -145,7 +173,7 @@ class CommitResults extends React.Component {
         {ci_batch.valid_outputs > 0 &&
           ci_batch.aggregated_metrics.translation_rmse_median > 0 && (
             <Fragment>
-              <Tag className="pt-minimal" style={{ marginRight: "4px" }}>
+              <Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
                   {formatter.format(
                     default_metric_info.scale *
@@ -157,7 +185,7 @@ class CommitResults extends React.Component {
                 </strong>{" "}
                 median{" "}
               </Tag>
-              <Tag style={{ marginRight: "4px" }} className="pt-minimal">
+              <Tag style={{ marginRight: "4px" }} minimal>
                 <strong>
                   {formatter.format(
                     default_metric_info.scale *
@@ -170,8 +198,8 @@ class CommitResults extends React.Component {
                 avg {default_metric_info.short_label}
               </Tag>
               <Tooltip modifiers>
-                <Tag className="pt-minimal pt-round">...</Tag>
-                <ul>
+                <Tag minimal round>...</Tag>
+                <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics).map(([k, v]) => (
                     <li key={k}>
                       <strong>{k}:</strong> {formatter.format(v)}
@@ -188,6 +216,7 @@ class CommitResults extends React.Component {
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
           <Link
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
             style={{ marginLeft: "10px" }}
             to={`/commit/${commit.id}?project=${project}`}
           >
@@ -214,7 +243,7 @@ const CommitShortId = styled.a`
 
 class CommitRow extends React.Component {
   render() {
-    const { commit, project, className, toaster } = this.props;
+    const { commit, project, project_data, className, toaster } = this.props;
     const commit_url = `http://gitlab-srv/${project}/commit/${commit.id}`
     return (
       <CommitRowWrapper className={className}>
@@ -244,13 +273,13 @@ class CommitRow extends React.Component {
                   <Icon
                     title="copy to clipboard"
                     intent={Intent.PRIMARY}
-                    className="pt-minimal pt-small"
+                    iconSize={Icon.SIZE_SMALL}
                     icon="clipboard"
                   />
                 </CopyToClipboard>
                 <span>Copy to clipboard</span>
               </Tooltip>
-              <Icon icon="pt-icon-git-branch" />
+              <Icon icon="git-branch" />
               <Link
                 style={{ color: "rgba(0,0,0,0.85)" }}
                 to={`/branch/${commit.branch}?project=${project}`}
@@ -261,7 +290,7 @@ class CommitRow extends React.Component {
             </div>
           </CommitContent>
 
-          <CommitResultsStyled project={project} commit={commit} />
+          <CommitResultsStyled project={project} project_data={project_data} commit={commit} />
         </CommitDetails>
       </CommitRowWrapper>
     );

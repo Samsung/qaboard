@@ -1,10 +1,13 @@
 import React from "react";
-import { FormGroup } from "@blueprintjs/core";
+import { FormGroup, HTMLSelect } from "@blueprintjs/core";
 
 const SelectBatches = ({ commit, prefix, onChange, selected }) => {
+  if (!commit || !commit.batches)
+    return <span/>
+
   const batches_to_options = batches =>
     Object.keys(batches).map(label => {
-      let outputs = Object.values(batches[label].outputs);
+      let outputs = Object.values(batches[label].outputs || {});
       let title = label === "default" ? "CI results" : label;
       let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed)
         .length;
@@ -20,6 +23,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
         </option>
       );
     });
+
   let has_tuning_batches = Object.values(commit.batches).length > 1;
   return (
     <FormGroup
@@ -31,16 +35,15 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
           : " "
       }
     >
-      <div className="pt-select pt-minimal">
-        <select
-          disabled={!has_tuning_batches}
-          id="batch-select-new"
-          defaultValue={selected}
-          onChange={onChange}
-        >
-          {batches_to_options(commit.batches)}
-        </select>
-      </div>
+      <HTMLSelect
+        minimal
+        disabled={!has_tuning_batches}
+        id="batch-select-new"
+        defaultValue={selected}
+        onChange={onChange}
+      >
+        {batches_to_options(commit.batches)}
+      </HTMLSelect>
     </FormGroup>
   );
 };

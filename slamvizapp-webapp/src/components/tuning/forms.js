@@ -1,8 +1,10 @@
 import React, { Component } from "react";
 import { get, post } from "axios";
-import AceEditor from "react-ace";
 import { withCookies } from "react-cookie";
 
+import { CopyToClipboard } from "react-copy-to-clipboard";
+
+import AceEditor from "react-ace";
 /*eslint-disable no-alert, no-console */
 import brace from "brace"; // eslint-disable-line no-unused-vars
 import "brace/mode/json";
@@ -14,229 +16,22 @@ import "brace/ext/searchbox";
 // import 'brace/ext/language_tools';
 
 import {
+  Classes,
   Callout,
   Intent,
   Spinner,
   NonIdealState,
   Button,
   FormGroup,
+  HTMLSelect,
   Radio,
-  RadioGroup
+  RadioGroup,
+  Switch,
+  Tag,
+  Toaster,
 } from "@blueprintjs/core";
-import { Toaster } from "@blueprintjs/core";
 
-export const OurToaster = Toaster.create();
-
-class AddRecordingsForm extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      isLoaded: true,
-      error: null,
-      groups: null,
-
-      submitted: false,
-      overwrite: false,
-      selected_group: null,
-      selected_group_info: {
-        number_of_recordings: 0
-      },
-      selected_group_info_loading: false
-    };
-  }
-
-  componentDidMount() {
-    this.getGroups();
-  }
-
-  getGroups() {
-    get(`/api/v1/recordings/groups?project=${this.props.project}`)
-      .then(response => {
-        this.setState({
-          isLoaded: true,
-          groups: response.data
-        });
-      })
-      .catch(error => {
-        this.setState({ isLoaded: true, error });
-      });
-  }
-
-  updateGroups = newGroups => {
-    this.setState({ groups: newGroups });
-  };
-  updateOverwrite = e => {
-    this.setState({ overwrite: e.target.checked ? "on" : "off" });
-  };
-  updateSelectedGroup = e => {
-    let next_selected_group = e.target.value;
-    this.setState({ selected_group: next_selected_group });
-    get(`/api/v1/recordings/group?name=${next_selected_group}`, {})
-      .then(response => {
-        this.setState({
-          selected_group_info_loading: false,
-          selected_group_info: response.data
-        });
-      })
-      .catch(error => {
-        this.setState({
-          selected_group_info_loading: false,
-          selected_group_info: { number_of_recordings: 0 }
-        });
-      });
-  };
-
-  onSubmit = e => {
-    const { selected_group, overwrite, groups } = this.state;
-    this.setState({ submitted: true });
-    OurToaster.show({
-      message: "The request was sent!",
-      intent: Intent.PRIMARY
-    });
-    post(`/api/v1/commit/${this.props.commit.id}/batch?project=${this.props.project}`, {
-      project: this.props.project,
-      batch_label: "default",
-      platform: "lsf",
-      configuration: "serial-stereo",
-      tuning_search: {},
-      selected_group,
-      groups,
-      overwrite,
-      android_device: "openstf"
-    })
-      .then(response => {
-        this.setState({ submitted: false });
-        OurToaster.show({
-          message: "...Acknowledged!",
-          intent: Intent.SUCCESS
-        });
-      })
-      .catch(error => {
-        this.setState({ submitted: false });
-        OurToaster.show({
-          message: `Something wrong happened ${JSON.stringify(error.response)}`,
-          intent: Intent.DANGER
-        });
-      });
-    e.preventDefault();
-  };
-
-  recomputeMetrics = e => {
-    this.setState({ submitted: true });
-    OurToaster.show({
-      message: "The request was sent!",
-      intent: Intent.PRIMARY
-    });
-    post(`/metrics/${this.props.commit.id}?project=${this.props.project}`)
-      .then(response => {
-        this.setState({ submitted: false });
-        OurToaster.show({ message: "Done!", intent: Intent.SUCCESS });
-      })
-      .catch(error => {
-        this.setState({ submitted: false });
-        OurToaster.show({
-          message: "Something wrong happened",
-          intent: Intent.DANGER
-        });
-      });
-  };
-
-  render() {
-    const { isLoaded, error, groups } = this.state;
-    if (!isLoaded) return <Spinner />;
-    if (error)
-      return (
-        <NonIdealState
-          title="An error occurred"
-          description={JSON.stringify(error.response)}
-        />
-      );
-    let number_of_recordings = this.state.selected_group_info
-      .number_of_recordings;
-    return (
-      <form onSubmit={this.onSubmit}>
-        <div className="pt-form-group pt-inline">
-          {false && (
-            <label className="pt-label" htmlFor="selected-group">
-              Requested Group
-              <span className="pt-text-muted">(optionnal)</span>
-            </label>
-          )}
-          {false && (
-            <div className="pt-form-content">
-              <input
-                onChange={this.updateSelectedGroup}
-                id="selected-group"
-                className="pt-input"
-                style={{ width: "300px" }}
-                placeholder="Go_around_set"
-                type="text"
-                dir="auto"
-              />
-              <div className="pt-form-helper-text">
-                {number_of_recordings === 0
-                  ? "Select a group of recordings from the list below"
-                  : `${number_of_recordings} recording${
-                      number_of_recordings > 1 ? "s" : ""
-                    } selected`}
-              </div>
-            </div>
-          )}
-          {false && (
-            <label className="pt-label" htmlFor="overwrite-old-outputs" />
-          )}
-          {false && (
-            <div className="pt-form-content">
-              <label className="pt-control pt-switch">
-                <input
-                  onChange={this.updateOverwrite}
-                  defaultValue="off"
-                  id="overwrite-old-outputs"
-                  type="checkbox"
-                />
-                <span className="pt-control-indicator" />
-                Overwrite previous runs
-              </label>
-              <div className="pt-form-helper-text">
-                By default we won't run the SLAM twice on the same recordings{" "}
-              </div>
-            </div>
-          )}
-          {false && (
-            <Button
-              onClick={this.recomputeMetrics}
-              disabled={this.state.submitted}
-              type="button"
-            >
-              Recompute CI metrics
-            </Button>
-          )}
-          <Button
-            disabled={this.state.submitted}
-            type="submit"
-            intent={Intent.PRIMARY}
-          >
-            {this.state.selected_group ? "Run SLAM" : "Update list"}
-          </Button>
-        </div>
-
-        <div className="pt-form-group pt-inline" />
-        <AceEditor
-          mode="yaml"
-          theme="github"
-          onChange={this.updateGroups}
-          width="100%"
-          name="groups"
-          value={groups || ""}
-          editorProps={{ $blockScrolling: true }}
-          setOptions={{
-            tabSize: 2
-          }}
-        />
-      </form>
-    );
-  }
-}
+export const toaster = Toaster.create();
 
 const wrap_values_in_array = object => {
   let output = {};
@@ -293,9 +88,10 @@ const grid_combinations = param_search => {
     .reduce((a, v) => a * v, 1);
 };
 
+
 const tuning_templates = {
-  none: "{}",
-  basic: JSON.stringify(
+  "none": "{}",
+  "simple-combinations": JSON.stringify(
     {
       events_per_frame: [5e3, 10e3, 15e3, 20e3],
       smart_frame_on: [0, 1]
@@ -303,7 +99,7 @@ const tuning_templates = {
     null,
     2
   ),
-  list: JSON.stringify(
+  "list-of-combinations": JSON.stringify(
     [
       {
         min_events_per_frame: 5e3,
@@ -317,36 +113,44 @@ const tuning_templates = {
     null,
     2
   ),
-  function:
-    "// you use the output of any javascript function\nlet events = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events.map(t => ({\n  min_events_per_frame: t,\n  max_events_per_frame: t + delta,\n  smart_frame_on: [0, 1],\n}));\n"
+  "function":
+    "// you can write a javascript function that return your tuning search\nlet events_per_frame = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events_per_frame.map(e => ({\n  min_events_per_frame: e,\n  max_events_per_frame: e + delta,\n  smart_frame_on: [true, false],\n}));\n",
+  "auto": '#testing...\n',
 };
 
 class TuningForm extends Component {
   constructor(props) {
     super(props);
     const { cookies } = this.props;
-    let legacy_bad_config = cookies.get("configuration") === "stereo-serial";
-    let configuration = legacy_bad_config ?  "serial-stereo" : ( cookies.get("configuration") || "serial-stereo" )
+    let configuration = this.props.project_data.information.qatools_config.inputs.configuration;
     this.state = {
       submitted: false,
       experiment_name: cookies.get("experiment_name") || "",
       platform: cookies.get("platform") || "lsf",
-      android_device: "openstf",
       configuration,
+      overwrite: false,
+
       selected_group: cookies.get("selected_group") || "",
       selected_group_info: {
         number_of_recordings: 0
       },
       selected_group_info_loading: false,
-      search_type: "grid",
+
+      search_type: cookies.get("search_type") || "grid",
       search_options: {
         n_iter: 50
       },
-      overwrite: false,
-      user: "arthurf",
       parameter_search: cookies.get("parameter_search", { doNotParse: true })
         ? JSON.parse(cookies.get("parameter_search", { doNotParse: true }))
-        : tuning_templates["none"]
+        : tuning_templates["none"],
+      parameter_search_auto: cookies.get("parameter_search_auto", { doNotParse: true })
+        ? JSON.parse(cookies.get("parameter_search_auto", { doNotParse: true }))
+        : tuning_templates["auto"],
+
+      // legacy?
+      user: cookies.get("user") || "arthurf",
+      android_device: "openstf",
+
     };
   }
 
@@ -354,11 +158,9 @@ class TuningForm extends Component {
     const { selected_group } = this.state;
     if (selected_group) this.getGroupInfo(selected_group);
   }
+
   getGroupInfo(group) {
-    get(
-      `/api/v1/recordings/group?project=${this.props.project}&name=${group}`,
-      {}
-    )
+    get(`/api/v1/recordings/group?project=${this.props.project}&name=${group}`, {})
       .then(response => {
         this.setState({
           selected_group_info_loading: false,
@@ -373,63 +175,55 @@ class TuningForm extends Component {
       });
   }
   updateSelectedGroup = e => {
-    const { cookies } = this.props;
     let next_selected_group = e.target.value;
-    cookies.set("selected_group", next_selected_group, { path: "/" });
+    this.props.cookies.set("selected_group", next_selected_group, { path: "/" });
     this.setState({ selected_group: next_selected_group });
     this.getGroupInfo(next_selected_group);
   };
   updateExperimentName = e => {
-    const { cookies } = this.props;
-    cookies.set("experiment_name", e.target.value, { path: "/" });
+    this.props.cookies.set("experiment_name", e.target.value, { path: "/" });
     this.setState({
       experiment_name: e.target.value.replace(/[^\w_.@:=]/g, "-")
     });
   };
-  updateAndroidDevice = e => {
-    const { cookies } = this.props;
-    cookies.set("android_device", e.target.value, { path: "/" });
-    this.setState({ android_device: e.target.value });
-  };
-  updateConfiguration = e => {
-    const { cookies } = this.props;
-    cookies.set("configuration", e.target.value, { path: "/" });
-    this.setState({ configuration: e.target.value });
-  };
-  updateUser = e => {
-    const { cookies } = this.props;
-    cookies.set("user", e.target.value, { path: "/" });
-    this.setState({ user: e.target.value });
-  };
+  update = name => e => {
+    this.props.cookies.set(name, e.target.value, { path: "/" });
+    this.setState({ [name]: e.target.value });      
+  }
   updatePlatform = e => {
-    const { cookies } = this.props;
     this.setState({ platform: e.target.value });
-    cookies.set("platform", e.target.value, { path: "/" });
+    this.props.cookies.set("platform", e.target.value, { path: "/" });
     if (e.target.value === "s8") {
       this.setState({ configuration: "parallel-stereo" });
-      cookies.set("configuration", "parallel-stereo", { path: "/" });
+      this.props.cookies.set("configuration", "parallel-stereo", { path: "/" });
     }
     if (
       e.target.value === "lsf" &&
       this.state.configuration === "parallel-stereo"
     ) {
       this.setState({ configuration: "serial-stereo" });
-      cookies.set("configuration", "serial-stereo", { path: "/" });
+      this.props.cookies.set("configuration", "serial-stereo", { path: "/" });
     }
   };
   updateOverwrite = e => {
     this.setState({ overwrite: e.target.checked ? "on" : "off" });
   };
   updateParameterSearch = new_parameter_search => {
-    const { cookies } = this.props;
-    cookies.set("parameter_search", JSON.stringify(new_parameter_search), {
-      path: "/"
-    });
+    this.props.cookies.set("parameter_search", JSON.stringify(new_parameter_search), {path: "/"});
     this.setState({ parameter_search: new_parameter_search });
   };
+  updateParameterSearchAuto = new_parameter_search => {
+    this.props.cookies.set("parameter_search_auto", JSON.stringify(new_parameter_search), {path: "/"});
+    this.props.cookies.set("search_type", "auto", {path: "/"});
+    this.setState({ parameter_search_auto: new_parameter_search, search_type: 'auto' });
+  };
 
+  useAutoTuning = e => {
+    this.setState({ search_type: e.target.checked ? "auto" : "grid" });
+  };
   selectSearchType = e => {
     this.setState({ search_type: e.target.value });
+    this.props.cookies.set("search_type", e.target.value, {path: "/"});    
   };
   updateIterations = e => {
     this.setState({ search_options: { n_iter: parseFloat(e.target.value) } });
@@ -448,7 +242,7 @@ class TuningForm extends Component {
     } = this.state;
     const { parameter_search, search_type, search_options } = this.state;
     this.setState({ submitted: true });
-    OurToaster.show({
+    toaster.show({
       message: "The tuning experiment was sent!",
       intent: Intent.PRIMARY
     });
@@ -470,14 +264,14 @@ class TuningForm extends Component {
     })
       .then(response => {
         this.setState({ submitted: false });
-        OurToaster.show({
+        toaster.show({
           message: "...Acknowledged!",
           intent: Intent.SUCCESS
         });
       })
       .catch(error => {
         this.setState({ submitted: false });
-        OurToaster.show({
+        toaster.show({
           message: `Something wrong happened ${JSON.stringify(error.response)}`,
           intent: Intent.DANGER
         });
@@ -500,7 +294,7 @@ class TuningForm extends Component {
     try {
       var tuning_sets = eval_combinations(parameter_search);
       var combinations = grid_combinations(tuning_sets);
-      if (combinations === null) combinations = "invalid";
+      if (combinations === null || combinations === 'auto') combinations = "invalid";
       else
         combinations =
           search_type === "grid"
@@ -511,28 +305,29 @@ class TuningForm extends Component {
     }
     let total_runs = combinations * number_of_recordings;
     let time_intent =
-      combinations === "invalid"
+      (combinations === "invalid" || total_runs===0)
         ? Intent.DANGER
         : total_runs < 100
-          ? Intent.SUCCESS
-          : total_runs < 200 ? Intent.PRIMARY : Intent.WARNING;
+          ? Intent.PRIMARY
+          : Intent.WARNING;
     return (
       <form onSubmit={this.onSubmit}>
         <FormGroup
           helperText={
             <span>
-              Re-using a name adds more results. The <code>default</code> batch
+              Re-using a name adds more results. The <code className={Classes.CODE}>default</code> batch
               corresponds to the CI results
             </span>
           }
-          label="Choose a name for the batch/tuning experiment"
+          label="Name the experiment:"
           labelFor="batch-label"
           intent={Intent.PRIMARY}
-          requiredLabel={true}
+          labelInfo="(required)"
         >
           <input
             id="batch-label"
-            className="pt-input"
+            className={Classes.INPUT}
+            intent={Intent.PRIMARY}
             style={{ width: "300px" }}
             placeholder="search-radius-sensibility"
             value={experiment_name}
@@ -543,18 +338,20 @@ class TuningForm extends Component {
         </FormGroup>
 
         <FormGroup
-          label="Run on each recording in this group"
+          label="Run on those recordings:"
+          intent={Intent.PRIMARY}
           helperText={`${
             number_of_recordings > 0
               ? number_of_recordings + " recordings. "
               : ""
-          }Choose a small group of recordings if you want results quickly.`}
+          }Path, or one of the groups defined in the "Available Recordings" tab.`}
           labelFor="selected-group"
-          requiredLabel={true}
+          labelInfo="(required)"
         >
           <input
             id="selected-group"
-            className="pt-input"
+            className={Classes.INPUT}
+            intent={Intent.PRIMARY}
             style={{ width: "300px" }}
             placeholder="Loop_closure_set"
             onChange={this.updateSelectedGroup}
@@ -564,6 +361,7 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
+        {(this.props.project==='dvs/psp_swip' || this.props.project==='tof/swip_tof' ) && 
         <RadioGroup
           // label=""
           // helperText={<span><strong>lsf</strong> is the default. <strong>s8</strong> is </span>}
@@ -575,10 +373,10 @@ class TuningForm extends Component {
             label={
               <span>
                 Android<br />
-                <span className="pt-text-muted">
-                  Available on <code>develop</code> or if you ran the{" "}
+                <span className={Classes.TEXT_MUTED}>
+                  Available on <code className={Classes.CODE}>develop</code> or if you ran the{" "}
                   <a href="http://gitlab-srv/dvs/psp_swip/pipelines">
-                    <code>performance:android:manual</code> job
+                    <code className={Classes.CODE}>performance:android:manual</code> job
                   </a>
                 </span>
               </span>
@@ -586,22 +384,22 @@ class TuningForm extends Component {
             value="s8"
             large
           />
-        </RadioGroup>
+        </RadioGroup>}
 
         {platform === "s8" && (
           <FormGroup
             label="Android device"
             helperText="Choose a device from the openstf farm, or your own (host:port)"
             labelFor="input-android-device"
-            requiredLabel={true}
+            labelInfo="(required)"
           >
             <input
               id="input-android-device"
-              className="pt-input"
+              className={Classes.INPUT}
               style={{ width: "300px" }}
               value={android_device}
               placeholder="openstf"
-              onChange={this.updateAndroidDevice}
+              onChange={this.update('android_device')}
               type="text"
               dir="auto"
             />
@@ -609,28 +407,28 @@ class TuningForm extends Component {
         )}
 
         <FormGroup
-          label="You can choose any of the available configuration"
-          helperText="&quot;serial-stereo&quot; is the SLAM default, &quot;stereo&quot; the TOF default. Configurations are saved as $configuration.json, e.g. &quot;mono_mode&quot;."
+          label="Configuration"
+          helperText="Configurations are saved as $configuration.json/yaml"
           labelFor="input-configuration"
-          requiredLabel={true}
         >
           <input
             id="input-configuration"
-            className="pt-input"
+            className={Classes.INPUT}
             style={{ width: "300px" }}
             value={configuration}
-            placeholder="serial-stereo"
-            onChange={this.updateConfiguration}
+            placeholder={this.props.project_data.information.qatools_config.inputs.configuration}
+            onChange={this.update('configuration')}
             type="text"
             dir="auto"
           />
         </FormGroup>
 
-        <h3>Tuning search</h3>
+        <h3 className={Classes.HEADING}>Manual tuning search</h3>
         <p>
-          Be inspired by those tuning templates:{" "}
-          {["basic", "list", "function"].map(x => (
+          Click to see examples:{" "}
+          {["simple-combinations", "list-of-combinations", "function"].map(x => (
             <Button
+              style={{margin: '4px'}}
               key={x}
               onClick={e =>
                 this.setState({ parameter_search: tuning_templates[x] })
@@ -644,18 +442,17 @@ class TuningForm extends Component {
           inline
           labelFor="select-search-type"
           helperText={
-            search_type === "grid"
-              ? `Explores all the ${combinations} combination${
-                  combinations > 1 ? "s" : ""
-                }`
+            search_type === "auto" ? '' :
+              search_type === "grid"
+              ? `Explores all the ${combinations} combination${combinations > 1 ? "s" : ""}`
               : `Uniform sampling of ${combinations} combinations`
           }
         >
-          <div className="pt-select pt-minimal">
-            <select
+            <HTMLSelect
               id="select-search-type"
-              defaultValue="grid"
+              value={search_type}
               onChange={this.selectSearchType}
+              minimal
             >
               <option key="grid" value="grid">
                 Grid search
@@ -663,12 +460,15 @@ class TuningForm extends Component {
               <option key="sampler" value="sampler">
                 Sampling
               </option>
-            </select>
+              <option key="auto" value="auto">
+                Automated tuning
+              </option>
+            </HTMLSelect>
             {search_type === "sampler" && (
               <input
                 id="input-iterations"
                 value={search_options.n_iter}
-                className="pt-input"
+                className={Classes.INPUT}
                 style={{ marginLeft: "30px", width: "70px" }}
                 placeholder="50"
                 onChange={this.updateIterations}
@@ -676,7 +476,6 @@ class TuningForm extends Component {
                 dir="auto"
               />
             )}
-          </div>
         </FormGroup>
         <AceEditor
           mode="javascript"
@@ -692,14 +491,15 @@ class TuningForm extends Component {
           }}
         />
 
-        <Callout
+        {this.state.search_type !== "auto" && <Callout
           icon={this.state.selected_group_info_loading ? "dot" : "time"}
           intent={time_intent}
         >
           {total_runs} total runs
-        </Callout>
+        </Callout>}
         <Button
           disabled={
+            this.state.search_type === "auto" ||
             this.state.submitted ||
             this.state.experiment_name.length === 0 ||
             !total_runs
@@ -710,42 +510,203 @@ class TuningForm extends Component {
           Send
         </Button>
 
-        <label className="pt-label" htmlFor="overwrite-old-outputs" />
-        <div className="pt-form-content">
-          <label className="pt-control pt-switch">
-            <input
-              onChange={this.updateOverwrite}
-              defaultValue="off"
-              id="overwrite-old-outputs"
-              type="checkbox"
-            />
-            <span className="pt-control-indicator" />
-            Overwrite previous runs if already computed.
-          </label>
-        </div>
+        <FormGroup
+            label="Overwrite previous runs"
+            labelFor="overwrite-old-outputs"
+            inline
+        >
+          <Switch
+            id="overwrite-old-outputs"
+            onChange={this.updateOverwrite}
+            defaultChecked={false}
+          />
+        </FormGroup>
 
         <FormGroup
           label="Run as"
-          helperText="Be nice."
+          helperText="Get faster results by running as your own user."
           labelFor="input-user"
           inline
         >
           <input
-            disabled
             id="input-user"
-            className="pt-input"
+            className={Classes.INPUT}
             style={{ width: "300px" }}
             value={user}
             placeholder="arthurf"
-            onChange={this.updateUser}
+            onChange={this.update('user')}
             type="text"
             dir="auto"
           />
         </FormGroup>
+
+        <h3 className={Classes.HEADING}>Automated tuning search <Tag intent={Intent.WARNING}>Experimental</Tag></h3>
+        <Callout icon="info-sign">
+          <p>We use <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>.</p>
+          <p>There are lots of other choices (RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, algorithms and popularity.</p>
+          <p><strong>Get in touch if you have experience/opinions.</strong></p>
+        </Callout>
+        <FormGroup
+            label="Enable"
+            labelFor="use-auto-tuning"
+            inline
+        >
+          <Switch
+            id="use-auto-tuning"
+            onChange={this.useAutoTuning}
+            checked={search_type === "auto"}
+          />
+        </FormGroup>
+        <AceEditor
+          mode="yaml"
+          theme="github"
+          onChange={this.updateParameterSearchAuto}
+          width="100%"
+          height="200px"
+          name="editor-tuning-set"
+          value={this.state.parameter_search_auto}
+          editorProps={{ $blockScrolling: true }}
+          setOptions={{
+            tabSize: 2
+          }}
+        />
+        <Button
+          disabled
+          type="submit"
+          intent={Intent.PRIMARY}
+        >
+          Start tuning
+        </Button>
       </form>
     );
   }
 }
+
+
+
+
+class AddRecordingsForm extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      isLoaded: true,
+      error: null,
+      groups: null,
+
+      submitted: false,
+      overwrite: false,
+      selected_group: null,
+      selected_group_info: {
+        number_of_recordings: 0
+      },
+      selected_group_info_loading: false
+    };
+  }
+
+  componentDidMount() {
+    this.getGroups();
+  }
+
+  getGroups() {
+    get(`/api/v1/recordings/groups?project=${this.props.project}`)
+      .then(response => {
+        this.setState({
+          isLoaded: true,
+          groups: response.data
+        });
+      })
+      .catch(error => {
+        this.setState({ isLoaded: true, error });
+      });
+  }
+
+  updateGroups = newGroups => {
+    this.setState({ groups: newGroups });
+  };
+
+  onSubmit = e => {
+    e.preventDefault();
+    const { groups } = this.state;
+    this.setState({ submitted: true });
+    toaster.show({
+      message: "The request was sent!",
+      intent: Intent.PRIMARY
+    });
+    post(`/api/v1/recordings/groups?project=${this.props.project}`, {
+      project: this.props.project,
+      groups,
+    })
+      .then(response => {
+        this.setState({ submitted: false });
+        toaster.show({
+          message: "...Acknowledged!",
+          intent: Intent.SUCCESS
+        });
+      })
+      .catch(error => {
+        this.setState({ submitted: false });
+        toaster.show({
+          message: `Something wrong happened ${JSON.stringify(error.response)}`,
+          intent: Intent.DANGER
+        });
+      });
+  };
+
+  render() {
+    const { isLoaded, error, groups } = this.state;
+    if (!isLoaded) return <Spinner />;
+    if (error)
+      return (
+        <NonIdealState
+          title="An error occurred"
+          description={JSON.stringify(error.response)}
+        />
+      );
+    // let number_of_recordings = this.state.selected_group_info.number_of_recordings;
+    return (
+      <form onSubmit={this.onSubmit}>
+        <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
+          <Button
+            disabled={this.state.submitted}
+            type="submit"
+            intent={Intent.PRIMARY}
+          >
+          <span>Update list</span>
+          </Button>
+        </div>
+
+        <div>
+          <span>Paths are relative to <CopyToClipboard
+                                        text={this.props.project_data.information.qatools_config.inputs.database.windows}
+                                        onCopy={() => {
+                                          toaster.show({
+                                            message: "Copied to clipboard!",
+                                            intent: Intent.PRIMARY
+                                          });
+                                        }}
+                                      ><pre>{this.props.project_data.information.qatools_config.inputs.database.windows}</pre>
+                                      </CopyToClipboard>
+          </span>
+        </div>
+
+        <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
+        <AceEditor
+          mode="yaml"
+          theme="github"
+          onChange={this.updateGroups}
+          width="100%"
+          name="groups"
+          value={groups || ""}
+          editorProps={{ $blockScrolling: true }}
+          setOptions={{
+            tabSize: 2
+          }}
+        />
+      </form>
+    );
+  }
+}
+
 
 const TuningForm_ = withCookies(TuningForm);
 export { TuningForm_ as TuningForm, AddRecordingsForm };

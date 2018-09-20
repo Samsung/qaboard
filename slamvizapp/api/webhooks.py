@@ -1,6 +1,7 @@
 import sys
 import json
 import yaml
+from pathlib import Path
 
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
@@ -58,9 +59,9 @@ def new_output_webhook():
 
   # We allow users to save their data in custom locations
   # at the commit and output levels
-  if request.json.get('commit_ci_dir', ci_commit.commit_dir) != ci_commit.commit_dir:
+  if Path(request.json.get('commit_ci_dir', ci_commit.commit_dir)) != ci_commit.commit_dir:
     ci_commit.commit_dir_override = request.json.get('commit_ci_dir')
-  if request.json.get('output_directory', output.output_dir) != output.output_dir:
+  if Path(request.json.get('output_directory', output.output_dir)) != output.output_dir:
     output.output_dir_override = request.json.get('output_directory')
 
   # We update the output's status
@@ -73,8 +74,10 @@ def new_output_webhook():
   # We save the output's metrics
   if not output.is_pending:
     metrics = request.json.get('metrics', {})
-    if metrics: # we look for metrics.json in the output directory
+    if not metrics: # we look for metrics.json in the output directory
       output.update_metrics()
+    else:
+      output.metrics = metrics
 
   db_session.add(output)
   db_session.commit()

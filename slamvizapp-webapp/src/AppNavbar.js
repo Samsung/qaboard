@@ -1,7 +1,7 @@
 import React, { Component, Fragment } from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
-import { get } from "axios";
 
 import { Suggest } from "@blueprintjs/select";
 import {
@@ -15,6 +15,9 @@ import {
   InputGroup
 } from "@blueprintjs/core";
 
+import { fetchBranches, fetchProjects } from './actions/projects'
+
+
 const renderBranch = (item, { handleClick, modifiers, query }) => {
   return (
     <MenuItem
@@ -27,46 +30,40 @@ const renderBranch = (item, { handleClick, modifiers, query }) => {
 };
 
 function filterBranch(query, branch) {
+  if (!query) return true;
   return branch.toLowerCase().indexOf(query.toLowerCase()) >= 0;
 }
 
+
 class AppNavbar extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      branches: []
-    };
+
+  maybeFetchBranches = ({force_fetch}) => {
+    const { is_loading, is_home, project, dispatch, branches} = this.props;
+    if (!is_loading && !is_home && project && (branches.length===0 || force_fetch) ) 
+      dispatch(fetchBranches(project))
   }
 
   componentDidMount() {
-    const params = new URLSearchParams(this.props.location.search);
-    let project = params.get("project") || "dvs/psp_swip";
-    get("/api/v1/project/branches", { params: { project } })
-      .then(response => {
-        this.setState({
-          branches: response.data
-        });
-      })
-      .catch(error => {
-        console.error(error);
-      });
+    this.maybeFetchBranches({force_fetch: true});
+    this.props.dispatch(fetchProjects())
   }
+
 
   renderInputValue = branch => branch;
   handleBranchChange = branch => {
-    this.props.history.push(`/branch/${branch}`);
+    const { project } = this.props;
+    this.props.history.push(`/branch/${branch}?project=${project}`);
   };
 
   handleCommitChange = event => {
-    this.props.history.push(`/commit/${event.target.value}`);
+    const { project } = this.props;
+    this.props.history.push(`/commit/${event.target.value}?project=${project}`);
   };
 
   render() {
-    const params = new URLSearchParams(this.props.location.search);
-    let is_home = this.props.location.pathname.startsWith("/projects");
-    let project = is_home ? "SIRC" : params.get("project") || "dvs/psp_swip";
+    const { is_home, project, branches } = this.props;
     return (
-      <Navbar className="pt-dark">
+      <Navbar className={Classes.DARK}>
         <NavbarGroup>
           <NavbarHeading>
             {is_home ? (
@@ -79,10 +76,10 @@ class AppNavbar extends Component {
           </NavbarHeading>
           {!is_home && (
             <Fragment>
-              <Button disabled className="pt-minimal" icon="git-branch" />
+              <Button disabled minimal icon="git-branch" />
               <Suggest
                 itemPredicate={filterBranch}
-                items={this.state.branches}
+                items={branches}
                 itemRenderer={renderBranch}
                 inputValueRenderer={this.renderInputValue}
                 noResults={<MenuItem disabled={true} text="No results." />}
@@ -90,7 +87,7 @@ class AppNavbar extends Component {
                 popoverProps={Classes.MINIMAL}
                 placeholder="Filter by branch..."
                 initialContent="Filter by branch..."
-                onFocus={this.getBranches}
+                onQueryChange={this.maybeFetchBranches}
               />
               <NavbarDivider />
               <InputGroup
@@ -103,8 +100,8 @@ class AppNavbar extends Component {
         </NavbarGroup>
         <NavbarGroup align="right">
           {!is_home && (
-            <Link to="/projects">
-              <Button className="pt-minimal" icon="home">
+            <Link style={{ color: "#fff" }}  to="/projects">
+              <Button minimal icon="home">
                 All projects
               </Button>
             </Link>
@@ -115,4 +112,31 @@ class AppNavbar extends Component {
   }
 }
 
-export default withRouter(AppNavbar);
+
+const mapStateToProps = (state, ownProps) => {
+  // console.log(state)
+  // console.log(ownProps.location)
+  const params = new URLSearchParams(ownProps.location.search);
+  let is_home = ownProps.location.pathname.startsWith("/projects");
+  // console.log(is_home)
+  if (is_home) return {is_home: true}
+
+  let project = params.get("project") || state.selected.project;
+  // console.log(project)
+  if (!state.projects.data[project]) {
+    return {
+      project,
+      is_home: false,
+      branches: [],
+    };
+  }
+  // console.log(project)
+  return {
+    is_home,
+    project,
+    branches: state.projects.data[project].branches ||  [],
+    is_loading: state.projects.data[project].branches_loading,
+  }
+}
+
+export default withRouter(connect(mapStateToProps)(AppNavbar) );

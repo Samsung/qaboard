@@ -3,6 +3,15 @@ server {
   listen [::]:5000;
   server_name qa, dvs, gpu09-dt, planet31, planet33, localhost;
 
+  # CSS and Javascript
+  location ~* \.(?:css|js)$ {
+    expires 1y;
+    access_log off;
+    add_header Cache-Control "public";
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
+  }
+
   location / {
     root /slamvizapp/slamvizapp-webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
@@ -28,6 +37,16 @@ server {
   alias /home/arthurf/ci/;
   autoindex on;
   access_log off;
+ }
+
+ location ^~ /s/home/ {
+  alias /home/;
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/home/arthurf {
+    deny all; 
  }
 
  location ^~ /s/algo_archive/ {
@@ -61,6 +80,15 @@ server {
 
 
 
+  # CSS and Javascript
+  location ~* \.(?:css|js)$ {
+    expires 1y;
+    access_log off;
+    add_header Cache-Control "public";
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
+  }
+
   location / {
     root /slamvizapp/slamvizapp-webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
@@ -86,6 +114,16 @@ server {
   alias /home/arthurf/ci/;
   autoindex on;
   access_log off;
+ }
+
+ location ^~ /s/home/ {
+  alias /home/;
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/home/arthurf {
+    deny all; 
  }
 
  location ^~ /s/algo_archive/ {

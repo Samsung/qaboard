@@ -1,20 +1,16 @@
-/* global Plotly:true */
-// import Plot from 'react-plotly.js'
 import React, { Component, Fragment } from "react";
+import Plot from 'react-plotly.js';
 
-import createPlotlyComponent from "react-plotly.js/factory";
-import { Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
-import { metrics } from "./metrics";
-import { OutputCard } from "./OutputCard";
-import { input_test_color, matching_output, average, median } from "./common/utils";
+import { OutputCard } from "./viewers/OutputCard";
+import { input_test_color, matching_output, average, median } from "./utils";
 
-import { CommitRow } from "./CommitRow";
+import { CommitRow } from "./components/CommitRow";
 
 import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();
 
-const Plot = createPlotlyComponent(Plotly);
 let layout = {
   width: 1200,
   height: 150,
@@ -138,14 +134,14 @@ class CommitsEvolutionPerBatch extends React.Component {
     this.updateTraces(this.props);
   }
 
-  componentWillReceiveProps(nextProps) {
+  componentDidUpdate(prevProps) {
     if (
-      nextProps.output_filter !== this.props.output_filter ||
-      nextProps.commits !== this.props.commits ||
-      nextProps.metrics[0] !== this.props.metrics[0] ||
-      nextProps.aggregation !== this.props.aggregation
+      prevProps.output_filter !== this.props.output_filter ||
+      prevProps.commits !== this.props.commits ||
+      prevProps.metrics[0] !== this.props.metrics[0] ||
+      prevProps.aggregation !== this.props.aggregation
     )
-      this.updateTraces(nextProps);
+      this.updateTraces(this.props);
   }
 
   updateTraces(props) {
@@ -253,7 +249,7 @@ class CommitsEvolutionPerBatch extends React.Component {
   }
 
   render() {
-    const { metrics, available_metrics } = this.props;
+    const { metrics, available_metrics, project_data, project } = this.props;
     const { revision, hovered, hovered_commit, traces } = this.state;
 
     if (hovered) {
@@ -263,7 +259,8 @@ class CommitsEvolutionPerBatch extends React.Component {
         >
           <CommitRow
             commit={hovered_commit}
-            project={this.props.project}
+            project={project}
+            project_data={project_data}
             toaster={toaster}
           />
         </div>
@@ -294,6 +291,8 @@ class CommitsEvolutionPerBatch extends React.Component {
         }
       ]
     };
+    layout_.yaxis.ticksuffix = metric.suffix || '';
+    layout_.yaxis.showticksuffix = 'last';
     return (
       <div>
         {traces.length > 0 && (
@@ -305,7 +304,7 @@ class CommitsEvolutionPerBatch extends React.Component {
           />
         )}
         <p>
-          <span className="pt-text-muted" style={{ fontSize: 10 }}>
+          <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
             Results are to clamped to >20x KPIs. The performance for each commit
             may not be evaluated on the same tests.
           </span>
@@ -375,14 +374,14 @@ class CommitsEvolutionPerMovie extends React.Component {
     this.updateTraces(this.props);
   }
 
-  componentWillReceiveProps(nextProps) {
+  componentDidUpdate(prevProps) {
     if (
-      nextProps.commits !== this.props.commits ||
-      nextProps.metrics[0] !== this.props.metrics[0] ||
-      nextProps.relative !== this.props.relative ||
-      nextProps.output_filter !== this.props.output_filter
+      prevProps.commits !== this.props.commits ||
+      prevProps.metrics[0] !== this.props.metrics[0] ||
+      prevProps.relative !== this.props.relative ||
+      prevProps.output_filter !== this.props.output_filter
     )
-      this.updateTraces(nextProps);
+      this.updateTraces(this.props);
   }
 
   updateTraces(props) {
@@ -486,7 +485,9 @@ class CommitsEvolutionPerMovie extends React.Component {
       metrics,
       available_metrics,
       relative,
-      details_on_hover
+      details_on_hover,
+      project,
+      project_data,
     } = this.props;
     const {
       revision,
@@ -502,6 +503,8 @@ class CommitsEvolutionPerMovie extends React.Component {
       ...layout,
       height: 250
     };
+    layout_.yaxis.ticksuffix = metric.suffix || '';
+    layout_.yaxis.showticksuffix = 'last';
 
     if (!relative)
       layout_.shapes = [
@@ -552,14 +555,17 @@ class CommitsEvolutionPerMovie extends React.Component {
           <CommitRow
             commit={hovered_commit}
             project={this.props.project}
+            project_data={project_data}
             toaster={toaster}
           />
           {details_on_hover && (
             <OutputCard
+              project={project}
+              project_data={project_data}
               output_new={hovered_output}
               output_ref={output_ref}
               warning={warning}
-              layout={{ width: 1180, height: 300 }}
+              style={{ width: '1180px', height: '300px' }}
               no_header={true}
             />
           )}
@@ -588,11 +594,10 @@ class CommitsEvolutionPerMovie extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
-    const { project } = props;
+    const { main_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
     this.state = {
-      available_metrics: metrics[project].available_metrics,
-      select_metrics: this.props.select_metrics || metrics[project].main_metrics,
-      selected_metric: metrics[project].default_metric,
+      select_metrics: this.props.select_metrics || main_metrics,
+      selected_metric: default_metric,
       selected_aggregation: "median",
       output_filter: "small-scale",
       relative: true,
@@ -608,7 +613,7 @@ class CommitsEvolution extends Component {
   };
 
   render() {
-    const { project, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
+    const { project, project_data, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
@@ -617,42 +622,42 @@ class CommitsEvolution extends Component {
       relative,
       details_on_hover
     } = this.state;
-    const { available_metrics, select_metrics } = this.state;
+    const { select_metrics } = this.state;
 
-    if (!metrics[project].default_metric)
+    const { available_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
+
+    if (!default_metric)
       return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;
 
     return (
       <div style={style}>
         <FormGroup inline>
-          <div className="pt-select pt-minimal">
-            <select
-              id="select-metric"
-              defaultValue={metrics[this.state.project].default_metric}
-              onChange={this.selectMetric}
-            >
-              {select_metrics.map(m => (
-                <option key={available_metrics[m].key} value={m}>
-                  {available_metrics[m].label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <HTMLSelect
+            id="select-metric"
+            defaultValue={default_metric}
+            onChange={this.selectMetric}
+            minimal
+          >
+            {select_metrics.map(m => (
+              <option key={available_metrics[m].key} value={m}>
+                {available_metrics[m].label}
+              </option>
+            ))}
+          </HTMLSelect>
           {!breakdown_per_test && (
-            <div className="pt-select pt-minimal">
-              <select
-                id="select-aggregation"
-                defaultValue={selected_metric}
-                onChange={this.selectAggregation}
-              >
-                <option key="median" value="median">
-                  median
-                </option>
-                <option key="average" value="average">
-                  average
-                </option>
-              </select>
-            </div>
+            <HTMLSelect
+              id="select-aggregation"
+              defaultValue={selected_metric}
+              onChange={this.selectAggregation}
+              minimal
+            >
+              <option key="median" value="median">
+                median
+              </option>
+              <option key="average" value="average">
+                average
+              </option>
+            </HTMLSelect>
           )}
           {offer_breakdown_per_test && (
             <Switch
@@ -701,6 +706,7 @@ class CommitsEvolution extends Component {
         {breakdown_per_test ? (
           <CommitsEvolutionPerMovie
             project={project}
+            project_data={project_data}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}
@@ -711,6 +717,7 @@ class CommitsEvolution extends Component {
         ) : (
           <CommitsEvolutionPerBatch
             project={project}
+            project_data={project_data}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}

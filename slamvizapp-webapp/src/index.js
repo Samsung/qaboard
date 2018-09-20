@@ -1,8 +1,28 @@
 import React from "react";
 import { render } from "react-dom";
-import "./index.css";
+
 import App from "./App";
 import registerServiceWorker from "./registerServiceWorker";
 
-render(<App />, document.getElementById("root"));
-registerServiceWorker();
+import configureStore from './configureStore';
+import { default_store } from './reducers';
+
+
+const store = configureStore(default_store)
+
+const renderApp = () => render(
+	<App store={store}/>,
+	document.getElementById("root")
+);
+
+
+// https://redux.js.org/recipes/configuringyourstore
+if (process.env.NODE_ENV !== 'production' && module.hot) {
+  module.hot.accept('./App', () => {
+    renderApp()
+  })
+} else {
+  registerServiceWorker();
+}
+
+renderApp()

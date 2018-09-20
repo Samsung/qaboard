@@ -1,9 +1,9 @@
 import React, { Fragment } from "react";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
-import { Icon, Tag, Intent, Popover } from "@blueprintjs/core";
+import { HTMLTable, Classes, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
-import { Section } from "./common/containers";
-import { matching_output, sortOutputs } from "./common/utils";
+import { Section } from "./layout";
+import { matching_output, sortOutputs } from "../utils";
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -23,19 +23,11 @@ const RowHeaderCell = ({ output, warning }) => {
       : "";
   return (
     <th scope="row">
-      {output.test_input_path} {extra_parameters}
-      <Tag
-        className="pt-round pt-minimal"
-        icon={output.platform === "s8" ? "mobile-phone" : "desktop"}
-      >
+      {output.test_input_path} <span className={Classes.TEXT_MUTED}>{extra_parameters}</span>
+      <Tag minimal round >
         {output.platform}
       </Tag>
-      <Tag
-        className="pt-round pt-minimal"
-        icon={output.configuration === "mono_mode" ? "eye-off" : "blank"}
-      >
-        {output.configuration}
-      </Tag>
+      {output.configuration.split(':').map(c=><Tag key={c} minimal round>{c}</Tag>)}
       {warning && (
         <Popover interactionKind="hover">
           <Icon intent={Intent.WARNING} icon="warning-sign" />
@@ -104,7 +96,7 @@ const TableCompare = ({
   return (
     <Section>
       {input}
-      <table className="pt-html-table pt-small">
+      <HTMLTable small>
         <thead>
           <tr>
             <th />
@@ -116,7 +108,7 @@ const TableCompare = ({
           </tr>
           <tr>
             <th scope="col">
-              <span className="pt-text-muted">
+              <span className={Classes.TEXT_MUTED}>
                 {Object.keys(outputs).length} tests
               </span>
             </th>
@@ -148,7 +140,7 @@ const TableCompare = ({
             );
           })}
         </tbody>
-      </table>
+      </HTMLTable>
     </Section>
   );
 };
@@ -170,7 +162,7 @@ const TableKpi = ({
   return (
     <Section>
       {input}
-      <table className="pt-html-table pt-small">
+      <HTMLTable small>
         <thead>
           <tr>
             <th />
@@ -183,7 +175,7 @@ const TableKpi = ({
           </tr>
           <tr>
             <th scope="col">
-              <span className="pt-text-muted">
+              <span className={Classes.TEXT_MUTED}>
                 {Object.keys(outputs).length} tests
               </span>
             </th>
@@ -215,7 +207,7 @@ const TableKpi = ({
             );
           })}
         </tbody>
-      </table>
+      </HTMLTable>
     </Section>
   );
 };

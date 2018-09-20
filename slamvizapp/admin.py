@@ -41,10 +41,19 @@ class ProjectModelView(ModelView):
   column_searchable_list = ['id', 'information']
   can_delete = False
 
+class CommitModelView(ModelView):
+  column_list = ['id', 'project_id', 'committer_name', 'message']
+  column_searchable_list = ['id', 'project_id', 'committer_name', 'message']
+  column_filters = ['id', 'committer_name', 'message']
+
+class OutputModelView(ModelView):
+  column_list = ['id', 'project_id', 'committer_name', 'message']
+  column_searchable_list = ['id', 'output_dir_override']
+  column_filters = ['id', 'output_dir_override']
 
 
 admin.add_view(TestInputModelView(TestInput, db_session))
-admin.add_view(ModelView(CiCommit, db_session))
+admin.add_view(CommitModelView(CiCommit, db_session))
 admin.add_view(ModelView(Batch, db_session))
-admin.add_view(ModelView(Output, db_session))
+admin.add_view(OutputModelView(Output, db_session))
 admin.add_view(ProjectModelView(Project, db_session))
