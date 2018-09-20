@@ -312,7 +312,7 @@ class CiCommitResults extends Component {
 
         {(!!new_commit && !!ref_commit) && (
             <>
-              <Section>
+              <Section key="high-level">
                 <Card elevation={0}>
                   <div
                     style={{
@@ -388,12 +388,12 @@ class CiCommitResults extends Component {
                 </Card>
               </Section>
 
-              <Section>
+              <Section key="filters">
                 {warning_messages}
                 <BatchStatusMessages batch={new_batch_filtered} />
               </Section>
 
-              <Section>
+              <Section key="summary">
                 <Card elevation={2}>
                   <Tabs
                     renderActiveTabPanelOnly
@@ -448,7 +448,7 @@ class CiCommitResults extends Component {
                 </Card>
               </Section>
 
-              <Section>
+              <Section key="details">
                 <Tabs
                   renderActiveTabPanelOnly
                   id="tabs-outputs"

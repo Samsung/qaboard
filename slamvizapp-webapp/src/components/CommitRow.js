@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import styled from "styled-components";
 import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
 
+import { updateSelected } from "../actions/selected";
+
 import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
@@ -38,6 +40,7 @@ const CommitRowWrapper = styled.li`
 const has_outputs_in_batch = label => commit =>
   !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
 
+
 class CommitResults extends React.Component {
   render() {
     const { project, project_data, commit } = this.props;
@@ -63,7 +66,11 @@ class CommitResults extends React.Component {
             Check the pipeline status..
           </Button>
         </a>
-        <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
+        <Link
+          style={{ marginLeft: "10px" }}
+          to={`/commit/${commit.id}?project=${project}`}
+          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+        >
           <Button intent={Intent.DANGER} minimal>
             No results
           </Button>
@@ -108,7 +115,11 @@ class CommitResults extends React.Component {
           </Tag>
         )}
         {ci_batch.failed_outputs > 0 && (
-          <Link style={{ marginLeft: "10px" }} to={`/commit/${commit.id}?project=${project}`}>
+          <Link
+            style={{ marginLeft: "10px" }}
+            to={`/commit/${commit.id}?project=${project}`}
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+          >
             <Button intent={Intent.DANGER} minimal>
               {ci_batch.failed_outputs} crashed
             </Button>
@@ -130,7 +141,11 @@ class CommitResults extends React.Component {
                   let batch = commit.batches[label];
                   let status = `${batch.valid_outputs}/${batch.valid_outputs+batch.pending_outputs+batch.failed_outputs} ✅`;
                   let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
-                  return <Link key={label} to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}>
+                  return <Link
+                          key={label}
+                          to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}
+                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: label, batch_ref: null}))}
+                         >
                     <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
                   </Link>
               })}
@@ -201,6 +216,7 @@ class CommitResults extends React.Component {
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
           <Link
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
             style={{ marginLeft: "10px" }}
             to={`/commit/${commit.id}?project=${project}`}
           >
