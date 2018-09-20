@@ -30,7 +30,7 @@ class Job:
     """Wraps LSF jobs for convenience."""
 
     def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000):
-        self.name = str(name).replace(" ", "-")
+        self.name = str(name).replace(" ", "-").replace('"','')
         self.command = command
         self.log_file = log_dir / "log.txt"
         self.project = config["project"]["name"]
@@ -125,10 +125,12 @@ class Job:
         click.secho(out.stderr, fg="red", err=True)
         return out
 
-def killJobs(jobs, on_lsf = False):
-    command = " && ".join("bkill -J %s 0"%job.name.replace('"','') for job in jobs)
+def kill_jobs(jobs, on_lsf=False):
+    command = " && ".join([
+      f"bkill -J {job.name} 0" for job in jobs
+    ])
     if on_lsf:
-        killer = Job("killer", '"%s"'%command, priority = Priority.HIGH)
+        killer = Job(f"killer", '"{command}"', priority=Priority.HIGH)
         killer.send()
     else:
         out = subprocess.run(

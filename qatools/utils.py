@@ -198,8 +198,8 @@ hash_empty_tuning = make_hash({})
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
   params_filename = paramstring.replace(",","_")
-  for ch in "{}:[] \r\n\"":
-    params_filename = params_filename.replace(ch,"")
+  for char in "{}:[] \r\n\"":
+    params_filename = params_filename.replace(char,"")
   if len(params_filename) > maxlen:
     params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
   if len(params_filename) > maxlen:
@@ -238,6 +238,7 @@ def iter_parameters(tuning_search=None, filetype='json'):
     params_iterator = ParameterSampler(tuning_search['parameter_search'], n_iter=n_iter)
   else:
     raise ValueError
+
   for counter, params in enumerate(params_iterator):
     if counter >= n_iter:
         click.secho(f"Stopping tuning combination after {n_iter} iterations", fg='yellow', err=True)
@@ -263,3 +264,21 @@ class PathType(click.ParamType):
   name = 'path'
   def convert(self, value, param, ctx):
     return Path(value)
+
+
+
+import numpy as np
+
+class NumpyEncoder(json.JSONEncoder):
+    """ Special json encoder for numpy types """
+    def default(self, obj):
+        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
+            np.int16, np.int32, np.int64, np.uint8,
+            np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32,
+            np.float64)):
+            return float(obj)
+        elif isinstance(obj,(np.ndarray,)): #### This is the fix
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
