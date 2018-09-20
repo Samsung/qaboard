@@ -361,6 +361,7 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
+        {(this.props.project==='dvs/psp_swip' || this.props.project==='tof/swip_tof' ) && 
         <RadioGroup
           // label=""
           // helperText={<span><strong>lsf</strong> is the default. <strong>s8</strong> is </span>}
@@ -368,7 +369,7 @@ class TuningForm extends Component {
           selectedValue={platform}
         >
           <Radio labelElement={<span>Linux</span>} value="lsf" large />
-          {(this.props.project==='dvs/psp_swip' || this.props.project==='tof/swip_tof' ) && <Radio
+          <Radio
             label={
               <span>
                 Android<br />
@@ -382,8 +383,8 @@ class TuningForm extends Component {
             }
             value="s8"
             large
-          />}
-        </RadioGroup>
+          />
+        </RadioGroup>}
 
         {platform === "s8" && (
           <FormGroup
@@ -523,7 +524,7 @@ class TuningForm extends Component {
 
         <FormGroup
           label="Run as"
-          helperText="Be nice."
+          helperText="Get faster results by running as your own user."
           labelFor="input-user"
           inline
         >
