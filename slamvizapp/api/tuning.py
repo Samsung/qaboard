@@ -41,7 +41,7 @@ def groups():
           We would *just* need to write the migration, and it would save 30 lines of code.
     """
     project_id = request.args.get("project", "dvs/psp_swip")
-    groups_path = get_test_groups_path(project_id)
+    groups_path = get_groups_path(project_id)
     if request.method == "POST":
         data = request.get_json()
         with groups_path.open("w") as f:
