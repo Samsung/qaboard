@@ -171,7 +171,7 @@ class CiCommit(Base):
         'commit_dir_url': str(self.commit_dir_url),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches
-                    if '|iter' not in b.label and (with_batches is None or b.label in with_batches)},
+                    if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
 
