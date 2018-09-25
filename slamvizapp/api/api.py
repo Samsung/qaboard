@@ -49,7 +49,7 @@ def get_commits(branch=None):
                               .scalar()
                              )
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
-  print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
+  # print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
 
   ci_commits = (db_session
                 .query(CiCommit)
