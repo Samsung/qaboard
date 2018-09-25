@@ -199,7 +199,7 @@ def add_batch(hexsha):
     )
     print(batch_script)
 
-    script_path = project_dir / f"{ci_commit.gitcommit.hexsha}_{datetime.datetime.now()}.sh"
+    script_path = project_dir / f"{ci_commit.gitcommit.hexsha}_{datetime.datetime.now().isoformat()}.sh"
     with script_path.open("w") as f:
         f.write(batch_script)
     cmd = " ".join(
@@ -214,7 +214,7 @@ def add_batch(hexsha):
             # ispq is the only user that can use bsub_su, an alias for su {0} {1:}.
             "-i /home/arthurf/.ssh/ispq.id_rsa",
             "ispq@planet31",
-            f"bash {script_path}",
+            f'bash "{script_path}"',
         ]
     )
     print(cmd)
@@ -222,5 +222,5 @@ def add_batch(hexsha):
         out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out.check_returncode()
     except subprocess.CalledProcessError:
-        return jsonify({"error": "{out.stdout}\n{out.stderr}"}), 500
+        return jsonify({"error": f"{out.stdout}\n{out.stderr}"}), 500
     return jsonify({"script": str(script_path)})
