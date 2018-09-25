@@ -72,8 +72,8 @@ def get_commits(branch=None):
       ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  batch = request.args.get('batch', None)
   with_batches = None
+  batch = request.args.get('batch', None)
   if batch:
     with_batches = [batch]
   else:
@@ -196,6 +196,8 @@ def get_ci_commit(commit_id=None):
     files =  [str(f.relative_to(commit_dir)) for f in commit_dir.glob(globbing)]
     return jsonify(files)
 
-  response = make_response(ujson.dumps(ci_commit.to_dict(with_outputs=True)))
+  batch = request.args.get('batch', None)
+  with_batches = [batch] if batch else None # by default we show all batches
+  response = make_response(ujson.dumps(ci_commit.to_dict(with_batches=with_batches, with_outputs=True)))
   response.headers['Content-Type'] = 'application/json'
   return response
