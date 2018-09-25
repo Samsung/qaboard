@@ -43,7 +43,11 @@ def get_commits(branch=None):
 
   from_date_s = request.args.get('from', None)
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=4))
-  latest_authored_datetime = db_session.query(func.max(CiCommit.authored_datetime)).scalar()
+  latest_authored_datetime = (db_session
+                              .query(func.max(CiCommit.authored_datetime))
+                              .filter(CiCommit.project_id == project_id)
+                              .scalar()
+                             )
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
   print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
 
