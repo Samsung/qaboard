@@ -299,7 +299,6 @@ class TofOutputCard extends Component {
       ...layout
     };
     const output_types = ["depth"]; //, 'intensity'];
-	let output_layout = { yaxis: { autorange: "reversed" } };
     return (
       <>
         <p className={Classes.TEXT_MUTED}>

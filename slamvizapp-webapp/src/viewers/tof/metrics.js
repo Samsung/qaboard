@@ -10,8 +10,8 @@ const available_metrics = {
     plot_scale: "linear"
   },
 
-  area_mtf_mean_mean: {
-    key: "area_mtf_mean_mean",
+  area_mtf_mean: {
+    key: "area_mtf_mean",
     label: "Average area MTF",
     short_label: "MTF avg",
     scale: 1,
@@ -141,7 +141,7 @@ const summary_metrics = [
   "processing_time_q95"
 ];
 // will be shown in the table and 6dof output cards
-const main_metrics = ["rmse_mean", "pcmd_mean", "area_mtf_mean_mean", "snr_mean", "precision_mean"];
+const main_metrics = ["rmse_mean", "pcmd_mean", "area_mtf_mean", "snr_mean", "precision_mean"];
 const dashboard_metrics = ["pcmd_mean"];
 
 export {
