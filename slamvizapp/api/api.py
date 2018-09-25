@@ -68,8 +68,14 @@ def get_commits(branch=None):
       ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
-  with_batches = ['default', 'ci-android-rt', 'manual-android-rt'] if only_ci_batches else None
+  batch = request.args.get('batch', None)
+  with_batches = None
+  if batch:
+    with_batches = [batch]
+  else:
+    only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
+    if only_ci_batches:
+      with_batches = ['default', 'ci-android-rt', 'manual-android-rt']
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
   # from ..utils import profiled
   # with profiled():
