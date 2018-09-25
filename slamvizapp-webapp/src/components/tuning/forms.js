@@ -31,6 +31,7 @@ import {
   Toaster,
 } from "@blueprintjs/core";
 
+import templates from './templates'
 export const toaster = Toaster.create();
 
 const wrap_values_in_array = object => {
@@ -89,35 +90,6 @@ const grid_combinations = param_search => {
 };
 
 
-const tuning_templates = {
-  "none": "{}",
-  "simple-combinations": JSON.stringify(
-    {
-      events_per_frame: [5e3, 10e3, 15e3, 20e3],
-      smart_frame_on: [0, 1]
-    },
-    null,
-    2
-  ),
-  "list-of-combinations": JSON.stringify(
-    [
-      {
-        min_events_per_frame: 5e3,
-        max_events_per_frame: 10e3
-      },
-      {
-        min_events_per_frame: 15e3,
-        max_events_per_frame: 20e3
-      }
-    ],
-    null,
-    2
-  ),
-  "function":
-    "// you can write a javascript function that return your tuning search\nlet events_per_frame = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events_per_frame.map(e => ({\n  min_events_per_frame: e,\n  max_events_per_frame: e + delta,\n  smart_frame_on: [true, false],\n}));\n",
-  "auto": '#testing...\n',
-};
-
 class TuningForm extends Component {
   constructor(props) {
     super(props);
@@ -142,10 +114,10 @@ class TuningForm extends Component {
       },
       parameter_search: cookies.get("parameter_search", { doNotParse: true })
         ? JSON.parse(cookies.get("parameter_search", { doNotParse: true }))
-        : tuning_templates["none"],
+        : templates["none"],
       parameter_search_auto: cookies.get("parameter_search_auto", { doNotParse: true })
         ? JSON.parse(cookies.get("parameter_search_auto", { doNotParse: true }))
-        : tuning_templates["auto"],
+        : templates["auto"],
 
       // legacy?
       user: cookies.get("user") || "arthurf",
@@ -431,7 +403,7 @@ class TuningForm extends Component {
               style={{margin: '4px'}}
               key={x}
               onClick={e =>
-                this.setState({ parameter_search: tuning_templates[x] })
+                this.setState({ parameter_search: templates[x] })
               }
             >
               {x}
@@ -557,6 +529,7 @@ class TuningForm extends Component {
             checked={search_type === "auto"}
           />
         </FormGroup>
+        <Button onClick={e => this.setState({ parameter_search_auto: templates['auto'] })}>Show Example</Button>
         <AceEditor
           mode="yaml"
           theme="github"
