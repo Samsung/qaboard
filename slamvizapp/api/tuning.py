@@ -102,14 +102,6 @@ def add_batch(hexsha):
     Request that we run extra tests for a given project.
     """
     project_id = request.args.get("project", "dvs/psp_swip")
-    project_dir = shared_data_directory / project_id
-
-    now = datetime.datetime.now()
-    # We store in this directory the scripts used to run this new batch, as well as the logs
-    # We may instead want to use the folder where this batch's results are stored
-    # Or even store the metadata in the database itself...
-    batch_dir = project_dir / ci_commit.gitcommit.hexsha / now.isoformat()
-    if not batch_dir.exists(): batch_dir.mkdir(exist_ok=True, parents=True)
 
     try:
         commit = repos[project_id].commit(hexsha)
@@ -129,8 +121,15 @@ def add_batch(hexsha):
     db_session.add(ci_commit)
     db_session.commit()
 
-    data = request.get_json()
+    project_dir = shared_data_directory / project_id
+    now = datetime.datetime.now()
+    # We store in this directory the scripts used to run this new batch, as well as the logs
+    # We may instead want to use the folder where this batch's results are stored
+    # Or even store the metadata in the database itself...
+    batch_dir = project_dir / ci_commit.gitcommit.hexsha / now.isoformat()
+    if not batch_dir.exists(): batch_dir.mkdir(exist_ok=True, parents=True)
 
+    data = request.get_json()
     overwrite = "--overwrite" if data["overwrite"] == "on" else ""
     if is_legacy_project:
         batch_command = " ".join(
