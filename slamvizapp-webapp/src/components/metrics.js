@@ -393,9 +393,9 @@ class MetricsSummary extends Component {
     if (new_batch === null) return <span />;
 
     let xaxis_labels = this.props.xaxis_labels || ["New", "Reference"];
-    let outputs_new = Object.values(new_batch.outputs).filter(
-      o => !o.is_pending
-    );
+    let outputs_new = Object.values(new_batch.outputs)
+                     .filter(o => !o.is_pending)
+                     .filter(o => o.output_type!=="optim_iteration");                    
     let run_types_new = new Set(outputs_new.map(o => run_type(o)));
     let outputs_ref = Object.values(ref_batch.outputs)
       .filter(o => run_types_new.has(run_type(o)))
@@ -446,8 +446,7 @@ class MetricsSummary extends Component {
       <div>
         {tuned_parameters_array.length > 0 && (
           <Callout intent={Intent.WARNING}>
-            The results below show <strong>all the results</strong> with various
-            parameters mixed together.
+            For <strong>manual tuning</strong>, you may see below results with the tuning <strong>parameters mixed together.</strong>
           </Callout>
         )}
         <MultiSelect

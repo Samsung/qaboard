@@ -92,6 +92,7 @@ const TableCompare = ({
   const [label_new, label_ref] = labels || ["new", "ref"];
   let outputs = Object.entries(new_batch.outputs)
     .filter(([id, o]) => !o.is_pending)
+    .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
     <Section>
@@ -158,6 +159,7 @@ const TableKpi = ({
   const [label_new, label_ref] = labels || ["New", "Reference"];
   let outputs = Object.entries(new_batch.outputs)
     .filter(([id, o]) => !o.is_pending)
+    .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
     <Section>

@@ -604,6 +604,7 @@ class OutputList extends Component {
           }}
         >
           {Object.entries(new_batch.outputs)
+            .filter( ([id, output]) => output.output_type!=="optim_iteration")
             .sort(sortOutputs(sort_by, sort_order))
             .map(([id, output]) => {
               let { output_ref, warning } = matching_output({
