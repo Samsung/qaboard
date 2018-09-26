@@ -33,9 +33,10 @@ return events_per_frame.map(e => ({
   smart_frame_on: [true, false],
 }));
 `,
-  "auto": `
+  "optimize": `
 metric: rmse
 # minimize: true
+# aggregation: average
 evaluations: 10
 
 # you can fix some parameters

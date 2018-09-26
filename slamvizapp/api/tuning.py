@@ -103,7 +103,13 @@ def add_batch(hexsha):
     """
     project_id = request.args.get("project", "dvs/psp_swip")
     project_dir = shared_data_directory / project_id
-    if not project_dir.exists(): project_dir.mkdir(exist_ok=True, parents=True)
+
+    now = datetime.datetime.now()
+    # We store in this directory the scripts used to run this new batch, as well as the logs
+    # We may instead want to use the folder where this batch's results are stored
+    # Or even store the metadata in the database itself...
+    batch_dir = project_dir / ci_commit.gitcommit.hexsha / now.isoformat()
+    if not batch_dir.exists(): batch_dir.mkdir(exist_ok=True, parents=True)
 
     try:
         commit = repos[project_id].commit(hexsha)
@@ -119,7 +125,7 @@ def add_batch(hexsha):
 
     groups_path = get_groups_path(project_dir)
 
-    ci_commit.time_of_last_batch = datetime.datetime.now().astimezone()
+    ci_commit.time_of_last_batch = now.astimezone()
     db_session.add(ci_commit)
     db_session.commit()
 
@@ -152,56 +158,70 @@ def add_batch(hexsha):
             / project_id.split("/")[1]
         )
     else:
+        config = ci_commit.project.information["qatools_config"]
+        working_directory = ci_commit.commit_dir
+
+        # This will make us do automated tuning, versus a single manual batch
+        do_optimize = data['tuning_search']['search_type'] == 'optimize'
+        if do_optimize:
+            # we write somewhere the optimzation search configuration
+            # it needs to be accessed from LSF so we can't use temporary files...
+            config_path = batch_dir / 'optim-config.yaml'
+            config_option = f"--config-file {config_path}"
+            with config_path.open("w") as f:
+                f.write(data['tuning_search']['parameter_search'])
+        else:
+            config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
+
         batch_command = " ".join(
             [
                 "qa",
                 f"--platform '{data['platform']}'" if "platform" in data else "",
-                f"--configuration '{data['configuration']}'"
-                if "configuration" in data
-                else "",
+                f"--configuration '{data['configuration']}'" if "configuration" in data else "",
                 f"--batch-label '{data['batch_label']}'",
-                "batch",
+                "optimize" if do_optimize else "batch",
                 f"--groups-file {groups_path}",
                 f"--group '{data['selected_group']}'",
-                f"--tuning-search '{json.dumps(data['tuning_search'])}'",
-                f"{overwrite}",
-                f"--no-wait",
+                config_option,
+                f"{overwrite} --no-wait" if not do_optimize else '',
                 "\n",
             ]
         )
-        config = ci_commit.project.information["qatools_config"]
-        working_directory = ci_commit.commit_dir
+        else:
     print(working_directory)
     print(batch_command)
 
 
-    # To avoid issues with quoting, we create a temporary file to describe the job
-    # We could also play with heredocs-within-heredocs, but it is painful,
-    # and this way we get logs
-    user = data["user"] if "user" in data else "arthurf"
+    # To avoid issues with quoting, we write a script to run the batch,
+    # and execute it with bsub/LSF 
+    # We could also play with heredocs-within-heredocs, but it is painful, and this way we get logs
     queue = "alg_q" if is_legacy_project else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
     # openstf is our Android device farm
     use_openstf = data["android_device"].lower() == "openstf"
     batch_script = "".join(
         [
             "#!/bin/bash\n",
-            f"bsub_su {user} -q {queue} -sp 4000 ",  # highest priority
+            f"bsub_su {data.get("user", "arthurf")} -q {queue} -sp 4000 ",  # highest priority
             f"-o {project_dir}/lsf.log ",
             "<< EOF\n" f'  cd "{working_directory}";\n',
             # options specific to android
             f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             f"  export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
-            f"  export {'SAMSUNG_CI_COMMIT_DIR' if is_legacy_project else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n",
-            f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n  ",
+            # Make sure qatools doesn't complain about not being in a git repository,
+            f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+            # Make sure qatools knows where to save results
+            f"  export {'SAMSUNG_CI_COMMIT_DIR' if is_legacy_project else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n  ",
             batch_command,
             "EOF",
         ]
     )
     print(batch_script)
 
-    script_path = project_dir / f"{ci_commit.gitcommit.hexsha}_{datetime.datetime.now().isoformat()}.sh"
+    script_path = batch_dir / f"run.sh"
     with script_path.open("w") as f:
         f.write(batch_script)
+
+    # Wraps and execute the script that starts the batch
     cmd = " ".join(
         [
             "ssh",
@@ -218,6 +238,7 @@ def add_batch(hexsha):
         ]
     )
     print(cmd)
+
     try:
         out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out.check_returncode()
