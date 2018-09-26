@@ -93,7 +93,7 @@ class Job:
             [
                 bsub,
                 # only necessary if we send the job through ssh
-                f"-cwd {os.getcwd()}",
+                f'-cwd "{os.getcwd()}"',
                 # note: we don't request a pseudoterminal here -Is
                 # on our current use-cases, -K should be enough
                 "-I" if interactive else "",
@@ -107,7 +107,7 @@ class Job:
                 dependencies_flag,
                 # Note: what follows might not be needed anymore
                 # "DISPLAY=arthurf-vdi:3", # we should not be using displays anyway
-                "LC_ALL=C.utf8 LANG=C.utf8",  # the click python package hates ascii
+                "LC_ALL=en_US.utf8 LANG=en_US.utf8",  # the click python package hates ascii
                 "MPLBACKEND=agg",  # forces a non-interactive matplotlib backend
                 self.command,
             ]

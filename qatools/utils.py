@@ -40,10 +40,9 @@ def notify_qa_database(**kwargs):
     r = requests.post(url, json=data)
     r.raise_for_status()
   except:
-    click.secho(command, fg='yellow', err=True)
     click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
-    click.secho(r.request.headers, fg='yellow', dim=True, err=True)
-    click.secho(r.request.body, fg='yellow', dim=True, err=True)
+    click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
+    click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
     click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
 
 
@@ -141,6 +140,7 @@ def hash_parameters(filepath):
         params = json.load(f)
   return make_hash(params)
 
+
 def iter_recordings(groups, groups_file, database, default_configuration, config):
   """Returns an iterator over the (recording, configuration) from the selected groups
   params:
@@ -148,11 +148,21 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
   - groups_file: yaml file
   - configuration, is none is specified
   """
+  maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
+
   available_batches = yaml.load(Path(groups_file).open())
   for group in groups:
     if group not in available_batches:
-      click.secho(f"Warning: the selected group was not found ({group})", fg='yellow', err=True)
-      continue
+      # Maybe we asked recordings from a location...
+      # Have support for this makes test selection easier from the web UI,
+      # because users don't have to define groups of tests all the time...
+      location = group
+      click.secho(str(location), bold=True, fg='cyan', err=True)
+      yield from set([(maybe_parent(f), default_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
+      if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
+        yield maybe_parent(Path(database/location)), default_configuration
+      return
+
     if 'configuration' in available_batches[group]:
       group_configuration = available_batches[group]['configuration']
       if isinstance(group_configuration, list):
@@ -166,7 +176,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
       continue
 
     if isinstance(locations, list):
-      locations = {l:None for l in locations}
+      locations = {l: None for l in locations}
 
     for location, location_configuration in locations.items():
       if not location_configuration:
@@ -176,9 +186,8 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
           location_configuration = ':'.join(location_configuration)
         location_configuration = f'{group_configuration}:{location_configuration}'
       click.secho(str(location), bold=True, fg='cyan', err=True)
-      maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
       yield from set([(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
-      if location.endswith(config['inputs']['glob']):
+      if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
         yield maybe_parent(Path(database/location)), location_configuration
 
 
