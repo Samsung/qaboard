@@ -28,9 +28,14 @@ def update_batch():
   batch.data = {**batch.data, **data}
 
   if 'best_iter' in data and data['best_iter'] != batch.data.get('best_iter'):
-    # remove all non-tuning_iteration results from the batch
-    # copy (move?) results from the best batch
-    pass
+    # remove all non-optim_iteration results from the batch
+    batch.outputs = [o for o in batch.outputs if o.output_type=='optim_iteration']
+    # make copy of all outputs in the best batch
+    best_batch = ci_commit.get_or_create_batch(f"{data['batch_label']}|iter{batch.data.get('best_iter')}")
+    for o in best_batch.outputs:
+      o_copy = o.copy()
+      o.batch = batch
+      batch.outputs.append(o_copy)
 
   db_session.add(batch)
   db_session.commit()
