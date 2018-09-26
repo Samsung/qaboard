@@ -73,7 +73,7 @@ class Batch(Base):
         'commit_id': self.ci_commit_id,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
-        'data': self.data,
+        'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
 
         'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
         'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),
