@@ -11,6 +11,31 @@ from ..models import Project, CiCommit, Output, TestInput
 from ..git_utils import git_pull
 
 
+@app.route('/api/v1/batch', methods=['POST'])
+@app.route('/api/v1/batch/', methods=['POST'])
+def update_batch():
+  data = request.get_json()
+  try:
+    ci_commit = CiCommit.get_or_create(
+      session=db_session,
+      hexsha=request.json['git_commit_sha'],
+      repo=repos[request.json.get('project', 'dvs/psp_swip')],
+    )
+  except:
+    return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
+  batch = ci_commit.get_or_create_batch(data['batch_label'])
+  data = request.json.get('data', {})
+  batch.data = {**batch.data, **data}
+
+  if 'best_iter' in data and data['best_iter'] != batch.data.get('best_iter'):
+    # remove all non-tuning_iteration results from the batch
+    # copy (move?) results from the best batch
+    pass
+
+  db_session.add(batch)
+  db_session.commit()
+  return "OK"
+
 
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
