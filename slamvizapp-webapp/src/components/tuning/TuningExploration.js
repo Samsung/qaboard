@@ -149,6 +149,7 @@ const ParallelTuningPlot = ({
   let outputs_ok = Object.values(outputs).filter(
     o => !o.is_pending && !o.is_failed
   );
+  // console.log(outputs_ok)
 
   // first we group outputs by all their tuning / extra parameters
   // this avoid giving more weights to tunings that ran on more tests
@@ -159,6 +160,7 @@ const ParallelTuningPlot = ({
     outputs_with_same_params.push(output);
     outputs_by_params.set(key, outputs_with_same_params);
   })
+  // console.log(outputs_by_params)
 
   // we aggregate
   let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
@@ -169,39 +171,46 @@ const ParallelTuningPlot = ({
           .map(o => o.metrics[m.key])
           .filter(x => x !== undefined);
         let aggregated_value = aggregation==='median' ? median(values) : average(values);
-        if (aggregated_value !== null)
+        if (aggregated_value !== null && !isNaN(aggregated_value) )
           aggregated_metrics[m.key] = aggregated_value;
+        else
+          aggregated_metrics[m.key] = NaN;
       });
       return [JSON.parse(extra_parameters_s), aggregated_metrics];
     }
   )
+  // console.log(metrics_aggregated_by_params)
 
-  let main_metric_values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => agg_metrics[main_metric.key] * main_metric.scale)
+  const values = metric => aggr => aggr.map(  ([p, m]) => m[metric.key] * metric.scale);
+  const all_good = values => values.every( v => !isNaN(v) && v!==null && v!==undefined)
+  const line = {
+    color: values(main_metric)(metrics_aggregated_by_params),
+    colorscale: 'Viridis',
+    showscale: true,
+    reversescale: main_metric.smaller_is_better,
+    colorbar: {
+      title: main_metric.label,
+      thickness: 20, // default: 30
+      outlinewidth: 0,
+      borderwidth: 0,
+      ticksuffix: main_metric.suffix || '',
+      showticksuffix: 'last',
+    },
+  }
   let traces = [{
     type: 'parcoords',
-    line: {
-      color: main_metric_values,
-      colorscale: 'Viridis',
-      showscale: true,
-      reversescale: main_metric.smaller_is_better,
-      colorbar: {
-        title: main_metric.label,
-        thickness: 20, // default: 30
-        outlinewidth: 0,
-        borderwidth: 0,
-        ticksuffix: main_metric.suffix || '',
-        showticksuffix: 'last',
-      },
-    },
+    line: all_good(line.color) ? line : undefined,
     dimensions: [
-      ...metrics.map( metric => {
-        return {
-          label: metric.label,
-          values: metrics_aggregated_by_params.map( ([params, agg_metrics]) => agg_metrics[metric.key] * metric.scale),
-          // range: [1, 5],
-          // constraintrange: [1, 2],
-        }
-      }),
+       ...metrics
+         .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
+         .map( metric => {
+            return {
+             label: metric.label,
+             values: values(metric)(metrics_aggregated_by_params),
+             // range: [1, 5],
+             // constraintrange: [1, 2],
+            }
+       }),
       ...parameters.map(p => {
         let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p])
         let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
@@ -211,11 +220,14 @@ const ParallelTuningPlot = ({
         if (!numeric) {
           // we need to remap the values to categorical integers values
           var remapped_values = new Array(values.length);
-          var unique_values = new Map(...[undefined, 0]);
+           var unique_values = new Map(...[undefined, 0]);
           values.forEach( (v, idx) => {
-            if (!unique_values.get(v))
-              unique_values.set(v, unique_values.size+1)
-            remapped_values[idx] = unique_values.get(v)
+            let v_s = JSON.stringify(v)
+            // if (v === false) v = 'false'
+            // if (v === true) v = 'true'
+            if (!unique_values.get(v_s))
+              unique_values.set(v_s, unique_values.size+1)
+            remapped_values[idx] = unique_values.get(v_s)
           })
         }
         // console.log(unique_values)
@@ -417,10 +429,23 @@ class TuningExploration extends Component {
   constructor(props) {
     super(props);
     const { main_metrics, available_metrics, default_metric } = this.props.project_data.information.qatools_metrics;
+    const available_metrics_ = {
+      iteration: {
+        key: "iteration",
+        label: "Iteration",
+        short_label: "iter",
+        scale: 1,
+        suffix: "",
+        threshold: -1,
+        smaller_is_better: false,
+        plot_scale: "linear"
+      },
+      ...available_metrics,
+    }
     this.state = {
       selected_parameter: null,
-      available_metrics,
-      main_metrics,
+      available_metrics: available_metrics_,
+      main_metrics: ["iteration", ...main_metrics],
       default_metric,
       selected_metric: default_metric,
       selected_metric2: main_metrics.filter(l=>l!==default_metric)[0],
@@ -509,7 +534,7 @@ class TuningExploration extends Component {
           </Callout>
         }
         <h3 className={Classes.HEADING}>
-          {total_outputs} SLAM results over {number_inputs} tests
+          {total_outputs} results over {number_inputs} test{number_inputs>1 && "s"}
         </h3>
         <h4 className={Classes.HEADING}>Sensibility analysis</h4>
         <FormGroup
