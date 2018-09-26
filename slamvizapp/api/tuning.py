@@ -32,7 +32,7 @@ def get_groups_path(project_id):
     return path
 
 
-@app.route("/api/v1/recordings/groups", methods=["GET", "POST"])
+@app.route("/api/v1/tests/groups", methods=["GET", "POST"])
 def groups():
     """
     Return or update the groups of tests we defined for a project.
@@ -60,7 +60,7 @@ def groups():
             )
 
 
-@app.route("/api/v1/recordings/group")
+@app.route("/api/v1/tests/group")
 def get_group():
     project_id = request.args.get("project", "dvs/psp_swip")
     project = Project.get_or_create(session=db_session, id=project_id)
@@ -70,7 +70,7 @@ def get_group():
         # that does the same (but with a different signature, and doesn't parse per-test config)
         is_legacy_project = project_id in ["dvs/psp_swip", "tof/swip_tof"]
         if is_legacy_project:
-            recordings = list(
+            tests = list(
                 iter_recordings(
                     [request.args.get("name", "")],
                     groups_path,
@@ -81,7 +81,7 @@ def get_group():
             import qatools.utils
 
             test = [request.args.get("name", "")]
-            recordings = list(
+            tests = list(
                 qatools.utils.iter_recordings(
                     [request.args.get("name", "")],
                     groups_path,
@@ -90,9 +90,9 @@ def get_group():
                     project.information["qatools_config"],
                 )
             )
-        return jsonify({"number_of_recordings": len(recordings)})
+        return jsonify({"number_of_tests": len(tests)})
     except:
-        return jsonify({"number_of_recordings": 0})
+        return jsonify({"number_of_tests": 0})
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"])

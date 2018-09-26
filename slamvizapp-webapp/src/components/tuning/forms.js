@@ -104,7 +104,7 @@ class TuningForm extends Component {
 
       selected_group: cookies.get("selected_group") || "",
       selected_group_info: {
-        number_of_recordings: 0
+        number_of_tests: 0
       },
       selected_group_info_loading: false,
 
@@ -132,7 +132,7 @@ class TuningForm extends Component {
   }
 
   getGroupInfo(group) {
-    get(`/api/v1/recordings/group?project=${this.props.project}&name=${group}`, {})
+    get(`/api/v1/tests/group?project=${this.props.project}&name=${group}`, {})
       .then(response => {
         this.setState({
           selected_group_info_loading: false,
@@ -142,7 +142,7 @@ class TuningForm extends Component {
       .catch(error => {
         this.setState({
           selected_group_info_loading: false,
-          selected_group_info: { number_of_recordings: 0 }
+          selected_group_info: { number_of_tests: 0 }
         });
       });
   }
@@ -262,7 +262,7 @@ class TuningForm extends Component {
       user
     } = this.state;
     const { search_type, parameter_search, search_options } = this.state;
-    let number_of_recordings = selected_group_info.number_of_recordings;
+    let number_of_tests = selected_group_info.number_of_tests;
     try {
       var tuning_sets = eval_combinations(parameter_search);
       var combinations = grid_combinations(tuning_sets);
@@ -275,7 +275,7 @@ class TuningForm extends Component {
     } catch (e) {
       combinations = "invalid";
     }
-    let total_runs = combinations * number_of_recordings;
+    let total_runs = combinations * number_of_tests;
     let time_intent =
       (combinations === "invalid" || total_runs===0)
         ? Intent.DANGER
@@ -310,11 +310,11 @@ class TuningForm extends Component {
         </FormGroup>
 
         <FormGroup
-          label="Run on those recordings:"
+          label="Run on those tests:"
           intent={Intent.PRIMARY}
           helperText={`${
-            number_of_recordings > 0
-              ? number_of_recordings + " recordings. "
+            number_of_tests > 0
+              ? number_of_tests + " tests. "
               : ""
           }Path, or one of the groups defined in the "Available Recordings" tab.`}
           labelFor="selected-group"
@@ -570,7 +570,7 @@ class AddRecordingsForm extends Component {
       overwrite: false,
       selected_group: null,
       selected_group_info: {
-        number_of_recordings: 0
+        number_of_tests: 0
       },
       selected_group_info_loading: false
     };
@@ -581,7 +581,7 @@ class AddRecordingsForm extends Component {
   }
 
   getGroups() {
-    get(`/api/v1/recordings/groups?project=${this.props.project}`)
+    get(`/api/v1/tests/groups?project=${this.props.project}`)
       .then(response => {
         this.setState({
           isLoaded: true,
@@ -605,7 +605,7 @@ class AddRecordingsForm extends Component {
       message: "The request was sent!",
       intent: Intent.PRIMARY
     });
-    post(`/api/v1/recordings/groups?project=${this.props.project}`, {
+    post(`/api/v1/tests/groups?project=${this.props.project}`, {
       project: this.props.project,
       groups,
     })
@@ -635,7 +635,7 @@ class AddRecordingsForm extends Component {
           description={JSON.stringify(error.response)}
         />
       );
-    // let number_of_recordings = this.state.selected_group_info.number_of_recordings;
+    // let number_of_tests = this.state.selected_group_info.number_of_tests;
     return (
       <form onSubmit={this.onSubmit}>
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
