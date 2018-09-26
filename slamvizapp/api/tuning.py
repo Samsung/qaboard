@@ -187,7 +187,6 @@ def add_batch(hexsha):
                 "\n",
             ]
         )
-        else:
     print(working_directory)
     print(batch_command)
 
