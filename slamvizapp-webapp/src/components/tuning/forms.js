@@ -543,11 +543,7 @@ class TuningForm extends Component {
             tabSize: 2
           }}
         />
-        <Button
-          disabled
-          type="submit"
-          intent={Intent.PRIMARY}
-        >
+        <Button type="submit" intent={Intent.PRIMARY}>
           Start tuning
         </Button>
       </form>
