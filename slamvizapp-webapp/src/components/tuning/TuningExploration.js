@@ -1,11 +1,17 @@
 import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
-import { Classes, Callout, Colors, Intent, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
+import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../../components/layout";
 import { groupBy, input_test_color, median, average } from "../../utils";
 
 const config = {};
+
+const metric_formatter = new Intl.NumberFormat("en-US", {
+  style: "decimal",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 
 const Sensibility1DLines = ({
   outputs,
@@ -491,6 +497,7 @@ class TuningExploration extends Component {
     const { layout, relative, available_metrics, default_metric, main_metrics, aggregation } = this.state;
 
     if (!batch) return <p>Loading...</p>;
+    const batch_data = batch.data || {};
 
     // tuned_parameters holds all tuning values used for each parameter
     let tuned_parameters = {};
@@ -528,16 +535,30 @@ class TuningExploration extends Component {
       groupBy(Object.values(batch.outputs), "test_input_path")
     ).length;
 
+    let filtered_best_metrics = Object.keys(batch_data.best_metrics)
+                                  .filter(k => main_metrics.includes(k) )
+                                  .reduce((obj, key) => ({
+                                    ...obj,
+                                    [key]: batch_data.best_metrics[key]
+                                   }), {});
     return (
       <Section>
-        {batch.label === "default" &&
-          <Callout intent={Intent.PRIMARY}>
-            If you do tuning, consider giving each experiment a label
-          </Callout>
-        }
-        <h3 className={Classes.HEADING}>
-          {total_outputs} results over {number_inputs} test{number_inputs>1 && "s"}
-        </h3>
+
+        {batch.data.optimization && <Callout icon='crown' title="Best parameters">
+          {Object.entries(batch_data.best_params).map(([k, v]) => 
+            <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
+          )}
+          {Object.entries(filtered_best_metrics).map(([k,v]) =>
+            <Tag key={k} minimal round style={{"margin":'3px'}}>{available_metrics[k].label}: {metric_formatter.format(v*available_metrics[k].scale)}{available_metrics[k].suffix}</Tag>
+          )}
+          <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iterations}</p>
+        </Callout>}
+
+        {!batch_data.optimization && <>
+          <h3 className={Classes.HEADING}>{total_outputs} output{total_outputs>1 && "s"}</h3>
+          <p className={Classes.TEXT_MUTED}>{number_inputs} test{number_inputs>1 && "s"}></p>
+        </>}
+
         <ParallelTuningPlot
           outputs={batch.outputs}
           main_metric={metric}

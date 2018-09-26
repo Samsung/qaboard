@@ -442,9 +442,11 @@ class MetricsSummary extends Component {
       // console.log(outputs_by_tag)
     }
 
+    let batch_data = new_batch.data || {};
+
     return (
       <div>
-        {tuned_parameters_array.length > 0 && (
+        {(!batch_data.optimization && tuned_parameters_array.length > 0) && (
           <Callout intent={Intent.WARNING}>
             For <strong>manual tuning</strong>, you may see below results with the tuning <strong>parameters mixed together.</strong>
           </Callout>
