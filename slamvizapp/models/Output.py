@@ -77,6 +77,21 @@ class Output(Base):
     self.is_pending = False
     self.is_running = False
 
+  def copy(self):
+    o = Output()
+    o.batch_id = self.batch_id
+    o.output_dir_override = self.output_dir_override
+    o.output_type = self.output_type
+    o.test_input_id = self.test_input_id
+    o.platform = self.platform
+    o.configuration = self.configuration
+    o.extra_parameters = self.extra_parameters
+    o.is_failed = self.is_failed
+    o.is_running = self.is_running
+    o.is_pending = self.is_pending
+    o.metrics = self.metrics
+    o.data = self.data
+    return o
 
   @property
   def output_folder(self):
