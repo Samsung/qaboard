@@ -200,7 +200,7 @@ def add_batch(hexsha):
     batch_script = "".join(
         [
             "#!/bin/bash\n",
-            f"bsub_su {data.get("user", "arthurf")} -q {queue} -sp 4000 ",  # highest priority
+            f'bsub_su {data.get("user", "arthurf")} -q {queue} -sp 4000 ',  # highest priority
             f"-o {project_dir}/lsf.log ",
             "<< EOF\n" f'  cd "{working_directory}";\n',
             # options specific to android
