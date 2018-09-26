@@ -115,13 +115,13 @@ def add_batch(hexsha):
     if "qatools_config" not in ci_commit.project.information and not is_legacy_project:
         return jsonify("Please configure `qatools first`"), 404
 
+    now = datetime.datetime.now()
     ci_commit.time_of_last_batch = now.astimezone()
     db_session.add(ci_commit)
     db_session.commit()
 
     project_dir = shared_data_directory / project_id
     groups_path = get_groups_path(project_dir)
-    now = datetime.datetime.now()
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
