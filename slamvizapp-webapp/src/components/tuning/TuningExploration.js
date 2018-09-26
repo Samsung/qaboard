@@ -183,6 +183,7 @@ const ParallelTuningPlot = ({
 
   const values = metric => aggr => aggr.map(  ([p, m]) => m[metric.key] * metric.scale);
   const all_good = values => values.every( v => !isNaN(v) && v!==null && v!==undefined)
+  const some_different = values => new Set(values).size > 1
   const line = {
     color: values(main_metric)(metrics_aggregated_by_params),
     colorscale: 'Viridis',
@@ -203,6 +204,7 @@ const ParallelTuningPlot = ({
     dimensions: [
        ...metrics
          .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
+         .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
          .map( metric => {
             return {
              label: metric.label,
@@ -536,7 +538,43 @@ class TuningExploration extends Component {
         <h3 className={Classes.HEADING}>
           {total_outputs} results over {number_inputs} test{number_inputs>1 && "s"}
         </h3>
-        <h4 className={Classes.HEADING}>Sensibility analysis</h4>
+        <ParallelTuningPlot
+          outputs={batch.outputs}
+          main_metric={metric}
+          metrics={main_metrics.map(m => available_metrics[m])}
+          parameters={sorted_parameters}
+          aggregation={this.state.aggregation}
+        />
+
+        <FormGroup
+          inline
+          labelFor="select-metric"
+          helperText={"Highlighted above via a color-scale. This metric is shown on the plots below on the Y-axis."}
+        >
+          <HTMLSelect
+            id="select-metric"
+            defaultValue={default_metric}
+            onChange={this.selectMetric}
+            minimal
+          >
+            {Object.values(available_metrics).map(m => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </HTMLSelect>
+          <HTMLSelect
+            id="aggregation"
+            defaultValue={aggregation}
+            onChange={e =>this.setState({aggregation: e.target.value})}
+            minimal
+          >
+            <option key="median" value="median">Median aggregation</option>
+            <option key="average" value="average">Average aggregation</option>
+          </HTMLSelect>
+        </FormGroup>
+
+        <h4 className={Classes.HEADING}>Sensibility to tuning parameters</h4>
         <FormGroup
           inline
           labelFor="select-parameter"
@@ -564,8 +602,9 @@ class TuningExploration extends Component {
             onChange={this.updateXScale}
           />
         </FormGroup>
-        {show_2d_sensibility && (
-          <Fragment>
+
+
+        {show_2d_sensibility && <>
           <FormGroup
             inline
             labelFor="select-parameter-2"
@@ -588,63 +627,19 @@ class TuningExploration extends Component {
               ))}
             </HTMLSelect>
           </FormGroup>
-          <FormGroup
-            inline
-            labelFor="aggregation"
-            helperText="Aggregation method"
-          >
-            <HTMLSelect
-              id="aggregation"
-              defaultValue={aggregation}
-              onChange={e =>this.setState({aggregation: e.target.value})}
-              minimal
-            >
-              <option key="median" value="median">median</option>
-              <option key="average" value="average">average</option>
-            </HTMLSelect>
-          </FormGroup>
-          </Fragment>
-        )}
-        <FormGroup
-          inline
-          labelFor="select-metric"
-          helperText={show_2d_sensibility ? "Shown via a color-scale on the 2d sensibility plot, on the Y-axis elsewhere" : "Shown on the Y-axis"}
-        >
-          <HTMLSelect
-            id="select-metric"
-            defaultValue={default_metric}
-            onChange={this.selectMetric}
-            minimal
-          >
-            {Object.values(available_metrics).map(m => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </HTMLSelect>
-        </FormGroup>
-        {show_2d_sensibility && <ParallelTuningPlot
-                                 outputs={batch.outputs}
-                                 main_metric={metric}
-                                 metrics={main_metrics.map(m => available_metrics[m])}
-                                 parameters={sorted_parameters}
-                                 aggregation={this.state.aggregation}
-                                />}
-        {show_2d_sensibility && (
-          <div>
-            <Sensibility2DContour
-              outputs={batch.outputs}
-              metric={metric}
-              available_metrics={available_metrics}
-              parameters={[selected_parameter, selected_parameter_2]}
-              aggregation={this.state.aggregation}
-            />
-            <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
+          <Sensibility2DContour
+            outputs={batch.outputs}
+            metric={metric}
+            available_metrics={available_metrics}
+            parameters={[selected_parameter, selected_parameter_2]}
+            aggregation={this.state.aggregation}
+          />
+          <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
             <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
             <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={aggregation}>aggregated</span>.</p>
-            </div>
           </div>
-        )}
+        </>}
+
         {number_inputs>1 && <Sensibility1DBoxplots
           outputs={batch.outputs}
           metric={metric}
@@ -670,7 +665,7 @@ class TuningExploration extends Component {
         />
 
         {show_2d_sensibility &&<Fragment>
-        <h4 className={Classes.HEADING}>Tuning tradeoffs</h4>
+        <h4 className={Classes.HEADING}>Efficient frontier & tradeoffs</h4>
         <FormGroup
           inline
           labelFor="select-metric-2"
