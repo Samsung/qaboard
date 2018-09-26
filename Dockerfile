@@ -28,7 +28,8 @@ RUN bash Anaconda3-5.0.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 # ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
 RUN conda install -k pandas
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson sklearn scikit-learn
+RUn pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/arthurf/scikit-optimize'
 
 # uwsgi and matplotlib dependencies
 
