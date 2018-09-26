@@ -8,7 +8,7 @@ from pathlib import Path
 from functools import lru_cache
 
 import numpy as np
-from sqlalchemy import ForeignKey, Integer, String, DateTime
+from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
@@ -18,6 +18,7 @@ class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
+  data = Column(JSON(), default={})
 
   ci_commit_id = Column(String(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])
