@@ -313,7 +313,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
       y = objective([*suggested, iteration])
       results = optimizer.tell(suggested, y)
 
-      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration}"
+      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
       notify_qa_database(**{
         **ctx.obj,
         **{
@@ -353,7 +353,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
       #    .func_vals [array]: function value for each iteration.
       #    .space [Space]: the optimization space.
       #    .specs [dict]: parameters passed to the function.
-      is_best = results.fun < results.func_vals[iteration-1] if optim_config['minimize'] else results.fun > results.func_vals[iteration]
+      is_best = results.fun < results.func_vals[iteration-1] if optim_config['minimize'] else results.fun > results.func_vals[iteration-1]
       if iteration==0 or is_best:
         click.secho(f'found new best at iteration {iteration}', fg='green')
         notify_qa_database(object_type='batch', **{
