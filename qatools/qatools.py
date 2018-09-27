@@ -13,7 +13,7 @@ from traceback import format_exception
 
 import click
 
-from .lsf import Job, running_lsf_job_names, Priority, killJobs
+from .lsf import Job, running_lsf_job_names, Priority, kill_jobs
 from .utils import make_prefix_outputs_path, load_tuning_search
 from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
 from .utils import PathType
@@ -21,7 +21,8 @@ from .utils import make_hash
 
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
-from .config import database, platform, config, commit_id, commit_ci_dir, repo, is_ci, commit_ci_postfix
+from .config import config, database, platform
+from .config import  commit_id, commit_ci_dir, repo, is_ci, commit_ci_postfix
 
 entrypoint = Path(config['project']['entrypoint'])
 try:
@@ -53,10 +54,11 @@ os.umask(0)
 @click.option('--platform', default=platform)
 @click.option('--configuration', default=config['inputs']['configuration'], help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
+@click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning_filepath, dryrun, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
@@ -71,7 +73,10 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, dryrun, no_q
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
   ctx.obj['no_qa_database'] = no_qa_database
-  if tuning_filepath:
+  ctx.obj['extra_parameters'] = {}
+  if tuning:
+    ctx.obj['extra_parameters'] = json.loads(tuning)
+  elif tuning_filepath:
     ctx.obj['tuning_filepath'] = tuning_filepath
     with tuning_filepath.open('r') as f:
       if tuning_filepath.suffix == '.yaml':
@@ -79,7 +84,7 @@ def cli(ctx, platform, configuration, batch_label, tuning_filepath, dryrun, no_q
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath)
   if is_ci: # we always want colors in the CI
     ctx.color = True
 
@@ -154,6 +159,7 @@ def postprocess_(runtime_metrics, context):
   try:
     metrics = entrypoint_module.postprocess(runtime_metrics, context)
   except Exception as e:
+    # TODO: in case of import error because postprocess was not defined, just ignore it...?
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
@@ -176,7 +182,6 @@ def postprocess(ctx, input_path, forwarded_args):
   ctx.obj['output_directory'] =  ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
   ctx.obj['forwarded_args'] = forwarded_args
   postprocess_({}, ctx)
-
 
 
 @cli.command(context_settings=dict(
@@ -208,14 +213,15 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
 
   jobs = []
   batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
+  batch_job_prefix = f"{batch_hash[:10]}/"
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], config):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
-    click.secho(str(input_path), fg='blue', bold=True, err=True)
+    click.secho(str(input_path), fg='blue', dim=True, err=True)
 
-    tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype)
+    tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
           prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file)
@@ -243,19 +249,22 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(batch_hash[:10] + str(output_directory), command, output_directory, priority))
-      if not dryrun:
-        run_info = {
-          **ctx.obj,
-          "configuration": input_configuration,
-          "input_path": input_path,
-          "extra_parameters": tuning_params,
-          "is_pending": True,
-        }
-        if not ctx.obj['no_qa_database'] and not no_batch_qa_database:
-            notify_qa_database(**run_info)
+      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority))
 
-  wildcard_job = [Job(batch_hash[:10] + "*")]
+      if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
+        notify_qa_database(**{
+          **ctx.obj,
+          **{
+            "configuration": input_configuration,
+            "output_directory": output_directory,
+            "input_path": input_path,
+            "extra_parameters": tuning_params,
+            "is_pending": True,
+          },
+        })
+
+
+  waiting_job = [Job(f"{batch_job_prefix}*")]
   jobs_sent = []
   try:
       for job in jobs:
@@ -267,9 +276,100 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
             tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "finished waiting for jobs on LSF."')
-            wait.send(interactive=True, dependencies=wildcard_job)
+            wait.send(interactive=True, dependencies=waiting_job)
   except:
-      killJobs(wildcard_job, on_lsf = True)
+      kill_jobs(waiting_job, on_lsf = True)
+
+
+
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.option('--group', '-g', required=True, multiple=True, help="We run over all recordings in those groups")
+@click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
+@click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
+@click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def optimize(ctx, group, groups_file, config_file, forwarded_args):
+  ctx.obj['prefix_output_dir'].mkdir(parents=True, exist_ok=True)
+  ctx.obj['group'] = group
+  ctx.obj['groups_file'] = groups_file
+  ctx.obj['forwarded_args'] = forwarded_args
+
+  from .tuning import init_optimization, aggregated_metrics
+  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
+
+  # TODO: warm-start
+  #   load and "tell" existing results (if there are any)
+  #   (or use a checkpoint?)
+
+  for iteration in range(1, optim_config['evaluations']):
+      suggested = optimizer.ask()
+      y = objective([*suggested, iteration])
+      results = optimizer.tell(suggested, y)
+
+      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration}"
+      notify_qa_database(**{
+        **ctx.obj,
+        **{
+          "extra_parameters": dim_mapping(suggested),
+          # TODO: we really should to tuning/platform in make_prefix_outputs_path
+          #       1. make change, 2. rename existing folders)
+          "output_directory": ctx.obj['prefix_output_dir'],
+          'input_path': '|'.join(group),
+          # we want to show in the summary tab the best results for the tuning experiment
+          # but in the exploration see the results per iteration....
+          "output_type": 'optim_iteration', # or... single ? don't show them in the UI
+          "is_pending": False,
+          "is_pending": False,
+          "is_failed": False,
+          "metrics": {
+            "iteration": iteration,
+            **aggregated_metrics(iteration_batch_label, optim_config['aggregation']),
+          },
+        },
+      })
+
+      notify_qa_database(object_type='batch', **{
+        **ctx.obj,
+        **{
+            "data": {
+              "optimization": True,
+              "iterations": iteration,
+            },
+        },
+      })
+
+      # results
+      #    .x [float]: location of the minimum.
+      #    .fun [float]: function value at the minimum.
+      #    .models: surrogate models used for each iteration.
+      #    .x_iters [array]: location of function evaluation for each iteration.
+      #    .func_vals [array]: function value for each iteration.
+      #    .space [Space]: the optimization space.
+      #    .specs [dict]: parameters passed to the function.
+      is_best = results.fun < results.func_vals[iteration-1] if optim_config['minimize'] else results.fun > results.func_vals[iteration]
+      if iteration==0 or is_best:
+        click.secho(f'found new best at iteration {iteration}', fg='green')
+        notify_qa_database(object_type='batch', **{
+          **ctx.obj,
+          **{
+              "data": {
+                "best_params": dim_mapping(suggested),
+                "best_iter": iteration,
+                "best_metrics": aggregated_metrics(iteration_batch_label, optim_config['aggregation']),
+              },
+          },
+        })
+
+  print(results)
+  if not results.models: # needs at least n_initial_points(=5) evaluations!
+    return
+
+  # tuning plots are saved in the label directory
+  from .tuning import make_plots
+  make_plots(results, ctx.obj['prefix_output_dir'])
+
 
 
 @cli.command()
@@ -340,6 +440,7 @@ def check_bit_accuracy(reference_branch):
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
+
 
 
 def main():

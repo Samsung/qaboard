@@ -10,12 +10,26 @@ import re
 
 import click
 import requests
+import numpy as np
+
+class NumpyEncoder(json.JSONEncoder):
+    """ Special json encoder for numpy types """
+    def default(self, obj):
+        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
+            np.int16, np.int32, np.int64, np.uint8,
+            np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32,
+            np.float64)):
+            return float(obj)
+        elif isinstance(obj,(np.ndarray,)): #### This is the fix
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 
-def notify_qa_database(**kwargs):
+def notify_qa_database(object_type='output', **kwargs):
   """
-  Send a notification to the server updating the QA database.
-  It will know that it should look for new results
+  Updating the QA database.
   """
   from .config import is_ci, commit_id
   # some light custom serialization
@@ -27,23 +41,28 @@ def notify_qa_database(**kwargs):
   protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
   host = os.getenv('QATOOLS_DB_HOST', 'dvs')
   port = os.getenv('QATOOLS_DB_PORT', '5000')
-  url = f'{protocol}://{host}:{port}/api/v1/output/'
-  data= {
+  url = f"{protocol}://{host}:{port}/api/v1/{object_type}/"
+
+  data = {
     'job_type': 'ci' if is_ci else 'local',
     'git_commit_sha': commit_id,
     **kwargs,
   }
-  # we make sure we have all the parameters
-  if not 'extra_parameters' in kwargs:
-    data = {**data, 'extra_parameters': {}}
   try:
-    r = requests.post(url, json=data)
+    # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
+    data = json.dumps(data, cls=NumpyEncoder)
+    r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
     r.raise_for_status()
   except:
     click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
-    click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
-    click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
-    click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
+    click.secho(url, fg='yellow', err=True)
+    click.secho(str(data), fg='yellow', err=True)
+    try:
+      click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
+      click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
+      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
+    except:
+      pass
 
 
 def save_metrics(output_directory, **kwargs):
@@ -81,8 +100,8 @@ def make_hash(obj):
   params_s = json.dumps(obj, sort_keys=True)
   return hashlib.md5(params_s.encode()).hexdigest()
 
-def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning_filepath):
-  if not tuning_filepath:
+def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning):
+  if not tuning:
     batch_output_folder = Path('output') if batch_label == 'default' else Path('output') / slugify(batch_label)
   else:
     batch_output_folder = Path('output/tuning') if batch_label == 'default' else Path('output/tuning') / slugify(batch_label)
@@ -92,7 +111,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
     platform /
     # safer on windows
     configuration.replace(":","_") /
-    tuning_foldername(batch_label, hash_parameters(tuning_filepath))
+    tuning_foldername(batch_label, hash_parameters(tuning))
   )
 
 
@@ -129,19 +148,22 @@ def load_tuning_search(tuning_search, tuning_search_file):
     filetype = 'json' # we default to json
   return tuning_search_dict, filetype
 
-def hash_parameters(filepath):
-  if not filepath:
+def hash_parameters(parameters):
+  # we can specify either None, directly parameters, or a Path
+  if not parameters:
     params = {}
+  elif isinstance(parameters, dict):
+    params = parameters
   else:
-    with filepath.open('r') as f:
-      if filepath.suffix == '.yaml':
+    with parameters.open('r') as f:
+      if parameters.suffix == '.yaml':
         params = yaml.load(f)
       else:
         params = json.load(f)
   return make_hash(params)
 
 
-def iter_recordings(groups, groups_file, database, default_configuration, config):
+def iter_recordings(groups, groups_file, database, default_configuration, config, debug=False):
   """Returns an iterator over the (recording, configuration) from the selected groups
   params:
   - groups: array of group labels
@@ -157,7 +179,8 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
       # Have support for this makes test selection easier from the web UI,
       # because users don't have to define groups of tests all the time...
       location = group
-      click.secho(str(location), bold=True, fg='cyan', err=True)
+      if debug:
+        click.secho(str(location), bold=True, fg='cyan', err=True)
       yield from set([(maybe_parent(f), default_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
       if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
         yield maybe_parent(Path(database/location)), default_configuration
@@ -185,14 +208,13 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
         if isinstance(location_configuration, list):
           location_configuration = ':'.join(location_configuration)
         location_configuration = f'{group_configuration}:{location_configuration}'
-      click.secho(str(location), bold=True, fg='cyan', err=True)
+      if debug:
+        click.secho(str(location), bold=True, fg='cyan', err=True)
       yield from set([(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
       if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
         yield maybe_parent(Path(database/location)), location_configuration
 
 
-
-hash_empty_tuning = make_hash({})
 
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
@@ -207,12 +229,17 @@ def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   return f"{params_filename}.{filetype}"
 
 
-def iter_parameters(tuning_search=None, filetype='json'):
+def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
+  extra_params = extra_parameters if extra_parameters else {}
   # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
   from sklearn.model_selection import ParameterGrid, ParameterSampler
+
   if not tuning_search:
-    yield (None, hash_empty_tuning, {})
-    return
+    tuning_search = {
+      'parameter_search': {},
+      'search_type': 'grid',
+    }
+
   if isinstance(tuning_search['parameter_search'], list):
     for param_search in tuning_search['parameter_search']:
       tuning_search_ = tuning_search
@@ -239,10 +266,12 @@ def iter_parameters(tuning_search=None, filetype='json'):
   else:
     raise ValueError
 
-  for counter, params in enumerate(params_iterator):
+  for counter, params_ in enumerate(params_iterator):
     if counter >= n_iter:
         click.secho(f"Stopping tuning combination after {n_iter} iterations", fg='yellow', err=True)
         return
+    # the search overrides the extra parameters specified earlier
+    params = {**extra_params, **params_}
     # we sort to avoid ordering issues; we want a unique hash per tuning configuration
     params_s = json.dumps(params, sort_keys=True)
     params_hash = make_hash(params)
@@ -264,21 +293,3 @@ class PathType(click.ParamType):
   name = 'path'
   def convert(self, value, param, ctx):
     return Path(value)
-
-
-
-import numpy as np
-
-class NumpyEncoder(json.JSONEncoder):
-    """ Special json encoder for numpy types """
-    def default(self, obj):
-        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
-            np.int16, np.int32, np.int64, np.uint8,
-            np.uint16, np.uint32, np.uint64)):
-            return int(obj)
-        elif isinstance(obj, (np.float_, np.float16, np.float32,
-            np.float64)):
-            return float(obj)
-        elif isinstance(obj,(np.ndarray,)): #### This is the fix
-            return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
