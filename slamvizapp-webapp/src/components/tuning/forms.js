@@ -117,7 +117,7 @@ class TuningForm extends Component {
         : templates["none"],
       parameter_search_auto: cookies.get("parameter_search_auto", { doNotParse: true })
         ? JSON.parse(cookies.get("parameter_search_auto", { doNotParse: true }))
-        : templates["optimize"],
+        : templates["optimize"](this.props.project_data.information.qatools_metrics.default_metric),
 
       // legacy?
       user: cookies.get("user") || "arthurf",
@@ -529,7 +529,7 @@ class TuningForm extends Component {
             checked={search_type === "optimize"}
           />
         </FormGroup>
-        <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'] })}>Show Example</Button>
+        <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](this.props.project_data.information.qatools_metrics.default_metric) })}>Show Example</Button>
         <AceEditor
           mode="yaml"
           theme="github"

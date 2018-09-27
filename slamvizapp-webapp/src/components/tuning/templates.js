@@ -33,9 +33,9 @@ return events_per_frame.map(e => ({
   smart_frame_on: [true, false],
 }));
 `,
-  "optimize": `
+  optimize: metric => `
 # pick one of the metrics you defined using qatools
-metric: rmse
+metric: ${metric}
 
 aggregation: average
 evaluations: 10
