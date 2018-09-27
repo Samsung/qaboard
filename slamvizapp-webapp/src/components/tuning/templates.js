@@ -34,14 +34,15 @@ return events_per_frame.map(e => ({
 }));
 `,
   "optimize": `
+# pick one of the metrics you defined using qatools
 metric: rmse
-# minimize: true
-# aggregation: average
+
+aggregation: average
 evaluations: 10
 
 # you can fix some parameters
-fixed:
-  verbose: false
+# fixed:
+#   verbose: false
 
 # Description of the search space
 # Documentation:
