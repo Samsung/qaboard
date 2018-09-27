@@ -197,7 +197,6 @@ def add_batch(hexsha):
     batch_script = "".join(
         [
             "#!/bin/bash\n",
-            f
             f'bsub_su {data.get("user", "arthurf")} -q {queue} -sp 4000 ',  # highest priority
             f'-o "{batch.output_dir}/lsf.log" ',
             '<< "EOF"\n',
