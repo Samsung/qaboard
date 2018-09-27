@@ -65,25 +65,6 @@ class Job:
         else:
             dependencies_flag = ""
 
-        # Below is a non-functionnal attemp as running LSF jobs as any user
-        # Currently it fails because of quoting issues with `&& umask ..`
-        # - Using a heredoc should do the trick
-        # - We should also remove the lenghty SSH banner
-
-        # We try to run as the user that pushed to Gitlab
-        # Note: currently not set because we are on an old Gitlab version
-        # Note: Jenkins sets GIT_AUTHOR_EMAIL / GIT_COMMITER_EMAIL / NAME
-        bsub_as_user = os.environ.get("GITLAB_USER_LOGIN", None)
-        # Only arthurf can use bsub_su
-        if not bsub_as_user or os.environ.get("USER") != "arthurf":
-            bsub = "bsub"
-        else:
-            # we login as ispq to have permission to use bsub_su
-            # we could simply add arthurf to the bsub_su_users group. Much better.
-            bsub_su = "/raid/tools/vdi/lsf-scripts/bsub_su"
-            key = "-i ~/.ssh/id_rsa_isqp"  # only readable by arthurf
-            bsub = f"ssh -tt {key} ispq@planet31 {bsub_su} {bsub_as_user} umask 000 &&"
-
         queue = (
             config["lsf"]["queue"]
             if not interactive
@@ -91,9 +72,9 @@ class Job:
         )
         q_command = " ".join(
             [
-                bsub,
+                "bsub",
                 # only necessary if we send the job through ssh
-                f'-cwd "{os.getcwd()}"',
+                # f'-cwd "{os.getcwd()}"',
                 # note: we don't request a pseudoterminal here -Is
                 # on our current use-cases, -K should be enough
                 "-I" if interactive else "",
@@ -105,24 +86,25 @@ class Job:
                 f"-R '\"{lsf_select}\"'",
                 f"-u{mail_to}" if mail_to else "",
                 dependencies_flag,
-                # Note: what follows might not be needed anymore
-                # "DISPLAY=arthurf-vdi:3", # we should not be using displays anyway
-                "LC_ALL=en_US.utf8 LANG=en_US.utf8",  # the click python package hates ascii
-                "MPLBACKEND=agg",  # forces a non-interactive matplotlib backend
+                '<< EOF\n'
+                # the click python package hates ascii locales, for good reasons
+                "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
+                # forces a non-interactive matplotlib backend
+                "MPLBACKEND=agg",
                 self.command,
+                "\nEOF",
             ]
         )
-        print(q_command)
+        click.secho(q_command, dim=True)
 
         out = subprocess.run(
             q_command,
             shell=True,
             encoding="utf-8",
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
-        click.secho(out.stdout, err=True)
-        click.secho(out.stderr, fg="red", err=True)
+        click.secho(out.stdout)
         return out
 
 def kill_jobs(jobs, on_lsf=False):
@@ -138,10 +120,9 @@ def kill_jobs(jobs, on_lsf=False):
             shell=True,
             encoding="utf-8",
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
-        click.secho(out.stdout, err=True)
-        click.secho(out.stderr, fg="red", err=True)
+        click.secho(out.stdout)
         return out
 
 
