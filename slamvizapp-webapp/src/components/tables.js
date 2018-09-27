@@ -103,7 +103,7 @@ const TableCompare = ({
             <th />
             {metrics.map(m => (
               <th key={m.key}>
-                {m.label} [{m.suffix}]
+                {m.label} {m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix}]</span>}
               </th>
             ))}
           </tr>
