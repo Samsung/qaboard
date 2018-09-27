@@ -164,7 +164,7 @@ def add_batch(hexsha):
             # we write somewhere the optimzation search configuration
             # it needs to be accessed from LSF so we can't use temporary files...
             config_path = batch.output_dir / 'optim-config.yaml'
-            config_option = f"--config-file {config_path}"
+            config_option = f"--config-file '{config_path}'"
             with config_path.open("w") as f:
                 f.write(data['tuning_search']['parameter_search'])
         else:
@@ -177,7 +177,7 @@ def add_batch(hexsha):
                 f"--configuration '{data['configuration']}'" if "configuration" in data else "",
                 f"--batch-label '{data['batch_label']}'",
                 "optimize" if do_optimize else "batch",
-                f"--groups-file {groups_path}",
+                f"--groups-file '{groups_path}'",
                 f"--group '{data['selected_group']}'",
                 config_option,
                 f"{overwrite} --no-wait" if not do_optimize else '',
