@@ -153,3 +153,14 @@ if verbose:
     click.secho(f'commit_type: {commit_type}', dim=True, err=True)
     click.secho(f'commit_id: {commit_id}', dim=True, err=True)
     click.secho(f'commit_branch: {commit_branch}', dim=True, err=True)
+
+
+try:
+    with Path(config['outputs']['metrics']).open('r') as f:
+        _metrics = yaml.load(f)
+        available_metrics = _metrics['available_metrics']
+        main_metrics = _metrics['main_metrics']
+except:
+    _metrics = {}
+    available_metrics = {}
+    main_metrics = []
