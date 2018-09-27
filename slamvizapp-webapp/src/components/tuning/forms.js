@@ -543,7 +543,11 @@ class TuningForm extends Component {
             tabSize: 2
           }}
         />
-        <Button type="submit" intent={Intent.PRIMARY}>
+        <Button
+          type="submit"
+          intent={Intent.PRIMARY}
+          disabled={this.state.search_type !== "optimize" || this.state.submitted || this.state.experiment_name.length === 0 || !total_runs}
+        >
           Start tuning
         </Button>
       </form>
