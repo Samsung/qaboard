@@ -513,6 +513,8 @@ class TuningExploration extends Component {
       .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
       .map(([k, v]) => k);
     let default_selected_parameter = sorted_parameters[0];
+    if (sorted_parameters.length===0)
+      return <Callout>You did not do any tuning :)</Callout>
     let default_selected_parameter_2 =
       sorted_parameters.length > 1
         ? sorted_parameters[1]
@@ -535,12 +537,12 @@ class TuningExploration extends Component {
       groupBy(Object.values(batch.outputs), "test_input_path")
     ).length;
 
-    let filtered_best_metrics = Object.keys(batch_data.best_metrics)
+    let filtered_best_metrics = batch_data.best_metrics!==undefined ? Object.keys(batch_data.best_metrics)
                                   .filter(k => main_metrics.includes(k) )
                                   .reduce((obj, key) => ({
                                     ...obj,
                                     [key]: batch_data.best_metrics[key]
-                                   }), {});
+                                   }), {}) : {};
     return (
       <Section>
 
@@ -555,8 +557,8 @@ class TuningExploration extends Component {
         </Callout>}
 
         {!batch_data.optimization && <>
-          <h3 className={Classes.HEADING}>{total_outputs} output{total_outputs>1 && "s"}</h3>
-          <p className={Classes.TEXT_MUTED}>{number_inputs} test{number_inputs>1 && "s"}></p>
+          <h3 className={Classes.HEADING}>{total_outputs} result{total_outputs>1 && "s"}</h3>
+          <p className={Classes.TEXT_MUTED}>{number_inputs} {number_inputs>1 && "different "}test{number_inputs>1 && "s"}</p>
         </>}
 
         <ParallelTuningPlot
