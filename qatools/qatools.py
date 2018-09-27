@@ -308,7 +308,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
   #   load and "tell" existing results (if there are any)
   #   (or use a checkpoint?)
 
-  for iteration in range(1, optim_config['evaluations']):
+  for iteration in range(optim_config['evaluations']):
       suggested = optimizer.ask()
       y = objective([*suggested, iteration])
       results = optimizer.tell(suggested, y)
@@ -329,7 +329,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
           "is_pending": False,
           "is_failed": False,
           "metrics": {
-            "iteration": iteration,
+            "iteration": iteration+1,
             **aggregated_metrics(iteration_batch_label, optim_config['aggregation']),
           },
         },
@@ -340,7 +340,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
         **{
             "data": {
               "optimization": True,
-              "iterations": iteration,
+              "iterations": iteration+1,
             },
         },
       })

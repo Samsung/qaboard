@@ -55,7 +55,7 @@ def init_optimization(optim_config_file, ctx):
     # From the UI we will want to see the iteration as a metric
     del params["iteration"]
 
-    batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']}"
+    batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
     command = ' '.join([
       'qa',
       # TODO: write in a batch named {batch_label}_iter{iter}
