@@ -231,7 +231,7 @@ def add_batch(hexsha):
             # ispq is the only user that can use bsub_su, an alias for su {0} {1:}.
             "-i /home/arthurf/.ssh/ispq.id_rsa",
             "ispq@planet31",
-            f'bash "{script_path}"',
+            f'\'bash "{script_path}"\'',
         ]
     )
     print(cmd)
