@@ -120,9 +120,12 @@ const BatchLogs = ({ batch }) => {
   // let now = new Date();
   // .filter(o => !o.is_pending)
   // || now - new Date(o.created_date) > 1e3)
-  return Object.values(batch.outputs)
-    .filter( output => output.output_type !== "optim_iteration")
-    .map(output => <OutputLog key={output.id} output={output} />);
+  return <>
+    {Object.values(batch.outputs)
+          .filter( output => output.output_type !== "optim_iteration")
+          .map(output => <OutputLog key={output.id} output={output} />)}
+    <a href={batch.output_dir_url}>this batch's output folder</a>
+  </>
 };
 
 export { BatchLogs };
