@@ -102,6 +102,7 @@ def add_batch(hexsha):
     Request that we run extra tests for a given project.
     """
     project_id = request.args.get("project", "dvs/psp_swip")
+    data = request.get_json()
 
     try:
         commit = repos[project_id].commit(hexsha)
@@ -127,7 +128,6 @@ def add_batch(hexsha):
     # Or even store the metadata in the database itself...
     if not batch.output_dir.exists(): batch.output_dir.mkdir(exist_ok=True, parents=True)
 
-    data = request.get_json()
     overwrite = "--overwrite" if data["overwrite"] == "on" else ""
     if is_legacy_project:
         batch_command = " ".join(
