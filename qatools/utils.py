@@ -104,7 +104,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
   if not tuning:
     batch_output_folder = Path('output') if batch_label == 'default' else Path('output') / slugify(batch_label)
   else:
-    batch_output_folder = Path('output/tuning') if batch_label == 'default' else Path('output/tuning') / slugify(batch_label)
+    batch_output_folder = Path('tuning') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return (
     commit_ci_dir /
     batch_output_folder /
