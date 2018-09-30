@@ -33,22 +33,53 @@ return events_per_frame.map(e => ({
   smart_frame_on: [true, false],
 }));
 `,
-  optimize: metric => `
-# pick one of the metrics you defined using qatools
-metric: ${metric}
+  optimize: (config, metrics) => `
+# We will optimize the objective function within a budget of this many evaluations
+# Currently, if your objective is cheap to evaluate, the optimization will be dominiated by call overheads.
+evaluations: 50
 
-aggregation: average
-evaluations: 10
+# You can optimize objective functions of the form:
+#   \sum_{metrics}  weight * reduce( \sum_{inputs} loss(metric, metric_target) ) / #outputs
 
-# you can fix some parameters
-# fixed:
+objective:
+  ${metrics.default_metric}:
+    weight: 1
+    reduce: sum
+    #     | l1
+    #     | l2
+    #     | relu   # => relu(sum)
+    loss: identity # error, target => error
+    #   | shift    # error, target => error-target
+    #   | relative # error, target => error-target / target
+    #   | relu_X   # error, target => relu(X(error, target))  eg relu_identity, relu_shift, relu_relative
+    #   | square_X # error, target => X(error, target) ^2     eg square_relative, square_relu_relative
+    # Note: loss=-loss if not smaller_is_better
+
+  # metric2:
+  #   ...
+  #   ...
+
+  # If the loss function uses target metrics (eg relative), you must describe what they are.
+  target:
+    # The target metrics can be chosen...
+    # Either using the quality thresholds you defined in the qatools config
+    # eg ${metrics.available_metrics[metrics.available_metrics.default_metric].threshold} for ${metrics.default_metric}
+    use_thresholds: false
+    # Or from a specific git revision: 
+    branch: ${config.project.reference_branch}  # a git branch/tag
+    id: some_commit_id                 # a git commit id
+    # We look for reference outputs in a batch called
+    # batch: default
+
+
+# preset_params:
 #   verbose: false
+#   create_optionnal_plots: false
 
-# Description of the search space
-# Documentation:
-#   https://github.com/scikit-optimize/scikit-optimize/blob/master/skopt/space/space.py
-#   https://scikit-optimize.github.io/#skopt.Space
-space:
+search_space:
+  # Find more info here:
+  #   https://github.com/scikit-optimize/scikit-optimize/blob/master/skopt/space/space.py
+  #   https://scikit-optimize.github.io/#skopt.Space
   - Integer:
       name: max_events
       low: 1000
