@@ -14,8 +14,10 @@ from traceback import format_exception
 import click
 
 from .lsf import Job, running_lsf_job_names, Priority, kill_jobs
-from .utils import make_prefix_outputs_path, load_tuning_search
-from .utils import save_metrics, notify_qa_database, iter_parameters, iter_recordings
+from .api import notify_qa_database
+
+from .utils import batch_dir, make_prefix_outputs_path, load_tuning_search
+from .utils import save_metrics, iter_parameters, iter_recordings
 from .utils import PathType
 from .utils import make_hash
 
@@ -301,7 +303,9 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
   ctx.obj['groups_file'] = groups_file
   ctx.obj['forwarded_args'] = forwarded_args
 
-  from .tuning import init_optimization, aggregated_metrics
+  from shutil import rmtree
+  from .tuning import init_optimization
+  from .api import aggregated_metrics
   objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
 
   # TODO: warm-start
@@ -314,13 +318,14 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
       results = optimizer.tell(suggested, y)
 
       iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
+      iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
       notify_qa_database(**{
         **ctx.obj,
         **{
           "extra_parameters": dim_mapping(suggested),
           # TODO: we really should to tuning/platform in make_prefix_outputs_path
           #       1. make change, 2. rename existing folders)
-          "output_directory": ctx.obj['prefix_output_dir'],
+          "output_directory": iteration_batch_dir,
           'input_path': '|'.join(group),
           # we want to show in the summary tab the best results for the tuning experiment
           # but in the exploration see the results per iteration....
@@ -330,7 +335,8 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
           "is_failed": False,
           "metrics": {
             "iteration": iteration+1,
-            **aggregated_metrics(iteration_batch_label, optim_config['aggregation']),
+            "objective": y,
+            **aggregated_metrics(iteration_batch_label),
           },
         },
       })
@@ -353,19 +359,22 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
       #    .func_vals [array]: function value for each iteration.
       #    .space [Space]: the optimization space.
       #    .specs [dict]: parameters passed to the function.
-      is_best = results.fun < results.func_vals[iteration-1] if optim_config['minimize'] else results.fun > results.func_vals[iteration-1]
+      is_best = results.fun < results.func_vals[iteration]
       if iteration==0 or is_best:
-        click.secho(f'found new best at iteration {iteration}', fg='green')
+        click.secho(f'New best @iteration{iteration+1}: {y} at iteration {iteration+1}', fg='green')
         notify_qa_database(object_type='batch', **{
           **ctx.obj,
           **{
               "data": {
                 "best_params": dim_mapping(suggested),
                 "best_iter": iteration,
-                "best_metrics": aggregated_metrics(iteration_batch_label, optim_config['aggregation']),
+                "best_metrics": aggregated_metrics(iteration_batch_label),
               },
           },
         })
+      else:
+        # We remove the results to make sure we don't waste disk space
+        rmtree(iteration_batch_dir, ignore_errors=True)
 
   print(results)
   if not results.models: # needs at least n_initial_points(=5) evaluations!
@@ -373,7 +382,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
 
   # tuning plots are saved in the label directory
   from .tuning import make_plots
-  make_plots(results, ctx.obj['prefix_output_dir'])
+  make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
 
 
 

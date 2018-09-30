@@ -1,7 +1,6 @@
 """
 Utilities related to CI: contacting the results database, naming conventions... 
 """
-import os
 import hashlib
 import json
 import yaml
@@ -9,60 +8,13 @@ from pathlib import Path
 import re
 
 import click
-import requests
-import numpy as np
-
-class NumpyEncoder(json.JSONEncoder):
-    """ Special json encoder for numpy types """
-    def default(self, obj):
-        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
-            np.int16, np.int32, np.int64, np.uint8,
-            np.uint16, np.uint32, np.uint64)):
-            return int(obj)
-        elif isinstance(obj, (np.float_, np.float16, np.float32,
-            np.float64)):
-            return float(obj)
-        elif isinstance(obj,(np.ndarray,)): #### This is the fix
-            return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
 
 
-def notify_qa_database(object_type='output', **kwargs):
-  """
-  Updating the QA database.
-  """
-  from .config import is_ci, commit_id
-  # some light custom serialization
-  for key, value in kwargs.items():
-    if issubclass(type(value), Path):
-      kwargs[key] = str(value)
-
-  # we send updates to
-  protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
-  host = os.getenv('QATOOLS_DB_HOST', 'dvs')
-  port = os.getenv('QATOOLS_DB_PORT', '5000')
-  url = f"{protocol}://{host}:{port}/api/v1/{object_type}/"
-
-  data = {
-    'job_type': 'ci' if is_ci else 'local',
-    'git_commit_sha': commit_id,
-    **kwargs,
-  }
-  try:
-    # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
-    data = json.dumps(data, cls=NumpyEncoder)
-    r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
-    r.raise_for_status()
-  except:
-    click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
-    click.secho(url, fg='yellow', err=True)
-    click.secho(str(data), fg='yellow', err=True)
-    try:
-      click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
-      click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
-      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
-    except:
-      pass
+class PathType(click.ParamType):
+  """Wrapper for pathlib's Path type, for use with the Click CLI package."""
+  name = 'path'
+  def convert(self, value, param, ctx):
+    return Path(value)
 
 
 def save_metrics(output_directory, **kwargs):
@@ -100,14 +52,18 @@ def make_hash(obj):
   params_s = json.dumps(obj, sort_keys=True)
   return hashlib.md5(params_s.encode()).hexdigest()
 
-def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning):
+
+def batch_dir(commit_ci_dir, batch_label, tuning):
   if not tuning:
-    batch_output_folder = Path('output') if batch_label == 'default' else Path('output') / slugify(batch_label)
+    batch_folder = Path('output') if batch_label == 'default' else Path('output') / slugify(batch_label)
   else:
-    batch_output_folder = Path('tuning') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+    batch_folder = Path('tuning') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  return commit_ci_dir / batch_folder
+
+
+def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning):
   return (
-    commit_ci_dir /
-    batch_output_folder /
+    batch_dir(commit_ci_dir, batch_label, tuning) /
     platform /
     # safer on windows
     configuration.replace(":","_") /
@@ -286,10 +242,3 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
       elif filetype == 'yaml':
         yaml.dump(params, f)
     yield params_file, params_hash, params
-
-
-class PathType(click.ParamType):
-  """Wrapper for pathlib's Path type, for use with the Click CLI package."""
-  name = 'path'
-  def convert(self, value, param, ctx):
-    return Path(value)

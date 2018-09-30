@@ -5,14 +5,15 @@ import json
 
 import requests
 import click
+import numpy as np
 
 from skopt import Optimizer
 from skopt.utils import Space
 from skopt.utils import Integer
 from skopt.utils import use_named_args
 
-from .utils import NumpyEncoder
-from .config import config, commit_id, available_metrics
+from .api import NumpyEncoder, batch_info
+from .config import commit_id, available_metrics
 
 
 def init_optimization(optim_config_file, ctx):
@@ -20,15 +21,14 @@ def init_optimization(optim_config_file, ctx):
     optim_config = yaml.load(f)
 
   # default settings
-  if "metric" not in optim_config:
-    raise ValueError('ERROR: you must project a `metric` for the optimization')
+  if "objective" not in optim_config:
+    raise ValueError('ERROR: the configuration must provide an `objective`.')
+  if "evaluations" not in optim_config:
+    raise ValueError('ERROR: the configuration must project a `evaluations` budget.')
   optim_config = {
-    "evaluations": "1",
-    "aggregation": "average",
-    "minimize": available_metrics[optim_config['metric']]['smaller_is_better'],
     "solver": {},
-    "space": {},
-    "fixed": {},
+    "search_space": {},
+    "preset_params": {},
     **optim_config,
   }
   optim_config['solver'] = {
@@ -37,12 +37,12 @@ def init_optimization(optim_config_file, ctx):
     **optim_config.get('solver', {}),
   }
 
-  space = Space.from_yaml(optim_config_file, namespace='space')
-  fixed_params = optim_config.get('fixed', {})
+  space = Space.from_yaml(optim_config_file, namespace='search_space')
+  preset_params = optim_config.get('preset_params', {})
   click.secho("Search space:", fg="blue", err=True)
   click.secho(str(space), fg="blue", dim=True, err=True)
-  click.secho("Fixed parameters:", fg="blue", err=True)
-  click.secho(str(fixed_params), fg="blue", dim=True, err=True)
+  click.secho("Preset parameters:", fg="blue", err=True)
+  click.secho(str(preset_params), fg="blue", dim=True, err=True)
 
   # we use the iteration step in the objective function, to store results at the right place
   dim_iteration = Integer(name='iteration', low=0, high=2^16)
@@ -50,7 +50,7 @@ def init_optimization(optim_config_file, ctx):
 
   @use_named_args(dims)
   def objective(**opt_params):
-    params =  {**fixed_params, **opt_params}
+    params =  {**preset_params, **opt_params}
 
     # From the UI we will want to see the iteration as a metric
     del params["iteration"]
@@ -58,7 +58,6 @@ def init_optimization(optim_config_file, ctx):
     batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
     command = ' '.join([
       'qa',
-      # TODO: write in a batch named {batch_label}_iter{iter}
       f"--batch-label '{batch_label}'",
       f'--platform "{ctx.obj["platform"]}"',
       f'--configuration "{ctx.obj["configuration"]}"',
@@ -81,9 +80,9 @@ def init_optimization(optim_config_file, ctx):
       )
       click.secho(out.stdout)
 
-    # We could just issue some GROUP_BY SQL if we connected to the database
-    agg_metrics =  aggregated_metrics(batch_label, optim_config["aggregation"])
-    return agg_metrics[optim_config["metric"]]
+    # Now that we finished computing all the results, we will download the results and
+    # compute the objective function:
+    return batch_objective(batch_label, optim_config['objective'])
 
   # For the full list of options, refer to:
   # https://scikit-optimize.github.io/#skopt.Optimizer
@@ -93,29 +92,112 @@ def init_optimization(optim_config_file, ctx):
   # this wrapper converts it back to the actual named parameters
   @use_named_args([*space])
   def dim_mapping(**opt_params):
-    return {**fixed_params, **opt_params}
+    return {**preset_params, **opt_params}
 
   return objective, optimizer, optim_config, dim_mapping
 
 
-@lru_cache()
-def aggregated_metrics(batch_label, aggregation):
-  # TODO: support for custom scores (eg weighted? normalized?)
-  # TODO: get all the metrics for this projects.... the metric arg is not great..
-  r = requests.get(f'http://dvs:5000/api/v1/commit/{commit_id}',
-                   params = {
-                     "project": config['project']['name'],
-                     "batch": batch_label,
-                     # the format is metric: threshold.... not great.
-                     "metrics": json.dumps({metric: 0 for metric in available_metrics.keys()}),
-                   })
-  print(r.url)
-  print(r.json()['batches'][batch_label])
-  agg_metrics = r.json()['batches'][batch_label]['aggregated_metrics']
-  return {k.replace(f"_{aggregation}", ""): v
-             for k, v in agg_metrics.items()
-             if k.endswith(aggregation)
-            }
+
+
+
+
+
+
+relu = lambda x: x if x > 0 else 0
+
+def make_loss(metric, options):
+  """
+  Return a loss function of the form: loss(metric, metric_target)
+  """
+  loss = options.get('loss', 'identity')
+  smaller_is_better = available_metrics[metric].get('smaller_is_better', True)
+  sign_inversion = (1 if smaller_is_better else -1)
+  if loss=='identity':
+    loss_inner=lambda x, x_t: x * sign_inversion
+  elif 'shift' in loss:
+    loss_inner=lambda x, x_t: (x - x_t) * sign_inversion
+  elif 'relative' in loss:
+    loss_inner=lambda x, x_t: (x - x_t) / x_t * sign_inversion
+
+  if 'relu' in loss:
+    margin = options.get('margin', 0.0)
+    return lambda x, x_t: relu(loss_inner(x, x_t) + margin)
+  if 'square' in loss:
+    return lambda x, x_t: loss_inner(x, x_t)**2
+  return loss_inner
+
+
+def make_reduce(options):
+  """
+  Return a reduce/aggregation function used to aggregate many losses from different tests into a single number.
+  We normalize by the number of outputs to make it more easily human-understandable.
+  """
+  reduce_type =  options.get('reduce', 'l2')
+  if reduce_type == 'sum':
+    return lambda x: sum(x) / len(x)
+  if reduce_type == 'relu':
+    return lambda x: relu(sum(x)) / len(x)
+  if len(reduce_type) == 2:
+    return lambda x: np.linalg.norm(x, ord=int(reduce_type[1])) / len(x)
+
+
+def matching_output(output_reference, outputs):
+  """
+  Return the output from from a given batch that looks most similar to a given output.
+  This helps us compare an output to historical results.
+  """
+  valid_outputs = [o for o in outputs if not o.is_pending and not o.is_failed]
+  possible_matching_outputs = [o for o in valid_outputs if o.test_input_path == output.test_input_path]
+  if not possible_matching_outputs:
+    raise ValueError(f"Could not find an output for {output_reference.test_input_path} in the target batch")
+
+  def match_key(output):
+    return (
+      5 if output.configuration == output_reference.configuration else 0 +
+      3 if output.platform == output_reference.platform else 0 +
+      1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
+    )
+  outputs.sort(key=match_key, reverse=True)
+  return outputs[0]
+
+
+
+def batch_objective(batch_label, config_objective):
+  this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
+  # We can compare to KPI quality thresholds defined using qatools
+  if 'target' in config_objective:
+    use_thresholds = config_objective['target'].get('use_thresholds', False)
+    # or get reference results from historical data
+    if not use_thresholds:
+      target = config_objective['target']
+      target_batch_info = batch_info(
+        target['id'] if 'id' in target else target['branch'],
+        is_branch='branch' in target,
+        batch=target.get('batch', 'default')
+      )
+
+  objective = 0
+  for metric, options in config_objective.items():
+    if options is None:
+      options = {}
+    loss = make_loss(metric, options)
+    losses = []
+    for output in this_batch_info['outputs'].values():
+      if 'target' in config_objective and ('shift' in loss or 'relative' in loss):
+        if use_thresholds:
+          metric_target = available_metrics[metric]['threshold']
+        else:  
+          output_target = matching_output(output, target_batch_info['outputs'])
+          metric_target = output_target['metrics'][metric]
+      else:
+        metric_target = None
+      losses.append(loss(output['metrics'][metric], metric_target) )
+
+    partial_objective = make_reduce(options)(losses)
+    objective += options.get('weight', 1) * partial_objective
+  return objective
+
+
 
 
 
@@ -125,6 +207,9 @@ def make_plots(results, dir):
   import matplotlib.pyplot as plt
   # https://matplotlib.org/faq/usage_faq.html#non-interactive-example
   # https://matplotlib.org/api/_as_gen/matplotlib.pyplot.savefig.html
+
+  if not dir.exists():
+    dir.mkdir(parents=True, exist_ok=True)
 
   # WIP: there is currently no support for plotting categorical variables...
   # You have to manually checkout this pull request:
