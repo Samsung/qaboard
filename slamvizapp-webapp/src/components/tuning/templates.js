@@ -39,7 +39,8 @@ return events_per_frame.map(e => ({
 evaluations: 50
 
 # You can optimize objective functions of the form:
-#   \sum_{metrics}  weight * reduce( \sum_{inputs} loss(metric, metric_target) ) / #outputs
+#     ∑     weight * reduce(   ∑     loss(metric, metric_target) ) / #outputs
+#  metrics                   inputs
 
 objective:
   ${metrics.default_metric}:
@@ -63,7 +64,7 @@ objective:
   target:
     # The target metrics can be chosen...
     # Either (default) using the quality target you defined in the qatools config
-    # eg ${metrics.available_metrics[metrics.available_metrics[default_metric]].target} for ${metrics.default_metric}
+    # eg ${metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
     # Or from a specific git revision: 
     branch: ${config.project.reference_branch}  # a git branch/tag
     id: some_commit_id                 # a git commit id

@@ -139,7 +139,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
     ...layout,
   };
 
-  let threshold = metric.target * metric.scale;
   let all_values = [];
   series.forEach(values => {
     values.forEach(v => all_values.push(v));
@@ -149,6 +148,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
   let min_y = Math.min(...all_values) * metric.scale;
   let max_y = Math.max(...all_values) * metric.scale;
+  let threshold = metric.target * metric.scale;
   let all_success = metric.smaller_is_better
     ? max_y <= threshold
     : min_y <= threshold;
