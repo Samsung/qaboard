@@ -5,7 +5,7 @@ project:
   # the latest commit on this branch is the reference for bit-accuracy tests
   # typical choices are master, develop, or release
   reference_branch: master
-  # where the script implementing run and postprocess is located relative to the project's root
+  # Where the script implementing `run` and `postprocess` functions is located (relative to the project's root)
   entrypoint: qatools/main.py
 
 

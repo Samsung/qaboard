@@ -78,7 +78,7 @@ def batch_info(reference, is_branch, batch):
                      "project": config['project']['name'],
                      "branch": reference,
                      "batch": batch,
-                     # the format is metric: threshold.... not great.
+                     # the format is metric: target.... not great.
                      "metrics": json.dumps({metric: 0 for metric in available_metrics.keys()}),
                    })
   if 'batches' not in r.json():

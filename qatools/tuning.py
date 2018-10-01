@@ -164,12 +164,12 @@ def matching_output(output_reference, outputs):
 
 def batch_objective(batch_label, config_objective):
   this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
-  # We can compare to KPI quality thresholds defined using qatools
+  # We can compare to KPI quality target defined using qatools
   if 'target' in config_objective:
-    use_thresholds = config_objective['target'].get('use_thresholds', False)
+    target = config_objective['target']
+    use_default_targets = 'id' in target or 'branch' in target
     # or get reference results from historical data
-    if not use_thresholds:
-      target = config_objective['target']
+    if not use_default_targets:
       target_batch_info = batch_info(
         target['id'] if 'id' in target else target['branch'],
         is_branch='branch' in target,
@@ -184,8 +184,8 @@ def batch_objective(batch_label, config_objective):
     losses = []
     for output in this_batch_info['outputs'].values():
       if 'target' in config_objective and ('shift' in loss or 'relative' in loss):
-        if use_thresholds:
-          metric_target = available_metrics[metric]['threshold']
+        if use_default_targets:
+          metric_target = available_metrics[metric]['target']
         else:  
           output_target = matching_output(output, target_batch_info['outputs'])
           metric_target = output_target['metrics'][metric]
