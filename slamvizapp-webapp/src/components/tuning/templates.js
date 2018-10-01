@@ -39,7 +39,7 @@ return events_per_frame.map(e => ({
 evaluations: 50
 
 # You can optimize objective functions of the form:
-#     ∑     weight * reduce(   ∑     loss(metric, metric_target) ) / #outputs
+#     ∑     weight * reduce(   ⋃     loss(metric, metric_target) ) / #outputs
 #  metrics                   inputs
 
 objective:
@@ -54,21 +54,21 @@ objective:
     #   | relative # error, target => error-target / target
     #   | relu_X   # error, target => relu(X(error, target))  eg relu_identity, relu_shift, relu_relative
     #   | square_X # error, target => X(error, target) ^2     eg square_relative, square_relu_relative
-    # Note: loss=-loss if not smaller_is_better
+    # Note: loss <- loss if not smaller_is_better
 
   # metric2:
   #   ...
   #   ...
 
   # If the loss function uses target metrics (eg relative), you must describe what they are.
-  target:
-    # The target metrics can be chosen...
-    # Either (default) using the quality target you defined in the qatools config
+  # target:
+    # # The target metrics can be chosen...
+    # # Either (default) using the quality target you defined in the qatools config
     # eg ${metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
-    # Or from a specific git revision: 
-    branch: ${config.project.reference_branch}  # a git branch/tag
-    id: some_commit_id                 # a git commit id
-    # We look for reference outputs in a batch called
+    # # Or from a specific git revision: 
+    # branch: ${config.project.reference_branch}  # a git branch/tag
+    # id: some_commit_id                 # a git commit id
+    # # We look for reference outputs in a batch called
     # batch: default
 
 
@@ -77,7 +77,7 @@ objective:
 #   create_optionnal_plots: false
 
 search_space:
-  # Find more info here:
+  # Find some examples below. More info here:
   #   https://github.com/scikit-optimize/scikit-optimize/blob/master/skopt/space/space.py
   #   https://scikit-optimize.github.io/#skopt.Space
   - Integer:
