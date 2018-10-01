@@ -456,7 +456,7 @@ class TuningExploration extends Component {
         suffix: "",
         target: -1,
         smaller_is_better: true,
-      }
+      },
       ...available_metrics,
     }
     this.state = {
