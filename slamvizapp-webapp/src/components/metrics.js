@@ -52,9 +52,9 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     </span>
   );
   let intent =
-    (metrics_new[metric_info.key] > metric_info.threshold &&
+    (metrics_new[metric_info.key] > metric_info.target &&
       metric_info.smaller_is_better) ||
-    (metrics_new[metric_info.key] < metric_info.threshold &&
+    (metrics_new[metric_info.key] < metric_info.target &&
       !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
@@ -139,7 +139,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
     ...layout,
   };
 
-  let threshold = metric.threshold * metric.scale;
+  let threshold = metric.target * metric.scale;
   let all_values = [];
   series.forEach(values => {
     values.forEach(v => all_values.push(v));
@@ -484,11 +484,11 @@ class MetricsSummary extends Component {
           let new_med = median(new_values);
           let ref_med = median(ref_values);
           let new_pc_good = m.smaller_is_better
-            ? pc_under_threshold(new_values, m.threshold)
-            : pc_over_threshold(new_values, m.threshold);
+            ? pc_under_threshold(new_values, m.target)
+            : pc_over_threshold(new_values, m.target);
           let ref_pc_good = m.smaller_is_better
-            ? pc_under_threshold(ref_values, m.threshold)
-            : pc_over_threshold(ref_values, m.threshold);
+            ? pc_under_threshold(ref_values, m.target)
+            : pc_over_threshold(ref_values, m.target);
           let delta = new_med - ref_med;
           let delta_relative = delta / ref_med;
 

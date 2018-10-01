@@ -210,9 +210,9 @@ class CommitsEvolutionPerBatch extends React.Component {
           y = y.map(x =>
                     x === undefined || x === null || isNaN(x)
                       ? null
-                      : x < 20 * metric.threshold
+                      : x < 20 * metric.target
                         ? x * metric.scale
-                        : 20 * metric.threshold * metric.scale
+                        : 20 * metric.target * metric.scale
           )
           let trace = {
             name: `${name[label]} ${
@@ -270,7 +270,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     }
 
     let metric = available_metrics[metrics[0]];
-    let threshold = metric.threshold * metric.scale;
+    let threshold = metric.target * metric.scale;
     let layout_ = {
       ...layout,
       shapes: [
@@ -429,7 +429,7 @@ class CommitsEvolutionPerMovie extends React.Component {
               )
               .map(o =>
                 Math.min(
-                  100 * metric.threshold * metric.scale,
+                  100 * metric.target * metric.scale,
                   o.metrics[metric.key] * metric.scale
                 )
               );
@@ -498,7 +498,7 @@ class CommitsEvolutionPerMovie extends React.Component {
       hovered_commit_ref
     } = this.state;
     let metric = available_metrics[metrics[0]];
-    let threshold = metric.threshold * metric.scale;
+    let threshold = metric.target * metric.scale;
     let layout_ = {
       ...layout,
       height: 250

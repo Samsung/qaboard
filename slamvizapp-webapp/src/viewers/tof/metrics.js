@@ -5,7 +5,7 @@ const available_metrics = {
     short_label: "Crashed",
     scale: 100,
     suffix: "%",
-    threshold: 0,
+    target: 0,
     smaller_is_better: true,
     plot_scale: "linear"
   },
@@ -16,7 +16,7 @@ const available_metrics = {
     short_label: "RMSE avg",
     scale: 1,
     suffix: "cm",
-    threshold: 0.1,
+    target: 0.1,
     smaller_is_better: true
   },
   
@@ -26,7 +26,7 @@ const available_metrics = {
 	  short_label: "PCMD avg",
 	  scale: 1,
 	  suffix: "cm",
-	  threshold: 0.1,
+	  target: 0.1,
 	  smaller_is_better: true
   },
 
@@ -36,7 +36,7 @@ const available_metrics = {
     short_label: "RMSE med",
     scale: 1,
     suffix: "cm",
-    threshold: 0.1,
+    target: 0.1,
     smaller_is_better: true
   },
 
@@ -46,7 +46,7 @@ const available_metrics = {
     short_label: "CPU avg.",
     scale: 1,
     suffix: "%",
-    threshold: 200,
+    target: 200,
     smaller_is_better: true
   },
 
@@ -56,7 +56,7 @@ const available_metrics = {
     short_label: "CPU median",
     scale: 1,
     suffix: "%",
-    threshold: 200,
+    target: 200,
     smaller_is_better: true
   },
 
@@ -66,7 +66,7 @@ const available_metrics = {
     short_label: "Processing Avg",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_med: {
@@ -84,7 +84,7 @@ const available_metrics = {
     short_label: "Processing q95",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_max: {
@@ -93,7 +93,7 @@ const available_metrics = {
     short_label: "Processing Max",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   }
 };

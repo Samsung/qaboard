@@ -70,7 +70,7 @@ const QualityCell = ({ metric, metrics }) => {
   )
     return <td style={{ background: "#bbb" }}>na</td>;
   let value = metrics[metric.key];
-  const threshold = metric.threshold;
+  const threshold = metric.target;
   const quality = 0.5 + (threshold - value) / (threshold + 0.0001);
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
@@ -170,7 +170,7 @@ const TableKpi = ({
             <th />
             {metrics.map(m => (
               <th colSpan={2} key={m.key}>
-                {m.label} [{metric_formatter.format(m.threshold * m.scale)}
+                {m.label} [{metric_formatter.format(m.target * m.scale)}
                 {m.suffix}]
               </th>
             ))}

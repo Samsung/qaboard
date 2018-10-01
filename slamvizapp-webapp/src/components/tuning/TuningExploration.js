@@ -444,16 +444,25 @@ class TuningExploration extends Component {
         short_label: "iter",
         scale: 1,
         suffix: "",
-        threshold: -1,
+        target: -1,
         smaller_is_better: false,
         plot_scale: "linear"
       },
+      objective: {
+        key: "objective",
+        label: "Objective",
+        short_label: "objective",
+        scale: 1,
+        suffix: "",
+        target: -1,
+        smaller_is_better: true,
+      }
       ...available_metrics,
     }
     this.state = {
       selected_parameter: null,
       available_metrics: available_metrics_,
-      main_metrics: ["iteration", ...main_metrics],
+      main_metrics: ["iteration", "objective", ...main_metrics],
       default_metric,
       selected_metric: default_metric,
       selected_metric2: main_metrics.filter(l=>l!==default_metric)[0],

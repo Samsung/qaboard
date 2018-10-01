@@ -289,7 +289,7 @@ const mapStateToProps = (state, ownProps) => {
     let aggregated_metrics = {};
     project_metrics.main_metrics.forEach(
       m =>
-        (aggregated_metrics[m] = project_metrics.available_metrics[m].threshold)
+        (aggregated_metrics[m] = project_metrics.available_metrics[m].target)
     );
 
     var branch;

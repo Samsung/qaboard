@@ -62,9 +62,8 @@ objective:
   # If the loss function uses target metrics (eg relative), you must describe what they are.
   target:
     # The target metrics can be chosen...
-    # Either using the quality thresholds you defined in the qatools config
-    # eg ${metrics.available_metrics[metrics.available_metrics.default_metric].threshold} for ${metrics.default_metric}
-    use_thresholds: false
+    # Either (default) using the quality target you defined in the qatools config
+    # eg ${metrics.available_metrics[metrics.available_metrics[default_metric]].target} for ${metrics.default_metric}
     # Or from a specific git revision: 
     branch: ${config.project.reference_branch}  # a git branch/tag
     id: some_commit_id                 # a git commit id

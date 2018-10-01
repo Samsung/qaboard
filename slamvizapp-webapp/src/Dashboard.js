@@ -40,7 +40,7 @@ class Dashboard extends React.Component {
 
     let aggregation_metrics = {};
     dashboard_metrics.forEach(m => {
-      aggregation_metrics[m] = available_metrics[m].threshold;
+      aggregation_metrics[m] = available_metrics[m].target;
     });
     this.state = {
       date_range: [new Date(moment().subtract(31, "d")), new Date()],
