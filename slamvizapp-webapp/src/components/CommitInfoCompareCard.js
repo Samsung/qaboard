@@ -85,7 +85,7 @@ class CommitParents extends React.PureComponent {
 
 class CommitMessage extends React.PureComponent {
   render() {
-    const { commit, style, on_refresh, is_loaded } = this.props;
+    const { project, commit, style, on_refresh, is_loaded } = this.props;
     if (!commit || !commit.message)
       return <p className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`}>This is a placeholder for the commit message. Yep.</p>
     return <>
@@ -94,7 +94,7 @@ class CommitMessage extends React.PureComponent {
       </p>
       <p style={style}>
         <Button className={Classes.TEXT_MUTED} minimal icon="refresh" disabled={is_loaded} onClick={on_refresh}></Button>
-        <a href={`/api/v1/commit/${commit.id}`}><Button className={Classes.TEXT_MUTED} minimal icon="import">JSON</Button></a>
+        <a href={`/api/v1/commit/${commit.id}?project=${project}`}><Button className={Classes.TEXT_MUTED} minimal icon="import">JSON</Button></a>
       </p>
     </>
   }
@@ -146,6 +146,7 @@ class CommitInfoCompareCard extends React.PureComponent {
               <BatchTags batch={new_ci_batch}/>
             </div>
             <CommitMessage
+              project={project}
               commit={new_commit}
               style={{maxWidth: "450px"}}
               is_loaded={new_commit && new_commit.id && !this.props.commits[new_commit.id].is_loaded}
@@ -180,6 +181,7 @@ class CommitInfoCompareCard extends React.PureComponent {
               <Tag intent={Intent.PRIMARY}>Reference</Tag>
             </div>
             <CommitMessage
+              project={project}
               commit={ref_commit}
               style={{ display: "flex", justifyContent: "flex-end", textAlign: "right"}}
               is_loaded={ref_commit && ref_commit.id && !this.props.commits[ref_commit.id].is_loaded}
