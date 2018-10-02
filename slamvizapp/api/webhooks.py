@@ -24,8 +24,8 @@ def update_batch():
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
   batch = ci_commit.get_or_create_batch(data['batch_label'])
-  data = request.json.get('data', {})
-  batch.data = {**batch.data, **data}
+  batch_data = request.json.get('data', {})
+  batch.data = {**batch.data, **batch_data}
 
   if 'best_iter' in data and data['best_iter'] != batch.data.get('best_iter'):
     # remove all non-optim_iteration results from the batch
@@ -33,7 +33,7 @@ def update_batch():
     db_session.add(batch)
     db_session.commit()
     # make copy of all outputs in the best batch
-    best_batch = ci_commit.get_or_create_batch(f"{data['batch_label']}|iter{batch.data.get('best_iter')}")
+    best_batch = ci_commit.get_or_create_batch(f"{data['batch_label']}|iter{batch_data.get('best_iter')}")
     for o in best_batch.outputs:
       o_copy = o.copy()
       o_copy.output_dir_override = o.output_dir
