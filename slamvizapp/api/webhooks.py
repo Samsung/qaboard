@@ -38,10 +38,9 @@ def update_batch():
     best_batch = ci_commit.get_or_create_batch(f"{data['batch_label']}|iter{batch_data.get('best_iter')}")
     for o in best_batch.outputs:
       o_copy = o.copy()
-      o_copy.output_dir_override = o.output_dir
+      o_copy.output_dir_override = str(o.output_dir)
       o_copy.batch = batch
       db_session.add(o_copy)
-      print(o_copy)
 
   db_session.add(batch)
   db_session.commit()
