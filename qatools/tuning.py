@@ -182,10 +182,11 @@ def batch_objective(batch_label, config_objective):
   for metric, options in config_objective.items():
     if options is None:
       options = {}
+    loss_name = options.get('loss', 'identity')
     loss = make_loss(metric, options)
     losses = []
     for output in this_batch_info['outputs'].values():
-      if 'target' in config_objective and ('shift' in loss or 'relative' in loss):
+      if 'target' in config_objective and ('shift' in loss_name or 'relative' in loss_name):
         if use_default_targets:
           metric_target = available_metrics[metric]['target']
         else:  
@@ -193,6 +194,7 @@ def batch_objective(batch_label, config_objective):
           metric_target = output_target['metrics'][metric]
       else:
         metric_target = None
+      print(output)
       losses.append(loss(output['metrics'][metric], metric_target) )
 
     partial_objective = make_reduce(options)(losses)
