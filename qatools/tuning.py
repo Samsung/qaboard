@@ -165,9 +165,9 @@ def matching_output(output_reference, outputs):
 def batch_objective(batch_label, config_objective):
   this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
   # We can compare to KPI quality target defined using qatools
-  if 'target' in config_objective:
+  if 'target' in config_objective and config_objective['target']:
     target = config_objective['target']
-    use_default_targets = 'id' in target or 'branch' in target
+    use_default_targets = not 'id' in target and not 'branch' in target
     # or get reference results from historical data
     if not use_default_targets:
       target_batch_info = batch_info(
@@ -175,6 +175,8 @@ def batch_objective(batch_label, config_objective):
         is_branch='branch' in target,
         batch=target.get('batch', 'default')
       )
+  else:
+    use_default_targets = True
 
   objective = 0
   for metric, options in config_objective.items():
