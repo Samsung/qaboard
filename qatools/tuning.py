@@ -195,8 +195,13 @@ def batch_objective(batch_label, config_objective):
       else:
         metric_target = None
       print(output)
-      losses.append(loss(output['metrics'][metric], metric_target) )
-
+      if output.is_failed:
+        raise
+      try:
+        losses.append(loss(output['metrics'][metric], metric_target) )
+      except:
+        click.secho('Could not find {metric}', fg='red')        
+        click.secho(str(output), fg='red')
     partial_objective = make_reduce(options)(losses)
     objective += options.get('weight', 1) * partial_objective
   return objective
