@@ -28,7 +28,7 @@ class DoneAtTagUnstyled extends React.Component {
         </Tooltip>{" "}
         by{" "}
         <Link className={maybe_skeletton} to={`/committer/${!!commit && commit.committer_name}`}>
-          {(!!commit || !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
+          {(!!commit && !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
         </Link>
       </span>
     );
