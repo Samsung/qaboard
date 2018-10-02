@@ -201,6 +201,11 @@ def add_batch(hexsha):
             f'-o "{batch.output_dir}/log.txt" ',
             '<< "EOF"\n',
             f'  cd "{working_directory}";\n',
+            # bsub_su is owned by root, this leads to strange PATH results... just to be safe:
+            # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
+            "   export PATH=$PATH:/usr/local/bin",
+            f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
+            # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
             # options specific to android
             f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             f"  export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
