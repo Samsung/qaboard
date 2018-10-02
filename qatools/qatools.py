@@ -124,6 +124,7 @@ def run(ctx, input_path, output_path, forwarded_args):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
+    import time
     if not output_path:
         output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
     else:
