@@ -182,7 +182,7 @@ class CommitInfoCompareCard extends React.PureComponent {
             <CommitMessage
               commit={ref_commit}
               style={{ display: "flex", justifyContent: "flex-end", textAlign: "right"}}
-              is_loaded={ref_commit && ref_commit.id && this.props.commits[ref_commit.id].is_loaded}
+              is_loaded={ref_commit && ref_commit.id && !this.props.commits[ref_commit.id].is_loaded}
               on_refresh={() => this.props.dispatch(fetchCommit(project, ref_commit.id, "ref_commit_id")) }
             />
           </div>
