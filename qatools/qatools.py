@@ -373,7 +373,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
           **{
               "data": {
                 "best_params": dim_mapping(suggested),
-                "best_iter": iteration,
+                "best_iter": iteration+1,
                 "best_metrics": aggregated_metrics(iteration_batch_label),
               },
           },
