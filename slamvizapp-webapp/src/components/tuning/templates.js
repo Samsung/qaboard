@@ -33,14 +33,15 @@ return events_per_frame.map(e => ({
   smart_frame_on: [true, false],
 }));
 `,
-  optimize: (config, metrics) => `
-# We will optimize the objective function within a budget of this many evaluations
+  optimize: (config, metrics) => {
+    console.log(metrics, config)
+    return `# We will optimize the objective function within a budget of this many evaluations
 # Currently, if your objective is cheap to evaluate, the optimization will be dominiated by call overheads.
 evaluations: 50
 
 # You can optimize objective functions of the form:
-#     ∑     weight * reduce(   ⋃     loss(metric, metric_target) ) / #outputs
-#  metrics                   inputs
+#       ∑     weight * reduce(   ⋃     loss(metric, target) ) / #outputs
+#    metrics                   inputs
 
 objective:
   ${metrics.default_metric}:
@@ -56,15 +57,14 @@ objective:
     #   | square_X # error, target => X(error, target) ^2     eg square_relative, square_relu_relative
     # Note: loss <- loss if not smaller_is_better
 
-  # metric2:
+  # ${(metrics.main_metrics.length > 0 && metrics.main_metrics[1]) || 'metric2'}:
   #   ...
   #   ...
 
-  # If the loss function uses target metrics (eg relative), you must describe what they are.
   # target:
-    # # The target metrics can be chosen...
-    # # Either (default) using the quality target you defined in the qatools config
-    # eg ${metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
+    # The target metrics used in the loss function can be chosen...
+    # # ...either (default) using the quality target you defined in the qatools config
+    # eg ${metrics.default_metric && metrics.available_metrics[metrics.default_metric] && metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
     # # Or from a specific git revision: 
     # branch: ${config.project.reference_branch}  # a git branch/tag
     # id: some_commit_id                 # a git commit id
@@ -101,7 +101,8 @@ search_space:
       low: 0.0000001
       high: 0.1
       prior: log-uniform
-`,
+`
+},
 };
 
 
