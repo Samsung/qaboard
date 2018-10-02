@@ -23,11 +23,13 @@ def update_batch():
     )
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
+
   batch = ci_commit.get_or_create_batch(data['batch_label'])
   batch_data = request.json.get('data', {})
+  is_best = 'best_iter' in batch_data and batch_data['best_iter'] != batch.data.get('best_iter')
   batch.data = {**batch.data, **batch_data}
 
-  if 'best_iter' in data and data['best_iter'] != batch.data.get('best_iter'):
+  if is_best:
     # remove all non-optim_iteration results from the batch
     batch.outputs = [o for o in batch.outputs if o.output_type=='optim_iteration']
     db_session.add(batch)
