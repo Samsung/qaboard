@@ -72,15 +72,17 @@ def notify_qa_database(object_type='output', **kwargs):
 @lru_cache()
 def batch_info(reference, is_branch, batch):
   """Get data about a batch of outputs in the database"""
+  params = {
+    "project": config['project']['name'],
+    "batch": batch,
+    # the format is metric: target.... not great.
+    "metrics": json.dumps({metric: 0 for metric in available_metrics.keys()}),
+  }
+  if is_branch:
+    params["branch"] = reference
   commit_id = reference if not is_branch else ''
-  r = requests.get(f'{api_protocol}://{api_host}:{api_port}/api/v1/commit/{commit_id}',
-                   params = {
-                     "project": config['project']['name'],
-                     "branch": reference,
-                     "batch": batch,
-                     # the format is metric: target.... not great.
-                     "metrics": json.dumps({metric: 0 for metric in available_metrics.keys()}),
-                   })
+  url = f'{api_protocol}://{api_host}:{api_port}/api/v1/commit/{commit_id}'
+  r = requests.get(url, params=params)
   if 'batches' not in r.json():
   	print(r.url)
   	raise ValueError(f'We could not get the results for {batch}')
