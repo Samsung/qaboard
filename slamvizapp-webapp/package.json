@@ -8,7 +8,7 @@
     "@blueprintjs/datetime": "^3.1.0",
     "@blueprintjs/icons": "^3.1.0",
     "@blueprintjs/select": "^3.1.0",
-    "ansi-to-html": "^0.6.6",
+    "ansi-to-react": "^3.3.3",
     "axios": "^0.18.0",
     "brace": "^0.11.0",
     "d3-color": "^1.0.3",

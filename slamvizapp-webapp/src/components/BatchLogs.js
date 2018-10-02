@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { get } from "axios";
-import Convert from 'ansi-to-html'
+import Ansi from 'ansi-to-react'
 
 import {
   Classes,
@@ -12,8 +12,6 @@ import {
   Icon
 } from "@blueprintjs/core";
 
-// var Convert = require('ansi-to-html');
-var convert = new Convert();
 
 class OutputLog extends Component {
   constructor(props) {
@@ -115,7 +113,7 @@ class OutputLog extends Component {
                 }
               />
             )}
-            <pre className={Classes.CODE_BLOCK}>{(!!logs && convert.toHtml(logs)) || ""}</pre>
+            <pre className={Classes.CODE_BLOCK}>{(!!logs && <Ansi>{logs}</Ansi>) || ""}</pre>
           </Collapse>
         )}
       </div>
