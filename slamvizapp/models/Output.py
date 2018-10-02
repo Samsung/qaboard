@@ -80,10 +80,12 @@ class Output(Base):
   def copy(self):
     o = Output()
     o.batch_id = self.batch_id
+    o.batch = self.batch
     o.created_date = self.created_date
     o.output_dir_override = self.output_dir_override
     o.output_type = self.output_type
     o.test_input_id = self.test_input_id
+    o.test_input = self.test_input
     o.platform = self.platform
     o.configuration = self.configuration
     o.extra_parameters = self.extra_parameters
