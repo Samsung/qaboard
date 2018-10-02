@@ -85,15 +85,15 @@ class CommitParents extends React.PureComponent {
 
 class CommitMessage extends React.PureComponent {
   render() {
-    const { commit, style, on_refresh } = this.props;
-    if (!commit)
+    const { commit, style, on_refresh, is_loaded } = this.props;
+    if (!commit || !commit.message)
       return <p className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`}>This is a placeholder for the commit message. Yep.</p>
     return <>
       <p style={{ marginTop: "10px", ...style}} className={Classes.MONOSPACE_TEXT} >
         {commit.message}
       </p>
       <p style={style}>
-        <Button className={Classes.TEXT_MUTED} minimal icon="refresh" onClick={on_refresh}></Button>
+        <Button className={Classes.TEXT_MUTED} minimal icon="refresh" disabled={is_loaded} onClick={on_refresh}></Button>
         <a href={`/api/v1/commit/${commit.id}`}><Button className={Classes.TEXT_MUTED} minimal icon="import">JSON</Button></a>
       </p>
     </>
@@ -104,10 +104,11 @@ class CommitMessage extends React.PureComponent {
 class CommitBranchButton extends React.PureComponent {
   render() {
     const { commit, align_right, onClick } = this.props;
+    const has_branch = !!commit && !!commit.branch
     const outer_style_align_right = { display: "flex", justifyContent: "flex-end" }
     return <span style={align_right && outer_style_align_right}>
-      <Button onClick={e => {onClick(commit.branch)} } className={!!commit ? null : Classes.SKELETON} icon="git-branch" >
-        {!!commit ? commit.branch : 'master'}
+      <Button onClick={e => {onClick(commit.branch)} } className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
+        {has_branch ? commit.branch : 'master'}
       </Button>
     </span>
   }
@@ -127,7 +128,7 @@ class CommitInfoCompareCard extends React.PureComponent {
     let ref_ci_batch = (ref_commit && ref_commit.batches && ref_commit.batches[ref_label]) || empty_batch;
 
     // let maybe_skeletton_class = !!new_commit ? Classes.SKELETON : null
-
+    const empty_commit_id = <span className={Classes.SKELETON}>XXXXXXXX</span>
     return (
       <Card elevation={4} style={{minHeight: '193px'}}>
         <div style={outer_div_style}>
@@ -135,7 +136,7 @@ class CommitInfoCompareCard extends React.PureComponent {
           <div style={{ flex: "1 1 auto", minWidth: "450px" }}>
             <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "baseline" }}>
               <CommitAvatar commit={new_commit} />
-              {(!!new_commit && !!new_commit.id) ? shortId(project, new_commit.id) : null}
+              {(!!new_commit && !!new_commit.id) ? shortId(project, new_commit.id) : empty_commit_id}
             </h1>
             <CommitBranchButton commit={new_commit} onClick={this.handleSubmitBranch}/>
             <CommitParents commit={new_commit} project={project} onClick={this.handleSubmitReference} />
@@ -147,6 +148,7 @@ class CommitInfoCompareCard extends React.PureComponent {
             <CommitMessage
               commit={new_commit}
               style={{maxWidth: "450px"}}
+              is_loaded={new_commit && new_commit.id && !this.props.commits[new_commit.id].is_loaded}
               on_refresh={() => this.props.dispatch(fetchCommit(project, new_commit.id, "new_commit_id")) }
             />
           </div>
@@ -167,7 +169,7 @@ class CommitInfoCompareCard extends React.PureComponent {
                 intent={Intent.PRIMARY}
                 defaultValue={shortId(project, ref_commit.id)}
               />}
-              {(!ref_commit || !ref_commit.id) && <span className={Classes.SKELETON}>XXXXXXXX</span>}
+              {(!ref_commit || !ref_commit.id) && empty_commit_id}
               <CommitAvatar commit={ref_commit} />
             </h1>
             <CommitBranchButton commit={new_commit} onClick={this.handleSubmitBranch} align_right/>
@@ -180,6 +182,7 @@ class CommitInfoCompareCard extends React.PureComponent {
             <CommitMessage
               commit={ref_commit}
               style={{ display: "flex", justifyContent: "flex-end", textAlign: "right"}}
+              is_loaded={ref_commit && ref_commit.id && this.props.commits[ref_commit.id].is_loaded}
               on_refresh={() => this.props.dispatch(fetchCommit(project, ref_commit.id, "ref_commit_id")) }
             />
           </div>
@@ -208,4 +211,4 @@ class CommitInfoCompareCard extends React.PureComponent {
 
 }
 
-export default connect(state => ({selected: state.selected}))(CommitInfoCompareCard)
+export default connect(state => ({selected: state.selected, commits: state.commits}))(CommitInfoCompareCard)
