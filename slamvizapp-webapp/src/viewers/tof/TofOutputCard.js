@@ -167,6 +167,7 @@ class TofOutputCard extends Component {
     this.controls.maxDistance = 5 * 1000;
 
     window.addEventListener("keypress", this.keyboard);
+    // remove all children of threeRoot ?
     this.threeRoot.appendChild(this.renderer.domElement);
 
     if (!this.frameId) {
@@ -299,6 +300,7 @@ class TofOutputCard extends Component {
             <a
               href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
               target="_blank"
+              rel="noopener noreferrer"
             >
               Frame {selected_frame}
             </a>

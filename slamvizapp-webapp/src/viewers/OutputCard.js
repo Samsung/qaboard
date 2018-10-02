@@ -108,6 +108,7 @@ class OutputTags extends React.PureComponent {
         title="Show output files"
         style={{ marginLeft: "4px" }}
         target="_blank"
+        rel="noopener noreferrer"
         href={output_dir_url}
       >
         <Icon icon="download" style={{verticalAlign: 'baseline'}}/>
