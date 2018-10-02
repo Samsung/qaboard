@@ -198,7 +198,7 @@ def add_batch(hexsha):
         [
             "#!/bin/bash\n",
             f'bsub_su {data.get("user", "arthurf")} -q {queue} -sp 4000 ',  # highest priority
-            f'-o "{batch.output_dir}/lsf.log" ',
+            f'-o "{batch.output_dir}/log.txt" ',
             '<< "EOF"\n',
             f'  cd "{working_directory}";\n',
             # options specific to android
