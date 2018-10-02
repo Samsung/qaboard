@@ -135,8 +135,13 @@ def run(ctx, input_path, output_path, forwarded_args):
     if not ctx.obj['no_qa_database']:
         notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
+    start = time.time()
     try:
-      runtime_metrics = entrypoint_module.run(ctx)
+      runtime_metrics = {
+       'compute_time': time.time()-start,
+        **entrypoint_module.run(ctx),
+      }
+
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'[ERROR] The `run` function in {entrypoint} raised an exception:', fg='red', bold=True)
@@ -194,7 +199,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
-@click.option('--group', '-g', default=['small'], multiple=True, help="We run over all recordings in those groups")
+@click.option('--group', '-g', multiple=True, help="We run over all recordings in those groups")
 @click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')

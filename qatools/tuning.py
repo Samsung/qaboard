@@ -180,6 +180,8 @@ def batch_objective(batch_label, config_objective):
 
   objective = 0
   for metric, options in config_objective.items():
+    if metric == 'target': # this is a special key, not a metric 
+      continue
     if options is None:
       options = {}
     loss_name = options.get('loss', 'identity')
