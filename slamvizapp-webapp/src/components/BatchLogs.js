@@ -86,7 +86,7 @@ class OutputLog extends Component {
     );
     const details = Object.entries(output.extra_parameters).map(([k, v]) => (
       <Tag key={k} intent={Intent.PRIMARY} minimal round>
-        {k}:{v}
+        {k}:{JSON.stringify(v)}
       </Tag>
     ));
     const download_link = <a
