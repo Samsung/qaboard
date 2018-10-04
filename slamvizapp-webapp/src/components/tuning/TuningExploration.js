@@ -606,6 +606,16 @@ class TuningExploration extends Component {
           </HTMLSelect>
         </FormGroup>
 
+        {batch_data.optimization && <>
+          <h4>Convergence</h4>
+          <img height={250} alt="not yet available" src={`${batch.output_dir_url}/plot_convergence.png`}/>
+          <h4>Parameters' importance</h4>
+          <img alt="not yet available" src={`${batch.output_dir_url}/plot_objective.png`}/>
+          <h4>How we sampled the search space</h4>
+          <img alt="not yet available" src={`${batch.output_dir_url}/plot_evaluations.png`}/>
+        </>}
+
+
         <h4 className={Classes.HEADING}>Sensibility to tuning parameters</h4>
         <FormGroup
           inline

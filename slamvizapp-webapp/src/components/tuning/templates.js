@@ -40,8 +40,10 @@ return events_per_frame.map(e => ({
 evaluations: 50
 
 # You can optimize objective functions of the form:
+#
 #       ∑     weight * reduce(   ⋃     loss(metric, target) ) / #outputs
-#    metrics                   inputs
+#    metrics                   outputs
+#
 
 objective:
   ${metrics.default_metric}:
