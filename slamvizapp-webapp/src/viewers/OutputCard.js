@@ -169,8 +169,9 @@ class OutputViewer extends React.Component {
 class OutputCard extends Component {
   render() {
     const { main_metrics, available_metrics } = this.props.project_data.information.qatools_metrics;
-    const { output_new, output_ref, warning, controls } = this.props;
+    const { output_new, output_ref, warning } = this.props;
     const { qatools_config } = this.props.project_data.information;
+    const controls = this.props.controls || {};
 
     // layout should be plotly-like. You could also pass down a props named style.
     if (!output_new || output_new.is_failed || output_new.is_pending)
@@ -178,8 +179,8 @@ class OutputCard extends Component {
 
     const views = qatools_config.outputs.detailed_views || [];
     const style = {
-      ...this.props.style,
       ...qatools_config.outputs.style,
+      ...this.props.style,
     }
 
     let viewers = views.map( (view, idx) => {
