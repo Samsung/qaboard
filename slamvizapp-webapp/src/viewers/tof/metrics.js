@@ -129,7 +129,7 @@ const available_metrics = {
 };
 
 // will be shown proeminently in the index page, and first for tuning exploration
-const default_metric = "pcmd_median";
+const default_metric = "pcmd_mean";
 // will be shown in the summary histogramms of each commit
 const summary_metrics = [
   "is_failed",
