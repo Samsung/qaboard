@@ -10,6 +10,36 @@ const available_metrics = {
     plot_scale: "linear"
   },
 
+  area_mtf_mean: {
+    key: "area_mtf_mean",
+    label: "Average area MTF",
+    short_label: "MTF avg",
+    scale: 1,
+    suffix: "",
+    target: 20000,
+    smaller_is_better: false
+  },
+
+  snr_mean: {
+    key: "snr_mean",
+    label: "Average SNR",
+    short_label: "SNR avg",
+    scale: 1,
+    suffix: "db",
+    target: 40,
+    smaller_is_better: false
+  },
+
+  precision_mean: {
+    key: "precision_mean",
+    label: "Average precision",
+    short_label: "precision avg",
+    scale: 1,
+    suffix: "cm",
+    target: 0.1,
+    smaller_is_better: true
+  },
+
   rmse_mean: {
     key: "rmse_mean",
     label: "Average RMSE",
@@ -75,7 +105,7 @@ const available_metrics = {
     short_label: "Processing Med",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_q95: {
@@ -99,7 +129,7 @@ const available_metrics = {
 };
 
 // will be shown proeminently in the index page, and first for tuning exploration
-const default_metric = "rmse_median";
+const default_metric = "pcmd_median";
 // will be shown in the summary histogramms of each commit
 const summary_metrics = [
   "is_failed",
@@ -111,8 +141,8 @@ const summary_metrics = [
   "processing_time_q95"
 ];
 // will be shown in the table and 6dof output cards
-const main_metrics = ["rmse_mean", "pcmd_mean"];
-const dashboard_metrics = ["is_failed", "rmse_mean", "rmse_median"];
+const main_metrics = ["rmse_mean", "pcmd_mean", "area_mtf_mean", "snr_mean", "precision_mean"];
+const dashboard_metrics = ["pcmd_mean"];
 
 export {
   available_metrics,
