@@ -310,7 +310,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
   ctx.obj['forwarded_args'] = forwarded_args
 
   from shutil import rmtree
-  from .tuning import init_optimization
+  from .tuning import init_optimization, make_plots
   from .api import aggregated_metrics
   objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
 
@@ -378,6 +378,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
               },
           },
         })
+        make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
       else:
         # We remove the results to make sure we don't waste disk space
         rmtree(iteration_batch_dir, ignore_errors=True)
@@ -387,7 +388,6 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
     return
 
   # tuning plots are saved in the label directory
-  from .tuning import make_plots
   make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
 
 
