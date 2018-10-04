@@ -44,18 +44,8 @@ class Job:
     If you write a tool using this function, please don't use the default `mail_to` :)
     """
         if on_windows:
-            click.secho(
-                "Error: Sending jobs to LSF from Windows was not implemented",
-                fg="red",
-                err=True,
-            )
-            click.secho(
-                "It could be done: 1. create a tar.gz-ball, 2. send it via scp, send the LSF jobs via SSH.\n"
-                "Talk to @arthurf for details, or create a merge request!",
-                dim=True,
-                err=True,
-            )
-            exit(1)
+            subprocess.run(self.command)
+            return
 
         if dependencies:
             dependencies_expression = " && ".join(
