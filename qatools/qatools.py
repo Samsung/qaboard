@@ -378,7 +378,10 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
               },
           },
         })
-        make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+        try:
+          make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+        except:
+          pass
       else:
         # We remove the results to make sure we don't waste disk space
         rmtree(iteration_batch_dir, ignore_errors=True)
