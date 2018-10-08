@@ -108,7 +108,7 @@ ci_dir = Path(ci_root) / config['project']['name']
 
 # we find were we should save our results
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
-    commit_ci_postfix = None
+    commit_ci_dirname = None
     commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
     commit = None
     repo = None
@@ -120,10 +120,10 @@ else:
         except: # just to make `qa` work in the sample_project
             repo = git.Repo('../..')
         commit = repo.head.commit
-        commit_ci_postfix = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
-        commit_ci_dir = ci_dir / 'commits' / commit_ci_postfix
+        commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
+        commit_ci_dir = ci_dir / 'commits' / commit_ci_dirname
     except:
-        commit_ci_postfix = None
+        commit_ci_dirname = None
         commit_ci_dir = Path()
         commit = None
         repo = None
@@ -141,6 +141,8 @@ if is_ci:
     # CI_*/GIT_* variables are set by GitlabCI/JenkinsGit
     commit_id = os.getenv('CI_COMMIT_SHA', os.getenv('GIT_COMMIT', Path().resolve().name ))
     commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH'))
+    reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH'))
+    branch_ci_dir = ci_dir / 'branches' / reference_slug
 else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
@@ -148,6 +150,7 @@ else:
     commit_id = '<local>'
     user = os.getenv('USERNAME', os.environ.get('USER'))
     commit_branch = f'<local:{user}>'
+    branch_ci_dir = Path()
 
 if verbose:
     click.secho(f'commit_type: {commit_type}', dim=True, err=True)
