@@ -9,7 +9,7 @@ import json
 import yaml
 import importlib
 from pathlib import Path
-from traceback import format_exception
+import traceback
 
 import click
 
@@ -24,7 +24,8 @@ from .utils import make_hash
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config, database, platform
-from .config import  commit_id, commit_ci_dir, repo, is_ci, commit_ci_postfix
+from .config import commit_id, commit_ci_dir, branch_ci_dir
+from .config import repo, is_ci
 
 entrypoint = Path(config['project']['entrypoint'])
 try:
@@ -34,7 +35,6 @@ try:
     entrypoint_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(entrypoint_module)
 except Exception as e:
-    import traceback
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
@@ -254,7 +254,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           f'--platform "{ctx.obj["platform"]}"',
           f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f'--configuration "{input_configuration}"',
-          f'--tuning-filepath "{tuning_file}"' if tuning_file else '',
+          f'--tuning-filepath "{tuning_file}"' if tuning_params else '',
           'run' if should_run else 'postprocess',
           f'--input-path "{input_path}"',
           f'--output-path "{output_directory}"',
