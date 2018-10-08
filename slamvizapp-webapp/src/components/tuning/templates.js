@@ -41,9 +41,10 @@ evaluations: 50
 
 # You can optimize objective functions of the form:
 #
-#       ∑     weight * reduce(   ⋃     loss(metric, target) ) / #outputs
-#    metrics                   outputs
+#  argmin        ∑     weight * reduce(   ⋃     loss(metric, target) ) / #outputs
+#  params     metrics                   outputs
 #
+
 
 objective:
   ${metrics.default_metric}:
@@ -52,12 +53,19 @@ objective:
     #     | l1
     #     | l2
     #     | relu   # => relu(sum)
-    loss: identity # error, target => error
-    #   | shift    # error, target => error-target
-    #   | relative # error, target => error-target / target
+    # 
+    # Some metrics need to be maximized, not minimized.
+    # This is defined via "smaller_is_better" in qatools' metrics configuration file.
+    #     ɛ = 1 if smaller_is_better else -1
+    #
+    loss: identity # error, target => ɛ * error
+    #   | shift    # error, target => ɛ * error-target
+    #   | relative # error, target => ɛ * error-target / target
     #   | relu_X   # error, target => relu(X(error, target))  eg relu_identity, relu_shift, relu_relative
     #   | square_X # error, target => X(error, target) ^2     eg square_relative, square_relu_relative
-    # Note: loss <- loss if not smaller_is_better
+    #
+    #       if not smaller_is_better in qatools's configuration,
+    #       we redefine the 'loss = -loss'
 
   # ${(metrics.main_metrics.length > 0 && metrics.main_metrics[1]) || 'metric2'}:
   #   ...
