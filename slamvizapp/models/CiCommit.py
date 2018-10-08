@@ -126,22 +126,22 @@ class CiCommit(Base):
   @staticmethod
   def get_or_create(session, hexsha, repo):
     try:
-      commit = repo.commit(hexsha)
-    except:
-      raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
-    try:
       return session.query(CiCommit).filter_by(id=commit.hexsha).one()
     except NoResultFound:
       try:
+        try:
+          commit = repo.commit(hexsha)
+        except:
+          raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
         ci_commit = CiCommit(commit)
         # session.add(ci_commit)
         # session.commit()
         return ci_commit
       except ValueError:
-        raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
+        raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
       if ci_commit is None:
         raise (ValueError, f'[ERROR] something is wrong,\
-                             maybe an error opening param.json for {commit.hexsha}')
+                             maybe an error opening param.json for {hexsha}')
 
 
   def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):
