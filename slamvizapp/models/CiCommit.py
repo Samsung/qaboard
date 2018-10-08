@@ -124,13 +124,13 @@ class CiCommit(Base):
 
 
   @staticmethod
-  def get_or_create(session, hexsha, repo):
+  def get_or_create(session, hexsha, project_id):
     try:
-      return session.query(CiCommit).filter_by(id=commit.hexsha).one()
+      return session.query(CiCommit).filter_by(id=hexsha).one()
     except NoResultFound:
       try:
         try:
-          commit = repo.commit(hexsha)
+          commit = repos[project_id].commit(hexsha)
         except:
           raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
         ci_commit = CiCommit(commit)

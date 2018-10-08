@@ -19,7 +19,7 @@ def update_batch():
     ci_commit = CiCommit.get_or_create(
       session=db_session,
       hexsha=request.json['git_commit_sha'],
-      repo=repos[request.json.get('project', 'dvs/psp_swip')],
+      project_id=request.json.get('project', 'dvs/psp_swip'),
     )
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
@@ -62,7 +62,7 @@ def new_output_webhook():
     ci_commit = CiCommit.get_or_create(
       session=db_session,
       hexsha=request.json['git_commit_sha'],
-      repo=repos[request.json.get('project', 'dvs/psp_swip')],
+      project_id=request.json.get('project', 'dvs/psp_swip'),
     )
   except:
     return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
@@ -116,6 +116,7 @@ def new_output_webhook():
 
   db_session.add(output)
   db_session.commit()
+  print('-----------------')
   return "OK"
 
 
