@@ -153,6 +153,7 @@ def add_batch(hexsha):
             / "develop"
             / project_id.split("/")[1]
         )
+        do_optimize = False
     else:
         config = ci_commit.project.information["qatools_config"]
         working_directory = ci_commit.commit_dir
