@@ -317,9 +317,7 @@ class CiCommitResults extends Component {
                           !this.props.filter_batch_new
                             ? "You can filter outputs by all their properties. "
                             : ""
-                        }${
-                          Object.keys(new_batch_filtered.outputs || []).length
-                        } selected`}
+                        }${(Object.values(new_batch_filtered.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length} selected`}
                       >
                         <InputGroup
                           value={this.props.filter_batch_new}
@@ -349,7 +347,7 @@ class CiCommitResults extends Component {
                       <FormGroup
                         labelFor="filter-ref-input"
                         helperText={`${
-                          Object.keys(ref_batch_filtered.outputs || []).length
+                          (Object.values(ref_batch_filtered.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length
                         } selected.`}
                       >
                         <InputGroup
