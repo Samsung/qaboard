@@ -142,7 +142,10 @@ if is_ci:
     commit_id = os.getenv('CI_COMMIT_SHA', os.getenv('GIT_COMMIT', Path().resolve().name ))
     commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH'))
     reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH'))
-    branch_ci_dir = ci_dir / 'branches' / reference_slug
+    try:
+        branch_ci_dir = ci_dir / 'branches' / reference_slug
+    except:
+        branch_ci_dir = Path()
 else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
