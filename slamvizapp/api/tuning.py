@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
-from slamvizapp import app, repos, db_session
+from slamvizapp import app, db_session
 from ..models import CiCommit, Project
 from ..utils import iter_recordings
 from ..config import shared_data_directory
@@ -105,7 +105,6 @@ def add_batch(hexsha):
     data = request.get_json()
 
     try:
-        commit = repos[project_id].commit(hexsha)
         ci_commit = CiCommit.query.filter(
             CiCommit.project_id == project_id, CiCommit.id.startswith(hexsha)
         ).one()
