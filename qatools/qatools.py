@@ -126,9 +126,18 @@ def run(ctx, input_path, output_path, forwarded_args):
     """
     import time
     if not output_path:
-        output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+        abs_input_path = ctx['database'] / input_path
+        if not abs_input_path.exists():
+            click.secho("[ERROR] {abs_input_path} cannot be found", fg='red')
+            exit(1)
+        if abs_input_path.is_file():
+            output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+        else:
+            output_path = ctx.obj['prefix_output_dir'] / input_path
     else:
+        # FIXME: if output_path is absolute, it should be just output_path?
         output_path = commit_ci_dir / output_path
+
     ctx.obj['input_path'] =  input_path
     ctx.obj['output_directory'] =  output_path
     ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
