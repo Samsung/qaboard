@@ -85,7 +85,7 @@ class Job:
                 "\nEOF",
             ]
         )
-        click.secho(q_command, dim=True)
+        # click.secho(q_command, dim=True)
 
         out = subprocess.run(
             q_command,
@@ -94,7 +94,7 @@ class Job:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        click.secho(out.stdout)
+        # click.secho(out.stdout)
         return out
 
 def kill_jobs(jobs, on_lsf=False):
