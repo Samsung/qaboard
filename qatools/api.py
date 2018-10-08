@@ -6,6 +6,7 @@ from pathlib import Path
 import json
 from functools import lru_cache
 
+import click
 import requests
 import numpy as np
 
