@@ -112,12 +112,12 @@ def make_loss(metric, options):
   loss = options.get('loss', 'identity')
   smaller_is_better = available_metrics[metric].get('smaller_is_better', True)
   sign_inversion = (1 if smaller_is_better else -1)
-  if loss=='identity':
-    loss_inner=lambda x, x_t: x * sign_inversion
+  if loss == 'identity':
+    loss_inner = lambda x, x_t: x * sign_inversion
   elif 'shift' in loss:
-    loss_inner=lambda x, x_t: (x - x_t) * sign_inversion
+    loss_inner = lambda x, x_t: (x - x_t) * sign_inversion
   elif 'relative' in loss:
-    loss_inner=lambda x, x_t: (x - x_t) / x_t * sign_inversion
+    loss_inner = lambda x, x_t: (x - x_t) / x_t * sign_inversion
 
   if 'relu' in loss:
     margin = options.get('margin', 0.0)
