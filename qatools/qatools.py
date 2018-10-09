@@ -169,7 +169,6 @@ def run(ctx, input_path, output_path, forwarded_args):
     if metrics['is_failed']:
       click.secho('[ERROR] Your program seems to have crashed.', fg='red', err=True)
       click.secho(str(metrics), fg='red')      
-      click.secho('Either `metrics.json` is missing in the output directory, or your postprocessing set "{is_failed: true}".', dim=True, err=True)
       exit(1)
 
     click.secho(str(metrics), fg='green')      
@@ -188,7 +187,7 @@ def postprocess_(runtime_metrics, context):
     metrics = {"is_failed": True}
 
   save_metrics(context.obj['output_directory'], **metrics)
-  if not context.obj['no_qa_database']:
+  if not context.obj['no_qa_database'] and not context.obj.get('dryrun'):
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
   return metrics
 

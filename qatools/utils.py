@@ -28,7 +28,6 @@ def save_metrics(output_directory, **kwargs):
     **old_metrics,
     **kwargs,
   }
-  print(new_metrics)
   with (output_directory/'metrics.json').open('w') as f:
       json.dump(new_metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
 
