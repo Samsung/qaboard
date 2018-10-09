@@ -19,7 +19,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
 
 from slamvizapp import app, repos, db_session
-from ..models import Project, CiCommit
+from ..models import Project, CiCommit, Batch
 from ..models.LocalMocks import LocalCommit
 from ..models import latest_successful_commit
 
