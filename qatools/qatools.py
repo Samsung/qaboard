@@ -220,9 +220,10 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--lsf-threads', default=0, type=int , help="restrict number of lsf threads to use. 0 = no restriction")
+@click.option('--skip-existing', is_flag=True , help="If true, skip the postprocess command on existing outputs")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, skip_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -258,6 +259,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         break
 
       should_run = overwrite or not_started(output_directory)
+      if not should_run and skip_existing:
+        continue
+
       command = ' '.join([
           f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
