@@ -164,9 +164,21 @@ def get_ci_commit(commit_id=None):
         commit = repo.commit(commit_id)
         ci_commit = CiCommit.query.filter(CiCommit.id.startswith(commit.hexsha)).one()
       else:
-        ci_commit = (CiCommit
-                     .query
-                     .options(joinedload(Batch.outputs))
+        # ci_commit = (CiCommit
+        #              .query
+        #              .options(joinedload(CiCommit.batches.outputs))
+        #              .filter(
+        #                CiCommit.project_id==project_id,
+        #                CiCommit.id.startswith(commit_id),
+        #              )
+        #              .one()
+        #             )
+        ci_commit = (db_session
+                     .query(CiCommit)
+                     .options(
+                       joinedload(CiCommit.batches).
+                       joinedload(Batch.outputs)
+                      )
                      .filter(
                        CiCommit.project_id==project_id,
                        CiCommit.id.startswith(commit_id),
