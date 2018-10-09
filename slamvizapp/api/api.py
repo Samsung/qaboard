@@ -165,7 +165,9 @@ def get_ci_commit(commit_id=None):
         ci_commit = CiCommit.query.filter(CiCommit.id.startswith(commit.hexsha)).one()
       else:
         ci_commit = (CiCommit
-                     .query.filter(
+                     .query
+                     .options(joinedload(Batch.outputs))
+                     .filter(
                        CiCommit.project_id==project_id,
                        CiCommit.id.startswith(commit_id),
                      )

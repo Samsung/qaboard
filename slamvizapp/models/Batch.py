@@ -27,7 +27,6 @@ class Batch(Base):
   label = Column(String(), default="default")
 
   outputs = relationship("Output",
-                         lazy='joined',
                          back_populates="batch",
                          cascade="all, delete-orphan"
                         )
