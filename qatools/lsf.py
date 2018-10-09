@@ -29,12 +29,13 @@ class Priority:
 class Job:
     """Wraps LSF jobs for convenience."""
 
-    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000):
+    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000, max_threads=0):
         self.name = str(name).replace(" ", "-").replace('"','')
         self.command = command
         self.log_file = log_dir / "log.txt"
         self.project = config["project"]["name"]
         self.priority = priority  # max: 4000, LSF-default: 2000
+        self.max_threads = max_threads
 
     def send(
         self, dependencies=None, interactive=False, mail_to=config["lsf"]["email"]
@@ -73,7 +74,8 @@ class Job:
                 f"-sp {self.priority}",
                 f'-J "{self.name}"',
                 f'-o "{self.log_file}"',
-                f"-R '\"{lsf_select}\"'",
+                f"-R \"affinity[thread({self.max_threads})]\"" if self.max_threads > 0 else "",
+                f"-R \"{lsf_select}\"",
                 f"-u{mail_to}" if mail_to else "",
                 dependencies_flag,
                 '<< EOF\n'
