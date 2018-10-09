@@ -51,7 +51,7 @@ class CiCommit(Base):
   def ci_batch(self):
     return self.get_or_create_batch('default')
 
-  # this helps us understand if we expect pending SLAM results
+  # this helps us understand if we expect pending results
   time_of_last_batch = Column(DateTime(timezone=True))
 
   latest_gitlab_pipeline = Column(String())
@@ -63,7 +63,10 @@ class CiCommit(Base):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override)
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
+    # if 'qatools_config' in self.project.information: 
+    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.id[:8]}'
+    # else:
+    #   commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
     return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
