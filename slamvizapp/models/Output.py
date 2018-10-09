@@ -38,7 +38,7 @@ class Output(Base):
   #### What we ran
   # Different output types (slam/6dof, cis/siemens...) are visualized differently
   output_type = Column(String())
-  test_input_id = Column(Integer(), ForeignKey('test_inputs.id'))
+  test_input_id = Column(Integer(), ForeignKey('test_inputs.id'), index=True)
   test_input = relationship("TestInput", lazy='joined', back_populates="outputs")
 
   platform = Column(String()) # lsf/s8/...
