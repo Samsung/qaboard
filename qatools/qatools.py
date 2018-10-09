@@ -2,14 +2,15 @@
 """
 CLI tool to runs various tasks related to QA.
 """
-import sys
 import os
+import time
+from pathlib import Path
+import sys
+import importlib
 import errno
+import traceback
 import json
 import yaml
-import importlib
-from pathlib import Path
-import traceback
 
 import click
 
@@ -27,24 +28,29 @@ from .config import config, database, platform
 from .config import commit_id, commit_ci_dir, branch_ci_dir
 from .config import repo, is_ci
 
-entrypoint = Path(config['project']['entrypoint'])
-try:
-    # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-    sys.path.append(str(entrypoint.parent)) # for imports from within the entrypoint's directory
-    spec = importlib.util.spec_from_file_location('entrypoint', entrypoint)
-    entrypoint_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(entrypoint_module)
-except Exception as e:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True)
-    click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
-    click.secho(
-        f'{entrypoint} must implement both `run` and `postprocess` functions.\n'
-        'Please read the tutorial, and ask @arthurf for help\n'
-        'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
-        dim=True, err=True)
-    exit(1)
 
+entrypoint = Path(config['project']['entrypoint'])
+def entrypoint_module():
+  """Lazily returns the entrypoint module"""
+  # TODO: make this lazy, so that qa starts without loading lots of big packages
+  # used in the entrypoint like numpy scipy etc
+  try:
+      # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+      sys.path.append(str(entrypoint.parent)) # for imports from within the entrypoint's directory
+      spec = importlib.util.spec_from_file_location('entrypoint', entrypoint)
+      module = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(module)
+  except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
+      click.secho(
+          f'{entrypoint} must implement both `run` and `postprocess` functions.\n'
+          'Please read the tutorial, and ask @arthurf for help\n'
+          'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
+          dim=True, err=True)
+      exit(1)
+  return module
 
 # we want open permissions on outputs and artifacts
 # it makes collaboration among mutliple users / automated tools so much easier...
@@ -100,9 +106,9 @@ def get(ctx, input_path, output_path, variable):
   """Prints the value of the requested variable."""
   try:
     if not output_path:
-        output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+        output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
     else:
-        output_path = commit_ci_dir / output_path
+        output_directory = commit_ci_dir / output_path
   except:
     pass
   locals().update(globals())
@@ -118,29 +124,25 @@ def get(ctx, input_path, output_path, variable):
 ))
 @click.pass_context
 @click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def run(ctx, input_path, output_path, forwarded_args):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
-    import time
     if not output_path:
-        abs_input_path = ctx['database'] / input_path
+        abs_input_path = ctx.obj['database'] / input_path
         if not abs_input_path.exists():
             click.secho("[ERROR] {abs_input_path} cannot be found", fg='red')
             exit(1)
-        if abs_input_path.is_file():
-            output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
-        else:
-            output_path = ctx.obj['prefix_output_dir'] / input_path
+        output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
     else:
         # FIXME: if output_path is absolute, it should be just output_path?
-        output_path = commit_ci_dir / output_path
+        output_directory = commit_ci_dir / output_path
 
+    output_directory.mkdir(parents=True, exist_ok=True)
+    ctx.obj['output_directory'] =  output_directory
     ctx.obj['input_path'] =  input_path
-    ctx.obj['output_directory'] =  output_path
-    ctx.obj['output_directory'].mkdir(parents=True, exist_ok=True)
     ctx.obj['forwarded_args'] = forwarded_args
     if not ctx.obj['no_qa_database']:
         notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
@@ -149,7 +151,7 @@ def run(ctx, input_path, output_path, forwarded_args):
     try:
       runtime_metrics = {
        'compute_time': time.time()-start,
-        **entrypoint_module.run(ctx),
+        **entrypoint_module().run(ctx),
       }
 
     except Exception as e:
@@ -159,24 +161,27 @@ def run(ctx, input_path, output_path, forwarded_args):
       exit(1)
 
     metrics = postprocess_(runtime_metrics, ctx)
-    print(metrics)
 
     if 'is_failed' not in metrics:
-      click.secho("[ERROR] Please have the postprocessing return among its metrics `is_failed` (bool)", fg='red')
+      click.secho("[ERROR] The result of the `postprocess` misses a key `is_failed` (bool)", fg='red')
       exit(1)
 
     if metrics['is_failed']:
       click.secho('[ERROR] Your program seems to have crashed.', fg='red', err=True)
+      click.secho(str(metrics), fg='red')      
       click.secho('Either `metrics.json` is missing in the output directory, or your postprocessing set "{is_failed: true}".', dim=True, err=True)
       exit(1)
+
+    click.secho(str(metrics), fg='green')      
 
 
 def postprocess_(runtime_metrics, context):
   """Computes computes various success metrics and outputs."""
   try:
-    metrics = entrypoint_module.postprocess(runtime_metrics, context)
+    metrics = entrypoint_module().postprocess(runtime_metrics, context)
   except Exception as e:
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
+    # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
@@ -197,11 +202,11 @@ def postprocess_(runtime_metrics, context):
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   if not output_path:
-    output_path = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+    output_directory = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
   else:
-    output_path = commit_ci_dir / output_path
+    output_directory = commit_ci_dir / output_path
   ctx.obj['input_path'] =  input_path
-  ctx.obj['output_directory'] =  output_path
+  ctx.obj['output_directory'] =  output_directory
   ctx.obj['forwarded_args'] = forwarded_args
   postprocess_({}, ctx)
 
