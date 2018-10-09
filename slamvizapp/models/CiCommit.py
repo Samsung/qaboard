@@ -64,7 +64,7 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override)
     # if 'qatools_config' in self.project.information: 
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.id[:8]}'
+    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
     # else:
     #   commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
     return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
