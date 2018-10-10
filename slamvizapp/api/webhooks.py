@@ -100,8 +100,6 @@ def new_output_webhook():
   if Path(data.get('output_directory', output.output_dir)) != output.output_dir:
     output.output_dir_override = data.get('output_directory')
 
-  output.is_failed = data.get('is_failed', False)
-
   # We update the output's status
   output.is_running = data.get('is_running', False)
   if output.is_running:
@@ -116,6 +114,7 @@ def new_output_webhook():
       output.update_metrics()
     else:
       output.metrics = metrics
+    output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')
 
   db_session.add(output)
   db_session.commit()
