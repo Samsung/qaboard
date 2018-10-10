@@ -198,7 +198,7 @@ def add_batch(hexsha):
         [
             "#!/bin/bash\n",
             f'bsub_su {data.get("user", "arthurf")} -q {queue} ',
-            '-W 24:00' if do_optimize else '-sp 4000 ', # highest priority for manual runs
+            '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
             f'-o "{batch.output_dir}/log.txt" ',
             '<< "EOF"\n',
             f'  cd "{working_directory}";\n',
