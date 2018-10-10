@@ -433,17 +433,23 @@ def save_artifacts():
 
   for artifact_name, artifact_config in config['artifacts'].items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
-    for path in Path('.').glob(artifact_config['glob']):
-      if not path.is_file():
-        continue
-      destination = commit_ci_dir / path
-      if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
-        continue
-      click.secho(str(path), dim=True)
-      destination.parent.mkdir(parents=True, exist_ok=True)
-      shutil.copy(str(path), str(destination))
-      # we already use umask 0, but just to be sure, we set the permissions to be open
-      os.chmod(destination, 0o777)
+    globs = artifact_config['glob']
+    if not isinstance(globs, list):
+      globs = [globs]
+    print(globs)
+
+    for g in globs:
+      for path in Path('.').glob(g):
+        if not path.is_file():
+          continue
+        destination = commit_ci_dir / path
+        if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
+          continue
+        click.secho(str(path), dim=True)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(str(path), str(destination))
+        # we already use umask 0, but just to be sure, we set the permissions to be open
+        os.chmod(destination, 0o777)
 
 
 @cli.command()
