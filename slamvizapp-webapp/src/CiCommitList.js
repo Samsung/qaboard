@@ -116,16 +116,6 @@ class CiCommitList extends React.Component {
     var information = (
       <>
         <Section>
-          {project !== "dvs/psp_swip" && project !== "tof/swip_tof" && <Callout
-              icon="info-sign"
-              intent={Intent.PRIMARY}
-              title="Want to view your CI results here?"
-              style={{ marginBottom: "20px" }}
-            >
-              <p>
-                Read the <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools introduction</a>.
-              </p>
-            </Callout>}
           <Callout
             icon="info-sign"
             intent={Intent.PRIMARY}
