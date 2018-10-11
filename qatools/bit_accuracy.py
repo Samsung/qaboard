@@ -37,7 +37,7 @@ def assert_bit_accurate_to(reference_commit):
     reference_folder = f'{reference_commit.authored_date}__git__{reference_commit.hexsha[:8]}'
     reference_output_directory = ci_dir / "commits" / reference_folder / "output"
     if is_ci:
-      output_directory = ci_commit_dir / "output"
+      output_directory = commit_ci_dir / "output"
     else:
       output_directory = Path() / "output"
     
