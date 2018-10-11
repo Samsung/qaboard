@@ -436,7 +436,6 @@ def save_artifacts():
     globs = artifact_config['glob']
     if not isinstance(globs, list):
       globs = [globs]
-    print(globs)
 
     for g in globs:
       for path in Path('.').glob(g):
