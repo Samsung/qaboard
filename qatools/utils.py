@@ -53,10 +53,7 @@ def make_hash(obj):
 
 
 def batch_dir(commit_ci_dir, batch_label, tuning):
-  if not tuning:
-    batch_folder = Path('output') if batch_label == 'default' else Path('output') / slugify(batch_label)
-  else:
-    batch_folder = Path('tuning') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return commit_ci_dir / batch_folder if is_ci else batch_folder
 
 
