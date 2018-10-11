@@ -211,7 +211,7 @@ def add_batch(hexsha):
             # Make sure qatools doesn't complain about not being in a git repository,
             f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
             # Make sure qatools knows where to save results
-            f"  export {'SAMSUNG_CI_COMMIT_DIR' if project_id=="dvs/psp_swip" else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n  ",
+            f"  export {'SAMSUNG_CI_COMMIT_DIR' if project_id=='dvs/psp_swip' else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n  ",
             batch_command,
             "EOF",
         ]
