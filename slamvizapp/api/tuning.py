@@ -66,10 +66,7 @@ def get_group():
     project = Project.get_or_create(session=db_session, id=project_id)
     groups_path = get_groups_path(project_id)
     try:
-        # FIXME: use qatools for those projects, and remove this code
-        # that does the same (but with a different signature, and doesn't parse per-test config)
-        is_legacy_project = project_id in ["dvs/psp_swip", "tof/swip_tof"]
-        if is_legacy_project:
+        if project_id == "dvs/psp_swip":
             tests = list(
                 iter_recordings(
                     [request.args.get("name", "")],
@@ -111,8 +108,7 @@ def add_batch(hexsha):
     except NoResultFound:
         return jsonify("Sorry, the commit id was not found"), 404
 
-    is_legacy_project = project_id in ["dvs/psp_swip", "tof/swip_tof"]
-    if "qatools_config" not in ci_commit.project.information and not is_legacy_project:
+    if "qatools_config" not in ci_commit.project.information and not project_id == "dvs/psp_swip":
         return jsonify("Please configure `qatools first`"), 404
 
     now = datetime.datetime.now()
@@ -128,7 +124,7 @@ def add_batch(hexsha):
     if not batch.output_dir.exists(): batch.output_dir.mkdir(exist_ok=True, parents=True)
 
     overwrite = "--overwrite" if data["overwrite"] == "on" else ""
-    if is_legacy_project:
+    if project_id=="dvs/psp_swip":
         batch_command = " ".join(
             [
                 "python tools/performance-evaluation/run.py",
@@ -191,7 +187,7 @@ def add_batch(hexsha):
     # To avoid issues with quoting, we write a script to run the batch,
     # and execute it with bsub/LSF 
     # We could also play with heredocs-within-heredocs, but it is painful, and this way we get logs
-    queue = "alg_q" if is_legacy_project else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
+    queue = "alg_q" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
     # openstf is our Android device farm
     use_openstf = data["android_device"].lower() == "openstf"
     batch_script = "".join(
@@ -215,7 +211,7 @@ def add_batch(hexsha):
             # Make sure qatools doesn't complain about not being in a git repository,
             f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
             # Make sure qatools knows where to save results
-            f"  export {'SAMSUNG_CI_COMMIT_DIR' if is_legacy_project else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n  ",
+            f"  export {'SAMSUNG_CI_COMMIT_DIR' if project_id=="dvs/psp_swip" else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n  ",
             batch_command,
             "EOF",
         ]
