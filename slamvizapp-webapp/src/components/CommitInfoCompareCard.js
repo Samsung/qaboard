@@ -173,7 +173,7 @@ class CommitInfoCompareCard extends React.PureComponent {
               {(!ref_commit || !ref_commit.id) && empty_commit_id}
               <CommitAvatar commit={ref_commit} />
             </h1>
-            <CommitBranchButton commit={new_commit} onClick={this.handleSubmitBranch} align_right/>
+            <CommitBranchButton commit={ref_commit} onClick={this.handleSubmitBranch} align_right/>
             <div style={{ marginTop: "10px", textAlign: "right" }}>
               <DoneAtTag commit={ref_commit} />{" "}
               <BatchTags batch={ref_ci_batch}/>
