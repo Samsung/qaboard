@@ -1,6 +1,6 @@
 import React, { Component, Fragment } from "react";
 import { get, all } from "axios";
-import { Classes, Spinner, NonIdealState } from "@blueprintjs/core";
+import { Classes, NonIdealState } from "@blueprintjs/core";
 
 import AceEditor from "react-ace";
 
@@ -14,24 +14,6 @@ import "brace/ext/searchbox";
 // import 'brace/ext/language_tools';
 // https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
 
-
-// var project_qatools_config = (localStorage.project_qatools_config !==undefined && new Map(JSON.parse(localStorage.project_qatools_config))) || new Map([])
-// // for projects build without qatools
-// const default_qatools_config = {
-//   artifacts: {
-//     configurations: {
-//       glob: '*.json'
-//     }
-//   }
-// }
-// const hardcoded_qatools_config = new Map([
-//   ["dvs/psp_swip", default_qatools_config],
-//   ["tof/swip_tof", default_qatools_config]
-// ]);
-// project_qatools_config = new Map([...hardcoded_qatools_config, ...project_qatools_config])
-
-// get list of artifact files
-// read them
 
 class CommitParameters extends Component {
   constructor(props) {
@@ -97,7 +79,7 @@ class CommitParameters extends Component {
   render() {
     const { isLoaded, error, parameters } = this.state;
 
-    if (!isLoaded) return <Spinner />;
+    if (!isLoaded) return <span />;
     if (error)
       return (
         <NonIdealState
