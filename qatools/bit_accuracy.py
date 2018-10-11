@@ -34,7 +34,7 @@ def compare_folders(dir_1=Path(), dir_2=Path(), patterns=None):
 
 def assert_bit_accurate_to(reference_commit):
     """Throws if the results of the current output directory are not bit-accurate to the reference commit"""
-    reference_folder = f'{reference_commit.authored_date}__git__{reference_commit.hexsha[:8]}'
+    reference_folder = f'{reference_commit.authored_date}__{reference_commit.committer.name}__{reference_commit.hexsha[:8]}'
     reference_output_directory = ci_dir / "commits" / reference_folder / "output"
     if is_ci:
       output_directory = commit_ci_dir / "output"
