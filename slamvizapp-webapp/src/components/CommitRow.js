@@ -170,7 +170,7 @@ class CommitResults extends React.Component {
             {commit.batches["ci-android-rt"].valid_outputs} @android:ci
           </Tag>
         )}
-        {ci_batch.valid_outputs == 0 && <Link
+        {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
           to={`/commit/${commit.id}?project=${project}`}
           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
