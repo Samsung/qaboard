@@ -139,35 +139,18 @@ def gitlab_webhook():
   repo = repos[project_path]
   git_pull(repo)
 
-  try: # no work to do if our commit is already in the database
-    ci_commit = (db_session
-                 .query(CiCommit)
-                 .filter_by(id=data['checkout_sha'], project_id=project_path)
-                 .one()
+
+  # We get a handle on the matching Commit object
+  try:
+    ci_commit = CiCommit.get_or_create(
+      session=db_session,
+      hexsha=data['checkout_sha'],
+      project_id=project_path,
     )
-  except NoResultFound:
-    try:
-      commit = repo.commit(data['checkout_sha'])
-    except:
-      print('WARNING: could not find the git commit')
-
-    try: # the commit might have failed (eg no params.json available)
-      ci_commit = CiCommit(
-          commit,
-          project=project,
-          branch=branch,
-      )
-      print(ci_commit, file=sys.stderr)
-    except ValueError:
-      print(f'WARNING: could not create a commit for {commit.hexsha}')
-      return "{status:'OK'}"
-    if ci_commit is None: # something is wrong, maybe an error opening param.json
-      print(f'WARNING: ci_commit is None for {commit.hexsha}')
-      return "{status:'OK'}"
-
+  except:
+    return f"404 ERROR:\n there is an issue with your commit id ({data['git_commit_sha']})", 404
   db_session.add(ci_commit)
   db_session.commit()
-
 
   # we update the project configuration stored in the database
   # using the information found in this commit's qatools.yaml
