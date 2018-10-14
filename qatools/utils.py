@@ -16,23 +16,6 @@ class PathType(click.ParamType):
   def convert(self, value, param, ctx):
     return Path(value)
 
-
-def save_metrics(output_directory, **kwargs):
-  # the SLAM may already write here metrics like run-time, cpu usage...
-  if (output_directory/'metrics.json').exists():
-    with (output_directory/'metrics.json').open('r') as f:
-      old_metrics = json.load(f)
-  else:
-      old_metrics = {}
-  new_metrics = {
-    **old_metrics,
-    **kwargs,
-  }
-  with (output_directory/'metrics.json').open('w') as f:
-      json.dump(new_metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
-
-
-
 def latest_commit(repo, branch):
     """Returns the latest commit on a branch."""
     # FIXME: couldn't we just use the project's git repo URL from the configuration?

@@ -18,7 +18,7 @@ from .lsf import Job, running_lsf_job_names, Priority, kill_jobs
 from .api import notify_qa_database
 
 from .utils import batch_dir, make_prefix_outputs_path, load_tuning_search
-from .utils import save_metrics, iter_parameters, iter_recordings
+from .utils import iter_parameters, iter_recordings
 from .utils import PathType
 from .utils import make_hash
 
@@ -186,8 +186,13 @@ def postprocess_(runtime_metrics, context):
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
     metrics = {"is_failed": True}
 
-  save_metrics(context.obj['output_directory'], **metrics)
-  if not context.obj['no_qa_database'] and not context.obj.get('dryrun'):
+  if (context.obj['output_directory']/'metrics.json').exists():
+    with (context.obj['output_directory']/'metrics.json').open('r') as f:
+      metrics.update(json.load(f))
+  with (context.obj['output_directory']/'metrics.json').open('w') as f:
+      json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
+
+  if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
   return metrics
 
@@ -454,7 +459,7 @@ def save_artifacts():
 @cli.command()
 @click.option(
     "--reference-branch",
-    default=f"origin/{config['project']['reference_branch']}",
+    default=config['project']['reference_branch'],
 )
 def check_bit_accuracy(reference_branch):
     """
