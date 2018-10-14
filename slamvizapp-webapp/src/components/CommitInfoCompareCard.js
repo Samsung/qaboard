@@ -139,7 +139,7 @@ class CommitInfoCompareCard extends React.PureComponent {
 
           <div style={{ flex: "1 1 auto", minWidth: "450px" }}>
             <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "baseline" }}>
-              <CommitAvatar commit={new_commit} />
+              <CommitAvatar style={{'marginRight': '10px'}} commit={new_commit} />
               {(!!new_commit && !!new_commit.id) ? shortId(project, new_commit.id) : empty_commit_id}
             </h1>
             <CommitBranchButton commit={new_commit} onClick={this.handleSubmitBranch}/>
@@ -171,7 +171,7 @@ class CommitInfoCompareCard extends React.PureComponent {
                 defaultValue={shortId(project, ref_commit.id)}
               />}
               {(!ref_commit || !ref_commit.id) && right_empty_commit_id}
-              <CommitAvatar commit={ref_commit} />
+              <CommitAvatar style={{'marginLeft': '10px'}} commit={ref_commit} />
             </h1>
             <CommitBranchButton commit={ref_commit} onClick={this.handleSubmitBranch} align_right/>
             <div style={{ marginTop: "10px", textAlign: "right" }}>
