@@ -470,8 +470,6 @@ def check_bit_accuracy(reference_branch):
     from .config import commit, commit_branch, repo
     from .bit_accuracy import assert_bit_accurate_to
 
-    reference_branch_origin = f"origin/{reference_branch}"
-
     if config["project"]["type"] != "git":
         click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
         exit(1)
@@ -482,14 +480,18 @@ def check_bit_accuracy(reference_branch):
             fg='yellow', dim=True)
 
     if commit_branch != reference_branch:
+        click.secho(f'Comparing bit-accuracy versus the latest commit on {reference_branch}', fg='cyan', bold=True, err=True)
         assert assert_bit_accurate_to(
-            latest_commit(repo, reference_branch_origin)
+            latest_commit(repo, f"origin/{reference_branch}")
         ), "ERRROR: the bit-accuracy test has failed"
 
     # bit-accuracy on the reference branch is check on the commit's parents
     else:
         all_bit_accurate = True
+        click.secho(f'We are on branch {reference_branch}', fg='cyan', bold=True, err=True)
+        click.secho(f"Therefore, we check bit-accuracy against {commit}'s parents", fg='cyan', bold=True, err=True)
         for commit_ref in commit.parents:
+            click.secho(f"* bit-accuracy versus {commit_ref}:", fg='cyan', err=True)
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
