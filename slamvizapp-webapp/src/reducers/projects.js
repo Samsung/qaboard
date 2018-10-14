@@ -6,10 +6,9 @@ import {
   FETCH_COMMITS,
   UPDATE_COMMITS,
 } from '../actions/constants'
-import { default_project_id, default_project, slam_qatools_config, tof_qatools_config } from "../defaults"
+import { default_project_id, default_project, slam_qatools_config } from "../defaults"
 
 import * as slam_metrics from "../viewers/slam/metrics";
-import * as tof_metrics from "../viewers/tof/metrics";
 
 
 function update_project(state=default_project, data) {
