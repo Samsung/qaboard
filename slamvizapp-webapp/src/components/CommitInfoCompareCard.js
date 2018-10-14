@@ -85,11 +85,12 @@ class CommitParents extends React.PureComponent {
 
 class CommitMessage extends React.PureComponent {
   render() {
-    const { project, commit, style, on_refresh, is_loaded } = this.props;
+    const { project, commit, on_refresh, is_loaded } = this.props;
+    const style = {marginTop: "10px", ...this.props.style}
     if (!commit || !commit.message)
-      return <p className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`}>This is a placeholder for the commit message. Yep.</p>
+      return <p className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`} style={style}>This is a placeholder for the commit message. Yep.</p>
     return <>
-      <p style={{ marginTop: "10px", ...style}} className={Classes.MONOSPACE_TEXT} >
+      <p style={style} className={Classes.MONOSPACE_TEXT} >
         {commit.message}
       </p>
       <p style={style}>
@@ -129,6 +130,9 @@ class CommitInfoCompareCard extends React.PureComponent {
 
     // let maybe_skeletton_class = !!new_commit ? Classes.SKELETON : null
     const empty_commit_id = <span className={Classes.SKELETON}>XXXXXXXX</span>
+    const right_commit_id_style = {flex: "1 1 auto",margin: "auto",borderBottom: "2px solid rgb(100,100,100)"}
+    const right_empty_commit_id = <span style={right_commit_id_style} className={Classes.SKELETON}>XXXXXXXX</span>
+
     return (
       <Card elevation={4} style={{minHeight: '193px'}}>
         <div style={outer_div_style}>
@@ -161,16 +165,12 @@ class CommitInfoCompareCard extends React.PureComponent {
             <h1 className={Classes.HEADING} style={{ display: "flex", justifyContent: "flex-end", alignItems: "baseline"}}>
               {!!ref_commit && !!ref_commit.id &&
               <EditableText
-                style={{
-                  flex: "1 1 auto",
-                  margin: "auto",
-                  borderBottom: "2px solid rgb(100,100,100)"
-                }}
+                style={right_commit_id_style}
                 onConfirm={this.handleSubmitReference}
                 intent={Intent.PRIMARY}
                 defaultValue={shortId(project, ref_commit.id)}
               />}
-              {(!ref_commit || !ref_commit.id) && empty_commit_id}
+              {(!ref_commit || !ref_commit.id) && right_empty_commit_id}
               <CommitAvatar commit={ref_commit} />
             </h1>
             <CommitBranchButton commit={ref_commit} onClick={this.handleSubmitBranch} align_right/>
