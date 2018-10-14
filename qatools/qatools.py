@@ -487,7 +487,7 @@ def check_bit_accuracy(reference_branch):
     # bit-accuracy on the reference branch is check on the commit's parents
     else:
         all_bit_accurate = True
-        for commit_ref in reference_commit().parents:
+        for commit_ref in latest_commit(repo, reference_branch).parents:
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
