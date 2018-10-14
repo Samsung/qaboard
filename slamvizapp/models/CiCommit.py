@@ -62,7 +62,7 @@ class CiCommit(Base):
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override)
+      return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
     # if 'qatools_config' in self.project.information: 
     commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
     # else:
