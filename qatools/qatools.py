@@ -470,6 +470,8 @@ def check_bit_accuracy(reference_branch):
     from .config import commit_branch, repo
     from .bit_accuracy import assert_bit_accurate_to
 
+    reference_branch_origin = f"origin/{reference_branch}"
+
     if config["project"]["type"] != "git":
         click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
         exit(1)
@@ -479,15 +481,15 @@ def check_bit_accuracy(reference_branch):
             "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
             fg='yellow', dim=True)
 
-    if commit_branch not in [reference_branch, f"origin/{reference_branch}"]:
+    if commit_branch != reference_branch:
         assert assert_bit_accurate_to(
-            latest_commit(repo, reference_branch)
+            latest_commit(repo, reference_branch_origin)
         ), "ERRROR: the bit-accuracy test has failed"
 
     # bit-accuracy on the reference branch is check on the commit's parents
     else:
         all_bit_accurate = True
-        for commit_ref in latest_commit(repo, reference_branch).parents:
+        for commit_ref in latest_commit(repo, reference_branch_origin).parents:
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
