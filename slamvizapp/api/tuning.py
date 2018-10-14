@@ -1,6 +1,7 @@
 """
 APIs related to parameter tuning
 """
+import os
 import subprocess
 import json
 import datetime
@@ -121,7 +122,9 @@ def add_batch(hexsha):
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
+    prev_mask = os.umask(000)
     if not batch.output_dir.exists(): batch.output_dir.mkdir(exist_ok=True, parents=True)
+    os.umask(prev_mask)
 
     overwrite = "--overwrite" if data["overwrite"] == "on" else ""
     if project_id=="dvs/psp_swip":
@@ -181,50 +184,70 @@ def add_batch(hexsha):
             ]
         )
     print(working_directory)
-    print(batch_command)
+    # print(batch_command)
 
 
     # To avoid issues with quoting, we write a script to run the batch,
-    # and execute it with bsub/LSF 
+    # and execute it with bsub/LSF
     # We could also play with heredocs-within-heredocs, but it is painful, and this way we get logs
-    queue = "alg_q" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
     # openstf is our Android device farm
     use_openstf = data["android_device"].lower() == "openstf"
-    batch_script = "".join(
+    qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
-            f'bsub_su {data.get("user", "arthurf")} -q {queue} ',
-            '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
-            f'-o "{batch.output_dir}/log.txt" ',
-            '<< "EOF"\n',
-            f'  cd "{working_directory}";\n',
+            "set -xe\n\n",
+            f'cd "{working_directory}";\n\n',
+            # f'env | sort\n',
+            # qa uses click, which hates non-utf8 locales
+            'export LC_ALL=en_US.utf8;\n',
+            'export LANG=en_US.utf8;\n\n',
             # we avoid DISPLAY issues with matplotlib, since we're headless here
-            '   export MPLBACKEND=agg',
+            'export MPLBACKEND=agg;\n',
             # bsub_su is owned by root, this leads to the PATH not being what we would expect
             # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
-            "   export PATH=$PATH:/usr/local/bin",
-            f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
+            # "export PATH=$PATH:/usr/local/bin;\n",
+            f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
             # options specific to android
-            f"  export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
-            f"  export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
+            f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
+            f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
             # Make sure qatools doesn't complain about not being in a git repository,
-            f"  export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+            f"\nexport CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
             # Make sure qatools knows where to save results
-            f"  export {'SAMSUNG_CI_COMMIT_DIR' if project_id=='dvs/psp_swip' else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n  ",
+            f"export {'SAMSUNG_CI_COMMIT_DIR' if project_id=='dvs/psp_swip' else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n\n",
             batch_command,
-            "EOF",
         ]
     )
-    print(batch_script)
+    print(qa_batch_script)
+    qa_batch_path = batch.output_dir / f"qa_batch.sh"
+    with qa_batch_path.open("w") as f:
+        f.write(qa_batch_script)
 
-    script_path = batch.output_dir / f"run.sh"
-    with script_path.open("w") as f:
-        f.write(batch_script)
+    user = data.get("user", "arthurf")
+    queue = "alg_q" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
+    start_script = "".join(
+        [
+            "#!/bin/bash\n",
+            "set -xe\n\n",
+            f'bsub_su {user} -q {queue} ',
+            '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
+            f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
+            f'\tssh -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',
+            '\nEOF'
+        ]
+    )
+    print(start_script)
+
+
+    start_path = batch.output_dir / f"start.sh"
+    with start_path.open("w") as f:
+        f.write(start_script)
 
     # Wraps and execute the script that starts the batch
     cmd = " ".join(
         [
+            # there is only C.utf8 on our container, but it is not available on LSF
+            "LC_ALL=en_US.utf8 LANG=en_US.utf8",
             "ssh",
             # quiet to avoid the welcome banner
             "-q",
@@ -232,17 +255,18 @@ def add_batch(hexsha):
             "-tt",
             # make sure we OK the server key during the first-connection
             "-o StrictHostKeyChecking=no",
-            # ispq is the only user that can use bsub_su, an alias for su {0} {1:}.
+            # ispq is the only user that can use bsub_su, an alias for sudo -i -u {0} {1:}.
             "-i /home/arthurf/.ssh/ispq.id_rsa",
             "ispq@ispq-vdi",
-            f'\'bash "{script_path}"\'',
+            f'\'bash "{start_path}"\'',
         ]
     )
     print(cmd)
 
     try:
-        out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         out.check_returncode()
-    except subprocess.CalledProcessError:
-        return jsonify({"error": f"{out.stdout}\n{out.stderr}"}), 500
-    return jsonify({"script": str(script_path)})
+        print(out.stdout)
+    except:
+        return jsonify({"error": str(out.stdout), "cmd": str(cmd)}), 500
+    return jsonify({"cmd": str(cmd), "stdout": str(out.stdout)})
