@@ -467,7 +467,7 @@ def check_bit_accuracy(reference_branch):
   versus the latest commit on origin/develop.
   """
     from .utils import latest_commit
-    from .config import commit_branch, repo
+    from .config import commit, commit_branch, repo
     from .bit_accuracy import assert_bit_accurate_to
 
     reference_branch_origin = f"origin/{reference_branch}"
@@ -489,7 +489,7 @@ def check_bit_accuracy(reference_branch):
     # bit-accuracy on the reference branch is check on the commit's parents
     else:
         all_bit_accurate = True
-        for commit_ref in latest_commit(repo, reference_branch_origin).parents:
+        for commit_ref in commit.parents:
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
