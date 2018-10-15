@@ -10,7 +10,7 @@ from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import repos
-from slamvizapp.models import Project, Base, Batch, Output
+from slamvizapp.models import Base, Batch, Output
 from slamvizapp.models.LocalMocks import LocalGitCommit
 from ..utils import get_users_per_name
 from ..git_utils import find_branch
@@ -136,6 +136,8 @@ class CiCommit(Base):
           commit = repos[project_id].commit(hexsha)
         except:
           raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
+        # watch out for recursive imports ...
+        from slamvizapp.models import Project
         project = Project.get_or_create(session=session, id=project_id)
         ci_commit = CiCommit(commit, project=project)
         # session.add(ci_commit)
