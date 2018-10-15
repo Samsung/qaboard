@@ -95,6 +95,7 @@ class TuningForm extends Component {
     super(props);
     const { cookies } = this.props;
     let configuration = this.props.project_data.information.qatools_config.inputs.configuration;
+    let user = this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
     this.state = {
       submitted: false,
       experiment_name: cookies.get("experiment_name") || "",
@@ -120,7 +121,7 @@ class TuningForm extends Component {
         : templates['optimize'](this.props.project_data.information.qatools_config, this.props.project_data.information.qatools_metrics),
 
       // legacy?
-      user: cookies.get("user") || "arthurf",
+      user: user,
       android_device: "openstf",
 
     };
@@ -505,7 +506,7 @@ class TuningForm extends Component {
             className={Classes.INPUT}
             style={{ width: "300px" }}
             value={user}
-            placeholder="arthurf"
+            placeholder={this.props.project_data.information.qatools_config.lsf.user || 'arthurf'}
             onChange={this.update('user')}
             type="text"
             dir="auto"

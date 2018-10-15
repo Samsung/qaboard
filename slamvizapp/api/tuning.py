@@ -223,7 +223,7 @@ def add_batch(hexsha):
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    user = data.get("user", "arthurf")
+    user = "arthurf" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"].get('user', 'arthurf')
     queue = "alg_q" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
     start_script = "".join(
         [
