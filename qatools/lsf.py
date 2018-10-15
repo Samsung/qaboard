@@ -38,11 +38,10 @@ class Job:
         self.max_threads = max_threads
 
     def send(
-        self, dependencies=None, interactive=False, mail_to=config["lsf"]["email"]
+        self, dependencies=None, interactive=False
     ):
         """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
-    If you write a tool using this function, please don't use the default `mail_to` :)
     """
         if on_windows:
             subprocess.run(self.command)
@@ -76,7 +75,6 @@ class Job:
                 f'-o "{self.log_file}"',
                 f"-R \"affinity[thread({self.max_threads})]\"" if self.max_threads > 0 else "",
                 f"-R \"{lsf_select}\"",
-                f"-u{mail_to}" if mail_to else "",
                 dependencies_flag,
                 '<< EOF\n'
                 # the click python package hates ascii locales, for good reasons
