@@ -25,24 +25,12 @@ def find_executable():
     executable = 'build/sample_project'
   return Path(executable)
 
-def find_working_directory():
-  """
-  It's usually best to execute programs from what "should" be their working directory.
-  The QA tools are executed from the project's root; but maybe you expect a different location.
-  If you need this, either cd into it in your CLI invokation, or pass it as some "working_directory" to your executable.
-  """
-  if is_ci:
-    working_directory = ''
-  else:
-    working_directory = ''
-  return Path(working_directory)
-
 
 # To access the CLI arguments from the user, use the context object passed to run() and postprocess().
 # Reference: http://click.pocoo.org/6/complex/
 #
 # In short, context.obj is a dict with all the information you need:
-# - recording_path: Pathlib Path: path to your test input, relative to the database
+# - input_path: Pathlib Path: path to your test input, relative to the database
 # - database: Pathlib Path: absolute path to your database
 # - platform: string: eg linux, android, windows...
 # - configuration: string: represents optionnal partial configurations over the default (default/base, low-light, low-light:extra-low-light)
@@ -54,8 +42,6 @@ def find_working_directory():
 def run(context):
   """Sample implementation of a run() function."""
   command = ' '.join([
-       f'cd "{find_working_directory()}"',
-       "&&" if on_windows else ";",
        f"{find_executable()}",
        # sometimes your binary uses a working directory specified on the command line
        # f'--working_directory "{find_working_directory(context)}"',
@@ -79,17 +65,13 @@ def run(context):
   ])
   print(command)
   if context.obj['dryrun']: return
-  start = time.time()
-  pipes = subprocess.Popen(command,
-                           shell=True,
-                           encoding='utf-8',
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  std_out, std_err = pipes.communicate()
-  print(std_err.strip(), std_out.strip())
-  # some metrics like compute_time might not be determinable by the postprocessing
-  # NOTE: if convenient, you can also directly write into metrics.json,
-  #       postprocesing metrics will be merged.
-  return {'compute_time': time.time()-start}
+  out = subprocess.run(command,
+                       shell=True,
+                       encoding='utf-8',
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  print(out.stdout)
+  # you could return various metrics: cpu usage, max memory, etc
+  return {}
 
 
 from utils import read_poses, drift_after_loop_metrics, objective_metrics
