@@ -8,7 +8,6 @@ from functools import lru_cache
 
 import click
 import requests
-import numpy as np
 
 from .config import config, commit_id, available_metrics
 
@@ -21,6 +20,8 @@ api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 class NumpyEncoder(json.JSONEncoder):
     """ Special json encoder for numpy types """
     def default(self, obj):
+        import numpy as np
+
         if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
             np.int16, np.int32, np.int64, np.uint8,
             np.uint16, np.uint32, np.uint64)):
