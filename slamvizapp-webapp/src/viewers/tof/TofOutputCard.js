@@ -4,10 +4,7 @@ import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
-import { Card, Icon, Tag, Intent, Popover, Colors, Button } from "@blueprintjs/core";
-import { MetricTag } from "../MetricsSummary";
-import { main_metrics, available_metrics } from "./metrics";
-import { get } from "axios";
+import { Classes, Colors, Button } from "@blueprintjs/core";
 import { parse_hex } from "./Sys_Tools"
 
 import createPlotlyComponent from "react-plotly.js/factory";
