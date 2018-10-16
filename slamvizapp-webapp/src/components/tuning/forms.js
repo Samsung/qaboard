@@ -31,6 +31,7 @@ import {
   Toaster,
 } from "@blueprintjs/core";
 
+import templates from './templates'
 export const toaster = Toaster.create();
 
 const wrap_values_in_array = object => {
@@ -89,35 +90,6 @@ const grid_combinations = param_search => {
 };
 
 
-const tuning_templates = {
-  "none": "{}",
-  "simple-combinations": JSON.stringify(
-    {
-      events_per_frame: [5e3, 10e3, 15e3, 20e3],
-      smart_frame_on: [0, 1]
-    },
-    null,
-    2
-  ),
-  "list-of-combinations": JSON.stringify(
-    [
-      {
-        min_events_per_frame: 5e3,
-        max_events_per_frame: 10e3
-      },
-      {
-        min_events_per_frame: 15e3,
-        max_events_per_frame: 20e3
-      }
-    ],
-    null,
-    2
-  ),
-  "function":
-    "// you can write a javascript function that return your tuning search\nlet events_per_frame = [10e3, 20e3, 30e3];\nlet delta = 5e3;\n\nreturn events_per_frame.map(e => ({\n  min_events_per_frame: e,\n  max_events_per_frame: e + delta,\n  smart_frame_on: [true, false],\n}));\n",
-  "auto": '#testing...\n',
-};
-
 class TuningForm extends Component {
   constructor(props) {
     super(props);
@@ -142,10 +114,10 @@ class TuningForm extends Component {
       },
       parameter_search: cookies.get("parameter_search", { doNotParse: true })
         ? JSON.parse(cookies.get("parameter_search", { doNotParse: true }))
-        : tuning_templates["none"],
+        : templates["none"],
       parameter_search_auto: cookies.get("parameter_search_auto", { doNotParse: true })
         ? JSON.parse(cookies.get("parameter_search_auto", { doNotParse: true }))
-        : tuning_templates["auto"],
+        : templates["optimize"],
 
       // legacy?
       user: cookies.get("user") || "arthurf",
@@ -214,12 +186,12 @@ class TuningForm extends Component {
   };
   updateParameterSearchAuto = new_parameter_search => {
     this.props.cookies.set("parameter_search_auto", JSON.stringify(new_parameter_search), {path: "/"});
-    this.props.cookies.set("search_type", "auto", {path: "/"});
-    this.setState({ parameter_search_auto: new_parameter_search, search_type: 'auto' });
+    this.props.cookies.set("search_type", "optimize", {path: "/"});
+    this.setState({ parameter_search_auto: new_parameter_search, search_type: 'optimize' });
   };
 
   useAutoTuning = e => {
-    this.setState({ search_type: e.target.checked ? "auto" : "grid" });
+    this.setState({ search_type: e.target.checked ? "optimize" : "grid" });
   };
   selectSearchType = e => {
     this.setState({ search_type: e.target.value });
@@ -240,7 +212,7 @@ class TuningForm extends Component {
       overwrite,
       user
     } = this.state;
-    const { parameter_search, search_type, search_options } = this.state;
+    const { parameter_search, parameter_search_auto, search_type, search_options } = this.state;
     this.setState({ submitted: true });
     toaster.show({
       message: "The tuning experiment was sent!",
@@ -254,7 +226,7 @@ class TuningForm extends Component {
       tuning_search: {
         search_type,
         search_options,
-        parameter_search: eval_combinations(parameter_search)
+        parameter_search: search_type==='optimize' ? parameter_search_auto : eval_combinations(parameter_search),
       },
       selected_group,
       groups,
@@ -294,7 +266,7 @@ class TuningForm extends Component {
     try {
       var tuning_sets = eval_combinations(parameter_search);
       var combinations = grid_combinations(tuning_sets);
-      if (combinations === null || combinations === 'auto') combinations = "invalid";
+      if (combinations === null || combinations === 'optimize') combinations = "invalid";
       else
         combinations =
           search_type === "grid"
@@ -431,7 +403,7 @@ class TuningForm extends Component {
               style={{margin: '4px'}}
               key={x}
               onClick={e =>
-                this.setState({ parameter_search: tuning_templates[x] })
+                this.setState({ parameter_search: templates[x] })
               }
             >
               {x}
@@ -442,7 +414,7 @@ class TuningForm extends Component {
           inline
           labelFor="select-search-type"
           helperText={
-            search_type === "auto" ? '' :
+            search_type === "optimize" ? '' :
               search_type === "grid"
               ? `Explores all the ${combinations} combination${combinations > 1 ? "s" : ""}`
               : `Uniform sampling of ${combinations} combinations`
@@ -460,7 +432,7 @@ class TuningForm extends Component {
               <option key="sampler" value="sampler">
                 Sampling
               </option>
-              <option key="auto" value="auto">
+              <option key="optimize" value="optimize">
                 Automated tuning
               </option>
             </HTMLSelect>
@@ -491,7 +463,7 @@ class TuningForm extends Component {
           }}
         />
 
-        {this.state.search_type !== "auto" && <Callout
+        {this.state.search_type !== "optimize" && <Callout
           icon={this.state.selected_group_info_loading ? "dot" : "time"}
           intent={time_intent}
         >
@@ -499,7 +471,7 @@ class TuningForm extends Component {
         </Callout>}
         <Button
           disabled={
-            this.state.search_type === "auto" ||
+            this.state.search_type === "optimize" ||
             this.state.submitted ||
             this.state.experiment_name.length === 0 ||
             !total_runs
@@ -554,9 +526,10 @@ class TuningForm extends Component {
           <Switch
             id="use-auto-tuning"
             onChange={this.useAutoTuning}
-            checked={search_type === "auto"}
+            checked={search_type === "optimize"}
           />
         </FormGroup>
+        <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'] })}>Show Example</Button>
         <AceEditor
           mode="yaml"
           theme="github"

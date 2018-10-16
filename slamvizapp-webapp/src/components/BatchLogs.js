@@ -121,6 +121,7 @@ const BatchLogs = ({ batch }) => {
   // .filter(o => !o.is_pending)
   // || now - new Date(o.created_date) > 1e3)
   return Object.values(batch.outputs)
+    .filter( output => output.output_type !== "optim_iteration")
     .map(output => <OutputLog key={output.id} output={output} />);
 };
 

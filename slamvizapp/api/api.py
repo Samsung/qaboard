@@ -43,9 +43,13 @@ def get_commits(branch=None):
 
   from_date_s = request.args.get('from', None)
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=4))
-  latest_authored_datetime = db_session.query(func.max(CiCommit.authored_datetime)).scalar()
+  latest_authored_datetime = (db_session
+                              .query(func.max(CiCommit.authored_datetime))
+                              .filter(CiCommit.project_id == project_id)
+                              .scalar()
+                             )
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
-  print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
+  # print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
 
   ci_commits = (db_session
                 .query(CiCommit)
@@ -68,8 +72,14 @@ def get_commits(branch=None):
       ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
-  with_batches = ['default', 'ci-android-rt', 'manual-android-rt'] if only_ci_batches else None
+  with_batches = None
+  batch = request.args.get('batch', None)
+  if batch:
+    with_batches = [batch]
+  else:
+    only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
+    if only_ci_batches:
+      with_batches = ['default', 'ci-android-rt', 'manual-android-rt']
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
   # from ..utils import profiled
   # with profiled():
@@ -186,6 +196,9 @@ def get_ci_commit(commit_id=None):
     files =  [str(f.relative_to(commit_dir)) for f in commit_dir.glob(globbing)]
     return jsonify(files)
 
-  response = make_response(ujson.dumps(ci_commit.to_dict(with_outputs=True)))
+  batch = request.args.get('batch', None)
+  with_batches = [batch] if batch else None # by default we show all batches
+  with_aggregation = json.loads(request.args.get('metrics', '{}'))
+  response = make_response(ujson.dumps(ci_commit.to_dict(with_aggregation, with_batches=with_batches, with_outputs=True)))
   response.headers['Content-Type'] = 'application/json'
   return response

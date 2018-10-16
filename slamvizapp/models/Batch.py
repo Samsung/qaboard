@@ -101,7 +101,8 @@ def aggregated_metrics(outputs, metrics_to_aggregate):
     aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
     aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
     # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
-    aggregated[f'{metric}_threshold_bad'] = treshold
+    # we also don't use qatools so we don't know if smaller_is_better
+    # aggregated[f'{metric}_threshold_bad'] = treshold
   # remove NaN values
   return {k: v for k, v in aggregated.items() if v == v}
 
