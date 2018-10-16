@@ -5,10 +5,8 @@ import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
 import { Classes, Colors, Button } from "@blueprintjs/core";
+import { get } from "axios";
 import { parse_hex } from "./Sys_Tools"
-
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
 
 const aspect_ratio = 4 / 3;
 const width = 640; // full screen would be window.innerWidth;
@@ -92,7 +90,7 @@ class TofOutputCard extends Component {
 
   componentDidMount() {
     this.updateFrames(this.props);
-    this.getData(this.props);
+    this.getDepth(this.props);
   }
 
   componentDidUpdate(nextProps, prevState) {
@@ -101,13 +99,18 @@ class TofOutputCard extends Component {
     }
   }
   
-  getData(props) {
+  getDepth(props) {
     const { output_new, output_ref } = props;
     const { selected_frame }  = this.state;
     get(`${output_new.output_dir_url}/Frame${selected_frame}/depth.hex`)
     .then(response => {
 	  this.setState({
-	    depth: parse_hex(response.data, 'depth')
+	    depth: {
+        type: 'heatmap',
+        z: parse_hex(response.data, 'depth').z,
+        name: "Depth",
+        showscale: true,
+      }
 	  }) 
 	})
     .catch(e => {console.log(e)});
@@ -300,6 +303,10 @@ class TofOutputCard extends Component {
       ...layout
     };
     const output_types = ["depth"]; //, 'intensity'];
+    let heatmaps_layout = {
+      yaxis: { autorange: "reversed" },
+      width: 400,
+    };
     return (
       <>
         <p className={Classes.TEXT_MUTED}>
@@ -312,10 +319,10 @@ class TofOutputCard extends Component {
             this.threeRoot = threeRoot;
           }}
         >
-          {is_loaded && this.renderer.render(this.scene, this.camera)}
+          {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
+        {Object.keys(frames['new']).length > 1 && <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>}
       
         <div>
           <h4 className={Classes.HEADING}>
@@ -336,8 +343,14 @@ class TofOutputCard extends Component {
             }/Frame${selected_frame}/${output_type}.png`;
             return (
               <div key={output_type}>
-                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
-                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
+                {!show_pointcloud && <>
+                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
+                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
+                </>}
+                {true && <>
+                  {this.state.depth && <Plot data={[{...this.state.depth, }]} layout = {heatmaps_layout}/>}
+                  {this.state.depth && <Plot data={[{...this.state.depth, showscale: true, type: 'heatmap'}]} layout = {heatmaps_layout}/>}
+                </>}
               </div>
             );
           })}
