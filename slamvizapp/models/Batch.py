@@ -8,7 +8,7 @@ from pathlib import Path
 from functools import lru_cache
 
 import numpy as np
-from sqlalchemy import ForeignKey, Integer, String, DateTime
+from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
@@ -18,6 +18,7 @@ class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
+  data = Column(JSON(), default={})
 
   ci_commit_id = Column(String(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])
@@ -26,7 +27,6 @@ class Batch(Base):
   label = Column(String(), default="default")
 
   outputs = relationship("Output",
-                         lazy='joined',
                          back_populates="batch",
                          cascade="all, delete-orphan"
                         )
@@ -72,6 +72,8 @@ class Batch(Base):
         'commit_id': self.ci_commit_id,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
+        'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
+        'output_dir_url': str(self.output_dir_url),
 
         'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
         'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),

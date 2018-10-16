@@ -1,11 +1,17 @@
 import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
-import { Classes, Callout, Colors, Intent, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
+import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../../components/layout";
 import { groupBy, input_test_color, median, average } from "../../utils";
 
 const config = {};
+
+const metric_formatter = new Intl.NumberFormat("en-US", {
+  style: "decimal",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 
 const Sensibility1DLines = ({
   outputs,
@@ -183,6 +189,7 @@ const ParallelTuningPlot = ({
 
   const values = metric => aggr => aggr.map(  ([p, m]) => m[metric.key] * metric.scale);
   const all_good = values => values.every( v => !isNaN(v) && v!==null && v!==undefined)
+  const some_different = values => new Set(values).size > 1
   const line = {
     color: values(main_metric)(metrics_aggregated_by_params),
     colorscale: 'Viridis',
@@ -203,6 +210,7 @@ const ParallelTuningPlot = ({
     dimensions: [
        ...metrics
          .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
+         .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
          .map( metric => {
             return {
              label: metric.label,
@@ -436,16 +444,25 @@ class TuningExploration extends Component {
         short_label: "iter",
         scale: 1,
         suffix: "",
-        threshold: -1,
+        target: -1,
         smaller_is_better: false,
         plot_scale: "linear"
+      },
+      objective: {
+        key: "objective",
+        label: "Objective",
+        short_label: "objective",
+        scale: 1,
+        suffix: "",
+        target: -1,
+        smaller_is_better: true,
       },
       ...available_metrics,
     }
     this.state = {
       selected_parameter: null,
       available_metrics: available_metrics_,
-      main_metrics: ["iteration", ...main_metrics],
+      main_metrics: ["iteration", "objective", ...main_metrics],
       default_metric,
       selected_metric: default_metric,
       selected_metric2: main_metrics.filter(l=>l!==default_metric)[0],
@@ -489,6 +506,7 @@ class TuningExploration extends Component {
     const { layout, relative, available_metrics, default_metric, main_metrics, aggregation } = this.state;
 
     if (!batch) return <p>Loading...</p>;
+    const batch_data = batch.data || {};
 
     // tuned_parameters holds all tuning values used for each parameter
     let tuned_parameters = {};
@@ -504,6 +522,8 @@ class TuningExploration extends Component {
       .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
       .map(([k, v]) => k);
     let default_selected_parameter = sorted_parameters[0];
+    if (sorted_parameters.length===0)
+      return <Callout>You did not do any tuning :)</Callout>
     let default_selected_parameter_2 =
       sorted_parameters.length > 1
         ? sorted_parameters[1]
@@ -526,17 +546,77 @@ class TuningExploration extends Component {
       groupBy(Object.values(batch.outputs), "test_input_path")
     ).length;
 
+    let filtered_best_metrics = batch_data.best_metrics!==undefined ? Object.keys(batch_data.best_metrics)
+                                  .filter(k => main_metrics.includes(k) )
+                                  .reduce((obj, key) => ({
+                                    ...obj,
+                                    [key]: batch_data.best_metrics[key]
+                                   }), {}) : {};
     return (
       <Section>
-        {batch.label === "default" &&
-          <Callout intent={Intent.PRIMARY}>
-            If you do tuning, consider giving each experiment a label
-          </Callout>
-        }
-        <h3 className={Classes.HEADING}>
-          {total_outputs} results over {number_inputs} test{number_inputs>1 && "s"}
-        </h3>
-        <h4 className={Classes.HEADING}>Sensibility analysis</h4>
+
+        {batch.data.optimization && <Callout icon='crown' title="Best parameters">
+          {Object.entries(batch_data.best_params).map(([k, v]) => 
+            <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
+          )}
+          {Object.entries(filtered_best_metrics).map(([k,v]) =>
+            <Tag key={k} minimal round style={{"margin":'3px'}}>{available_metrics[k].label}: {metric_formatter.format(v*available_metrics[k].scale)}{available_metrics[k].suffix}</Tag>
+          )}
+          <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iterations}</p>
+        </Callout>}
+
+        {!batch_data.optimization && <>
+          <h3 className={Classes.HEADING}>{total_outputs} result{total_outputs>1 && "s"}</h3>
+          <p className={Classes.TEXT_MUTED}>{number_inputs} {number_inputs>1 && "different "}test{number_inputs>1 && "s"}</p>
+        </>}
+
+        <ParallelTuningPlot
+          outputs={batch.outputs}
+          main_metric={metric}
+          metrics={main_metrics.map(m => available_metrics[m])}
+          parameters={sorted_parameters}
+          aggregation={this.state.aggregation}
+        />
+
+        <FormGroup
+          inline
+          labelFor="select-metric"
+          helperText={"Highlighted above via a color-scale. This metric is shown on the plots below on the Y-axis."}
+        >
+          <HTMLSelect
+            id="select-metric"
+            defaultValue={default_metric}
+            onChange={this.selectMetric}
+            minimal
+          >
+            {Object.values(available_metrics).map(m => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </HTMLSelect>
+          <HTMLSelect
+            id="aggregation"
+            defaultValue={aggregation}
+            onChange={e =>this.setState({aggregation: e.target.value})}
+            minimal
+          >
+            <option key="median" value="median">Median aggregation</option>
+            <option key="average" value="average">Average aggregation</option>
+          </HTMLSelect>
+        </FormGroup>
+
+        {batch_data.optimization && <>
+          <h4>Convergence</h4>
+          <img height={250} alt="not yet available" src={`${batch.output_dir_url}/plot_convergence.png`}/>
+          <h4>Parameters' importance</h4>
+          <img alt="not yet available" src={`${batch.output_dir_url}/plot_objective.png`}/>
+          <h4>How we sampled the search space</h4>
+          <img alt="not yet available" src={`${batch.output_dir_url}/plot_evaluations.png`}/>
+        </>}
+
+
+        <h4 className={Classes.HEADING}>Sensibility to tuning parameters</h4>
         <FormGroup
           inline
           labelFor="select-parameter"
@@ -564,8 +644,9 @@ class TuningExploration extends Component {
             onChange={this.updateXScale}
           />
         </FormGroup>
-        {show_2d_sensibility && (
-          <Fragment>
+
+
+        {show_2d_sensibility && <>
           <FormGroup
             inline
             labelFor="select-parameter-2"
@@ -588,63 +669,19 @@ class TuningExploration extends Component {
               ))}
             </HTMLSelect>
           </FormGroup>
-          <FormGroup
-            inline
-            labelFor="aggregation"
-            helperText="Aggregation method"
-          >
-            <HTMLSelect
-              id="aggregation"
-              defaultValue={aggregation}
-              onChange={e =>this.setState({aggregation: e.target.value})}
-              minimal
-            >
-              <option key="median" value="median">median</option>
-              <option key="average" value="average">average</option>
-            </HTMLSelect>
-          </FormGroup>
-          </Fragment>
-        )}
-        <FormGroup
-          inline
-          labelFor="select-metric"
-          helperText={show_2d_sensibility ? "Shown via a color-scale on the 2d sensibility plot, on the Y-axis elsewhere" : "Shown on the Y-axis"}
-        >
-          <HTMLSelect
-            id="select-metric"
-            defaultValue={default_metric}
-            onChange={this.selectMetric}
-            minimal
-          >
-            {Object.values(available_metrics).map(m => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </HTMLSelect>
-        </FormGroup>
-        {show_2d_sensibility && <ParallelTuningPlot
-                                 outputs={batch.outputs}
-                                 main_metric={metric}
-                                 metrics={main_metrics.map(m => available_metrics[m])}
-                                 parameters={sorted_parameters}
-                                 aggregation={this.state.aggregation}
-                                />}
-        {show_2d_sensibility && (
-          <div>
-            <Sensibility2DContour
-              outputs={batch.outputs}
-              metric={metric}
-              available_metrics={available_metrics}
-              parameters={[selected_parameter, selected_parameter_2]}
-              aggregation={this.state.aggregation}
-            />
-            <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
+          <Sensibility2DContour
+            outputs={batch.outputs}
+            metric={metric}
+            available_metrics={available_metrics}
+            parameters={[selected_parameter, selected_parameter_2]}
+            aggregation={this.state.aggregation}
+          />
+          <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
             <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
             <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={aggregation}>aggregated</span>.</p>
-            </div>
           </div>
-        )}
+        </>}
+
         {number_inputs>1 && <Sensibility1DBoxplots
           outputs={batch.outputs}
           metric={metric}
@@ -670,7 +707,7 @@ class TuningExploration extends Component {
         />
 
         {show_2d_sensibility &&<Fragment>
-        <h4 className={Classes.HEADING}>Tuning tradeoffs</h4>
+        <h4 className={Classes.HEADING}>Efficient frontier & tradeoffs</h4>
         <FormGroup
           inline
           labelFor="select-metric-2"

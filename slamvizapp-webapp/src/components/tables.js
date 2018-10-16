@@ -53,8 +53,9 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     return <td style={{ background: "#bbb" }}>Ref missing</td>;
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
   let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
+  let quality = metric.smaller_is_better ? 0.5 - delta_relative : 0.5 + delta_relative;
   return (
-    <td style={{ background: interpolateRdYlGn(0.5 - delta_relative) }}>
+    <td style={{ background: interpolateRdYlGn(quality) }}>
       {metric_formatter.format(delta)} ({percent_formatter.format(
         100 * delta_relative
       )}%)
@@ -70,8 +71,8 @@ const QualityCell = ({ metric, metrics }) => {
   )
     return <td style={{ background: "#bbb" }}>na</td>;
   let value = metrics[metric.key];
-  const threshold = metric.threshold;
-  const quality = 0.5 + (threshold - value) / (threshold + 0.0001);
+  const delta_relative = (metric.target - value) / (metric.target + 0.0001);
+  let quality = metric.smaller_is_better ? 0.5 - delta_relative : 0.5 + delta_relative;
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       {metric_formatter.format(value)}
@@ -103,7 +104,7 @@ const TableCompare = ({
             <th />
             {metrics.map(m => (
               <th key={m.key}>
-                {m.label} [{m.suffix}]
+                {m.label} {m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix}]</span>}
               </th>
             ))}
           </tr>
@@ -170,7 +171,7 @@ const TableKpi = ({
             <th />
             {metrics.map(m => (
               <th colSpan={2} key={m.key}>
-                {m.label} [{metric_formatter.format(m.threshold * m.scale)}
+                {m.label} [{metric_formatter.format(m.target * m.scale)}
                 {m.suffix}]
               </th>
             ))}

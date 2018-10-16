@@ -5,7 +5,7 @@ const available_metrics = {
     short_label: "Crashed",
     scale: 100,
     suffix: "%",
-    threshold: 0,
+    target: 0,
     smaller_is_better: true,
     plot_scale: "linear"
   },
@@ -16,7 +16,7 @@ const available_metrics = {
     short_label: "MTF avg",
     scale: 1,
     suffix: "",
-    threshold: 20000,
+    target: 20000,
     smaller_is_better: false
   },
 
@@ -26,7 +26,7 @@ const available_metrics = {
     short_label: "SNR avg",
     scale: 1,
     suffix: "db",
-    threshold: 40,
+    target: 40,
     smaller_is_better: false
   },
 
@@ -36,7 +36,7 @@ const available_metrics = {
     short_label: "precision avg",
     scale: 1,
     suffix: "cm",
-    threshold: 0.1,
+    target: 0.1,
     smaller_is_better: true
   },
 
@@ -46,7 +46,7 @@ const available_metrics = {
     short_label: "RMSE avg",
     scale: 1,
     suffix: "cm",
-    threshold: 0.1,
+    target: 0.1,
     smaller_is_better: true
   },
   
@@ -56,7 +56,7 @@ const available_metrics = {
 	  short_label: "PCMD avg",
 	  scale: 1,
 	  suffix: "cm",
-	  threshold: 0.1,
+	  target: 0.1,
 	  smaller_is_better: true
   },
 
@@ -66,7 +66,7 @@ const available_metrics = {
     short_label: "RMSE med",
     scale: 1,
     suffix: "cm",
-    threshold: 0.1,
+    target: 0.1,
     smaller_is_better: true
   },
 
@@ -76,7 +76,7 @@ const available_metrics = {
     short_label: "CPU avg.",
     scale: 1,
     suffix: "%",
-    threshold: 200,
+    target: 200,
     smaller_is_better: true
   },
 
@@ -86,7 +86,7 @@ const available_metrics = {
     short_label: "CPU median",
     scale: 1,
     suffix: "%",
-    threshold: 200,
+    target: 200,
     smaller_is_better: true
   },
 
@@ -96,7 +96,7 @@ const available_metrics = {
     short_label: "Processing Avg",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_med: {
@@ -105,7 +105,7 @@ const available_metrics = {
     short_label: "Processing Med",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_q95: {
@@ -114,7 +114,7 @@ const available_metrics = {
     short_label: "Processing q95",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_max: {
@@ -123,13 +123,13 @@ const available_metrics = {
     short_label: "Processing Max",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   }
 };
 
 // will be shown proeminently in the index page, and first for tuning exploration
-const default_metric = "pcmd_median";
+const default_metric = "pcmd_mean";
 // will be shown in the summary histogramms of each commit
 const summary_metrics = [
   "is_failed",

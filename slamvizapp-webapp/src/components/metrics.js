@@ -52,9 +52,9 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     </span>
   );
   let intent =
-    (metrics_new[metric_info.key] > metric_info.threshold &&
+    (metrics_new[metric_info.key] > metric_info.target &&
       metric_info.smaller_is_better) ||
-    (metrics_new[metric_info.key] < metric_info.threshold &&
+    (metrics_new[metric_info.key] < metric_info.target &&
       !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
@@ -68,8 +68,10 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
     let delta_relative = delta / metrics_ref[metric_info.key];
     var intent_compare;
-    if (delta_relative > 0.01) intent_compare = Intent.DANGER;
-    else if (delta_relative < -0.01) intent_compare = Intent.SUCCESS;
+    if (delta_relative > 0.01)
+      intent_compare = metric_info.smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
+    else if (delta_relative < -0.01)
+      intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
     var compare_tag = (
       <Tag minimal intent={intent_compare}>
@@ -139,7 +141,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
     ...layout,
   };
 
-  let threshold = metric.threshold * metric.scale;
   let all_values = [];
   series.forEach(values => {
     values.forEach(v => all_values.push(v));
@@ -149,6 +150,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
   let min_y = Math.min(...all_values) * metric.scale;
   let max_y = Math.max(...all_values) * metric.scale;
+  let threshold = metric.target * metric.scale;
   let all_success = metric.smaller_is_better
     ? max_y <= threshold
     : min_y <= threshold;
@@ -442,9 +444,11 @@ class MetricsSummary extends Component {
       // console.log(outputs_by_tag)
     }
 
+    let batch_data = new_batch.data || {};
+
     return (
       <div>
-        {tuned_parameters_array.length > 0 && (
+        {(!batch_data.optimization && tuned_parameters_array.length > 0) && (
           <Callout intent={Intent.WARNING}>
             For <strong>manual tuning</strong>, you may see below results with the tuning <strong>parameters mixed together.</strong>
           </Callout>
@@ -482,11 +486,11 @@ class MetricsSummary extends Component {
           let new_med = median(new_values);
           let ref_med = median(ref_values);
           let new_pc_good = m.smaller_is_better
-            ? pc_under_threshold(new_values, m.threshold)
-            : pc_over_threshold(new_values, m.threshold);
+            ? pc_under_threshold(new_values, m.target)
+            : pc_over_threshold(new_values, m.target);
           let ref_pc_good = m.smaller_is_better
-            ? pc_under_threshold(ref_values, m.threshold)
-            : pc_over_threshold(ref_values, m.threshold);
+            ? pc_under_threshold(ref_values, m.target)
+            : pc_over_threshold(ref_values, m.target);
           let delta = new_med - ref_med;
           let delta_relative = delta / ref_med;
 

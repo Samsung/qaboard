@@ -67,6 +67,7 @@ class TofOutputCard extends Component {
     this.state = {
       selected_frame: last_frame_id,
       show_pointcloud: false,
+      focus: 'new',
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
@@ -134,17 +135,17 @@ class TofOutputCard extends Component {
         pointcloud.name = label;
         if (label === "reference") {
           pointcloud.visible = false;
-          pointcloud.material.size = 0.001;
-          pointcloud.material.vertexColors = false;
-          pointcloud.material.color.setHex(0x000000);
+          pointcloud.material.size = 1;
+           // pointcloud.material.vertexColors = false;
+          // pointcloud.material.color.setHex(0x000000);
         }
         else {
           var center = pointcloud.geometry.boundingSphere.center;
           this.camera.position.z = center.y;
           this.controls.target.set(center.x, center.y, center.z);
           this.controls.update();
-          this.scene.add(pointcloud);
         }
+        this.scene.add(pointcloud);
       }
       this.setState((previousState, props) => ({
         pointclouds: {
@@ -245,8 +246,11 @@ class TofOutputCard extends Component {
         }
         break;
       case "r":
-        if (pointcloud_ref !== undefined)
+        if (pointcloud_ref !== undefined) {
+          this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'})
           pointcloud_ref.visible = !pointcloud_ref.visible;
+          pointcloud_new.visible = !pointcloud_new.visible;          
+        }
         break;
       case "g":
         if (pointcloud_gt !== undefined)
@@ -302,8 +306,8 @@ class TofOutputCard extends Component {
     return (
       <>
         <p className={Classes.TEXT_MUTED}>
-          {show_pointcloud ? (is_loaded
-                        ? <div>Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></div>
+          {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
+                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
                         : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
         </p>
         <div hidden={!show_pointcloud}
@@ -321,6 +325,7 @@ class TofOutputCard extends Component {
             <a
               href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
               target="_blank"
+              rel="noopener noreferrer"
             >
               Frame {selected_frame}
             </a>

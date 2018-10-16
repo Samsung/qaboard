@@ -22,7 +22,7 @@ import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
-import { CommitInfoCompareCard } from "./components/CommitInfoCompareCard";
+import CommitInfoCompareCard from "./components/CommitInfoCompareCard";
 import { MetricsSummary } from "./components/metrics";
 import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
@@ -149,29 +149,6 @@ class CiCommitResults extends Component {
       this.fetchCommits();
     }
   }
-
-  // callbacl used when the user want to change the reference commit
-  handleSubmitReference = new_ref_commit_id => {
-    const { project, ref_commit, ref_commit_id, dispatch } = this.props;
-    let is_git = ref_commit.type === "git";
-    if (
-      (is_git &&
-        new_ref_commit_id.substring(0, 8) !== ref_commit_id.substring(0, 8)) ||
-      (!is_git && new_ref_commit_id !== ref_commit_id)
-    ) {
-      let query = qs.parse(this.props.location.search.substring(1));
-      this.props.history.push({
-        pathname: this.props.location.pathname,
-        search: qs.stringify({
-          ...query,
-          reference: new_ref_commit_id
-        })
-      });
-      dispatch(fetchCommit(project, new_ref_commit_id, "ref_commit_id"));
-      dispatch(updateSelected(project, { ref_commit_id: new_ref_commit_id }))
-    }
-  };
-
   selectSortBy = e => {
     this.props.dispatch(updateSelected(this.props.project, { sort_by: e.target.value }))
   };
@@ -274,7 +251,7 @@ class CiCommitResults extends Component {
     let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
     let controls = <>
       {detailed_views.map( (view, idx) => {
-        if (!view.default_hidden) return <></>
+        if (!view.default_hidden) return <React.Fragment key={idx}></React.Fragment>
         return <Switch
                 key={idx}
                 hidden={!view.default_hidden}
@@ -285,6 +262,7 @@ class CiCommitResults extends Component {
       })}
       {controls_extra.map(control => {
         return <Switch
+                key={control.name}
                 defaultChecked={control.default || false}
                 onChange={this.toggle(control.name)}
                 label={control.label || control.name}
@@ -302,7 +280,6 @@ class CiCommitResults extends Component {
             ref_commit={ref_commit}
             new_label={selected_batch_new}
             ref_label={selected_batch_ref}
-            onConfirmReference={this.handleSubmitReference}
           />
         </Section>
 
@@ -340,9 +317,7 @@ class CiCommitResults extends Component {
                           !this.props.filter_batch_new
                             ? "You can filter outputs by all their properties. "
                             : ""
-                        }${
-                          Object.keys(new_batch_filtered.outputs || []).length
-                        } selected`}
+                        }${(Object.values(new_batch_filtered.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length} selected`}
                       >
                         <InputGroup
                           value={this.props.filter_batch_new}
@@ -372,7 +347,7 @@ class CiCommitResults extends Component {
                       <FormGroup
                         labelFor="filter-ref-input"
                         helperText={`${
-                          Object.keys(ref_batch_filtered.outputs || []).length
+                          (Object.values(ref_batch_filtered.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length
                         } selected.`}
                       >
                         <InputGroup

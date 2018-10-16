@@ -1,5 +1,6 @@
 import React, { Component } from "react";
 import { get } from "axios";
+import Ansi from 'ansi-to-react'
 
 import {
   Classes,
@@ -10,6 +11,7 @@ import {
   NonIdealState,
   Icon
 } from "@blueprintjs/core";
+
 
 class OutputLog extends Component {
   constructor(props) {
@@ -31,6 +33,7 @@ class OutputLog extends Component {
     const { output } = this.props;
     if (
       output.output_type === "slam/6dof" ||
+      output.output_type === "batch" ||
       output.output_type === "tof/depth"
     )
       var logfile = "log.txt";
@@ -61,6 +64,7 @@ class OutputLog extends Component {
     const is_supported =
       output.output_type === "cis/image" ||
       output.output_type === "slam/6dof" ||
+      output.output_type === "batch" ||
       output.output_type === "tof/depth";
     const show_button = (
       <Button
@@ -82,12 +86,13 @@ class OutputLog extends Component {
     );
     const details = Object.entries(output.extra_parameters).map(([k, v]) => (
       <Tag key={k} intent={Intent.PRIMARY} minimal round>
-        {k}:{v}
+        {k}:{JSON.stringify(v)}
       </Tag>
     ));
     const download_link = <a
         title="Show output files"
         target="_blank"
+        rel="noopener noreferrer"
         href={output.output_dir_url}
       >
         <Icon icon="download" />
@@ -108,7 +113,7 @@ class OutputLog extends Component {
                 }
               />
             )}
-            <pre className={Classes.CODE_BLOCK}>{logs || ""}</pre>
+            <pre className={Classes.CODE_BLOCK}>{(!!logs && <Ansi>{logs}</Ansi>) || ""}</pre>
           </Collapse>
         )}
       </div>
@@ -120,9 +125,23 @@ const BatchLogs = ({ batch }) => {
   // let now = new Date();
   // .filter(o => !o.is_pending)
   // || now - new Date(o.created_date) > 1e3)
-  return Object.values(batch.outputs)
-    .filter( output => output.output_type !== "optim_iteration")
-    .map(output => <OutputLog key={output.id} output={output} />);
+  let batch_mock_output = {
+    is_failed: false,
+    is_pending: false,
+    is_running: false,
+    output_type: "batch",
+    output_dir_url: batch.output_dir_url,
+    test_input_path: 'Root output folder for the batch',
+    extra_parameters: batch.data || {},
+    configuration: '',
+    platform: batch.label,
+  }
+  return <>
+    {Object.values(batch.outputs)
+          .filter( output => output.output_type !== "optim_iteration")
+          .map(output => <OutputLog key={output.id} output={output} />)}
+    <OutputLog key={'batch'} output={batch_mock_output} />
+  </>
 };
 
 export { BatchLogs };

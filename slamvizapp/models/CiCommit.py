@@ -51,7 +51,7 @@ class CiCommit(Base):
   def ci_batch(self):
     return self.get_or_create_batch('default')
 
-  # this helps us understand if we expect pending SLAM results
+  # this helps us understand if we expect pending results
   time_of_last_batch = Column(DateTime(timezone=True))
 
   latest_gitlab_pipeline = Column(String())
@@ -62,8 +62,11 @@ class CiCommit(Base):
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override)
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
+      return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
+    # if 'qatools_config' in self.project.information: 
+    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
+    # else:
+    #   commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
     return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
@@ -124,24 +127,27 @@ class CiCommit(Base):
 
 
   @staticmethod
-  def get_or_create(session, hexsha, repo):
+  def get_or_create(session, hexsha, project_id):
     try:
-      commit = repo.commit(hexsha)
-    except:
-      raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
-    try:
-      return session.query(CiCommit).filter_by(id=commit.hexsha).one()
+      return session.query(CiCommit).filter_by(id=hexsha).one()
     except NoResultFound:
       try:
-        ci_commit = CiCommit(commit)
+        try:
+          commit = repos[project_id].commit(hexsha)
+        except:
+          raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
+        # watch out for recursive imports ...
+        from slamvizapp.models import Project
+        project = Project.get_or_create(session=session, id=project_id)
+        ci_commit = CiCommit(commit, project=project)
         # session.add(ci_commit)
         # session.commit()
         return ci_commit
       except ValueError:
-        raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
+        raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
       if ci_commit is None:
         raise (ValueError, f'[ERROR] something is wrong,\
-                             maybe an error opening param.json for {commit.hexsha}')
+                             maybe an error opening param.json for {hexsha}')
 
 
   def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):

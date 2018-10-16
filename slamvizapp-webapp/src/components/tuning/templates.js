@@ -33,21 +33,63 @@ return events_per_frame.map(e => ({
   smart_frame_on: [true, false],
 }));
 `,
-  "optimize": `
-metric: rmse
-# minimize: true
-# aggregation: average
-evaluations: 10
+  optimize: (config, metrics) => {
+    console.log(metrics, config)
+    return `# We will optimize the objective function within a budget of this many evaluations
+# Currently, if your objective is cheap to evaluate, the optimization will be dominiated by call overheads.
+evaluations: 50
 
-# you can fix some parameters
-fixed:
-  verbose: false
+# You can optimize objective functions of the form:
+#
+#  argmin        ∑     weight * reduce(   ⋃     loss(metric, target) ) / #outputs
+#  params     metrics                   outputs
+#
 
-# Description of the search space
-# Documentation:
-#   https://github.com/scikit-optimize/scikit-optimize/blob/master/skopt/space/space.py
-#   https://scikit-optimize.github.io/#skopt.Space
-space:
+
+objective:
+  ${metrics.default_metric}:
+    weight: 1
+    reduce: sum
+    #     | l1
+    #     | l2
+    #     | relu   # => relu(sum)
+    # 
+    # Some metrics need to be maximized, not minimized.
+    # This is defined via "smaller_is_better" in qatools' metrics configuration file.
+    #     ɛ = 1 if smaller_is_better else -1
+    #
+    loss: identity # error, target => ɛ * error
+    #   | shift    # error, target => ɛ * error-target
+    #   | relative # error, target => ɛ * error-target / target
+    #   | relu_X   # error, target => relu(X(error, target))  eg relu_identity, relu_shift, relu_relative
+    #   | square_X # error, target => X(error, target) ^2     eg square_relative, square_relu_relative
+    #
+    #       if not smaller_is_better in qatools's configuration,
+    #       we redefine the 'loss = -loss'
+
+  # ${(metrics.main_metrics.length > 0 && metrics.main_metrics[1]) || 'metric2'}:
+  #   ...
+  #   ...
+
+  # target:
+    # The target metrics used in the loss function can be chosen...
+    # # ...either (default) using the quality target you defined in the qatools config
+    # eg ${metrics.default_metric && metrics.available_metrics[metrics.default_metric] && metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
+    # # Or from a specific git revision: 
+    # branch: ${config.project.reference_branch}  # a git branch/tag
+    # id: some_commit_id                 # a git commit id
+    # # We look for reference outputs in a batch called
+    # batch: default
+
+
+# preset_params:
+#   verbose: false
+#   create_optionnal_plots: false
+
+search_space:
+  # Find some examples below. More info here:
+  #   https://github.com/scikit-optimize/scikit-optimize/blob/master/skopt/space/space.py
+  #   https://scikit-optimize.github.io/#skopt.Space
   - Integer:
       name: max_events
       low: 1000
@@ -69,7 +111,8 @@ space:
       low: 0.0000001
       high: 0.1
       prior: log-uniform
-`,
+`
+},
 };
 
 

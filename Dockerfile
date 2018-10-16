@@ -28,16 +28,18 @@ RUN bash Anaconda3-5.0.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 # ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
 RUN conda install -k pandas
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson sklearn scikit-learn uwsgi
+RUn pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/arthurf/scikit-optimize'
 
 # uwsgi and matplotlib dependencies
 
 # postgresql database
 RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' > /etc/apt/sources.list.d/pgdg.list
 RUN wget --quiet --no-check-certificate -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-RUN apt-get update; apt-get install -y postgresql-9.6
+RUN apt-get update; apt-get install -y postgresql-9.6 postgresql-contrib-9.6
 # allow connections from the outside world - with passwords
 RUN echo "listen_addresses = '*'" >> /etc/postgresql/9.6/main/postgresql.conf
+RUN echo "shared_preload_libraries = 'pg_stat_statements'" >> /etc/postgresql/9.6/main/postgresql.conf
 RUN echo 'host    all             all              ::/0                            md5' >> /etc/postgresql/9.6/main/pg_hba.conf
 RUN echo 'host    all             all              0.0.0.0/0                       md5' >> /etc/postgresql/9.6/main/pg_hba.conf
 USER postgres

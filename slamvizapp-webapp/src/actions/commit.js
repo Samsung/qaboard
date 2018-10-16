@@ -15,7 +15,7 @@ export const updateCommit = (project, commit, error) => ({
   error,
 })
 
-export const fetchCommit = (project, id, used_for) => {
+export const fetchCommit = (project, id, used_for, branch) => {
   return dispatch => {
     dispatch({
       type: FETCH_COMMIT,
@@ -24,7 +24,7 @@ export const fetchCommit = (project, id, used_for) => {
     })
 		// the API defaults to the latest commit on develop, it is useful
     let use_default_reference_commit = !id
-    get(`/api/v1/commit${use_default_reference_commit ? "" : `/${id}`}`, { params: { project } })
+    get(`/api/v1/commit${use_default_reference_commit ? "" : `/${id}`}`, { params: { project, branch } })
       .then(response => {
         dispatch(updateCommit(project, response.data))
         // when we ask for the default reference commit we dont know the id yet

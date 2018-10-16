@@ -8,6 +8,7 @@
     "@blueprintjs/datetime": "^3.1.0",
     "@blueprintjs/icons": "^3.1.0",
     "@blueprintjs/select": "^3.1.0",
+    "ansi-to-react": "^3.3.3",
     "axios": "^0.18.0",
     "brace": "^0.11.0",
     "d3-color": "^1.0.3",
@@ -30,7 +31,7 @@
     "react-plotly.js": "^2.2.0",
     "react-redux": "^5.0.7",
     "react-router-dom": "^4.3.1",
-    "react-scripts": "^2.0.0-next.a671462c",
+    "react-scripts": "2.0.3",
     "redux": "^4.0.0",
     "redux-devtools-extension": "^2.13.5",
     "redux-thunk": "^2.3.0",
@@ -44,16 +45,10 @@
     "analyse": "source-map-explorer --html build/static/js/main.*.js build/static/js/main.*.js.map > ~/test.html",
     "eject": "react-scripts eject"
   },
-  "browserslist": {
-    "development": [
-      "last 2 chrome versions",
-      "last 2 firefox versions",
-      "last 2 edge versions"
-    ],
-    "production": [
-      ">0.25%",
-      "not op_mini all",
-      "ie 11"
-    ]
-  }
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
 }

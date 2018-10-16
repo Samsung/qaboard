@@ -5,7 +5,7 @@ const available_metrics = {
     short_label: "Crashed",
     scale: 100,
     suffix: "%",
-    threshold: 0,
+    target: 0,
     smaller_is_better: true,
     plot_scale: "linear"
   },
@@ -16,7 +16,7 @@ const available_metrics = {
     short_label: "tRMSE",
     scale: 100,
     suffix: "cm",
-    threshold: 0.015,
+    target: 0.015,
     smaller_is_better: true
   },
 
@@ -26,7 +26,7 @@ const available_metrics = {
     short_label: "tAAPE",
     scale: 100,
     suffix: "cm",
-    threshold: 0.015,
+    target: 0.015,
     smaller_is_better: true
   },
 
@@ -36,7 +36,7 @@ const available_metrics = {
     short_label: "tRMSE",
     scale: 100,
     suffix: "%",
-    threshold: 0.015,
+    target: 0.015,
     smaller_is_better: true
   },
 
@@ -46,7 +46,7 @@ const available_metrics = {
     short_label: "tAAPE",
     scale: 100,
     suffix: "%",
-    threshold: 0.015,
+    target: 0.015,
     smaller_is_better: true
   },
 
@@ -56,7 +56,7 @@ const available_metrics = {
     short_label: "tRTE",
     scale: 100,
     suffix: "cm",
-    threshold: 0.01,
+    target: 0.01,
     smaller_is_better: true
   },
 
@@ -66,7 +66,7 @@ const available_metrics = {
     short_label: "Loop Drift",
     scale: 100,
     suffix: "%",
-    threshold: 0.01,
+    target: 0.01,
     smaller_is_better: true
   },
 
@@ -76,7 +76,7 @@ const available_metrics = {
     short_label: "tDrift",
     scale: 100,
     suffix: "%",
-    threshold: 0.01,
+    target: 0.01,
     smaller_is_better: true
   },
 
@@ -86,7 +86,7 @@ const available_metrics = {
     short_label: "tAAPE_good",
     scale: 100,
     suffix: "cm",
-    threshold: 0.015,
+    target: 0.015,
     smaller_is_better: true
   },
 
@@ -96,7 +96,7 @@ const available_metrics = {
     short_label: "Rot Error",
     scale: 1,
     suffix: "°",
-    threshold: 1.5,
+    target: 1.5,
     smaller_is_better: true
   },
 
@@ -106,7 +106,7 @@ const available_metrics = {
     short_label: "Rot Error_good",
     scale: 1,
     suffix: "°",
-    threshold: 1.5,
+    target: 1.5,
     smaller_is_better: true
   },
 
@@ -116,7 +116,7 @@ const available_metrics = {
     short_label: "Tracking",
     scale: 100,
     suffix: "%",
-    threshold: 0.99,
+    target: 0.99,
     smaller_is_better: false
   },
 
@@ -126,7 +126,7 @@ const available_metrics = {
     short_label: "Time before KO (self)",
     scale: 100,
     suffix: "%",
-    threshold: 0.99,
+    target: 0.99,
     smaller_is_better: false
   },
 
@@ -136,7 +136,7 @@ const available_metrics = {
     short_label: "Time before KO (gt)",
     scale: 100,
     suffix: "%",
-    threshold: 0.99,
+    target: 0.99,
     smaller_is_better: false
   },
 
@@ -146,7 +146,7 @@ const available_metrics = {
     short_label: "CPU avg.",
     scale: 1,
     suffix: "%",
-    threshold: 200,
+    target: 200,
     smaller_is_better: true
   },
 
@@ -156,7 +156,7 @@ const available_metrics = {
     short_label: "CPU median",
     scale: 1,
     suffix: "%",
-    threshold: 200,
+    target: 200,
     smaller_is_better: true
   },
 
@@ -166,7 +166,7 @@ const available_metrics = {
     short_label: "Processing Avg",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_med: {
@@ -175,7 +175,7 @@ const available_metrics = {
     short_label: "Processing Med",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_q95: {
@@ -184,7 +184,7 @@ const available_metrics = {
     short_label: "Processing q95",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   },
   processing_time_max: {
@@ -193,7 +193,7 @@ const available_metrics = {
     short_label: "Processing Max",
     scale: 1,
     suffix: "ms",
-    threshold: 25.0,
+    target: 25.0,
     smaller_is_better: true
   }
 };
