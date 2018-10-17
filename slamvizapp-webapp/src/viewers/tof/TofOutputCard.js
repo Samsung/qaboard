@@ -29,7 +29,7 @@ var make_traces = function(metrics_over_frames, label) {
     type: "scatter",
     mode: "lines+markers",
     x: Array.from(metrics_over_frames.keys()),
-    y: Array.from(metrics_over_frames.values()).map(m => m.rmse),
+    y: Array.from(metrics_over_frames.values()).map(m => m.pcmd),
     line: {
       color: colors[label],
       width: label === "reference" ? 3 : 2, // ref wider to highlight bit accuracy
@@ -109,7 +109,8 @@ class TofOutputCard extends Component {
         type: 'heatmap',
         z: parse_hex(response.data, 'depth').z,
         name: "Depth",
-        showscale: true,
+        hoverinfo: "x+y+z+name",
+        showscale: false,
       }
 	  }) 
 	})
@@ -199,6 +200,8 @@ class TofOutputCard extends Component {
   }
 
   updatePointCloud(selected_frame) {
+    this.getDepth(this.props);
+
     if (!this.state.show_pointcloud) {
       this.setState({show_pointcloud: true})
       this.startPointCloud()
@@ -292,7 +295,7 @@ class TofOutputCard extends Component {
         title: "frame"
       },
       yaxis: {
-        title: "RMSE"
+        title: "PCMD"
       },
       legend: {
         orientation: "h",
@@ -306,6 +309,7 @@ class TofOutputCard extends Component {
     let heatmaps_layout = {
       yaxis: { autorange: "reversed" },
       width: 400,
+      height: 353,
     };
     return (
       <>
@@ -322,7 +326,7 @@ class TofOutputCard extends Component {
           {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        {Object.keys(frames['new']).length > 1 && <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>}
+        {(true || Object.keys(frames['new']).length > 1) && <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>}
       
         <div>
           <h4 className={Classes.HEADING}>
@@ -343,13 +347,8 @@ class TofOutputCard extends Component {
             }/Frame${selected_frame}/${output_type}.png`;
             return (
               <div key={output_type}>
-                {!show_pointcloud && <>
-                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
-                  <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
-                </>}
                 {true && <>
-                  {this.state.depth && <Plot data={[{...this.state.depth, }]} layout = {heatmaps_layout}/>}
-                  {this.state.depth && <Plot data={[{...this.state.depth, showscale: true, type: 'heatmap'}]} layout = {heatmaps_layout}/>}
+                  {this.state.depth && <Plot data={[{...this.state.depth, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)}/>}
                 </>}
               </div>
             );
