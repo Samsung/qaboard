@@ -432,6 +432,9 @@ def save_artifacts():
     # we already use umask 0, but just to be sure, we set the permissions to be open
     os.chmod(destination, 0o777)
 
+  def copy_data(src, destination):
+    shutil.copyfile(str(src), str(destination))
+
   click.secho(f"Saving artifacts in: {commit_ci_dir}", bold=True, underline=True)
 
   # default artifacts
@@ -465,8 +468,10 @@ def save_artifacts():
           copy(path, destination)
         except:
           time.sleep(0.1) # seconds
-          copy(path, destination)
-
+          try:
+            copy(path, destination)
+          except: # wt...
+            copy_data(path, destination)
 
 
 @cli.command()
