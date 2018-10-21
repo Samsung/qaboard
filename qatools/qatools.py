@@ -212,7 +212,8 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
   ctx.obj['input_path'] =  input_path
   ctx.obj['output_directory'] =  output_directory
   ctx.obj['forwarded_args'] = forwarded_args
-  postprocess_({}, ctx)
+  metrics = postprocess_({}, ctx)
+  click.secho(str(metrics), fg='green')      
 
 
 @cli.command(context_settings=dict(
