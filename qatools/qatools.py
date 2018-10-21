@@ -418,13 +418,21 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
 
 
 
+
+
 @cli.command()
 def save_artifacts():
   """Save the results at a standard location"""
   import shutil
   import filecmp
 
-  click.secho(str(commit_ci_dir), bold=True, underline=True)
+  def copy(src, destination):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(str(src), str(destination))
+    # we already use umask 0, but just to be sure, we set the permissions to be open
+    os.chmod(destination, 0o777)
+
+  click.secho(f"Saving artifacts in: {commit_ci_dir}", bold=True, underline=True)
 
   # default artifacts
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
@@ -450,10 +458,14 @@ def save_artifacts():
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
         click.secho(str(path), dim=True)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(str(path), str(destination))
-        # we already use umask 0, but just to be sure, we set the permissions to be open
-        os.chmod(destination, 0o777)
+
+        # We are forced to add some retry logic to deal with our broken storage
+        # sometimes it raises a permission error but everything is OK on the second try...
+        try:
+          copy(path, destination)
+        except:
+          copy(path, destination)
+
 
 
 @cli.command()
