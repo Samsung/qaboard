@@ -464,7 +464,7 @@ def save_artifacts():
         try:
           copy(path, destination)
         except:
-          time.sleep(100)
+          time.sleep(0.1) # seconds
           copy(path, destination)
 
 
