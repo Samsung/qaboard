@@ -177,9 +177,7 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
 
   if isinstance(tuning_search['parameter_search'], list):
     for param_search in tuning_search['parameter_search']:
-      tuning_search_ = tuning_search
-      tuning_search_['parameter_search'] = param_search
-      yield from iter_parameters(tuning_search=tuning_search_, filetype=filetype)
+      yield from iter_parameters(tuning_search={**tuning_search, 'parameter_search': param_search}, filetype=filetype, extra_parameters=extra_parameters)
     return
 
   for parameter, values in tuning_search['parameter_search'].items():
