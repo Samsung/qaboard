@@ -121,7 +121,7 @@ class Output(Base):
         return '/s'/self.output_dir.relative_to('/stage')
       else:
         return f'/s{self.output_dir_override.replace("/home/arthurf/ci", "")}' 
-    return self.batch.output_dir_url / self.output_folder
+    return '/s' / self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):
     return (f"<Output "
