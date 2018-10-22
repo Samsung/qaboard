@@ -83,7 +83,7 @@ class CiCommit(Base):
         return '/s/'/self.commit_dir.relative_to('/stage/algo_data')
       else:
         return f'/s{self.commit_dir_override}' 
-    return '/s/' / self.commit_dir.relative_to(self.project.ci_directory)
+    return '/s/' / self.commit_dir
 
   def __repr__(self):
     return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
