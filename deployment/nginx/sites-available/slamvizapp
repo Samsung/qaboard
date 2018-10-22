@@ -61,6 +61,18 @@ server {
   access_log off;
  }
 
+ location ^~ /s/net/f2/algo_archive/ {
+  alias /net/f2/algo_archive/; 
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/stage/algo_data/ {
+  alias /stage/algo_data/;
+  autoindex on;
+  access_log off;
+ }
+
 }
 
 
@@ -134,6 +146,18 @@ server {
 
  location ^~ /s/algo_data/ {
   alias /stage/algo_data/; 
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/net/f2/algo_archive/ {
+  alias /net/f2/algo_archive/; 
+  autoindex on;
+  access_log off;
+ }
+
+ location ^~ /s/stage/algo_data/ {
+  alias /stage/algo_data/;
   autoindex on;
   access_log off;
  }
