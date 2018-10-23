@@ -9,12 +9,12 @@ app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '/var/slamvizapp')).resol
 shared_data_directory = Path('/home/arthurf/dvs/slamvizapp/data/')
 
 # unix config
-ci_directory = Path('/home/arthurf/ci')
+default_ci_directory = Path('/home/arthurf/ci')
 
 # windows config
 is_windows = os.name == 'nt'
 if is_windows:
-  ci_directory = Path('//mars/homes/arthurf/ci')
+  default_ci_directory = Path('//mars/homes/arthurf/ci')
   
 # CIS configuration #########################################################
 # there is more at other locations...

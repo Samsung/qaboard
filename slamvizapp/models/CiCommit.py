@@ -63,10 +63,7 @@ class CiCommit(Base):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
-    # if 'qatools_config' in self.project.information: 
     commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
-    # else:
-    #   commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
     return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
@@ -77,13 +74,9 @@ class CiCommit(Base):
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
-      if '/net/f2/algo_archive' in self.commit_dir_override:
-        return '/s/'/self.commit_dir.relative_to('/net/f2/algo_archive')
-      elif '/stage/algo_data' in self.commit_dir_override:
-        return '/s/'/self.commit_dir.relative_to('/stage/algo_data')
-      else:
-        return f'/s{self.commit_dir_override}' 
-    return '/s/' / self.commit_dir.relative_to(self.project.ci_directory)
+      relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
+      return f'/s/{relative_path}' 
+    return f"/s/{self.commit_dir}"
 
   def __repr__(self):
     return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"

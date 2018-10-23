@@ -10,7 +10,7 @@ from sqlalchemy import cast, type_coerce
 from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp.models import Base, CiCommit
-from ..config import ci_directory
+from ..config import default_ci_directory
 
 class Project(Base):
   __tablename__ = 'projects'
@@ -45,7 +45,7 @@ class Project(Base):
     try:
       return Path(self.information['qatools_config']['ci_root']['linux'])
     except:
-      return ci_directory
+      return default_ci_directory
   
  
   @staticmethod
