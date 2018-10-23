@@ -77,7 +77,8 @@ class CiCommit(Base):
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
-      return f'/s{self.commit_dir_override.replace("/home/arthurf/ci", "")}' 
+      relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
+      return f'/s/{relative_path}' 
     return '/s/' / self.commit_dir
 
   def __repr__(self):

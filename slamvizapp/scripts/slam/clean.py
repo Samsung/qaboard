@@ -9,7 +9,7 @@ from gitdb.exc import BadName
 
 from slamvizapp import repos, db_session
 from slamvizapp.models import CiCommit
-from slamvizapp.config import ci_directory
+from slamvizapp.config import default_ci_directory
 
 
 
@@ -47,6 +47,12 @@ def clean(project, protected_branch, days, verbose):
   #   print(f'{c.hexsha} on {c.authored_datetime} by {c.author.name}')
   # if verbose: print(f'{len(protected_commits)} protected')
 
+  if project == 'dvs/psp_swip': 
+  	ci_directory = default_ci_directory
+  else if project == 'tof/swip_tof':
+  	ci_directory = Path('/stage/algo_data/ToF/Git_CI_output')
+  else:
+  	raise NotImplementedError('please write some code to get the project CI directory from the database...')
   cicommits_dir = ci_directory / project / 'commits'
   for cicommit_dir in cicommits_dir.glob('*__git__*'):
     commit_short_id = str(cicommit_dir)[-8:]
