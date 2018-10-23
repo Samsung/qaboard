@@ -120,4 +120,4 @@ EXPOSE 5000 80 443
 RUN useradd -u 11611 -g 10 arthurf --shell /bin/bash --no-create-home; \
     echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 USER arthurf
-CMD deployment/init.sh
+CMD /slamvizapp/deployment/init.sh
