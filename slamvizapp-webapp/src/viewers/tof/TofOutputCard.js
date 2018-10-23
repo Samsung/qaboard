@@ -62,6 +62,8 @@ class TofOutputCard extends Component {
     this.state = {
       selected_frame: last_frame_id,
       show_pointcloud: false,
+      showHeatmap: false,
+      heatmapData: "pcmd",
       focus: 'new',
       pointclouds: {
         [last_frame_id]: {
@@ -102,13 +104,13 @@ class TofOutputCard extends Component {
   getDepth(props) {
     const { output_new, output_ref } = props;
     const { selected_frame }  = this.state;
-    get(`${output_new.output_dir_url}/Frame${selected_frame}/depth.hex`)
+    get(`${output_new.output_dir_url}/Frame${selected_frame}/pcmdHeatmap.hex`)
     .then(response => {
 	  this.setState({
 	    depth: {
-        type: 'heatmap',
-        z: parse_hex(response.data, 'depth').z,
-        name: "Depth",
+        type: 'heatmapgl',
+        z: parse_hex(response.data, 'pcmdHeatmap').z,
+        name: "PCMD",
         hoverinfo: "x+y+z+name",
         showscale: false,
       }
@@ -305,7 +307,7 @@ class TofOutputCard extends Component {
       },
       ...layout
     };
-    const output_types = ["depth"]; //, 'intensity'];
+    const output_types = ["pcmdHeatmap"]; //, 'intensity'];
     let heatmaps_layout = {
       yaxis: { autorange: "reversed" },
       width: 400,
@@ -326,7 +328,7 @@ class TofOutputCard extends Component {
           {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        {(true || Object.keys(frames['new']).length > 1) && <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>}
+        {<Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>}
       
         <div>
           <h4 className={Classes.HEADING}>
@@ -347,12 +349,19 @@ class TofOutputCard extends Component {
             }/Frame${selected_frame}/${output_type}.png`;
             return (
               <div key={output_type}>
-                {true && <>
+                {this.state.showHeatmap && this.state.heatmapData == "pcmd" && <>
                   {this.state.depth && <Plot data={[{...this.state.depth, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)}/>}
                 </>}
+                {!this.state.showHeatmap && <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />}
+                {!this.state.showHeatmap && <img width={400} alt="Reference" src={img_ref} />}
               </div>
             );
           })}
+        </div>
+        <div className="viewMenu">
+          <button onClick={e => this.updatePointCloud(selected_frame)}> Point Cloud </button>
+          <button onClick={e => {this.setState({heatmapData: "pcmd"}); this.setState({showHeatmap: true})}}> PCMD heatmap </button>
+          <button> Menu item 3 </button>
         </div>
 
         {false && <p>{JSON.stringify(output_new)}</p>}
