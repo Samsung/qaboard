@@ -116,7 +116,7 @@ class Output(Base):
   def output_dir_url(self):
     if self.output_dir_override is not None:
       return f'/s{self.output_dir_override.replace("/home/arthurf/ci", "")}' 
-    return '/s' / self.batch.output_dir_url / self.output_folder
+    return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):
     return (f"<Output "
