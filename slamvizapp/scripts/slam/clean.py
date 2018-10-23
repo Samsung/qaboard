@@ -49,7 +49,7 @@ def clean(project, protected_branch, days, verbose):
 
   if project == 'dvs/psp_swip': 
   	ci_directory = default_ci_directory
-  else if project == 'tof/swip_tof':
+  elif project == 'tof/swip_tof':
   	ci_directory = Path('/stage/algo_data/ToF/Git_CI_output')
   else:
   	raise NotImplementedError('please write some code to get the project CI directory from the database...')
