@@ -29,7 +29,7 @@ class Priority:
 class Job:
     """Wraps LSF jobs for convenience."""
 
-    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000, max_threads=0,max_memory = 0):
+    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000, max_threads=0, max_memory=0):
         self.name = str(name).replace(" ", "-").replace('"','')
         self.command = command
         self.log_file = log_dir / "log.txt"
