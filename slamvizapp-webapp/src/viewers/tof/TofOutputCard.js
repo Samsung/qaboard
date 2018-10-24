@@ -63,8 +63,10 @@ class TofOutputCard extends Component {
       selected_frame: last_frame_id,
       show_pointcloud: false,
       showHeatmap: false,
-      heatmapData: "pcmd",
+      output_type: "pcmdHeatmap",
+      ShowNewheatmap: true,
       focus: 'new',
+      heatmapAxes: { xaxis: {autorange : true}, yaxis: {autorange : "reversed"}},
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
@@ -92,7 +94,7 @@ class TofOutputCard extends Component {
 
   componentDidMount() {
     this.updateFrames(this.props);
-    this.getDepth(this.props);
+    this.getHexData(this.props);
   }
 
   componentDidUpdate(nextProps, prevState) {
@@ -101,18 +103,26 @@ class TofOutputCard extends Component {
     }
   }
   
-  getDepth(props) {
+  getHexData(props) {
     const { output_new, output_ref } = props;
-    const { selected_frame }  = this.state;
-    get(`${output_new.output_dir_url}/Frame${selected_frame}/pcmdHeatmap.hex`)
+    const { selected_frame, output_type }  = this.state;
+    var currentOutput = output_new;
+    console.log("inside getHexData");
+    console.log(output_type);
+    if (!this.state.ShowNewheatmap) {
+      currentOutput = output_ref;
+      console.log("showing ref");
+    }
+
+    get(`${currentOutput.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
     .then(response => {
 	  this.setState({
-	    depth: {
-        type: 'heatmapgl',
-        z: parse_hex(response.data, 'pcmdHeatmap').z,
-        name: "PCMD",
+	    hexData: {
+        type: 'heatmap',
+        z: parse_hex(response.data).z,
+        name: `${output_type}`,
         hoverinfo: "x+y+z+name",
-        showscale: false,
+        showscale: true,
       }
 	  }) 
 	})
@@ -202,7 +212,7 @@ class TofOutputCard extends Component {
   }
 
   updatePointCloud(selected_frame) {
-    this.getDepth(this.props);
+    this.getHexData(this.props);
 
     if (!this.state.show_pointcloud) {
       this.setState({show_pointcloud: true})
@@ -307,12 +317,19 @@ class TofOutputCard extends Component {
       },
       ...layout
     };
-    const output_types = ["pcmdHeatmap"]; //, 'intensity'];
     let heatmaps_layout = {
-      yaxis: { autorange: "reversed" },
-      width: 400,
-      height: 353,
+      title: this.state.ShowNewheatmap ? "new" : "reference",
+      yaxis: this.state.heatmapAxes.yaxis,
+      xaxis: this.state.heatmapAxes.xaxis,
+      width: 640,
+      height: 564,
     };
+    let img_new = `${
+      output_new.output_dir_url
+      }/Frame${selected_frame}/${this.state.output_type}.png`;
+    let img_ref = `${
+      output_ref.output_dir_url
+      }/Frame${selected_frame}/${this.state.output_type}.png`;
     return (
       <>
         <p className={Classes.TEXT_MUTED}>
@@ -340,28 +357,36 @@ class TofOutputCard extends Component {
               Frame {selected_frame}
             </a>
           </h4>
-          {output_types.map(output_type => {
-            let img_new = `${
-              output_new.output_dir_url
-            }/Frame${selected_frame}/${output_type}.png`;
-            let img_ref = `${
-              output_ref.output_dir_url
-            }/Frame${selected_frame}/${output_type}.png`;
-            return (
-              <div key={output_type}>
-                {this.state.showHeatmap && this.state.heatmapData == "pcmd" && <>
-                  {this.state.depth && <Plot data={[{...this.state.depth, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)}/>}
-                </>}
-                {!this.state.showHeatmap && <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />}
-                {!this.state.showHeatmap && <img width={400} alt="Reference" src={img_ref} />}
-              </div>
-            );
-          })}
+          {
+            this.state.showHeatmap
+            ? (
+                <div>
+                  {this.state.showHeatmap && <>
+                  {this.state.hexData && <Plot data={[{...this.state.hexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} onRelayout={(e) => { console.log(e)}}/>}
+                  </>}
+                </div>
+              )
+            : (
+                <div>
+                  {<img width={400} alt="New" src={img_new} />}
+                  {<img width={400} alt="Reference" src={img_ref} />}
+                </div>
+              )
+          }
         </div>
-        <div className="viewMenu">
-          <button onClick={e => this.updatePointCloud(selected_frame)}> Point Cloud </button>
-          <button onClick={e => {this.setState({heatmapData: "pcmd"}); this.setState({showHeatmap: true})}}> PCMD heatmap </button>
-          <button> Menu item 3 </button>
+        <div className="viewButtons">
+          <div>
+            <button onClick={e => {this.setState({showHeatmap: true}); this.setState({ShowNewheatmap: true}); this.getHexData(this.props);}}> show heatmap </button>
+            <button onClick={e => this.setState({showHeatmap: false})}> Close heatmap </button>
+            <button onClick={e => {this.setState({ShowNewheatmap: !this.state.ShowNewheatmap}); this.getHexData(this.props);}}> Toggle Heatmap </button>
+          </div>
+          <div>
+            <button onClick={e => {this.setState({output_type: "depth"}); this.getHexData(this.props)}}> Show depth </button>
+            <button onClick={e => {this.setState({output_type: "pcmdHeatmap"}); this.getHexData(this.props)}}> Show PCMD </button>
+          </div>
+          <div>
+            <button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </button>
+          </div>
         </div>
 
         {false && <p>{JSON.stringify(output_new)}</p>}
