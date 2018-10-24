@@ -229,11 +229,12 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
-@click.option('--lsf-threads', default=0, type=int , help="restrict number of lsf threads to use. 0 = no restriction")
+@click.option('--lsf-threads', default=0, type=int, help="Restrict number of lsf threads to use. 0 = no restriction")
+@click.option('--lsf-memory', default=0, type=int, help="Restrict memory (MB) to use. 0 = no restriction")
 @click.option('--skip-existing', is_flag=True , help="If true, skip the postprocess command on existing outputs")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, skip_existing, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, skip_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
   Unless we ask to overwrite, we don't recompute already available results.
   """
@@ -286,7 +287,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads))
+      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory))
 
       if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
         notify_qa_database(**{
