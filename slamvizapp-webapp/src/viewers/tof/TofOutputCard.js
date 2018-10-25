@@ -64,9 +64,9 @@ class TofOutputCard extends Component {
       show_pointcloud: false,
       showHeatmap: false,
       output_type: "pcmdHeatmap",
-      ShowNewheatmap: true,
       focus: 'new',
       heatmapAxes: { xaxis: {autorange : true}, yaxis: {autorange : "reversed"}},
+      heatmapZscale: {zmin: 0, zmax: 750},
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
@@ -93,31 +93,28 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
+    window.addEventListener("keypress", this.keyboard);
     this.updateFrames(this.props);
     this.getHexData(this.props);
   }
 
   componentDidUpdate(nextProps, prevState) {
-    if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref) {
+    if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
         this.updateFrames(nextProps)
+    }
+    if (prevState.output_type !== this.state.output_type) {
+        this.getHexData(this.props);
     }
   }
   
   getHexData(props) {
     const { output_new, output_ref } = props;
     const { selected_frame, output_type }  = this.state;
-    var currentOutput = output_new;
-    console.log("inside getHexData");
-    console.log(output_type);
-    if (!this.state.ShowNewheatmap) {
-      currentOutput = output_ref;
-      console.log("showing ref");
-    }
 
-    get(`${currentOutput.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
+    get(`${output_new.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
     .then(response => {
 	  this.setState({
-	    hexData: {
+	    newHexData: {
         type: 'heatmap',
         z: parse_hex(response.data).z,
         name: `${output_type}`,
@@ -126,6 +123,20 @@ class TofOutputCard extends Component {
       }
 	  }) 
 	})
+    .catch(e => {console.log(e)});
+
+    get(`${output_ref.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
+    .then(response => {
+    this.setState({
+      refHexData: {
+        type: 'heatmap',
+        z: parse_hex(response.data).z,
+        name: `${output_type}`,
+        hoverinfo: "x+y+z+name",
+        showscale: true,
+      }
+    }) 
+  })
     .catch(e => {console.log(e)});
   }
   
@@ -200,7 +211,6 @@ class TofOutputCard extends Component {
     this.controls.minDistance = 1;
     this.controls.maxDistance = 5 * 1000;
 
-    window.addEventListener("keypress", this.keyboard);
     while (this.threeRoot.hasChildNodes()) {
       this.threeRoot.removeChild(this.threeRoot.lastChild);
     }
@@ -212,8 +222,6 @@ class TofOutputCard extends Component {
   }
 
   updatePointCloud(selected_frame) {
-    this.getHexData(this.props);
-
     if (!this.state.show_pointcloud) {
       this.setState({show_pointcloud: true})
       this.startPointCloud()
@@ -234,9 +242,11 @@ class TofOutputCard extends Component {
   };
 
   keyboard = ev => {
-    var pointcloud_new = this.scene.getObjectByName("new");
-    var pointcloud_ref = this.scene.getObjectByName("reference");
-    var pointcloud_gt = this.scene.getObjectByName("groundtruth");
+    if (this.scene !== undefined){
+      var pointcloud_new = this.scene.getObjectByName("new");
+      var pointcloud_ref = this.scene.getObjectByName("reference");
+      var pointcloud_gt = this.scene.getObjectByName("groundtruth");
+    }
     switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "+":
       case "=":
@@ -261,8 +271,11 @@ class TofOutputCard extends Component {
         }
         break;
       case "r":
+        if (this.state.showHeatmap || this.state.show_pointcloud) {
+          this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'});
+          console.log("no cursing"); 
+        }
         if (pointcloud_ref !== undefined) {
-          this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'})
           pointcloud_ref.visible = !pointcloud_ref.visible;
           pointcloud_new.visible = !pointcloud_new.visible;          
         }
@@ -318,7 +331,7 @@ class TofOutputCard extends Component {
       ...layout
     };
     let heatmaps_layout = {
-      title: this.state.ShowNewheatmap ? "new" : "reference",
+      title: this.state.focus,
       yaxis: this.state.heatmapAxes.yaxis,
       xaxis: this.state.heatmapAxes.xaxis,
       width: 640,
@@ -345,7 +358,7 @@ class TofOutputCard extends Component {
           {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        {<Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>}
+        {<Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: (1+e.points[0].pointNumber)})}}/>}
       
         <div>
           <h4 className={Classes.HEADING}>
@@ -361,9 +374,15 @@ class TofOutputCard extends Component {
             this.state.showHeatmap
             ? (
                 <div>
-                  {this.state.showHeatmap && <>
-                  {this.state.hexData && <Plot data={[{...this.state.hexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} onRelayout={(e) => { console.log(e)}}/>}
-                  </>}
+                  {
+                    (this.state.focus == "new")
+                      ? (
+                          <Plot data={[{...this.state.newHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
+                        ) 
+                      : (
+                          <Plot data={[{...this.state.refHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
+                        )
+                  }
                 </div>
               )
             : (
@@ -376,13 +395,11 @@ class TofOutputCard extends Component {
         </div>
         <div className="viewButtons">
           <div>
-            <button onClick={e => {this.setState({showHeatmap: true}); this.setState({ShowNewheatmap: true}); this.getHexData(this.props);}}> show heatmap </button>
-            <button onClick={e => this.setState({showHeatmap: false})}> Close heatmap </button>
-            <button onClick={e => {this.setState({ShowNewheatmap: !this.state.ShowNewheatmap}); this.getHexData(this.props);}}> Toggle Heatmap </button>
+            <button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}> {this.state.showHeatmap ? ("Show static image") : ("Show heatmap")} </button>
           </div>
           <div>
-            <button onClick={e => {this.setState({output_type: "depth"}); this.getHexData(this.props)}}> Show depth </button>
-            <button onClick={e => {this.setState({output_type: "pcmdHeatmap"}); this.getHexData(this.props)}}> Show PCMD </button>
+            <button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </button>
+            <button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </button>
           </div>
           <div>
             <button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </button>
