@@ -22,7 +22,7 @@ import { empty_batch } from "../defaults"
 const outer_div_style = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  alignItems: "flex-start",
 }
 
 
