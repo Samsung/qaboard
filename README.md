@@ -16,7 +16,7 @@ It does it by:
 - [slamvizapp](slamvizapp/) is the applications' backend:
   * It manages a database where results are stored...
   * and exposes it via a simple HTTP API.
-- [slamvizapp](slamvizapp-webapp/) is the frontend, a web application.
+- [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
 
 
 ## How to run (with Docker, recommended)
