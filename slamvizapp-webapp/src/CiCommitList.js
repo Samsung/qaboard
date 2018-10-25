@@ -112,7 +112,9 @@ class CiCommitList extends React.Component {
 
     // commits.filter( c => c.batches.default!==undefined )
     // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
+    console.log(project_data.information.qatools_config)
     let reference_branch = project_data.information.qatools_config.project.reference_branch;
+    let ci_root = project_data.information.qatools_config.ci_root.linux.replace("/home/arthurf/", "")
     var information = (
       <>
         <Section>
@@ -153,14 +155,14 @@ class CiCommitList extends React.Component {
                 alt="build status"
               />
             </a>
-            <a href={`/s/${project}/branches/develop/coverage/index.html`}>
+            <a href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`}>
               {" "}
               <img
                 alt="coverage report"
                 src={`http://gitlab-srv/${project}/badges/${reference_branch}/coverage.svg`}
               />
             </a>
-            {<a href={`/s/${project}/branches/${reference_branch}/doxygen/index.html`}>
+            {<a href={`/s${ci_root}/${project}/branches/${reference_branch}/doxygen/index.html`}>
               {" "}
               <img
                 src={`https://img.shields.io/badge/docs-${reference_branch}-blue.svg`}
