@@ -5,6 +5,8 @@ import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
 import { Classes, Colors, Button } from "@blueprintjs/core";
+import { get } from "axios";
+import { parse_hex } from "./Sys_Tools"
 
 const aspect_ratio = 4 / 3;
 const width = 640; // full screen would be window.innerWidth;
@@ -27,7 +29,7 @@ var make_traces = function(metrics_over_frames, label) {
     type: "scatter",
     mode: "lines+markers",
     x: Array.from(metrics_over_frames.keys()),
-    y: Array.from(metrics_over_frames.values()).map(m => m.rmse),
+    y: Array.from(metrics_over_frames.values()).map(m => m.pcmd),
     line: {
       color: colors[label],
       width: label === "reference" ? 3 : 2, // ref wider to highlight bit accuracy
@@ -60,7 +62,11 @@ class TofOutputCard extends Component {
     this.state = {
       selected_frame: last_frame_id,
       show_pointcloud: false,
+      showHeatmap: false,
+      output_type: "pcmdHeatmap",
       focus: 'new',
+      heatmapAxes: { xaxis: {autorange : true}, yaxis: {autorange : "reversed"}},
+      heatmapZscale: {zmin: 0, zmax: 750},
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
@@ -87,15 +93,53 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
-    this.updateFrames(this.props)
+    window.addEventListener("keypress", this.keyboard);
+    this.updateFrames(this.props);
+    this.getHexData(this.props);
   }
 
   componentDidUpdate(nextProps, prevState) {
-    if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref) {
+    if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
         this.updateFrames(nextProps)
     }
+    if (prevState.output_type !== this.state.output_type) {
+        this.getHexData(this.props);
+    }
   }
+  
+  getHexData(props) {
+    const { output_new, output_ref } = props;
+    const { selected_frame, output_type }  = this.state;
 
+    get(`${output_new.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
+    .then(response => {
+	  this.setState({
+	    newHexData: {
+        type: 'heatmap',
+        z: parse_hex(response.data).z,
+        name: `${output_type}`,
+        hoverinfo: "x+y+z+name",
+        showscale: true,
+      }
+	  }) 
+	})
+    .catch(e => {console.log(e)});
+
+    get(`${output_ref.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
+    .then(response => {
+    this.setState({
+      refHexData: {
+        type: 'heatmap',
+        z: parse_hex(response.data).z,
+        name: `${output_type}`,
+        hoverinfo: "x+y+z+name",
+        showscale: true,
+      }
+    }) 
+  })
+    .catch(e => {console.log(e)});
+  }
+  
   getPointcloud(frame_id, label) {
     var loader = new PCDLoader();
     if (label === "new") {
@@ -167,8 +211,9 @@ class TofOutputCard extends Component {
     this.controls.minDistance = 1;
     this.controls.maxDistance = 5 * 1000;
 
-    window.addEventListener("keypress", this.keyboard);
-    // remove all children of threeRoot ?
+    while (this.threeRoot.hasChildNodes()) {
+      this.threeRoot.removeChild(this.threeRoot.lastChild);
+    }
     this.threeRoot.appendChild(this.renderer.domElement);
 
     if (!this.frameId) {
@@ -197,9 +242,11 @@ class TofOutputCard extends Component {
   };
 
   keyboard = ev => {
-    var pointcloud_new = this.scene.getObjectByName("new");
-    var pointcloud_ref = this.scene.getObjectByName("reference");
-    var pointcloud_gt = this.scene.getObjectByName("groundtruth");
+    if (this.scene !== undefined){
+      var pointcloud_new = this.scene.getObjectByName("new");
+      var pointcloud_ref = this.scene.getObjectByName("reference");
+      var pointcloud_gt = this.scene.getObjectByName("groundtruth");
+    }
     switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "+":
       case "=":
@@ -224,8 +271,11 @@ class TofOutputCard extends Component {
         }
         break;
       case "r":
+        if (this.state.showHeatmap || this.state.show_pointcloud) {
+          this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'});
+          console.log("no cursing"); 
+        }
         if (pointcloud_ref !== undefined) {
-          this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'})
           pointcloud_ref.visible = !pointcloud_ref.visible;
           pointcloud_new.visible = !pointcloud_new.visible;          
         }
@@ -270,7 +320,7 @@ class TofOutputCard extends Component {
         title: "frame"
       },
       yaxis: {
-        title: "RMSE"
+        title: "PCMD"
       },
       legend: {
         orientation: "h",
@@ -280,7 +330,19 @@ class TofOutputCard extends Component {
       },
       ...layout
     };
-    const output_types = ["depth"]; //, 'intensity'];
+    let heatmaps_layout = {
+      title: this.state.focus,
+      yaxis: this.state.heatmapAxes.yaxis,
+      xaxis: this.state.heatmapAxes.xaxis,
+      width: 640,
+      height: 564,
+    };
+    let img_new = `${
+      output_new.output_dir_url
+      }/Frame${selected_frame}/${this.state.output_type}.png`;
+    let img_ref = `${
+      output_ref.output_dir_url
+      }/Frame${selected_frame}/${this.state.output_type}.png`;
     return (
       <>
         <p className={Classes.TEXT_MUTED}>
@@ -293,10 +355,10 @@ class TofOutputCard extends Component {
             this.threeRoot = threeRoot;
           }}
         >
-          {is_loaded && this.renderer.render(this.scene, this.camera)}
+          {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        <Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: e.points[0].pointNumber})}}/>
+        {<Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: (1+e.points[0].pointNumber)})}}/>}
       
         <div>
           <h4 className={Classes.HEADING}>
@@ -308,20 +370,40 @@ class TofOutputCard extends Component {
               Frame {selected_frame}
             </a>
           </h4>
-          {output_types.map(output_type => {
-            let img_new = `${
-              output_new.output_dir_url
-            }/Frame${selected_frame}/${output_type}.png`;
-            let img_ref = `${
-              output_ref.output_dir_url
-            }/Frame${selected_frame}/${output_type}.png`;
-            return (
-              <div key={output_type}>
-                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="New" src={img_new} />
-                <img width={400} onClick={e => this.updatePointCloud(selected_frame)} alt="Reference" src={img_ref} />
-              </div>
-            );
-          })}
+          {
+            this.state.showHeatmap
+            ? (
+                <div>
+                  {
+                    (this.state.focus === "new")
+                      ? (
+                          <Plot data={[{...this.state.newHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
+                        ) 
+                      : (
+                          <Plot data={[{...this.state.refHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
+                        )
+                  }
+                </div>
+              )
+            : (
+                <div>
+                  {<img width={400} alt="New" src={img_new} />}
+                  {<img width={400} alt="Reference" src={img_ref} />}
+                </div>
+              )
+          }
+        </div>
+        <div className="viewButtons">
+          <div>
+            <Button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}> {this.state.showHeatmap ? ("Show static image") : ("Show heatmap")} </Button>
+          </div>
+          <div>
+            <Button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </Button>
+            <Button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </Button>
+          </div>
+          <div>
+            <Button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </Button>
+          </div>
         </div>
 
         {false && <p>{JSON.stringify(output_new)}</p>}
