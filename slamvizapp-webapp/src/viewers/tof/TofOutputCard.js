@@ -375,7 +375,7 @@ class TofOutputCard extends Component {
             ? (
                 <div>
                   {
-                    (this.state.focus == "new")
+                    (this.state.focus === "new")
                       ? (
                           <Plot data={[{...this.state.newHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
                         ) 
@@ -395,14 +395,14 @@ class TofOutputCard extends Component {
         </div>
         <div className="viewButtons">
           <div>
-            <button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}> {this.state.showHeatmap ? ("Show static image") : ("Show heatmap")} </button>
+            <Button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}> {this.state.showHeatmap ? ("Show static image") : ("Show heatmap")} </Button>
           </div>
           <div>
-            <button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </button>
-            <button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </button>
+            <Button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </Button>
+            <Button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </Button>
           </div>
           <div>
-            <button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </button>
+            <Button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </Button>
           </div>
         </div>
 
