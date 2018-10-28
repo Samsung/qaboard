@@ -251,8 +251,8 @@ def sync(ctx, input_path, output_path):
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
-@click.option('--lsf-threads', default=0, type=int , help="restrict number of lsf threads to use. 0 = no restriction")
-@click.option('--lsf-memory', default=0, type=int , help="restrict memory (MB) to use. 0 = no restriction")
+@click.option('--lsf-threads', default=0, type=int, help="restrict number of lsf threads to use. 0 = no restriction")
+@click.option('--lsf-memory', default=0, type=int, help="restrict memory (MB) to use. 0 = no restriction")
 @click.option('--action-on-existing', default="postprocess", help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
