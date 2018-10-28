@@ -235,7 +235,7 @@ def sync(ctx, input_path, output_path):
       metrics = json.load(f)
     ctx.obj['input_path'] =  input_path
     ctx.obj['output_directory'] =  output_directory
-    notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
+    notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
 
 
