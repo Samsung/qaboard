@@ -81,16 +81,22 @@ def postprocess(runtime_metrics, context):
   Postprocessing functions should
     1. return a dict with metrics to save in metrics.json
     2. Create any qualitative outputs you would like to view later (images, movies...)
+    
+  It can be as simple as:
+    return runtime_metrics
+
   args:
     context: Click.Context, context.obj has information from the CLI arguments
     runtime_metrics: metrics from the run
   """
-  poses_path = context.obj["output_directory"] / 'camera_poses_debug.txt'
-  # ideally we should get our program's return code via runtime_metrics
+  # You should know what files you algo writes, and what they mean
   metrics = {"is_failed": not poses_path.exists()}
   if metrics["is_failed"]: return metrics
 
+  poses_path = context.obj["output_directory"] / 'camera_poses_debug.txt'
   poses_estimated = read_poses(poses_path)
+
+  # You could also get metadata about your test to decide to compute, or not, some metrics 
   metrics = {
     **metrics,
     **runtime_metrics,
@@ -100,21 +106,20 @@ def postprocess(runtime_metrics, context):
   # You are responsible knowing where the groundtruth is (if it exists)
   ground_truth_path = context.obj['database'] / context.obj["input_path"].parent / 'GT_final.txt'
   if ground_truth_path.exists():
-    print('INFO: found ground truth')
     poses_groundtruth = read_poses(ground_truth_path)
-    # you may need to do more work, eg 6dof alignment...
     metrics = {
       **metrics,
       **objective_metrics(poses_estimated, poses_groundtruth),
     }
 
-  # Depending on the input type, you could implement different postprocessing flows
-  # if context.obj["output_type"] == 'cis/siemens-star':
+  # Depending on the input type, you could implement different postprocessing flows. You could do something like:
+  # metadata_path = context.obj['database'] / context.obj["input_path"].parent / 'metadata.json'
+  # metadata = ...
+  # if 'siemens-start' in metadata.get('type', []):
   #   resolution_from_center = find_resolution_from_center(context["output_directory"]/'image.bmp')
   #   create_plot(resolution_from_center, context["output_directory"]/'resolution.jpg')
   #   ...
 
-  # those will be written into metrics.json
   return metrics
 
 
