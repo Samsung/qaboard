@@ -253,7 +253,7 @@ def sync(ctx, input_path, output_path):
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--lsf-threads', default=config['lsf'].get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-memory', default=config['lsf'].get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
-@click.option('--action-on-existing', default="postprocess", help="When there are already results, whether to do run/postprocess/sync/skip")
+@click.option('--action-on-existing', default=config['outputs'].get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, action_on_existing, forwarded_args):
