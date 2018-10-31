@@ -105,6 +105,7 @@ const filter_batch = (batch, filter_values) => {
     .toLowerCase()
     .replace(/"/g, "")
     .replace(/=+/g, ":")
+    .replace(/: /g, ":")
     .split(" ");
 
   let batch_filtered = Object.create(batch); // copy
