@@ -53,7 +53,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     return <td style={{ background: "#bbb" }}>Ref missing</td>;
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
   let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
-  let quality = metric.smaller_is_better ? 0.5 - delta_relative : 0.5 + delta_relative;
+  let quality = metric.smaller_is_better ? (0.5 + delta_relative) : (0.5 - delta_relative);
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       {metric_formatter.format(delta)} ({percent_formatter.format(
@@ -72,7 +72,7 @@ const QualityCell = ({ metric, metrics }) => {
     return <td style={{ background: "#bbb" }}>na</td>;
   let value = metrics[metric.key];
   const delta_relative = (metric.target - value) / (metric.target + 0.0001);
-  let quality = metric.smaller_is_better ? 0.5 - delta_relative : 0.5 + delta_relative;
+  let quality = metric.smaller_is_better ? (0.5 + delta_relative) : (0.5 - delta_relative);
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       {metric_formatter.format(value)}
