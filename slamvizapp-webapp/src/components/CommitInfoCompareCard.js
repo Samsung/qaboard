@@ -1,5 +1,8 @@
 import React from "react";
 import { connect } from 'react-redux'
+import { withRouter } from "react-router";
+import qs from "qs";
+
 import {
   Classes,
   Card,
@@ -201,6 +204,16 @@ class CommitInfoCompareCard extends React.PureComponent {
     if (!ref_commit_id.startsWith(new_ref_commit_id)) {
       dispatch(fetchCommit(project, new_ref_commit_id, "ref_commit_id"));
       dispatch(updateSelected(project, { ref_commit_id: new_ref_commit_id }))
+
+      let query = qs.parse(window.location.search.substring(1));
+      this.props.history.push({
+        pathname: window.location.pathname,
+        search: qs.stringify({
+          ...query,
+          reference: ref_commit_id
+        })
+      });
+
     }
   };
 
@@ -209,8 +222,18 @@ class CommitInfoCompareCard extends React.PureComponent {
     const { project, dispatch } = this.props;
     dispatch(fetchCommit(project, null, "ref_commit_id", branch));
     dispatch(updateSelected(project, { ref_commit_id: branch }))
+
+    let query = qs.parse(window.location.search.substring(1));
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        reference: `origin/${branch}`
+      })
+    });
+
   };
 
 }
 
-export default connect(state => ({selected: state.selected, commits: state.commits}))(CommitInfoCompareCard)
+export default withRouter(connect(state => ({selected: state.selected, commits: state.commits}))(CommitInfoCompareCard));
