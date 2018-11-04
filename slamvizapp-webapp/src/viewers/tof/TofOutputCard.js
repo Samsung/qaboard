@@ -136,6 +136,7 @@ class TofOutputCard extends Component {
         name: `${output_type}`,
         hoverinfo: "x+y+z+name",
         showscale: true,
+        colorscale: 'Viridis',
       }
 	  }) 
 	})
@@ -150,6 +151,7 @@ class TofOutputCard extends Component {
         name: `${output_type}`,
         hoverinfo: "x+y+z+name",
         showscale: true,
+        colorscale: 'Viridis',
       }
     }) 
   })
@@ -347,7 +349,7 @@ class TofOutputCard extends Component {
       ...layout
     };
     let heatmaps_layout = {
-      title: this.state.focus,
+      title: this.state.focus + " - " + this.state.output_type,
       yaxis: this.state.heatmapAxes.yaxis,
       xaxis: this.state.heatmapAxes.xaxis,
       width: 640,
@@ -428,6 +430,7 @@ class TofOutputCard extends Component {
           <div>
             <Button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </Button>
             <Button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </Button>
+            <Button onClick={e => {this.setState({output_type: "AbsErrHeatmap"});}}> Show Abs Error </Button>
           </div>
           <div>
             <Button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </Button>
