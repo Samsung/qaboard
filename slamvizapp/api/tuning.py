@@ -126,8 +126,8 @@ def add_batch(hexsha):
     if not batch.output_dir.exists(): batch.output_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
-    overwrite = "--overwrite" if data["overwrite"] == "on" else ""
     if project_id=="dvs/psp_swip":
+        overwrite = "--overwrite" if data["overwrite"] == "on" else ""
         batch_command = " ".join(
             [
                 "python tools/performance-evaluation/run.py",
@@ -169,6 +169,7 @@ def add_batch(hexsha):
         else:
             config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
 
+        overwrite = "--action-on-existing run" if data["overwrite"] == "on" else "--action-on-existing sync"
         batch_command = " ".join(
             [
                 "qa",

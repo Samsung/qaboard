@@ -81,6 +81,7 @@ class OutputLog extends Component {
     const intent = output.is_failed
       ? Intent.DANGER
       : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
+
     const tag_config = (
       <Tag>{`${output.configuration} @${output.platform}`}</Tag>
     );
@@ -100,7 +101,7 @@ class OutputLog extends Component {
     return (
       <div>
         <h6 className={Classes.HEADING}>
-          {show_button} <Tag intent={intent}>{tag_text}</Tag> {tag_config}{" "}{download_link}{" "}
+          {show_button} {output.output_type !== "batch" && <Tag intent={intent}>}{tag_text}</Tag>} {tag_config}{" "}{download_link}{" "}
           {output.test_input_path} {details}
         </h6>
         {is_supported && (

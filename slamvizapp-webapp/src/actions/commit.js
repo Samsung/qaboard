@@ -38,17 +38,15 @@ export const fetchCommit = (project, id, used_for, branch) => {
         //     x => dispatch(fetchCommit(project, id_, used_for)),
         //     60 * 1000
         //   );
-        if (used_for === "ref_commit_id") {
+         if (used_for === "ref_commit_id") {
           let query = qs.parse(window.location.search.substring(1));
-          if (query.reference && query.reference !== id_) {
-            this.props.history.push({
-              pathname: window.location.pathname,
-              search: qs.stringify({
-                ...query,
-                reference: id_
-              })
-            });
-          }
+          let querystring = qs.stringify({
+            ...query,
+            reference: id_,
+          })
+          let url = `${window.location.pathname}?${querystring}`;
+          // console.log(url)
+          window.history.pushState({}, "", url)
         }
 
       })

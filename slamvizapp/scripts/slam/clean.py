@@ -4,6 +4,8 @@ Removes the outputs from old commits from the disk. This saves storage...
 """
 import datetime
 import subprocess
+from pathlib import Path
+
 import click
 from gitdb.exc import BadName
 

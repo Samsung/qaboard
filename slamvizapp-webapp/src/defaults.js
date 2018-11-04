@@ -26,6 +26,9 @@ export const default_qatools_config = {
 	project: {
 		reference_branch: 'develop',
 	},
+	ci_root: {
+		linux: '/home/arthurf/ci',
+	},
 	inputs: {
 		configuration: 'base',
 	},
@@ -41,6 +44,9 @@ export const default_qatools_config = {
 export const slam_qatools_config = {
 	project: {
 		reference_branch: 'develop',
+	},
+	ci_root: {
+		linux: '/home/arthurf/ci',
 	},
 	inputs: {
 		configuration: 'serial-stereo',
@@ -83,33 +89,6 @@ export const slam_qatools_config = {
 		 ]
 	},
 }
-// legacy
-export const tof_qatools_config = {
-	project: {
-		reference_branch: 'develop',
-	},
-	inputs: {
-		configuration: 'xrMode',
-		database: {
-			linux: '/net/f2/algo_archive/ToF_SW_Database',
-			windows: '\\\\f2\\algo_archive\\ToF_SW_Database',
-		},
-	},
-	outputs: {
-		style: {
-			width: '840px',
-		},
-		detailed_views: [
-			{
-				path: 'pointcloud.pcd',
-				type: 'pointcloud/txt',
-				// in folders, from keys in metrics.json ?
-				one_for_each: 'frames',
-			},
-		],
-	},
-}
-
 
 
 export const default_project = {
