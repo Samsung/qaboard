@@ -63,7 +63,7 @@ class TofOutputCard extends Component {
       selected_frame: last_frame_id,
       show_pointcloud: false,
       showHeatmap: false,
-      output_type: "pcmdHeatmap",
+      output_type: "depth",
       focus: 'new',
       heatmapAxes: { xaxis: {autorange : true}, yaxis: {autorange : "reversed"}},
       heatmapZscale: {zmin: 0, zmax: 750},
@@ -161,12 +161,16 @@ class TofOutputCard extends Component {
   getPointcloud(frame_id, label) {
     var loader = new PCDLoader();
     if (label === "new") {
-      var output = this.props.output_new;
-    } else {
-      output = this.props.output_ref;
-      if (output.id === undefined) return;
+      var pointcloud_dir = this.props.output_new.output_dir_url;
+    } else if (label === "reference") {
+      if (this.props.output_ref.id === undefined) return;
+      pointcloud_dir = this.props.output_ref.output_dir_url;
+    } else if (label === "groundtruth") {
+      pointcloud_dir = `/s/${this.props.output_new.test_input_database}/${this.props.output_new.test_input_path}`;
     }
-    var url = `${output.output_dir_url}/Frame${frame_id}/pointcloud.pcd`;
+
+    var url = `${pointcloud_dir}/Frame${frame_id}/pointcloud.pcd`;
+    console.log(url)
     loader.load(url, pointcloud => {
       if (pointcloud !== null) {
         var previous_pointcloud = this.scene.getObjectByName(label);
@@ -177,15 +181,19 @@ class TofOutputCard extends Component {
         pointcloud.name = label;
         if (label === "reference") {
           pointcloud.visible = false;
-          pointcloud.material.size = 1;
-           // pointcloud.material.vertexColors = false;
-          // pointcloud.material.color.setHex(0x000000);
         }
-        else {
+        else if (label === "new") {
           var center = pointcloud.geometry.boundingSphere.center;
           this.camera.position.z = center.y;
           this.controls.target.set(center.x, center.y, center.z);
           this.controls.update();
+        }
+        else if (label === "groundtruth") {
+          pointcloud.visible = false;
+          pointcloud.material.vertexColors = false;
+          pointcloud.material.color.setHex(0xff0000);
+          pointcloud.material.opacity = 0.5;
+          pointcloud.material.transparent = true;
         }
         this.scene.add(pointcloud);
       }
@@ -246,6 +254,7 @@ class TofOutputCard extends Component {
     }
     this.getPointcloud(selected_frame, "new");
     this.getPointcloud(selected_frame, "reference");
+    this.getPointcloud(selected_frame, "groundtruth");
     this.setState({ selected_frame });
   }
 
@@ -276,6 +285,10 @@ class TofOutputCard extends Component {
           pointcloud_ref.material.size *= 1.25;
           pointcloud_ref.material.needsUpdate = true;
         }
+        if (pointcloud_gt !== undefined) {
+          pointcloud_gt.material.size *= 1.25;
+          pointcloud_gt.material.needsUpdate = true;
+        }
         break;
       case "-":
       case "_":
@@ -286,6 +299,10 @@ class TofOutputCard extends Component {
         if (pointcloud_ref !== undefined) {
           pointcloud_ref.material.size /= 1.25;
           pointcloud_ref.material.needsUpdate = true;
+        }
+        if (pointcloud_gt !== undefined) {
+          pointcloud_gt.material.size /= 1.25;
+          pointcloud_gt.material.needsUpdate = true;
         }
         break;
       case "r":
@@ -299,8 +316,17 @@ class TofOutputCard extends Component {
         }
         break;
       case "g":
-        if (pointcloud_gt !== undefined)
+        if (pointcloud_ref !== undefined) {
+          pointcloud_ref.material.transparent = !pointcloud_ref.material.transparent;
+          pointcloud_ref.material.opacity = pointcloud_gt.visible ? 1 : 0.5;
+        }
+        if (pointcloud_new !== undefined) {
+          pointcloud_new.material.transparent = !pointcloud_new.material.transparent;
+          pointcloud_new.material.opacity = pointcloud_gt.visible ? 1 : 0.5;
+        }
+        if (pointcloud_gt !== undefined) {
           pointcloud_gt.visible = !pointcloud_gt.visible;
+        }
         break;
       default:
         return;
@@ -366,7 +392,7 @@ class TofOutputCard extends Component {
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
                         ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
-                        : "Loading...") : "Click on a depth image or a point on the plot to show pointclouds."}
+                        : "Loading...") : "Click a point on the plot to show other frames."}
         </p>
         <div hidden={!show_pointcloud}
           ref={threeRoot => {
