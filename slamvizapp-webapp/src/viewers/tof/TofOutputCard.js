@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
-import { Classes, Colors, Button } from "@blueprintjs/core";
+import { Classes, Colors, Button, RangeSlider } from "@blueprintjs/core";
 import { get } from "axios";
 import { parse_hex } from "./Sys_Tools"
 
@@ -67,6 +67,7 @@ class TofOutputCard extends Component {
       focus: 'new',
       heatmapAxes: { xaxis: {autorange : true}, yaxis: {autorange : "reversed"}},
       heatmapZscale: {zmin: 0, zmax: 750},
+      heatmapScaleMinMax: {zmin: 0, zmax: 750},
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
@@ -95,16 +96,31 @@ class TofOutputCard extends Component {
   componentDidMount() {
     window.addEventListener("keypress", this.keyboard);
     this.updateFrames(this.props);
-    this.getHexData(this.props);
   }
 
   componentDidUpdate(nextProps, prevState) {
     if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
         this.updateFrames(nextProps)
     }
-    if (prevState.output_type !== this.state.output_type) {
+    if (prevState.output_type !== this.state.output_type || (this.state.showHeatmap && prevState.newHexData === undefined)) {
         this.getHexData(this.props);
     }
+    if (this.state.newHexData && this.state.newHexData.z && prevState.newHexData !== this.state.newHexData) {
+        this.setState({heatmapZscale: this.getMinMax(this.state.newHexData.z.flat())});
+        this.setState({heatmapScaleMinMax: this.getMinMax(this.state.newHexData.z.flat())});
+    }
+  }
+  
+  getMinMax(arr) {
+    let len = arr.length;
+    let max = -Infinity;
+    let min = Infinity;
+
+    while (len--) {
+        max = arr[len] > max ? arr[len] : max;
+        min = arr[len] < min ? arr[len] : min;
+    }
+    return {zmin: min, zmax: max};
   }
   
   getHexData(props) {
@@ -120,6 +136,7 @@ class TofOutputCard extends Component {
         name: `${output_type}`,
         hoverinfo: "x+y+z+name",
         showscale: true,
+        colorscale: 'Viridis',
       }
 	  }) 
 	})
@@ -134,6 +151,7 @@ class TofOutputCard extends Component {
         name: `${output_type}`,
         hoverinfo: "x+y+z+name",
         showscale: true,
+        colorscale: 'Viridis',
       }
     }) 
   })
@@ -271,9 +289,9 @@ class TofOutputCard extends Component {
         }
         break;
       case "r":
+      case "R":
         if (this.state.showHeatmap || this.state.show_pointcloud) {
           this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'});
-          console.log("no cursing"); 
         }
         if (pointcloud_ref !== undefined) {
           pointcloud_ref.visible = !pointcloud_ref.visible;
@@ -331,7 +349,7 @@ class TofOutputCard extends Component {
       ...layout
     };
     let heatmaps_layout = {
-      title: this.state.focus,
+      title: this.state.focus + " - " + this.state.output_type,
       yaxis: this.state.heatmapAxes.yaxis,
       xaxis: this.state.heatmapAxes.xaxis,
       width: 640,
@@ -373,22 +391,34 @@ class TofOutputCard extends Component {
           {
             this.state.showHeatmap
             ? (
-                <div>
-                  {
-                    (this.state.focus === "new")
-                      ? (
-                          <Plot data={[{...this.state.newHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
-                        ) 
-                      : (
-                          <Plot data={[{...this.state.refHexData, }]} layout = {heatmaps_layout} onClick={e => this.updatePointCloud(selected_frame)} />
-                        )
-                  }
-                </div>
+                <>
+                  <div>
+                    {
+                      (this.state.focus === "new")
+                        ?  
+                          <Plot data={[{...this.state.newHexData, ...this.state.heatmapZscale }]} layout = {heatmaps_layout}/>
+                        : 
+                          <Plot data={[{...this.state.refHexData, ...this.state.heatmapZscale}]} layout = {heatmaps_layout}/>
+                    }
+                  </div>
+                  <div>
+                    {
+                      <RangeSlider 
+                        min = {this.state.heatmapScaleMinMax.zmin} 
+                        max = {this.state.heatmapScaleMinMax.zmax} 
+                        value = {(this.state.heatmapZscale) ? ([this.state.heatmapZscale.zmin,this.state.heatmapZscale.zmax]) : ([0,750])} 
+                        onChange = {([minValue,maxValue]) => this.setState({heatmapZscale: {zmin: minValue, zmax: maxValue}})}
+                        labelStepSize = {(this.state.heatmapScaleMinMax.zmax - this.state.heatmapScaleMinMax.zmin)/20}
+                        stepSize = {0.1}
+                      />
+                    }
+                  </div>
+                </>
               )
             : (
                 <div>
-                  {<img width={400} alt="New" src={img_new} />}
-                  {<img width={400} alt="Reference" src={img_ref} />}
+                  <img width={400} alt="New" src={img_new} />
+                  <img width={400} alt="Reference" src={img_ref} />
                 </div>
               )
           }
@@ -400,6 +430,7 @@ class TofOutputCard extends Component {
           <div>
             <Button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </Button>
             <Button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </Button>
+            <Button onClick={e => {this.setState({output_type: "AbsErrHeatmap"});}}> Show Abs Error </Button>
           </div>
           <div>
             <Button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </Button>
