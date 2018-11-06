@@ -28,7 +28,7 @@ test-frontend:
 deploy_staging:
   stage: deploy
   script:
-    - ssh arthurf-vdi "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
+    - ssh arthurf-vdi "dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
     - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
@@ -42,7 +42,7 @@ deploy_staging:
 deploy_production:
   stage: deploy
   script:
-    - ssh arthurf-vdi "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
+    - ssh arthurf-vdi "dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
     - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
