@@ -28,7 +28,7 @@ test-frontend:
 deploy_staging:
   stage: deploy
   script:
-    - ssh arthurf-vdi "cd $(pwd) && dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
+    - ssh arthurf-vdi "cd $(pwd) && dbuild --project SOCISP -q gpu_deep_train_med_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG --cache-from $DOCKER_IMAGE:production ."
     - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
