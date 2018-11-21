@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
 
-import { Classes, Colors, Button, RangeSlider } from "@blueprintjs/core";
+import { Classes, Colors, Button, RangeSlider, Slider } from "@blueprintjs/core";
 import { get } from "axios";
 import { parse_hex } from "./Sys_Tools"
 
@@ -102,7 +102,7 @@ class TofOutputCard extends Component {
     if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
         this.updateFrames(nextProps)
     }
-    if (prevState.output_type !== this.state.output_type || (this.state.showHeatmap && prevState.newHexData === undefined)) {
+    if (prevState.selected_frame !== this.state.selected_frame || prevState.output_type !== this.state.output_type || (this.state.showHeatmap && prevState.newHexData === undefined)) {
         this.getHexData(this.props);
     }
     if (this.state.newHexData && this.state.newHexData.z && prevState.newHexData !== this.state.newHexData) {
@@ -402,8 +402,15 @@ class TofOutputCard extends Component {
           {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        {<Plot data={traces} layout={layout_} onClick={e => { this.setState({selected_frame: (1+e.points[0].pointNumber)})}}/>}
-      
+        {<Plot data={traces} layout={layout_}/>}
+        {<Slider 
+          max = {output_new.metrics.frames.length-1}
+          onChange = {(value) => this.setState({sliderValue: value, selected_frame: Array.from(frames['new'].keys())[value]})}
+          showTrackFill={false}
+          value = {this.state.sliderValue}
+          labelRenderer = {(value) => Array.from(frames['new'].keys())[value]}
+        />}
+
         <div>
           <h4 className={Classes.HEADING}>
             <a
