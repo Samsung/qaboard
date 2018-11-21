@@ -3,23 +3,6 @@ image: gitlab-srv.transchip.com:4567/dvs/slamvizapp
 variables:
   DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamvizapp
 
-before_script:
-  # Our CI needs to access the LSF cluster. We do it via SSH
-  - export SSH_LSF="ssh -o StrictHostKeyChecking=no arthurf@planet31"
-  # manually managed build cache on LSF
-  - export SAMSUNG_CI_ROOT_DIR="/home/arthurf/ci/$CI_PROJECT_PATH"
-  - export SAMSUNG_CI_BRANCH_DIR="$SAMSUNG_CI_ROOT_DIR/branches/$CI_COMMIT_REF_SLUG"
-  # clone/fetch and checkout the commit on LSF
-  - >
-    function update_lsf() {
-      $SSH_LSF "mkdir -p $SAMSUNG_CI_BRANCH_DIR"
-      export TRY_CLONE="git clone --depth=10 -b $CI_COMMIT_REF_NAME git@gitlab-srv:dvs/slamvizapp.git"
-      export TRY_PULL="cd slamvizapp && git fetch origin --depth=10 $CI_COMMIT_REF_NAME && git reset --hard HEAD"
-      cmd="$SSH_LSF 'cd $SAMSUNG_CI_BRANCH_DIR && $TRY_CLONE || $TRY_PULL'"
-      eval $cmd;
-      eval $SSH_LSF "'cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp && git checkout $CI_COMMIT_SHA'"
-    }
-
 stages:
   - build
   - test
@@ -41,30 +24,15 @@ test-frontend:
 # we could run more tests with: 
 #    - CI=true yarn test
 
-deploy_cis_integration:
-  stage: deploy
-  script:
-    - update_lsf
-    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
-    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
-  environment:
-    name: cis
-    url: http://dvs:10000
-  only:
-    - feature/cis-projects
 
 deploy_staging:
   stage: deploy
   script:
-    - update_lsf
-    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
-    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+    - ssh arthurf-vdi "cd $(pwd) && dbuild --project SOCISP -q gpu_deep_train_med_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG --cache-from $DOCKER_IMAGE:production ."
+    - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh arthurf-vdi "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: staging
     url: http://dvs:9000
@@ -74,12 +42,11 @@ deploy_staging:
 deploy_production:
   stage: deploy
   script:
-    - update_lsf
-    - ssh planet31 "cd $SAMSUNG_CI_BRANCH_DIR/slamvizapp; dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG ."
-    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+    - ssh arthurf-vdi "cd $(pwd) && dbuild --project SOCISP -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG --cache-from $DOCKER_IMAGE:staging ."
+    - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh arthurf-vdi "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: production
     url: http://dvs:5000
