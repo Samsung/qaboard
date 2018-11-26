@@ -149,10 +149,8 @@ def run(ctx, input_path, output_path, forwarded_args):
 
     start = time.time()
     try:
-      runtime_metrics = {
-       'compute_time': time.time()-start,
-        **entrypoint_module().run(ctx),
-      }
+      runtime_metrics = entrypoint_module().run(ctx)
+      runtime_metrics['compute_time'] = time.time() - start
 
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
