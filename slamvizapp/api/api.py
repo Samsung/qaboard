@@ -204,7 +204,7 @@ def get_ci_commit(commit_id=None):
     if not isinstance(globbing, list):
       globbing = [globbing]
 
-    file = []
+    files = []
     for g in globbing:
       for f in matches(g):
           files.append(f)
