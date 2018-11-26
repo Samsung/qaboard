@@ -220,6 +220,29 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
   click.secho(str(metrics), fg='green')      
 
 
+
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.pass_context
+@click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+def sync(ctx, input_path, output_path):
+  """Updates the database metrics using metrics.json"""
+  if not output_path:
+    output_directory = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+  else:
+    output_directory = commit_ci_dir / output_path
+
+  if (output_directory/'metrics.json').exists():
+    with (output_directory/'metrics.json').open('r') as f:
+      metrics = json.load(f)
+    ctx.obj['input_path'] =  input_path
+    ctx.obj['output_directory'] =  output_directory
+    notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
+    click.secho(str(metrics), fg='green')      
+
+
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
@@ -228,19 +251,17 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
-@click.option('--overwrite', is_flag=True, help="If true, replace existing outputs")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
-@click.option('--lsf-threads', default=0, type=int , help="restrict number of lsf threads to use. 0 = no restriction")
-@click.option('--skip-existing', is_flag=True , help="If true, skip the postprocess command on existing outputs")
+@click.option('--lsf-threads', default=config['lsf'].get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
+@click.option('--lsf-memory', default=config['lsf'].get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--action-on-existing', default=config['outputs'].get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, overwrite, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, skip_existing, forwarded_args):
-  """Run on all the inputs/tests/recordings in a given batch using the LSF cluster.
-  Unless we ask to overwrite, we don't recompute already available results.
-  """
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, action_on_existing, forwarded_args):
+  """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
 
   running_jobs_names = running_lsf_job_names()
@@ -272,8 +293,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
         print(output_directory)
         break
 
-      should_run = overwrite or not_started(output_directory)
-      if not should_run and skip_existing:
+      should_run = action_on_existing=='run' or not_started(output_directory)
+      if not should_run and action_on_existing=='skip':
         continue
 
       command = ' '.join([
@@ -283,14 +304,14 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, o
           f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f'--configuration "{input_configuration}"',
           f'--tuning-filepath "{tuning_file}"' if tuning_params else '',
-          'run' if should_run else 'postprocess',
+          'run' if should_run else action_on_existing,
           f'--input-path "{input_path}"',
           f'--output-path "{output_directory}"',
           ' '.join(forwarded_args),
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads))
+      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory))
 
       if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
         notify_qa_database(**{

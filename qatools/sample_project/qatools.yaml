@@ -21,6 +21,8 @@ lsf:
   # we will use a fast queue to launch jobs that create subsequent LSF jobs
   # it helps get a fast feeback about which outputs are pending
   fast_queue: alg_fast_q
+  # threads: 0 # ask for eg 8 max threads when sending jobs to LSF
+  # memory: 0 # ask for eg 8000M memory when sending jobs to LSF
 
 
 
@@ -86,7 +88,7 @@ outputs:
   #   width: 840px
 
 
-  # How can we create viewers that 
+  # TODO: How can we create viewers that 
   # ...optionnaly/incrementally  show more complex data?
   # ...on the same plots, on a shared axis
   # ...with downloading data twice
@@ -102,6 +104,9 @@ outputs:
     #   # other parameters would be passed down as appropriate:
     #   # default: false
     #   # options: [A, B, C]
+
+  # When asked to re-run a test, should be really re-run it? skip the test? or sync the database with the existing results?
+  # action_on_existing: postprocess # | run | skip | sync
 
 
 
@@ -137,10 +142,8 @@ bit_accuracy:
     - output.csv
     # - *.hex ...
 
+
 # You artifacts will be saved under this location.
-# Note: for now there is not support for migrations...
 ci_root:
-  linux: /home/arthurf/ci
-  # it's useful to write the windows path,
-  # it lets your run locally bit-accuracy tests
-  windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
+  linux: /stage/algo_data/XXX
+  windows: '\\\\netapp\\algo_data\\XXX'

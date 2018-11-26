@@ -106,7 +106,6 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
   - configuration, is none is specified
   """
   maybe_parent = lambda path: path.parent if config['inputs'].get('use_parent_folder', False) else path
-
   available_batches = yaml.load(Path(groups_file).open())
   for group in groups:
     if group not in available_batches:
@@ -144,9 +143,9 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
           location_configuration = ':'.join(location_configuration)
         location_configuration = f'{group_configuration}:{location_configuration}'
       if debug:
-        click.secho(str(location), bold=True, fg='cyan', err=True)
+        click.secho(str(database/location), bold=True, fg='cyan', err=True)
       yield from set([(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
-      if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
+      if fnmatch.fnmatch(location, config['inputs']['glob']) or location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
         yield maybe_parent(Path(database/location)), location_configuration
 
 
