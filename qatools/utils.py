@@ -6,6 +6,7 @@ import json
 import yaml
 from pathlib import Path
 import re
+import fnmatch
 
 import click
 from qatools.config import is_ci
