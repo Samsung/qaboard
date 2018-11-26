@@ -105,7 +105,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
   - groups_file: yaml file
   - configuration, is none is specified
   """
-  maybe_parent = lambda path: path.parent if config['inputs']['use_parent_folder'] else path
+  maybe_parent = lambda path: path.parent if config['inputs'].get('use_parent_folder', False) else path
 
   available_batches = yaml.load(Path(groups_file).open())
   for group in groups:
