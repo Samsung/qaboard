@@ -133,7 +133,7 @@ def run(ctx, input_path, output_path, forwarded_args):
     if not output_path:
         abs_input_path = ctx.obj['database'] / input_path
         if not abs_input_path.exists():
-            click.secho("[ERROR] {abs_input_path} cannot be found", fg='red')
+            click.secho(f"[ERROR] {abs_input_path} cannot be found", fg='red')
             exit(1)
         output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
     else:
@@ -186,9 +186,13 @@ def postprocess_(runtime_metrics, context):
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
     metrics = {"is_failed": True}
 
-  if (context.obj['output_directory']/'metrics.json').exists():
-    with (context.obj['output_directory']/'metrics.json').open('r') as f:
-      metrics.update(json.load(f))
+  if (context.obj['output_directory'] / 'metrics.json').exists():
+    with (context.obj['output_directory'] / 'metrics.json').open('r') as f:
+      previous_metrics = json.load(f)
+      metrics = {
+        **previous_metrics,
+        **metrics,
+      }
   with (context.obj['output_directory']/'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
 
