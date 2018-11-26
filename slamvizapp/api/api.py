@@ -197,8 +197,17 @@ def get_ci_commit(commit_id=None):
       globbing = ci_commit.project.information['qatools_config']['artifacts'][artifacts]['glob']
     except: # for legacy projects...
       globbing = '*.json'
+
     commit_dir = ci_commit.commit_dir
-    files =  [str(f.relative_to(commit_dir)) for f in commit_dir.glob(globbing)]
+    matches = lambda g: [str(f.relative_to(commit_dir)) for f in commit_dir.glob(g)]
+
+    if not isinstance(globbing, list):
+      globbing = [globbing]
+
+    file = []
+    for g in globbing:
+      for f in matches(g):
+          files.append(f)
     return jsonify(files)
 
   batch = request.args.get('batch', None)
