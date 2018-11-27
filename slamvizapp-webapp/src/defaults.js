@@ -55,6 +55,9 @@ export const slam_qatools_config = {
 			windows: '\\\\f2\\algo_archive\\DVS_SLAM_Database',
 		},
 	},
+	lsf: {
+		user: "arthurf",
+	},
 	outputs: {
 		 style: {
 		 	width: '350px',			
