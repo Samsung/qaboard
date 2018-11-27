@@ -61,6 +61,7 @@ class TofOutputCard extends Component {
 
     this.state = {
       selected_frame: last_frame_id,
+      sliderValue: last_frame_id,
       show_pointcloud: false,
       showHeatmap: false,
       output_type: "depth",
@@ -403,12 +404,13 @@ class TofOutputCard extends Component {
         </div>
 
         {<Plot data={traces} layout={layout_}/>}
-        {<Slider 
+        {(output_new.metrics.frames !== undefined) && <Slider 
           max = {output_new.metrics.frames.length-1}
           onChange = {(value) => this.setState({sliderValue: value, selected_frame: Array.from(frames['new'].keys())[value]})}
           showTrackFill={false}
           value = {this.state.sliderValue}
           labelRenderer = {(value) => Array.from(frames['new'].keys())[value]}
+          labelStepSize = {Math.ceil(output_new.metrics.frames.length/20)}
         />}
 
         <div>
