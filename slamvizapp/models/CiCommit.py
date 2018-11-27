@@ -64,8 +64,7 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
     commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
-    ci_dir = Path(str(self.project.ci_directory).replace("/home/arthurf/ci", ""))
-    return ci_dir / self.project.id / 'commits' / commit_dir_name
+    return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
 
   @property
   def authored_date(self):
@@ -77,7 +76,7 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
       return f'/s/{relative_path}' 
-    return f"/s/{self.commit_dir}"
+    return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
 
   def __repr__(self):
     return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
