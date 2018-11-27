@@ -132,7 +132,7 @@ class CommitResults extends React.Component {
               minimal
               style={{ marginRight: "4px" }}
             >
-              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 0
+              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 1
                 ? "es"
                 : ""}
             </Tag>

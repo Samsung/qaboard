@@ -63,7 +63,7 @@ const BatchStatusMessages = ({batch}) => {
       title={
         <Tooltip>
           <span>
-            {batch.running_outputs} result{batch.running_outputs > 1 ? "s" : ""} running
+            {batch.running_outputs} {batch.running_outputs > 1 ? "s" : ""} running
           </span>
           <SimpleOutputList
             outputs={Object.values(batch.outputs).filter(o => o.is_running)}
@@ -80,7 +80,7 @@ const BatchStatusMessages = ({batch}) => {
       title={
         <Tooltip>
           <span>
-            {nb_pending} result{nb_pending > 1 ? "s" : ""} pending
+            {nb_pending} {nb_pending > 1 ? "s" : ""} pending
           </span>
           <SimpleOutputList
             outputs={Object.values(batch.outputs).filter(o => o.is_pending && !o.is_running)}
