@@ -145,7 +145,7 @@ class CiCommitList extends React.Component {
           <h3 className={Classes.HEADING}>
             Reports for{" "}
             <Link to={`/branch/origin/${reference_branch}?project=${project}`}>
-              <Button icon="git-branch">develop</Button>
+              <Button icon="git-branch">{reference_branch}</Button>
             </Link>
           </h3>
           <p>
