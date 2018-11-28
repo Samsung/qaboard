@@ -156,20 +156,15 @@ def run(ctx, input_path, output_path, forwarded_args):
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'[ERROR] The `run` function in {entrypoint} raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      exit(1)
+      metrics['is_failed'] = True
 
     metrics = postprocess_(runtime_metrics, ctx)
 
-    if 'is_failed' not in metrics:
-      click.secho("[ERROR] The result of the `postprocess` misses a key `is_failed` (bool)", fg='red')
-      exit(1)
-
     if metrics['is_failed']:
-      click.secho('[ERROR] Your program seems to have crashed.', fg='red', err=True)
-      click.secho(str(metrics), fg='red')      
-      exit(1)
-
-    click.secho(str(metrics), fg='green')      
+      click.secho('[ERROR] The run has failed.', fg='red', err=True)
+      click.secho(str(metrics), fg='red')
+    else:
+      click.secho(str(metrics), fg='green')      
 
 
 def postprocess_(runtime_metrics, context):
@@ -182,7 +177,11 @@ def postprocess_(runtime_metrics, context):
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
-    metrics = {"is_failed": True}
+    metrics['is_failed'] = True
+
+  if 'is_failed' not in metrics:
+    click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
+    metrics['is_failed'] = False
 
   if (context.obj['output_directory'] / 'metrics.json').exists():
     with (context.obj['output_directory'] / 'metrics.json').open('r') as f:
@@ -191,7 +190,7 @@ def postprocess_(runtime_metrics, context):
         **previous_metrics,
         **metrics,
       }
-  with (context.obj['output_directory']/'metrics.json').open('w') as f:
+  with (context.obj['output_directory'] / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
 
   if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
@@ -269,6 +268,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     return not (is_done or is_pending)
 
   jobs = []
+  output_directories = []
   batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
   batch_job_prefix = f"{batch_hash[:10]}/"
 
@@ -310,6 +310,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
       jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory))
+      output_directories.append(output_directory)
 
       if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
         notify_qa_database(**{
@@ -337,6 +338,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "finished waiting for jobs on LSF."')
             wait.send(interactive=True, dependencies=waiting_job)
+            # sanity check
+            for output_directory in output_directories:
+              assert output_directory.exists()
   except:
       kill_jobs(waiting_job, on_lsf = True)
 
