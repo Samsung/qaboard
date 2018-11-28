@@ -67,27 +67,17 @@ def get_group():
     project = Project.get_or_create(session=db_session, id=project_id)
     groups_path = get_groups_path(project_id)
     try:
-        if project_id == "dvs/psp_swip":
-            tests = list(
-                iter_recordings(
-                    [request.args.get("name", "")],
-                    groups_path,
-                    project.database,
-                )
+        import qatools.utils
+        test = [request.args.get("name", "")]
+        tests = list(
+            qatools.utils.iter_recordings(
+                [request.args.get("name", "")],
+                groups_path,
+                project.database,
+                project.information["qatools_config"]["inputs"]["configuration"],
+                project.information["qatools_config"],
             )
-        else:
-            import qatools.utils
-
-            test = [request.args.get("name", "")]
-            tests = list(
-                qatools.utils.iter_recordings(
-                    [request.args.get("name", "")],
-                    groups_path,
-                    project.database,
-                    project.information["qatools_config"]["inputs"]["configuration"],
-                    project.information["qatools_config"],
-                )
-            )
+        )
         return jsonify({"number_of_tests": len(tests)})
     except:
         return jsonify({"number_of_tests": 0})
@@ -109,7 +99,7 @@ def add_batch(hexsha):
     except NoResultFound:
         return jsonify("Sorry, the commit id was not found"), 404
 
-    if "qatools_config" not in ci_commit.project.information and not project_id == "dvs/psp_swip":
+    if "qatools_config" not in ci_commit.project.information:
         return jsonify("Please configure `qatools first`"), 404
 
     now = datetime.datetime.now()
@@ -123,70 +113,42 @@ def add_batch(hexsha):
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
     prev_mask = os.umask(000)
-    if not batch.output_dir.exists(): batch.output_dir.mkdir(exist_ok=True, parents=True)
+    if not batch.output_dir.exists():
+        batch.output_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
-    if project_id=="dvs/psp_swip":
-        overwrite = "--overwrite" if data["overwrite"] == "on" else ""
-        batch_command = " ".join(
-            [
-                "python tools/performance-evaluation/run.py",
-                f"--platform '{data['platform']}'" if "platform" in data else "",
-                f"--configuration '{data['configuration']}'"
-                if "configuration" in data
-                else "",
-                f"--batch-label '{data['batch_label']}'",
-                "batch",
-                f"--recording-groups-file {groups_path}",
-                f"--recording-group '{data['selected_group']}'",
-                f"--tuning-search '{json.dumps(data['tuning_search'])}'",
-                f"{overwrite}",
-                f"--no-wait",
-                "\n",
-            ]
-        )
-        working_directory = (
-            ci_commit.project.ci_directory
-            / project_id
-            / "branches"
-            / "develop"
-            / project_id.split("/")[1]
-        )
-        do_optimize = False
+    config = ci_commit.project.information["qatools_config"]
+    working_directory = ci_commit.commit_dir
+
+    # This will make us do automated tuning, versus a single manual batch
+    do_optimize = data['tuning_search']['search_type'] == 'optimize'
+    if do_optimize:
+        # we write somewhere the optimzation search configuration
+        # it needs to be accessed from LSF so we can't use temporary files...
+        config_path = batch.output_dir / 'optim-config.yaml'
+        config_option = f"--config-file '{config_path}'"
+        with config_path.open("w") as f:
+            f.write(data['tuning_search']['parameter_search'])
     else:
-        config = ci_commit.project.information["qatools_config"]
-        working_directory = ci_commit.commit_dir
+        config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
 
-        # This will make us do automated tuning, versus a single manual batch
-        do_optimize = data['tuning_search']['search_type'] == 'optimize'
-        if do_optimize:
-            # we write somewhere the optimzation search configuration
-            # it needs to be accessed from LSF so we can't use temporary files...
-            config_path = batch.output_dir / 'optim-config.yaml'
-            config_option = f"--config-file '{config_path}'"
-            with config_path.open("w") as f:
-                f.write(data['tuning_search']['parameter_search'])
-        else:
-            config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
-
-        overwrite = "--action-on-existing run" if data["overwrite"] == "on" else "--action-on-existing sync"
-        batch_command = " ".join(
-            [
-                "qa",
-                f"--platform '{data['platform']}'" if "platform" in data else "",
-                f"--configuration '{data['configuration']}'" if "configuration" in data else "",
-                f"--batch-label '{data['batch_label']}'",
-                "optimize" if do_optimize else "batch",
-                f"--groups-file '{groups_path}'",
-                f"--group '{data['selected_group']}'",
-                config_option,
-                f"{overwrite} --no-wait" if not do_optimize else '',
-                "\n",
-            ]
-        )
+    overwrite = "--action-on-existing run" if data["overwrite"] == "on" else "--action-on-existing sync"
+    batch_command = " ".join(
+        [
+            "qa",
+            f"--platform '{data['platform']}'" if "platform" in data else "",
+            f"--configuration '{data['configuration']}'" if "configuration" in data else "",
+            f"--batch-label '{data['batch_label']}'",
+            "optimize" if do_optimize else "batch",
+            f"--groups-file '{groups_path}'",
+            f"--group '{data['selected_group']}'",
+            config_option,
+            f"{overwrite} --no-wait" if not do_optimize else '',
+            "\n",
+        ]
+    )
     print(working_directory)
     # print(batch_command)
-
 
     # To avoid issues with quoting, we write a script to run the batch,
     # and execute it with bsub/LSF
@@ -215,7 +177,7 @@ def add_batch(hexsha):
             # Make sure qatools doesn't complain about not being in a git repository,
             f"\nexport CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
             # Make sure qatools knows where to save results
-            f"export {'SAMSUNG_CI_COMMIT_DIR' if project_id=='dvs/psp_swip' else 'QATOOLS_CI_COMMIT_DIR'}='{ci_commit.commit_dir}';\n\n",
+            f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
             batch_command,
         ]
     )
@@ -224,10 +186,10 @@ def add_batch(hexsha):
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    default_user = "arthurf" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"].get('user', 'arthurf')
+    default_user = ci_commit.project.information["qatools_config"]["lsf"].get('user', 'arthurf')
     user = data.get('user', default_user)
 
-    queue = "alg_q" if project_id=="dvs/psp_swip" else ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
+    queue = ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
     start_script = "".join(
         [
             "#!/bin/bash\n",

@@ -40,59 +40,6 @@ export const default_qatools_config = {
 	}
 }
 
-// legacy
-export const slam_qatools_config = {
-	project: {
-		reference_branch: 'develop',
-	},
-	ci_root: {
-		linux: '/home/arthurf/ci',
-	},
-	inputs: {
-		configuration: 'serial-stereo',
-		database: {
-			linux: '/net/f2/algo_archive/DVS_SLAM_Database',
-			windows: '\\\\f2\\algo_archive\\DVS_SLAM_Database',
-		},
-	},
-	lsf: {
-		user: "arthurf",
-	},
-	outputs: {
-		 style: {
-		 	width: '350px',			
-		 },
-		detailed_views: [
-			{
-				label: "Video",
-				type: 'video/mp4',
-				path: 'results.mp4',
-				poster: 'poster.jpg',
-				default_hidden: true,
-			},
-			{
-				type: '6dof/txt',
-				path: 'camera_poses_debug.txt',
-				path_debug: 'DebugExtensions.txt',
-			},
-		],
-		 controls: [
-		 	{	
-		 		name: 'show_3d',
-		 		default: false,
-		 		label: '3d',
-		 		type: 'toggle',
-		 	},
-		 	{
-		 		name: 'show_debug',
-		 		default: false,
-		 		label: 'Debug',
-		 		type: 'toggle',
-		 	},
-		 ]
-	},
-}
-
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values

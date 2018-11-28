@@ -6,9 +6,7 @@ import {
   FETCH_COMMITS,
   UPDATE_COMMITS,
 } from '../actions/constants'
-import { default_project_id, default_project, slam_qatools_config } from "../defaults"
-
-import * as slam_metrics from "../viewers/slam/metrics";
+import { default_project_id, default_project } from "../defaults"
 
 
 function update_project(state=default_project, data) {
@@ -26,8 +24,6 @@ export const branch_key = branch => (branch.name || branch.committer || 'default
 export function projects(state = {
   data: {
     [default_project_id]: default_project,
-    // legacy
-    'dvs/psp_swip': {...default_project, information: {qatools_config: slam_qatools_config, qatools_metrics: slam_metrics}},
   },
   is_loaded: false,
   is_loading: false,
