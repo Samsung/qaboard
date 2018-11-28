@@ -95,7 +95,7 @@ class TuningForm extends Component {
     super(props);
     const { cookies } = this.props;
     let configuration = this.props.project_data.information.qatools_config.inputs.configuration;
-    let user = this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
+    let default_user = this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
     this.state = {
       submitted: false,
       experiment_name: cookies.get("experiment_name") || "",
@@ -120,8 +120,7 @@ class TuningForm extends Component {
         ? JSON.parse(cookies.get("parameter_search_auto", { doNotParse: true }))
         : templates['optimize'](this.props.project_data.information.qatools_config, this.props.project_data.information.qatools_metrics),
 
-      // legacy?
-      user: user,
+      user: cookies.get("user") || default_user,
       android_device: "openstf",
 
     };
@@ -348,7 +347,7 @@ class TuningForm extends Component {
                 Android<br />
                 <span className={Classes.TEXT_MUTED}>
                   Available on <code className={Classes.CODE}>develop</code> or if you ran the{" "}
-                  <a href="http://gitlab-srv/dvs/psp_swip/pipelines">
+                  <a href={`http://gitlab-srv/${this.props.project}/pipelines`}>
                     <code className={Classes.CODE}>performance:android:manual</code> job
                   </a>
                 </span>
