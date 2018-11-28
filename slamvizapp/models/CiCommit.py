@@ -183,7 +183,6 @@ def latest_successful_commit(session, project_id, branch, within_last=20):
   Returns the latest commit on a given branch where we got outputs.
   Only the latest within_last commits are checked...
   """
-  # if project_id != 'dvs/psp_swip':
   ci_commits = (session
                 .query(CiCommit)
                 .options(joinedload(CiCommit.batches))
@@ -200,24 +199,6 @@ def latest_successful_commit(session, project_id, branch, within_last=20):
                      if not o.is_failed and not o.is_pending]
     if valid_outputs:
       return ci_commit
-
-  # else:
-  #   repo = repos[project_id]
-  #   page = 0
-  #   while page < 10:
-  #     commits = repo.iter_commits(branch, max_count=20, skip=20*page)
-  #     commit_ids = [c.hexsha for c in commits]
-  #     ci_commits = (CiCommit
-  #                   .query
-  #                   .filter(CiCommit.id.in_(commit_ids))
-  #                   .order_by(
-  #                     CiCommit.authored_datetime.desc()
-  #                   )
-  #                  )
-  #     ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
-  #     if ci_commits_successful: return ci_commits_successful[0]
-  #     page = page + 1
-
 
 
 def parent_successful_commit(ci_commit):
