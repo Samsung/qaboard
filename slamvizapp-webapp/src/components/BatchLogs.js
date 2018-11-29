@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { get } from "axios";
-import Ansi from 'ansi-to-react'
+// import sanitizeHtml from 'sanitize-html';
 
 import {
   Classes,
@@ -11,6 +11,10 @@ import {
   NonIdealState,
   Icon
 } from "@blueprintjs/core";
+
+// import { Convert } from 'ansi-to-html '
+var Convert = require('ansi-to-html');
+var convert = new Convert();
 
 
 class OutputLog extends Component {
@@ -61,19 +65,8 @@ class OutputLog extends Component {
     const button_text = is_open ? "Hide" : is_loaded ? "Loading" : "Show";
     const tag_text = output.is_failed ? "❌" : output.is_pending ? "⏳" : "✅";
 
-    const is_supported =
-      output.output_type === "cis/image" ||
-      output.output_type === "slam/6dof" ||
-      output.output_type === "batch" ||
-      output.output_type === "tof/depth";
     const show_button = (
-      <Button
-        disabled={!is_supported}
-        title={
-          is_supported ? button_text : "We don't know where to look for logs"
-        }
-        onClick={this.handleClick}
-      >
+      <Button title={button_text} onClick={this.handleClick}>
         {button_text} logs
       </Button>
     );
@@ -82,9 +75,7 @@ class OutputLog extends Component {
       ? Intent.DANGER
       : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
 
-    const tag_config = (
-      <Tag>{`${output.configuration} @${output.platform}`}</Tag>
-    );
+    const tag_config = <Tag>{`${output.configuration} @${output.platform}`}</Tag>;
     const details = Object.entries(output.extra_parameters).map(([k, v]) => (
       <Tag key={k} intent={Intent.PRIMARY} minimal round>
         {k}:{JSON.stringify(v)}
@@ -98,13 +89,34 @@ class OutputLog extends Component {
       >
         <Icon icon="download" />
     </a>;
+    // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
+    // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
+    // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
+    let ansi_to_html_options =  {
+      //fg: '#fff',
+      // bg: '#000',
+      // colors: {
+      //   0: '#fff',
+      //   30: '#fff',
+      //   232: '#fff',
+      // },
+    }
+    let formatted_logs = !!logs && convert.toHtml(logs, ansi_to_html_options);
+    let safe_formatted_logs = formatted_logs;
+    // TODO
+    // let safe_formatted_logs = sanitizeHtml(formatted_logs, {
+    //   allowedTags: ['b', 'i', 'em', 'strong', 'a'],
+    //   allowedAttributes: {
+    //     a: ['href', 'target']
+    //   }
+    // });
+    // pre: style={{background: '#000'}} 
     return (
       <div>
         <h6 className={Classes.HEADING}>
           {show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>} {tag_config}{" "}{download_link}{" "}
           {output.test_input_path} {details}
         </h6>
-        {is_supported && (
           <Collapse isOpen={is_open}>
             {error && (
               <NonIdealState
@@ -114,9 +126,8 @@ class OutputLog extends Component {
                 }
               />
             )}
-            <pre className={Classes.CODE_BLOCK}>{(!!logs && <Ansi>{logs}</Ansi>) || ""}</pre>
+            <pre className={Classes.CODE_BLOCK} dangerouslySetInnerHTML={{__html: safe_formatted_logs || ""}} /> 
           </Collapse>
-        )}
       </div>
     );
   }
