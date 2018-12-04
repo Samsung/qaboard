@@ -164,6 +164,8 @@ def run(ctx, input_path, output_path, forwarded_args):
       runtime_metrics = {'is_failed': True}
 
     metrics = postprocess_(runtime_metrics, ctx)
+    if not metrics:
+      metrics = runtime_metrics
 
     if metrics['is_failed']:
       click.secho('[ERROR] The run has failed.', fg='red', err=True)
