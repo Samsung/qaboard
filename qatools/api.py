@@ -7,7 +7,6 @@ import json
 from functools import lru_cache
 
 import click
-import requests
 
 from .config import config, commit_id, available_metrics
 
@@ -39,6 +38,7 @@ def notify_qa_database(object_type='output', **kwargs):
   """
   Updating the QA database.
   """
+  import requests
   from .config import is_ci, commit_id
   # some light custom serialization
   for key, value in kwargs.items():
@@ -74,6 +74,7 @@ def notify_qa_database(object_type='output', **kwargs):
 @lru_cache()
 def batch_info(reference, is_branch, batch):
   """Get data about a batch of outputs in the database"""
+  import requests
   params = {
     "project": config['project']['name'],
     "batch": batch,
