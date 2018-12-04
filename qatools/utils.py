@@ -121,6 +121,9 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
         yield maybe_parent(Path(database/location)), default_configuration
       return
 
+    if available_batches[group] is None:
+      continue
+
     if 'configuration' in available_batches[group]:
       group_configuration = available_batches[group]['configuration']
       if isinstance(group_configuration, list):
