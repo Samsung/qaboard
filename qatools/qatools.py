@@ -140,7 +140,10 @@ def run(ctx, input_path, output_path, forwarded_args):
         # FIXME: if output_path is absolute, it should be just output_path?
         output_directory = commit_ci_dir / output_path
 
+    import shutil
+    shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
+
     ctx.obj['output_directory'] =  output_directory
     ctx.obj['input_path'] =  input_path
     ctx.obj['forwarded_args'] = forwarded_args
@@ -150,13 +153,15 @@ def run(ctx, input_path, output_path, forwarded_args):
     start = time.time()
     try:
       runtime_metrics = entrypoint_module().run(ctx)
+      if not runtime_metrics:
+        runtime_metrics = {}
       runtime_metrics['compute_time'] = time.time() - start
 
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'[ERROR] The `run` function in {entrypoint} raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      metrics['is_failed'] = True
+      runtime_metrics = {'is_failed': True}
 
     metrics = postprocess_(runtime_metrics, ctx)
 
@@ -177,7 +182,7 @@ def postprocess_(runtime_metrics, context):
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
-    metrics['is_failed'] = True
+    metrics = {**runtime_metrics, 'is_failed': True}
 
   if 'is_failed' not in metrics:
     click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
