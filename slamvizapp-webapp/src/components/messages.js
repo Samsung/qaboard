@@ -40,7 +40,7 @@ const CommitsWarningMessages = ({commits}) => {
 const SimpleOutputList = ({outputs, intent}) => {
   return <ul className={Classes.LIST}>
     {outputs.map(o =>
-      <li key={o}>
+      <li key={o.id}>
         <Tag intent={intent} minimal>{`${o.configuration} @${o.platform}`}</Tag>{" "}
         <strong>{o.test_input_path}</strong>
         {Object.keys(o.extra_parameters).length > 0 && (
