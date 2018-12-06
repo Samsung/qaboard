@@ -97,10 +97,10 @@ class OutputTags extends React.PureComponent {
     const { warning } = this.props;
     let windows_path = output_dir_url
                          .replace('/s', '')
-                         .replace('/home', '//mars/raid/users')
-                         .replace('/stage', '//netapp2')
-    if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
-      windows_path = `//mars/raid/users/arthurf${windows_path}` 
+                         .replace('//home', '//mars/raid/users')
+                         .replace('//stage', '//netapp2')
+    // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
+    //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
     windows_path = windows_path.replace(/\//g, '\\')
     return <span>
       <Tag intent={Intent.PRIMARY} round minimal>{platform}</Tag>
