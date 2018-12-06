@@ -70,6 +70,9 @@ export const default_selected = () => {
 
 		filter_batch_new: params.get("filter") || "",
 		filter_batch_ref: params.get("filter_ref") || "",
+
+		selected_tab_summary: params.get("selected_tab_summary") || "metrics",
+		selected_tab_details: params.get("selected_tab_details") || "output-table-compare",
 	}
 }
 

@@ -205,6 +205,30 @@ class CiCommitResults extends Component {
   };
 
 
+  UpdateTabSummary = (newTabId, prevTabId, event) => {
+    this.props.dispatch(updateSelected(this.props.project, { selected_tab_summary: newTabId }))
+    let query = qs.parse(this.props.location.search.substring(1));
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: qs.stringify({
+        ...query,
+        selected_tab_summary: newTabId,
+      })
+    });
+  };
+  UpdateTabDetails = (newTabId, prevTabId, event) => {
+    this.props.dispatch(updateSelected(this.props.project, { selected_tab_details: newTabId }))
+    let query = qs.parse(this.props.location.search.substring(1));
+    this.props.history.push({
+      pathname: this.props.location.pathname,
+      search: qs.stringify({
+        ...query,
+        selected_tab_details: newTabId,
+      })
+    });
+  };
+
+
   render() {
     const {
       project,
@@ -373,9 +397,7 @@ class CiCommitResults extends Component {
                   <Tabs
                     renderActiveTabPanelOnly
                     id="tabs-summary"
-                    onChange={(newTabId, prevTabId, event) => {
-                      this.props.dispatch(updateSelected(this.props.project, { selected_tab_summary: newTabId }))
-                    }}
+                    onChange={this.UpdateTabSummary}
                     selectedTabId={this.props.selected_tab_summary}
                   >
                     <Tab
@@ -427,9 +449,7 @@ class CiCommitResults extends Component {
                 <Tabs
                   renderActiveTabPanelOnly
                   id="tabs-outputs"
-                  onChange={(newTabId, prevTabId, event) => {
-                    this.props.dispatch(updateSelected(this.props.project, { selected_tab_details: newTabId }))
-                  }}
+                  onChange={this.UpdateTabDetails}
                   selectedTabId={this.props.selected_tab_details}
                 >
                   <Tab
