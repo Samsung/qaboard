@@ -53,10 +53,10 @@ const iiif_url = (output_dir_url, path) => {
   // we only serve data from there
   let identifier = output_dir_url.replace("/stage/algo_data", "")
   // remove the URL' leading "/s"
-  identifier = identifier.replace(/\/?s\//, "")
+  identifier = identifier.replace(/\/*?s\//, "")
   identifier = `${identifier}/${path}`;
+  // console.log(identifier)
   // IIIF specs require encoding the slashes inside the identifier
-  console.log(identifier)
   identifier = encodeURIComponent(identifier)
   let url = `http://planet31:8182/iiif/2/${identifier}`  
   return url
@@ -75,11 +75,137 @@ class ImgViewer extends PureComponent {
       diff_threshold: 0.1,
     }
   }
+
   componentDidMount() {
+    const { output_new } = this.props;
+    let viewer_new = OpenSeaDragon({
+        ...openseadragon_config,
+        id: `osd-new-${output_new.output_dir_url}`,
+      });
+    let viewer_ref = OpenSeaDragon({
+        ...openseadragon_config,
+        id: `osd-ref-${output_new.output_dir_url}`,
+    });
+    this.setState({
+      viewer_new,
+      viewer_ref,
+    }, () => {
+      this.Init(this.props);
+      this.InitZoomSync();
+      this.InitDiff();
+    })
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+      let updated_new =
+        prevProps.output_new !== undefined &&
+        prevProps.output_new !== null &&
+        (this.props.output_new == null ||
+          prevProps.output_new.id !== this.props.output_new.id);
+      let updated_ref =
+        prevProps.output_ref !== undefined &&
+        prevProps.output_ref !== null &&
+        (this.props.output_ref == null ||
+          prevProps.output_ref.id !== this.props.output_ref.id);
+      let updated_diff = prevProps.diff !== this.props.diff;
+      if (updated_new || updated_ref || updated_diff) {
+        this.Init(this.props);
+        this.InitDiff();
+      }
+  }
+
+  InitDiff() {
+    // Implemement perceptual differences
+    const { viewer_new, viewer_ref} = this.state;
+    if (this.props.diff) {
+      var update_diff = () => {
+        let size_new = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+        let canvas_new = viewer_new.drawer.canvas
+        let canvas_ref = viewer_ref.drawer.canvas
+        let data_new = canvas_new.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
+        let data_ref = canvas_ref.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
+        var canvas_diff = document.getElementById(`osd-diff-${this.props.output_new.output_dir_url}`);
+        if (!!canvas_diff) {
+          var diff = canvas_diff.getContext("2d").createImageData(size_new.x, size_new.y);
+          pixelmatch(data_new.data, data_ref.data, diff.data, size_new.x, size_new.y, {threshold: this.state.diff_threshold});
+          canvas_diff.getContext("2d").putImageData(diff, 0, 0);          
+          // var point = new OpenSeaDragon.Point(0.5, 0.5)
+          // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, OpenSeaDragon.Placement.CENTER)
+        }
+      }
+      viewer_new.addHandler('animation-finish', update_diff);
+      // viewer_new.addHandler('tile-drawn', update_diff);
+      update_diff()
+    }
+  }
+
+  InitZoomSync() {
+    // Implemement synced zoom
+    // https://codepen.io/iangilman/pen/BWKKxQ
+    const { viewer_new, viewer_ref} = this.state;
+    var masterZoom;
+    var masterCenter;
+    var viewer_newLeading = false;
+    var viewer_refLeading = false;
+    var viewer_newHandler = function() {
+      if (viewer_refLeading)
+        return;
+      masterZoom = viewer_new.viewport.getZoom();
+      masterCenter = viewer_new.viewport.getCenter();
+
+      viewer_newLeading = true;
+      viewer_ref.viewport.zoomTo(masterZoom);
+      viewer_ref.viewport.panTo(masterCenter);
+      viewer_newLeading = false;
+    };
+
+    var viewer_refHandler = function() {
+      if (viewer_newLeading)
+        return;
+      masterZoom = viewer_ref.viewport.getZoom();
+      masterCenter = viewer_ref.viewport.getCenter();
+
+      viewer_refLeading = true;
+      viewer_new.viewport.zoomTo(masterZoom);
+      viewer_new.viewport.panTo(masterCenter);
+      viewer_refLeading = false;
+    };
+    viewer_new.addHandler('zoom', viewer_newHandler);
+    viewer_ref.addHandler('zoom', viewer_refHandler);
+    viewer_new.addHandler('pan', viewer_newHandler);
+    viewer_ref.addHandler('pan', viewer_refHandler);
+
+    function maintainZoom() {
+        var size1 = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+        var size2 = new OpenSeaDragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
+        viewer_newLeading = true;
+        viewer_refLeading = true;
+        
+        viewer_new.viewport.resize(size1, true);
+        viewer_ref.viewport.resize(size2, true);
+        
+        viewer_ref.viewport.zoomTo(masterZoom, null, true);
+        viewer_ref.viewport.panTo(masterCenter, true);
+
+        viewer_new.viewport.zoomTo(masterZoom, null, true);
+        viewer_new.viewport.panTo(masterCenter, true);
+        
+        viewer_newLeading = false;
+        viewer_refLeading = false;
+        
+        viewer_new.forceRedraw();
+        viewer_ref.forceRedraw();
+    }
+    window.addEventListener('resize', maintainZoom);
+  }
+
+  Init(props) {
     const { path, output_new, output_ref } = this.props;
+    const has_reference = !!output_new && output_new.output_dir_url;
+
     get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
-      const { height, width } = res.data;
       // https://openseadragon.github.io/examples/tilesource-iiif/
+      const { height, width } = res.data;
       let source_config = {
           "@context": "http://iiif.io/api/image/2/context.json",
           protocol: "http://iiif.io/api/image",
@@ -91,143 +217,19 @@ class ImgViewer extends PureComponent {
       }
       this.setState({
         width: this.state.width,
-        height: `${parseFloat(this.state.width.replace(/^[\d]+/, '')) * height / width}px`,
+        height: `${parseFloat(this.state.width.replace(/[^\d]+/, '')) * height / width}px`,
       })
-      let viewer_new = OpenSeaDragon({
-        ...openseadragon_config,
-        id: `osd-new-${output_new.output_dir_url}`,
-        tileSources: [{
+      this.state.viewer_new.open([{
             ...source_config,
             "@id": iiif_url(output_new.output_dir_url, path),
-        }],
-      });
+      }])
 
-      let viewer_ref = OpenSeaDragon({
-        ...openseadragon_config,
-        id: `osd-ref-${output_new.output_dir_url}`,
-        tileSources: [{
-            ...source_config,
-            "@id": iiif_url(output_ref.output_dir_url, path),
-        }],
-      });
-
-      // https://codepen.io/iangilman/pen/BWKKxQ
-
-      var masterZoom, masterCenter;
-      var viewer_newLeading = false;
-      var viewer_refLeading = false;
-
-
-      var viewer_newHandler = function() {
-        if (viewer_refLeading) {
-          return;
-        }
-        masterZoom = viewer_new.viewport.getZoom();
-        masterCenter = viewer_new.viewport.getCenter();
-
-        viewer_newLeading = true;
-        viewer_ref.viewport.zoomTo(masterZoom);
-        viewer_ref.viewport.panTo(masterCenter);
-        viewer_newLeading = false;
-      };
-
-      var viewer_refHandler = function() {
-        if (viewer_newLeading) {
-          return;
-        }
-        
-        masterZoom = viewer_ref.viewport.getZoom();
-        masterCenter = viewer_ref.viewport.getCenter();
-
-        viewer_refLeading = true;
-        viewer_new.viewport.zoomTo(masterZoom);
-        viewer_new.viewport.panTo(masterCenter);
-        viewer_refLeading = false;
-      };
-
-      viewer_new.addHandler('zoom', viewer_newHandler);
-      viewer_ref.addHandler('zoom', viewer_refHandler);
-      viewer_new.addHandler('pan', viewer_newHandler);
-      viewer_ref.addHandler('pan', viewer_refHandler);
-
-
-      var update_diff = () => {
-        let size_new = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-        let canvas_new = viewer_new.drawer.canvas
-        let canvas_ref = viewer_ref.drawer.canvas
-        let data_new = canvas_new.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
-        let data_ref = canvas_ref.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
-        var canvas_diff = document.getElementById(`osd-diff-${output_new.output_dir_url}`);
-        if (!!canvas_diff) {
-          var diff = canvas_diff.getContext("2d").createImageData(size_new.x, size_new.y);
-          pixelmatch(data_new.data, data_ref.data, diff.data, size_new.x, size_new.y, {threshold: this.state.diff_threshold});
-          canvas_diff.getContext("2d").putImageData(diff, 0, 0);          
-        }
-        // var point = new OpenSeaDragon.Point(0.5, 0.5)
-        // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, OpenSeaDragon.Placement.CENTER)
+      if (has_reference) {
+        this.state.viewer_ref.open([{
+              ...source_config,
+              "@id": iiif_url(output_ref.output_dir_url, path),
+        }])
       }
-      if (this.props.diff) {
-        viewer_ref.addHandler('animation-finish', update_diff);
-        viewer_ref.addHandler('tile-drawn', update_diff);        
-      }
-
-
-      function maintainZoom() {
-          var size1 = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-          var size2 = new OpenSeaDragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
-          viewer_newLeading = true;
-          viewer_refLeading = true;
-          
-          viewer_new.viewport.resize(size1, true);
-          viewer_ref.viewport.resize(size2, true);
-          
-          viewer_ref.viewport.zoomTo(masterZoom, null, true);
-          viewer_ref.viewport.panTo(masterCenter, true);
-
-          viewer_new.viewport.zoomTo(masterZoom, null, true);
-          viewer_new.viewport.panTo(masterCenter, true);
-          
-          viewer_newLeading = false;
-          viewer_refLeading = false;
-          
-          viewer_new.forceRedraw();
-          viewer_ref.forceRedraw();
-      }
-      window.addEventListener('resize', maintainZoom);
-
-    // https://github.com/openseadragon/openseadragon/issues/1376
-    // var tileLoadedHandler = function(eventSource, item, user) {
-    //     viewer_new.removeHandler('tile-loaded', tileLoadedHandler);
-    //     var imageBounds =viewer_new.world.getItemAt(0).getBounds();
-    //     viewer_new.viewport.fitBounds(imageBounds, true);
-    // };
-    // viewer_new.addHandler('tile-loaded', tileLoadedHandler);
-    // viewer_new.addHandler('full-screen', function(a){
-    //     console.log('full-screen-new')
-    //     console.log(a)
-    //     if(a.fullScreen == true) {
-    //         viewer_new.autoResize = true;
-    //     } else {
-    //         setTimeout(function () {
-    //             window.addEventListener('resize', maintainZoom);
-    //             viewer_new.autoResize = false;
-    //         }, 400);
-    //     }
-    // });
-    // viewer_ref.addHandler('full-screen',function(a){
-    //     if(a.fullScreen == true){
-    //         viewer_ref.autoResize = true;
-    //     } else {
-    //         setTimeout(function () {
-    //             window.addEventListener('resize', maintainZoom);
-    //             viewer_ref.autoResize = false;
-    //         }, 400);
-    //     }
-    // })
-
-      // viewer.addHandler("page", data => {
-      //   this.setState({shown_image: data.page===0 ? "New" : "Reference"})
-      // });
     }).catch(err => console.log(err));
   }
 
@@ -238,7 +240,9 @@ class ImgViewer extends PureComponent {
       <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
       <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
       {!!output_ref && !!output_ref.output_dir_url && <div style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />}
-      {this.props.diff && !!output_ref && !!output_ref.output_dir_url && <canvas style={{width, height}} id={`osd-diff-${output_new.output_dir_url}`} />}      
+      {this.props.diff && !!output_ref && !!output_ref.output_dir_url && <div style={{width, height}}>
+        <canvas width={width} height={height} id={`osd-diff-${output_new.output_dir_url}`} />
+      </div>}      
     </div>
   }
 
@@ -283,5 +287,42 @@ class ImgViewer extends PureComponent {
 //     </div>
 //   }
 // }
+
+
+
+
+        // https://github.com/openseadragon/openseadragon/issues/1376
+        // var tileLoadedHandler = function(eventSource, item, user) {
+        //     viewer_new.removeHandler('tile-loaded', tileLoadedHandler);
+        //     var imageBounds =viewer_new.world.getItemAt(0).getBounds();
+        //     viewer_new.viewport.fitBounds(imageBounds, true);
+        // };
+        // viewer_new.addHandler('tile-loaded', tileLoadedHandler);
+        // viewer_new.addHandler('full-screen', function(a){
+        //     console.log('full-screen-new')
+        //     console.log(a)
+        //     if(a.fullScreen == true) {
+        //         viewer_new.autoResize = true;
+        //     } else {
+        //         setTimeout(function () {
+        //             window.addEventListener('resize', maintainZoom);
+        //             viewer_new.autoResize = false;
+        //         }, 400);
+        //     }
+        // });
+        // viewer_ref.addHandler('full-screen',function(a){
+        //     if(a.fullScreen == true){
+        //         viewer_ref.autoResize = true;
+        //     } else {
+        //         setTimeout(function () {
+        //             window.addEventListener('resize', maintainZoom);
+        //             viewer_ref.autoResize = false;
+        //         }, 400);
+        //     }
+        // })
+
+        // viewer.addHandler("page", data => {
+        //   this.setState({shown_image: data.page===0 ? "New" : "Reference"})
+        // });
 
 export default ImgViewer;
