@@ -48,10 +48,12 @@ const openseadragon_config = {
 
 const iiif_url = (output_dir_url, path) => {
   // we only serve data from there
-  let identifier_prefix = output_dir_url.replace("/stage/algo_data", "")
+  let identifier = output_dir_url.replace("/stage/algo_data", "")
   // remove the URL' leading "/s"
-  let identifier = `${identifier_prefix}/${path}`.slice(4);
+  identifier = identifier.replace(/\/?s\//, "")
+  identifier = `${identifier}/${path}`;
   // IIIF specs require encoding the slashes inside the identifier
+  console.log(identifier)
   identifier = encodeURIComponent(identifier)
   let url = `http://planet31:8182/iiif/2/${identifier}`  
   return url
