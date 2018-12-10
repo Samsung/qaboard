@@ -1,11 +1,14 @@
 import React, { PureComponent } from "react";
 import { get } from "axios"
 import { Tag } from "@blueprintjs/core";
-// import { Hotkey, Hotkeys, HotkeysTarget } from "@blueprintjs/core";
 import OpenSeaDragon from 'openseadragon';
+import pixelmatch from 'pixelmatch';
+// import { Hotkey, Hotkeys, HotkeysTarget } from "@blueprintjs/core";
 
 // https://stackoverflow.com/questions/7615009/disable-interpolation-when-scaling-a-canvas
 import "./image-canvas.css";
+
+
 
 // https://github.com/picturae/openseadragonrgb/blob/master/src/rgb.js
 
@@ -69,6 +72,7 @@ class ImgViewer extends PureComponent {
       shown_image: "New",
       width: this.props.style.width || '390px',
       height: '217.5px', // default 4/3 ratio
+      diff_threshold: 0.1,
     }
   }
   componentDidMount() {
@@ -113,6 +117,7 @@ class ImgViewer extends PureComponent {
       var viewer_newLeading = false;
       var viewer_refLeading = false;
 
+
       var viewer_newHandler = function() {
         if (viewer_refLeading) {
           return;
@@ -144,6 +149,28 @@ class ImgViewer extends PureComponent {
       viewer_ref.addHandler('zoom', viewer_refHandler);
       viewer_new.addHandler('pan', viewer_newHandler);
       viewer_ref.addHandler('pan', viewer_refHandler);
+
+
+      var update_diff = () => {
+        let size_new = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+        let canvas_new = viewer_new.drawer.canvas
+        let canvas_ref = viewer_ref.drawer.canvas
+        let data_new = canvas_new.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
+        let data_ref = canvas_ref.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
+        var canvas_diff = document.getElementById(`osd-diff-${output_new.output_dir_url}`);
+        if (!!canvas_diff) {
+          var diff = canvas_diff.getContext("2d").createImageData(size_new.x, size_new.y);
+          pixelmatch(data_new.data, data_ref.data, diff.data, size_new.x, size_new.y, {threshold: this.state.diff_threshold});
+          canvas_diff.getContext("2d").putImageData(diff, 0, 0);          
+        }
+        // var point = new OpenSeaDragon.Point(0.5, 0.5)
+        // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, OpenSeaDragon.Placement.CENTER)
+      }
+      if (this.props.diff) {
+        viewer_ref.addHandler('animation-finish', update_diff);
+        viewer_ref.addHandler('tile-drawn', update_diff);        
+      }
+
 
       function maintainZoom() {
           var size1 = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
@@ -205,12 +232,13 @@ class ImgViewer extends PureComponent {
   }
 
   render() {
-    const { output_new } = this.props;
+    const { output_new, output_ref } = this.props;
     const { shown_image, height, width } = this.state;
     return <div >
       <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
       <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
-      <div style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
+      {!!output_ref && !!output_ref.output_dir_url && <div style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />}
+      {this.props.diff && !!output_ref && !!output_ref.output_dir_url && <canvas style={{width, height}} id={`osd-diff-${output_new.output_dir_url}`} />}      
     </div>
   }
 
