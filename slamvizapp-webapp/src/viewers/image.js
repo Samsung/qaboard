@@ -4,6 +4,10 @@ import { Tag } from "@blueprintjs/core";
 // import { Hotkey, Hotkeys, HotkeysTarget } from "@blueprintjs/core";
 import OpenSeaDragon from 'openseadragon';
 
+// https://stackoverflow.com/questions/7615009/disable-interpolation-when-scaling-a-canvas
+import "./image-canvas.css";
+
+// https://github.com/picturae/openseadragonrgb/blob/master/src/rgb.js
 
 // http://openseadragon.github.io/docs/OpenSeadragon.html#.Options
 // http://openseadragon.github.io/docs/OpenSeadragon.Viewer.html
@@ -11,16 +15,22 @@ import OpenSeaDragon from 'openseadragon';
 // http://openseadragon.github.io/#examples-and-features
 const openseadragon_config = {
   visibilityRatio: 1,
+
   minZoomLevel: 1,
   defaultZoomLevel: 1,
   preserveViewport: true,
+  maxZoomPixelRatio: 50,
+  // smoothTileEdgesMinZoom: 10000,
+
   showNavigator: true,
   sequenceMode: true,
   springStiffness: 15,
+
   // for now, manually: cp -r node_modules/openseadragon/build/openseadragon /stage/algo_data/ci/
   prefixUrl: "/s/stage/algo_data/ci/openseadragon/images/",
+
   crossOriginPolicy: 'Anonymous',
-  ajaxWithCredentials: false,        
+  ajaxWithCredentials: false,
   // showReferenceStrip: false,
   // visibilityRatio: 1.0,
   // constrainDuringPan: false,
@@ -68,6 +78,7 @@ class ImgViewer extends PureComponent {
           "@context": "http://iiif.io/api/image/2/context.json",
           protocol: "http://iiif.io/api/image",
           profile: ["http://iiif.io/api/image/2/level2.json"],
+          formats: ["png"],
           fitBounds: true,
           height,
           width,
@@ -76,23 +87,118 @@ class ImgViewer extends PureComponent {
         width: this.state.width,
         height: `${parseFloat(this.state.width.replace(/^[\d]+/, '')) * height / width}px`,
       })
-      let viewer = OpenSeaDragon({
+      let viewer_new = OpenSeaDragon({
         ...openseadragon_config,
-        id: output_new.output_dir_url,
-        tileSources: [
-          {
+        id: `osd-new-${output_new.output_dir_url}`,
+        tileSources: [{
             ...source_config,
             "@id": iiif_url(output_new.output_dir_url, path),
-          },
-          !!output_ref && output_ref.output_dir_url && {
+        }],
+      });
+
+      let viewer_ref = OpenSeaDragon({
+        ...openseadragon_config,
+        id: `osd-ref-${output_new.output_dir_url}`,
+        tileSources: [{
             ...source_config,
             "@id": iiif_url(output_ref.output_dir_url, path),
-          },
-        ],
+        }],
       });
-      viewer.addHandler("page", data => {
-        this.setState({shown_image: data.page===0 ? "New" : "Reference"})
-      });
+
+      // https://codepen.io/iangilman/pen/BWKKxQ
+
+      var masterZoom, masterCenter;
+      var viewer_newLeading = false;
+      var viewer_refLeading = false;
+
+      var viewer_newHandler = function() {
+        if (viewer_refLeading) {
+          return;
+        }
+        masterZoom = viewer_new.viewport.getZoom();
+        masterCenter = viewer_new.viewport.getCenter();
+
+        viewer_newLeading = true;
+        viewer_ref.viewport.zoomTo(masterZoom);
+        viewer_ref.viewport.panTo(masterCenter);
+        viewer_newLeading = false;
+      };
+
+      var viewer_refHandler = function() {
+        if (viewer_newLeading) {
+          return;
+        }
+        
+        masterZoom = viewer_ref.viewport.getZoom();
+        masterCenter = viewer_ref.viewport.getCenter();
+
+        viewer_refLeading = true;
+        viewer_new.viewport.zoomTo(masterZoom);
+        viewer_new.viewport.panTo(masterCenter);
+        viewer_refLeading = false;
+      };
+
+      viewer_new.addHandler('zoom', viewer_newHandler);
+      viewer_ref.addHandler('zoom', viewer_refHandler);
+      viewer_new.addHandler('pan', viewer_newHandler);
+      viewer_ref.addHandler('pan', viewer_refHandler);
+
+      function maintainZoom() {
+          var size1 = new OpenSeaDragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+          var size2 = new OpenSeaDragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
+          viewer_newLeading = true;
+          viewer_refLeading = true;
+          
+          viewer_new.viewport.resize(size1, true);
+          viewer_ref.viewport.resize(size2, true);
+          
+          viewer_ref.viewport.zoomTo(masterZoom, null, true);
+          viewer_ref.viewport.panTo(masterCenter, true);
+
+          viewer_new.viewport.zoomTo(masterZoom, null, true);
+          viewer_new.viewport.panTo(masterCenter, true);
+          
+          viewer_newLeading = false;
+          viewer_refLeading = false;
+          
+          viewer_new.forceRedraw();
+          viewer_ref.forceRedraw();
+      }
+      window.addEventListener('resize', maintainZoom);
+
+    // https://github.com/openseadragon/openseadragon/issues/1376
+    // var tileLoadedHandler = function(eventSource, item, user) {
+    //     viewer_new.removeHandler('tile-loaded', tileLoadedHandler);
+    //     var imageBounds =viewer_new.world.getItemAt(0).getBounds();
+    //     viewer_new.viewport.fitBounds(imageBounds, true);
+    // };
+    // viewer_new.addHandler('tile-loaded', tileLoadedHandler);
+    // viewer_new.addHandler('full-screen', function(a){
+    //     console.log('full-screen-new')
+    //     console.log(a)
+    //     if(a.fullScreen == true) {
+    //         viewer_new.autoResize = true;
+    //     } else {
+    //         setTimeout(function () {
+    //             window.addEventListener('resize', maintainZoom);
+    //             viewer_new.autoResize = false;
+    //         }, 400);
+    //     }
+    // });
+    // viewer_ref.addHandler('full-screen',function(a){
+    //     if(a.fullScreen == true){
+    //         viewer_ref.autoResize = true;
+    //     } else {
+    //         setTimeout(function () {
+    //             window.addEventListener('resize', maintainZoom);
+    //             viewer_ref.autoResize = false;
+    //         }, 400);
+    //     }
+    // })
+
+      // viewer.addHandler("page", data => {
+      //   this.setState({shown_image: data.page===0 ? "New" : "Reference"})
+      // });
     }).catch(err => console.log(err));
   }
 
@@ -101,7 +207,8 @@ class ImgViewer extends PureComponent {
     const { shown_image, height, width } = this.state;
     return <div >
       <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
-      <div style={{width, height}} id={output_new.output_dir_url} />
+      <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
+      <div style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
     </div>
   }
 
