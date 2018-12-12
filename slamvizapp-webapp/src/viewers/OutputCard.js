@@ -1,11 +1,9 @@
-import React, { Component } from "react";
-import Loadable from 'react-loadable';
+import React, { Component, lazy, Suspense } from "react";
 
 import styled from "styled-components";
 import { Card, Icon, Intent, Tag, Classes, Popover, Toaster, Tooltip } from "@blueprintjs/core";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { MetricTag } from "../components/metrics";
-import ImgViewer from './image';
 
 
 export const toaster = Toaster.create();
@@ -15,36 +13,6 @@ const SlimCard = styled(Card)`
   overflow: "auto";
 `;
 
-
-const Loading = props => {
-  if (props.error) {
-    return <div>Error!</div>;
-  } else {
-    return <div></div>;
-  }
-};
-
-
-const LoadableSlamViewer = Loadable({
-  loader: () => import('./slam/SlamOutputCard' /* webpackChunkName: "slam" */),
-  loading: Loading,
-});
-const LoadableTofViewer = Loadable({
-  loader: () => import('./tof/TofOutputCard' /* webpackChunkName: "tof" */),
-  loading: Loading,
-});
-const LoadableCisViewer = Loadable({
-  loader: () => import('./cis/CisOutputCard' /* webpackChunkName: "cis" */),
-  loading: Loading,
-});
-const LoadablePlotlyViewer = Loadable({
-  loader: () => import('./plotly' /* webpackChunkName: "plotly-viewer" */),
-  loading: Loading,
-});
-const LoadableVideoViewer = Loadable({
-  loader: () => import('./videos' /* webpackChunkName: "plotly-viewer" */),
-  loading: Loading,
-});
 
 
 
@@ -146,22 +114,37 @@ class OutputTags extends React.PureComponent {
 }
 
 
+
+const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
+const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
+const LoadableCisViewer = lazy(() => import('./cis/CisOutputCard' /* webpackChunkName: "cis-viewer" */));
+const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
+const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
+const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
+
 class OutputViewer extends React.Component {
   render() {
     const { type, ...props } = this.props;
+    let viewer;
     if (type === "6dof/txt")
-      return  <LoadableSlamViewer {...props}/>
+      viewer =  <LoadableSlamViewer {...props}/>
     else if (type === "pointcloud/txt")
-      return <LoadableTofViewer {...props} />
+      viewer = <LoadableTofViewer {...props} />
     else if (type === "cis/image")
-      return <LoadableCisViewer {...props} />
+      viewer = <LoadableCisViewer {...props} />
     else if (type === "plotly/json")
-      return <LoadablePlotlyViewer {...props} />
+      viewer = <LoadablePlotlyViewer {...props} />
     else if (type.startsWith('video'))
-      return <LoadableVideoViewer {...props} type={type} />
+      viewer = <LoadableVideoViewer {...props} type={type} />
     else if (type.startsWith('image'))
-      return <ImgViewer {...props} type={type} />
-    else return <span>No viewer is defined for type: {type}</span>;
+      viewer = <LoadableImageViewer {...props} type={type} />
+    else viewer = <span>No viewer is defined for type: {type}</span>;
+
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      {viewer}
+    </Suspense>
+  );
   }
 }
 
