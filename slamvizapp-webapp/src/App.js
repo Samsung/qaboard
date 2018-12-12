@@ -24,26 +24,51 @@ const LoadableDashboard = Loadable({
 });
 
 
-const App = ({ store }) => (
-  <Provider store={store}>
-    <CookiesProvider>
-      <Router>
-        <div className={Classes.UI_TEXT}>
-          <AppNavbar />
-          <Route path="/projects" component={ProjectsList} />
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
-          <Route exact path="/" component={CiCommitList} />
-          <Route path="/branch/(.*)" component={CiCommitList} />
-          <Route path="/committer/(.*)" component={CiCommitList} />
+  static getDerivedStateFromError(error) {
+    // Update state so the next render will show the fallback UI.
+    return { hasError: true, error };
+  }
 
-          <Route path="/commit/(.*)" component={CiCommitResults} />
+  componentDidCatch(error, info) {
+    this.setState({error})
+    // You can also log the error to an error reporting service
+    console.log(error, info);
+  }
 
-          <Route path="/dashboard" component={LoadableDashboard} />
-        </div>
-      </Router>
-    </CookiesProvider>
-  </Provider>
-)
+  render() {
+    if (this.state.hasError) {
+      // You can render any custom fallback UI
+      return <div>
+        <h1>Something went wrong. Please report the bug to Arthur Flam</h1>
+        <p>{JSON.stringify(this.state.error)}</p>
+       </div>;
+    }
+	  return <Provider store={this.props.store}>
+	    <CookiesProvider>
+	      <Router>
+	        <div className={Classes.UI_TEXT}>
+	          <AppNavbar />
+	          <Route path="/projects" component={ProjectsList} />
+
+	          <Route exact path="/" component={CiCommitList} />
+	          <Route path="/branch/(.*)" component={CiCommitList} />
+	          <Route path="/committer/(.*)" component={CiCommitList} />
+
+	          <Route path="/commit/(.*)" component={CiCommitResults} />
+
+	          <Route path="/dashboard" component={LoadableDashboard} />
+	        </div>
+	      </Router>
+	    </CookiesProvider>
+	  </Provider>
+  }
+}
 
 
 export default App;
