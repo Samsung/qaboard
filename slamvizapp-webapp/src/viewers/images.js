@@ -71,6 +71,7 @@ const iiif_url = (output_dir_url, path) => {
 class ImgViewer extends PureComponent {
   constructor(props) {
     super(props);
+    this.canvas_diff = React.createRef();
     this.state = {
       shown_image: "New",
       width: this.props.style.width || '390px',
@@ -111,28 +112,32 @@ class ImgViewer extends PureComponent {
         prevProps.output_ref !== null &&
         (this.props.output_ref == null ||
           prevProps.output_ref.id !== this.props.output_ref.id);
-      let updated_diff = prevProps.diff !== this.props.diff;
-      if (updated_new || updated_ref || updated_diff) {
+      if (updated_new || updated_ref) {
         this.Init(this.props);
-        this.InitDiff();
+      }
+
+      let updated_diff = prevProps.diff !== this.props.diff;
+      if (updated_diff) {
+        this.InitDiff(this.props);
       }
   }
 
-  InitDiff() {
+  InitDiff(props) {
     // Implemement perceptual differences
     const { viewer_new, viewer_ref} = this.state;
-    if (this.props.diff) {
+    const { diff } = this.props;
+    if (diff) {
       var update_diff = () => {
         let size_new = new Openseadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
         let canvas_new = viewer_new.drawer.canvas
         let canvas_ref = viewer_ref.drawer.canvas
         let data_new = canvas_new.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
         let data_ref = canvas_ref.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
-        var canvas_diff = document.getElementById(`osd-diff-${this.props.output_new.output_dir_url}`);
-        if (!!canvas_diff) {
-          var diff = canvas_diff.getContext("2d").createImageData(size_new.x, size_new.y);
+        var canvas_diff_element = this.canvas_diff.current;
+        if (!!canvas_diff_element) {
+          var diff_data = canvas_diff_element.getContext("2d").createImageData(size_new.x, size_new.y);
           pixelmatch(data_new.data, data_ref.data, diff.data, size_new.x, size_new.y, {threshold: this.state.diff_threshold});
-          canvas_diff.getContext("2d").putImageData(diff, 0, 0);          
+          canvas_diff_element.getContext("2d").putImageData(diff_data, 0, 0);          
           // var point = new Openseadragon.Point(0.5, 0.5)
           // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, Openseadragon.Placement.CENTER)
         }
@@ -205,9 +210,9 @@ class ImgViewer extends PureComponent {
     window.addEventListener('resize', maintainZoom);
   }
 
-  Init(props) {
+  Init() {
     const { path, output_new, output_ref } = this.props;
-    const has_reference = !!output_new && output_new.output_dir_url;
+    const has_reference = !!output_new && !!output_new.output_dir_url;
 
     get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
       // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -278,16 +283,17 @@ class ImgViewer extends PureComponent {
   }
 
   render() {
-    const { output_new, output_ref } = this.props;
+    const { output_new, output_ref, diff } = this.props;
     const { shown_image, height, width } = this.state;
-    return <div >
+    let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
+    return <>
       <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
       <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
-      <div hidden={!!!output_ref || !!!output_ref.output_dir_url} style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
-      {this.props.diff && !!output_ref && !!output_ref.output_dir_url && <div style={{width, height}}>
-        <canvas width={width} height={height} id={`osd-diff-${output_new.output_dir_url}`} />
-      </div>}      
-    </div>
+      <div hidden={no_reference} style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
+      <div hidden={!diff || no_reference} style={{width, height}}>
+        <canvas hidden={!diff || no_reference} ref={this.canvas_diff} width={width} height={height} />
+      </div>
+    </>
   }
 
   // renderHotkeys() {
