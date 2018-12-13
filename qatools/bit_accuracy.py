@@ -22,7 +22,7 @@ def compare_folders(dir_1=Path(), dir_2=Path(), patterns=None):
             rel_file_path = file_1.relative_to(dir_1)
             file_2 = dir_2 / rel_file_path
             if file_2.is_file():
-			    compared_results = True
+                compared_results = True
                 if not filecmp.cmp(str(file_1), str(file_2)):
                     different_files.append(str(rel_file_path))
     assert not different_files, "ERROR: different files\n" + "\n".join(different_files)
