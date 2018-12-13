@@ -94,6 +94,7 @@ RUN pip install --upgrade pip
 WORKDIR /slamvizapp/slamvizapp-webapp
 COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/yarn.lock ./
 ENV NODE_ENV production
+RUN yarn global add grunt-cli # for building openseadragon from source
 RUN yarn install --pure-lockfile
 COPY . /slamvizapp/
 RUN yarn build

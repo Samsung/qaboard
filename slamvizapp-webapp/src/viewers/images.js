@@ -24,7 +24,7 @@ const Openseadragon_config = {
   minZoomLevel: 1,
   maxZoomPixelRatio: 50,
   minZoomImageRatio: 50,
-  // smoothTileEdgesMinZoom: 10000,
+  smoothTileEdgesMinZoom: 1000000,
   imageSmoothingEnabled: false,
 
   springStiffness: 15,
