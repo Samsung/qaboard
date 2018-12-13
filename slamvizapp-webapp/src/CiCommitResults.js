@@ -62,7 +62,7 @@ class CiCommitResults extends Component {
     this.setState( (previousState, props) => ({
       controls: {
         ...previousState.controls,
-        [name]: !this.state[name],
+        [name]: !this.state.controls[name],
       }
     }))    
   }
