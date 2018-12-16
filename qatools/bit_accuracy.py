@@ -19,10 +19,10 @@ def compare_folders(dir_1=Path(), dir_2=Path(), patterns=None):
     different_files = []
     for pattern in patterns:
         for file_1 in dir_1.rglob(f"{pattern}"):
-            compared_results = True
             rel_file_path = file_1.relative_to(dir_1)
             file_2 = dir_2 / rel_file_path
             if file_2.is_file():
+                compared_results = True
                 if not filecmp.cmp(str(file_1), str(file_2)):
                     different_files.append(str(rel_file_path))
     assert not different_files, "ERROR: different files\n" + "\n".join(different_files)
@@ -44,7 +44,7 @@ def assert_bit_accurate_to(reference_commit):
     print(f"Current output directory  : {output_directory}")
     print(f"Reference output directory: {reference_output_directory}")
     return compare_folders(
-        dir_1=output_directory,
-        dir_2=reference_output_directory,
+        dir_1=reference_output_directory,
+        dir_2=output_directory,
         patterns=config["bit_accuracy"]["patterns"],
     )
