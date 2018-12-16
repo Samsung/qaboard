@@ -48,6 +48,15 @@ def notify_qa_database(object_type='output', **kwargs):
   # we send updates to
   url = f"{api_protocol}://{api_host}:{api_port}/api/v1/{object_type}/"
 
+  # the server expects to recieve file that are valid on linux
+  from .config import on_windows
+  if on_windows:
+    from .config import config
+    try:
+      kwargs['output_directory'] = config['ci_root']['linux'] / kwargs['output_directory'].relative_to(ci_root)
+    except:
+      pass
+
   data = {
     'job_type': 'ci' if is_ci else 'local',
     'git_commit_sha': commit_id,
