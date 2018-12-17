@@ -44,13 +44,13 @@ def notify_qa_database(object_type='output', **kwargs):
   # some light custom serialization for Path objects
   for key, value in kwargs.items():
     if issubclass(type(value), Path):
-    # the server expects to recieve file that are valid on linux
-    if on_windows:
-      try:
-        kwargs[key] = config['ci_root']['linux'] / kwargs[key].relative_to(ci_root)
-      except:
-        pass
-      kwargs[key] = str(value)
+      # the server expects to recieve file that are valid on linux
+      if on_windows:
+        try:
+          kwargs[key] = config['ci_root']['linux'] / kwargs[key].relative_to(ci_root)
+        except:
+          pass
+        kwargs[key] = str(value)
 
   # we send updates to
   url = f"{api_protocol}://{api_host}:{api_port}/api/v1/{object_type}/"
