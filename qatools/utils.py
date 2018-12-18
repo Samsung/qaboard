@@ -99,13 +99,18 @@ def hash_parameters(parameters):
   return make_hash(params)
 
 
-def iter_recordings(groups, groups_file, database, default_configuration, config, debug=False):
+def iter_recordings(groups, groups_file, database, default_configuration, config, globs=None, debug=False):
   """Returns an iterator over the (recording, configuration) from the selected groups
   params:
   - groups: array of group labels
   - groups_file: yaml file
   - configuration, is none is specified
   """
+  if not globs:
+    globs = config['inputs']['glob']
+  if not isinstance(globs, tuple):
+    globs = tuple(globs)
+
   maybe_parent = lambda path: path.parent if config['inputs'].get('use_parent_folder', False) else path
   available_batches = yaml.load(Path(groups_file).open())
   for group in groups:
@@ -116,9 +121,11 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
       location = group
       if debug:
         click.secho(str(location), bold=True, fg='cyan', err=True)
-      yield from set([(maybe_parent(f), default_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
-      if location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
-        yield maybe_parent(Path(database/location)), default_configuration
+      
+      for glob in globs:
+        yield from set([(maybe_parent(f), default_configuration) for f in (database / location).rglob(glob)])
+        if fnmatch.fnmatch(location, glob) or location.endswith(glob):
+          yield maybe_parent(Path(database / location)), default_configuration
       return
 
     if available_batches[group] is None:
@@ -148,9 +155,12 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
         location_configuration = f'{group_configuration}:{location_configuration}'
       if debug:
         click.secho(str(database/location), bold=True, fg='cyan', err=True)
-      yield from set([(maybe_parent(f), location_configuration) for f in (database/location).rglob(config['inputs']['glob'])])
-      if fnmatch.fnmatch(location, config['inputs']['glob']) or location.endswith(config['inputs']['glob']): # FIXME: doesn't support * globs ...
-        yield maybe_parent(Path(database/location)), location_configuration
+
+      for glob in globs:
+        if fnmatch.fnmatch(location, glob) or location.endswith(glob):
+          yield maybe_parent(Path(database / location)), location_configuration
+        else:
+          yield from set([(maybe_parent(f), location_configuration) for f in (database / location).rglob(glob)])
 
 
 
