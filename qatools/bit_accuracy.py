@@ -19,6 +19,8 @@ def compare_folders(dir_1=Path(), dir_2=Path(), patterns=None):
     different_files = []
     for pattern in patterns:
         for file_1 in dir_1.rglob(f"{pattern}"):
+            # we avoid comparing stdout logs, they contain timestamps...
+            if file_1.name == 'log.txt': continue
             rel_file_path = file_1.relative_to(dir_1)
             file_2 = dir_2 / rel_file_path
             if file_2.is_file():
