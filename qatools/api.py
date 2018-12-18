@@ -39,23 +39,21 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, commit_id
-  # some light custom serialization
+  from .config import is_ci, on_windows, commit_id, config
+
+  # some light custom serialization for Path objects
   for key, value in kwargs.items():
     if issubclass(type(value), Path):
-      kwargs[key] = str(value)
+      # the server expects to recieve file that are valid on linux
+      if on_windows:
+        try:
+          kwargs[key] = config['ci_root']['linux'] / kwargs[key].relative_to(ci_root)
+        except:
+          pass
+        kwargs[key] = str(value)
 
   # we send updates to
   url = f"{api_protocol}://{api_host}:{api_port}/api/v1/{object_type}/"
-
-  # the server expects to recieve file that are valid on linux
-  from .config import on_windows
-  if on_windows:
-    from .config import config
-    try:
-      kwargs['output_directory'] = config['ci_root']['linux'] / kwargs['output_directory'].relative_to(ci_root)
-    except:
-      pass
 
   data = {
     'job_type': 'ci' if is_ci else 'local',
