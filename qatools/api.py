@@ -50,7 +50,7 @@ def notify_qa_database(object_type='output', **kwargs):
           kwargs[key] = config['ci_root']['linux'] / kwargs[key].relative_to(ci_root)
         except:
           pass
-        kwargs[key] = str(value)
+      kwargs[key] = str(value)
 
   # we send updates to
   url = f"{api_protocol}://{api_host}:{api_port}/api/v1/{object_type}/"
