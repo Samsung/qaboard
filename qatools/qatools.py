@@ -66,7 +66,7 @@ os.umask(0)
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--inputs-database', default=database, type=PathType(), help="Test database location")
-@click.option('--inputs-glob', default=config['inputs']['glob'], multiple=True, help="How we define inputs")
+@click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
 def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, inputs_database, inputs_glob, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
@@ -309,6 +309,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
+          f'--inputs-database "{ctx.obj["database"]}"' if ctx.obj['database'] != database else '',
           f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
           f'--configuration "{input_configuration}"',
           f'--tuning-filepath "{tuning_file}"' if tuning_params else '',
