@@ -108,7 +108,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
   """
   if not globs:
     globs = config['inputs']['glob']
-  if not isinstance(globs, tuple):
+  if not isinstance(globs, tuple) or not isinstance(globs, list):
     globs = tuple(globs)
 
   maybe_parent = lambda path: path.parent if config['inputs'].get('use_parent_folder', False) else path

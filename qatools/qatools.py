@@ -65,16 +65,16 @@ os.umask(0)
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--input-database', default=database, type=PathType(), help="Test database location")
-@click.option('--input-glob', default=config['inputs']['glob'], multiple=True, help="How we define inputs")
+@click.option('--inputs-database', default=database, type=PathType(), help="Test database location")
+@click.option('--inputs-glob', default=config['inputs']['glob'], multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, input_database, input_glob, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, inputs_database, inputs_glob, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
-  ctx.obj['database'] = input_database
-  ctx.obj['input_globs'] = input_glob
+  ctx.obj['database'] = inputs_database
+  ctx.obj['inputs_globs'] = inputs_glob
   ctx.obj['dryrun'] = dryrun
   ctx.obj['project'] = config['project']['name']
   ctx.obj['commit_ci_dir'] = commit_ci_dir
@@ -284,7 +284,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
-  for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], config, globs=ctx.obj['input_globs']):
+  for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], config, globs=ctx.obj['inputs_globs']):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', dim=True, err=True)
 
