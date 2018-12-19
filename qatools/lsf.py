@@ -45,8 +45,15 @@ class Job:
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
         if on_windows:
-            subprocess.run(self.command)
-            return
+            out = subprocess.run(
+                self.command,
+                shell=True,
+                encoding="utf-8",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            click.secho(out.stdout)
+            return out
 
         if dependencies:
             dependencies_expression = " && ".join(
