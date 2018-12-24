@@ -7,7 +7,7 @@ Web application to display results from various algorithmic projects.
 
 ```
 # depending on your proxies you may need to....
-# yarn config set ssl-strict false
+# yarn config set strict-ssl false
 yarn install
 yarn start
 #=> listenning on port 3000
