@@ -56,7 +56,7 @@ def clean(project, protected_branch, days, verbose):
   else:
   	raise NotImplementedError('please write some code to get the project CI directory from the database...')
   cicommits_dir = ci_directory / project / 'commits'
-  for cicommit_dir in cicommits_dir.glob('*__git__*'):
+  for cicommit_dir in cicommits_dir.glob('*__*__*'):
     commit_short_id = str(cicommit_dir)[-8:]
     try:
       commit = repo.commit(commit_short_id)
