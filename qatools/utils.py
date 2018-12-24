@@ -76,6 +76,10 @@ def load_tuning_search(tuning_search, tuning_search_file):
     if tuning_search_file.suffix == '.yaml':
       tuning_search_dict = yaml.load(tuning_search)
       filetype = 'yaml'
+    elif tuning_search_file.suffix == '.cde':
+      from cde import Config
+      tuning_search_dict = Config.loads(f.read()).asdict()
+      filetype = 'cde'
     else:
       tuning_search_dict = json.loads(tuning_search)
       filetype = 'json'
@@ -94,6 +98,9 @@ def hash_parameters(parameters):
     with parameters.open('r') as f:
       if parameters.suffix == '.yaml':
         params = yaml.load(f)
+      elif parameters.suffix == '.cde':
+        from cde import Config
+        params = Config.loads(f.read()).asdict()
       else:
         params = json.load(f)
   return make_hash(params)
@@ -230,5 +237,10 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
       if filetype == 'json':
         f.write(params_s)
       elif filetype == 'yaml':
+        yaml.dump(params, f)
+      elif filetype == 'cde':
+        from cde import Config
+        config = Config()
+        config.load_fromdict(config_dict)
         yaml.dump(params, f)
     yield params_file, params_hash, params

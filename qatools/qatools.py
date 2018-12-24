@@ -92,6 +92,9 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     with tuning_filepath.open('r') as f:
       if tuning_filepath.suffix == '.yaml':
         ctx.obj['extra_parameters'] = yaml.load(f)
+      elif tuning_filepath.suffix == '.cde':
+        from cde import Config
+        ctx.obj['extra_parameters'] = Config.loads(f.read()).asdict()
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
