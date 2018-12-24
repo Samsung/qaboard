@@ -67,16 +67,16 @@ def clean(project, protected_branch, days, verbose):
     if is_old(commit):
       if commit not in protected_commits:
         print(f'DELETE: {commit.hexsha} on {commit.authored_datetime} by {commit.author.name}')
-        subprocess.Popen(f'rm -rf {cicommit_dir}', shell=True)
+        subprocess.Popen(f'rm -rf "{cicommit_dir}"', shell=True)
       else:
         if commit not in latest_protected_commits:
-          command = f"find {cicommit_dir} -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.hex \) -delete -print"
+          command = f"find '{cicommit_dir}' -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.hex \) -delete -print"
           # print(command)
           subprocess.Popen(command, shell=True)
 
   # we remove core dumps, they are soooo heavy...
   # we could update the LSF params to avoid creating them at all I guess
-  subprocess.Popen(f"find {ci_directory/project}/branches -maxdepth 3 -name '*core*' -delete -print", shell=True)
+  subprocess.Popen(f"find '{ci_directory/project}/branches' -maxdepth 3 -name '*core*' -delete -print", shell=True)
 
 
 
