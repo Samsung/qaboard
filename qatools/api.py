@@ -2,7 +2,7 @@
 Utilities related to CI database: fetching results, saving results... 
 """
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import json
 from functools import lru_cache
 
@@ -39,7 +39,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, on_windows, commit_id, config
+  from .config import is_ci, on_windows, commit_id, config, ci_root
 
   # some light custom serialization for Path objects
   for key, value in kwargs.items():
@@ -47,7 +47,15 @@ def notify_qa_database(object_type='output', **kwargs):
       # the server expects to recieve file that are valid on linux
       if on_windows:
         try:
-          kwargs[key] = config['ci_root']['linux'] / kwargs[key].relative_to(ci_root)
+          value = (Path('/stage/algo_data') / kwargs[key].relative_to('\\\\netapp\\algo_data')).as_posix()
+        except:
+          pass
+        try:
+          value = (Path('/stage/algo_archive') / kwargs[key].relative_to('\\\\netapp\\algo_archive')).as_posix()
+        except:
+          pass
+        try:
+          value = (Path('/stage/algo_db') / kwargs[key].relative_to('\\\\netapp\\algo_db')).as_posix()
         except:
           pass
       kwargs[key] = str(value)
