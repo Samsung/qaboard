@@ -220,7 +220,7 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
     raise ValueError
 
   for counter, params_ in enumerate(params_iterator):
-    if counter >= n_iter:
+    if counter >= n_iter and n_iter > 0:
         click.secho(f"Stopping tuning combination after {n_iter} iterations", fg='yellow', err=True)
         return
     # the search overrides the extra parameters specified earlier
