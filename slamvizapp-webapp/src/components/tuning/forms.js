@@ -268,10 +268,7 @@ class TuningForm extends Component {
       var combinations = grid_combinations(tuning_sets);
       if (combinations === null || combinations === 'optimize') combinations = "invalid";
       else
-        combinations =
-          search_type === "grid"
-            ? combinations
-            : Math.min(search_options.n_iter, combinations);
+        combinations = search_options.n_iter < 0 ? combinations : Math.min(search_options.n_iter, combinations);
     } catch (e) {
       combinations = "invalid";
     }
@@ -436,7 +433,7 @@ class TuningForm extends Component {
                 Automated tuning
               </option>
             </HTMLSelect>
-            {search_type === "sampler" && (
+            {(search_type === "sampler" || search_type === "grid") && (
               <input
                 id="input-iterations"
                 value={search_options.n_iter}
