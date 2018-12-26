@@ -4,6 +4,7 @@ Utilities related to CI database: fetching results, saving results...
 import os
 from pathlib import Path, PurePosixPath
 import json
+import simplejson
 from functools import lru_cache
 
 import click
@@ -16,8 +17,8 @@ api_host = os.getenv('QATOOLS_DB_HOST', 'dvs')
 api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 
 
-class NumpyEncoder(json.JSONEncoder):
-    """ Special json encoder for numpy types """
+class NumpyEncoder(simplejson.JSONEncoder):
+    """ Special simplejson encoder for numpy types """
     def default(self, obj):
         import numpy as np
 
@@ -30,7 +31,7 @@ class NumpyEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj,(np.ndarray,)):
             return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
+        return simplejson.JSONEncoder.default(self, obj)
 
 
 
@@ -70,7 +71,7 @@ def notify_qa_database(object_type='output', **kwargs):
   }
   try:
     # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
-    data = json.dumps(data, cls=NumpyEncoder)
+    data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
     r.raise_for_status()
   except:

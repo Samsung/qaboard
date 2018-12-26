@@ -19,6 +19,7 @@ setup(
     'requests', # HTTP for humans
     'gitpython',
     'sklearn', # machine learning, used only for parameter sampling
+    'simplejson',
   ],
 
   entry_points='''
