@@ -341,6 +341,15 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   waiting_job = [Job(f"{batch_job_prefix}*")]
   jobs_sent = []
+
+
+  # in case we receive SIGTERM, we cancel all remaining sent jobs
+  import signal
+  def sigterm_handler(_signo, _stackframe):
+    secho('Terminated', _signo, _stackframe, fg='red')
+    kill_jobs(waiting_job, on_lsf=True)
+  signal.signal(signal.SIGTERM, sigterm_handler)
+
   try:
       for job in jobs:
         if dryrun: continue
@@ -350,14 +359,13 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if not dryrun and not no_wait:
             tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
-            wait = Job(name, 'echo "finished waiting for jobs on LSF."')
+            wait = Job(name, 'echo "Finished waiting for LSF jobs."')
             wait.send(interactive=True, dependencies=waiting_job)
             # sanity check
             for output_directory in output_directories:
               assert output_directory.exists()
   except:
-      kill_jobs(waiting_job, on_lsf = True)
-
+    kill_jobs(waiting_job, on_lsf=True)
 
 
 @cli.command(context_settings=dict(
