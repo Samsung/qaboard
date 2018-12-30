@@ -21,18 +21,18 @@ test-frontend:
     - cd slamvizapp-webapp
     - echo "skipped" # yarn install
     - echo "skipped" # yarn build
-# we could run more tests with: 
+# we could run more tests with:
 #    - CI=true yarn test
 
 
 deploy_staging:
   stage: deploy
   script:
-    - ssh arthurf-vdi "cd $(pwd) && dbuild -m gpu10-dt --project SOCISP -q gpu_deep_train_med_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG --cache-from $DOCKER_IMAGE:production ."
-    - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh arthurf-vdi "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+    - ssh devdocker02-srv "cd $(pwd) && dbuild --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push  $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: staging
     url: http://dvs:9000
@@ -42,11 +42,11 @@ deploy_staging:
 deploy_production:
   stage: deploy
   script:
-    - ssh arthurf-vdi "cd $(pwd) && dbuild --project SOCISP -m gpu10-dt -q gpu_deep_train_high_q --push -t $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG --cache-from $DOCKER_IMAGE:staging ."
-    - ssh arthurf-vdi docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh arthurf-vdi "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh arthurf-vdi "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
-    - ssh arthurf-vdi "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+    - ssh devdocker02-srv "cd $(pwd) && docker build --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
   environment:
     name: production
     url: http://dvs:5000
