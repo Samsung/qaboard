@@ -25,7 +25,7 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
       import pkg_resources
       qatools_dir = Path(pkg_resources.resource_filename('qatools', ''))
   click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
-  shutil.copy(str(qatools_dir/'sample_project/qatools.yaml'), 'qatools.yaml')
+  shutil.copy(str(qatools_dir / 'sample_project/qatools.yaml'), 'qatools.yaml')
   click.secho('...added qatools.yaml', fg='green', dim=True)
   shutil.copytree(str(qatools_dir/'sample_project/qatools'), 'qatools')
   click.secho('...added qatools/', fg='green', dim=True)
@@ -37,6 +37,54 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
   exit(0)
 
 
+
+# We look for qatools.yaml configuration files in the parent folders
+root_config_path = None
+qatools_yaml = Path('qatools.yaml')
+qatools_configs = []
+parents = list(Path().resolve().parents)
+parents = [Path(), *parents]
+for parent in parents:
+    qatools_config_path = parent / qatools_yaml
+    if not qatools_config_path.exists():
+        continue
+    root_config_path = qatools_config_path
+    if verbose:
+      click.secho(f"loading {qatools_config_path}", fg='blue')
+    with qatools_config_path.open('r') as f:
+        qatools_config = yaml.load(f)
+        qatools_configs.append(qatools_config)
+        if qatools_config.get('root'): break
+
+if not qatools_configs:
+    click.secho('ERROR: Could not find a `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
+    click.secho(
+        'Please read the tutorial, and ask @arthurf for help\n'
+        'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
+        dim=True, err=True)
+    exit(1)
+
+
+# We merge the configurations 2-level deep
+config = {}
+qatools_configs.reverse()
+for c in qatools_configs:
+    for key, value in c.items():
+      if isinstance(value, dict):
+          node = config.setdefault(key, {})
+          node.update(value)
+      else:
+          config[key] = value
+
+if verbose:
+    for k, v in config.items():
+      click.secho(f"{k}: {v}", dim=True, err=True)
+
+# we want all paths to be relative to the git repository's root
+project_root = root_config_path.parent
+if project_root != Path().resolve():
+    click.secho(f'Executing from working directory {project_root}', dim=True)
+    os.chdir(project_root)
 
 # It's useful to know what's the platform since code is often compiled a different locations
 # For instance build/bin/ vs /x64/Release/
@@ -54,24 +102,6 @@ elif on_vdi or on_lsf:
     platform = 'lsf'
 else: # unknown linux
     platform = 'linux'
-
-
-
-try:
-    with Path('qatools.yaml').open('r') as f:
-        config = yaml.load(f)
-        if verbose: click.secho(str(config), dim=True, err=True)
-except FileNotFoundError:
-    click.secho('ERROR: Could not find the `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
-    click.secho(
-        'Please read the tutorial, and ask @arthurf for help\n'
-        'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
-        dim=True, err=True)
-    exit(1)
-except:
-    click.secho('ERROR: Could not parse the configuration file `qatools.yaml`.', fg='red', err=True)
-    exit(1)
-
 
 # All recordings used should be stored at the same location
 # We will refer to them by their relative path related to the "database"
