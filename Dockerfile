@@ -3,18 +3,24 @@ LABEL maintainer="arthurf.flam@samsung.com"
 
 # SIRC proxy configuration
 # if you run into network issues, build the image somewhere else :_)
-RUN echo 'Acquire::http::Proxy "http://dlp2-wcg01:8080";' >> /etc/apt/apt.conf
-RUN echo 'Acquire::https::Proxy "http://dlp2-wcg01:8080";' >> /etc/apt/apt.conf
-RUN echo '[http]\nsslverify = false\n# proxy = http://dlp2-wcg01:8080' >> /root/.gitconfig
-ENV HTTP_PROXY 'http://dlp2-wcg01:8080'
-ENV http_proxy 'http://dlp2-wcg01:8080'
-ENV HTTPS_PROXY 'http://dlp2-wcg01:8080'
-ENV https_proxy 'http://dlp2-wcg01:8080'
-ENV NO_PROXY 'gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+ENV PROXY_HOST=dlp2-wcg01 \
+        PROXY_PORT=8080 \
+        PROXY_PROTOCOL=http
+ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
+RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
+    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
+    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
+ENV HTTP_PROXY=$PROXY \
+    http_proxy=$PROXY \
+    HTTPS_PROXY=$PROXY \
+    https_proxy=$PROXY \
+        NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
 
-RUN apt-get update
-RUN apt-get install -y git wget
-RUN git config --global http.proxy http://dlp-wcg01:8080
+
+RUN apt-get update; \
+    apt-get install -y git wget
+RUN git config --global http.proxy $PROXY
+
 
 # Essential utilities
 RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
