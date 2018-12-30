@@ -39,21 +39,27 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
 
 
 # We look for qatools.yaml configuration files in the parent folders
-root_config_path = None
+root_config_path = None # the top-most qatools.yaml
+leaf_config_path = None # the lowest qatools.yaml, overwrites the formers...
 qatools_yaml = Path('qatools.yaml')
 qatools_configs = []
-parents = list(Path().resolve().parents)
-parents = [Path(), *parents]
+cwd_resolved = Path().resolve()
+parents = list(cwd_resolved.parents)
+parents = [cwd_resolved, *parents]
 for parent in parents:
     qatools_config_path = parent / qatools_yaml
     if not qatools_config_path.exists():
         continue
-    root_config_path = qatools_config_path
+    if not leaf_config_path:
+      leaf_config_path = qatools_config_path
+    root_qatools_config_path = qatools_config_path
     if verbose:
       click.secho(f"loading {qatools_config_path}", fg='blue')
     with qatools_config_path.open('r') as f:
         qatools_config = yaml.load(f)
         qatools_configs.append(qatools_config)
+        # we will check that users don't redefine the git repository and project name 
+        project = qatools_config['project']
         if qatools_config.get('root'): break
 
 if not qatools_configs:
@@ -73,18 +79,42 @@ for c in qatools_configs:
       if isinstance(value, dict):
           node = config.setdefault(key, {})
           node.update(value)
-      else:
+      elif value is not None:
           config[key] = value
 
 if verbose:
     for k, v in config.items():
       click.secho(f"{k}: {v}", dim=True, err=True)
 
-# we want all paths to be relative to the git repository's root
-project_root = root_config_path.parent
-if project_root != Path().resolve():
-    click.secho(f'Executing from working directory {project_root}', dim=True)
-    os.chdir(project_root)
+root_qatools = root_qatools_config_path.parent
+leaf_relative_to_root = leaf_config_path.parent.relative_to(root_qatools)
+
+# We check for consistency
+if project['url'] != config['project']['url']:
+    click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
+    click.secho(f"Changed from {project['url']} to {config['project']['url']}", fg='red')
+    exit(1)
+
+# We identify sub-qatools projects using the location of qatools.yaml related to the project root
+# It's not something the user should change...
+new_project_name = config['project']['name'] / leaf_relative_to_root
+uncoherent_name = project['name'] != config['project']['name'] and project['name'] != new_project_name
+if uncoherent_name:
+    click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
+    click.secho(f"Changed from {project['name']} to {config['project']['name']})", fg='red')
+    exit(1)
+config['project']['name'] = new_project_name
+
+
+# We want all paths to be relative to top-most qatools.yaml
+# it should be located at the root of the git repository
+if root_qatools != Path().resolve():
+    click.secho(f'Executing from working directory: {root_qatools}', fg='cyan')
+    os.chdir(root_qatools)
+
+
+
+
 
 # It's useful to know what's the platform since code is often compiled a different locations
 # For instance build/bin/ vs /x64/Release/
@@ -136,6 +166,7 @@ ci_dir = Path(ci_root) / config['project']['name']
 
 
 
+
 # we find were we should save our results
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit_ci_dirname = None
@@ -143,12 +174,13 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit = None
     repo = None
 else:
+    if not (root_qatools / '.git').exists():
+        click.secho("ERROR: qatools.yaml should be located at the root of the git repository, at {root_qatools}.", fg='red')
+        exit(1)
+
     import git
     try:
-        try:
-            repo = git.Repo('.')
-        except: # just to make `qa` work in the sample_project
-            repo = git.Repo('../..')
+        repo = git.Repo(str(root_qatools))
         commit = repo.head.commit
         commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
         commit_ci_dir = ci_dir / 'commits' / commit_ci_dirname
