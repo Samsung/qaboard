@@ -1,6 +1,6 @@
 # Visualization of algorithmic SLAM results
 Provides a web application to:
-- Show, debug and compare SLAM results.
+- Show, debug and compare algorithm results.
 - Perform parameter tuning.
 
 It does it by:
@@ -17,6 +17,7 @@ It does it by:
   * It manages a database where results are stored...
   * and exposes it via a simple HTTP API.
 - [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
+- [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, useful to stream large images to a web client.
 
 
 ## How to run (with Docker, recommended)
@@ -30,38 +31,4 @@ Then you're all set:
 # Adapt it to your needs. Some commands useful for debugging are commented-out
 ./start-docker.sh
 # => now serving http://dvs:5000
-```
-
-
-## Continuous Integration
-Gitlab manages:
-- builds and tests
-- the release to the [`production` enviromnent](http://dvs:5000/), via a manual job on [the `master` branch's pipelines](http://gitlab-srv/dvs/slamvizapp/pipelines)
-- the release to the [`staging` enviromnent](http://dvs:9000/) (mirrors production) enviromnent automatically on each update of the `master` branch.
-Those steps are described in [`.gitlab-ci.yml`](http://gitlab-srv/dvs/slamvizapp/blob/master/.gitlab-ci.yml). Details on our environments can be [found here](http://gitlab-srv/dvs/slamvizapp/environments).
-
-
-
-## How are the SLAM results saved?
-We only store their *metrics* in the database. The rest (eg 6dof results, DVS recordings) is stored on the filesystem like so:
-- Default base folder: `/home/arthurf/ci/commits/`
-- Per commit output folder: `${GIT_AUTHORED_TIMESTAMPCOMMIT}__git__${CI_COMMIT_SHA:0:8}`
-- Then....
-
-```
-1511696118__git__07de8585/
-  lsf.log
-  params.json
-  app_params.json
-  swip_slam_tests
-  output/
-        $PLATFORM                              # default: lsf
-        $CONFIGURATION                         # default: serial-stereo
-         my/recording1/                        # eg $database/my/recording1.bin
-                       camera_poses_debug.csv  # 6dof and more...
-                       metrics.json            # all the metrics, time offset vs ground-truth...
-                       results.mp4             # rendering of the results
-                       curves.jpg              # 6dof plots
-                       ...
-  tuning/$BATCH_LABEL/$PLATFORM/$CONFIGURATION/hash(EXTRA_PARAMETERS)[:2]/hash(EXTRA_PARAMETERS)/my/recording/
 ```
