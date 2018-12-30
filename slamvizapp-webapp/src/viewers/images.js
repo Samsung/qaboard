@@ -283,11 +283,14 @@ class ImgViewer extends PureComponent {
   }
 
   render() {
-    const { output_new, output_ref, diff } = this.props;
+    const { output_new, output_ref, diff, label, path } = this.props;
     const { shown_image, height, width } = this.state;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
     return <>
-      <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
+      <span>
+        <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
+        {label && (label || path)}
+      <span/>
       <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
       <div hidden={no_reference} style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
       <div hidden={!diff || no_reference} style={{width, height}}>
