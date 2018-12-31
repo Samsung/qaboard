@@ -28,7 +28,7 @@ test-frontend:
 deploy_staging:
   stage: deploy
   script:
-    - ssh devdocker02-srv "cd $(pwd) && dbuild --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push  $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh devdocker02-srv "cd $(pwd) && docker build -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push  $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
@@ -42,7 +42,7 @@ deploy_staging:
 deploy_production:
   stage: deploy
   script:
-    - ssh devdocker02-srv "cd $(pwd) && docker build --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh devdocker02-srv "cd $(pwd) && docker build -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
     - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
     - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
