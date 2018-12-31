@@ -31,4 +31,7 @@ Then you're all set:
 # Adapt it to your needs. Some commands useful for debugging are commented-out
 ./start-docker.sh
 # => now serving http://dvs:5000
+
+# For a interactive debugging...
+CI_DEBUG=ON CI_ENVIRONMENT_SLUG=staging ./deployment/start-docker.sh
 ```
