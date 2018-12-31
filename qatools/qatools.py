@@ -117,6 +117,7 @@ def get(ctx, input_path, output_path, variable):
         output_directory = commit_ci_dir / output_path
   except:
     pass
+  from .config import commit_rootproject_ci_dir, commit_ci_dir
   locals().update(globals())
   locals().update(ctx.obj)
   if variable in locals():
@@ -485,11 +486,14 @@ def save_artifacts():
   def copy_data(src, destination):
     shutil.copyfile(str(src), str(destination))
 
-  click.secho(f"Saving artifacts in: {commit_ci_dir}", bold=True, underline=True)
+  click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
   # default artifacts
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
+  # we also allow sub-qatools-projects
+  config['artifacts']['sub-qatools.yaml'] = {"glob": '**/qatools.yaml'}
+  config['artifacts']['sub-qatools'] = {"glob": '**/qatools/*'}
 
   if not repo:
       click.secho(
@@ -507,7 +511,7 @@ def save_artifacts():
       for path in Path('.').glob(g):
         if not path.is_file():
           continue
-        destination = commit_ci_dir / path
+        destination = commit_rootproject_ci_dir / path
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
         click.secho(str(path), dim=True)
