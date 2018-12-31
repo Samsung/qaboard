@@ -126,7 +126,8 @@ config['project']['name'] = leaf_project_name
 
 # We want all paths to be relative to top-most qatools.yaml
 # it should be located at the root of the git repository
-if root_qatools != Path().resolve():
+will_show_help = '-h' in sys.argv or '--help' in sys.argv
+if root_qatools != Path().resolve() and not will_show_help:
     click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
     os.chdir(root_qatools)
 
@@ -191,9 +192,9 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit = None
     repo = None
 else:
-    if not (root_qatools / '.git').exists():
-        click.secho("ERROR: qatools.yaml should be located at the root of the git repository, at {root_qatools}.", fg='red')
-        exit(1)
+    # if not (root_qatools / '.git').exists():
+    #     click.secho(f"ERROR: qatools.yaml should be located at the root of the git repository, at {root_qatools}.", fg='red')
+    #     exit(1)
 
     import git
     try:
