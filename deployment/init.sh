@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # todo: https://docs.docker.com/compose/overview/
-set -ev
+set -evx
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
