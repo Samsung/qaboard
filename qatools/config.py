@@ -38,30 +38,35 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
 
 
 
-# We look for qatools.yaml configuration files in the parent folders
-root_config_path = None # the top-most qatools.yaml
-leaf_config_path = None # the lowest qatools.yaml, overwrites the formers...
-qatools_yaml = Path('qatools.yaml')
-qatools_configs = []
-cwd_resolved = Path().resolve()
-parents = list(cwd_resolved.parents)
-parents = [cwd_resolved, *parents]
-for parent in parents:
-    qatools_config_path = parent / qatools_yaml
-    if not qatools_config_path.exists():
-        continue
-    if not leaf_config_path:
-      leaf_config_path = qatools_config_path
-    root_qatools_config_path = qatools_config_path
-    if verbose:
-      click.secho(f"loading {qatools_config_path}", fg='blue')
-    with qatools_config_path.open('r') as f:
-        qatools_config = yaml.load(f)
-        qatools_configs.append(qatools_config)
-        # we will check that users don't redefine the git repository and project name 
-        project = qatools_config['project']
-        if qatools_config.get('root'): break
 
+
+
+def find_qatools_configs(path):
+    """Returns the parsed content and paths of qatools.yaml files that should be loaded for this (sub)project.
+    Returns a tuple (configs, paths), each element is a list with the root qatools.yaml is first and the subproject's last.
+    """
+    qatools_configs = []
+    qatools_config_paths = []
+    # we need a full path to iterate on the parents
+    path = path.resolve()
+    # We look for qatools.yaml configuration files in the path folder and its parents
+    parents = [path, *list(path.parents)]
+    for parent in parents:
+        qatools_config_path = parent / 'qatools.yaml'
+        if not qatools_config_path.exists(): continue
+        if verbose: click.secho(f"loading {qatools_config_path}", fg='blue')
+        with qatools_config_path.open('r') as f:
+            qatools_config = yaml.load(f)
+            qatools_configs.append(qatools_config)
+            qatools_config_paths.append(qatools_config_path)
+            if qatools_config.get('root'): break
+    qatools_configs.reverse() 
+    qatools_config_paths.reverse() 
+    return qatools_configs, qatools_config_paths
+
+
+
+qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
 if not qatools_configs:
     click.secho('ERROR: Could not find a `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
     click.secho(
@@ -71,47 +76,59 @@ if not qatools_configs:
     exit(1)
 
 
-# We merge the configurations 2-level deep
-config = {}
-qatools_configs.reverse()
-for c in qatools_configs:
-    for key, value in c.items():
-      if isinstance(value, dict):
-          node = config.setdefault(key, {})
-          node.update(value)
-      elif value is not None:
-          config[key] = value
+def merge(qatools_configs):
+    """Merge qatools configurations 2-level deep"""
+    config = {}
+    qatools_configs.reverse()
+    for c in qatools_configs:
+        for key, value in c.items():
+          if isinstance(value, dict):
+              node = config.setdefault(key, {})
+              node.update(value)
+          elif value is not None:
+              config[key] = value
+    return config
+  
+config = merge(qatools_configs)
 
 if verbose:
     for k, v in config.items():
       click.secho(f"{k}: {v}", dim=True, err=True)
 
-root_qatools = root_qatools_config_path.parent
-leaf_relative_to_root = leaf_config_path.parent.relative_to(root_qatools)
+# The top-most qatools.yaml is the root project
+# The current subproject corresponds to the lowest qatools.yaml
+if len(qatools_config_paths)==1:
+  root_qatools = qatools_config_paths[0].parent
+  leaf_qatools = root_qatools
+  root_qatools_config = qatools_configs[0]
+  leaf_qatools_config = qatools_configs[0]
+else:
+  root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
+  root_qatools_config, *_, leaf_qatools_config = qatools_configs
+leaf_relative_to_root = leaf_qatools.relative_to(root_qatools)
 
 # We check for consistency
-if project['url'] != config['project']['url']:
+if root_qatools_config['project']['url'] != config['project']['url']:
     click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
-    click.secho(f"Changed from {project['url']} to {config['project']['url']}", fg='red')
+    click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
     exit(1)
 
 # We identify sub-qatools projects using the location of qatools.yaml related to the project root
 # It's not something the user should change...
-new_project_name = config['project']['name'] / leaf_relative_to_root
-uncoherent_name = project['name'] != config['project']['name'] and project['name'] != new_project_name
+leaf_project_name = root_qatools_config['project']['name'] / leaf_relative_to_root
+uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
 if uncoherent_name:
     click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
-    click.secho(f"Changed from {project['name']} to {config['project']['name']})", fg='red')
+    click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
     exit(1)
-config['project']['name'] = new_project_name
+config['project']['name'] = leaf_project_name
 
 
 # We want all paths to be relative to top-most qatools.yaml
 # it should be located at the root of the git repository
 if root_qatools != Path().resolve():
-    click.secho(f'Executing from working directory: {root_qatools}', fg='cyan')
+    click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
     os.chdir(root_qatools)
-
 
 
 
@@ -146,12 +163,12 @@ database = Path(database)
 # This flag identifies runs that happen within the CI or tuning experiments
 # Those use artifacts, that may be at a different location than when building locally
 ci_env_variables = [
-    # set for tuning runs
-    'QATOOlS_CI_COMMIT_DIR',
     # set by GitlabCI
     'CI_COMMIT_SHA',
     # set by Jenkins' git plugin
     'GIT_COMMIT',
+    # set for tuning runs
+    'QATOOlS_CI_COMMIT_DIR',
 ]
 is_ci = any([v in os.environ for v in ci_env_variables])
 
@@ -162,7 +179,7 @@ try:
 except KeyError:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     exit(1)
-ci_dir = Path(ci_root) / config['project']['name']
+ci_dir = Path(ci_root) / root_qatools_config['project']['name']
 
 
 
@@ -183,9 +200,11 @@ else:
         repo = git.Repo(str(root_qatools))
         commit = repo.head.commit
         commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
-        commit_ci_dir = ci_dir / 'commits' / commit_ci_dirname
+        commit_rootproject_ci_dir = ci_dir / 'commits' / commit_ci_dirname
+        commit_ci_dir = commit_ci_dir / leaf_relative_to_root if leaf_relative_to_root else commit_rootproject_ci_dir
     except:
         commit_ci_dirname = None
+        commit_rootproject_ci_dir = Path()
         commit_ci_dir = Path()
         commit = None
         repo = None
