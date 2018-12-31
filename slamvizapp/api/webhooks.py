@@ -127,20 +127,27 @@ def gitlab_webhook():
   # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
   print(data)
-  # data['ref'] => 'refs/heads/feature/Imu_preintegration'
-  branch = data['ref'][11:]
-  project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
 
+  branch = data['ref'][11:] # data['ref'] => 'refs/heads/feature/Imu_preintegration'
+
+  project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
   project = Project.get_or_create(session=db_session, id=project_path)
-  project.information = {
-    **(project.information if project.information else {}),
-    'git': data['project'],
-  }
+  project.information.update({'git': data['project']})
+
   repo = repos[project_path]
   git_pull(repo)
 
+  ### FIXME: Allow sub-projects
+  # for all qatools.yaml
+  files = repo.git.diff_tree('--no-commit-id', '--name-only', '-r', data['git_commit_sha'])
+  subprojects_configs = [Path(f) for f in files if f.endswith('qatools.yaml')]
+  # FIXME
+  # for subprojects in subprojects_configs:
+  #   print(subprojects)
+  #   get_or_create_subproject()
+  #   get_or_create_cicommit()
+  #   load_config_using_qatools_to_check_logic()
 
-  # We get a handle on the matching Commit object
   try:
     ci_commit = CiCommit.get_or_create(
       session=db_session,
@@ -152,50 +159,50 @@ def gitlab_webhook():
   db_session.add(ci_commit)
   db_session.commit()
 
-  # we update the project configuration stored in the database
-  # using the information found in this commit's qatools.yaml
+
+  # We update the project configuration stored in the database
+  # Using the information found in this commit's qatools.yaml.
   try:
-    qatools_config_contents = repo.git.show('{}:{}'.format(ci_commit.id, 'qatools.yaml'))
+    qatools_config_contents = repo.git.show(f'{ci_commit.id}:qatools.yaml')
   except:
     qatools_config_contents = None
     qatools_config = None
   if qatools_config_contents:
     qatools_config = yaml.load(qatools_config_contents)
 
+
+  # We store qatools's configuration twice: at the project level and at the commit level
   if qatools_config:
-    print('Found qatools.yaml')
+    # Commit-level info is important to let users easily tweak the outputs and metrics
+    # they want to see when working on their branches 
+    ci_commit.data.update({'qatools_config': qatools_config})
+
+    # Project-level information is used as a default or when showing in the UI list of commits
+    # It is only updated when there are changes on the "reference branch" (eg master, develop...)
+    # This said, we also update project-level data when it's the first time we get a qatools config for a project
     is_initialization = 'qatools_config' not in project.information
     try:
       is_reference = not is_initialization and branch == qatools_config['project']['reference_branch']
     except:
       is_reference = False
-    ci_commit.data = {**(ci_commit.data if ci_commit.data else {}), 'qatools_config': qatools_config}
     if is_initialization or is_reference:
-      project.information = {
-        **(project.information if project.information else {}),
-        'qatools_config': qatools_config,
-      }
+      project.information.update({'qatools_config': qatools_config,})
 
-  # we update the project metrics
+  
   if 'qatools_config' in project.information:
     metrics_path = project.information['qatools_config']['outputs']['metrics']
-    print(f'found metrics at {metrics_path}')
     try:
       metrics_content = repo.git.show('{}:{}'.format(ci_commit.id, metrics_path))
     except:
       metrics_content = None
-
     if metrics_content:
       if metrics_path.endswith('yaml'):
           metrics = yaml.load(metrics_content)        
       elif metrics_path.endswith('json'):
         metrics = json.loads(metrics_content)
-      # print(metrics)
-      project.information = {
-        **(project.information if project.information else {}),
-        'qatools_metrics': metrics,
-      }
-      # print(project.information)
+      ci_commit.data.update({'qatools_metrics': metrics})
+      if branch == qatools_config['project']['reference_branch']:
+        project.information.update({'qatools_metrics': metrics})
 
   db_session.add(project)
   db_session.commit()

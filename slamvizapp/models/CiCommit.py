@@ -9,7 +9,6 @@ from sqlalchemy import or_
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
-from slamvizapp import repos
 from slamvizapp.models import Base, Batch, Output
 from slamvizapp.models.LocalMocks import LocalGitCommit
 from ..utils import get_users_per_name
@@ -61,10 +60,16 @@ class CiCommit(Base):
   @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
+    # FIXME: what a mess
     if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
-    return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
+      out = Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
+    else:
+      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
+      out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
+    if self.project.id_relative:
+      return out / self.project.id_relative
+    else:
+      return out
 
   @property
   def authored_date(self):
@@ -96,27 +101,19 @@ class CiCommit(Base):
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
-      self.branch = find_branch(commit.hexsha, self.repo)
+      self.branch = find_branch(commit.hexsha, self.project.repo)
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_batch = commit.authored_datetime
     self.committer_name = commit.committer.name
 
 
   @property
-  def repo(self):
-    if self.commit_type == 'git':
-      return repos[self.project.id]
-    else:
-      return None    
-
-  @property
   def gitcommit(self):
     if self.commit_type == 'git':
-      return self.repo.commit(self.id)
+      return self.project.repo.commit(self.id)
     else:
+      # this mocks a real git commit
       return LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
-
-
 
 
   @staticmethod
@@ -157,6 +154,7 @@ class CiCommit(Base):
       else:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
+    # FIXME if with_outputs or with_batches, also 
     return {
         'id': self.id,
         'type': self.commit_type,
@@ -205,7 +203,7 @@ def parent_successful_commit(ci_commit):
   """Returns a commit's latest successful parent."""
   # if we don't have a git repo,
   # we try to find the previous commit on the same "branch"...
-  if not ci_commit.repo:
+  if not ci_commit.project.repo:
     try:
       query = CiCommit.query\
                       .filter(

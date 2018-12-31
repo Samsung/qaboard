@@ -9,45 +9,64 @@ from sqlalchemy import String, DateTime, JSON
 from sqlalchemy import cast, type_coerce
 from sqlalchemy.orm.exc import NoResultFound
 
-from slamvizapp.models import Base, CiCommit
+# "from X import Y" can cause circular import errors..
+from slamvizapp.models import Base, CiCommit  
+# import slamvizapp.models as models
+from slamvizapp import repos
 from ..config import default_ci_directory
 
 class Project(Base):
   __tablename__ = 'projects'
   id = Column(String(), primary_key=True)
-  ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
-
-  # How to get the code, things like whether its uses git or SVN?
-  # The gitlab full namespaced path, or the SVN path
-  # Various conventions
   information = Column(JSON())
 
-
-  # deprecated
-  _legacy_database_directory = {
-    'dvs/psp_swip': Path('/net/f2/algo_archive/DVS_SLAM_Database/'),
-    'tof/swip_tof': Path('/net/f2/algo_archive/ToF_SW_Database/'),
-  }
+  ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
 
   @property
   def database(self):
     try:
       return Path(self.information['qatools_config']['inputs']['database']['linux'])
     except:
-      try:
-        return self._legacy_database_directory[self.id]
-      except:
-        return self._legacy_database_directory['dvs/psp_swip'] 
-
+      return Path('/net/f2/algo_archive/')
 
   @property
   def ci_directory(self):
+    """
+    The root CI directory where we save artifacts and outputs for this project.
+    From there you can You should append the git repository's namespaced name (eg dvs/psp_swip) to get where results are saved.
+    """
     try:
       return Path(self.information['qatools_config']['ci_root']['linux'])
     except:
       return default_ci_directory
+
+  @property
+  def id_git(self):
+      """
+      qatools can handle sub-projects. They share a git repo, but are based at different paths.
+      The `id_git` is the name of the repository in gitlab.
+      """
+      return self.information.get('git', {}).get('path_with_namespace', self.id)
+
+  @property
+  def id_relative(self):
+      """
+      qatools can handle sub-projects. They share a git repo, but are based at different paths.
+      The `id_relative` is where, relatie to the git repository's root.
+      """
+      # FIXME: this could really by computed when the project is updated, or cached...
+      return self.id.replace(self.id_git, '')
+
   
- 
+  @property
+  def repo(self):
+    if self.information['qatools_config']['git'] == 'git':
+      return repos[self.id_git]
+    else:
+      return None
+
+
+
   @staticmethod
   def get_or_create(session, **kwargs):
     try:

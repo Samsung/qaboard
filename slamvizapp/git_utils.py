@@ -18,7 +18,7 @@ class Repos():
 
     project_path: the full git repository namespace, eg dvs/psp_swip
     """
-    clone_location = str(self.clone_directory/project_path)
+    clone_location = str(self.clone_directory / project_path)
     try:
       repo = Repo(clone_location)
     except NoSuchPathError:

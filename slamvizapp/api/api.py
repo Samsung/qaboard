@@ -18,7 +18,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
 
-from slamvizapp import app, repos, db_session
+from slamvizapp import app, db_session
 from ..models import Project, CiCommit, Batch
 from ..models.LocalMocks import LocalCommit
 from ..models import latest_successful_commit
@@ -159,23 +159,18 @@ def get_ci_commit(commit_id=None):
       return jsonify({'error': f'Sorry, we cant find any commit with results for this project on {branch}.'}), 404
   else:
     try: # we try a commit from git
-      if project_id == 'dvs/psp_swip':
-        repo = repos[project_id]
-        commit = repo.commit(commit_id)
-        ci_commit = CiCommit.query.filter(CiCommit.id.startswith(commit.hexsha)).one()
-      else:
-        ci_commit = (db_session
-                     .query(CiCommit)
-                     .options(
-                       joinedload(CiCommit.batches).
-                       joinedload(Batch.outputs)
-                      )
-                     .filter(
-                       CiCommit.project_id==project_id,
-                       CiCommit.id.startswith(commit_id),
-                     )
-                     .one()
+      ci_commit = (db_session
+                   .query(CiCommit)
+                   .options(
+                     joinedload(CiCommit.batches).
+                     joinedload(Batch.outputs)
                     )
+                   .filter(
+                     CiCommit.project_id==project_id,
+                     CiCommit.id.startswith(commit_id),
+                   )
+                   .one()
+                  )
     except BadName:
       try:
         ci_commit = LocalCommit(commit_id)

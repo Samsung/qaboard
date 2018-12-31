@@ -12,7 +12,6 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from slamvizapp import app, db_session
 from ..models import CiCommit, Project
-from ..utils import iter_recordings
 from ..config import shared_data_directory
 
 
@@ -118,7 +117,9 @@ def add_batch(hexsha):
     os.umask(prev_mask)
 
     config = ci_commit.project.information["qatools_config"]
+
     working_directory = ci_commit.commit_dir
+    print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
     do_optimize = data['tuning_search']['search_type'] == 'optimize'
@@ -133,6 +134,7 @@ def add_batch(hexsha):
         config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
 
     overwrite = "--action-on-existing run" if data["overwrite"] == "on" else "--action-on-existing sync"
+    # FIXME: cd relative to main project
     batch_command = " ".join(
         [
             "qa",
@@ -147,7 +149,6 @@ def add_batch(hexsha):
             "\n",
         ]
     )
-    print(working_directory)
     # print(batch_command)
 
     # To avoid issues with quoting, we write a script to run the batch,
