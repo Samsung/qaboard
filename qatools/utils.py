@@ -174,13 +174,15 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
+  print("paramstring=%s"%paramstring)
+  thishash = make_hash(paramstring)
   params_filename = paramstring.replace(",","_")
   for char in "{}:[] \r\n\"":
     params_filename = params_filename.replace(char,"")
   if len(params_filename) > maxlen:
-    params_filename = re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
+    params_filename = thishash[:8] + '-' + re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
   if len(params_filename) > maxlen:
-    params_filename = params_filename[:maxlen-10] + make_hash(paramstring)[:10]
+    params_filename = params_filename[-10:] + '-' + thishash[:10]
   return f"{params_filename}.{filetype}"
 
 
