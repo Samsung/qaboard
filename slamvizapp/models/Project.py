@@ -18,7 +18,7 @@ from ..config import default_ci_directory
 class Project(Base):
   __tablename__ = 'projects'
   id = Column(String(), primary_key=True)
-  information = Column(JSON())
+  information = Column(JSON(), default={})
 
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
 
@@ -42,28 +42,30 @@ class Project(Base):
 
   @property
   def id_git(self):
-      """
-      qatools can handle sub-projects. They share a git repo, but are based at different paths.
-      The `id_git` is the name of the repository in gitlab.
-      """
-      return self.information.get('git', {}).get('path_with_namespace', self.id)
+    """
+    qatools can handle sub-projects. They share a git repo, but are based at different paths.
+    The `id_git` is the name of the repository in gitlab.
+    """
+    return self.information.get('git', {}).get('path_with_namespace', self.id)
 
   @property
   def id_relative(self):
-      """
-      qatools can handle sub-projects. They share a git repo, but are based at different paths.
-      The `id_relative` is where, relatie to the git repository's root.
-      """
-      # FIXME: this could really by computed when the project is updated, or cached...
-      return self.id.replace(self.id_git, '')
+    """
+    qatools can handle sub-projects. They share a git repo, but are based at different paths.
+    The `id_relative` is where, relatie to the git repository's root.
+    """
+    # FIXME: this could really by computed when the project is updated, or cached...
+    return self.id.replace(self.id_git, '')
 
-  
+
   @property
   def repo(self):
-    if self.information['qatools_config']['git'] == 'git':
+    try:
       return repos[self.id_git]
-    else:
-      return None
+    except:
+      print(f"Could not get repo for <{self.id_git}>")
+      pass
+    return None
 
 
 
@@ -75,4 +77,6 @@ class Project(Base):
       project = Project(**kwargs)
       # session.add(project)
       # session.commit()
+    if not project.information:
+      project.information = {}
     return project

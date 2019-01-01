@@ -1,10 +1,14 @@
 import sys
 import json
 import yaml
+import traceback
 from pathlib import Path
 
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
+
+# from qatools.config import merge
+import qatools
 
 from slamvizapp import app, repos, db_session
 from ..models import Project, CiCommit, Output, TestInput
@@ -55,7 +59,7 @@ def new_output_webhook():
   data = request.get_json()
   # For now, we do nothing with local runs
   if data['job_type'] != 'ci':
-    print(data['output_directory'])
+    print(data['output_directory'], file=sys.stderr)
     return "OK"
 
   # We get a handle on the Commit object related to our new output
@@ -121,65 +125,70 @@ def new_output_webhook():
   return "OK"
 
 
+
 @app.route('/webhook/gitlab', methods=['GET', 'POST'])
 def gitlab_webhook():
   """Gitlab calls this endpoint every push, it garantees we stay synced."""
   # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
-  print(data)
+  print(data, file=sys.stderr)
 
   branch = data['ref'][11:] # data['ref'] => 'refs/heads/feature/Imu_preintegration'
 
-  project_path = data['project']['path_with_namespace'] # eg => dvs/psp_swip
-  project = Project.get_or_create(session=db_session, id=project_path)
-  project.information.update({'git': data['project']})
-
-  repo = repos[project_path]
+  # Update the root project - all subprojects depend on it
+  root_project_id = data['project']['path_with_namespace'] # eg => dvs/psp_swip
+  root_project = Project.get_or_create(session=db_session, id=root_project_id)
+  root_project.information.update({'git': data['project']})
+  db_session.add(root_project)
+  db_session.commit()
+  repo = repos[root_project_id]
   git_pull(repo)
 
   ### FIXME: Allow sub-projects
-  # for all qatools.yaml
-  files = repo.git.diff_tree('--no-commit-id', '--name-only', '-r', data['git_commit_sha'])
-  subprojects_configs = [Path(f) for f in files if f.endswith('qatools.yaml')]
-  # FIXME
-  # for subprojects in subprojects_configs:
-  #   print(subprojects)
-  #   get_or_create_subproject()
-  #   get_or_create_cicommit()
-  #   load_config_using_qatools_to_check_logic()
+  repo_files = repo.git.ls_tree('--name-only', '-r', 'master').splitlines()
+  projects_config_paths = [Path(f) for f in repo_files if f.endswith('qatools.yaml')]
+  for subproject_config_path in projects_config_paths:
+    print('>>>', subproject_config_path)
+    project_id = str(root_project_id  / subproject_config_path.parent)
+    print('>', project_id)
+    # Make sure the (sub)project exists and is up-to-date
+    project = Project.get_or_create(session=db_session, id=project_id)
+    project.information.update({'git': data['project']})
+    db_session.add(project)
+    db_session.commit()
+    print(project.id, project.id_git, project.id_relative)
 
-  try:
-    ci_commit = CiCommit.get_or_create(
-      session=db_session,
-      hexsha=data['checkout_sha'],
-      project_id=project_path,
-    )
-  except:
-    return f"404 ERROR:\n there is an issue with your commit id ({data['git_commit_sha']})", 404
-  db_session.add(ci_commit)
-  db_session.commit()
+    try:
+      ci_commit = CiCommit.get_or_create(
+        session=db_session,
+        hexsha=data['checkout_sha'],
+        project_id=project_id,
+      )
+    except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+      print(info, file=sys.stderr)
+      return f"404 ERROR: with commit id {data['checkout_sha']} in project {project_id}: {info}", 404
 
+    # To update the (sub)project configuration stored in the database,
+    # we first need to read relevant qatools.yaml files from this commit.
+    config_paths = [p for p in projects_config_paths if p <= subproject_config_path]
+    config_paths.sort()
+    try:
+      configs_contents = [repo.git.show(f'{ci_commit.id}:{p}') for p in config_paths]
+      configs = [yaml.load(c) for c in configs_contents]
+      qatools_config = qatools.merge(configs)
+    except Exception as e:
+      print(e, file=sys.stderr)
+      continue
 
-  # We update the project configuration stored in the database
-  # Using the information found in this commit's qatools.yaml.
-  try:
-    qatools_config_contents = repo.git.show(f'{ci_commit.id}:qatools.yaml')
-  except:
-    qatools_config_contents = None
-    qatools_config = None
-  if qatools_config_contents:
-    qatools_config = yaml.load(qatools_config_contents)
-
-
-  # We store qatools's configuration twice: at the project level and at the commit level
-  if qatools_config:
-    # Commit-level info is important to let users easily tweak the outputs and metrics
-    # they want to see when working on their branches 
+    # We store qatools's configuration twice: at the project level and at the commit level
+    # - Commit-level info is important to let users easily tweak the outputs and metrics
+    #   they want to see when working on their branches 
     ci_commit.data.update({'qatools_config': qatools_config})
-
-    # Project-level information is used as a default or when showing in the UI list of commits
-    # It is only updated when there are changes on the "reference branch" (eg master, develop...)
-    # This said, we also update project-level data when it's the first time we get a qatools config for a project
+    # - Project-level information is used as a default or when showing in the UI list of commits
+    #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
+    #   This said, we also update project-level data when it's the first time we get a qatools config for a project
     is_initialization = 'qatools_config' not in project.information
     try:
       is_reference = not is_initialization and branch == qatools_config['project']['reference_branch']
@@ -188,9 +197,7 @@ def gitlab_webhook():
     if is_initialization or is_reference:
       project.information.update({'qatools_config': qatools_config,})
 
-  
-  if 'qatools_config' in project.information:
-    metrics_path = project.information['qatools_config']['outputs']['metrics']
+    metrics_path = qatools_config['outputs']['metrics']
     try:
       metrics_content = repo.git.show('{}:{}'.format(ci_commit.id, metrics_path))
     except:
@@ -204,7 +211,8 @@ def gitlab_webhook():
       if branch == qatools_config['project']['reference_branch']:
         project.information.update({'qatools_metrics': metrics})
 
-  db_session.add(project)
+    db_session.add(ci_commit)
+    db_session.add(project)
   db_session.commit()
   print(project.information)
   return "{status:'OK'}"

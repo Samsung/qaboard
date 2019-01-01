@@ -122,13 +122,13 @@ class CiCommit(Base):
       return session.query(CiCommit).filter_by(id=hexsha).one()
     except NoResultFound:
       try:
-        try:
-          commit = repos[project_id].commit(hexsha)
-        except:
-          raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
-        # watch out for recursive imports ...
         from slamvizapp.models import Project
         project = Project.get_or_create(session=session, id=project_id)
+        try:
+          commit = project.repo.commit(hexsha)
+        except Exception as e:
+          raise (ValueError, f'[ERROR] Could not create a commit for {hexsha}. {e}')
+
         ci_commit = CiCommit(commit, project=project)
         # session.add(ci_commit)
         # session.commit()
