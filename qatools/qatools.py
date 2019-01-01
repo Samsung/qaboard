@@ -25,7 +25,7 @@ from .utils import make_hash
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config, database, platform
-from .config import commit_id, commit_ci_dir, branch_ci_dir
+from .config import commit_id, commit_ci_dir, branch_ci_dir, commit_rootproject_ci_dir
 from .config import repo, is_ci
 
 
