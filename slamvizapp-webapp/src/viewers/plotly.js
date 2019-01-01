@@ -100,6 +100,23 @@ class PlotlyViewer extends PureComponent {
       this.state.cancel_source.cancel();
   }
 
+  componentDidUpdate(nextProps, prevState) {
+      let updated_new =
+        nextProps.output_new !== undefined &&
+        nextProps.output_new !== null &&
+        (this.props.output_new == null ||
+          nextProps.output_new.id !== this.props.output_new.id);
+      let updated_ref =
+        nextProps.output_ref !== undefined &&
+        nextProps.output_ref !== null &&
+        (this.props.output_ref == null ||
+          nextProps.output_ref.id !== this.props.output_ref.id);
+
+      if (updated_new || updated_ref) {
+        this.Init(nextProps);
+      }
+      // if (!prevState.output_dir_url !== nextProps.show_debug) this.Init();
+  }
 
   render() {
     const { data, layouts, is_loaded, error } = this.state;

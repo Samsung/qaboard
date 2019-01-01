@@ -3,13 +3,12 @@ Web application to display results from various algorithmic projects.
 
 ## Setting up a development environment
 - [install nodejs](https://nodejs.org)
-- [install yarn](https://yarnpkg.com/en/docs/install)
 
 ```
 # depending on your proxies you may need to....
 # yarn config set ssl-strict false
-yarn install
-yarn start
+npm install
+npm start
 #=> listenning on port 3000
 ``` 
 

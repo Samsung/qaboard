@@ -1,14 +1,16 @@
 import React, { PureComponent } from "react";
 import { get } from "axios"
 import { Tag } from "@blueprintjs/core";
-import Openseadragon from 'openseadragon';
+// import { OpenSeadragon } from 'openseadragon';
 import pixelmatch from 'pixelmatch';
 // import { Hotkey, Hotkeys, HotkeysTarget } from "@blueprintjs/core";
 
 // https://stackoverflow.com/questions/7615009/disable-interpolation-when-scaling-a-canvas
 import "./image-canvas.css";
 
+var OpenSeadragon = require('openseadragon')
 
+console.log(OpenSeadragon)
 
 // https://github.com/picturae/Openseadragonrgb/blob/master/src/rgb.js
 
@@ -16,7 +18,7 @@ import "./image-canvas.css";
 // http://Openseadragon.github.io/docs/Openseadragon.Viewer.html
 // http://Openseadragon.github.io/docs/Openseadragon.Viewport.html
 // http://Openseadragon.github.io/#examples-and-features
-const Openseadragon_config = {
+const openseadragon_config = {
   visibilityRatio: 1,
 
   preserveViewport: true,
@@ -82,12 +84,12 @@ class ImgViewer extends PureComponent {
 
   componentDidMount() {
     const { output_new } = this.props;
-    let viewer_new = Openseadragon({
-        ...Openseadragon_config,
+    let viewer_new = OpenSeadragon({
+        ...openseadragon_config,
         id: `osd-new-${output_new.output_dir_url}`,
       });
-    let viewer_ref = Openseadragon({
-        ...Openseadragon_config,
+    let viewer_ref = OpenSeadragon({
+        ...openseadragon_config,
         id: `osd-ref-${output_new.output_dir_url}`,
     });
 
@@ -99,6 +101,10 @@ class ImgViewer extends PureComponent {
       this.InitZoomSync();
       this.InitDiff();
     })
+  }
+
+  componentWillUnmount() {
+      window.removeEventListener('resize', this.state.maintainZoom);
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -128,7 +134,7 @@ class ImgViewer extends PureComponent {
     const { diff } = this.props;
     if (diff) {
       var update_diff = () => {
-        let size_new = new Openseadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+        let size_new = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
         let canvas_new = viewer_new.drawer.canvas
         let canvas_ref = viewer_ref.drawer.canvas
         let data_new = canvas_new.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
@@ -138,8 +144,8 @@ class ImgViewer extends PureComponent {
           var diff_data = canvas_diff_element.getContext("2d").createImageData(size_new.x, size_new.y);
           pixelmatch(data_new.data, data_ref.data, diff.data, size_new.x, size_new.y, {threshold: this.state.diff_threshold});
           canvas_diff_element.getContext("2d").putImageData(diff_data, 0, 0);          
-          // var point = new Openseadragon.Point(0.5, 0.5)
-          // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, Openseadragon.Placement.CENTER)
+          // var point = new OpenSeadragon.Point(0.5, 0.5)
+          // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, OpenSeadragon.Placement.CENTER)
         }
       }
       viewer_new.addHandler('animation-finish', update_diff);
@@ -187,8 +193,8 @@ class ImgViewer extends PureComponent {
     viewer_ref.addHandler('pan', viewer_refHandler);
 
     function maintainZoom() {
-        var size1 = new Openseadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-        var size2 = new Openseadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
+        var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+        var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
         viewer_newLeading = true;
         viewer_refLeading = true;
         
@@ -208,6 +214,7 @@ class ImgViewer extends PureComponent {
         viewer_ref.forceRedraw();
     }
     window.addEventListener('resize', maintainZoom);
+    this.setState({maintainZoom});
   }
 
   Init() {
@@ -290,7 +297,7 @@ class ImgViewer extends PureComponent {
       <span>
         <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
         {label && (label || path)}
-      <span/>
+      </span>
       <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
       <div hidden={no_reference} style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
       <div hidden={!diff || no_reference} style={{width, height}}>
