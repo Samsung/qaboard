@@ -180,10 +180,8 @@ try:
 except KeyError:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     exit(1)
+
 ci_dir = Path(ci_root) / root_qatools_config['project']['name']
-
-
-
 
 # we find were we should save our results
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
@@ -202,7 +200,10 @@ else:
         commit = repo.head.commit
         commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
         commit_rootproject_ci_dir = ci_dir / 'commits' / commit_ci_dirname
-        commit_ci_dir = commit_ci_dir / leaf_relative_to_root if leaf_relative_to_root else commit_rootproject_ci_dir
+        if leaf_relative_to_root:
+            commit_ci_dir = commit_rootproject_ci_dir / leaf_relative_to_root
+        else:
+            commit_rootproject_ci_dir
     except:
         commit_ci_dirname = None
         commit_rootproject_ci_dir = Path()

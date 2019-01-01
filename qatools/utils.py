@@ -174,7 +174,6 @@ def iter_recordings(groups, groups_file, database, default_configuration, config
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
-  print("paramstring=%s"%paramstring)
   thishash = make_hash(paramstring)
   params_filename = paramstring.replace(",","_")
   for char in "{}:[] \r\n\"":
