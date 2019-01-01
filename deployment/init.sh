@@ -71,7 +71,7 @@ cd /slamvizapp && SLAMVIZAPP_DB_ECHO=True FLASK_APP=slamvizapp FLASK_DEBUG=1 fla
 
 while sleep 1800; do
   slamvizapp_clean dvs/psp_swip --protected-branch "origin/develop" --protected-branch "origin/Release/AugustDemo"
-  slamvizapp_clean tof/swip_tof --protected-branch "origin/develop"
+  slamvizapp_clean tof/swip_tof --protected-branch "origin/develop" --days 30
 done
 
 # quid: check access permissions

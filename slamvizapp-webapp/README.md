@@ -6,7 +6,7 @@ Web application to display results from various algorithmic projects.
 
 ```
 # depending on your proxies you may need to....
-# yarn config set ssl-strict false
+# npm config set strict-ssl false
 npm install
 npm start
 #=> listenning on port 3000
