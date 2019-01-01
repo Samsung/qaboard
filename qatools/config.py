@@ -169,7 +169,7 @@ ci_env_variables = [
     # set by Jenkins' git plugin
     'GIT_COMMIT',
     # set for tuning runs
-    'QATOOlS_CI_COMMIT_DIR',
+    'QATOOLS_CI_COMMIT_DIR',
 ]
 is_ci = any([v in os.environ for v in ci_env_variables])
 
