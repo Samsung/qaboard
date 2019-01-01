@@ -2,7 +2,7 @@ import React from "react";
 import { render } from "react-dom";
 
 import App from "./App";
-import registerServiceWorker from "./registerServiceWorker";
+import * as serviceWorker from './serviceWorker';
 
 import configureStore from './configureStore';
 import { default_store } from './reducers';
@@ -22,7 +22,7 @@ if (process.env.NODE_ENV !== 'production' && module.hot) {
     renderApp()
   })
 } else {
-  registerServiceWorker();
+  serviceWorker.register();
 }
 
 renderApp()
