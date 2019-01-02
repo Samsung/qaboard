@@ -25,7 +25,8 @@ from .utils import make_hash
 # The `init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config, database, platform
-from .config import commit_id, commit_ci_dir, branch_ci_dir, commit_rootproject_ci_dir
+from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
+
 from .config import repo, is_ci
 
 
@@ -70,6 +71,14 @@ os.umask(0)
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
 def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, inputs_database, inputs_glob, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
+  # We want all paths to be relative to top-most qatools.yaml
+  # it should be located at the root of the git repository
+  will_show_help = '-h' in sys.argv or '--help' in sys.argv
+  if root_qatools != Path().resolve() and not will_show_help:
+      click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
+      os.chdir(root_qatools)
+
+
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}

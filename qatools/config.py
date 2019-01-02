@@ -124,16 +124,6 @@ if uncoherent_name:
 config['project']['name'] = leaf_project_name
 
 
-# We want all paths to be relative to top-most qatools.yaml
-# it should be located at the root of the git repository
-will_show_help = '-h' in sys.argv or '--help' in sys.argv
-if root_qatools != Path().resolve() and not will_show_help:
-    click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
-    os.chdir(root_qatools)
-
-
-
-
 # It's useful to know what's the platform since code is often compiled a different locations
 # For instance build/bin/ vs /x64/Release/
 on_windows = os.name == 'nt'
