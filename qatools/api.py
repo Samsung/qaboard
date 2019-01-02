@@ -69,6 +69,11 @@ def notify_qa_database(object_type='output', **kwargs):
     'git_commit_sha': commit_id,
     **kwargs,
   }
+  if 'QATOOLS_VERBOSE' in os.environ:
+    click.secho(url, fg='cyan', err=True)
+    click.secho(str(data), fg='cyan', dim=True, err=True)
+
+
   try:
     # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
