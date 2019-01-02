@@ -9,7 +9,7 @@ import filecmp
 import click
 import git
 
-from .config import config, commit_branch, ci_dir, leaf_relative_to_root, is_ci
+from .config import config, commit_branch, ci_dir, leaf_relative_to_root, is_ci, commit_ci_dir 
 
 
 
