@@ -177,6 +177,7 @@ ci_dir = Path(ci_root) / root_qatools_config['project']['name']
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit_ci_dirname = None
     commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
+    commit_rootproject_ci_dir = commit_ci_dir
     commit = None
     repo = None
 else:
