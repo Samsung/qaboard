@@ -19,7 +19,7 @@
     "mathjs": "^5.0.1",
     "moment": "^2.22.2",
     "moment-timezone": "^0.5.21",
-    "openseadragon": "git+https://github.com/openseadragon/openseadragon.git#master",
+    "openseadragon": "^2.4.0",
     "pixelmatch": "^4.0.2",
     "plotly.js": "^1.38.3",
     "qs": "^6.5.2",
