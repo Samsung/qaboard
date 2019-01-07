@@ -147,7 +147,8 @@ class TuningForm extends Component {
       });
   }
   updateSelectedGroup = e => {
-    let next_selected_group = e.target.value;
+    // for some reason, trailing spaces are removed when making the request.
+    let next_selected_group = e.target.value.replace(/ *$/, "");
     this.props.cookies.set("selected_group", next_selected_group, { path: "/" });
     this.setState({ selected_group: next_selected_group });
     this.getGroupInfo(next_selected_group);
