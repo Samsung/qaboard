@@ -121,7 +121,7 @@ if uncoherent_name:
     click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
     click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
     exit(1)
-config['project']['name'] = leaf_project_name
+config['project']['name'] = leaf_project_name.as_posix()
 
 
 # It's useful to know what's the platform since code is often compiled a different locations
