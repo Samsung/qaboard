@@ -1,7 +1,7 @@
 import React, { PureComponent } from "react";
 import { get, all, CancelToken } from "axios";
 import Plot from 'react-plotly.js';
-import { Classes, Colors } from "@blueprintjs/core";
+import { Colors } from "@blueprintjs/core";
 
 
 const colors = {
@@ -11,16 +11,23 @@ const colors = {
 };
 
 
-const adapt = (trace, label) => {
+const adapt = (trace, label, side_to_side) => {
+  let out = {
+    ...trace,
+    name: label,
+    legendgroup: label,
+  } 
+  if (side_to_side)
+    return out 
+
   let width = (trace.line && trace.line.width) || 2;
   let size = (trace.marker && trace.marker.size) || 3;
   if (label === "reference") {
     width += 1;
     size += 1;
   }
-
   return {
-    ...trace,
+    ...out,
     name: label,
     legendgroup: label,
     line: {
@@ -34,7 +41,7 @@ const adapt = (trace, label) => {
       color: colors[label],
       size,
     },
-    // do we need other ajustments for other plot types?
+    // TODO: do we need other ajustments for other plot types?
   }
 }
 
@@ -57,7 +64,7 @@ class PlotlyViewer extends PureComponent {
   }
 
   getData(props) {
-    const { output_new, output_ref, path, path_groundtruth } = props;
+    const { output_new, output_ref, path, path_groundtruth, side_to_side } = props;
     const { cancel_source } = this.state;
     if (!output_new.output_dir_url || !path) return;
     
@@ -72,7 +79,7 @@ class PlotlyViewer extends PureComponent {
       this.setState((previous_state, props) => ({
         data: {
           ...previous_state.data,
-          [label]: (response.data.data || []).map(t => adapt(t, label) ),
+          [label]: (response.data.data || []).map(t => adapt(t, label, side_to_side) ),
         },
         layouts: {
           ...previous_state.layouts,
@@ -123,25 +130,29 @@ class PlotlyViewer extends PureComponent {
     if (!is_loaded) return <span/>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
+    const { style } = this.props;
+    const width = (!!style && style.width) || '400px';
+
+    if (!side_to_side) {
+      let layout_ = {
+        width: parseFloat(width.substring(0, width.length-2)),
+        // height: parseFloat(style.heigth),
+        ...layouts['new'],
+        ...this.props.layout,
+      };
+
+    }
+
+    if (side_to_side) {
+      return <>
+        <Plot data={traces} layout={layout_}/>;    
+      </>      
+    }
+
     let traces = [
       ...( data.groundtruth || []),
       ...( data.reference || [] ),
       ...( data.new || []),
     ]
     if (traces.length===0)
-      return <span className={Classes.TEXT_MUTED}>no data</span>
-
-    const { style } = this.props;
-    const width = (!!style && style.width) || '400px';
-    // const { height } = style.width || '400px';
-    let layout_ = {
-      width: parseFloat(width.substring(0, width.length-2)),
-      // height: parseFloat(style.heigth),
-      ...layouts['new'],
-      ...this.props.layout,
-    };
-    return <Plot data={traces} layout={layout_}/>;
-  }
-}
-
-export default PlotlyViewer;
+      retu

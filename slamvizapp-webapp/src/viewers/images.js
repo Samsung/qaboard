@@ -27,7 +27,7 @@ const openseadragon_config = {
   maxZoomPixelRatio: 50,
   minZoomImageRatio: 50,
   smoothTileEdgesMinZoom: 1000000,
-  imageSmoothingEnabled: false,
+  // imageSmoothingEnabled: false,
 
   springStiffness: 15,
 
@@ -245,15 +245,15 @@ class ImgViewer extends PureComponent {
             "@id": iiif_url(output_new.output_dir_url, path),
       }])
       if (has_reference) {
-        this.state.viewer_ref.open([{
+        viewer_ref.open([{
               ...source_config,
               "@id": iiif_url(output_ref.output_dir_url, path),
         }])
       }
 
       // console.log(viewer_new.drawer.context.imageSmoothingEnabled)
-      viewer_new.drawer.setImageSmoothingEnabled(false);
-      viewer_ref.drawer.setImageSmoothingEnabled(false);
+      // viewer_new.drawer.setImageSmoothingEnabled(false);
+      // viewer_ref.drawer.setImageSmoothingEnabled(false);
       // viewer_new.drawer.context.imageSmoothingEnabled = false;
       // viewer_ref.drawer.context.imageSmoothingEnabled = false;
 
@@ -285,14 +285,17 @@ class ImgViewer extends PureComponent {
       // ctx_ref.imageSmoothingEnabled = false;
 
 
-
-    }).catch(err => console.log(err));
+    }).catch(error => {
+      this.setState({error})
+    });
   }
 
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
-    const { shown_image, height, width } = this.state;
+    const { shown_image, height, width, error } = this.state;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
+    if (error)
+      return <span></span>;
     return <>
       <span>
         <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
