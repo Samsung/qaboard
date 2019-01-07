@@ -20,7 +20,7 @@ class Batch(Base):
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
   data = Column(JSON(), default={})
 
-  ci_commit_id = Column(String(), ForeignKey('ci_commits.id'), index=True)
+  ci_commit_id = Column(Integer(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])
 
   # identifies eg whether it is the default CI job, or a tuning experiment...
@@ -30,12 +30,6 @@ class Batch(Base):
                          back_populates="batch",
                          cascade="all, delete-orphan"
                         )
-
-  # experiments = relationship("Experiment",
-  #                            lazy='joined',
-  #                            back_populates="batch",
-  #                            cascade="all, delete-orphan"
-  #                            )
 
   @property
   def output_folder(self):
@@ -69,7 +63,7 @@ class Batch(Base):
       outputs = {}
     return {
         'id': self.id,
-        'commit_id': self.ci_commit_id,
+        'commit_id': self.ci_commit.hexsha,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
         'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
@@ -84,7 +78,7 @@ class Batch(Base):
     }
 
   def __repr__(self):
-    return (f"<Batch commmit='{self.ci_commit.id}' "
+    return (f"<Batch commmit='{self.ci_commit.hexsha}' "
             f"label='{self.label}' "
             f"outputs={len(self.outputs)} />")
 

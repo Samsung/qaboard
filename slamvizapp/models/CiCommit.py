@@ -4,8 +4,8 @@ A version of the code on which we ran SLAM performance test.
 from pathlib import Path
 from hashlib import md5
 
-from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
-from sqlalchemy import or_
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -20,17 +20,19 @@ class CiCommit(Base):
   We keep some useful data in the database, but for the rest it used gitpython.
   """
   __tablename__ = 'ci_commits'
-  id = Column(String, primary_key=True) # git commit id
+  id = Column(Integer(), primary_key=True)
+  hexsha = Column(String(), index=True, nullable=False)
 
   project_id = Column(String(), ForeignKey('projects.id'), index=True)
   project = relationship("Project", back_populates="ci_commits")
+  __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   branch = Column(String(), index=True) # first added as.. we ignore tags?
   committer_name = Column(String(), index=True)
   message = Column(String())
   parents = Column(JSON())
-  data = Column(JSON())
+  data = Column(JSON(), default={})
 
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
@@ -64,7 +66,7 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       out = Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
     else:
-      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.id[:8]}'
+      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
       out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
     if self.project.id_relative:
       return out / self.project.id_relative
@@ -84,7 +86,7 @@ class CiCommit(Base):
     return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
 
   def __repr__(self):
-    return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
+    return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
 
 
 
@@ -95,7 +97,7 @@ class CiCommit(Base):
     else:
       self.commit_type = 'local'
       if not branch: branch='<NA>'
-    self.id = commit.hexsha
+    self.hexsha = commit.hexsha
     self.message = commit.message
     self.parents = [c.hexsha for c in commit.parents]
     if branch:
@@ -110,16 +112,16 @@ class CiCommit(Base):
   @property
   def gitcommit(self):
     if self.commit_type == 'git':
-      return self.project.repo.commit(self.id)
+      return self.project.repo.commit(self.hexsha)
     else:
       # this mocks a real git commit
-      return LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
+      return LocalGitCommit(self.hexsha, self.message, self.committer_name, self.authored_datetime)
 
 
   @staticmethod
   def get_or_create(session, hexsha, project_id):
     try:
-      return session.query(CiCommit).filter_by(id=hexsha).one()
+      ci_commit =session.query(CiCommit).filter_by(hexsha=hexsha, project_id=project_id).one()
     except NoResultFound:
       try:
         from slamvizapp.models import Project
@@ -132,13 +134,14 @@ class CiCommit(Base):
         ci_commit = CiCommit(commit, project=project)
         # session.add(ci_commit)
         # session.commit()
-        return ci_commit
       except ValueError:
         raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
       if ci_commit is None:
         raise (ValueError, f'[ERROR] something is wrong,\
                              maybe an error opening param.json for {hexsha}')
-
+    if not ci_commit.data:
+      ci_commit.data = {}
+    return ci_commit
 
   def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):
     users_db = get_users_per_name("")
@@ -154,9 +157,8 @@ class CiCommit(Base):
       else:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
-    # FIXME if with_outputs or with_batches, also 
-    return {
-        'id': self.id,
+    out = {
+        'id': self.hexsha,
         'type': self.commit_type,
         'branch': self.branch,
         'parents': [p for p in self.parents] if self.parents else [],
@@ -165,13 +167,16 @@ class CiCommit(Base):
         'committer_avatar_url': committer_avatar_url,
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
+        "data": self.data if with_outputs else None,
         'commit_dir_url': str(self.commit_dir_url),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches
                     if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
-
+    if with_outputs:
+      out["data"] = self.data
+    return out
 
 
 
@@ -218,15 +223,15 @@ def parent_successful_commit(ci_commit):
 
   parent_ci_commit = None
   # we arbitrarly pick the first git parent
-  parent_id = ci_commit.gitcommit.parents[0]
+  parent_hexsha = ci_commit.gitcommit.parents[0]
   while True:
     try:
       parent_ci_commit = CiCommit.query\
-                                 .filter(CiCommit.id == parent_id)\
+                                 .filter(CiCommit.hexsha == parent_hexsha)\
                                  .order_by(CiCommit.authored_datetime.desc())\
                                  .one()
     except:
       return None
     if len(parent_ci_commit.ci_batch.outputs) > 10:
       return parent_ci_commit
-    parent_id = parent_ci_commit.gitcommit.parents[0]
+    parent_hexsha = parent_ci_commit.gitcommit.parents[0]

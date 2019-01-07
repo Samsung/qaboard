@@ -18,14 +18,14 @@ from ..config import default_ci_directory
 class Project(Base):
   __tablename__ = 'projects'
   id = Column(String(), primary_key=True)
-  information = Column(JSON(), default={})
+  data = Column(JSON(), default={})
 
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
 
   @property
   def database(self):
     try:
-      return Path(self.information['qatools_config']['inputs']['database']['linux'])
+      return Path(self.data['qatools_config']['inputs']['database']['linux'])
     except:
       return Path('/net/f2/algo_archive/')
 
@@ -36,7 +36,7 @@ class Project(Base):
     From there you can You should append the git repository's namespaced name (eg dvs/psp_swip) to get where results are saved.
     """
     try:
-      return Path(self.information['qatools_config']['ci_root']['linux'])
+      return Path(self.data['qatools_config']['ci_root']['linux'])
     except:
       return default_ci_directory
 
@@ -46,7 +46,7 @@ class Project(Base):
     qatools can handle sub-projects. They share a git repo, but are based at different paths.
     The `id_git` is the name of the repository in gitlab.
     """
-    return self.information.get('git', {}).get('path_with_namespace', self.id)
+    return self.data.get('git', {}).get('path_with_namespace', self.id)
 
   @property
   def id_relative(self):
@@ -55,7 +55,10 @@ class Project(Base):
     The `id_relative` is where, relatie to the git repository's root.
     """
     # FIXME: this could really by computed when the project is updated, or cached...
-    return self.id.replace(self.id_git, '')
+    if self.id == self.id_git:
+      return ''
+    else:
+      return self.id.replace(self.id_git, '')[1:]
 
 
   @property
@@ -77,6 +80,9 @@ class Project(Base):
       project = Project(**kwargs)
       # session.add(project)
       # session.commit()
-    if not project.information:
-      project.information = {}
+    if not project.data:
+      project.data = {}
     return project
+
+  def __repr__(self):
+    return f"<Project id='{self.id}' repo='{self.id_git}' subproject='{self.id_relative}'>"

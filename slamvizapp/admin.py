@@ -37,14 +37,14 @@ class TestInputModelView(ModelView):
   )
 
 class ProjectModelView(ModelView):
-  column_list = ['id', 'information']
-  column_searchable_list = ['id', 'information']
+  column_list = ['id', 'data']
+  column_searchable_list = ['id', 'data']
   can_delete = False
 
 class CommitModelView(ModelView):
-  column_list = ['id', 'project_id', 'committer_name', 'message']
-  column_searchable_list = ['id', 'project_id', 'committer_name', 'message']
-  column_filters = ['id', 'committer_name', 'message']
+  column_list = ['id', 'hexsha', 'project_id', 'committer_name', 'message']
+  column_searchable_list = ['hexsha', 'project_id', 'committer_name', 'message']
+  column_filters = ['hexsha', 'committer_name', 'message']
 
 class OutputModelView(ModelView):
   column_list = ['id', 'project_id', 'committer_name', 'message']

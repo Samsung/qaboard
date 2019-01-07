@@ -121,7 +121,7 @@ class Output(Base):
 
   def __repr__(self):
     return (f"<Output "
-           f"ci_commit_id='{self.batch.ci_commit_id}' "
+           f"ci_commit_hexsha='{self.batch.ci_commit_hexsha}' "
            f"batch='{self.batch.label}' "
            f"platform='{self.platform}' "
            f"config='{self.configuration}' "

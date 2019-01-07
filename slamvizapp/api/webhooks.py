@@ -6,6 +6,7 @@ from pathlib import Path
 
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.attributes import flag_modified    
 
 # from qatools.config import merge
 import qatools
@@ -138,25 +139,26 @@ def gitlab_webhook():
   # Update the root project - all subprojects depend on it
   root_project_id = data['project']['path_with_namespace'] # eg => dvs/psp_swip
   root_project = Project.get_or_create(session=db_session, id=root_project_id)
-  root_project.information.update({'git': data['project']})
+  root_project.data.update({'git': data['project']})
   db_session.add(root_project)
+  # https://stackoverflow.com/questions/30088089/sqlalchemy-json-typedecorator-not-saving-correctly-issues-with-session-commit
+  flag_modified(root_project, "data")
   db_session.commit()
   repo = repos[root_project_id]
   git_pull(repo)
 
-  ### FIXME: Allow sub-projects
-  repo_files = repo.git.ls_tree('--name-only', '-r', 'master').splitlines()
+  # List all the files named "qatools.yaml" in this commit
+  repo_files = repo.git.ls_tree('--name-only', '-r', data['checkout_sha']).splitlines()
   projects_config_paths = [Path(f) for f in repo_files if f.endswith('qatools.yaml')]
   for subproject_config_path in projects_config_paths:
-    print('>>>', subproject_config_path)
+    # Each one is a subproject
     project_id = str(root_project_id  / subproject_config_path.parent)
-    print('>', project_id)
-    # Make sure the (sub)project exists and is up-to-date
+    # Make sure the it exists in the database, with up-to-date metadata
     project = Project.get_or_create(session=db_session, id=project_id)
-    project.information.update({'git': data['project']})
+    project.data.update({'git': data['project']})
     db_session.add(project)
     db_session.commit()
-    print(project.id, project.id_git, project.id_relative)
+    print(project)
 
     try:
       ci_commit = CiCommit.get_or_create(
@@ -172,14 +174,18 @@ def gitlab_webhook():
 
     # To update the (sub)project configuration stored in the database,
     # we first need to read relevant qatools.yaml files from this commit.
-    config_paths = [p for p in projects_config_paths if p <= subproject_config_path]
+    config_paths = [p for p in projects_config_paths if p >= subproject_config_path]
     config_paths.sort()
     try:
-      configs_contents = [repo.git.show(f'{ci_commit.id}:{p}') for p in config_paths]
+      configs_contents = [repo.git.show(f'{ci_commit.hexsha}:{p}') for p in config_paths]
       configs = [yaml.load(c) for c in configs_contents]
       qatools_config = qatools.merge(configs)
+      qatools_config['project']['name'] = project_id
+      print('qatools_config :', qatools_config)
     except Exception as e:
-      print(e, file=sys.stderr)
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+      print(info, file=sys.stderr)
       continue
 
     # We store qatools's configuration twice: at the project level and at the commit level
@@ -189,30 +195,39 @@ def gitlab_webhook():
     # - Project-level information is used as a default or when showing in the UI list of commits
     #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
     #   This said, we also update project-level data when it's the first time we get a qatools config for a project
-    is_initialization = 'qatools_config' not in project.information
-    try:
-      is_reference = not is_initialization and branch == qatools_config['project']['reference_branch']
-    except:
-      is_reference = False
+    is_initialization = 'qatools_config' not in project.data
+    reference_branch = qatools_config['project'].get('reference_branch', 'master')
+    is_reference = branch == reference_branch
     if is_initialization or is_reference:
-      project.information.update({'qatools_config': qatools_config,})
+      print('updating project-level qatools_config')
+      project.data.update({'qatools_config': qatools_config,})
+      flag_modified(project, "data")
 
-    metrics_path = qatools_config['outputs']['metrics']
-    try:
-      metrics_content = repo.git.show('{}:{}'.format(ci_commit.id, metrics_path))
-    except:
-      metrics_content = None
-    if metrics_content:
-      if metrics_path.endswith('yaml'):
-          metrics = yaml.load(metrics_content)        
-      elif metrics_path.endswith('json'):
-        metrics = json.loads(metrics_content)
-      ci_commit.data.update({'qatools_metrics': metrics})
-      if branch == qatools_config['project']['reference_branch']:
-        project.information.update({'qatools_metrics': metrics})
+    metrics_path = qatools_config.get('outputs', {}).get('metrics')
+    if metrics_path:
+      try:
+        metrics_content = repo.git.show('{}:{}'.format(ci_commit.hexsha, metrics_path))
+      except:
+        metrics_content = None
+      if metrics_content:
+        try:
+          if metrics_path.endswith('yaml'):
+              metrics = yaml.load(metrics_content)        
+          elif metrics_path.endswith('json'):
+            metrics = json.loads(metrics_content)
+          ci_commit.data.update({'qatools_metrics': metrics})
+          flag_modified(ci_commit, "data")
+          if is_initialization or is_reference:
+            project.data.update({'qatools_metrics': metrics})
+            flag_modified(project, "data")
+        except Exception as e: 
+          exc_type, exc_value, exc_traceback = sys.exc_info()
+          info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+          print(info, file=sys.stderr)
 
+    print('project.data :', project.data)
     db_session.add(ci_commit)
     db_session.add(project)
-  db_session.commit()
-  print(project.information)
+    db_session.commit()
+
   return "{status:'OK'}"
