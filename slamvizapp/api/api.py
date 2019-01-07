@@ -109,7 +109,7 @@ def get_projects():
   projects = (db_session
               .query(
                 Project.id,
-                Project.information,
+                Project.data,
                 label('latest_commit_datetime', func.max(CiCommit.authored_datetime)),
                 label('total_commits', func.count(CiCommit.id)),
               )
@@ -122,10 +122,10 @@ def get_projects():
     project_id: {
       # TODO: drop qatools_config
       # TODO: drop qatools_metrics
-      'information': information,
+      'information': data,
       'latest_commit_datetime': latest_commit_datetime,
       'total_commits': total_commits,
-    } for project_id, information, latest_commit_datetime, total_commits  in projects })
+    } for project_id, data, latest_commit_datetime, total_commits  in projects })
 
 @app.route("/api/v1/project")
 def get_project():
@@ -136,7 +136,7 @@ def get_project():
                )
                .one()
               )
-  return jsonify(project.information)
+  return jsonify(project.data)
 
 
 @app.route("/api/v1/commit")
@@ -150,7 +150,7 @@ def get_ci_commit(commit_id=None):
   if not commit_id:
     try:
       project = Project.query.filter(Project.id==project_id).one()
-      default_branch = project.information['qatools_config']['project']['reference_branch']
+      default_branch = project.data['qatools_config']['project']['reference_branch']
     except:
       default_branch = 'develop'
     branch = request.args.get('branch', default_branch)
@@ -189,7 +189,7 @@ def get_ci_commit(commit_id=None):
   artifacts = request.args.get('artifacts', False)
   if artifacts:
     try:
-      globbing = ci_commit.project.information['qatools_config']['artifacts'][artifacts]['glob']
+      globbing = ci_commit.project.data['qatools_config']['artifacts'][artifacts]['glob']
     except: # for legacy projects...
       globbing = '*.json'
 

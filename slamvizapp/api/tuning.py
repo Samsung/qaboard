@@ -37,7 +37,7 @@ def groups():
     """
     Return or update the groups of tests we defined for a project.
     TODO: We could just make it part of the database, why bother with files...
-          It could be saved as test as project.informations.test_groups
+          It could be saved as test as project.data.test_groups
           We would *just* need to write the migration, and it would save 30 lines of code.
     """
     project_id = request.args.get("project", "dvs/psp_swip")
@@ -73,8 +73,8 @@ def get_group():
                 [request.args.get("name", "")],
                 groups_path,
                 project.database,
-                project.information["qatools_config"]["inputs"]["configuration"],
-                project.information["qatools_config"],
+                project.data["qatools_config"]["inputs"]["configuration"],
+                project.data["qatools_config"],
             )
         )
         return jsonify({"number_of_tests": len(tests)})
@@ -98,7 +98,7 @@ def add_batch(hexsha):
     except NoResultFound:
         return jsonify("Sorry, the commit id was not found"), 404
 
-    if "qatools_config" not in ci_commit.project.information:
+    if "qatools_config" not in ci_commit.project.data:
         return jsonify("Please configure `qatools first`"), 404
 
     now = datetime.datetime.now()
@@ -116,7 +116,7 @@ def add_batch(hexsha):
         batch.output_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
-    config = ci_commit.project.information["qatools_config"]
+    config = ci_commit.project.data["qatools_config"]
 
     working_directory = ci_commit.commit_dir
     print(working_directory)
@@ -161,7 +161,7 @@ def add_batch(hexsha):
             "#!/bin/bash\n",
             "set -xe\n\n",
             f'cd "{working_directory}";\n\n',
-            # f'env | sort\n',
+            "source .envrc" if (working_directory / '.envrc').exists() else "",
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
@@ -187,10 +187,10 @@ def add_batch(hexsha):
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    default_user = ci_commit.project.information["qatools_config"]["lsf"].get('user', 'arthurf')
+    default_user = ci_commit.project.data["qatools_config"]["lsf"].get('user', 'arthurf')
     user = data.get('user', default_user)
 
-    queue = ci_commit.project.information["qatools_config"]["lsf"]["fast_queue"]
+    queue = ci_commit.project.data["qatools_config"]["lsf"]["fast_queue"]
     start_script = "".join(
         [
             "#!/bin/bash\n",
