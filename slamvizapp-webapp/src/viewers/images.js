@@ -291,9 +291,9 @@ class ImgViewer extends PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
-    const { shown_image, height, width, error } = this.state;
+    const { shown_image, height, width, error, loaded } = this.state;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
-    if (error || !loaded)
+    if (error || ! loaded)
       return <span></span>;
     return <>
       <span>
