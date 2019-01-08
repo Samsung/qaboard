@@ -10,8 +10,6 @@ import "./image-canvas.css";
 
 var OpenSeadragon = require('openseadragon')
 
-console.log(OpenSeadragon)
-
 // https://github.com/picturae/Openseadragonrgb/blob/master/src/rgb.js
 
 // http://Openseadragon.github.io/docs/Openseadragon.html#.Options
@@ -222,6 +220,7 @@ class ImgViewer extends PureComponent {
     const has_reference = !!output_new && !!output_new.output_dir_url;
 
     get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
+      this.setState({loaded: true})
       // https://Openseadragon.github.io/examples/tilesource-iiif/
       const { height, width } = res.data;
       let source_config = {
@@ -294,7 +293,7 @@ class ImgViewer extends PureComponent {
     const { output_new, output_ref, diff, label, path } = this.props;
     const { shown_image, height, width, error } = this.state;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
-    if (error)
+    if (error || !loaded)
       return <span></span>;
     return <>
       <span>
