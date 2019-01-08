@@ -21,9 +21,35 @@ const AvatarImg = styled.img`
   vertical-align: middle;
 `;
 
+const AvatarPlaceholder = styled.div`
+  background-color: #E3F2FD;
+  color: #555;
+  text-decoration: none;
+
+  font-size: 16px;
+  line-height: 38px;
+  text-align: center;
+  vertical-align: top;
+
+  border-radius: 50%;
+  border: none;
+  height: auto;
+  width: 100%;
+  margin: 0;
+  align-self: center;
+
+`;
+
 class Avatar extends React.PureComponent {
   render() {
     const { src, href, alt } = this.props;
+    if (src === null || src === undefined) {
+      return <AvatarCell>
+        <Link to={href||'#'}>
+          <AvatarPlaceholder style={this.props.style}>{alt[0].toUpperCase() || ''}</AvatarPlaceholder>
+        </Link>
+      </AvatarCell>      
+    }
     return <AvatarCell>
       <Link to={href||'#'}>
         <AvatarImg style={this.props.style} alt={alt||''} src={src||''} />

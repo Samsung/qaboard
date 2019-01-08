@@ -1,14 +1,13 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { Provider } from 'react-redux'
 import { BrowserRouter as Router, Route } from "react-router-dom";
 import { CookiesProvider } from "react-cookie";
+import qs from "qs";
 
-import Loadable from 'react-loadable';
 import AppNavbar from "./AppNavbar";
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
-import EmptyLoading from "./components/EmptyLoading";
 
 import { Classes } from "@blueprintjs/core";
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
@@ -17,12 +16,14 @@ import "../node_modules/@blueprintjs/select/lib/css/blueprint-select.css";
 import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
+const LoadableDashboard = lazy(() => import('./Dashboard' /* webpackChunkName: "dashboard" */));
 
-const LoadableDashboard = Loadable({
-  loader: () => import('./Dashboard' /* webpackChunkName: "dashboard" */),
-  loading: EmptyLoading,
-});
 
+let query = qs.parse(window.location.search.substring(1));
+if (!!!query.project) {
+  // we redirect to the page listing all projects
+  window.history.pushState({}, "", `/projects${window.location.search}`)
+}
 
 class App extends React.Component {
   constructor(props) {
@@ -59,10 +60,8 @@ class App extends React.Component {
 	          <Route exact path="/" component={CiCommitList} />
 	          <Route path="/branch/(.*)" component={CiCommitList} />
 	          <Route path="/committer/(.*)" component={CiCommitList} />
-
 	          <Route path="/commit/(.*)" component={CiCommitResults} />
-
-	          <Route path="/dashboard" component={LoadableDashboard} />
+	          <Route path="/dashboard" component={<Suspense fallback={<div>Loading...</div>}>{LoadableDashboard}</Suspense>} />
 	        </div>
 	      </Router>
 	    </CookiesProvider>
