@@ -121,6 +121,7 @@ const LoadableCisViewer = lazy(() => import('./cis/CisOutputCard' /* webpackChun
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
 const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
+const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
 
 class OutputViewer extends React.Component {
   render() {
@@ -138,6 +139,8 @@ class OutputViewer extends React.Component {
       viewer = <LoadableVideoViewer {...props} type={type} />
     else if (type.startsWith('image'))
       viewer = <LoadableImageViewer {...props} type={type} />
+    else if (type === 'text/html')
+      viewer = <LoadableHtmlViewer {...props} type={type} />
     else viewer = <span>No viewer is defined for type: {type}</span>;
 
   return (
@@ -175,7 +178,7 @@ class OutputCard extends Component {
         return <OutputViewer
           key={idx}
           output_new={output_new}
-          output_ref={output_ref}
+          output_ref={(controls.show_reference === undefined || controls.show_reference) ? output_ref : undefined}
           {...view}
           {...controls}
           style={style}

@@ -48,15 +48,29 @@ import {
 
 
 
-
 class CiCommitResults extends Component {
   constructor(props) {
     super(props);
+    // we initialize optionnal controls with their defaults
     this.state = {
-      controls: {},
-    }
+      controls: this.control_defaults(props),
+    };
   }
 
+  control_defaults = (props) => {
+    if (!!!props.project_data ||
+        !!!props.project_data.information ||
+        !!!props.project_data.information.qatools_config ||
+        !!!props.project_data.information.qatools_config.outputs) {
+      return {};
+    }
+    let state_controls = {};
+    let controls = props.project_data.information.qatools_config.outputs.controls || [];
+    controls.forEach(control => {
+      state_controls[control.name] = control.default;
+    })
+    return state_controls;
+  }
 
   toggle = name => () => {
     this.setState( (previousState, props) => ({
@@ -147,6 +161,11 @@ class CiCommitResults extends Component {
   componentDidUpdate(prevProps) {
     if (this.props.match.url !== prevProps.match.url) {
       this.fetchCommits();
+    }
+    const new_controls = ((((this.props.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
+    const old_controls = ((((prevProps.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
+    if (old_controls !== new_controls) {
+      this.setState({controls: this.control_defaults(this.props)});
     }
   }
   selectSortBy = e => {

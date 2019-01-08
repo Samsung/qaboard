@@ -101,7 +101,7 @@ class TofOutputCard extends Component {
 
   componentDidUpdate(nextProps, prevState) {
     if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
-        this.updateFrames(nextProps)
+        this.updateFrames(this.props)
     }
     if (prevState.selected_frame !== this.state.selected_frame || prevState.output_type !== this.state.output_type || (this.state.showHeatmap && prevState.newHexData === undefined)) {
         this.getHexData(this.props);

@@ -11,14 +11,9 @@ const colors = {
 };
 
 
-const adapt = (trace, label, side_to_side) => {
-  let out = {
-    ...trace,
-    name: label,
-    legendgroup: label,
-  } 
-  if (side_to_side)
-    return out 
+const adapt = (trace, label, side_by_side) => {
+  if (side_by_side)
+    return trace
 
   let width = (trace.line && trace.line.width) || 2;
   let size = (trace.marker && trace.marker.size) || 3;
@@ -27,7 +22,7 @@ const adapt = (trace, label, side_to_side) => {
     size += 1;
   }
   return {
-    ...out,
+    ...trace,
     name: label,
     legendgroup: label,
     line: {
@@ -63,23 +58,28 @@ class PlotlyViewer extends PureComponent {
     this.getData(this.props)
   }
 
-  getData(props) {
-    const { output_new, output_ref, path, path_groundtruth, side_to_side } = props;
+  getData(props, label) {
+    const { output_new, output_ref, path, path_groundtruth, side_by_side } = props;
     const { cancel_source } = this.state;
     if (!output_new.output_dir_url || !path) return;
-    
-    let results = []
-    results.push(['new', `${output_new.output_dir_url}/${path}`])
-    if (!!output_ref && !!output_ref.output_dir_url)
-      results.push(['reference', `${output_ref.output_dir_url}/${path}`])
-    if (!!path_groundtruth)
-      results.push( ['groundtruth', `${output_new.output_dir_url}/${path_groundtruth}`] )
+
+    let results = [];
+    const should_get_all = label === undefined || label === null;
+    if (should_get_all || label === 'new') {
+      results.push(['new', `${output_new.output_dir_url}/${path}`])
+    }
+    if (should_get_all || label === 'reference') {
+      if (!!output_ref && !!output_ref.output_dir_url)
+        results.push(['reference', `${output_ref.output_dir_url}/${path}`])
+      if (!!path_groundtruth)
+        results.push( ['groundtruth', `${output_new.output_dir_url}/${path_groundtruth}`] )
+    }
 
     const load_data = label => response => {
       this.setState((previous_state, props) => ({
         data: {
           ...previous_state.data,
-          [label]: (response.data.data || []).map(t => adapt(t, label, side_to_side) ),
+          [label]: (response.data.data || []).map(t => adapt(t, label, side_by_side) ),
         },
         layouts: {
           ...previous_state.layouts,
@@ -107,52 +107,61 @@ class PlotlyViewer extends PureComponent {
       this.state.cancel_source.cancel();
   }
 
-  componentDidUpdate(nextProps, prevState) {
-      let updated_new =
-        nextProps.output_new !== undefined &&
-        nextProps.output_new !== null &&
-        (this.props.output_new == null ||
-          nextProps.output_new.id !== this.props.output_new.id);
-      let updated_ref =
-        nextProps.output_ref !== undefined &&
-        nextProps.output_ref !== null &&
-        (this.props.output_ref == null ||
-          nextProps.output_ref.id !== this.props.output_ref.id);
-
-      if (updated_new || updated_ref) {
-        this.Init(nextProps);
+  componentDidUpdate(prevProps, prevState) {
+      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
+      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+      let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
+      let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
+      if (updated_new) {
+        this.getData(this.props, 'new');
       }
-      // if (!prevState.output_dir_url !== nextProps.show_debug) this.Init();
+      if (updated_ref) {
+        this.getData(this.props, 'reference');
+      }
   }
 
   render() {
     const { data, layouts, is_loaded, error } = this.state;
+    const { side_by_side } = this.props;
     if (!is_loaded) return <span/>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const { style } = this.props;
     const width = (!!style && style.width) || '400px';
 
-    if (!side_to_side) {
+    if (!side_by_side) {
       let layout_ = {
         width: parseFloat(width.substring(0, width.length-2)),
         // height: parseFloat(style.heigth),
         ...layouts['new'],
         ...this.props.layout,
       };
-
+      let traces = [
+        ...( data.groundtruth || []),
+        ...( data.reference || [] ),
+        ...( data.new || []),
+      ]
+      if (traces.length===0)
+        return <span></span>
+      return <Plot data={traces} layout={layout_}/>;
     }
 
-    if (side_to_side) {
+    if (side_by_side) {
+      let layout_ = {
+        width: parseFloat(width.substring(0, width.length-2)) / 2,
+        ...layouts['new'],
+        ...this.props.layout,
+      };
       return <>
-        <Plot data={traces} layout={layout_}/>;    
+        <Plot key="new" data={data.new} layout={layout_}/>;
+        {!!data.reference && <Plot key="reference" data={data.reference} layout={layout_}/>};
       </>      
     }
 
-    let traces = [
-      ...( data.groundtruth || []),
-      ...( data.reference || [] ),
-      ...( data.new || []),
-    ]
-    if (traces.length===0)
-      retu
+
+
+
+  }
+}
+
+export default PlotlyViewer;
