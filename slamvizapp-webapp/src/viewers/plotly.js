@@ -12,6 +12,8 @@ const colors = {
 
 
 const adapt = (trace, label, side_by_side) => {
+  // if (trace.type === 'heatmap')
+  //   trace.type = 'heatmapgl'
   if (side_by_side)
     return trace
 
