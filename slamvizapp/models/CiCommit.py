@@ -121,7 +121,12 @@ class CiCommit(Base):
   @staticmethod
   def get_or_create(session, hexsha, project_id):
     try:
-      ci_commit =session.query(CiCommit).filter_by(hexsha=hexsha, project_id=project_id).one()
+      ci_commit =(session.query(CiCommit)
+                         .filter(
+                           CiCommit.project_id==project_id,
+                           CiCommit.hexsha.startswith(hexsha),
+                         )
+                         .one())
     except NoResultFound:
       try:
         from slamvizapp.models import Project

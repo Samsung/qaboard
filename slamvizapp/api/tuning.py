@@ -93,7 +93,7 @@ def add_batch(hexsha):
 
     try:
         ci_commit = CiCommit.query.filter(
-            CiCommit.project_id == project_id, CiCommit.id.startswith(hexsha)
+            CiCommit.project_id == project_id, CiCommit.hexsha.startswith(hexsha)
         ).one()
     except NoResultFound:
         return jsonify("Sorry, the commit id was not found"), 404
