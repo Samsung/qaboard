@@ -149,8 +149,9 @@ class PlotlyViewer extends PureComponent {
     }
 
     if (side_by_side) {
+      let width_full = parseFloat(width.substring(0, width.length-2))
       let layout_ = {
-        width: parseFloat(width.substring(0, width.length-2)) / 2,
+        width:  !!data.reference ? width_full / 2 : width_full,
         ...layouts['new'],
         ...this.props.layout,
       };
