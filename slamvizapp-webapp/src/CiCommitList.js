@@ -112,7 +112,6 @@ class CiCommitList extends React.Component {
 
     // commits.filter( c => c.batches.default!==undefined )
     // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
-    console.log(project_data.information.qatools_config)
     let reference_branch = project_data.information.qatools_config.project.reference_branch;
     let ci_root = project_data.information.qatools_config.ci_root.linux.replace("/home/arthurf/ci", "")
     var information = (
