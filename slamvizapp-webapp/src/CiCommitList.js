@@ -197,7 +197,7 @@ class CiCommitList extends React.Component {
         {is_loaded &&
           !error && (
             <div>
-              <h3 className={Classes.HEADING}>Evolution for {link_to_tag}</h3>
+              <h3 className={Classes.HEADING}>Metrics over {link_to_tag}</h3>
               <DateRangeInput
                 value={effective_date_range}
                 maxDate={new Date()}
