@@ -57,10 +57,9 @@ export const updateBranches = (project, branches, error) => ({
 })
 
 
-export const fetchCommits = (project, branch, date_range, aggregation_metrics) => {
+export const fetchCommits = (project, branch, date_range, aggregation_metrics, extra_params) => {
   return dispatch => {
     dispatch({type: FETCH_COMMITS, project, branch, date_range})
-    console.log(branch)
     var url
     if (branch.committer)
       url =`/api/v1/commits?committer=${branch.committer}`;
@@ -74,7 +73,8 @@ export const fetchCommits = (project, branch, date_range, aggregation_metrics) =
         project,
         from: date_range[0],
         to: date_range[1],
-        metrics: JSON.stringify(aggregation_metrics)
+        metrics: JSON.stringify(aggregation_metrics),
+        ...extra_params,
       }
     })
       .then(response => {

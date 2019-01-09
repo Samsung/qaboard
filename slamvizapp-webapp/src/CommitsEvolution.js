@@ -339,7 +339,7 @@ const make_output_filter = output_filter => {
   };
 };
 
-class CommitsEvolutionPerMovie extends React.Component {
+class CommitsEvolutionPerTest extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -398,53 +398,58 @@ class CommitsEvolutionPerMovie extends React.Component {
     let traces = [];
     let traces_metadata = [];
 
+
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
       shown_batches.forEach(label => {
         let commits_with_batch = commits.filter(c => !!c.batches[label]);
         if (commits_with_batch.length > 0) {
-          let input_paths = new Set();
+          let input_configuration_set = new Set();
           commits_with_batch.forEach(c => {
             Object.values(c.batches[label].outputs)
               .filter(output_filter_)
-              .forEach(o => input_paths.add(o.test_input_path));
+              .forEach(o => input_configuration_set.add(JSON.stringify([o.test_input_path, o.configuration])));
           });
-          input_paths.forEach(test_input_path => {
-            let commits_with_input = commits_with_batch.filter(
+          input_configuration_set.forEach( input_config_json => {
+            const [test_input_path, configuration] = JSON.parse(input_config_json)
+            let commits_with_output = commits_with_batch.filter(
               c =>
-                Object.values(c.batches[label].outputs)
-                  .filter(o => o.test_input_path === test_input_path)
+                (Object.values(c.batches[label].outputs)
+                  .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                   .filter(output_filter_)
-                  .filter(o => o.configuration.includes("stereo")).length > 0
+                  .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
+                  .map(o => o.metrics[metric.key])
+                  .filter(m => !(isNaN(m) || m === null || m === undefined))
+                  .length > 0)
             );
+            // console.log("commits_with_output", commits_with_output)
 
-            let name = test_input_path;
-            let values = commits_with_input
+            let values = commits_with_output
               .map(
                 c =>
                   Object.values(c.batches[label].outputs)
-                    .filter(o => o.test_input_path === test_input_path)
+                    .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                     .filter(output_filter_)
-                    .filter(o => o.configuration.includes("stereo"))[0]
+                    .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
               )
-              .map(o =>
+              .filter(outputs => outputs.length > 0)
+              .map(outputs => outputs[0].metrics)
+              .map(metrics =>
                 Math.min(
                   100 * metric.target * metric.scale,
-                  o.metrics[metric.key] * metric.scale
+                  metrics[metric.key] * metric.scale
                 )
               );
+            // console.log(test_input_path, '@', configuration, values)
             const y0 = values[values.length - 1];
             const y = relative ? values.map(v => 100 * v / y0) : values;
 
-            // ? compute an hash of the path -> 0-1, boom
-            // interpolateRainbow(0->1)
-            // same for symbols / line style
             let color = input_test_color(test_input_path, label);
             let trace = {
-              name,
+              name: `${test_input_path} @${configuration}`,
               type: "scatter",
               mode: "lines+markers",
-              x: commits_with_input.map(c => c.authored_datetime),
+              x: commits_with_output.map(c => c.authored_datetime),
               y,
               opacity: 0.8,
               marker: {
@@ -465,7 +470,7 @@ class CommitsEvolutionPerMovie extends React.Component {
             let trace_metadata = {
               test_input_path,
               label,
-              commits: commits_with_input
+              commits: commits_with_output
             };
             traces.push(trace);
             traces_metadata.push(trace_metadata);
@@ -575,6 +580,9 @@ class CommitsEvolutionPerMovie extends React.Component {
       legend = <span />;
     }
 
+    console.log(traces)
+    console.log(revision)
+
     return (
       <div>
         {traces.length > 0 && (
@@ -599,9 +607,9 @@ class CommitsEvolution extends Component {
       select_metrics: this.props.select_metrics || main_metrics,
       selected_metric: default_metric,
       selected_aggregation: "median",
-      output_filter: "small-scale",
+      output_filter: "",
       relative: true,
-      details_on_hover: false
+      details_on_hover: true,
     };
   }
 
@@ -682,7 +690,7 @@ class CommitsEvolution extends Component {
                 />
                 <Switch
                   inline
-                  label="Show 6dof"
+                  label="Show details"
                   defaultChecked={details_on_hover}
                   onChange={e => {
                     this.setState({ details_on_hover: !details_on_hover });
@@ -704,7 +712,7 @@ class CommitsEvolution extends Component {
               </FormGroup>}
         </FormGroup>
         {breakdown_per_test ? (
-          <CommitsEvolutionPerMovie
+          <CommitsEvolutionPerTest
             project={project}
             project_data={project_data}
             commits={commits}
