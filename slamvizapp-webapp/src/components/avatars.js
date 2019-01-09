@@ -9,8 +9,8 @@ const AvatarCell = styled.div`
 `;
 
 const AvatarImg = styled.img`
-  width: 36px;
-  height: 36px;
+  width: 45px;
+  height: 45px;
   margin-right: 10px;
   padding: 0;
 
@@ -46,7 +46,7 @@ class Avatar extends React.PureComponent {
     if (src === null || src === undefined) {
       return <AvatarCell>
         <Link to={href||'#'}>
-          <AvatarPlaceholder style={this.props.style}>{alt[0].toUpperCase() || ''}</AvatarPlaceholder>
+          <AvatarPlaceholder style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
         </Link>
       </AvatarCell>      
     }

@@ -11,10 +11,10 @@ import {
   Card,
   Button,
   Callout,
+  Tooltip,
   NonIdealState,
   Spinner
 } from "@blueprintjs/core";
-import { Icon, Tooltip } from "@blueprintjs/core";
 import { Container } from "./components/layout";
 import { Avatar } from "./components/avatars";
 
@@ -71,7 +71,7 @@ class ProjectsList extends Component {
                 <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
                   <Avatar
                     src={!!git.avatar_url ? `http://gitlab-srv${git.avatar_url}` : null}
-                    href={git.web_url}
+                    href={`/?project=${id}`}
                     alt={git.name || id}
                   />
                 </div>
