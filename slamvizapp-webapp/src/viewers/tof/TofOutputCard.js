@@ -163,7 +163,7 @@ class TofOutputCard extends Component {
     if (label === "new") {
       var pointcloud_dir = this.props.output_new.output_dir_url;
     } else if (label === "reference") {
-      if (this.props.output_ref.id === undefined) return;
+      if (!!!this.props.output_ref || this.props.output_ref.id === undefined) return;
       pointcloud_dir = this.props.output_ref.output_dir_url;
     } else if (label === "groundtruth") {
       pointcloud_dir = `/s/${this.props.output_new.test_input_database}/${this.props.output_new.test_input_path}`;
@@ -352,6 +352,9 @@ class TofOutputCard extends Component {
 
     if (!metrics_new || !metrics_ref || !frames) return <span />;
 
+    let has_many_frame = output_new.metrics.frames !== undefined &&  output_new.metrics.frames.length > 1;
+    let has_reference = output_ref !== undefined && output_ref !== null;
+
     let traces = [
       make_traces(frames['reference'], "reference"),
       make_traces(frames['new'], "new"),
@@ -381,13 +384,6 @@ class TofOutputCard extends Component {
       width: 640,
       height: 564,
     };
-    let has_many_frame = output_new.metrics.frames !== undefined &&  output_new.metrics.frames.length > 1;
-    let img_new = `${
-      output_new.output_dir_url
-      }/Frame${selected_frame}/${this.state.output_type}.png`;
-    let img_ref = `${
-      output_ref.output_dir_url
-      }/Frame${selected_frame}/${this.state.output_type}.png`;
     return (
       <>
         <p className={Classes.TEXT_MUTED}>
@@ -416,7 +412,7 @@ class TofOutputCard extends Component {
         <div>
           <h4 className={Classes.HEADING}>
             <a
-              href={`${output_ref.output_dir_url}/Frame${selected_frame}`}
+              href={`${output_new.output_dir_url}/Frame${selected_frame}`}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -452,8 +448,8 @@ class TofOutputCard extends Component {
               )
             : (
                 <div>
-                  <img width={400} alt="New" src={img_new} />
-                  <img width={400} alt="Reference" src={img_ref} />
+                  <img width={400} alt="New" src={`${output_new.output_dir_url}/Frame${selected_frame}/${this.state.output_type}.png`} />
+                  {has_reference && <img width={400} alt="Reference" src={`${output_ref.output_dir_url}/Frame${selected_frame}/${this.state.output_type}.png`} />}
                 </div>
               )
           }
