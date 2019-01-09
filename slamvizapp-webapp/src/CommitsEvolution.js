@@ -580,8 +580,8 @@ class CommitsEvolutionPerTest extends React.Component {
       legend = <span />;
     }
 
-    console.log(traces)
-    console.log(revision)
+    // console.log(traces)
+    // console.log(revision)
 
     return (
       <div>
