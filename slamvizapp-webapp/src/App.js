@@ -17,6 +17,15 @@ import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
 const LoadableDashboard = lazy(() => import('./Dashboard' /* webpackChunkName: "dashboard" */));
+class WrappedDashboard extends React.Component {
+  render() {
+    return (
+      <Suspense fallback={<div>Loading...</div>}>
+        <LoadableDashboard/>
+      </Suspense>
+    );
+  }
+}
 
 
 let query = qs.parse(window.location.search.substring(1));
@@ -61,7 +70,7 @@ class App extends React.Component {
 	          <Route path="/branch/(.*)" component={CiCommitList} />
 	          <Route path="/committer/(.*)" component={CiCommitList} />
 	          <Route path="/commit/(.*)" component={CiCommitResults} />
-	          <Route path="/dashboard" component={<Suspense fallback={<div>Loading...</div>}>{LoadableDashboard}</Suspense>} />
+	          <Route path="/dashboard" component={WrappedDashboard} />
 	        </div>
 	      </Router>
 	    </CookiesProvider>
