@@ -99,8 +99,8 @@ class TofOutputCard extends Component {
     this.updateFrames(this.props);
   }
 
-  componentDidUpdate(nextProps, prevState) {
-    if (nextProps.output_new !== this.props.output_new || nextProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
+  componentDidUpdate(prevProps, prevState) {
+    if (prevProps.output_new !== this.props.output_new || prevProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
         this.updateFrames(this.props)
     }
     if (prevState.selected_frame !== this.state.selected_frame || prevState.output_type !== this.state.output_type || (this.state.showHeatmap && prevState.newHexData === undefined)) {
@@ -116,7 +116,6 @@ class TofOutputCard extends Component {
     let len = arr.length;
     let max = -Infinity;
     let min = Infinity;
-
     while (len--) {
         max = arr[len] > max ? arr[len] : max;
         min = arr[len] < min ? arr[len] : min;
@@ -382,6 +381,7 @@ class TofOutputCard extends Component {
       width: 640,
       height: 564,
     };
+    let has_many_frame = output_new.metrics.frames !== undefined &&  output_new.metrics.frames.length > 1;
     let img_new = `${
       output_new.output_dir_url
       }/Frame${selected_frame}/${this.state.output_type}.png`;
@@ -393,7 +393,7 @@ class TofOutputCard extends Component {
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
                         ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
-                        : "Loading...") : "Click a point on the plot to show other frames."}
+                        : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
         </p>
         <div hidden={!show_pointcloud}
           ref={threeRoot => {
@@ -403,8 +403,8 @@ class TofOutputCard extends Component {
           {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        {<Plot data={traces} layout={layout_}/>}
-        {(output_new.metrics.frames !== undefined) && <Slider 
+        {has_many_frame && <Plot data={traces} layout={layout_}/>}
+        {has_many_frame && <Slider 
           max = {output_new.metrics.frames.length-1}
           onChange = {(value) => this.setState({sliderValue: value, selected_frame: Array.from(frames['new'].keys())[value]})}
           showTrackFill={false}
