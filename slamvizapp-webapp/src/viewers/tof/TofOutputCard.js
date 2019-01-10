@@ -12,11 +12,25 @@ const aspect_ratio = 4 / 3;
 const width = 640; // full screen would be window.innerWidth;
 const height = width / aspect_ratio; // full screen would be window.innerHeight;
 
+
 const colors = {
   groundtruth: `${Colors.GREEN2}dd`,
   new: `${Colors.ORANGE2}dd`,
   reference: `${Colors.BLUE2}dd`
 };
+
+
+const get_minmax = array =>  {
+  let zmin =  Infinity;
+  let zmax = -Infinity;
+  array.forEach(e => {
+      zmin = e < zmin ? e : zmin;      
+      zmax = e > zmax ? e : zmax;
+  })
+  return {zmin, zmax};
+}
+
+
 
 var make_traces = function(metrics_over_frames, label) {
   /*
@@ -44,24 +58,20 @@ var make_traces = function(metrics_over_frames, label) {
   };
 };
 
+
 // References for the threejs integration:
 // https://stackoverflow.com/questions/41248287/how-to-connect-threejs-to-react
 // https://itnext.io/how-to-use-plain-three-js-in-your-react-apps-417a79d926e0
-
 class TofOutputCard extends Component {
   constructor(props) {
     super(props);
     this.threeRoot = React.createRef();
-    // we check that the results metric include per-frame information
-    // if the tof crashed for instance, they won't be there
-    let has_frames_info = props.output_new.metrics.frames !== undefined
 
-    // we will first display the last frame of each recording
-    let last_frame_id = has_frames_info ? props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1].frame_path_idx : 0;
-
+    let last_frame_id = 0 // default
     this.state = {
+      last_frame_id,
       selected_frame: last_frame_id,
-      sliderValue: last_frame_id,
+      slider_value: last_frame_id,
       show_pointcloud: false,
       showHeatmap: false,
       output_type: "depth",
@@ -83,10 +93,20 @@ class TofOutputCard extends Component {
   // keep information about the frame order, we turn frame.outputs_new.frames
   // into a Map (~ordered dict~)
   updateFrames(props) {
+    // we check that the results metric include per-frame information
+    // if the tof crashed for instance, they won't be there
+    let has_frames_info = props.output_new.metrics.frames !== undefined
+    // we will first display the last frame of each recording
+    let last_frame_id = has_frames_info ? props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1].frame_path_idx : 0;
+
     const to_map = output => (output.metrics !== undefined && output.metrics.frames !== undefined)
                               ? new Map(output.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
                               : new Map();
+    const selected_frame = Math.min(last_frame_id, last_frame_id);
     this.setState({
+        last_frame_id,
+        selected_frame,
+        slider_value: selected_frame,
         frames: {
             new: to_map(props.output_new),
             reference: to_map(props.output_ref),
@@ -107,21 +127,11 @@ class TofOutputCard extends Component {
         this.getHexData(this.props);
     }
     if (this.state.newHexData && this.state.newHexData.z && prevState.newHexData !== this.state.newHexData) {
-        this.setState({heatmapZscale: this.getMinMax(this.state.newHexData.z.flat())});
-        this.setState({heatmapScaleMinMax: this.getMinMax(this.state.newHexData.z.flat())});
+        this.setState({heatmapZscale: get_minmax(this.state.newHexData.z.flat())});
+        this.setState({heatmapScaleMinMax: get_minmax(this.state.newHexData.z.flat())});
     }
   }
   
-  getMinMax(arr) {
-    let len = arr.length;
-    let max = -Infinity;
-    let min = Infinity;
-    while (len--) {
-        max = arr[len] > max ? arr[len] : max;
-        min = arr[len] < min ? arr[len] : min;
-    }
-    return {zmin: min, zmax: max};
-  }
   
   getHexData(props) {
     const { output_new, output_ref } = props;
@@ -359,8 +369,7 @@ class TofOutputCard extends Component {
       make_traces(frames['reference'], "reference"),
       make_traces(frames['new'], "new"),
     ];
-    let layout = this.props.layout || {};
-    let layout_ = {
+    let layout = {
       height: 150,
       margin: { l: 50, r: 10, b: 50, t: 50, pad: 5 },
       xaxis: {
@@ -375,7 +384,7 @@ class TofOutputCard extends Component {
         traceorder: "grouped",
         tracegroupgap: 0
       },
-      ...layout
+      ...(this.props.layout || {})
     };
     let heatmaps_layout = {
       title: this.state.focus + " - " + this.state.output_type,
@@ -399,12 +408,12 @@ class TofOutputCard extends Component {
           {false && is_loaded && this.renderer.render(this.scene, this.camera)}
         </div>
 
-        {has_many_frame && <Plot data={traces} layout={layout_}/>}
+        {has_many_frame && <Plot data={traces} layout={layout}/>}
         {has_many_frame && <Slider 
           max = {output_new.metrics.frames.length-1}
-          onChange = {(value) => this.setState({sliderValue: value, selected_frame: Array.from(frames['new'].keys())[value]})}
+          onChange = {(value) => this.setState({slider_value: value, selected_frame: Array.from(frames['new'].keys())[value]})}
           showTrackFill={false}
-          value = {this.state.sliderValue}
+          value = {this.state.slider_value}
           labelRenderer = {(value) => Array.from(frames['new'].keys())[value]}
           labelStepSize = {Math.ceil(output_new.metrics.frames.length/20)}
         />}
