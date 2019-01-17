@@ -11,10 +11,8 @@ import "moment-timezone";
 import {
   Classes,
   Button,
-  Intent,
   NonIdealState,
   Spinner,
-  Callout
 } from "@blueprintjs/core";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
@@ -47,7 +45,7 @@ const WrapperCommitRows = styled.ul`
   padding: 0;
 `;
 
-const CommitRows = ({ commits, project, project_data, className }) => (
+const CommitRows = ({ commits, project, project_data, className, dispatch }) => (
   <div className={className}>
     <DayRows>
       <WrapperCommitRows>
@@ -58,6 +56,7 @@ const CommitRows = ({ commits, project, project_data, className }) => (
             project_data={project_data}
             key={commit.id}
             toaster={toaster}
+            dispatch={dispatch}
           />
         ))}
       </WrapperCommitRows>
@@ -108,7 +107,7 @@ class CiCommitList extends React.Component {
     let is_branch = !!branch.name;
     if (is_branch || is_committer)
       var tag = branch.name || branch.committer;
-    else tag = "all latest commits";
+    else tag = "Latest commits";
 
     // commits.filter( c => c.batches.default!==undefined )
     // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
@@ -117,41 +116,31 @@ class CiCommitList extends React.Component {
     var information = (
       <>
         <Section>
-          <Callout
-            icon="info-sign"
-            intent={Intent.PRIMARY}
-            title="Useful links"
-            style={{ marginBottom: "20px" }}
-          >
-            <ul className={Classes.LIST}>
-              <li>
-                <a href={`http://gitlab-srv/${project}/pipelines`}>
-                  Gitlab CI pipelines
-                </a>
-              </li>
-              <li>
-                <Link to={`/dashboard?project=${project}`}>Dashboard</Link>
-              </li>
-              <li>
-                <a href="http://gitlab-srv/dvs/psp_swip/wikis/faq/ci-failures">
-                  FAQ: When did my CI fail?
-                </a>
-              </li>
-            </ul>
-          </Callout>
-        </Section>
-        <Section>
           <h3 className={Classes.HEADING}>
-            Reports for{" "}
+            Status{" "}
             <Link to={`/branch/origin/${reference_branch}?project=${project}`}>
               <Button icon="git-branch">{reference_branch}</Button>
             </Link>
           </h3>
           <p>
-            <a href={`http://gitlab-srv/${project}/commits/${reference_branch}`}>
+            <a href={`http://gitlab-srv/${project}/pipelines`}>
               <img
                 src={`http://gitlab-srv/${project}/badges/${reference_branch}/build.svg`}
                 alt="build status"
+              />
+            </a>
+            <Link to={`/dashboard?project=${project}`}>
+              {" "}
+              <img
+                src={`https://img.shields.io/badge/dashboard-${reference_branch}-9933CC.svg`}
+                alt="dashboard"
+              />
+            </Link>
+            <a href={`/s${ci_root}/${project}/branches/${reference_branch}/doxygen/index.html`}>
+              {" "}
+              <img
+                src={`https://img.shields.io/badge/docs-${reference_branch}-blue.svg`}
+                alt="documentation"
               />
             </a>
             <a href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`}>
@@ -161,13 +150,6 @@ class CiCommitList extends React.Component {
                 src={`http://gitlab-srv/${project}/badges/${reference_branch}/coverage.svg`}
               />
             </a>
-            {<a href={`/s${ci_root}/${project}/branches/${reference_branch}/doxygen/index.html`}>
-              {" "}
-              <img
-                src={`https://img.shields.io/badge/docs-${reference_branch}-blue.svg`}
-                alt="documentation"
-              />
-            </a>}
           </p>
         </Section>
       </>
@@ -197,7 +179,7 @@ class CiCommitList extends React.Component {
         {is_loaded &&
           !error && (
             <div>
-              <h3 className={Classes.HEADING}>Metrics over {link_to_tag}</h3>
+              <h3 className={Classes.HEADING}>{link_to_tag}</h3>
               <DateRangeInput
                 value={effective_date_range}
                 maxDate={new Date()}
@@ -212,12 +194,12 @@ class CiCommitList extends React.Component {
                 }}
                 shortcuts
               />
-              <CommitsEvolution
+              {(is_branch || is_committer) && <CommitsEvolution
                 project={project}
                 project_data={project_data}
                 commits={commits}
                 style={{ marginTop: "20px" }}
-              />
+              />}
             </div>
           )}
       </Section>
@@ -226,7 +208,7 @@ class CiCommitList extends React.Component {
     var list;
     var warning_messages = <>
       {error && <NonIdealState description={error.message} icon="error" />}
-      {is_loading && <NonIdealState title="Loading" icon={<Spinner />} />}
+      {is_loading && commits.length === 0 && <NonIdealState title="Loading" icon={<Spinner />} />}
       {is_loaded && !error && commits.length === 0 &&
       <NonIdealState
           title="No results"
@@ -241,7 +223,6 @@ class CiCommitList extends React.Component {
 
     list = (
       <>
-        <h3 className={Classes.HEADING}>Selected commits</h3>
         {Object.keys(commits_by_day).map(day => (
           <React.Fragment key={day}>
             <HeaderDay>
@@ -252,7 +233,7 @@ class CiCommitList extends React.Component {
               />{" "}
               &#8212; {commits_by_day[day].length} commits
             </HeaderDay>
-            <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
+            <CommitRows project={project} dispatch={this.props.dispatch} project_data={project_data} commits={commits_by_day[day]} />
           </React.Fragment>
         ))}
       </>

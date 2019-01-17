@@ -21,15 +21,11 @@ const colors = {
 
 
 const get_minmax = array =>  {
-  let zmin =  Infinity;
-  let zmax = -Infinity;
-  array.forEach(e => {
-      zmin = e < zmin ? e : zmin;      
-      zmax = e > zmax ? e : zmax;
-  })
-  return {zmin, zmax};
+  return {
+    zmin: Math.max(...array),
+    zmax: Math.min(...array)
+  };
 }
-
 
 
 var make_traces = function(metrics_over_frames, label) {
@@ -38,7 +34,9 @@ var make_traces = function(metrics_over_frames, label) {
     metrics_over_frames: Map
     label: string
   */
-  if (metrics_over_frames === undefined) return [];
+  if (metrics_over_frames === undefined)
+    return [];
+
   return {
     type: "scatter",
     mode: "lines+markers",
@@ -120,10 +118,14 @@ class TofOutputCard extends Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    if (prevProps.output_new !== this.props.output_new || prevProps.output_ref !== this.props.output_ref || prevState.selected_frame !== this.state.selected_frame) {
+    if (prevProps.output_new !== this.props.output_new ||
+        prevProps.output_ref !== this.props.output_ref ||
+        prevState.selected_frame !== this.state.selected_frame) {
         this.updateFrames(this.props)
     }
-    if (prevState.selected_frame !== this.state.selected_frame || prevState.output_type !== this.state.output_type || (this.state.showHeatmap && prevState.newHexData === undefined)) {
+    if (prevState.selected_frame !== this.state.selected_frame ||
+        prevState.output_type !== this.state.output_type ||
+        (this.state.showHeatmap && prevState.newHexData === undefined)) {
         this.getHexData(this.props);
     }
     if (this.state.newHexData && this.state.newHexData.z && prevState.newHexData !== this.state.newHexData) {
@@ -136,35 +138,33 @@ class TofOutputCard extends Component {
   getHexData(props) {
     const { output_new, output_ref } = props;
     const { selected_frame, output_type }  = this.state;
+    let hex_layout = {
+        type: 'heatmap',
+        hoverinfo: "x+y+z+name",
+        showscale: true,
+        colorscale: 'Viridis',      
+        name: `${output_type}`,
+    }
 
     get(`${output_new.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
     .then(response => {
 	  this.setState({
-	    newHexData: {
-        type: 'heatmap',
-        z: parse_hex(response.data).z,
-        name: `${output_type}`,
-        hoverinfo: "x+y+z+name",
-        showscale: true,
-        colorscale: 'Viridis',
-      }
-	  }) 
-	})
+  	    newHexData: {
+          ...hex_layout,
+          z: parse_hex(response.data).z,
+        }
+	    }) 
+	  })
     .catch(e => {console.log(e)});
-
     get(`${output_ref.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
     .then(response => {
-    this.setState({
-      refHexData: {
-        type: 'heatmap',
-        z: parse_hex(response.data).z,
-        name: `${output_type}`,
-        hoverinfo: "x+y+z+name",
-        showscale: true,
-        colorscale: 'Viridis',
-      }
-    }) 
-  })
+      this.setState({
+        refHexData: {
+          ...hex_layout,
+          z: parse_hex(response.data).z,
+        }
+      }) 
+    })
     .catch(e => {console.log(e)});
   }
   
@@ -180,14 +180,11 @@ class TofOutputCard extends Component {
     }
 
     var url = `${pointcloud_dir}/Frame${frame_id}/pointcloud.pcd`;
-    console.log(url)
     loader.load(url, pointcloud => {
       if (pointcloud !== null) {
         var previous_pointcloud = this.scene.getObjectByName(label);
-        console.log(previous_pointcloud)
         if (previous_pointcloud) 
           this.scene.remove(previous_pointcloud);
-
         pointcloud.name = label;
         if (label === "reference") {
           pointcloud.visible = false;

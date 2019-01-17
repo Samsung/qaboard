@@ -20,7 +20,7 @@ const LoadableDashboard = lazy(() => import('./Dashboard' /* webpackChunkName: "
 class WrappedDashboard extends React.Component {
   render() {
     return (
-      <Suspense fallback={<div>Loading...</div>}>
+      <Suspense fallback={<span></span>}>
         <LoadableDashboard/>
       </Suspense>
     );
@@ -29,7 +29,7 @@ class WrappedDashboard extends React.Component {
 
 
 let query = qs.parse(window.location.search.substring(1));
-if (!!!query.project) {
+if (!!!query.project && !window.location.pathname.includes('/s/')) {
   // we redirect to the page listing all projects
   window.history.pushState({}, "", `/projects${window.location.search}`)
 }
