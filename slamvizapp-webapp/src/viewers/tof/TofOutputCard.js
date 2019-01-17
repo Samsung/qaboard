@@ -16,17 +16,21 @@ const height = width / aspect_ratio; // full screen would be window.innerHeight;
 const colors = {
   groundtruth: `${Colors.GREEN2}dd`,
   new: `${Colors.ORANGE2}dd`,
-  reference: `${Colors.BLUE2}dd`
+  reference: `${Colors.BLUE2}dd`,
 };
 
 
-const get_minmax = array =>  {
-  return {
-    zmin: Math.max(...array),
-    zmax: Math.min(...array)
-  };
-}
 
+// using Math.min(...array) leads to max-stack-exceeded errors on large arrays........
+function get_maxmin(array) {
+    let zmax = -Infinity;
+    let zmin = Infinity;
+    array.forEach(e => {
+        zmin = e < zmin ? e : zmin;
+        zmax = e > zmax ? e : zmax;      
+    })
+    return {zmin, zmax};
+}
 
 var make_traces = function(metrics_over_frames, label) {
   /*
@@ -52,7 +56,7 @@ var make_traces = function(metrics_over_frames, label) {
     },
     name: label,
     legendgroup: label,
-    showlegend: true
+    showlegend: true,
   };
 };
 
@@ -72,11 +76,24 @@ class TofOutputCard extends Component {
       slider_value: last_frame_id,
       show_pointcloud: false,
       showHeatmap: false,
-      output_type: "depth",
+      selected_output_type: "depth",
       focus: 'new',
-      heatmapAxes: { xaxis: {autorange : true}, yaxis: {autorange : "reversed"}},
-      heatmapZscale: {zmin: 0, zmax: 750},
-      heatmapScaleMinMax: {zmin: 0, zmax: 750},
+      heatmapAxes: {
+        xaxis: {
+          autorange : true
+        },
+        yaxis: {
+          autorange: "reversed"
+        }
+      },
+      heatmapZscale: {
+        zmin: 0,
+        zmax: 750
+      },
+      heatmapScaleMinMax: {
+        zmin: 0,
+        zmax: 750
+      },
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
@@ -91,13 +108,15 @@ class TofOutputCard extends Component {
   // keep information about the frame order, we turn frame.outputs_new.frames
   // into a Map (~ordered dict~)
   updateFrames(props) {
+    if (props.output_new === null || props.output_new === undefined)
+      return;
     // we check that the results metric include per-frame information
     // if the tof crashed for instance, they won't be there
     let has_frames_info = props.output_new.metrics.frames !== undefined
     // we will first display the last frame of each recording
     let last_frame_id = has_frames_info ? props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1].frame_path_idx : 0;
 
-    const to_map = output => (output.metrics !== undefined && output.metrics.frames !== undefined)
+    const to_map = output => (output !==undefined && output.metrics !== undefined && output.metrics.frames !== undefined)
                               ? new Map(output.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
                               : new Map();
     const selected_frame = Math.min(last_frame_id, last_frame_id);
@@ -119,53 +138,86 @@ class TofOutputCard extends Component {
 
   componentDidUpdate(prevProps, prevState) {
     if (prevProps.output_new !== this.props.output_new ||
-        prevProps.output_ref !== this.props.output_ref ||
-        prevState.selected_frame !== this.state.selected_frame) {
+        prevProps.output_ref !== this.props.output_ref  ) {
         this.updateFrames(this.props)
     }
-    if (prevState.selected_frame !== this.state.selected_frame ||
-        prevState.output_type !== this.state.output_type ||
-        (this.state.showHeatmap && prevState.newHexData === undefined)) {
+    const { selected_output_type } = this.state;
+    const hex = this.state[selected_output_type] || {is_loading: false, is_loaded: false};
+    let should_load_hex = !hex.is_loaded && !hex.is_loading;
+    if (this.state.showHeatmap && (prevState.selected_frame !== this.state.selected_frame || should_load_hex) ) {
+        // console.log("should_load_hex", should_load_hex)
+        // console.log("hex", hex)
         this.getHexData(this.props);
-    }
-    if (this.state.newHexData && this.state.newHexData.z && prevState.newHexData !== this.state.newHexData) {
-        this.setState({heatmapZscale: get_minmax(this.state.newHexData.z.flat())});
-        this.setState({heatmapScaleMinMax: get_minmax(this.state.newHexData.z.flat())});
     }
   }
   
   
   getHexData(props) {
     const { output_new, output_ref } = props;
-    const { selected_frame, output_type }  = this.state;
+    const { selected_frame, selected_output_type }  = this.state;
     let hex_layout = {
         type: 'heatmap',
         hoverinfo: "x+y+z+name",
         showscale: true,
         colorscale: 'Viridis',      
-        name: `${output_type}`,
+        name: `${selected_output_type}`,
     }
+    this.setState({
+      [selected_output_type]: {is_loaded: false, is_loading: true}
+    })
 
-    get(`${output_new.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
+    get(`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
     .then(response => {
-	  this.setState({
-  	    newHexData: {
-          ...hex_layout,
-          z: parse_hex(response.data).z,
-        }
-	    }) 
+      const newHexData = {
+        ...hex_layout,
+        z: parse_hex(response.data).z,
+      }
+      const z_minmax = get_maxmin(newHexData.z.flat());
+	    this.setState({
+        [selected_output_type]: {
+          ...this.state[selected_output_type],
+  	      newHexData,
+          heatmapZscale: z_minmax,
+          heatmapScaleMinMax: z_minmax,
+	      }
+      }) 
 	  })
-    .catch(e => {console.log(e)});
-    get(`${output_ref.output_dir_url}/Frame${selected_frame}/${output_type}.hex`)
+    .catch(error => {
+      // console.log(this.state);
+      this.setState({
+        [selected_output_type]: {
+          ...this.state[selected_output_type],
+          is_loaded: true,
+          is_loading: false,
+          error: error,
+        }
+      })
+    });
+    get(`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
     .then(response => {
       this.setState({
-        refHexData: {
-          ...hex_layout,
-          z: parse_hex(response.data).z,
+        [selected_output_type]: {
+          ...this.state[selected_output_type],
+          is_loaded: true,
+          is_loading: false,
+          refHexData: {
+            ...hex_layout,
+            z: parse_hex(response.data).z,
+          }
         }
       }) 
     })
-    .catch(e => {console.log(e)});
+    .catch(e => {
+      // console.log("error in Ref")
+      console.log(e)
+      this.setState({
+        [selected_output_type]: {
+          ...this.state[selected_output_type],
+          is_loaded: true,
+          is_loading: false,
+        }
+      })
+    });
   }
   
   getPointcloud(frame_id, label) {
@@ -275,6 +327,145 @@ class TofOutputCard extends Component {
     this.frameId = window.requestAnimationFrame(this.animate);
   };
 
+
+  render() {
+    const { output_new, output_ref } = this.props;
+    const { show_pointcloud, pointclouds, frames, selected_frame, selected_output_type } = this.state;
+    let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
+
+    const empty_metrics = { frames: new Map() };
+    let metrics_new =
+      output_new && output_new.metrics && output_new.metrics.frames
+        ? output_new.metrics
+        : empty_metrics;
+    let metrics_ref =
+      output_ref && output_ref.metrics && output_ref.metrics.frames
+        ? output_ref.metrics
+        : empty_metrics;
+
+    if (!metrics_new || !metrics_ref || !frames) return <span />;
+
+    let has_many_frame = output_new.metrics.frames !== undefined &&  output_new.metrics.frames.length > 1;
+    let has_reference = output_ref !== undefined && output_ref !== null;
+
+    let traces = [
+      make_traces(frames['reference'], "reference"),
+      make_traces(frames['new'], "new"),
+    ];
+    let layout = {
+      height: 150,
+      margin: { l: 50, r: 10, b: 50, t: 50, pad: 5 },
+      xaxis: {
+        title: "frame",
+      },
+      yaxis: {
+        title: "PCMD",
+      },
+      legend: {
+        orientation: "h",
+        bgcolor: "rgba(255,255,255,0.5)",
+        traceorder: "grouped",
+        tracegroupgap: 0
+      },
+      ...(this.props.layout || {})
+    };
+    let heatmaps_layout = {
+      title: `${selected_output_type} @${this.state.focus}`,
+      yaxis: this.state.heatmapAxes.yaxis,
+      xaxis: this.state.heatmapAxes.xaxis,
+      width: 640,
+      height: 564,
+    };
+
+    const { showHeatmap, focus } = this.state;
+    const hex = this.state[selected_output_type] || {is_loaded: false};
+    let show_heatmap = showHeatmap && hex.is_loaded;
+    let  heatmaps_data = show_heatmap ? [{
+      ...(focus === "new" ? hex.newHexData : hex.refHexData),
+      ...this.state.heatmapZscale,
+    }] : []
+    return (
+      <>
+        <p className={Classes.TEXT_MUTED}>
+          {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
+                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
+                        : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
+        </p>
+        <div hidden={!show_pointcloud}
+          ref={threeRoot => {
+            this.threeRoot = threeRoot;
+          }}
+        >
+          {false && is_loaded && this.renderer.render(this.scene, this.camera)}
+        </div>
+
+        {has_many_frame && <Plot data={traces} layout={layout}/>}
+        {has_many_frame && <Slider 
+          max={output_new.metrics.frames.length-1}
+          onChange={(value) => this.setState({slider_value: value, selected_frame: Array.from(frames['new'].keys())[value]})}
+          showTrackFill={false}
+          value={this.state.slider_value}
+          labelRenderer={(value) => Array.from(frames['new'].keys())[value]}
+          labelStepSize={Math.ceil(output_new.metrics.frames.length/20)}
+        />}
+
+        <div>
+          <h4 className={Classes.HEADING}>
+            <a
+              href={`${output_new.output_dir_url}/Frame${selected_frame}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Frame {selected_frame}
+            </a>
+          </h4>
+          {
+            show_heatmap
+            ? (
+                <>
+                  <Plot data={heatmaps_data} layout={heatmaps_layout} />
+                  <div>
+                    {
+                      <RangeSlider 
+                        min = {this.state.heatmapScaleMinMax.zmin} 
+                        max = {this.state.heatmapScaleMinMax.zmax} 
+                        value = {(this.state.heatmapZscale) ? [this.state.heatmapZscale.zmin,this.state.heatmapZscale.zmax] : [0,750]} 
+                        onChange = {([minValue, maxValue]) => this.setState({heatmapZscale: {zmin: minValue, zmax: maxValue}})}
+                        labelStepSize = {(this.state.heatmapScaleMinMax.zmax - this.state.heatmapScaleMinMax.zmin) / 20}
+                        stepSize = {0.1}
+                      />
+                    }
+                  </div>
+                </>
+              )
+            : (
+                <div>
+                  <img width={400} alt="New" src={`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.png`} />
+                  {has_reference && <img width={400} alt="Reference" src={`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.png`} />}
+                </div>
+              )
+          }
+        </div>
+        <div className="viewButtons">
+          <div>
+            <Button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}>{this.state.showHeatmap ? "Show static image" : "Show heatmap"}</Button>
+          </div>
+          <div>
+            <Button onClick={e => {this.setState({selected_output_type: "depth"});}}>Show depth</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"});}}>Show PCMD</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"});}}>Show Abs Error</Button>
+          </div>
+          <div>
+            <Button onClick={e => this.updatePointCloud(selected_frame)}>Show Point Cloud</Button>
+          </div>
+        </div>
+
+        {false && <p>{JSON.stringify(output_new)}</p>}
+      </>
+    );
+  }
+
+
   keyboard = ev => {
     if (this.scene !== undefined){
       var pointcloud_new = this.scene.getObjectByName("new");
@@ -316,10 +507,10 @@ class TofOutputCard extends Component {
       case "R":
         if (this.state.showHeatmap || this.state.show_pointcloud) {
           this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'});
-        }
-        if (pointcloud_ref !== undefined) {
-          pointcloud_ref.visible = !pointcloud_ref.visible;
-          pointcloud_new.visible = !pointcloud_new.visible;          
+          if (pointcloud_ref !== undefined) {
+            pointcloud_ref.visible = !pointcloud_ref.visible;
+            pointcloud_new.visible = !pointcloud_new.visible;          
+          }
         }
         break;
       case "g":
@@ -342,142 +533,6 @@ class TofOutputCard extends Component {
     }
   };
 
-  render() {
-    const { output_new, output_ref } = this.props;
-    const { show_pointcloud, pointclouds, frames, selected_frame } = this.state;
-    let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
-
-    const empty_metrics = { frames: new Map() };
-    let metrics_new =
-      output_new && output_new.metrics && output_new.metrics.frames
-        ? output_new.metrics
-        : empty_metrics;
-    let metrics_ref =
-      output_ref && output_ref.metrics && output_ref.metrics.frames
-        ? output_ref.metrics
-        : empty_metrics;
-
-    if (!metrics_new || !metrics_ref || !frames) return <span />;
-
-    let has_many_frame = output_new.metrics.frames !== undefined &&  output_new.metrics.frames.length > 1;
-    let has_reference = output_ref !== undefined && output_ref !== null;
-
-    let traces = [
-      make_traces(frames['reference'], "reference"),
-      make_traces(frames['new'], "new"),
-    ];
-    let layout = {
-      height: 150,
-      margin: { l: 50, r: 10, b: 50, t: 50, pad: 5 },
-      xaxis: {
-        title: "frame"
-      },
-      yaxis: {
-        title: "PCMD"
-      },
-      legend: {
-        orientation: "h",
-        bgcolor: "rgba(255,255,255,0.5)",
-        traceorder: "grouped",
-        tracegroupgap: 0
-      },
-      ...(this.props.layout || {})
-    };
-    let heatmaps_layout = {
-      title: this.state.focus + " - " + this.state.output_type,
-      yaxis: this.state.heatmapAxes.yaxis,
-      xaxis: this.state.heatmapAxes.xaxis,
-      width: 640,
-      height: 564,
-    };
-    return (
-      <>
-        <p className={Classes.TEXT_MUTED}>
-          {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
-                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
-                        : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
-        </p>
-        <div hidden={!show_pointcloud}
-          ref={threeRoot => {
-            this.threeRoot = threeRoot;
-          }}
-        >
-          {false && is_loaded && this.renderer.render(this.scene, this.camera)}
-        </div>
-
-        {has_many_frame && <Plot data={traces} layout={layout}/>}
-        {has_many_frame && <Slider 
-          max = {output_new.metrics.frames.length-1}
-          onChange = {(value) => this.setState({slider_value: value, selected_frame: Array.from(frames['new'].keys())[value]})}
-          showTrackFill={false}
-          value = {this.state.slider_value}
-          labelRenderer = {(value) => Array.from(frames['new'].keys())[value]}
-          labelStepSize = {Math.ceil(output_new.metrics.frames.length/20)}
-        />}
-
-        <div>
-          <h4 className={Classes.HEADING}>
-            <a
-              href={`${output_new.output_dir_url}/Frame${selected_frame}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Frame {selected_frame}
-            </a>
-          </h4>
-          {
-            this.state.showHeatmap
-            ? (
-                <>
-                  <div>
-                    {
-                      (this.state.focus === "new")
-                        ?  
-                          <Plot data={[{...this.state.newHexData, ...this.state.heatmapZscale }]} layout = {heatmaps_layout}/>
-                        : 
-                          <Plot data={[{...this.state.refHexData, ...this.state.heatmapZscale}]} layout = {heatmaps_layout}/>
-                    }
-                  </div>
-                  <div>
-                    {
-                      <RangeSlider 
-                        min = {this.state.heatmapScaleMinMax.zmin} 
-                        max = {this.state.heatmapScaleMinMax.zmax} 
-                        value = {(this.state.heatmapZscale) ? ([this.state.heatmapZscale.zmin,this.state.heatmapZscale.zmax]) : ([0,750])} 
-                        onChange = {([minValue,maxValue]) => this.setState({heatmapZscale: {zmin: minValue, zmax: maxValue}})}
-                        labelStepSize = {(this.state.heatmapScaleMinMax.zmax - this.state.heatmapScaleMinMax.zmin)/20}
-                        stepSize = {0.1}
-                      />
-                    }
-                  </div>
-                </>
-              )
-            : (
-                <div>
-                  <img width={400} alt="New" src={`${output_new.output_dir_url}/Frame${selected_frame}/${this.state.output_type}.png`} />
-                  {has_reference && <img width={400} alt="Reference" src={`${output_ref.output_dir_url}/Frame${selected_frame}/${this.state.output_type}.png`} />}
-                </div>
-              )
-          }
-        </div>
-        <div className="viewButtons">
-          <div>
-            <Button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}> {this.state.showHeatmap ? ("Show static image") : ("Show heatmap")} </Button>
-          </div>
-          <div>
-            <Button onClick={e => {this.setState({output_type: "depth"});}}> Show depth </Button>
-            <Button onClick={e => {this.setState({output_type: "pcmdHeatmap"});}}> Show PCMD </Button>
-            <Button onClick={e => {this.setState({output_type: "AbsErrHeatmap"});}}> Show Abs Error </Button>
-          </div>
-          <div>
-            <Button onClick={e => this.updatePointCloud(selected_frame)}> Show Point Cloud </Button>
-          </div>
-        </div>
-
-        {false && <p>{JSON.stringify(output_new)}</p>}
-      </>
-    );
-  }
 }
 
 export default TofOutputCard;
