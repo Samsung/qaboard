@@ -350,6 +350,7 @@ class CommitsEvolutionPerTest extends React.Component {
 
       hovered: false,
       hovered_test_input_path: "",
+      hovered_test_configuration: "",
       hovered_label: null,
       hovered_commit: null,
       hovered_commit_ref: null
@@ -357,16 +358,20 @@ class CommitsEvolutionPerTest extends React.Component {
   }
 
   onHover = e => {
-    let { label, test_input_path, commits } = this.state.traces_metadata[
+    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[
       e.points[0].curveNumber
     ];
     let point_number = e.points[0].pointNumber;
+    console.log(point_number)
+    console.log("new", commits[point_number])
+    console.log("ref", point_number < commits.length ? commits[point_number + 1] : null)
     this.setState({
       hovered: true,
       hovered_test_input_path: test_input_path,
+      hovered_test_configuration: configuration,
       hovered_label: label,
       hovered_commit: commits[point_number],
-      hovered_commit_ref: point_number > 0 ? commits[point_number - 1] : null
+      hovered_commit_ref: point_number < commits.length ? commits[point_number + 1] : null,
     });
   };
 
@@ -469,6 +474,7 @@ class CommitsEvolutionPerTest extends React.Component {
             };
             let trace_metadata = {
               test_input_path,
+              configuration,
               label,
               commits: commits_with_output
             };
@@ -498,6 +504,7 @@ class CommitsEvolutionPerTest extends React.Component {
       revision,
       traces,
       hovered_test_input_path,
+      hovered_test_configuration,
       hovered_label,
       hovered_commit,
       hovered_commit_ref
@@ -533,7 +540,7 @@ class CommitsEvolutionPerTest extends React.Component {
     if (this.state.hovered) {
       let hovered_output = Object.values(
         hovered_commit.batches[hovered_label].outputs
-      ).filter(o => o.test_input_path === hovered_test_input_path)[0];
+      ).filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
       if (
         details_on_hover &&
         !!hovered_commit_ref &&
@@ -552,7 +559,7 @@ class CommitsEvolutionPerTest extends React.Component {
           <Tag
             style={{ background: input_test_color(hovered_test_input_path) }}
           >
-            {hovered_test_input_path}
+            {hovered_test_input_path} @{hovered_test_configuration}
           </Tag>
           <Tag style={{ marginLeft: "15px" }}>
             {hovered_label === "default" ? "LSF" : "Android"}
@@ -572,6 +579,7 @@ class CommitsEvolutionPerTest extends React.Component {
               warning={warning}
               style={{ width: '1180px', height: '300px' }}
               no_header={true}
+              dispatch={this.props.dispatch}
             />
           )}
         </div>
@@ -721,6 +729,7 @@ class CommitsEvolution extends Component {
             relative={this.state.relative}
             details_on_hover={details_on_hover}
             available_metrics={available_metrics}
+            dispatch={this.props.dispatch}
           />
         ) : (
           <CommitsEvolutionPerBatch
@@ -732,6 +741,7 @@ class CommitsEvolution extends Component {
             aggregation={selected_aggregation}
             available_metrics={available_metrics}
             per_output_granularity={per_output_granularity}
+            dispatch={this.props.dispatch}
           />
         )}
       </div>

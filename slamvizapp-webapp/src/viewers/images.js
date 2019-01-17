@@ -291,10 +291,10 @@ class ImgViewer extends PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
-    const { shown_image, height, width, error, loaded } = this.state;
+    const { shown_image, height, width } = this.state;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
-    if (error || ! loaded)
-      return <span></span>;
+    // if (!!error)
+    //   return <span>{JSON.stringify(this.state.error)}</span>;
     return <>
       <span>
         <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>

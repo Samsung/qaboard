@@ -94,7 +94,7 @@ class TuningForm extends Component {
   constructor(props) {
     super(props);
     const { cookies } = this.props;
-    let configuration = this.props.project_data.information.qatools_config.inputs.configuration;
+    let configuration = cookies.get("configuration") || this.props.project_data.information.qatools_config.inputs.configuration;
     let default_user = this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
     this.state = {
       submitted: false,

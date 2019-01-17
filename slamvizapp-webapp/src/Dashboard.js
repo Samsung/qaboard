@@ -270,6 +270,7 @@ class Dashboard extends React.Component {
               per_output_granularity
               offer_breakdown_per_test={true}
               style={{ marginTop: "20px" }}
+              dispatch={this.props.dispatch}
             />
           </Card>
         </Section>

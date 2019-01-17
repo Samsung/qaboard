@@ -685,6 +685,9 @@ const mapStateToProps = (state, ownProps) => {
     let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "metrics";
     let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || "output-table-compare";
 
+    // sometimes handy to debug slow viewers..
+    // project_data.information.qatools_config.outputs.detailed_views.forEach(o => {o.default_hidden=true});
+
     return {
       // project information
       project,
