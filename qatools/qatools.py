@@ -53,10 +53,6 @@ def entrypoint_module():
       exit(1)
   return module
 
-# we want open permissions on outputs and artifacts
-# it makes collaboration among mutliple users / automated tools so much easier...
-os.umask(0)
-
 
 @click.group()
 @click.pass_context
@@ -78,6 +74,9 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
       click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
       os.chdir(root_qatools)
 
+  # we want open permissions on outputs and artifacts
+  # it makes collaboration among mutliple users / automated tools so much easier...
+  os.umask(0)
 
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
@@ -146,11 +145,15 @@ def run(ctx, input_path, output_path, forwarded_args):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
+    if input_path.is_absolute():
+        click.secho(f"[ERROR] the input should be given as a relative path.", fg='red')
+        exit(1)
+    absolute_input_path = ctx.obj['database'] / input_path
+    if not absolute_input_path.exists():
+        click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
+        exit(1)
+
     if not output_path:
-        abs_input_path = ctx.obj['database'] / input_path
-        if not abs_input_path.exists():
-            click.secho(f"[ERROR] {abs_input_path} cannot be found", fg='red')
-            exit(1)
         output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
     else:
         # FIXME: if output_path is absolute, it should be just output_path?
@@ -160,7 +163,7 @@ def run(ctx, input_path, output_path, forwarded_args):
     shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
-    ctx.obj['output_directory'] =  output_directory
+    ctx.obj['output_directory'] = output_directory.resolve()
     ctx.obj['input_path'] =  input_path
     ctx.obj['forwarded_args'] = forwarded_args
     if not ctx.obj['no_qa_database']:
@@ -189,6 +192,20 @@ def run(ctx, input_path, output_path, forwarded_args):
     else:
       click.secho(str(metrics), fg='green')      
 
+
+    from .utils import file_info
+    # To help identify if input files change, we compute and save some metadata.
+    if absolute_input_path.is_dir():
+      input_files = {path.as_posix(): file_info(path) for path in absolute_input_path.rglob('*') if path.is_file()}
+    else:
+      input_files = {absolute_input_path.as_posix(): file_info(absolute_input_path)}      
+    with (output_directory / 'manifest.inputs.json').open('w') as f:
+      json.dump(input_files, f, indent=2)
+
+    # To help the UI application know what results we created, we save the complete list.
+    output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if path.is_file()}
+    with (output_directory / 'manifest.outputs.json').open('w') as f:
+      json.dump(output_files, f, indent=2)
 
 def postprocess_(runtime_metrics, context):
   """Computes computes various success metrics and outputs."""
@@ -299,7 +316,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], config, globs=ctx.obj['inputs_globs']):
     input_path = input_path_abs.relative_to(ctx.obj['database'])
-    click.secho(str(input_path), fg='blue', dim=True, err=True)
+    click.secho(str(input_path), fg='blue', err=True)
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:

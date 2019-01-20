@@ -1,10 +1,11 @@
 """
 Utilities related to CI: contacting the results database, naming conventions... 
 """
-import hashlib
+import os
 import json
 import yaml
 from pathlib import Path
+import hashlib
 import re
 import fnmatch
 
@@ -16,6 +17,22 @@ class PathType(click.ParamType):
   name = 'path'
   def convert(self, value, param, ctx):
     return Path(value)
+
+def file_info(path):
+  """Return metadata about a file."""
+  md5 = hashlib.md5()
+  block_size = 2**20
+  with path.open('rb') as f:
+    while True:
+      data = f.read(block_size)
+      if not data: break
+      md5.update(data)
+  stats = os.stat(path)
+  return {
+    "st_mtime_ns": stats.st_mtime_ns,
+    "st_size": stats.st_size,
+    "md5": md5.hexdigest(),
+  }
 
 def latest_commit(repo, branch):
     """Returns the latest commit on a branch."""

@@ -48,8 +48,10 @@ def assert_bit_accurate_to(reference_commit):
     
     print(f"Current output directory  : {output_directory}")
     print(f"Reference output directory: {reference_output_directory}")
+    patterns = [*config["bit_accuracy"]["patterns"], 'manifest.inputs.json']
+    print(patterns)
     return compare_folders(
         dir_1=reference_output_directory,
         dir_2=output_directory,
-        patterns=config["bit_accuracy"]["patterns"],
+        patterns=patterns,
     )
