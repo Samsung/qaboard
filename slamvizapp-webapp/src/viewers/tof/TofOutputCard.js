@@ -479,7 +479,7 @@ class TofOutputCard extends Component {
         if (pointcloud_new !== undefined) {
           pointcloud_new.material.size *= 1.25;
           pointcloud_new.material.needsUpdate = true;
-          console.log(pointcloud_new.material.size)
+          console.log(pointcloud_new.material.size);
         }
         if (pointcloud_ref !== undefined) {
           pointcloud_ref.material.size *= 1.25;
