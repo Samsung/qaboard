@@ -238,7 +238,7 @@ class TofOutputCard extends Component {
         if (previous_pointcloud) 
           this.scene.remove(previous_pointcloud);
         pointcloud.name = label;
-        pointcloud.material.size = 1
+        pointcloud.material.size = 1;
         if (label === "reference") {
           pointcloud.visible = false;
         }
