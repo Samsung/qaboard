@@ -3,44 +3,42 @@ import Plot from 'react-plotly.js';
 import * as THREE from "three";
 import { PCDLoader } from "./PCDLoader";
 import { OrbitControls } from "./OrbitControls";
+import { PointerLockControls } from "./PointerLockControls";
 
 import { Classes, Colors, Button, RangeSlider, Slider } from "@blueprintjs/core";
 import { get } from "axios";
 import { parse_hex } from "./Sys_Tools"
 
 const aspect_ratio = 4 / 3;
-const width = 640; // full screen would be window.innerWidth;
+const width = 640;                   // full screen would be window.innerWidth;
 const height = width / aspect_ratio; // full screen would be window.innerHeight;
 
 
-const colors = {
-  groundtruth: `${Colors.GREEN2}dd`,
-  new: `${Colors.ORANGE2}dd`,
-  reference: `${Colors.BLUE2}dd`,
-};
 
 
 
-// using Math.min(...array) leads to max-stack-exceeded errors on large arrays........
-function get_maxmin(array) {
+// Using Math.min(...array) leads to max-stack-exceeded errors on large arrays.
+function maxmin(array) {
     let zmax = -Infinity;
     let zmin = Infinity;
     array.forEach(e => {
-        zmin = e < zmin ? e : zmin;
-        zmax = e > zmax ? e : zmax;      
+      if (e < zmin) zmin = e;
+      if (e > zmin) zmax = e;
     })
     return {zmin, zmax};
 }
 
-var make_traces = function(metrics_over_frames, label) {
-  /*
-  Parameters:
-    metrics_over_frames: Map
-    label: string
-  */
+
+const colors = {
+  new: `${Colors.ORANGE2}dd`,
+  reference: `${Colors.BLUE2}dd`,
+  groundtruth: `${Colors.GREEN2}dd`,
+};
+
+// Creates plotly traces for the plot displaying metrics over frames.
+const make_metric_trace = function(metrics_over_frames /*: Map*/, label) {
   if (metrics_over_frames === undefined)
     return [];
-
   return {
     type: "scatter",
     mode: "lines+markers",
@@ -48,7 +46,8 @@ var make_traces = function(metrics_over_frames, label) {
     y: Array.from(metrics_over_frames.values()).map(m => m.pcmd),
     line: {
       color: colors[label],
-      width: label === "reference" ? 3 : 2, // ref wider to highlight bit accuracy
+      // the reference is wider to highlight bit accuracy
+      width: label === "reference" ? 3 : 2,
     },
     marker: {
       color: colors[label],
@@ -61,53 +60,77 @@ var make_traces = function(metrics_over_frames, label) {
 };
 
 
-// References for the threejs integration:
-// https://stackoverflow.com/questions/41248287/how-to-connect-threejs-to-react
-// https://itnext.io/how-to-use-plain-three-js-in-your-react-apps-417a79d926e0
 class TofOutputCard extends Component {
   constructor(props) {
     super(props);
+    // References for the ThreeJS integration:
+    // https://stackoverflow.com/questions/41248287/how-to-connect-threejs-to-react
+    // https://itnext.io/how-to-use-plain-three-js-in-your-react-apps-417a79d926e0
+
+    // This is a reference to the <canvas/> element used to render with ThreeJS
     this.threeRoot = React.createRef();
 
+    // Those are used when navigating the pointcloud with the WASD keys
+    // We them manage them outside of the React state - it avoids overhead, updates or re-renders.
+    this.moveForward = false;
+    this.moveBackward = false;
+    this.moveLeft = false;
+    this.moveRight = false;
+    this.prevTime = performance.now();
+    this.direction = new THREE.Vector3();
+    this.velocity = new THREE.Vector3();
+
     let last_frame_id = 0 // default
+    let first_frame_id = 0 // default
     this.state = {
+      first_frame_id,
       last_frame_id,
       selected_frame: last_frame_id,
-      slider_value: last_frame_id,
-      show_pointcloud: false,
-      showHeatmap: false,
-      selected_output_type: "depth",
+
+      // should we show the new or the reference ouput?
       focus: 'new',
-      heatmapAxes: {
-        xaxis: {
-          autorange : true
-        },
-        yaxis: {
-          autorange: "reversed"
-        }
-      },
-      heatmapZscale: {
-        zmin: 0,
-        zmax: 750
-      },
-      heatmapScaleMinMax: {
-        zmin: 0,
-        zmax: 750
-      },
+
+      show_pointcloud: false,
+      control: 'orbit',
       pointclouds: {
         [last_frame_id]: {
           is_loaded: false,
           new: null,
           reference: null,
         }
-      }
+      },
+
+      show_heatmap: false,
+      heatmap : {
+        axes: {
+          xaxis: {
+            autorange : true
+          },
+          yaxis: {
+            autorange: "reversed"
+          }
+        },
+        zscale: {
+          zmin: 0,
+          zmax: 750,
+        },
+        scaleMinMax: {
+          zmin: 0,
+          zmax: 750
+        },        
+      },
+
+      // the heatmap can display different sorts of data
+      selected_output_type: "depth",
+      depth: {
+      },
+
     };
   }
 
-  // to access information about each frame and
-  // keep information about the frame order, we turn frame.outputs_new.frames
-  // into a Map (~ordered dict~)
-  updateFrames(props) {
+  // To access information about each frame and keep information about the frame order,
+  // we turn frame.outputs_new.frames into a Map (~ordered dict~)
+  updateFrames(props, keep_selected_frame) {
     if (props.output_new === null || props.output_new === undefined)
       return;
     // we check that the results metric include per-frame information
@@ -115,15 +138,19 @@ class TofOutputCard extends Component {
     let has_frames_info = props.output_new.metrics.frames !== undefined
     // we will first display the last frame of each recording
     let last_frame_id = has_frames_info ? props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1].frame_path_idx : 0;
+    let first_frame_id = has_frames_info ? props.output_new.metrics.frames[0].frame_path_idx : 0;
 
     const to_map = output => (output !==undefined && output.metrics !== undefined && output.metrics.frames !== undefined)
                               ? new Map(output.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
                               : new Map();
-    const selected_frame = Math.min(last_frame_id, last_frame_id);
+
+    const selected_frame = keep_selected_frame
+                           ? Math.max(Math.min(this.state.selected_frame, last_frame_id), first_frame_id)
+                           : last_frame_id;
     this.setState({
+        first_frame_id,
         last_frame_id,
         selected_frame,
-        slider_value: selected_frame,
         frames: {
             new: to_map(props.output_new),
             reference: to_map(props.output_ref),
@@ -132,23 +159,19 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
-    window.addEventListener("keypress", this.keyboard);
+    window.addEventListener("keypress", this.keypress);
     this.updateFrames(this.props);
   }
 
   componentDidUpdate(prevProps, prevState) {
-    if (prevProps.output_new !== this.props.output_new ||
-        prevProps.output_ref !== this.props.output_ref  ) {
-        this.updateFrames(this.props)
-    }
+    let outputs_changed = prevProps.output_new !== this.props.output_new || prevProps.output_ref !== this.props.output_ref;
+    if (outputs_changed)
+        this.updateFrames(this.props, /*keep_selected_frame=*/prevProps.output_new.test_input_path === this.props.output_new.test_input_path)
     const { selected_output_type } = this.state;
-    const hex = this.state[selected_output_type] || {is_loading: false, is_loaded: false};
+    const hex = (this.state[selected_output_type] || {})[this.state.selected_frame] || {is_loading: false, is_loaded: false};
     let should_load_hex = !hex.is_loaded && !hex.is_loading;
-    if (this.state.showHeatmap && (prevState.selected_frame !== this.state.selected_frame || should_load_hex) ) {
-        // console.log("should_load_hex", should_load_hex)
-        // console.log("hex", hex)
+    if (this.state.show_heatmap && (should_load_hex || outputs_changed) )
         this.getHexData(this.props);
-    }
   }
   
   
@@ -157,13 +180,16 @@ class TofOutputCard extends Component {
     const { selected_frame, selected_output_type }  = this.state;
     let hex_layout = {
         type: 'heatmap',
+        name: `${selected_output_type}`,
         hoverinfo: "x+y+z+name",
         showscale: true,
         colorscale: 'Viridis',      
-        name: `${selected_output_type}`,
     }
     this.setState({
-      [selected_output_type]: {is_loaded: false, is_loading: true}
+      [selected_output_type]: {
+        ...this.state[selected_output_type],
+        [selected_frame]: {is_loaded: false, is_loading: true}
+      }
     })
 
     get(`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
@@ -172,24 +198,32 @@ class TofOutputCard extends Component {
         ...hex_layout,
         z: parse_hex(response.data).z,
       }
-      const z_minmax = get_maxmin(newHexData.z.flat());
+      const z_minmax = maxmin(newHexData.z.flat());
 	    this.setState({
+        heatmap: {
+          ...this.state.heatmap,
+          zscale: z_minmax,
+          scaleMinMax: z_minmax,
+        },
         [selected_output_type]: {
           ...this.state[selected_output_type],
-  	      newHexData,
-          heatmapZscale: z_minmax,
-          heatmapScaleMinMax: z_minmax,
+  	      [selected_frame]: {
+            ...this.state[selected_output_type][selected_frame],
+            newHexData,
+          },
 	      }
       }) 
 	  })
     .catch(error => {
-      // console.log(this.state);
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
-          is_loaded: true,
-          is_loading: false,
-          error: error,
+          [selected_frame]: {
+            ...this.state[selected_output_type][selected_frame],
+            is_loaded: true,
+            is_loading: false,
+            error: error,
+          },
         }
       })
     });
@@ -198,23 +232,28 @@ class TofOutputCard extends Component {
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
-          is_loaded: true,
-          is_loading: false,
-          refHexData: {
-            ...hex_layout,
-            z: parse_hex(response.data).z,
+          [selected_frame]: {
+            ...this.state[selected_output_type][selected_frame],
+            is_loaded: true,
+            is_loading: false,
+            refHexData: {
+              ...hex_layout,
+              z: parse_hex(response.data).z,
+            },
           }
         }
       }) 
     })
     .catch(e => {
-      // console.log("error in Ref")
       console.log(e)
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
-          is_loaded: true,
-          is_loading: false,
+          [selected_frame]: {
+            ...this.state[selected_output_type][selected_frame],
+            is_loaded: true,
+            is_loading: false,
+          },
         }
       })
     });
@@ -238,14 +277,15 @@ class TofOutputCard extends Component {
         if (previous_pointcloud) 
           this.scene.remove(previous_pointcloud);
         pointcloud.name = label;
-        if (label === "reference") {
+        if (label === "reference")
           pointcloud.visible = false;
-        }
         else if (label === "new") {
           var center = pointcloud.geometry.boundingSphere.center;
           this.camera.position.z = center.y;
-          this.controls.target.set(center.x, center.y, center.z);
-          this.controls.update();
+          if (this.state.control==='orbit') {
+            this.controls.target.set(center.x, center.y, center.z);
+            this.controls.update();            
+          }
         }
         else if (label === "groundtruth") {
           pointcloud.visible = false;
@@ -262,7 +302,7 @@ class TofOutputCard extends Component {
           [frame_id]: {
             ...previousState.pointclouds[frame_id],
             is_loaded: true,
-            [label]: pointcloud
+            [label]: pointcloud,
           }
         }
       }));
@@ -275,8 +315,26 @@ class TofOutputCard extends Component {
       this.stopPointCloud();
       this.threeRoot.removeChild(this.renderer.domElement);      
       // window.removeEventListenner(this.keyboard)
+      // window.removeEventListenner(this.click)
     }
   }
+
+  setControls(control) {
+    if (control === 'orbit') {
+      if (!!this.controls && !!this.controls.unlock) this.controls.unlock();
+      // https://threejs.org/docs/#examples/controls/OrbitControls
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.25;
+      this.controls.screenSpacePanning = false;
+      this.controls.minDistance = 1;
+      this.controls.maxDistance = 5 * 1000;
+    } else {
+      this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
+      this.controls.lock();
+      this.prevTime = performance.now();
+    }
+  } 
 
   startPointCloud() {
     this.scene = new THREE.Scene();
@@ -285,25 +343,21 @@ class TofOutputCard extends Component {
       antialias: true,
       alpha: true
     });
-    this.renderer.setSize(width, height);
     this.camera.up.set(0, -1, 0);
+    this.renderer.setSize(width, height);
 
-    // https://threejs.org/docs/#examples/controls/OrbitControls
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.25;
-    this.controls.screenSpacePanning = false;
-    this.controls.minDistance = 1;
-    this.controls.maxDistance = 5 * 1000;
+    this.renderer.domElement.setAttribute("tabindex", 0); // listen to keyboard events
+    window.addEventListener("keyup", this.keyboard);
+    this.renderer.domElement.addEventListener("keydown", this.keyup);
+    this.renderer.domElement.addEventListener("keyup", this.keydown);
+    this.renderer.domElement.addEventListener("click", this.click);
+    this.setControls('orbit')
 
     while (this.threeRoot.hasChildNodes()) {
       this.threeRoot.removeChild(this.threeRoot.lastChild);
     }
     this.threeRoot.appendChild(this.renderer.domElement);
-
-    if (!this.frameId) {
-      this.frameId = requestAnimationFrame(this.animate);
-    }
+    if (!this.frameId) this.frameId = requestAnimationFrame(this.animate);
   }
 
   updatePointCloud(selected_frame) {
@@ -314,7 +368,7 @@ class TofOutputCard extends Component {
     this.getPointcloud(selected_frame, "new");
     this.getPointcloud(selected_frame, "reference");
     this.getPointcloud(selected_frame, "groundtruth");
-    this.setState({ selected_frame });
+    this.setState({selected_frame});
   }
 
   stopPointCloud() {
@@ -322,7 +376,34 @@ class TofOutputCard extends Component {
   }
 
   animate = () => {
-    this.controls.update();
+    if (this.state.control === 'orbit') {
+      this.controls.update();
+    } else {
+      let time = performance.now();
+      let delta = ( time - this.prevTime ) / 1000;
+      this.prevTime = time;
+
+      this.velocity.x -= this.velocity.x * 10.0 * delta;
+      this.velocity.z -= this.velocity.z * 10.0 * delta;
+      this.velocity.y -= this.velocity.y * 10.0 * delta;
+
+      this.direction.z = Number( this.moveForward ) - Number( this.moveBackward );
+      this.direction.x = Number( this.moveLeft ) - Number( this.moveRight );
+      this.direction.normalize(); // this ensures consistent movements in all directions
+      if ( this.moveForward || this.moveBackward ) this.velocity.z -= this.direction.z * 400.0 * delta;
+      if ( this.moveLeft || this.moveRight ) this.velocity.x -= this.direction.x * 400.0 * delta;
+
+
+      this.controls.getObject().translateX(this.velocity.x * delta);
+      this.controls.getObject().translateY(this.velocity.y * delta);
+      this.controls.getObject().translateZ(this.velocity.z * delta);
+
+      if (this.moveForward) this.velocity.z -= 400.0 * delta;
+      if (this.moveBackward) this.velocity.z += 400.0 * delta;
+      if (this.moveLeft) this.velocity.x -= 400.0 * delta;
+      if (this.moveRight) this.velocity.x += 400.0 * delta;    
+    }
+
     this.renderer.render(this.scene, this.camera);
     this.frameId = window.requestAnimationFrame(this.animate);
   };
@@ -330,7 +411,8 @@ class TofOutputCard extends Component {
 
   render() {
     const { output_new, output_ref } = this.props;
-    const { show_pointcloud, pointclouds, frames, selected_frame, selected_output_type } = this.state;
+    const { selected_frame, frames, first_frame_id, last_frame_id } = this.state;
+    const { show_pointcloud, pointclouds, selected_output_type } = this.state;
     let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
 
     const empty_metrics = { frames: new Map() };
@@ -348,11 +430,11 @@ class TofOutputCard extends Component {
     let has_many_frame = output_new.metrics.frames !== undefined &&  output_new.metrics.frames.length > 1;
     let has_reference = output_ref !== undefined && output_ref !== null;
 
-    let traces = [
-      make_traces(frames['reference'], "reference"),
-      make_traces(frames['new'], "new"),
+    let metric_traces = [
+      make_metric_trace(frames['reference'], "reference"),
+      make_metric_trace(frames['new'], "new"),
     ];
-    let layout = {
+    let metric_layout = {
       height: 150,
       margin: { l: 50, r: 10, b: 50, t: 50, pad: 5 },
       xaxis: {
@@ -371,19 +453,19 @@ class TofOutputCard extends Component {
     };
     let heatmaps_layout = {
       title: `${selected_output_type} @${this.state.focus}`,
-      yaxis: this.state.heatmapAxes.yaxis,
-      xaxis: this.state.heatmapAxes.xaxis,
+      ...this.state.heatmap.axes,
       width: 640,
       height: 564,
     };
 
-    const { showHeatmap, focus } = this.state;
-    const hex = this.state[selected_output_type] || {is_loaded: false};
-    let show_heatmap = showHeatmap && hex.is_loaded;
-    let  heatmaps_data = show_heatmap ? [{
+    const { focus } = this.state;
+    const hex = this.state[selected_output_type][selected_frame] || {is_loaded: false};
+    let show_heatmap = this.state.show_heatmap && hex.is_loaded;
+    let  heatmaps_data = this.state.show_heatmap ? [{
       ...(focus === "new" ? hex.newHexData : hex.refHexData),
-      ...this.state.heatmapZscale,
+      ...this.state.heatmap.zscale,
     }] : []
+
     return (
       <>
         <p className={Classes.TEXT_MUTED}>
@@ -391,23 +473,27 @@ class TofOutputCard extends Component {
                         ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
                         : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
         </p>
-        <div hidden={!show_pointcloud}
-          ref={threeRoot => {
-            this.threeRoot = threeRoot;
-          }}
-        >
-          {false && is_loaded && this.renderer.render(this.scene, this.camera)}
-        </div>
+        <div hidden={!show_pointcloud} ref={threeRoot => {this.threeRoot = threeRoot;}}> </div>
 
-        {has_many_frame && <Plot data={traces} layout={layout}/>}
-        {has_many_frame && <Slider 
-          max={output_new.metrics.frames.length-1}
-          onChange={(value) => this.setState({slider_value: value, selected_frame: Array.from(frames['new'].keys())[value]})}
-          showTrackFill={false}
-          value={this.state.slider_value}
-          labelRenderer={(value) => Array.from(frames['new'].keys())[value]}
-          labelStepSize={Math.ceil(output_new.metrics.frames.length/20)}
-        />}
+        {has_many_frame && <>
+          <Plot data={metric_traces} layout={metric_layout}/>}
+          <Slider 
+            min={first_frame_id}
+            max={last_frame_id}
+            onChange={selected_frame => {
+              // we check that the frame exists, otherwise we don't update anything...
+              if (!!frames['new'].get(selected_frame)) {
+                this.setState({selected_frame})
+                if (this.state.show_pointcloud)
+                  this.updatePointCloud(selected_frame);
+              }
+            }}
+            value={selected_frame}
+            labelRenderer={idx => idx}
+            labelStepSize={Math.ceil(output_new.metrics.frames.length / 20)}
+            showTrackFill={false}
+          />
+        </>}
 
         <div>
           <h4 className={Classes.HEADING}>
@@ -421,50 +507,121 @@ class TofOutputCard extends Component {
           </h4>
           {
             show_heatmap
-            ? (
-                <>
-                  <Plot data={heatmaps_data} layout={heatmaps_layout} />
-                  <div>
-                    {
-                      <RangeSlider 
-                        min = {this.state.heatmapScaleMinMax.zmin} 
-                        max = {this.state.heatmapScaleMinMax.zmax} 
-                        value = {(this.state.heatmapZscale) ? [this.state.heatmapZscale.zmin,this.state.heatmapZscale.zmax] : [0,750]} 
-                        onChange = {([minValue, maxValue]) => this.setState({heatmapZscale: {zmin: minValue, zmax: maxValue}})}
-                        labelStepSize = {(this.state.heatmapScaleMinMax.zmax - this.state.heatmapScaleMinMax.zmin) / 20}
-                        stepSize = {0.1}
-                      />
-                    }
-                  </div>
-                </>
-              )
-            : (
+            ? <>
+                <Plot data={heatmaps_data} layout={heatmaps_layout} />
                 <div>
-                  <img width={400} alt="New" src={`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.png`} />
-                  {has_reference && <img width={400} alt="Reference" src={`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.png`} />}
+                  <RangeSlider
+                    min={this.state.heatmap.scaleMinMax.zmin} 
+                    max={this.state.heatmap.scaleMinMax.zmax} 
+                    value={[this.state.heatmap.zscale.zmin, this.state.heatmap.zscale.zmax]} 
+                    onChange={ ([zmin, zmax]) => this.setState({
+                        heatmap: {
+                          ...this.state.heatmap,
+                          zscale: {zmin, zmax},
+                        } 
+                      })
+                    }
+                    labelStepSize={(this.state.heatmap.scaleMinMax.zmax - this.state.heatmap.scaleMinMax.zmin) / 20}
+                    stepSize={0.1}
+                  />
                 </div>
-              )
+              </>
+            : <div>
+                <img width={400} alt="New" src={`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.png`} />
+                {has_reference && <img width={400} alt="Reference" src={`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.png`} />}
+              </div>
           }
         </div>
         <div className="viewButtons">
           <div>
-            <Button onClick={e => this.setState({showHeatmap: !this.state.showHeatmap})}>{this.state.showHeatmap ? "Show static image" : "Show heatmap"}</Button>
+            <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (hex.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>
           </div>
           <div>
-            <Button onClick={e => {this.setState({selected_output_type: "depth"});}}>Show depth</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"});}}>Show PCMD</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"});}}>Show Abs Error</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
           </div>
           <div>
-            <Button onClick={e => this.updatePointCloud(selected_frame)}>Show Point Cloud</Button>
+            <Button onClick={e => {
+              if (!show_pointcloud)
+                this.updatePointCloud(selected_frame)
+              else
+                this.setState({show_pointcloud: false})                
+            }}>
+              {!show_pointcloud ? "Show Point Cloud"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
+            </Button>
           </div>
         </div>
-
-        {false && <p>{JSON.stringify(output_new)}</p>}
       </>
     );
   }
 
+  // Toggles the component's focus in order to receive keyboard events.
+  // When the component is focused, WASD keys control the viewpoint, otherwise we use the standard "orbit" controls.
+  click = ev => {
+    if (!!!this.renderer || !!!this.renderer.domElement)
+      return
+    this.renderer.domElement.focus();
+  }
+
+  keydown = ev => {
+    console.log('keydown', ev)
+    if (!!this.renderer && this.renderer.domElement === document.activeElement) {
+      switch (ev.keyCode) {
+        case 38: // up
+        case 87: // w
+          this.moveForward = true;
+          break;
+        case 37: // left
+        case 65: // a
+          this.moveLeft = true;
+          break;
+        case 40: // down
+        case 83: // s
+          this.moveBackward = true;
+          break;
+        case 39: // right
+        case 68: // d
+          this.moveRight = true;
+          break;
+        case 67: // c
+        case 16: // 16
+          let control = this.state.control === "pointerlock" ? 'orbit' : 'pointerlock';
+          console.log(`... change controls to ${control}`)
+          this.setControls(control)
+          this.setState({control})
+          break;
+        default:
+          return;
+      }
+    };    
+  }
+
+  keyup = ev => {
+    console.log('keyup', ev)
+    if (!!this.renderer && this.renderer.domElement === document.activeElement) {
+      switch (ev.keyCode) {
+        case 38: // up
+        case 87: // w
+          this.moveForward = false;
+          break;
+        case 37: // left
+        case 65: // a
+          this.moveLeft = false;
+          break;
+        case 40: // down
+        case 83: // s
+          this.moveBackward = false;
+          break;
+        case 39: // right
+        case 68: // d
+          this.moveRight = false;
+          break;
+        default:
+          return;
+      }
+    };    
+  }
 
   keyboard = ev => {
     if (this.scene !== undefined){
@@ -505,13 +662,12 @@ class TofOutputCard extends Component {
         break;
       case "r":
       case "R":
-        if (this.state.showHeatmap || this.state.show_pointcloud) {
-          this.setState({focus: this.state.focus === 'new' ? 'reference' : 'new'});
-          if (pointcloud_ref !== undefined) {
-            pointcloud_ref.visible = !pointcloud_ref.visible;
-            pointcloud_new.visible = !pointcloud_new.visible;          
-          }
-        }
+        let focus = this.state.focus === 'new' ? 'reference' : 'new';
+        this.setState({focus})
+        if (pointcloud_new !== undefined)
+          pointcloud_ref.visible = focus === 'new';
+        if (pointcloud_ref !== undefined)
+          pointcloud_ref.visible = focus === 'reference';
         break;
       case "g":
         if (pointcloud_ref !== undefined) {
@@ -528,8 +684,6 @@ class TofOutputCard extends Component {
         break;
       default:
         return;
-      // todo:
-      // - use directionnal arrows to change point of view
     }
   };
 
