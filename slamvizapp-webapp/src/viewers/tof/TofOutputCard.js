@@ -277,7 +277,8 @@ class TofOutputCard extends Component {
         if (previous_pointcloud) 
           this.scene.remove(previous_pointcloud);
         pointcloud.name = label;
-        if (label === "reference")
+        pointcloud.material.size = 0.01;
+        if (label === "reference") {
           pointcloud.visible = false;
         else if (label === "new") {
           var center = pointcloud.geometry.boundingSphere.center;
@@ -635,6 +636,7 @@ class TofOutputCard extends Component {
         if (pointcloud_new !== undefined) {
           pointcloud_new.material.size *= 1.25;
           pointcloud_new.material.needsUpdate = true;
+          //console.log(pointcloud_new.material.size);
         }
         if (pointcloud_ref !== undefined) {
           pointcloud_ref.material.size *= 1.25;
