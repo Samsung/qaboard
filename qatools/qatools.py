@@ -22,17 +22,24 @@ from .utils import iter_parameters, iter_recordings
 from .utils import PathType
 from .utils import make_hash
 
-# The `init` command is implemented in config.py
+# The `qa init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
+from .config import config_has_error 
 from .config import config, database, platform
 from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci
 
 
-entrypoint = Path(config['project']['entrypoint'])
+entrypoint = config['project'].get('entrypoint')
 def entrypoint_module():
   """Lazily returns the entrypoint module"""
+  if not entrypoint:
+    click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
+    click.secho(f'Add to qatools.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
+    exit(1)
+  else:
+    entrypoint = Path(entrypoint)
   # TODO: make this lazy, so that qa starts without loading lots of big packages
   # used in the entrypoint like numpy scipy etc
   try:
@@ -57,7 +64,7 @@ def entrypoint_module():
 @click.group()
 @click.pass_context
 @click.option('--platform', default=platform)
-@click.option('--configuration', default=config['inputs']['configuration'], help="Load an additional partial configurations (eg $configuration.json).")
+@click.option('--configuration', default=config.get('inputs', {}).get('configuration', "default"), help="Load an additional partial configurations (eg $configuration.json).")
 @click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
@@ -69,6 +76,9 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
+  if config_has_error:
+    exit(1)
+
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   if root_qatools != Path().resolve() and not will_show_help:
       click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
@@ -284,7 +294,7 @@ def sync(ctx, input_path, output_path):
     ignore_unknown_options=True,
 ))
 @click.option('--group', '-g', multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
+@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
@@ -292,10 +302,10 @@ def sync(ctx, input_path, output_path):
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
-@click.option('--lsf-threads', default=config['lsf'].get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
-@click.option('--lsf-memory', default=config['lsf'].get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
-@click.option('--lsf-sequential/--lsf-parallel', default=config['lsf'].get('sequential', False), help="Run locally, dont use LSF")
-@click.option('--action-on-existing', default=config['outputs'].get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
+@click.option('--lsf-threads', default=config.get('lsf', {}).get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
+@click.option('--lsf-memory', default=config.get('lsf', {}).get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--lsf-sequential/--lsf-parallel', default=config.get('lsf', {}).get('sequential', False), help="Run locally, dont use LSF")
+@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, lsf_sequential, action_on_existing, forwarded_args):
@@ -399,7 +409,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     ignore_unknown_options=True,
 ))
 @click.option('--group', '-g', required=True, multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=config['inputs']['groups'], help="YAML file listing groups of recordings selected from the database.")
+@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -515,6 +525,8 @@ def save_artifacts():
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
   # default artifacts
+  if 'artifacts' not in config:
+    config['artifacts'] = {}  
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
   # we also allow sub-qatools-projects
@@ -557,7 +569,7 @@ def save_artifacts():
 @cli.command()
 @click.option(
     "--reference-branch",
-    default=config['project']['reference_branch'],
+    default=config['project'].get('reference_branch', 'master'),
 )
 def check_bit_accuracy(reference_branch):
     """
@@ -568,7 +580,7 @@ def check_bit_accuracy(reference_branch):
     from .config import commit, commit_branch, repo
     from .bit_accuracy import assert_bit_accurate_to
 
-    if config["project"]["type"] != "git":
+    if config["project"].get("type", 'git') != "git":
         click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
         exit(1)
 
