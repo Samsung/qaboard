@@ -29,7 +29,7 @@ class Priority:
 class Job:
     """Wraps LSF jobs for convenience."""
 
-    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000, max_threads=0, max_memory=0):
+    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000, max_threads=0, max_memory=0, sequential=False):
         self.name = str(name).replace(" ", "-").replace('"','')
         self.command = command
         self.log_file = log_dir / "log.txt"
@@ -37,6 +37,7 @@ class Job:
         self.priority = priority  # max: 4000, LSF-default: 2000
         self.max_threads = max_threads
         self.max_memory = max_memory #in MB
+        self.sequential = sequential
 
     def send(
         self, dependencies=None, interactive=False
@@ -44,7 +45,7 @@ class Job:
         """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
-        if on_windows:
+        if on_windows or self.sequential:
             out = subprocess.run(
                 self.command,
                 shell=True,

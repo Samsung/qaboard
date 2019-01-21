@@ -294,13 +294,13 @@ def sync(ctx, input_path, output_path):
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--lsf-threads', default=config['lsf'].get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-memory', default=config['lsf'].get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--lsf-sequential/--lsf-parallel', default=config['lsf'].get('sequential', False), help="Run locally, dont use LSF")
 @click.option('--action-on-existing', default=config['outputs'].get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, action_on_existing, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, lsf_sequential, action_on_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
-
   running_jobs_names = running_lsf_job_names()
   def not_started(output_directory):
     is_done = (output_directory/'metrics.json').exists()
@@ -350,7 +350,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       ])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory))
+      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory, lsf_sequential))
       output_directories.append(output_directory)
 
       if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
