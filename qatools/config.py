@@ -60,9 +60,8 @@ def find_qatools_configs(path):
             qatools_config_paths.append(qatools_config_path)
             if qatools_config.get('root'): break
     qatools_configs.reverse() 
-    qatools_config_paths.reverse() 
+    qatools_config_paths.reverse()
     return qatools_configs, qatools_config_paths
-
 
 
 qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
@@ -74,11 +73,9 @@ if not qatools_configs:
         dim=True, err=True)
     config_has_error = True
 
-
 def merge(qatools_configs):
     """Merge qatools configurations 2-level deep"""
     config = {}
-    qatools_configs.reverse()
     for c in qatools_configs:
         for key, value in c.items():
           if isinstance(value, dict):
@@ -89,7 +86,6 @@ def merge(qatools_configs):
     return config
   
 config = merge(qatools_configs)
-
 if verbose:
     for k, v in config.items():
       click.secho(f"{k}: {v}", dim=True, err=True)
@@ -100,14 +96,16 @@ if len(qatools_config_paths)==1:
   root_qatools = qatools_config_paths[0].parent
   leaf_qatools = root_qatools
   root_qatools_config = qatools_configs[0]
-  leaf_qatools_config = qatools_configs[0]
 else:
   root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
-  root_qatools_config, *_, leaf_qatools_config = qatools_configs
+  root_qatools_config, *_ = qatools_configs
+  print('root_qatools', root_qatools)
+  print('leaf_qatools', leaf_qatools)
 leaf_relative_to_root = leaf_qatools.relative_to(root_qatools)
 
 # We check for consistency
-if root_qatools_config['project']['url'] != config['project']['url']:
+print(root_qatools_config)
+if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
     click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
     click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
     config_has_error = True
