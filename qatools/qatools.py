@@ -512,6 +512,7 @@ def save_artifacts():
   """Save the results at a standard location"""
   import shutil
   import filecmp
+  from qatools.config import qatools_config_paths
 
   def copy(src, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -530,9 +531,9 @@ def save_artifacts():
   config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
   # we also allow sub-qatools-projects
-  config['artifacts']['sub-qatools.yaml'] = {"glob": '**/qatools.yaml'}
+  config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
   config['artifacts']['sub-qatools'] = {"glob": '**/qatools/*'}
-
+  print(config['artifacts']['sub-qatools.yaml'])
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
@@ -547,6 +548,7 @@ def save_artifacts():
 
     for g in globs:
       for path in Path('.').glob(g):
+        print(path)
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
