@@ -24,8 +24,8 @@ from .utils import make_hash
 
 # The `qa init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
-from .config import config_has_error 
-from .config import config, database, platform
+from .config import config_has_error
+from .config import subproject, config, database, platform
 from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci

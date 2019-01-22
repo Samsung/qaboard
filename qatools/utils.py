@@ -10,7 +10,7 @@ import re
 import fnmatch
 
 import click
-from qatools.config import is_ci
+from qatools.config import is_ci, subproject
 
 class PathType(click.ParamType):
   """Wrapper for pathlib's Path type, for use with the Click CLI package."""
@@ -55,7 +55,7 @@ def make_hash(obj):
 
 def batch_dir(commit_ci_dir, batch_label, tuning):
   batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
-  return commit_ci_dir / batch_folder if is_ci else batch_folder
+  return commit_ci_dir / batch_folder if is_ci else subproject / batch_folder
 
 
 def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning):
