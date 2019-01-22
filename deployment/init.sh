@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
+# todo: https://github.com/Yelp/dumb-init
 # todo: https://docs.docker.com/compose/overview/
+
 set -evx
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
@@ -40,6 +42,8 @@ sudo /etc/init.d/postgresql start &
 
 
 echo '...applying database migrations'
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 cd /slamvizapp/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
