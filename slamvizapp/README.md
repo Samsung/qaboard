@@ -23,6 +23,11 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
   * we use [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html) to manage migrations
   * you'll find [many examples here](alembic/versions)
 
+## Monitoring
+```
+https://hub.docker.com/r/fenglc/pgadmin4/
+```
+
 ## Backups
 ```
 # https://www.postgresql.org/docs/9.1/backup-dump.html
