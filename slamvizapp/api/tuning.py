@@ -67,7 +67,6 @@ def get_group():
     groups_path = get_groups_path(project_id)
     try:
         import qatools.utils
-        test = [request.args.get("name", "")]
         tests = list(
             qatools.utils.iter_recordings(
                 [request.args.get("name", "")],
