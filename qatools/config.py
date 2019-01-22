@@ -92,33 +92,39 @@ if verbose:
 
 # The top-most qatools.yaml is the root project
 # The current subproject corresponds to the lowest qatools.yaml
-if len(qatools_config_paths)==1:
-  root_qatools = qatools_config_paths[0].parent
-  leaf_qatools = root_qatools
-  root_qatools_config = qatools_configs[0]
+if not qatools_config_paths:
+  root_qatools = None
+  leaf_qatools = None
+  root_qatools_config = {}
+  leaf_relative_to_root = Path(".")
 else:
-  root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
-  root_qatools_config, *_ = qatools_configs
-  print('root_qatools', root_qatools)
-  print('leaf_qatools', leaf_qatools)
-leaf_relative_to_root = leaf_qatools.relative_to(root_qatools)
+  if len(qatools_config_paths)==1:
+    root_qatools = qatools_config_paths[0].parent
+    leaf_qatools = root_qatools
+    root_qatools_config = qatools_configs[0]
+  else:
+    root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
+    root_qatools_config, *_ = qatools_configs
+    print('root_qatools', root_qatools)
+    print('leaf_qatools', leaf_qatools)
+  leaf_relative_to_root = leaf_qatools.relative_to(root_qatools) if root_qatools else None
 
-# We check for consistency
-print(root_qatools_config)
-if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
-    click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
-    click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
-    config_has_error = True
+  # We check for consistency
+  print(root_qatools_config)
+  if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
+      click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
+      click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
+      config_has_error = True
 
-# We identify sub-qatools projects using the location of qatools.yaml related to the project root
-# It's not something the user should change...
-leaf_project_name = root_qatools_config['project']['name'] / leaf_relative_to_root
-uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
-if uncoherent_name:
-    click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
-    click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
-    config_has_error = True
-config['project']['name'] = leaf_project_name.as_posix()
+  # We identify sub-qatools projects using the location of qatools.yaml related to the project root
+  # It's not something the user should change...
+  leaf_project_name = root_qatools_config['project']['name'] / leaf_relative_to_root
+  uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
+  if uncoherent_name:
+      click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
+      click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
+      config_has_error = True
+  config['project']['name'] = leaf_project_name.as_posix()
 
 
 # It's useful to know what's the platform since code is often compiled a different locations
@@ -166,10 +172,10 @@ try:
     ci_root = config['ci_root'][mount_flavor]
 except KeyError:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
-    click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='yellow', err=True, dim=True)
+    click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
     config_has_error = True
 
-ci_dir = Path(ci_root) / root_qatools_config['project']['name']
+ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
 
 # we find were we should save our results
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:

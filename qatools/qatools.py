@@ -569,7 +569,7 @@ def save_artifacts():
 @cli.command()
 @click.option(
     "--reference-branch",
-    default=config['project'].get('reference_branch', 'master'),
+    default=config.get('project', {}).get('reference_branch', 'master'),
 )
 def check_bit_accuracy(reference_branch):
     """
