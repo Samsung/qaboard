@@ -26,12 +26,14 @@ if [ -z ${CI_ENVIRONMENT_SLUG+x} ]; then
 else
 	DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
 	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
-		#                 frontend               debug            database     https-frontend
+		#                 frontend           debug api            database     https-frontend
 		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
 	else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
-		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"
-  		  # DOCKER_ENV+=" --env SLAM_DB_PORT=9000"		
+      #                 frontend           debug api            database     https-frontend
+		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:5433:5432 -p0.0.0.0:9001:443"
+      # DOCKER_ENV+=" --env SLAMVIZAPP_DB_HOST=dvs"    
+      # DOCKER_ENV+=" --env SLAMVIZAPP_DB_PORT=5432"    
 		else
             PORTS="-p0.0.0.0:10000:5000 -p0.0.0.0:10002:5002 -p0.0.0.0:10001:443"
  			# PORTS=""
