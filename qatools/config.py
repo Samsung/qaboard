@@ -96,7 +96,7 @@ if not qatools_config_paths:
   root_qatools = None
   leaf_qatools = None
   root_qatools_config = {}
-     = Path(".")
+  subproject = Path(".")
 else:
   if len(qatools_config_paths)==1:
     root_qatools = qatools_config_paths[0].parent

@@ -58,7 +58,7 @@ def batch_dir(commit_ci_dir, batch_label, tuning):
   return commit_ci_dir / batch_folder if is_ci else batch_folder
 
 
-def subproject(commit_ci_dir, batch_label, platform, configuration, tuning):
+def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning):
   return (
     batch_dir(commit_ci_dir, batch_label, tuning) /
     platform /
