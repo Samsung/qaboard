@@ -105,12 +105,9 @@ else:
   else:
     root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
     root_qatools_config, *_ = qatools_configs
-    print('root_qatools', root_qatools)
-    print('leaf_qatools', leaf_qatools)
   leaf_relative_to_root = leaf_qatools.relative_to(root_qatools) if root_qatools else None
 
   # We check for consistency
-  print(root_qatools_config)
   if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
       click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
@@ -218,8 +215,8 @@ if is_ci:
     commit_type = config['project']['type']
     # CI_*/GIT_* variables are set by GitlabCI/JenkinsGit
     commit_id = os.getenv('CI_COMMIT_SHA', os.getenv('GIT_COMMIT', Path().resolve().name ))
-    commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH').replace('origin/', ''))
-    reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH').replace('origin/', '').replace('/', '-'))
+    commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH', '').replace('origin/', ''))
+    reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH', '').replace('origin/', '').replace('/', '-'))
     try:
         branch_ci_dir = ci_dir / 'branches' / reference_slug
     except:
