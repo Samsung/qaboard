@@ -158,7 +158,8 @@ def run(ctx, input_path, output_path, forwarded_args):
     if input_path.is_absolute():
         click.secho(f"[ERROR] the input should be given as a relative path.", fg='red')
         exit(1)
-    absolute_input_path = ctx.obj['database'] / input_path
+    absolute_input_path = (ctx.obj['database'] / input_path).resolve()
+    ctx.obj['absolute_input_path'] =  absolute_input_path
     if not absolute_input_path.exists():
         click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
         exit(1)
@@ -262,6 +263,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
     output_directory = commit_ci_dir / output_path
   ctx.obj['input_path'] =  input_path
   ctx.obj['output_directory'] =  output_directory
+  ctx.obj['absolute_input_path'] = (ctx.obj['database'] / input_path).resolve()
   ctx.obj['forwarded_args'] = forwarded_args
   metrics = postprocess_({}, ctx)
   click.secho(str(metrics), fg='green')      
@@ -346,6 +348,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         continue
 
       command = ' '.join([
+          f"cd {subproject} &&" if str(subproject) != '.' else '',
           f"qa",
           f'--batch-label "{ctx.obj["batch_label"]}"',
           f'--platform "{ctx.obj["platform"]}"',
