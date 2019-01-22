@@ -85,14 +85,14 @@ class AppNavbar extends Component {
                 noResults={<MenuItem disabled={true} text="No results." />}
                 onItemSelect={this.handleBranchChange}
                 popoverProps={Classes.MINIMAL}
-                placeholder="Filter by branch..."
-                initialContent="Filter by branch..."
+                placeholder="View branch..."
+                initialContent="View branch..."
                 onQueryChange={this.maybeFetchBranches}
               />
               <NavbarDivider />
               <InputGroup
                 leftIcon="git-commit"
-                placeholder="Go to commit or folder..."
+                placeholder="View commit..."
                 onChange={this.handleCommitChange}
               />
             </Fragment>
@@ -100,7 +100,7 @@ class AppNavbar extends Component {
         </NavbarGroup>
         <NavbarGroup align="right">
           {!is_home && (
-            <Link to="/projects">
+            <Link style={{ color: "#fff" }}  to="/projects">
               <Button minimal icon="home">
                 All projects
               </Button>

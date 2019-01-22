@@ -3,11 +3,10 @@ import Plot from 'react-plotly.js';
 
 import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
-import { metrics } from "./metrics";
-import { OutputCard } from "./OutputCard";
-import { input_test_color, matching_output, average, median } from "./common/utils";
+import { OutputCard } from "./viewers/OutputCard";
+import { input_test_color, matching_output, average, median } from "./utils";
 
-import { CommitRow } from "./CommitRow";
+import { CommitRow } from "./components/CommitRow";
 
 import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();
@@ -211,9 +210,9 @@ class CommitsEvolutionPerBatch extends React.Component {
           y = y.map(x =>
                     x === undefined || x === null || isNaN(x)
                       ? null
-                      : x < 20 * metric.threshold
+                      : x < 20 * metric.target
                         ? x * metric.scale
-                        : 20 * metric.threshold * metric.scale
+                        : 20 * metric.target * metric.scale
           )
           let trace = {
             name: `${name[label]} ${
@@ -250,7 +249,7 @@ class CommitsEvolutionPerBatch extends React.Component {
   }
 
   render() {
-    const { metrics, available_metrics } = this.props;
+    const { metrics, available_metrics, project_data, project } = this.props;
     const { revision, hovered, hovered_commit, traces } = this.state;
 
     if (hovered) {
@@ -260,7 +259,8 @@ class CommitsEvolutionPerBatch extends React.Component {
         >
           <CommitRow
             commit={hovered_commit}
-            project={this.props.project}
+            project={project}
+            project_data={project_data}
             toaster={toaster}
           />
         </div>
@@ -270,7 +270,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     }
 
     let metric = available_metrics[metrics[0]];
-    let threshold = metric.threshold * metric.scale;
+    let threshold = metric.target * metric.scale;
     let layout_ = {
       ...layout,
       shapes: [
@@ -339,7 +339,7 @@ const make_output_filter = output_filter => {
   };
 };
 
-class CommitsEvolutionPerMovie extends React.Component {
+class CommitsEvolutionPerTest extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -350,6 +350,7 @@ class CommitsEvolutionPerMovie extends React.Component {
 
       hovered: false,
       hovered_test_input_path: "",
+      hovered_test_configuration: "",
       hovered_label: null,
       hovered_commit: null,
       hovered_commit_ref: null
@@ -357,16 +358,20 @@ class CommitsEvolutionPerMovie extends React.Component {
   }
 
   onHover = e => {
-    let { label, test_input_path, commits } = this.state.traces_metadata[
+    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[
       e.points[0].curveNumber
     ];
     let point_number = e.points[0].pointNumber;
+    console.log(point_number)
+    console.log("new", commits[point_number])
+    console.log("ref", point_number < commits.length ? commits[point_number + 1] : null)
     this.setState({
       hovered: true,
       hovered_test_input_path: test_input_path,
+      hovered_test_configuration: configuration,
       hovered_label: label,
       hovered_commit: commits[point_number],
-      hovered_commit_ref: point_number > 0 ? commits[point_number - 1] : null
+      hovered_commit_ref: point_number < commits.length ? commits[point_number + 1] : null,
     });
   };
 
@@ -398,53 +403,58 @@ class CommitsEvolutionPerMovie extends React.Component {
     let traces = [];
     let traces_metadata = [];
 
+
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
       shown_batches.forEach(label => {
         let commits_with_batch = commits.filter(c => !!c.batches[label]);
         if (commits_with_batch.length > 0) {
-          let input_paths = new Set();
+          let input_configuration_set = new Set();
           commits_with_batch.forEach(c => {
             Object.values(c.batches[label].outputs)
               .filter(output_filter_)
-              .forEach(o => input_paths.add(o.test_input_path));
+              .forEach(o => input_configuration_set.add(JSON.stringify([o.test_input_path, o.configuration])));
           });
-          input_paths.forEach(test_input_path => {
-            let commits_with_input = commits_with_batch.filter(
+          input_configuration_set.forEach( input_config_json => {
+            const [test_input_path, configuration] = JSON.parse(input_config_json)
+            let commits_with_output = commits_with_batch.filter(
               c =>
-                Object.values(c.batches[label].outputs)
-                  .filter(o => o.test_input_path === test_input_path)
+                (Object.values(c.batches[label].outputs)
+                  .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                   .filter(output_filter_)
-                  .filter(o => o.configuration.includes("stereo")).length > 0
+                  .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
+                  .map(o => o.metrics[metric.key])
+                  .filter(m => !(isNaN(m) || m === null || m === undefined))
+                  .length > 0)
             );
+            // console.log("commits_with_output", commits_with_output)
 
-            let name = test_input_path;
-            let values = commits_with_input
+            let values = commits_with_output
               .map(
                 c =>
                   Object.values(c.batches[label].outputs)
-                    .filter(o => o.test_input_path === test_input_path)
+                    .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                     .filter(output_filter_)
-                    .filter(o => o.configuration.includes("stereo"))[0]
+                    .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
               )
-              .map(o =>
+              .filter(outputs => outputs.length > 0)
+              .map(outputs => outputs[0].metrics)
+              .map(metrics =>
                 Math.min(
-                  100 * metric.threshold * metric.scale,
-                  o.metrics[metric.key] * metric.scale
+                  100 * metric.target * metric.scale,
+                  metrics[metric.key] * metric.scale
                 )
               );
+            // console.log(test_input_path, '@', configuration, values)
             const y0 = values[values.length - 1];
             const y = relative ? values.map(v => 100 * v / y0) : values;
 
-            // ? compute an hash of the path -> 0-1, boom
-            // interpolateRainbow(0->1)
-            // same for symbols / line style
             let color = input_test_color(test_input_path, label);
             let trace = {
-              name,
+              name: `${test_input_path} @${configuration}`,
               type: "scatter",
               mode: "lines+markers",
-              x: commits_with_input.map(c => c.authored_datetime),
+              x: commits_with_output.map(c => c.authored_datetime),
               y,
               opacity: 0.8,
               marker: {
@@ -464,8 +474,9 @@ class CommitsEvolutionPerMovie extends React.Component {
             };
             let trace_metadata = {
               test_input_path,
+              configuration,
               label,
-              commits: commits_with_input
+              commits: commits_with_output
             };
             traces.push(trace);
             traces_metadata.push(trace_metadata);
@@ -485,18 +496,21 @@ class CommitsEvolutionPerMovie extends React.Component {
       metrics,
       available_metrics,
       relative,
-      details_on_hover
+      details_on_hover,
+      project,
+      project_data,
     } = this.props;
     const {
       revision,
       traces,
       hovered_test_input_path,
+      hovered_test_configuration,
       hovered_label,
       hovered_commit,
       hovered_commit_ref
     } = this.state;
     let metric = available_metrics[metrics[0]];
-    let threshold = metric.threshold * metric.scale;
+    let threshold = metric.target * metric.scale;
     let layout_ = {
       ...layout,
       height: 250
@@ -526,7 +540,7 @@ class CommitsEvolutionPerMovie extends React.Component {
     if (this.state.hovered) {
       let hovered_output = Object.values(
         hovered_commit.batches[hovered_label].outputs
-      ).filter(o => o.test_input_path === hovered_test_input_path)[0];
+      ).filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
       if (
         details_on_hover &&
         !!hovered_commit_ref &&
@@ -545,7 +559,7 @@ class CommitsEvolutionPerMovie extends React.Component {
           <Tag
             style={{ background: input_test_color(hovered_test_input_path) }}
           >
-            {hovered_test_input_path}
+            {hovered_test_input_path} @{hovered_test_configuration}
           </Tag>
           <Tag style={{ marginLeft: "15px" }}>
             {hovered_label === "default" ? "LSF" : "Android"}
@@ -553,15 +567,19 @@ class CommitsEvolutionPerMovie extends React.Component {
           <CommitRow
             commit={hovered_commit}
             project={this.props.project}
+            project_data={project_data}
             toaster={toaster}
           />
           {details_on_hover && (
             <OutputCard
+              project={project}
+              project_data={project_data}
               output_new={hovered_output}
               output_ref={output_ref}
               warning={warning}
-              layout={{ width: 1180, height: 300 }}
+              style={{ width: '1180px', height: '300px' }}
               no_header={true}
+              dispatch={this.props.dispatch}
             />
           )}
         </div>
@@ -569,6 +587,9 @@ class CommitsEvolutionPerMovie extends React.Component {
     } else {
       legend = <span />;
     }
+
+    // console.log(traces)
+    // console.log(revision)
 
     return (
       <div>
@@ -589,15 +610,14 @@ class CommitsEvolutionPerMovie extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
-    const { project } = props;
+    const { main_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
     this.state = {
-      available_metrics: metrics[project].available_metrics,
-      select_metrics: this.props.select_metrics || metrics[project].main_metrics,
-      selected_metric: metrics[project].default_metric,
+      select_metrics: this.props.select_metrics || main_metrics,
+      selected_metric: default_metric,
       selected_aggregation: "median",
-      output_filter: "small-scale",
+      output_filter: "",
       relative: true,
-      details_on_hover: false
+      details_on_hover: true,
     };
   }
 
@@ -609,7 +629,7 @@ class CommitsEvolution extends Component {
   };
 
   render() {
-    const { project, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
+    const { project, project_data, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
@@ -618,9 +638,11 @@ class CommitsEvolution extends Component {
       relative,
       details_on_hover
     } = this.state;
-    const { available_metrics, select_metrics } = this.state;
+    const { select_metrics } = this.state;
 
-    if (!metrics[project].default_metric)
+    const { available_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
+
+    if (!default_metric)
       return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;
 
     return (
@@ -628,7 +650,7 @@ class CommitsEvolution extends Component {
         <FormGroup inline>
           <HTMLSelect
             id="select-metric"
-            defaultValue={metrics[this.state.project].default_metric}
+            defaultValue={default_metric}
             onChange={this.selectMetric}
             minimal
           >
@@ -676,7 +698,7 @@ class CommitsEvolution extends Component {
                 />
                 <Switch
                   inline
-                  label="Show 6dof"
+                  label="Show details"
                   defaultChecked={details_on_hover}
                   onChange={e => {
                     this.setState({ details_on_hover: !details_on_hover });
@@ -698,24 +720,28 @@ class CommitsEvolution extends Component {
               </FormGroup>}
         </FormGroup>
         {breakdown_per_test ? (
-          <CommitsEvolutionPerMovie
+          <CommitsEvolutionPerTest
             project={project}
+            project_data={project_data}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}
             relative={this.state.relative}
             details_on_hover={details_on_hover}
             available_metrics={available_metrics}
+            dispatch={this.props.dispatch}
           />
         ) : (
           <CommitsEvolutionPerBatch
             project={project}
+            project_data={project_data}
             commits={commits}
             metrics={[selected_metric]}
             output_filter={output_filter}
             aggregation={selected_aggregation}
             available_metrics={available_metrics}
             per_output_granularity={per_output_granularity}
+            dispatch={this.props.dispatch}
           />
         )}
       </div>

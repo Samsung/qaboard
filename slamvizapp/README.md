@@ -23,6 +23,23 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
   * we use [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html) to manage migrations
   * you'll find [many examples here](alembic/versions)
 
+## Monitoring
+```
+https://hub.docker.com/r/fenglc/pgadmin4/
+```
+
+## Backups
+```
+# https://www.postgresql.org/docs/9.1/backup-dump.html
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+pg_dump --dbname=slamvizapp --username=ci --password -h localhost  > /var/slamvizapp/backup.07-01-2019.sql
+
+# recovery
+psql --username=ci --password -h localhost slamvizapp  < /var/slamvizapp/backup.07-01-2019.sql
+pg_restore --clean --username=ci --password -h localhost slamvizapp  < /var/slamvizapp/backup.07-01-2019.sql
+
+```
 
 ## Application performance
 To get information about how much time is spend where in the python code:

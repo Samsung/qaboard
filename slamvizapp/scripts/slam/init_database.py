@@ -13,7 +13,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from slamvizapp import repos
 from slamvizapp.database import Session
 from slamvizapp.models import Base, Project, CiCommit, TestInput, Batch, Output
-from slamvizapp.config import ci_directory
+from slamvizapp.config import default_ci_directory
 
 import slamvizapp
 
@@ -34,7 +34,7 @@ def init_slam_database(verbose=False):
   session = Session()
   project = Project.get_or_create(session=session, id='dvs/psp_swip')
   repo = repos[project.id]
-  cicommits_dir = ci_directory/project.id/'commits'
+  cicommits_dir = default_ci_directory/project.id/'commits'
 
 
   # ? should we go over all the commits on all branches?

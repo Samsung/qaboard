@@ -26,14 +26,27 @@ export const default_qatools_config = {
 	project: {
 		reference_branch: 'develop',
 	},
+	ci_root: {
+		linux: '/home/arthurf/ci',
+	},
 	inputs: {
-		configuration: 'base'
+		configuration: 'base',
+	},
+	outputs: {
+		detailed_views: [],
+		style: {
+			width: '350px',
+		},
 	}
-} 
+}
+
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values
-	information: {qatools_metrics: default_metrics, qatools_config: default_qatools_config},
+	information: {
+		qatools_metrics: default_metrics,
+		qatools_config: default_qatools_config
+	},
 	// for each reference (branch, tag...), we keep a list of relevant commits
 	commits: {
 
@@ -47,6 +60,7 @@ export const default_project = {
 
 export const default_selected = () => {
 	let commit_from_pathname = window.location.pathname.includes('/commit') && window.location.pathname.slice(8)
+    var params = new URLSearchParams(window.location.search);
 	return {
 		new_commit_id: params.get("commit_folder") || commit_from_pathname || null,
 		ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
@@ -56,5 +70,18 @@ export const default_selected = () => {
 
 		filter_batch_new: params.get("filter") || "",
 		filter_batch_ref: params.get("filter_ref") || "",
+
+		selected_tab_summary: params.get("selected_tab_summary") || "metrics",
+		selected_tab_details: params.get("selected_tab_details") || "output-table-compare",
 	}
 }
+
+
+
+export const empty_batch = {
+  valid_outputs: 0,
+  running_outputs: 0,
+  pending_outputs: 0,
+  failed_outputs: 0,
+  outputs: {},
+};

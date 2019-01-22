@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+# todo: https://github.com/Yelp/dumb-init
 # todo: https://docs.docker.com/compose/overview/
-set -ev
+
+set -evx
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
@@ -40,6 +42,8 @@ sudo /etc/init.d/postgresql start &
 
 
 echo '...applying database migrations'
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 cd /slamvizapp/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
@@ -49,7 +53,7 @@ alembic upgrade head || alembic downgrade head || alembic stamp head
 # runuser -u arthurf -- *
 
 echo '...initializing the database'
-slamvizapp_init_database --scrap-from slam --loop &
+sleep 1800 && slamvizapp_init_database --scrap-from slam --loop &
 # slamvizapp_init_database --scrap-from cis --loop &
 # slamvizapp_init_database --verbose
 
@@ -71,7 +75,7 @@ cd /slamvizapp && SLAMVIZAPP_DB_ECHO=True FLASK_APP=slamvizapp FLASK_DEBUG=1 fla
 
 while sleep 1800; do
   slamvizapp_clean dvs/psp_swip --protected-branch "origin/develop" --protected-branch "origin/Release/AugustDemo"
-  slamvizapp_clean tof/swip_tof --protected-branch "origin/develop"
+  slamvizapp_clean tof/swip_tof --protected-branch "origin/develop" --days 30
 done
 
 # quid: check access permissions

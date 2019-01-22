@@ -5,7 +5,8 @@ import thunkMiddleware from 'redux-thunk'
 
 // https://github.com/rt2zz/redux-persist
 import { persistStore, persistReducer } from 'redux-persist'
-import storage from 'redux-persist/lib/storage' // defaults to localStorage for web and AsyncStorage for react-native
+import localForage from "localforage";
+// import storage from 'redux-persist/lib/storage' // defaults to localStorage for web and AsyncStorage for react-native
 // import autoMergeLevel2 from 'redux-persist/lib/stateReconciler/autoMergeLevel2';
 
 import { composeWithDevTools } from 'redux-devtools-extension'
@@ -18,8 +19,11 @@ import { rootReducer } from './reducers'
 // https://github.com/rt2zz/redux-persist/blob/master/src/types.js#L13-L27
 const persistConfig = {
   key: 'root',
-  storage,
-  whitelist: ['commits', 'projects'],
+  storage: localForage,
+  whitelist: [
+    // 'commits',
+    'projects',
+  ],
   blacklist: ['selected'],
   // stateReconciler: autoMergeLevel2,
 }

@@ -4,12 +4,11 @@ A version of the code on which we ran SLAM performance test.
 from pathlib import Path
 from hashlib import md5
 
-from sqlalchemy import Column, String, DateTime, JSON, ForeignKey
-from sqlalchemy import or_
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
-from slamvizapp import repos
 from slamvizapp.models import Base, Batch, Output
 from slamvizapp.models.LocalMocks import LocalGitCommit
 from ..utils import get_users_per_name
@@ -21,17 +20,19 @@ class CiCommit(Base):
   We keep some useful data in the database, but for the rest it used gitpython.
   """
   __tablename__ = 'ci_commits'
-  id = Column(String, primary_key=True) # git commit id
+  id = Column(Integer(), primary_key=True)
+  hexsha = Column(String(), index=True, nullable=False)
 
   project_id = Column(String(), ForeignKey('projects.id'), index=True)
   project = relationship("Project", back_populates="ci_commits")
+  __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   branch = Column(String(), index=True) # first added as.. we ignore tags?
   committer_name = Column(String(), index=True)
   message = Column(String())
   parents = Column(JSON())
-  data = Column(JSON())
+  data = Column(JSON(), default={})
 
   commit_dir_override = Column(String())
   commit_type = Column(String(), default='git')
@@ -51,7 +52,7 @@ class CiCommit(Base):
   def ci_batch(self):
     return self.get_or_create_batch('default')
 
-  # this helps us understand if we expect pending SLAM results
+  # this helps us understand if we expect pending results
   time_of_last_batch = Column(DateTime(timezone=True))
 
   latest_gitlab_pipeline = Column(String())
@@ -61,10 +62,16 @@ class CiCommit(Base):
   @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
+    # FIXME: what a mess
     if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override)
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__git__{self.id[:8]}'
-    return self.project.ci_directory / self.project.id / 'commits' / commit_dir_name
+      out = Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
+    else:
+      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
+      out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
+    if self.project.id_relative:
+      return out / self.project.id_relative
+    else:
+      return out
 
   @property
   def authored_date(self):
@@ -74,16 +81,12 @@ class CiCommit(Base):
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
-      if '/net/f2/algo_archive' in self.commit_dir_override:
-        return '/s/'/self.commit_dir.relative_to('/net/f2/algo_archive')
-      elif '/stage/algo_data' in self.commit_dir_override:
-        return '/s/'/self.commit_dir.relative_to('/stage/algo_data')
-      else:
-        return f'/s{self.commit_dir_override}' 
-    return '/s/' / self.commit_dir.relative_to(self.project.ci_directory)
+      relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
+      return f'/s/{relative_path}' 
+    return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
 
   def __repr__(self):
-    return f"<CiCommit project='{self.project.id}' id='{self.id}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
+    return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
 
 
 
@@ -94,55 +97,56 @@ class CiCommit(Base):
     else:
       self.commit_type = 'local'
       if not branch: branch='<NA>'
-    self.id = commit.hexsha
+    self.hexsha = commit.hexsha
     self.message = commit.message
     self.parents = [c.hexsha for c in commit.parents]
     if branch:
       self.branch = branch
     else: # a commit belong to many branches, so this is a guess..
-      self.branch = find_branch(commit.hexsha, self.repo)
+      self.branch = find_branch(commit.hexsha, self.project.repo)
     self.authored_datetime = commit.authored_datetime
     self.time_of_last_batch = commit.authored_datetime
     self.committer_name = commit.committer.name
 
 
   @property
-  def repo(self):
-    if self.commit_type == 'git':
-      return repos[self.project.id]
-    else:
-      return None    
-
-  @property
   def gitcommit(self):
     if self.commit_type == 'git':
-      return self.repo.commit(self.id)
+      return self.project.repo.commit(self.hexsha)
     else:
-      return LocalGitCommit(self.id, self.message, self.committer_name, self.authored_datetime)
-
-
+      # this mocks a real git commit
+      return LocalGitCommit(self.hexsha, self.message, self.committer_name, self.authored_datetime)
 
 
   @staticmethod
-  def get_or_create(session, hexsha, repo):
+  def get_or_create(session, hexsha, project_id):
     try:
-      commit = repo.commit(hexsha)
-    except:
-      raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
-    try:
-      return session.query(CiCommit).filter_by(id=commit.hexsha).one()
+      ci_commit =(session.query(CiCommit)
+                         .filter(
+                           CiCommit.project_id==project_id,
+                           CiCommit.hexsha.startswith(hexsha),
+                         )
+                         .one())
     except NoResultFound:
       try:
-        ci_commit = CiCommit(commit)
+        from slamvizapp.models import Project
+        project = Project.get_or_create(session=session, id=project_id)
+        try:
+          commit = project.repo.commit(hexsha)
+        except Exception as e:
+          raise (ValueError, f'[ERROR] Could not create a commit for {hexsha}. {e}')
+
+        ci_commit = CiCommit(commit, project=project)
         # session.add(ci_commit)
         # session.commit()
-        return ci_commit
       except ValueError:
-        raise (ValueError, f'[ERROR] could not create a commit for {commit.hexsha}')
+        raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
       if ci_commit is None:
         raise (ValueError, f'[ERROR] something is wrong,\
-                             maybe an error opening param.json for {commit.hexsha}')
-
+                             maybe an error opening param.json for {hexsha}')
+    if not ci_commit.data:
+      ci_commit.data = {}
+    return ci_commit
 
   def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):
     users_db = get_users_per_name("")
@@ -158,8 +162,8 @@ class CiCommit(Base):
       else:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
-    return {
-        'id': self.id,
+    out = {
+        'id': self.hexsha,
         'type': self.commit_type,
         'branch': self.branch,
         'parents': [p for p in self.parents] if self.parents else [],
@@ -168,13 +172,16 @@ class CiCommit(Base):
         'committer_avatar_url': committer_avatar_url,
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
+        "data": self.data if with_outputs else None,
         'commit_dir_url': str(self.commit_dir_url),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches
-                    if with_batches is None or b.label in with_batches},
+                    if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},
         'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
-
+    if with_outputs:
+      out["data"] = self.data
+    return out
 
 
 
@@ -184,7 +191,6 @@ def latest_successful_commit(session, project_id, branch, within_last=20):
   Returns the latest commit on a given branch where we got outputs.
   Only the latest within_last commits are checked...
   """
-  # if project_id != 'dvs/psp_swip':
   ci_commits = (session
                 .query(CiCommit)
                 .options(joinedload(CiCommit.batches))
@@ -202,30 +208,12 @@ def latest_successful_commit(session, project_id, branch, within_last=20):
     if valid_outputs:
       return ci_commit
 
-  # else:
-  #   repo = repos[project_id]
-  #   page = 0
-  #   while page < 10:
-  #     commits = repo.iter_commits(branch, max_count=20, skip=20*page)
-  #     commit_ids = [c.hexsha for c in commits]
-  #     ci_commits = (CiCommit
-  #                   .query
-  #                   .filter(CiCommit.id.in_(commit_ids))
-  #                   .order_by(
-  #                     CiCommit.authored_datetime.desc()
-  #                   )
-  #                  )
-  #     ci_commits_successful = [c for c in ci_commits if len(c.ci_batch.outputs) > 10]
-  #     if ci_commits_successful: return ci_commits_successful[0]
-  #     page = page + 1
-
-
 
 def parent_successful_commit(ci_commit):
   """Returns a commit's latest successful parent."""
   # if we don't have a git repo,
   # we try to find the previous commit on the same "branch"...
-  if not ci_commit.repo:
+  if not ci_commit.project.repo:
     try:
       query = CiCommit.query\
                       .filter(
@@ -240,15 +228,15 @@ def parent_successful_commit(ci_commit):
 
   parent_ci_commit = None
   # we arbitrarly pick the first git parent
-  parent_id = ci_commit.gitcommit.parents[0]
+  parent_hexsha = ci_commit.gitcommit.parents[0]
   while True:
     try:
       parent_ci_commit = CiCommit.query\
-                                 .filter(CiCommit.id == parent_id)\
+                                 .filter(CiCommit.hexsha == parent_hexsha)\
                                  .order_by(CiCommit.authored_datetime.desc())\
                                  .one()
     except:
       return None
     if len(parent_ci_commit.ci_batch.outputs) > 10:
       return parent_ci_commit
-    parent_id = parent_ci_commit.gitcommit.parents[0]
+    parent_hexsha = parent_ci_commit.gitcommit.parents[0]

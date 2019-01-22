@@ -4,12 +4,7 @@
 For reference, here are installation instructions.
 
 ## Sync with the `dvs/psp_swip` repository
-- Clone the `psp_swip` repository at a location specified in the `SLAMVIZAPP_DATA` environment variable:
-
-```bash
-cd $SLAMVIZAPP_DATA
-git clone git@gitlab-srv:dvs/psp_swip.git
-```
+- Set the `SLAMVIZAPP_DATA` environment variable where you want to save git repositories and other application data:
 
 ## Application setup
 You need:
@@ -55,4 +50,4 @@ FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads
 
 ## Optionnal configuration
 * To run the app using fancier tools (HTTP2, SSL, wsgi and reverse proxies...), read the [deployment instructions](deployment/README.md).
-* Make sure the app receives notifications (aka webhooks) whenever someone pushes changes to [gitlab](http://gitlab-srv/dvs/psp_swip). In `psp_swip`'s [*integrations settings*](http://gitlab-srv/dvs/psp_swip/settings/integrations) setup a webhook to `$YOUR_HOSTNAME/webhook/gitlab`.
+* Make sure the app receives notifications (aka webhooks) whenever someone pushes changes to [gitlab](http://gitlab-srv/dvs/psp_swip).

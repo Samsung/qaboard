@@ -8,7 +8,7 @@ from pathlib import Path
 from functools import lru_cache
 
 import numpy as np
-from sqlalchemy import ForeignKey, Integer, String, DateTime
+from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
@@ -18,24 +18,18 @@ class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
+  data = Column(JSON(), default={})
 
-  ci_commit_id = Column(String(), ForeignKey('ci_commits.id'), index=True)
+  ci_commit_id = Column(Integer(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])
 
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
   outputs = relationship("Output",
-                         lazy='joined',
                          back_populates="batch",
                          cascade="all, delete-orphan"
                         )
-
-  # experiments = relationship("Experiment",
-  #                            lazy='joined',
-  #                            back_populates="batch",
-  #                            cascade="all, delete-orphan"
-  #                            )
 
   @property
   def output_folder(self):
@@ -69,9 +63,11 @@ class Batch(Base):
       outputs = {}
     return {
         'id': self.id,
-        'commit_id': self.ci_commit_id,
+        'commit_id': self.ci_commit.hexsha,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
+        'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
+        'output_dir_url': str(self.output_dir_url),
 
         'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
         'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),
@@ -82,7 +78,7 @@ class Batch(Base):
     }
 
   def __repr__(self):
-    return (f"<Batch commmit='{self.ci_commit.id}' "
+    return (f"<Batch commmit='{self.ci_commit.hexsha}' "
             f"label='{self.label}' "
             f"outputs={len(self.outputs)} />")
 
@@ -101,7 +97,8 @@ def aggregated_metrics(outputs, metrics_to_aggregate):
     aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
     aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
     # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
-    aggregated[f'{metric}_threshold_bad'] = treshold
+    # we also don't use qatools so we don't know if smaller_is_better
+    # aggregated[f'{metric}_threshold_bad'] = treshold
   # remove NaN values
   return {k: v for k, v in aggregated.items() if v == v}
 

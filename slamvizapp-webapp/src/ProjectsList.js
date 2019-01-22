@@ -5,16 +5,18 @@ import { Link } from "react-router-dom";
 
 import Moment from "react-moment";
 
-import { Container } from "./common/containers";
 import {
   Classes,
   Intent,
   Card,
+  Button,
   Callout,
+  Tooltip,
   NonIdealState,
   Spinner
 } from "@blueprintjs/core";
-import { Icon, Tooltip } from "@blueprintjs/core";
+import { Container } from "./components/layout";
+import { Avatar } from "./components/avatars";
 
 import { fetchProjects } from './actions/projects'
 
@@ -24,15 +26,13 @@ class LastCommitAt extends Component {
     const { project, className } = this.props;
     let date = project.latest_commit_datetime;
     return (
-      <span className={className}>
-        <Icon style={{ color: "#1aaa55", marginRight: "3px" }} icon="updated" />
+      <span className={className} style={{marginBottom: '5px'}}>
         <Tooltip content={date}>
-          <Moment
-            style={{ color: "#555" }}
+          <span style={{ color: "#555"}}>updated <Moment
             fromNow
             tz="Asia/Jerusalem"
             date={date}
-          />
+          /></span>
         </Tooltip>
       </span>
     );
@@ -61,28 +61,31 @@ class ProjectsList extends Component {
               new Date(d0.latest_commit_datetime)
           )
           .map(([id, details]) => {
+            let git = details.information.git || {};
             return (
               <Card
                 key={id}
-                style={{ margin: "15px" }}
-                interactive
+                style={{ margin: "15px", display: 'flex', alignItems: 'center'}}
                 elevation={2}
-                onClick={e => this.props.history.push(`/?project=${id}`)}
               >
-                <h5 className={Classes.HEADING}>
-                  <Link to={`/?project=${id}`}>{id}</Link>{" "}
-                  {details.information &&
-                    details.information.git && (
-                      <a href={details.information.git.homepage}>
-                        <Icon icon="link" />
-                      </a>
-                    )}
-                </h5>
-                <LastCommitAt project={details} />
-                <br />
-                <span style={{ color: "#555" }}>
-                  {details.total_commits} commits
-                </span>
+                <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
+                  <Avatar
+                    src={!!git.avatar_url ? `http://gitlab-srv${git.avatar_url}` : null}
+                    href={`/?project=${id}`}
+                    alt={git.name || id}
+                  />
+                </div>
+                <div style={{'alignSelf': 'center', 'minWidth': 0}}>
+                  <h5 className={Classes.HEADING}><Link to={`/?project=${id}`}>{id}</Link></h5>                  
+                  {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{git.description}</p>}
+                </div>
+                <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
+                  <p style={{marginBottom: '5px'}}><a href={git.homepage}><Button icon="code" minimal round text="code" style={{color: 'rgb(85, 85, 85)'}}/></a></p>
+                  <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
+                  <p style={{marginBottom: '0px'}}><span style={{ color: "#555" }}>
+                    {details.total_commits} commits
+                  </span></p>
+                </div>
               </Card>
             );
           })}
@@ -98,11 +101,13 @@ class ProjectsList extends Component {
           </p>
         </Callout>
         {warnings}
-        {list_projects}
+        {list_projects}          
       </Container>
     );
   }
 }
+
+
 
 
 const mapStateToProps = state => {

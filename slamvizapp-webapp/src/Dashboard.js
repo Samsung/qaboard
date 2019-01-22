@@ -1,8 +1,7 @@
 import React from "react";
+import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
-import { get } from "axios";
-import moment from "moment";
 import qs from "qs";
 
 import {
@@ -22,120 +21,63 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
-import { Container, Section } from "./common/containers";
-import { noMetrics } from "./common/metricSelect";
-import { shortId, filter_batch } from "./common/utils";
-
 import { CommitsEvolution } from "./CommitsEvolution";
-import { MetricsSummary } from "./MetricsSummary";
-import { TableCompare, TableKpi } from "./Tables";
-import { metrics } from "./metrics";
+import { Container, Section } from "./components/layout";
+import { noMetrics } from "./components/metricSelect";
+import { MetricsSummary } from "./components/metrics";
+import { TableCompare, TableKpi } from "./components/tables";
+
+import { fetchCommit } from "./actions/commit";
+import { fetchCommits } from "./actions/projects";
+
+import { shortId, filter_batch } from "./utils";
+import { default_project, empty_batch, default_commits_data, default_date_range } from "./defaults"
+
+
 
 class Dashboard extends React.Component {
   constructor(props) {
     super(props);
-    const params = new URLSearchParams(this.props.location.search);
-    const project = params.get("project") || "dvs/psp_swip";
-    const available_metrics = metrics[project].available_metrics;
-    let aggregation_metrics = {};
-    metrics[project].dashboard_metrics.forEach(m => {
-      aggregation_metrics[m] = available_metrics[m].threshold;
-    });
+    const { default_metric, available_metrics, dashboard_metrics } = this.props;
     this.state = {
-      project,
-      branch: params.get("branch") || "develop",
-      date_range: [new Date(moment().subtract(31, "d")), new Date()],
-      // error: null,
-      is_loaded: false,
-      commits: new Map(),
-
       latest_commit: null,
-      filter: 'small-scale',
-      sort_by: metrics[project].default_metric,
+      filter: '',
+      sort_by: default_metric,
       sort_order: -1,
-      aggregation_metrics,
-
-      available_metrics,
-      evolution_metrics: metrics[project].dashboard_evolution_metrics || metrics[project].main_metrics,
-      selected_metrics: metrics[project].dashboard_metrics.map(
+      selected_metrics: dashboard_metrics.map(
         k => available_metrics[k]
       )
     };
   }
 
+
   componentDidMount() {
-    document.title = `Dashboard - ${this.state.project}`;
-    this.getData(this.props);
+    document.title = `Dashboard - ${this.props.project}`;
+    this.fetchCommits();
   }
 
-  getData(props) {
-    const params = new URLSearchParams(this.props.location.search);
-    this.setState({ is_loaded: false });
-    Promise.all([
-      this.getCommits(props),
-      this.getCommit(params.get("commit_id")),
-      this.getCommit(params.get("commit_android_id"))
-    ]).then(() => {
-      this.setState({ is_loaded: true });
-    });
+  componentDidUpdate(prevProps) {
+    if (
+      this.props.match.url !== prevProps.match.url ||
+      this.props.branch.name !== prevProps.branch.name
+      // this.props.project_data !== prevProps.project_data
+      // this.props.aggregation_metrics !== prevProps.aggregation_metrics
+      ) {
+      this.fetchCommits();
+    }
   }
 
-  getCommit(commit_id) {
-    if (commit_id === null || commit_id === undefined) return;
-    get(`/api/v1/commit/${commit_id}`, {
-      params: { project: this.state.project }
-    }).then(response => {
-      this.setState((previous_state, props) => ({
-        commits: new Map([
-          ...previous_state.commits,
-          [commit_id, response.data]
-        ])
-      }));
-    });
-  }
-
-  getCommits(props) {
-    var url = `/api/v1/commits/origin/${this.state.branch}`;
-    const { project, date_range } = this.state;
-    get(url, {
-      params: {
-        project,
-        only_when_first_pushed_as: true,
-        only_ci_batches: true,
-        with_outputs: true,
-        from: date_range[0],
-        to: date_range[1],
-        metrics: JSON.stringify(this.state.aggregation_metrics),
-        commits: new Map()
-      }
-    }).then(response => {
-      let new_commits = response.data;
-      const has_outputs_in_batch = label => commit =>
-        !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
-      let latest_commits_android = new_commits.filter(
-        c =>
-          has_outputs_in_batch("ci-android-rt")(c) ||
-          has_outputs_in_batch("manual-android-rt")(c)
-      );
-      let latest_commit_android_id =
-        latest_commits_android.length > 0
-          ? latest_commits_android[0].id
-          : new_commits[0].id;
-      this.setState((previous_state, props) => ({
-        commits: new Map([
-          ...previous_state.commits,
-          ...new_commits.map(commit => [commit.id, commit])
-        ]),
-        latest_commit_android_id
-      }));
-      if (new_commits.length > 0)
-        this.setState({
-          date_range: [
-            new Date(new_commits[new_commits.length - 1].authored_datetime),
-            new Date(new_commits[0].authored_datetime)
-          ]
-        });
-    });
+  fetchCommits() {
+    const { params, project, dispatch, branch, date_range, aggregation_metrics } = this.props;
+    const extra_params = {
+      only_ci_batches: true,
+      with_outputs: true,
+    } 
+    dispatch(fetchCommits(project, branch, date_range, aggregation_metrics, extra_params))
+    if (params.get("commit_id"))
+      dispatch(fetchCommit(project, params.get("commit_id"), "new_commit_id"));
+    if (params.get("commit_android_id"))
+      dispatch(fetchCommit(project, params.get("commit_android_id"), "ref_commit_id"));
   }
 
 
@@ -209,53 +151,53 @@ class Dashboard extends React.Component {
   };
 
   render() {
+    const { params, project_data, project, commits, available_metrics, date_range } = this.props;
+    const { is_loaded, is_loading, error  } = this.props;
     const {
-      is_loaded,
-      commits,
-      latest_commit_android_id,
-      date_range
+      selected_metrics,
+      evolution_metrics,
     } = this.state;
-    var { selected_metrics } = this.state;
 
-    // console.log(commits.size)
-    // console.log(is_loaded);
-    if (!is_loaded || commits.size === 0)
+    // console.log("commits.length", commits.length)
+    // console.log("is_loaded", is_loaded);
+    // console.log("is_loading", is_loading);
+    if (is_loading)
       return (
         <Container>
-          <NonIdealState title="Loading" icon={<Spinner />} />
+          <NonIdealState title={`Loading @${this.props.branch.name}`} icon={<Spinner />} />
         </Container>
       );
-    // if (commits.size===0) return <Container>
-    //   <NonIdealState title="Empty" icon='folder' />
-    // </Container>
+    if (commits.length===0) return <Container>
+      <NonIdealState title="No commits found" description="Too bad......" icon='search' />
+    </Container>
+    if (!!error) return <Container>
+      <NonIdealState title="Error" icon='error' text={JSON.stringify(error)}/>
+    </Container>
     // console.log(commits)
 
-    const params = new URLSearchParams(this.props.location.search);
-    let commit_id = params.get("commit_id") || latest_commit_android_id;
-    let commit_android_id =
-      params.get("commit_android_id") || latest_commit_android_id;
-    let commit = commits.get(commit_id);
-    let commit_android = commits.get(commit_android_id);
+    // Find the latest commit with android results [Specific to dvs/psp_swip]
+    const has_outputs_in_batch = label => commit => !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
+    let latest_commits_android = commits.filter(c => has_outputs_in_batch("ci-android-rt")(c) || has_outputs_in_batch("manual-android-rt")(c));
+    let latest_commit_android_id = latest_commits_android.length > 0 ? latest_commits_android[0].id : (commits.length > 0 ? commits[0].id : null);
 
-    let linux_batch = commit.batches.default;
-    let empty_batch = {
-      outputs: {},
-      failed_outputs: 0,
-      valid_outputs: 0,
-      pending_outputs: 0
-    };
-    let android_batch =
-      commit_android.batches["manual-android-rt"] ||
-      commit_android.batches["ci-android-rt"] ||
-      empty_batch;
+    let commit_id = params.get("commit_id") || latest_commit_android_id;
+    let commit_android_id = params.get("commit_android_id") || latest_commit_android_id;
+    let commit = commits.find(c => c.id === commit_id);
+    let commit_android = commits.find(c => c.id === commit_android_id);
+
+    let linux_batch = commit.batches.default || empty_batch;
+    let android_batch = commit_android.batches["manual-android-rt"] || commit_android.batches["ci-android-rt"] || empty_batch;
     let has_android = Object.keys(android_batch.outputs).length > 0;
 
+    // console.log('before filter')
+    // console.log("linux_batch", linux_batch)
+    // console.log("android_batch", android_batch)
 
     linux_batch = filter_batch(linux_batch, this.state.filter);
     android_batch = filter_batch(android_batch, this.state.filter);
 
-    // console.log(linux_batch)
-    // console.log(android_batch)
+    // console.log("linux_batch", linux_batch)
+    // console.log("android_batch", android_batch)
     // console.log(has_android)
 
     let clearButton =
@@ -264,7 +206,7 @@ class Dashboard extends React.Component {
       ) : null;
     let metricTableSelect = (
       <MultiSelect
-        items={Object.values(this.state.available_metrics)}
+        items={Object.values(available_metrics)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -279,32 +221,38 @@ class Dashboard extends React.Component {
       />
     );
 
-    let selected_commits = Array.from(commits.values()).filter(
+    let selected_commits = commits.filter(
       c =>
         new Date(c.authored_datetime) >= date_range[0] &&
         new Date(c.authored_datetime) <= date_range[1]
     );
     let pretty_commit_android_id =
       commit_android.type === "git"
-        ? shortId(this.state.project, commit_android_id)
+        ? shortId(project, commit_android_id)
         : commit_android_id.replace("/f2/algo_archive/PTAM_Results/", "");
-    let pretty_commit_id = shortId(this.state.project, commit_id);
+    let pretty_commit_id = shortId(project, commit_id);
+
+    var effective_date_range = date_range;
+    if (commits.length > 0){
+      effective_date_range = [
+        new Date(commits[commits.length - 1].authored_datetime),
+        new Date(commits[0].authored_datetime)
+      ]
+    }
 
     return (
       <Container>
         <Section>
           <h1 className={Classes.HEADING}>Dashboard</h1>
           <DateRangeInput
-            value={date_range}
+            value={effective_date_range}
             maxDate={new Date()}
             allowSingleDayRange
             formatDate={date => (date == null ? "" : date.toLocaleDateString())}
             parseDate={str => new Date(Date.parse(str))}
             onChange={new_date_range => {
-              this.setState(
-                { date_range: new_date_range, isLoaded: false },
-                c => this.getData(this.props)
-              );
+              const { project, branch, aggregation_metrics, dispatch } = this.props; 
+              dispatch(fetchCommits(project, branch, new_date_range, aggregation_metrics, {only_ci_batches: true, with_outputs: true}))
             }}
             shortcuts
           />
@@ -315,12 +263,14 @@ class Dashboard extends React.Component {
           <Card elevation={1} style={{ breakInside: "avoid" }}>
             <h2 className={Classes.HEADING}>Improvement over time</h2>
             <CommitsEvolution
-              project={this.state.project}
+              project={project}
+              project_data={project_data}              
               commits={selected_commits}
-              select_metrics={this.state.evolution_metrics}
+              select_metrics={evolution_metrics}
               per_output_granularity
               offer_breakdown_per_test={true}
               style={{ marginTop: "20px" }}
+              dispatch={this.props.dispatch}
             />
           </Card>
         </Section>
@@ -354,7 +304,7 @@ class Dashboard extends React.Component {
                 <li>
                   <strong>Android:</strong>{" "}
                   {Object.keys(android_batch.outputs).length} results from{" "}
-                  <Link to={`/commit/${commit_android_id}`}>
+                  <Link to={`/commit/${commit_android_id}?project=${project}`}>
                     <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
                       {pretty_commit_android_id}
                     </code>
@@ -363,14 +313,15 @@ class Dashboard extends React.Component {
                 <li>
                   <strong>LSF:</strong>{" "}
                   {Object.keys(linux_batch.outputs).length} results from{" "}
-                  <Link to={`/commit/${commit_id}`}>
+                  <Link to={`/commit/${commit_id}?project=${project}`}>
                     <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>{pretty_commit_id}</code>
                   </Link>
                 </li>
               </ul>
               <MetricsSummary
                 selected_metrics={selected_metrics}
-                project={this.state.project}
+                project={project}
+                project_data={project_data}
                 new_batch={android_batch}
                 ref_batch={linux_batch}
                 xaxis_labels={["Android", "LSF"]}
@@ -380,7 +331,7 @@ class Dashboard extends React.Component {
         )}
 
 
-        <Section>
+        {project==='dvs/psp_swip' && <Section>
           <Card elevation={1}>
             <h2 className={Classes.HEADING}>Algorithmic bottlenecks</h2>
             <p className={Classes.TEXT_MUTED}>{Object.keys(linux_batch.outputs).length} offline results{" "}
@@ -393,13 +344,13 @@ class Dashboard extends React.Component {
             <MetricsSummary
               breakdown_by_tag
               selected_metrics={selected_metrics}
-              project={this.state.project}
+              project={project}
+              project_data={project_data}
               new_batch={linux_batch}
               ref_batch={empty_batch}
             />
-
           </Card>
-        </Section>
+        </Section>}
 
         <Section>
           <div>
@@ -453,7 +404,7 @@ class Dashboard extends React.Component {
                   onChange={this.selectSortBy}
                 >
                   <option value="test_input_path">Sort by Name</option>
-                  {Object.values(this.state.available_metrics).map(m => (
+                  {Object.values(available_metrics).map(m => (
                     <option key={m.key} value={m.key}>
                       Sort by {m.label}
                     </option>
@@ -471,4 +422,51 @@ class Dashboard extends React.Component {
   }
 }
 
-export default withRouter(Dashboard);
+
+const mapStateToProps = (state, ownProps) => {
+    const params = new URLSearchParams(ownProps.location.search);
+
+    // project information
+    let project = params.get("project") || state.selected.project;
+    let project_data = state.projects.data[project] || default_project
+
+    // metrics
+    let project_metrics = project_data.information.qatools_metrics    
+    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
+    let aggregation_metrics = {};
+    (dashboard_metrics || main_metrics).forEach(m => {
+      aggregation_metrics[m] = available_metrics[m].target;
+    });
+
+
+    // selection
+    let branch = {name: params.get("branch") || project_data.information.qatools_config.project.reference_branch}
+    let branch_key = branch.name || branch.committer || 'default'
+    let commits_data = project_data.commits[branch_key] || default_commits_data;
+
+    return {
+      // URL
+      params,
+      // project information
+      project,
+      project_data,
+      // selection
+      branch,
+      date_range: commits_data.date_range || default_date_range,
+      commits: commits_data.ids.map(id=>state.commits[id]),
+      // state
+      error: commits_data.error,
+      is_loaded: commits_data.is_loaded,
+      is_loading: commits_data.is_loading,
+      // metrics
+      aggregation_metrics,
+      evolution_metrics: (dashboard_evolution_metrics || main_metrics),
+      default_metric,
+      main_metrics,
+      available_metrics,
+      dashboard_metrics,
+      dashboard_evolution_metrics,
+    }
+}
+
+export default withRouter(connect(mapStateToProps)(Dashboard) );

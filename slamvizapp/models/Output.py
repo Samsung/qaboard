@@ -38,7 +38,7 @@ class Output(Base):
   #### What we ran
   # Different output types (slam/6dof, cis/siemens...) are visualized differently
   output_type = Column(String())
-  test_input_id = Column(Integer(), ForeignKey('test_inputs.id'))
+  test_input_id = Column(Integer(), ForeignKey('test_inputs.id'), index=True)
   test_input = relationship("TestInput", lazy='joined', back_populates="outputs")
 
   platform = Column(String()) # lsf/s8/...
@@ -77,6 +77,24 @@ class Output(Base):
     self.is_pending = False
     self.is_running = False
 
+  def copy(self):
+    o = Output()
+    o.batch_id = self.batch_id
+    o.batch = self.batch
+    o.created_date = self.created_date
+    o.output_dir_override = self.output_dir_override
+    o.output_type = self.output_type
+    o.test_input_id = self.test_input_id
+    o.test_input = self.test_input
+    o.platform = self.platform
+    o.configuration = self.configuration
+    o.extra_parameters = self.extra_parameters
+    o.is_pending = self.is_pending
+    o.is_running = self.is_running
+    o.is_failed = self.is_failed
+    o.metrics = self.metrics
+    o.data = self.data
+    return o
 
   @property
   def output_folder(self):
@@ -85,7 +103,7 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return f'{self.platform}/{self.configuration}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    return f'{self.platform}/{self.configuration.replace("/", '.')}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
     # return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property
@@ -97,17 +115,13 @@ class Output(Base):
   @property
   def output_dir_url(self):
     if self.output_dir_override is not None:
-      if '/net/f2/algo_archive' in self.output_dir_override:
-        return '/s'/self.output_dir.relative_to('/net/f2')
-      elif '/stage/algo_data' in self.output_dir_override:
-        return '/s'/self.output_dir.relative_to('/stage')
-      else:
-        return f'/s{self.output_dir_override}' 
+      relative_path = self.output_dir_override.replace("/home/arthurf/ci/", "")
+      return f'/s/{relative_path}' 
     return self.batch.output_dir_url / self.output_folder
 
   def __repr__(self):
     return (f"<Output "
-           f"ci_commit_id='{self.batch.ci_commit_id}' "
+           f"ci_commit_hexsha='{self.batch.ci_commit_hexsha}' "
            f"batch='{self.batch.label}' "
            f"platform='{self.platform}' "
            f"config='{self.configuration}' "

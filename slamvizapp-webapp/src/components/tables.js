@@ -1,0 +1,218 @@
+import React, { Fragment } from "react";
+import { interpolateRdYlGn } from "d3-scale-chromatic";
+import { HTMLTable, Classes, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
+
+import { Section } from "./layout";
+import { matching_output, sortOutputs } from "../utils";
+
+const metric_formatter = new Intl.NumberFormat("en-US", {
+  style: "decimal",
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3
+});
+const percent_formatter = new Intl.NumberFormat("en-US", {
+  style: "decimal",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+});
+
+const RowHeaderCell = ({ output, warning }) => {
+  let extra_parameters =
+    Object.keys(output.extra_parameters).length > 0
+      ? JSON.stringify(output.extra_parameters)
+      : "";
+  return (
+    <th scope="row">
+      {output.test_input_path} <span className={Classes.TEXT_MUTED}>{extra_parameters}</span>
+      <Tag minimal round >
+        {output.platform}
+      </Tag>
+      {output.configuration.split(':').map(c=><Tag key={c} minimal round>{c}</Tag>)}
+      {warning && (
+        <Popover interactionKind="hover">
+          <Icon intent={Intent.WARNING} icon="warning-sign" />
+          <span>{warning}</span>
+        </Popover>
+      )}
+    </th>
+  );
+};
+
+const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
+  if (
+    !metrics_new ||
+    metrics_new[metric.key] === undefined ||
+    metrics_new[metric.key] === null
+  )
+    return <td style={{ background: "#bbb" }}>New missing</td>;
+  if (
+    !metrics_ref ||
+    metrics_ref[metric.key] === undefined ||
+    metrics_ref[metric.key] === null
+  )
+    return <td style={{ background: "#bbb" }}>Ref missing</td>;
+  let delta = metrics_new[metric.key] - metrics_ref[metric.key];
+  let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
+  let quality = metric.smaller_is_better ? (0.5 - delta_relative) : (0.5 + delta_relative);
+  return (
+    <td style={{ background: interpolateRdYlGn(quality) }}>
+      {metric_formatter.format(delta)} ({percent_formatter.format(
+        100 * delta_relative
+      )}%)
+    </td>
+  );
+};
+
+const QualityCell = ({ metric, metrics }) => {
+  if (
+    metrics === undefined ||
+    metrics[metric.key] === undefined ||
+    metrics[metric.key] === null
+  )
+    return <td style={{ background: "#bbb" }}>na</td>;
+  let value = metrics[metric.key];
+  const delta_relative = (metric.target - value) / (metric.target + 0.0001);
+  let quality = metric.smaller_is_better ? (0.5 + delta_relative) : (0.5 - delta_relative);
+  return (
+    <td style={{ background: interpolateRdYlGn(quality) }}>
+      {metric_formatter.format(value)}
+    </td>
+  );
+};
+
+const TableCompare = ({
+  new_batch,
+  ref_batch,
+  sort_order,
+  sort_by,
+  metrics,
+  input,
+  labels
+}) => {
+  if (new_batch === null) return <span />;
+  const [label_new, label_ref] = labels || ["new", "ref"];
+  let outputs = Object.entries(new_batch.outputs)
+    .filter(([id, o]) => !o.is_pending)
+    .filter(([id, o]) => o.output_type!=="optim_iteration")
+    .sort(sortOutputs(sort_by, sort_order));
+  return (
+    <Section>
+      {input}
+      <HTMLTable small>
+        <thead>
+          <tr>
+            <th />
+            {metrics.map(m => (
+              <th key={m.key}>
+                {m.label} {m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix}]</span>}
+              </th>
+            ))}
+          </tr>
+          <tr>
+            <th scope="col">
+              <span className={Classes.TEXT_MUTED}>
+                {Object.keys(outputs).length} tests
+              </span>
+            </th>
+            {metrics.map(m => (
+              <th scope="col" key={m.key}>
+                {label_new}-{label_ref}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {outputs.map(([id, output]) => {
+            let { output_ref, warning } = matching_output({
+              output: output,
+              batch: ref_batch
+            });
+            return (
+              <tr key={id}>
+                <RowHeaderCell output={output} warning={warning} />
+                {metrics.map(m => (
+                  <ColumnsMetricImprovement
+                    key={m.key}
+                    metric={m}
+                    metrics_new={output.metrics}
+                    metrics_ref={output_ref.metrics}
+                  />
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </HTMLTable>
+    </Section>
+  );
+};
+
+const TableKpi = ({
+  new_batch,
+  ref_batch,
+  sort_order,
+  sort_by,
+  metrics,
+  input,
+  labels
+}) => {
+  if (new_batch === null) return <span />;
+  const [label_new, label_ref] = labels || ["New", "Reference"];
+  let outputs = Object.entries(new_batch.outputs)
+    .filter(([id, o]) => !o.is_pending)
+    .filter(([id, o]) => o.output_type!=="optim_iteration")
+    .sort(sortOutputs(sort_by, sort_order));
+  return (
+    <Section>
+      {input}
+      <HTMLTable small>
+        <thead>
+          <tr>
+            <th />
+            {metrics.map(m => (
+              <th colSpan={2} key={m.key}>
+                {m.label} [{metric_formatter.format(m.target * m.scale)}
+                {m.suffix}]
+              </th>
+            ))}
+          </tr>
+          <tr>
+            <th scope="col">
+              <span className={Classes.TEXT_MUTED}>
+                {Object.keys(outputs).length} tests
+              </span>
+            </th>
+            {metrics.map(m => (
+              <Fragment key={m.key}>
+                <th scope="col">{label_new}</th>
+                <th scope="col">{label_ref}</th>
+              </Fragment>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {outputs.map(([id, output]) => {
+            let { output_ref, warning } = matching_output({
+              output: output,
+              batch: ref_batch,
+              soft_match: false
+            });
+            return (
+              <tr key={id}>
+                <RowHeaderCell output={output} warning={warning} />
+                {metrics.map(m => (
+                  <Fragment key={m.key}>
+                    <QualityCell metric={m} metrics={output.metrics} />
+                    <QualityCell metric={m} metrics={output_ref.metrics} />
+                  </Fragment>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </HTMLTable>
+    </Section>
+  );
+};
+
+export { TableKpi, TableCompare };

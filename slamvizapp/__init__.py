@@ -15,11 +15,11 @@ from .config import git_server, app_data_directory
 repos = Repos(git_server, app_data_directory)
 
 
-# Fetch the latest commits at startup
-# TODO: find which projects to pull using the commits in the database
-from .git_utils import git_pull
-default_repo = repos['dvs/psp_swip']
-git_pull(default_repo)
+# We could fetch the latest commits at startup
+# TODO: find which projects to pull using the latest commits in the database
+# from .git_utils import git_pull
+# default_repo = repos['dvs/psp_swip']
+# git_pull(default_repo)
 
 # Some magic to use sqlalchemy safely with Flask
 # http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/

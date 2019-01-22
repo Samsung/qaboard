@@ -1,6 +1,17 @@
 data*
+data/
 *.sock
 *.egg-info/,
 */__pycache__/
 .git/
 */node_modules/
+
+.dockerignore
+Dockerfile
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.cache
+*.log
+.git

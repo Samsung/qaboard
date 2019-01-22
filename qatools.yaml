@@ -42,14 +42,9 @@ inputs:
 
   # where we define groups
   # relative to the root of the project
-  groups: qatools/input_groups.yaml
-
-  # if you want to run all recordings under $database/sub_folder
-  # you need a way to identify test inputs
-  # either your inputs are files/directories, matching a globbing expression
+  groups: swip_slam/UnitTests/batches.yaml
+  # identifies test inputs
   glob: '*.bin'
-  # maybe your tests are actually the folder containing the match (eg movies with Frame0, Frame1...)
-  use_parent_folder: false
 
 
 outputs:

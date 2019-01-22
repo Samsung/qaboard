@@ -6,10 +6,7 @@ import {
   FETCH_COMMITS,
   UPDATE_COMMITS,
 } from '../actions/constants'
-import { default_project_id, default_project, default_qatools_config } from "../defaults"
-
-import * as slam_metrics from "../slam/metrics";
-import * as tof_metrics from "../tof/metrics";
+import { default_project_id, default_project } from "../defaults"
 
 
 function update_project(state=default_project, data) {
@@ -22,14 +19,11 @@ function update_project(state=default_project, data) {
 }
 
 
-export const reference_key = reference => (reference.name || reference.committer || 'default');
+export const branch_key = branch => (branch.name || branch.committer || 'default');
 
 export function projects(state = {
   data: {
     [default_project_id]: default_project,
-    // legacy
-    'dvs/psp_swip': {...default_project, information: {qatools_config: default_qatools_config, qatools_metrics: slam_metrics}},
-    'tof/swip_tof': {...default_project, information: {qatools_config: default_qatools_config, qatools_metrics: tof_metrics}},
   },
   is_loaded: false,
   is_loading: false,
@@ -46,8 +40,9 @@ export function projects(state = {
       new_state = {
         ...state,
         is_loaded: true,
-        error: null,
+        error: action.error,
       };
+      if (!action.projects) return new_state
       Object.entries(action.projects).forEach( ([project, data]) => {
         new_state.data[project] = update_project(state.data[project], data)
       })
@@ -55,8 +50,8 @@ export function projects(state = {
 
     case UPDATE_COMMITS:
       // console.log(state)
-      var reference = reference_key(action.reference);
-      let previous_ids = state.data[action.project].commits[reference] && state.data[action.project].commits[reference].ids;
+      var branch = branch_key(action.branch);
+      let previous_ids = state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids;
       new_state = {
         ...state,
         data: {
@@ -65,8 +60,8 @@ export function projects(state = {
             ...state.data[action.project],
             commits: {
               ...state.data[action.project].commits,
-              [reference]: {
-                ...state.data[action.project].commits[reference],
+              [branch]: {
+                ...state.data[action.project].commits[branch],
                 is_loaded: true,
                 is_loading: false,
                 // in case of error, we keep the previous list of commits
@@ -78,14 +73,14 @@ export function projects(state = {
         }
       }
       if (action.commits.length > 0)
-        new_state.data[action.project].commits[reference].date_range =  [
+        new_state.data[action.project].commits[branch].date_range =  [
           new Date(action.commits[action.commits.length - 1].authored_datetime),
           new Date(action.commits[0].authored_datetime)
         ]
       return new_state;
 
     case FETCH_COMMITS:
-      reference = reference_key(action.reference);
+      branch = branch_key(action.branch);
       return {
         ...state,
         data: {
@@ -93,9 +88,9 @@ export function projects(state = {
           [action.project]: {
             ...state.data[action.project],
             commits: {
-              [reference]: {
-                ...state.data[action.project].commits[reference],
-                ids: (state.data[action.project].commits[reference] && state.data[action.project].commits[reference].ids) || [],
+              [branch]: {
+                ...state.data[action.project].commits[branch],
+                ids: (state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids) || [],
                 is_loading: true,
                 error: null,
                 date_range: action.date_range,

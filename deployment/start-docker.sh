@@ -10,7 +10,7 @@ DOCKER_VOLUMES=""
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
 HOME_DOCKER=/opt/dockermounts$HOME
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa" # helps avoid mount errors...
-DOCKER_VOLUMES+=" --volume=/stage:/stage"
+DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage/algo_data:/stage/algo_data"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database"
@@ -26,12 +26,14 @@ if [ -z ${CI_ENVIRONMENT_SLUG+x} ]; then
 else
 	DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
 	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
-		#                 frontend               debug            database     https-frontend
-		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5032:5432 -p0.0.0.0:5001:443"
+		#                 frontend           debug api            database     https-frontend
+		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
 	else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
-		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9001:443"
-  		  # DOCKER_ENV+=" --env SLAM_DB_PORT=9000"		
+      #                 frontend           debug api            database     https-frontend
+		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:5433:5432 -p0.0.0.0:9001:443"
+      # DOCKER_ENV+=" --env SLAMVIZAPP_DB_HOST=dvs"    
+      # DOCKER_ENV+=" --env SLAMVIZAPP_DB_PORT=5432"    
 		else
             PORTS="-p0.0.0.0:10000:5000 -p0.0.0.0:10002:5002 -p0.0.0.0:10001:443"
  			# PORTS=""
@@ -77,6 +79,10 @@ else
       echo 'reading source from container'
   else
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
+      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/common-infrastructure/qatools/qatools:/opt/anaconda3/lib/python3.6/site-packages/qatools"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson:/opt/anaconda3/lib/python3.6/site-packages/simplejson"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson-3.16.0.dist-info:/opt/anaconda3/lib/python3.6/site-packages/simplejson-3.16.0.dist-info"
   fi
 fi
 

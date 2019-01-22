@@ -40,7 +40,7 @@ const CommitsWarningMessages = ({commits}) => {
 const SimpleOutputList = ({outputs, intent}) => {
   return <ul className={Classes.LIST}>
     {outputs.map(o =>
-      <li key={o}>
+      <li key={o.id}>
         <Tag intent={intent} minimal>{`${o.configuration} @${o.platform}`}</Tag>{" "}
         <strong>{o.test_input_path}</strong>
         {Object.keys(o.extra_parameters).length > 0 && (
@@ -63,7 +63,7 @@ const BatchStatusMessages = ({batch}) => {
       title={
         <Tooltip>
           <span>
-            {batch.running_outputs} result{batch.running_outputs > 1 ? "s" : ""} running
+            {batch.running_outputs} running
           </span>
           <SimpleOutputList
             outputs={Object.values(batch.outputs).filter(o => o.is_running)}
@@ -72,14 +72,15 @@ const BatchStatusMessages = ({batch}) => {
       }
     />
   )
-  let pending_message = batch.pending_outputs > 0 && (
+  let nb_pending = batch.pending_outputs - batch.running_outputs;
+  let pending_message = nb_pending > 0 && (
     <Callout
       icon="info-sign"
       intent={Intent.WARNING}
       title={
         <Tooltip>
           <span>
-            {batch.pending_outputs} result{batch.pending_outputs > 1 ? "s" : ""} pending
+            {nb_pending} pending
           </span>
           <SimpleOutputList
             outputs={Object.values(batch.outputs).filter(o => o.is_pending && !o.is_running)}
