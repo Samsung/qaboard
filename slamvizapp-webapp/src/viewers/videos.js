@@ -1,4 +1,4 @@
-import React, { Fragment } from "react";
+import React from "react";
 
 class SyncedVideos extends React.Component {
   constructor(props) {
@@ -6,7 +6,7 @@ class SyncedVideos extends React.Component {
     this.syncReferenceVideo = this.syncReferenceVideo.bind(this);
   }
   play_ref = () => this.video_ref.play();
-  pause_ref = () => this.video_ref.pause();
+   pause_ref = () => this.video_ref.pause();
 
   componentDidMount() {
     // this.video_ref.addEventListener("canplay",
@@ -34,7 +34,7 @@ class SyncedVideos extends React.Component {
     const { output_new, output_ref, path, poster, type } = this.props;
 
     return (
-      <Fragment>
+      <>
         <video
           ref={video => (this.video_new = video)}
           preload="none"
@@ -60,7 +60,7 @@ class SyncedVideos extends React.Component {
             <source src={`${output_ref.output_dir_url}/${path}`} />
           </video>
         )}
-      </Fragment>
+      </>
     );
   }
 }

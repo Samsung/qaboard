@@ -54,7 +54,7 @@ class HtmlViewer extends PureComponent {
       this.setState((previous_state, props) => ({
         data: {
           ...previous_state.data,
-          [label]: response.data.data,
+          [label]: response.data,
         },
       }))
     }

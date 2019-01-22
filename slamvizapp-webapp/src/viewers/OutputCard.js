@@ -123,6 +123,7 @@ const LoadableCisViewer = lazy(() => import('./cis/CisOutputCard' /* webpackChun
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
 const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
+const LoadableTextViewer = lazy(() => import('./text' /* webpackChunkName: "text-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
 
 class OutputViewer extends React.Component {
@@ -141,6 +142,8 @@ class OutputViewer extends React.Component {
       viewer = <LoadableVideoViewer {...props} type={type} />
     else if (type.startsWith('image'))
       viewer = <LoadableImageViewer {...props} type={type} />
+    else if (type === 'text/plain')
+      viewer = <LoadableTextViewer {...props} type={type} />
     else if (type === 'text/html')
       viewer = <LoadableHtmlViewer {...props} type={type} />
     else viewer = <span>No viewer is defined for type: {type}</span>;
@@ -207,6 +210,7 @@ class OutputCard extends Component {
     </div>
   }
 }
+          // <OutputViewer key="test" type="text/plain" output_new={output_new} output_ref={output_ref} style={style} path='metrics.json'/>
 
 
 export { OutputCard };
