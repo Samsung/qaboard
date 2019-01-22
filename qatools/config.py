@@ -218,8 +218,8 @@ if is_ci:
     commit_type = config['project']['type']
     # CI_*/GIT_* variables are set by GitlabCI/JenkinsGit
     commit_id = os.getenv('CI_COMMIT_SHA', os.getenv('GIT_COMMIT', Path().resolve().name ))
-    commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH'))
-    reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH'))
+    commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH').replace('origin/', ''))
+    reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH').replace('origin/', '').replace('/', '-'))
     try:
         branch_ci_dir = ci_dir / 'branches' / reference_slug
     except:
