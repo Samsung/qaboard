@@ -75,17 +75,7 @@ RUN echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf && \
     curl -ksL https://deb.nodesource.com/setup_10.x | sed 's/wget -/wget --no-check-certificate -/g' | bash - && \
     apt-get install -y nodejs
 
-# yarn
-RUN curl -k -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
-    echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
-    apt-get install apt-transport-https && \
-    apt-get update && \
-    apt-get install -y yarn && \
-    yarn config set strict-ssl false && \
-    yarn config set cafile /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt && \
-    yarn config set https-proxy $HTTP_PROXY && \
-    yarn config set http-proxy  $HTTP_PROXY \
-    npm config set strict-ssl false && \
+RUN npm config set strict-ssl false && \
     npm config set cafile /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt && \
     npm config set https-proxy $HTTP_PROXY && \
     npm config set http-proxy  $http_proxy
@@ -102,31 +92,25 @@ RUN pip install --upgrade pip
 
 # our frontend's dependencies
 WORKDIR /slamvizapp/slamvizapp-webapp
-COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/yarn.lock ./
+COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/package-lock.json ./
 ENV NODE_ENV production
-# RUN yarn global add grunt-cli # for building openseadragon from source
-RUN npm install -g grunt-cli
-
-RUN npm ci
-# RUN yarn install --frozen-lockfile
-# yarn doesn't run build scripts when installing purely lockfiles...
-# https://github.com/yarnpkg/yarn/issues/1671
-# RUN cd node_modules/openseadragon && yarn add grunt-cli && yarn add grunt && ls -alh && yarn install && yarn run prepare
-# RUN yarn check --verify-tree
-
-# RUN cat node_modules/openseadragon/package.json
-RUN ls -alh node_modules/openseadragon
-RUN ls -alh node_modules/openseadragon/build/openseadragon
+## FIXME ####################################
+# At the  moment we don't build the app from the container (ulimit/network issues)
+# Before, you need to
+# $ cd slamvizapp-webapp; npm ci; npm build
+# RUN ulimit -n 2000 && npm install -ddd
+# RUN ulimit -n 2000 && npm ci -ddd
 COPY . /slamvizapp/
-RUN yarn build
+# RUN npm run build
+##############################################
 
 # our API
-WORKDIR /slamvizapp
-# RUN pip install --editable . # proxy madness
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/common-infrastructure/qatools'
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
+WORKDIR /slamvizapp
+# RUN pip install --editable . # proxy madness
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/common-infrastructure/qatools'
 
 VOLUME /var/slamvizapp
 
