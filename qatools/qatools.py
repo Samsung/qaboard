@@ -31,9 +31,9 @@ from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commi
 from .config import repo, is_ci
 
 
-entrypoint = config['project'].get('entrypoint')
 def entrypoint_module():
   """Lazily returns the entrypoint module"""
+  entrypoint = config['project'].get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
     click.secho(f'Add to qatools.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
@@ -188,7 +188,7 @@ def run(ctx, input_path, output_path, forwarded_args):
 
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `run` function in {entrypoint} raised an exception:', fg='red', bold=True)
+      click.secho(f'[ERROR] The `run` function in your raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       runtime_metrics = {'is_failed': True}
 
@@ -225,7 +225,7 @@ def postprocess_(runtime_metrics, context):
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
     # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    click.secho(f'[ERROR] The `postprocess` function in {entrypoint} raised an exception:', fg='red', bold=True)
+    click.secho(f'[ERROR] The `postprocess` function in your entrypoint raised an exception:', fg='red', bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
     metrics = {**runtime_metrics, 'is_failed': True}
 
