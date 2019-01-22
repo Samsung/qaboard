@@ -96,7 +96,7 @@ if not qatools_config_paths:
   root_qatools = None
   leaf_qatools = None
   root_qatools_config = {}
-  leaf_relative_to_root = Path(".")
+     = Path(".")
 else:
   if len(qatools_config_paths)==1:
     root_qatools = qatools_config_paths[0].parent
@@ -105,7 +105,7 @@ else:
   else:
     root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
     root_qatools_config, *_ = qatools_configs
-  leaf_relative_to_root = leaf_qatools.relative_to(root_qatools) if root_qatools else None
+  subproject = leaf_qatools.relative_to(root_qatools) if root_qatools else None
 
   # We check for consistency
   if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
@@ -115,7 +115,7 @@ else:
 
   # We identify sub-qatools projects using the location of qatools.yaml related to the project root
   # It's not something the user should change...
-  leaf_project_name = root_qatools_config['project']['name'] / leaf_relative_to_root
+  leaf_project_name = root_qatools_config['project']['name'] / subproject
   uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
   if uncoherent_name:
       click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
@@ -192,8 +192,8 @@ else:
         commit = repo.head.commit
         commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
         commit_rootproject_ci_dir = ci_dir / 'commits' / commit_ci_dirname
-        if leaf_relative_to_root:
-            commit_ci_dir = commit_rootproject_ci_dir / leaf_relative_to_root
+        if subproject:
+            commit_ci_dir = commit_rootproject_ci_dir / subproject
         else:
             commit_rootproject_ci_dir
     except:
