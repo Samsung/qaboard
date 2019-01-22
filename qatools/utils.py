@@ -63,7 +63,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
     batch_dir(commit_ci_dir, batch_label, tuning) /
     platform /
     # safer on windows
-    configuration.replace(":","_") /
+    configuration.replace("/", '.') /
     tuning_foldername(batch_label, hash_parameters(tuning))
   )
 
