@@ -78,46 +78,32 @@ const PointerLockControls = function ( camera, domElement ) {
 	};
 
 	this.dispose = function () {
-
 		this.disconnect();
-
 	};
 
 	this.getObject = function () {
-
 		return yawObject;
-
 	};
 
 	this.getDirection = function () {
-
 		// assumes the camera itself is not rotated
-
 		var direction = new THREE.Vector3( 0, 0, - 1 );
 		var rotation = new THREE.Euler( 0, 0, 0, 'YXZ' );
 
 		return function ( v ) {
-
 			rotation.set( pitchObject.rotation.x, yawObject.rotation.y, 0 );
-
 			v.copy( direction ).applyEuler( rotation );
-
 			return v;
-
 		};
 
 	}();
 
 	this.lock = function () {
-
 		this.domElement.requestPointerLock();
-
 	};
 
 	this.unlock = function () {
-
 		document.exitPointerLock();
-
 	};
 
 	this.connect();

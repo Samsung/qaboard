@@ -82,6 +82,25 @@ class TofOutputCard extends Component {
 
     let last_frame_id = 0 // default
     let first_frame_id = 0 // default
+    const default_heatmap = {
+      axes: {
+        xaxis: {
+          autorange : true,
+        },
+        yaxis: {
+          autorange: "reversed",
+        }
+      },
+      zscale: {
+        zmin: 0,
+        zmax: 750,
+      },
+      scaleMinMax: {
+        zmin: 0,
+        zmax: 750,
+      },
+    };
+
     this.state = {
       first_frame_id,
       last_frame_id,
@@ -101,30 +120,11 @@ class TofOutputCard extends Component {
       },
 
       show_heatmap: false,
-      heatmap : {
-        axes: {
-          xaxis: {
-            autorange : true
-          },
-          yaxis: {
-            autorange: "reversed"
-          }
-        },
-        zscale: {
-          zmin: 0,
-          zmax: 750,
-        },
-        scaleMinMax: {
-          zmin: 0,
-          zmax: 750
-        },        
-      },
-
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
-      depth: {
-      },
-
+      depth : default_heatmap, // make a deep copy...
+      AbsErrHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
+      pcmdHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
     };
   }
 
@@ -159,7 +159,7 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
-    window.addEventListener("keypress", this.keypress);
+    window.addEventListener("keypress", this.keyboard);
     this.updateFrames(this.props);
   }
 
@@ -168,14 +168,15 @@ class TofOutputCard extends Component {
     if (outputs_changed)
         this.updateFrames(this.props, /*keep_selected_frame=*/prevProps.output_new.test_input_path === this.props.output_new.test_input_path)
     const { selected_output_type } = this.state;
-    const hex = (this.state[selected_output_type] || {})[this.state.selected_frame] || {is_loading: false, is_loaded: false};
-    let should_load_hex = !hex.is_loaded && !hex.is_loading;
-    if (this.state.show_heatmap && (should_load_hex || outputs_changed) )
-        this.getHexData(this.props);
+    const heatmaps = this.state[selected_output_type] || {}
+    const heatmap = heatmaps[this.state.selected_frame] || {is_loading: false, is_loaded: false};
+    let should_load_heatmap = !heatmap.is_loaded && !heatmap.is_loading;
+    if (this.state.show_heatmap && (should_load_heatmap || outputs_changed) )
+        this.getHeatmapData(this.props);
   }
   
   
-  getHexData(props) {
+  getHeatmapData(props) {
     const { output_new, output_ref } = props;
     const { selected_frame, selected_output_type }  = this.state;
     let hex_layout = {
@@ -200,13 +201,10 @@ class TofOutputCard extends Component {
       }
       const z_minmax = maxmin(newHexData.z.flat());
 	    this.setState({
-        heatmap: {
-          ...this.state.heatmap,
-          zscale: z_minmax,
-          scaleMinMax: z_minmax,
-        },
         [selected_output_type]: {
           ...this.state[selected_output_type],
+          zscale: z_minmax,
+          scaleMinMax: z_minmax,
   	      [selected_frame]: {
             ...this.state[selected_output_type][selected_frame],
             newHexData,
@@ -278,7 +276,7 @@ class TofOutputCard extends Component {
           this.scene.remove(previous_pointcloud);
         pointcloud.name = label;
         pointcloud.material.size = 0.01;
-        if (label === "reference") {
+        if (label === "reference")
           pointcloud.visible = false;
         else if (label === "new") {
           var center = pointcloud.geometry.boundingSphere.center;
@@ -348,7 +346,6 @@ class TofOutputCard extends Component {
     this.renderer.setSize(width, height);
 
     this.renderer.domElement.setAttribute("tabindex", 0); // listen to keyboard events
-    window.addEventListener("keyup", this.keyboard);
     this.renderer.domElement.addEventListener("keydown", this.keyup);
     this.renderer.domElement.addEventListener("keyup", this.keydown);
     this.renderer.domElement.addEventListener("click", this.click);
@@ -454,17 +451,18 @@ class TofOutputCard extends Component {
     };
     let heatmaps_layout = {
       title: `${selected_output_type} @${this.state.focus}`,
-      ...this.state.heatmap.axes,
+      ...this.state[selected_output_type].axes,
       width: 640,
       height: 564,
     };
 
     const { focus } = this.state;
-    const hex = this.state[selected_output_type][selected_frame] || {is_loaded: false};
-    let show_heatmap = this.state.show_heatmap && hex.is_loaded;
-    let  heatmaps_data = this.state.show_heatmap ? [{
-      ...(focus === "new" ? hex.newHexData : hex.refHexData),
-      ...this.state.heatmap.zscale,
+    const heatmaps = this.state[selected_output_type] || {};
+    const heatmap = heatmaps[selected_frame] || {is_loaded: false};
+    let show_heatmap = this.state.show_heatmap && heatmap.is_loaded;
+    let  heatmaps_data = show_heatmap ? [{
+      ...(focus === "new" ? heatmap.newHexData : heatmap.refHexData),
+      ...heatmaps.zscale,
     }] : []
 
     return (
@@ -512,17 +510,17 @@ class TofOutputCard extends Component {
                 <Plot data={heatmaps_data} layout={heatmaps_layout} />
                 <div>
                   <RangeSlider
-                    min={this.state.heatmap.scaleMinMax.zmin} 
-                    max={this.state.heatmap.scaleMinMax.zmax} 
-                    value={[this.state.heatmap.zscale.zmin, this.state.heatmap.zscale.zmax]} 
+                    min={heatmaps.scaleMinMax.zmin} 
+                    max={heatmaps.scaleMinMax.zmax} 
+                    value={[heatmaps.zscale.zmin, heatmaps.zscale.zmax]} 
                     onChange={ ([zmin, zmax]) => this.setState({
-                        heatmap: {
-                          ...this.state.heatmap,
+                        [selected_output_type]: {
+                          ...this.state[selected_output_type],
                           zscale: {zmin, zmax},
                         } 
                       })
                     }
-                    labelStepSize={(this.state.heatmap.scaleMinMax.zmax - this.state.heatmap.scaleMinMax.zmin) / 20}
+                    labelStepSize={(heatmaps.scaleMinMax.zmax - heatmaps.scaleMinMax.zmin) / 20}
                     stepSize={0.1}
                   />
                 </div>
@@ -535,7 +533,7 @@ class TofOutputCard extends Component {
         </div>
         <div className="viewButtons">
           <div>
-            <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (hex.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>
+            <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>
           </div>
           <div>
             <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
@@ -556,6 +554,76 @@ class TofOutputCard extends Component {
       </>
     );
   }
+
+
+
+  keyboard = ev => {
+    if (this.scene !== undefined){
+      var pointcloud_new = this.scene.getObjectByName("new");
+      var pointcloud_ref = this.scene.getObjectByName("reference");
+      var pointcloud_gt = this.scene.getObjectByName("groundtruth");
+    }
+    switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
+      case "+":
+      case "=":
+        if (pointcloud_new !== undefined) {
+          pointcloud_new.material.size *= 1.25;
+          pointcloud_new.material.needsUpdate = true;
+          //console.log(pointcloud_new.material.size);
+        }
+        if (pointcloud_ref !== undefined) {
+          pointcloud_ref.material.size *= 1.25;
+          pointcloud_ref.material.needsUpdate = true;
+        }
+        if (pointcloud_gt !== undefined) {
+          pointcloud_gt.material.size *= 1.25;
+          pointcloud_gt.material.needsUpdate = true;
+        }
+        break;
+      case "-":
+      case "_":
+        if (pointcloud_new !== undefined) {
+          pointcloud_new.material.size /= 1.25;
+          pointcloud_new.material.needsUpdate = true;
+        }
+        if (pointcloud_ref !== undefined) {
+          pointcloud_ref.material.size /= 1.25;
+          pointcloud_ref.material.needsUpdate = true;
+        }
+        if (pointcloud_gt !== undefined) {
+          pointcloud_gt.material.size /= 1.25;
+          pointcloud_gt.material.needsUpdate = true;
+        }
+        break;
+      case "r":
+      case "R":
+        let focus = this.state.focus === 'new' ? 'reference' : 'new';
+        this.setState({focus})
+        if (pointcloud_new !== undefined)
+          pointcloud_new.visible = focus === 'new';
+        if (pointcloud_ref !== undefined)
+          pointcloud_ref.visible = focus === 'reference';
+        break;
+      case "g":
+        if (pointcloud_ref !== undefined) {
+          pointcloud_ref.material.transparent = !pointcloud_ref.material.transparent;
+          pointcloud_ref.material.opacity = pointcloud_gt.visible ? 1 : 0.5;
+        }
+        if (pointcloud_new !== undefined) {
+          pointcloud_new.material.transparent = !pointcloud_new.material.transparent;
+          pointcloud_new.material.opacity = pointcloud_gt.visible ? 1 : 0.5;
+        }
+        if (pointcloud_gt !== undefined) {
+          pointcloud_gt.visible = !pointcloud_gt.visible;
+        }
+        break;
+      default:
+        return;
+    }
+  };
+
+
+
 
   // Toggles the component's focus in order to receive keyboard events.
   // When the component is focused, WASD keys control the viewpoint, otherwise we use the standard "orbit" controls.
@@ -623,72 +691,6 @@ class TofOutputCard extends Component {
       }
     };    
   }
-
-  keyboard = ev => {
-    if (this.scene !== undefined){
-      var pointcloud_new = this.scene.getObjectByName("new");
-      var pointcloud_ref = this.scene.getObjectByName("reference");
-      var pointcloud_gt = this.scene.getObjectByName("groundtruth");
-    }
-    switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
-      case "+":
-      case "=":
-        if (pointcloud_new !== undefined) {
-          pointcloud_new.material.size *= 1.25;
-          pointcloud_new.material.needsUpdate = true;
-          //console.log(pointcloud_new.material.size);
-        }
-        if (pointcloud_ref !== undefined) {
-          pointcloud_ref.material.size *= 1.25;
-          pointcloud_ref.material.needsUpdate = true;
-        }
-        if (pointcloud_gt !== undefined) {
-          pointcloud_gt.material.size *= 1.25;
-          pointcloud_gt.material.needsUpdate = true;
-        }
-        break;
-      case "-":
-      case "_":
-        if (pointcloud_new !== undefined) {
-          pointcloud_new.material.size /= 1.25;
-          pointcloud_new.material.needsUpdate = true;
-        }
-        if (pointcloud_ref !== undefined) {
-          pointcloud_ref.material.size /= 1.25;
-          pointcloud_ref.material.needsUpdate = true;
-        }
-        if (pointcloud_gt !== undefined) {
-          pointcloud_gt.material.size /= 1.25;
-          pointcloud_gt.material.needsUpdate = true;
-        }
-        break;
-      case "r":
-      case "R":
-        let focus = this.state.focus === 'new' ? 'reference' : 'new';
-        this.setState({focus})
-        if (pointcloud_new !== undefined)
-          pointcloud_ref.visible = focus === 'new';
-        if (pointcloud_ref !== undefined)
-          pointcloud_ref.visible = focus === 'reference';
-        break;
-      case "g":
-        if (pointcloud_ref !== undefined) {
-          pointcloud_ref.material.transparent = !pointcloud_ref.material.transparent;
-          pointcloud_ref.material.opacity = pointcloud_gt.visible ? 1 : 0.5;
-        }
-        if (pointcloud_new !== undefined) {
-          pointcloud_new.material.transparent = !pointcloud_new.material.transparent;
-          pointcloud_new.material.opacity = pointcloud_gt.visible ? 1 : 0.5;
-        }
-        if (pointcloud_gt !== undefined) {
-          pointcloud_gt.visible = !pointcloud_gt.visible;
-        }
-        break;
-      default:
-        return;
-    }
-  };
-
 }
 
 export default TofOutputCard;
