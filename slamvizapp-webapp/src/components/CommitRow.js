@@ -252,6 +252,7 @@ class CommitRow extends React.Component {
   render() {
     const { commit, project, project_data, className, toaster } = this.props;
     const commit_url = `http://gitlab-srv/${project}/commit/${commit.id}`
+    let maybe_skeletton = !!commit.message ? null : Classes.SKELETON;
     return (
       <CommitRowWrapper className={className}>
         <Avatar
@@ -262,7 +263,7 @@ class CommitRow extends React.Component {
 
         <CommitDetails>
           <CommitContent style={{ maxWidth: "600px" }}>
-            <Message>{commit.message}</Message>
+            <Message className={maybe_skeletton}>{commit.message || 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
             <div>
               <CommitShortId project={project} href={commit_url}>
                 {shortId(project, commit.id)}

@@ -76,9 +76,8 @@ class CiCommitList extends React.Component {
   }
 
   getData(props) {
-    const { is_loading, dispatch, project, date_range, aggregated_metrics, branch } = this.props;
-    if (!is_loading)
-      dispatch(fetchCommits(project, branch, date_range, aggregated_metrics))
+    const { dispatch, project, date_range, aggregated_metrics, branch } = this.props;
+    dispatch(fetchCommits(project, branch, date_range, aggregated_metrics))
   }
 
   componentDidMount() {
@@ -279,7 +278,7 @@ const mapStateToProps = (state, ownProps) => {
       branch,
       aggregated_metrics,
       date_range: commits_data.date_range || default_date_range,
-      commits: commits_data.ids.map(id=>state.commits[id]),
+      commits: commits_data.ids.map(id=> state.commits[id] || {id, batches: {}}),
       error: commits_data.error,
       is_loaded: commits_data.is_loaded,
       is_loading: commits_data.is_loading,

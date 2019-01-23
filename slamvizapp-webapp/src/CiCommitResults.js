@@ -647,6 +647,12 @@ class OutputList extends Component {
 
 
 
+const unique_batch = commit => {
+  if (!!!commit || !!!commit.batches) return null;
+  const batches = Object.keys(commit.batches);
+  if (batches.length===1) return batches[0];
+}
+
 const mapStateToProps = (state, ownProps) => {
     const params = new URLSearchParams(ownProps.location.search);
     // project information
@@ -663,11 +669,14 @@ const mapStateToProps = (state, ownProps) => {
 
     let new_commit = state.commits[new_commit_id];
     let ref_commit = ref_commit_id && state.commits[ref_commit_id];
+
     // selected batch
-    let selected_batch_new = (state.selected[project] && state.selected[project].batch_new) || default_selected_.batch_new
-    let selected_batch_ref = (state.selected[project] && state.selected[project].batch_ref) || default_selected_.batch_ref
+    let selected_batch_new = unique_batch(new_commit) || (state.selected[project] && state.selected[project].batch_new) || default_selected_.batch_new
+    let selected_batch_ref = unique_batch(ref_commit) || (state.selected[project] && state.selected[project].batch_ref) || default_selected_.batch_ref
+
     let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
     let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
+
     if (!new_batch.outputs)
       new_batch.outputs = {}
     if (!ref_batch.outputs)

@@ -24,7 +24,8 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
       );
     });
 
-  let has_tuning_batches = Object.values(commit.batches).length > 1;
+  let has_tuning_batches = Object.values(commit.batches).length >= 1;
+  console.log(commit.batches)
   return (
     <FormGroup
       label={<span>{prefix}</span>}
