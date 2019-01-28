@@ -17,6 +17,19 @@ from .utils import slugify, getenvs
 config_has_error = False
 
 
+# We handle deprecate flag names here
+renamings = (
+  ('--input-path', '--input'),
+  ('--output-path', '--input'),
+)
+def renamed_deprecated(arg):
+  for before, after in renamings:
+    if arg == before: return after
+  return arg
+sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
+
+
+
 # The `init` command is implemented here to avoid printing config error messages
 # when users use qatools for the first time. Its goal is to provide a sample qatools configuration
 if len(sys.argv)>1 and sys.argv[1] == 'init':
