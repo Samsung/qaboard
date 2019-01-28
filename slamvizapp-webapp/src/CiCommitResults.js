@@ -58,18 +58,37 @@ class CiCommitResults extends Component {
   }
 
   control_defaults = (props) => {
-    if (!!!props.project_data ||
-        !!!props.project_data.information ||
-        !!!props.project_data.information.qatools_config ||
-        !!!props.project_data.information.qatools_config.outputs) {
-      return {};
-    }
     let state_controls = {};
-    let controls = props.project_data.information.qatools_config.outputs.controls || [];
-    controls.forEach(control => {
-      state_controls[control.name] = control.default;
-    })
+
+    if (!!props.project_data &&
+        !!props.project_data.information &&
+        !!props.project_data.information.qatools_config &&
+        !!props.project_data.information.qatools_config.outputs) {
+      let controls = props.project_data.information.qatools_config.outputs.controls || [];
+      controls.forEach(control => {
+        state_controls[control.name] = control.default;
+      })
+    }
+
+    let query = qs.parse(window.location.search.substring(1));
+    if (!!query.controls) {
+      let query_controls = JSON.parse(query.controls)
+      Object.entries(query_controls).forEach( ([key, value]) => {
+        state_controls[key] = value;
+      })
+    }
     return state_controls;
+  }
+
+  updateQueryUrlWithControls() {
+    let query = qs.parse(window.location.search.substring(1));
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        controls: JSON.stringify(this.state.controls),
+      })
+    });
   }
 
   toggle = name => () => {
@@ -78,19 +97,19 @@ class CiCommitResults extends Component {
         ...previousState.controls,
         [name]: !this.state.controls[name],
       }
-    }))    
+    }), this.updateQueryUrlWithControls)  
   }
 
-  toggle_show = idx => () => {
+  toggle_show = name => () => {
     this.setState( (previousState, props) => ({
       controls: {
         ...previousState.controls,
         show: {
           ...previousState.controls.show,          
-          [idx]: !this.state[idx],
+          [name]: !this.state[name],
         }
       }
-    }))    
+    }), this.updateQueryUrlWithControls)    
   }
 
 
@@ -177,9 +196,9 @@ class CiCommitResults extends Component {
 
   selectBatchNew = e => {
     this.props.dispatch(updateSelected(this.props.project, { batch_new: e.target.value }))
-    let query = qs.parse(this.props.location.search.substring(1));
+    let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
-      pathname: this.props.location.pathname,
+      pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
         batch_new: e.target.value
@@ -189,9 +208,9 @@ class CiCommitResults extends Component {
 
   selectBatchRef = e => {
     this.props.dispatch(updateSelected(this.props.project, { batch_ref: e.target.value }))
-    let query = qs.parse(this.props.location.search.substring(1));
+    let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
-      pathname: this.props.location.pathname,
+      pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
         batch_reference: e.target.value
@@ -201,9 +220,9 @@ class CiCommitResults extends Component {
 
   UpdateFilterBatchNew = e => {
     this.props.dispatch(updateSelected(this.props.project, { filter_batch_new: e.target.value }))
-    let query = qs.parse(this.props.location.search.substring(1));
+    let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
-      pathname: this.props.location.pathname,
+      pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
         filter: e.target.value
@@ -213,9 +232,9 @@ class CiCommitResults extends Component {
   UpdateFilterBatchRef = e => {
     this.props.dispatch(updateSelected(this.props.project, { filter_batch_ref: e.target.value }))
     this.setState({ filter_batch_ref: e.target.value });
-    let query = qs.parse(this.props.location.search.substring(1));
+    let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
-      pathname: this.props.location.pathname,
+      pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
         filter_ref: e.target.value
@@ -226,9 +245,9 @@ class CiCommitResults extends Component {
 
   UpdateTabSummary = (newTabId, prevTabId, event) => {
     this.props.dispatch(updateSelected(this.props.project, { selected_tab_summary: newTabId }))
-    let query = qs.parse(this.props.location.search.substring(1));
+    let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
-      pathname: this.props.location.pathname,
+      pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
         selected_tab_summary: newTabId,
@@ -237,9 +256,9 @@ class CiCommitResults extends Component {
   };
   UpdateTabDetails = (newTabId, prevTabId, event) => {
     this.props.dispatch(updateSelected(this.props.project, { selected_tab_details: newTabId }))
-    let query = qs.parse(this.props.location.search.substring(1));
+    let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
-      pathname: this.props.location.pathname,
+      pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
         selected_tab_details: newTabId,
@@ -290,30 +309,44 @@ class CiCommitResults extends Component {
       />
     );
 
+    // console.log(this.state.controls)
     let controls_extra = project_data.information.qatools_config.outputs.controls || []
     let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
     let controls = <>
       {detailed_views.map( (view, idx) => {
         if (!view.default_hidden) return <React.Fragment key={idx}></React.Fragment>
+        console.log(this.state.controls.show[view.name])
         return <Switch
                 key={idx}
-                hidden={!view.default_hidden}
-                defaultChecked={false}
-                onChange={this.toggle_show(idx)}
+                checked={this.state.controls.show[view.name]}
+                onChange={this.toggle_show(view.name)}
                 label={view.label || view.name || view.path}
                />
       })}
       {controls_extra.map(control => {
         return <Switch
                 key={control.name}
-                defaultChecked={control.default || false}
+                checked={this.state.controls[control.name]}
                 onChange={this.toggle(control.name)}
                 label={control.label || control.name}
                />
       })}
     </>
 
+    // we can only do tuning for projects whose database is outside the repo
+    // otherwise we would need to checkout the repo and manage access...
+    const disable_tuning = !!project_data.information &&
+                           !!project_data.information.qatools_config &&
+                           !!project_data.information.qatools_config.inputs &&
+                           !!project_data.information.qatools_config.inputs.database &&
+                           !!project_data.information.qatools_config.inputs.database.linux &&
+                           !project_data.information.qatools_config.inputs.database.linux.startsWith('/');
 
+    const nb_good = batch => (Object.values(batch.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length
+    const nb_outputs_new = nb_good(this.props.new_batch);
+    const nb_outputs_ref = nb_good(this.props.ref_batch);
+    const nb_outputs_filtered_new = nb_good(new_batch_filtered);
+    const nb_outputs_filtered_ref = nb_good(ref_batch_filtered);
     return (
       <Container>
         <Section>
@@ -326,11 +359,11 @@ class CiCommitResults extends Component {
           />
         </Section>
 
-        {(!new_commit || !ref_commit) && <Section>
+        {(!new_commit) && <Section>
           {warning_messages}
         </Section>}
 
-        {(!!new_commit && !!ref_commit) && (
+        {(!!new_commit) && (
             <>
               <Section key="high-level">
                 <Card elevation={0}>
@@ -354,13 +387,13 @@ class CiCommitResults extends Component {
                         onChange={this.selectBatchNew}
                         prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
                       />
-                      <FormGroup
+                      {nb_outputs_new>0 && <FormGroup
                         labelFor="filter-new-input"
                         helperText={`${
                           !this.props.filter_batch_new
                             ? "You can filter outputs by all their properties. "
                             : ""
-                        }${(Object.values(new_batch_filtered.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length} selected`}
+                        }${nb_outputs_filtered_new} selected`}
                       >
                         <InputGroup
                           value={this.props.filter_batch_new}
@@ -369,7 +402,7 @@ class CiCommitResults extends Component {
                           type="search"
                           leftIcon="search"
                         />
-                      </FormGroup>
+                      </FormGroup>}
                     </div>
                     <div
                       style={{
@@ -387,11 +420,9 @@ class CiCommitResults extends Component {
                           <Tag intent={Intent.PRIMARY}>Reference commit</Tag>
                         }
                       />
-                      <FormGroup
+                      {nb_outputs_ref > 0 && <FormGroup
                         labelFor="filter-ref-input"
-                        helperText={`${
-                          (Object.values(ref_batch_filtered.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length
-                        } selected.`}
+                        helperText={`${nb_outputs_filtered_ref} selected.`}
                       >
                         <InputGroup
                           value={this.props.filter_batch_ref}
@@ -400,7 +431,7 @@ class CiCommitResults extends Component {
                           type="search"
                           rightIcon="search"
                         />
-                      </FormGroup>
+                      </FormGroup>}
                     </div>
                   </div>
                 </Card>
@@ -445,6 +476,7 @@ class CiCommitResults extends Component {
                     <Tab
                       id="recordings"
                       title="Recording Groups"
+                      disabled={disable_tuning}
                       panel={
                         <AddRecordingsForm
                           project={project}
@@ -459,6 +491,7 @@ class CiCommitResults extends Component {
                       panel={
                         <TuningForm project={project} project_data={this.props.project_data} commit={new_commit} />
                       }
+                      disabled={disable_tuning}
                     />
                   </Tabs>
                 </Card>
@@ -469,11 +502,12 @@ class CiCommitResults extends Component {
                   renderActiveTabPanelOnly
                   id="tabs-outputs"
                   onChange={this.UpdateTabDetails}
-                  selectedTabId={this.props.selected_tab_details}
+                  selectedTabId={nb_outputs_new > 0 ? this.props.selected_tab_details : "logs"}
                 >
                   <Tab
                     id="output-table-compare"
                     title="Improvement"
+                    disabled={nb_outputs_new===0}
                     panel={
                       <div>
                         <h2 className={Classes.HEADING}>Improvement report</h2>
@@ -491,6 +525,7 @@ class CiCommitResults extends Component {
                   <Tab
                     id="output-table-kpi"
                     title="KPI report"
+                    disabled={nb_outputs_new===0}
                     panel={
                       <div>
                         <h2 className={Classes.HEADING}>Quality report</h2>
@@ -518,6 +553,7 @@ class CiCommitResults extends Component {
                   <Tab
                     id="output-list"
                     title="Detailed outputs"
+                    disabled={nb_outputs_new===0}
                     panel={
                       <OutputList
                         project={project}
@@ -533,6 +569,7 @@ class CiCommitResults extends Component {
                   <Tab
                     id="tuning-results"
                     title="Tuning exploration"
+                    disabled={nb_outputs_new===0}
                     panel={
                       <TuningExploration
                         project={project}
@@ -715,6 +752,8 @@ const mapStateToProps = (state, ownProps) => {
       // filters
       filter_batch_new,
       filter_batch_ref,
+      new_batch,
+      ref_batch,
       new_batch_filtered,
       ref_batch_filtered,
       // FIXME: memoize with reselect
