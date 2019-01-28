@@ -56,6 +56,16 @@ const SimpleOutputList = ({outputs, intent}) => {
 
 
 const BatchStatusMessages = ({batch}) => {
+  let local_batch_message = (batch.data && batch.data.type === 'local') && (
+    <Callout
+      icon="eye-off"
+      intent={Intent.WARNING}
+      title="Be careful, those are local outputs"
+    >
+      <p>It is possible they didn't use the code under version control.</p>
+      <p>It's fine for debugging. Use your Continuous Integration to share results.</p>
+    </Callout>
+  )
   let running_message = batch.running_outputs > 0 && (
     <Callout
       icon="info-sign"
@@ -105,6 +115,7 @@ const BatchStatusMessages = ({batch}) => {
   )
 
   return <Fragment>
+    {local_batch_message}
     {running_message}
     {pending_message}
     {failed_message}
