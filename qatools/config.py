@@ -20,7 +20,7 @@ config_has_error = False
 # We handle deprecate flag names here
 renamings = (
   ('--input-path', '--input'),
-  ('--output-path', '--input'),
+  ('--output-path', '--output'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
