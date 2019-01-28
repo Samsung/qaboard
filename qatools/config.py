@@ -3,20 +3,27 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
-import yaml
 from pathlib import Path, PurePosixPath
 
+import yaml
+import git
 import click
 
-verbose = os.getenv('QATOOLS_VERBOSE', False)
+from .utils import slugify, getenvs
+
+
+# In case the qatools.yaml configuration has errors, we don't want to exit directly.
+# We want to show all the errors to fix, and still allow qatools.config to be imported.
 config_has_error = False
 
 
-# The `init` command is implemented here to avoid lots of try/catch or fake values in the import
+# The `init` command is implemented here to avoid printing config error messages
+# when users use qatools for the first time. Its goal is to provide a sample qatools configuration
 if len(sys.argv)>1 and sys.argv[1] == 'init':
   if Path('qatools.yaml').exists():
     click.secho('You already have a qatools.yaml configuration.', fg='green')
     exit(0)
+
   import shutil
   try: # fast, available from python3.7
     from importlib import resources
@@ -39,21 +46,19 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
 
 
 
-
 def find_qatools_configs(path):
-    """Returns the parsed content and paths of qatools.yaml files that should be loaded for this (sub)project.
-    Returns a tuple (configs, paths), each element is a list with the root qatools.yaml is first and the subproject's last.
+    """Returns the parsed content and paths of qatools.yaml files that should be loaded for a (sub)project at the `path`.
+    Returns a tuple (configs, paths). Each element is a list - the root qatools.yaml is first and the subproject's is last.
     """
     qatools_configs = []
     qatools_config_paths = []
-    # we need a full path to iterate on the parents
+    # We need a full path to iterate on the parents
     path = path.resolve()
     # We look for qatools.yaml configuration files in the path folder and its parents
     parents = [path, *list(path.parents)]
     for parent in parents:
         qatools_config_path = parent / 'qatools.yaml'
         if not qatools_config_path.exists(): continue
-        if verbose: click.secho(f"loading {qatools_config_path}", fg='blue')
         with qatools_config_path.open('r') as f:
             qatools_config = yaml.load(f)
             qatools_configs.append(qatools_config)
@@ -73,10 +78,11 @@ if not qatools_configs:
         dim=True, err=True)
     config_has_error = True
 
-def merge(qatools_configs):
+
+def merge(configs):
     """Merge qatools configurations 2-level deep"""
     config = {}
-    for c in qatools_configs:
+    for c in configs:
         for key, value in c.items():
           if isinstance(value, dict):
               node = config.setdefault(key, {})
@@ -84,11 +90,9 @@ def merge(qatools_configs):
           elif value is not None:
               config[key] = value
     return config
-  
+
+
 config = merge(qatools_configs)
-if verbose:
-    for k, v in config.items():
-      click.secho(f"{k}: {v}", dim=True, err=True)
 
 # The top-most qatools.yaml is the root project
 # The current subproject corresponds to the lowest qatools.yaml
@@ -124,15 +128,18 @@ else:
   config['project']['name'] = leaf_project_name.as_posix()
 
 
-# It's useful to know what's the platform since code is often compiled a different locations
-# For instance build/bin/ vs /x64/Release/
+
+# It's useful to know what's the platform since code is often compiled a different locations.
+# For instance Linux builds are often at `build/bin/` vs `/x64/Release/` on Windows.
 on_windows = os.name == 'nt'
 on_linux = not on_windows
+# SIRC-specific hosts
 on_vdi = 'HOST' in os.environ and os.environ['HOST'].endswith("vdi")
 on_lsf = 'HOST' in os.environ and (os.environ['HOST'].endswith("transchip.com") or os.environ['HOST'].startswith("planet"))
 
-# mounts and file paths are usually different on linux and windows
+# Mounts and file paths are usually different on linux and windows
 mount_flavor = 'windows' if on_windows else 'linux'
+
 
 if on_windows:
     platform = 'windows'
@@ -151,20 +158,10 @@ if not database:
 database = Path(database)
 
 
-# This flag identifies runs that happen within the CI or tuning experiments
-# Those use artifacts, that may be at a different location than when building locally
-ci_env_variables = [
-    # set by GitlabCI
-    'CI_COMMIT_SHA',
-    # set by Jenkins' git plugin
-    'GIT_COMMIT',
-    # set for tuning runs
-    'QATOOLS_CI_COMMIT_DIR',
-]
-is_ci = any([v in os.environ for v in ci_env_variables])
 
 
-# bit-accuracy tests need data from previous commits
+# Results are saved at a centralized location. This makes it easy to read results
+# either from the web application, or for local bit-accuracy tests.
 try:
     ci_root = config['ci_root'][mount_flavor]
 except KeyError:
@@ -172,76 +169,95 @@ except KeyError:
     click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
     config_has_error = True
 
+
+
 ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
 
-# we find were we should save our results
-if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
-    commit_ci_dirname = None
-    commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
-    commit_rootproject_ci_dir = commit_ci_dir
-    commit = None
+
+# Make the git metadata easily accessible
+try:
+    repo = git.Repo(str(root_qatools))
+    commit = repo.head.commit
+except:
     repo = None
+    commit = None
+
+
+# This is where results should be saved
+if repo and commit:
+    commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
+    commit_rootproject_ci_dir = ci_dir / 'commits' / commit_ci_dirname
+    commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit_rootproject_ci_dir
 else:
-    # if not (root_qatools / '.git').exists():
-    #     click.secho(f"ERROR: qatools.yaml should be located at the root of the git repository, at {root_qatools}.", fg='red')
-    #     config_has_error = True
+    commit_ci_dirname = None
+    commit_rootproject_ci_dir = Path()
+    commit_ci_dir = Path()
+# When running qatools from a folder in which we saved a commit's artifacts,
+# we don't have any information about the git commit we're looking at.
+# Because of this, the web application that starts tuning runs will tell qatools what to
+# by setting both the QATOOLS_CI_COMMIT_DIR and CI_COMMIT_SHA environment variables
+if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
+    commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
+    commit_ci_dirname = commit_ci_dir.name
+    commit_rootproject_ci_dir = commit_ci_dir # FIXME: no support for subprojects 
 
-    import git
-    try:
-        repo = git.Repo(str(root_qatools))
-        commit = repo.head.commit
-        commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
-        commit_rootproject_ci_dir = ci_dir / 'commits' / commit_ci_dirname
-        if subproject:
-            commit_ci_dir = commit_rootproject_ci_dir / subproject
-        else:
-            commit_rootproject_ci_dir
-    except:
-        commit_ci_dirname = None
-        commit_rootproject_ci_dir = Path()
-        commit_ci_dir = Path()
-        commit = None
-        repo = None
 
-if verbose:
-    click.secho(f'platform: {platform}', dim=True, err=True)
-    click.secho(f'database: {database}', dim=True, err=True)
-    click.secho(f'is_ci: {is_ci}', dim=True, err=True)
-    click.secho(f'commit_ci_dir: {commit_ci_dir}', dim=True, err=True)
 
-# We need to identify the version of the code we run on, and which branch
+
+# This flag identifies runs that happen within the CI or tuning experiments
+ci_env_variables = (
+    # Set by most CI tools (GitlabCI, CircleCI, TravisCI...) except Jenkins,
+    # and by the web application during tuning runs
+    'CI',
+    # set by Jenkins' git plugin
+    'GIT_COMMIT',
+)
+is_ci = any([v in os.environ for v in ci_env_variables])
+
+user = getenvs(('USERNAME', 'USER'))
+
 if is_ci:
-    # We rely on the CI to provide us `CI_COMMIT_SHA` and `CI_COMMIT_REF_NAME`
-    commit_type = config['project']['type']
-    # CI_*/GIT_* variables are set by GitlabCI/JenkinsGit
-    commit_id = os.getenv('CI_COMMIT_SHA', os.getenv('GIT_COMMIT', Path().resolve().name ))
-    commit_branch = os.getenv('CI_COMMIT_REF_NAME', os.getenv('GIT_BRANCH', '').replace('origin/', ''))
-    reference_slug = os.getenv('CI_COMMIT_REF_SLUG', os.getenv('GIT_BRANCH', '').replace('origin/', '').replace('/', '-'))
-    try:
-        branch_ci_dir = ci_dir / 'branches' / reference_slug
-    except:
-        branch_ci_dir = Path()
+    commit_type = config.get('project', {}).get('type', 'git')
+    # Different CI tools use different environment variables to tell us
+    # what commit and branch we're running on
+    commit_sha_variables = (
+        'CI_COMMIT_SHA', # GitlabCI 
+        'GIT_COMMIT', # Jenkins
+        'CIRCLE_SHA1', # CircleCI
+        'TRAVIS_COMMIT', # TravisCI
+    )
+    commit_id = getenvs(commit_sha_variables, Path().resolve().name)
+    branch_env_variables = (
+        'CI_COMMIT_REF_NAME', # GitlabCI
+        'GIT_BRANCH', # Jenkins
+        'CIRCLE_BRANCH', # CircleCI
+        'TRAVIS_BRANCH', # TravisCI
+    )
+    commit_branch = getenvs(branch_env_variables, '').replace('origin/', '')
 else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
     commit_type = 'local'
-    commit_id = '<local>'
-    user = os.getenv('USERNAME', os.environ.get('USER'))
-    commit_branch = f'<local:{user}>'
+    commit_id = commit.hexsha if commit else f'<local:{user}>'
+    try:
+      commit_branch = repo.head.reference.name if repo else f'<local:{user}>'
+    except:
+      commit_branch = f'<local:{user}>'
+try:
+    branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
+except:
     branch_ci_dir = Path()
 
-if verbose:
-    click.secho(f'commit_type: {commit_type}', dim=True, err=True)
-    click.secho(f'commit_id: {commit_id}', dim=True, err=True)
-    click.secho(f'commit_branch: {commit_branch}', dim=True, err=True)
 
 
-try:
-    with Path(config['outputs']['metrics']).open('r') as f:
+
+metrics_file = config.get('outputs', {}).get('metrics')
+if not metrics_file:
+  _metrics = {}
+  available_metrics = {}
+  main_metrics = []
+else:
+    with Path(root_qatools / metrics_file).open('r') as f:
         _metrics = yaml.load(f)
         available_metrics = _metrics['available_metrics']
         main_metrics = _metrics['main_metrics']
-except:
-    _metrics = {}
-    available_metrics = {}
-    main_metrics = []

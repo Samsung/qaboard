@@ -17,22 +17,22 @@ import click
 from .lsf import Job, running_lsf_job_names, Priority, kill_jobs
 from .api import notify_qa_database
 
-from .utils import batch_dir, make_prefix_outputs_path, load_tuning_search
-from .utils import iter_parameters, iter_recordings
+from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .utils import PathType
-from .utils import make_hash
+from .utils import load_tuning_search, iter_parameters, iter_recordings
 
 # The `qa init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config_has_error
 from .config import subproject, config, database, platform
+from .config import user
 from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci
 
 
 def entrypoint_module():
-  """Lazily returns the entrypoint module"""
+  """Lazily returns the entrypoint module defined in qatools.yaml"""
   entrypoint = config['project'].get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
@@ -40,8 +40,6 @@ def entrypoint_module():
     exit(1)
   else:
     entrypoint = Path(entrypoint)
-  # TODO: make this lazy, so that qa starts without loading lots of big packages
-  # used in the entrypoint like numpy scipy etc
   try:
       # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
       sys.path.append(str(entrypoint.parent)) # for imports from within the entrypoint's directory
@@ -61,22 +59,28 @@ def entrypoint_module():
   return module
 
 
+default_batch_label = 'default'
+default_platform = platform
+default_configuration = config.get('inputs', {}).get('configuration', "default")
+
 @click.group()
 @click.pass_context
 @click.option('--platform', default=platform)
-@click.option('--configuration', default=config.get('inputs', {}).get('configuration', "default"), help="Load an additional partial configurations (eg $configuration.json).")
-@click.option('--batch-label', default='default', help="Gives tuning experiments a name.")
+@click.option('--configuration', default=default_configuration, help="Load an additional partial configurations (eg $configuration.json).")
+@click.option('--batch-label', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
+@click.option('--ci', is_flag=True, help="Save outputs at the CI's centralized location, and show them in the UI.")
 @click.option('--inputs-database', default=database, type=PathType(), help="Test database location")
 @click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, inputs_database, inputs_glob, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, ci, inputs_database, inputs_glob, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
   if config_has_error:
+    click.secho(f'Aborting: please first fix the configuration errrors in qatools.yaml', fg='red', err=True, bold=True)
     exit(1)
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
@@ -84,7 +88,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
       click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
       os.chdir(root_qatools)
 
-  # we want open permissions on outputs and artifacts
+  # We want open permissions on outputs and artifacts
   # it makes collaboration among mutliple users / automated tools so much easier...
   os.umask(0)
 
@@ -94,11 +98,13 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['database'] = inputs_database
   ctx.obj['inputs_globs'] = inputs_glob
   ctx.obj['dryrun'] = dryrun
+  ctx.obj['ci'] = ci
+  ctx.obj['user'] = user
   ctx.obj['project'] = config['project']['name']
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
-  ctx.obj['batch_label'] = batch_label
+  ctx.obj['batch_label'] = batch_label if not ci else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
   ctx.obj['no_qa_database'] = no_qa_database
@@ -116,7 +122,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, ci)
   if is_ci: # we always want colors in the CI
     ctx.color = True
 
@@ -127,15 +133,12 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
 @click.argument('variable')
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
-  """Prints the value of the requested variable."""
+  """Prints the value of the requested variable. Mostly useful for debug."""
   try:
-    if not output_path:
-        output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
-    else:
-        output_directory = commit_ci_dir / output_path
+    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
   except:
     pass
-  from .config import commit_rootproject_ci_dir, commit_ci_dir
+  from .config import commit_rootproject_ci_dir, commit_ci_dir, commit_type, commit_branch, branch_ci_dir
   locals().update(globals())
   locals().update(ctx.obj)
   if variable in locals():
@@ -150,8 +153,9 @@ def get(ctx, input_path, output_path, variable):
 @click.pass_context
 @click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
-def run(ctx, input_path, output_path, forwarded_args):
+def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
@@ -168,7 +172,7 @@ def run(ctx, input_path, output_path, forwarded_args):
         output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
     else:
         # FIXME: if output_path is absolute, it should be just output_path?
-        output_directory = commit_ci_dir / output_path
+        output_directory = output_path
 
     import shutil
     shutil.rmtree(output_directory, ignore_errors=True)
@@ -193,7 +197,7 @@ def run(ctx, input_path, output_path, forwarded_args):
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       runtime_metrics = {'is_failed': True}
 
-    metrics = postprocess_(runtime_metrics, ctx)
+    metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess)
     if not metrics:
       metrics = runtime_metrics
 
@@ -218,10 +222,14 @@ def run(ctx, input_path, output_path, forwarded_args):
     with (output_directory / 'manifest.outputs.json').open('w') as f:
       json.dump(output_files, f, indent=2)
 
-def postprocess_(runtime_metrics, context):
+
+def postprocess_(runtime_metrics, context, skip=True):
   """Computes computes various success metrics and outputs."""
   try:
-    metrics = entrypoint_module().postprocess(runtime_metrics, context)
+    if not skip:
+      metrics = entrypoint_module().postprocess(runtime_metrics, context)
+    else:
+      metrics = runtime_metrics 
   except Exception as e:
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
     # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
@@ -260,7 +268,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
   else:
-    output_directory = commit_ci_dir / output_path
+    output_directory = output_path
   ctx.obj['input_path'] =  input_path
   ctx.obj['output_directory'] =  output_directory
   ctx.obj['absolute_input_path'] = (ctx.obj['database'] / input_path).resolve()
@@ -281,7 +289,7 @@ def sync(ctx, input_path, output_path):
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
   else:
-    output_directory = commit_ci_dir / output_path
+    output_directory = output_path
 
   if (output_directory/'metrics.json').exists():
     with (output_directory/'metrics.json').open('r') as f:
@@ -312,6 +320,12 @@ def sync(ctx, input_path, output_path):
 @click.pass_context
 def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, lsf_sequential, action_on_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
+  if not groups_file:
+    click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
+    click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  groups: batches.yaml\n```', fg='red', err=True)
+    click.secho(f'Where batches.yaml is formatted like in http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools/input_groups.yaml', fg='red', err=True)
+    return
+
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
   running_jobs_names = running_lsf_job_names()
   def not_started(output_directory):
@@ -333,7 +347,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None)
+          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None, ctx.obj['ci'])
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
@@ -347,20 +361,21 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if not should_run and action_on_existing=='skip':
         continue
 
-      command = ' '.join([
-          f"cd {subproject} &&" if str(subproject) != '.' else '',
+      args = [
+          f"cd {subproject} &&" if str(subproject) != '.' else None,
           f"qa",
-          f'--batch-label "{ctx.obj["batch_label"]}"',
-          f'--platform "{ctx.obj["platform"]}"',
-          f'--inputs-database "{ctx.obj["database"]}"' if ctx.obj['database'] != database else '',
-          f'--no-qa-database' if ctx.obj['no_qa_database'] else '',
-          f'--configuration "{input_configuration}"',
-          f'--tuning-filepath "{tuning_file}"' if tuning_params else '',
+          f'--batch-label "{ctx.obj["batch_label"]}"' if ctx.obj["batch_label"] != default_batch_label else None,
+          f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
+          f'--inputs-database "{ctx.obj["database"]}"' if ctx.obj['database'] != database else None,
+          f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
+          f'--configuration "{input_configuration}"' if input_configuration != default_configuration else None,
+          f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
           f'--input-path "{input_path}"',
           f'--output-path "{output_directory}"',
           ' '.join(forwarded_args),
-      ])
+      ]
+      command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
       jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory, lsf_sequential))
@@ -551,7 +566,6 @@ def save_artifacts():
 
     for g in globs:
       for path in Path('.').glob(g):
-        print(path)
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
