@@ -108,6 +108,10 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['batch_label'] = batch_label if not ci else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
+  print("CLI configuration", configuration)
+  if not isinstance(configuration, list):
+    configuration = serialize_config(configuration)
+
   ctx.obj['configurations'] = deserialize_config(configuration)
   ctx.obj['no_qa_database'] = no_qa_database
   ctx.obj['extra_parameters'] = {}
@@ -344,7 +348,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
-  tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
+  tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
   for input_path_abs, input_configurations, lsf_configuration in tests_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(ctx.obj['database'])

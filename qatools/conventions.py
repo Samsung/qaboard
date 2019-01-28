@@ -9,7 +9,7 @@ import json
 
 
 def deserialize_config(configuration):
-  # print("[deserialize] before: ", configuration)
+  # print("[deserialize] before : ", configuration)
   configurations = []
   configuration_part = ''
   for token in configuration.split(':'):
@@ -28,6 +28,8 @@ def deserialize_config(configuration):
 
 def serialize_config(configurations):
   # print("[serialize] before: ", configurations)
+  if isinstance(configurations, str):
+    return configurations
   configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
   configuration = ":".join(configurations)
   # print("[serialize] after: ", configuration)
