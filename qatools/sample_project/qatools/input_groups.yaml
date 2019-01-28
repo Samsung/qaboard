@@ -73,5 +73,31 @@ each-test-can-have-its-own-configuration:
       - cde:
         - "-DD"
     # context.obj['configurations'] => ["base", "low-light", "extra-low-light", {"cde": ["-DD"]}]
+
+
+
+you-can-also-give-an-LSF-configuration:
+  lsf:
+    memory: 1000
+    threads: 1000
+  configuration:
+    - base
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+
+you-can-also-give-an-LSF-configuration-per-test:
+  lsf:
+    memory: 1000
+  configuration:
+    - base
+  tests:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
+    DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin:
+      lsf:
+        memory: 200
+
+
 ...
 

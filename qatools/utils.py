@@ -133,8 +133,6 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     # Each group can define his own default runtime and LSF configuration
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
-    print("default_configuration", default_configuration)
-    print("group_configuration", group_configuration)
 
 
     # We also allow each test to have his own configuration...
@@ -147,8 +145,8 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
         location_lsf_configuration = group_lsf_configuration
       else:
         if isinstance(location_configuration, dict):
-          location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
+          location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
           location_configuration = [*group_configuration, *location_configuration]
           location_lsf_configuration = group_lsf_configuration
@@ -162,10 +160,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
           yield maybe_parent(Path(database / location)), location_configuration, location_lsf_configuration
         else:
           tests = set([maybe_parent(f) for f in (database / location).rglob(glob)])
-          print(location_configuration, location_lsf_configuration, glob)
-          print(tests)
           yield from [(test, location_configuration, location_lsf_configuration) for test in tests]
-          # yield from set([(maybe_parent(f), location_configuration, location_lsf_configuration) for f in (database / location).rglob(glob)])
 
 
 
