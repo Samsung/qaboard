@@ -9,22 +9,6 @@ project:
   entrypoint: qatools/main.py
 
 
-# Depending on your project, you should use different job queues
-# in our LSF cluster. Those defaults are reasonnable.
-# In doubt, ask advice from your manager or the CAD team.
-# Find some quota information with `bqueues`
-lsf:
-  # errors will be sent to this email
-  user: arthurf
-  # This queue doesn't have a max number of pending jobs and has medium priority
-  queue: alg_q
-  # we will use a fast queue to launch jobs that create subsequent LSF jobs
-  # it helps get a fast feeback about which outputs are pending
-  fast_queue: alg_fast_q
-  # threads: 0 # ask for eg 8 max threads when sending jobs to LSF
-  # memory: 0 # ask for eg 8000M memory when sending jobs to LSF
-
-
 
 inputs:
   # the default configuration.
@@ -39,14 +23,14 @@ inputs:
 
   # where we define groups
   # relative to the root of the project
-  groups: qatools/input_groups.yaml
+  groups: qatools/batches.yaml
 
   # if you want to run all recordings under $database/sub_folder
   # you need a way to identify test inputs
   # either your inputs are files/directories, matching a globbing expression
   glob: '*.bin'
   # maybe your tests are actually the folder containing the match (eg movies with Frame0, Frame1...)
-  use_parent_folder: false
+  # use_parent_folder: false
 
 
 outputs:
@@ -54,9 +38,8 @@ outputs:
   # It is all defined in this file
   metrics: qatools/metrics.yaml
 
-  # To view the qualitative results, we must describe to the UI application
-  # what type of results we computed (images, movies...) and where.
-  # We describe them with an array of results.
+  # To learn more about how to describe how results should be visualized:
+  # http://gitlab-srv/common-infrastructure/qatools/wikis/visualization
   detailed_views:
   - name: My plot
     # If you use plotly, it is very simple to view yours plots in the web UI
@@ -74,76 +57,60 @@ outputs:
     # For instance, you may want to adjust optionnal displays, styling, etc.
     # Each viewer will have its own options....
     # 
-    # Some results are too heavy to show all the time, or are only there for debug purposes.
-    # You can define them as optionnal:
-    # default_hidden: true
+    # You can hide by defaut your debug/heavy outputs
+    # default_hidden: false
 
-  - name: Augmented frames
-    type: video/mp4 # shows synced videos
-    path: movie.mp4
-
-  # [OPTIONNAL] We style the card where we display the results with
-  # those CSS style attributes
+  # You pass CSS style attributes to your viewers' container
   # style:
   #   width: 840px
 
+  # The UI lets you define controls that pass parameters down to all viewers
+  # controls:
+  #   - type: toggle     # TODO: Only toggle is supported for now. We could support all HTML inputs: text_input, select...
+  #     label: Debug     # optionnal
+  #     name: show_debug # required
+  #     default: false   # required
 
-  # TODO: How can we create viewers that 
-  # ...optionnaly/incrementally  show more complex data?
-  # ...on the same plots, on a shared axis
-  # ...with downloading data twice
-
-  # [OPTIONNAL] The UI will let you control optional parameters passed down to all viewers
-  controls:
-    # - type: toggle   # TODO: Only toggle is supported for now.
-    #                  #       Soon all HTML inputs: text_input, select, ...
-    #                  #       It would be fairly easy to implement
-    #   label: Debug   # shown near the input
-    #   name: show_debug
-    #   default: false
-    #   # other parameters would be passed down as appropriate:
-    #   # default: false
-    #   # options: [A, B, C]
-
-  # When asked to re-run a test, should be really re-run it? skip the test? or sync the database with the existing results?
-  # action_on_existing: postprocess # | run | skip | sync
+   # Decides what to do when asked to re-run a test for which we already have results
+   # action_on_existing: postprocess  # redo the postprocessing
+   # #                 | run          # redo both the run and postprocessing
+   # #                 | sync         # reads `metrics.json` to make sure the database is up to date 
+   # #                 | skip         # continue to the next test
 
 
 
-# After the build, you must defined what is needed to run your software:
-# binaries, libraries, configuration files...
-# These are called artifacts.
-# The qatools give you (TODO) a command, `save_artifacts`, to save them
-# Note: we don't use standard (even gitlab's) tools for artifact management. Maybe we should.
-#
+# After the build, you must define the "artifacts" needed to run your software:
+# binaries, libraries, sources, configuration files... To save them:
+#   $ qa save-artifacts
 # Note: .qatools.yaml and qatools/ are saved automatically
 artifacts:
-  # this entry is special, those files will be shown in the UI
-  configurations: 
-    glob: configurations/*.json
   binary:
     glob: 'build/sample_project'
-
-  # results will be saved as:
-  # 
-  # commit_folder
-  # ├── .qatools.yaml
-  # ├── qatools/*
-  # ├── build
-  # │  └── sample_project
-  # └── configurations
-  #    ├── params.json
-  #    └── low-light.json
+  # The "configurations" artifacts are shown in the UI under the commit's "Configuration" tab
+  configurations: 
+    glob: configurations/*.json
 
 
-# Bit accuray tests will look for those files
+# Bit accuray tests will look for files matching those glob patterns
 bit_accuracy:
   patterns:
     - output.csv
-    # - *.hex ...
+    - '*.hex'
+
+# Depending on your project, you may want to use different LSF job queues
+# Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
+lsf:
+  user: arthurf
+  queue: alg_q
+  # qatools uses a fast queue to launch jobs that create subsequent LSF jobs
+  # It helps get faster feeback about which outputs are pending
+  fast_queue: alg_fast_q
+  # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
+  # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+  # sequential: false # disable LSF and run sequentially
 
 
-# You artifacts will be saved under this location.
+# Your artifacts will be saved under this location.
 ci_root:
   linux: /stage/algo_data/XXX
   windows: '\\\\netapp\\algo_data\\XXX'
