@@ -23,7 +23,7 @@ function maxmin(array) {
     let zmin = Infinity;
     array.forEach(e => {
       if (e < zmin) zmin = e;
-      if (e > zmin) zmax = e;
+      if (e > zmax) zmax = e;
     })
     return {zmin, zmax};
 }
