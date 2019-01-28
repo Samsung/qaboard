@@ -7,6 +7,33 @@ import hashlib
 import yaml
 import json
 
+
+def deserialize_config(configuration):
+  # print("[deserialize] before: ", configuration)
+  configurations = []
+  configuration_part = ''
+  for token in configuration.split(':'):
+    if not configuration_part and '{' not in configurations:
+      configurations.append(token)
+    else:
+      configuration_part = configuration_part + token
+      try:
+        configurations.append(json.loads(configuration_part))
+        configuration_part = ''
+      except:
+        pass
+  # print("[deserialize] after: ", configurations)
+  return configurations
+
+
+def serialize_config(configurations):
+  # print("[serialize] before: ", configurations)
+  configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
+  configuration = ":".join(configurations)
+  # print("[serialize] after: ", configuration)
+  return configuration
+
+
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
   thishash = make_hash(paramstring)

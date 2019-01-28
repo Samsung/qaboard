@@ -18,6 +18,7 @@ from .lsf import Job, running_lsf_job_names, Priority, kill_jobs
 from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
+from .conventions import serialize_config, deserialize_config
 from .utils import PathType
 from .utils import load_tuning_search, iter_parameters, iter_recordings
 
@@ -66,7 +67,7 @@ default_configuration = config.get('inputs', {}).get('configuration', "default")
 @click.group()
 @click.pass_context
 @click.option('--platform', default=platform)
-@click.option('--configuration', default=default_configuration, help="Load an additional partial configurations (eg $configuration.json).")
+@click.option('--configuration', default=default_configuration, help="Will be passed to the run function")
 @click.option('--batch-label', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
@@ -107,6 +108,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['batch_label'] = batch_label if not ci else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
+  ctx.obj['configurations'] = deserialize_config(configuration)
   ctx.obj['no_qa_database'] = no_qa_database
   ctx.obj['extra_parameters'] = {}
   if tuning:
@@ -128,8 +130,8 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
 
 
 @cli.command()
-@click.option('--input-path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('--output-path', type=PathType(), default=None, help='Custom output path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.argument('variable')
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
@@ -151,8 +153,8 @@ def get(ctx, input_path, output_path, variable):
     ignore_unknown_options=True,
 ))
 @click.pass_context
-@click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
@@ -260,8 +262,8 @@ def postprocess_(runtime_metrics, context, skip=True):
     ignore_unknown_options=True,
 ))
 @click.pass_context
-@click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
@@ -282,8 +284,8 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
     ignore_unknown_options=True,
 ))
 @click.pass_context
-@click.option('--input-path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('--output-path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.parent / input_path.stem')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
   if not output_path:
@@ -327,6 +329,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     return
 
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
+  default_lsf_config = {"threads": lsf_threads, "memory": lsf_memory, 'sequential': lsf_sequential}
+
   running_jobs_names = running_lsf_job_names()
   def not_started(output_directory):
     is_done = (output_directory/'metrics.json').exists()
@@ -340,7 +344,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
-  for input_path_abs, input_configuration in iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], config, globs=ctx.obj['inputs_globs']):
+  tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configuration'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
+  for input_path_abs, input_configurations, lsf_configuration in tests_iter:
+    input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', err=True)
 
@@ -368,7 +374,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
           f'--inputs-database "{ctx.obj["database"]}"' if ctx.obj['database'] != database else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
-          f'--configuration "{input_configuration}"' if input_configuration != default_configuration else None,
+          f"--configuration '{input_configuration}'" if input_configuration != default_configuration else None,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
           f'--input-path "{input_path}"',
@@ -378,7 +384,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
       priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_threads, lsf_memory, lsf_sequential))
+      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_configuration['threads'], lsf_configuration['memory'], lsf_configuration['sequential']))
       output_directories.append(output_directory)
 
       if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:

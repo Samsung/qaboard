@@ -1,39 +1,77 @@
 ---
-# Uses the project's default configuration, or the one specified on the CLI with --configuration
-test:
+# Tests that should run together are organized in groups.
+# To run all the tests in a group:
+#   $ qa batch --group my-group
+#   $ qa batch --help
+#
+# You have lots of options to specify each batch's configuration.
+# The examples describe all the ways you can do it.
+#
+# 
+# REMINDER:
+# From the `run(context)` function qatools requires you to implement,
+# the configuration for each test is available via:
+#     ```
+#     context.obj['configurations'] : list of strings/objects
+#     context.obj['configuration']  : serialized string representation. You usually don't need it.
+#     ```
+# Your code does whatever it wants with it :)
+#
+
+
+just-a-list-of-tests:
+  # Those tests will run with the project's default configuration,
+  # or the one specified on the CLI with --configuration
   tests:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["the default config defined in qatools.yaml"]
 
-# Overrides the previous configuration
-easy:
+
+we-override-the-default-configuration:
   configuration: test
   tests:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["test"]
 
-# Overrides the previous configuration
-# The final configuration will be "base:low-light"
-large-scale:
+
+configurations-can-be-arrays:
   configuration:
     - base
     - low-light
   tests:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["base", "low-light"]
 
 
-# Here the final configurations will be
-# "modified_base:low-light" and "modified_base:low-light:extra-low-light"
-hard:
+configurations-can-be-arrays-of-objects:
   configuration:
-    - modified_base
+    - base
+    - low-light
+    - cde:
+      - "--my-flag"
+      - "--my-other-flag"
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+
+each-test-can-have-its-own-configuration:
+  configuration:
+    - base
   tests:
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
+    # context.obj['configurations'] => ["base"]
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_3a:
+      - low-light
+    # context.obj['configurations'] => ["base", "low-light"]
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_7c:
       - low-light
-    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_1f:
-      - low-light
-      - extra-low-light
+      - extra-light
+      - cde:
+        - "-DD"
+    # context.obj['configurations'] => ["base", "low-light", "extra-low-light", {"cde": ["-DD"]}]
 ...
 
