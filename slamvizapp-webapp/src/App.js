@@ -47,7 +47,7 @@ class App extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    this.setState({error})
+    this.setState({error, info})
     // You can also log the error to an error reporting service
     console.log(error, info);
   }
@@ -58,6 +58,7 @@ class App extends React.Component {
       return <div>
         <h1>Something went wrong. Please report the bug to Arthur Flam</h1>
         <p>{JSON.stringify(this.state.error)}</p>
+        <p>{JSON.stringify(this.state.info)}</p>
        </div>;
     }
 	  return <Provider store={this.props.store}><PersistGate loading={null} persistor={this.props.persistor}>

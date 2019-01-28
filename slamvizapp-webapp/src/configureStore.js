@@ -21,8 +21,12 @@ const persistConfig = {
   key: 'root',
   storage: localForage,
   whitelist: [
-    // 'commits',
     'projects',
+    // we may not want to store any of the commit.$id.batches.outputs.
+    // TODO: look into
+    // https://github.com/rt2zz/redux-persist
+    // https://github.com/edy/redux-persist-transform-filter
+    // 'commits',
   ],
   blacklist: ['selected'],
   // stateReconciler: autoMergeLevel2,
@@ -37,8 +41,6 @@ export default function configureStore(preloadedState) {
   let enhancers = is_prod ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
   let composedEnhancers = is_prod ? compose(...enhancers) : composeWithDevTools(...enhancers)
 
-  // filter(['commits', 'projects'])
-  // merge X levels...
   const persistedReducer = persistReducer(persistConfig, rootReducer)
   const store = createStore(persistedReducer, preloadedState, composedEnhancers)
 
