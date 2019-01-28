@@ -1,5 +1,6 @@
 import React, { Fragment } from "react";
 import { Link } from "react-router-dom";
+import { connect } from 'react-redux'
 
 import styled from "styled-components";
 import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
@@ -44,7 +45,8 @@ const has_outputs_in_batch = label => commit =>
 class CommitResults extends React.Component {
   render() {
     const { project, project_data, commit } = this.props;
-    const gitlab_commit_url = `http://gitlab-srv/${project}/commit/${
+    let project_repo = project_data && project_data.information && project_data.information.git && project_data.information.git.path_with_namespace;
+    const gitlab_commit_url = `http://gitlab-srv/${project_repo}/commit/${
       commit.id
     }`;
     let batches_with_results = Object.entries(commit.batches)
@@ -251,14 +253,15 @@ const CommitShortId = styled.a`
 class CommitRow extends React.Component {
   render() {
     const { commit, project, project_data, className, toaster } = this.props;
-    const commit_url = `http://gitlab-srv/${project}/commit/${commit.id}`
+    let project_repo = project_data.information.git.path_with_namespace;
+    const commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`
     let maybe_skeletton = !!commit.message ? null : Classes.SKELETON;
     return (
       <CommitRowWrapper className={className}>
         <Avatar
-          alt={commit.committer_name}
-          href={`/committer/${commit.committer_name}?project=${project}`}
-          src={commit.committer_avatar_url}
+          src={!!commit.committer_avatar_url ? commit.committer_avatar_url : null}
+          href={!!commit.committer_name ? `/committer/${commit.committer_name}?project=${project}` : null}
+          alt={commit.committer_name || commit.id || '?'}
         />
 
         <CommitDetails>
@@ -305,4 +308,8 @@ class CommitRow extends React.Component {
   }
 }
 
-export { CommitRow };
+const mapStateToProps = (state, ownProps) => {
+  return {}
+}
+
+export default connect(mapStateToProps)(CommitRow);
