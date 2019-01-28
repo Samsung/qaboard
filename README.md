@@ -3,7 +3,7 @@ The QA tools give you CLI tools to help you organize your results and view them 
 
 ## Installation
 ```bash
-pip install --upgrade git+http://gitlab-srv/cde/cde-python
+pip install --upgrade git+http://gitlab-srv/common-infrastructure/qatools
 # If you have SSL / certificates / trust errors:
 #   --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org
 # If you have timeouts, not authorized, proxy errors, or "this is not a git repo error"
