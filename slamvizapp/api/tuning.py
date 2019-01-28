@@ -171,12 +171,12 @@ def add_batch(hexsha):
             # "export PATH=$PATH:/usr/local/bin;\n",
             f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
-            # options specific to android
+            # Those options are specific to android
             f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
-            # Make sure qatools doesn't complain about not being in a git repository,
-            f"\nexport CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
-            # Make sure qatools knows where to save results
+            # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
+            f"\nexport CI=true'{ci_commit.gitcommit.hexsha}';\n",
+            f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
             batch_command,
         ]

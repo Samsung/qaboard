@@ -62,7 +62,6 @@ class CiCommit(Base):
   @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
-    # FIXME: what a mess
     if self.commit_dir_override is not None:
       out = Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
     else:
@@ -72,6 +71,14 @@ class CiCommit(Base):
       return out / self.project.id_relative
     else:
       return out
+
+  @property
+  def repo_commit_dir(self):
+    if self.commit_dir_override is not None:
+      return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
+    else:
+      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
+      return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
 
   @property
   def authored_date(self):

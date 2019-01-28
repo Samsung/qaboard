@@ -193,16 +193,15 @@ def get_ci_commit(commit_id=None):
     except: # for legacy projects...
       globbing = '*.json'
 
-    commit_dir = ci_commit.commit_dir
-    matches = lambda g: [str(f.relative_to(commit_dir)) for f in commit_dir.glob(g)]
-
+    repo_commit_dir = ci_commit.repo_commit_dir
+    matches = lambda g: [str(f.relative_to(repo_commit_dir)) for f in repo_commit_dir.glob(g)]
     if not isinstance(globbing, list):
       globbing = [globbing]
 
     files = []
     for g in globbing:
       for f in matches(g):
-          files.append(f)
+        files.append(f)
     return jsonify(files)
 
   batch = request.args.get('batch', None)
