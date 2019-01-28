@@ -1,25 +1,24 @@
 ---
-# Tests that should run together are organized in groups.
-# To run all the tests in a group:
+# Tests that you want to run together are organized in groups.
+# To run the tests in a group:
 #   $ qa batch --group my-group
 #   $ qa batch --help
 #
+#
 # You have lots of options to specify each batch's configuration.
-# The examples describe all the ways you can do it.
+# The examples below describe all the ways you can do it.
 #
 # 
-# REMINDER:
-# From the `run(context)` function qatools requires you to implement,
+# Tip: From the `run(context)` function qatools requires you to implement,
 # the configuration for each test is available via:
 #     ```
 #     context.obj['configurations'] : list of strings/objects
-#     context.obj['configuration']  : serialized string representation. You usually don't need it.
+#     context.obj['configuration']  : *deprecated* serialized string representation.
 #     ```
 # Your code does whatever it wants with it :)
 #
 
-
-just-a-list-of-tests:
+basic-list-of-tests:
   # Those tests will run with the project's default configuration,
   # or the one specified on the CLI with --configuration
   tests:
@@ -28,7 +27,7 @@ just-a-list-of-tests:
 # context.obj['configurations'] => ["the default config defined in qatools.yaml"]
 
 
-we-override-the-default-configuration:
+you-can-override-the-default-configuration:
   configuration: test
   tests:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
@@ -56,6 +55,7 @@ configurations-can-be-arrays-of-objects:
   tests:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["base", "low-light", {"cde": ["-DD"]}]
 
 
 each-test-can-have-its-own-configuration:
@@ -75,7 +75,7 @@ each-test-can-have-its-own-configuration:
     # context.obj['configurations'] => ["base", "low-light", "extra-low-light", {"cde": ["-DD"]}]
 
 
-
+## LSF configuration ##########################################################
 you-can-also-give-an-LSF-configuration:
   lsf:
     memory: 1000

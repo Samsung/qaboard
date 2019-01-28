@@ -134,7 +134,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
 
 
 @cli.command()
-@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.argument('variable')
 @click.pass_context
