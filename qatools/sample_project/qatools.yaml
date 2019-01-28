@@ -43,12 +43,12 @@ outputs:
   detailed_views:
   - name: My plot
     # If you use plotly, it is very simple to view yours plots in the web UI
-    type: plotly/json 
+    type: plotly/json
     # Save your plot's data and layout in a json file
     # Note: To find the data they will display, some viewers might rely on conventions
     #       but it is best to be explicit
     path: data.json
-    # { 
+    # {
     #   layout: {...},        // regular plotly layout
     #   data: [{...}, {...}]  // data (array) of regular plotly traces
     # }
@@ -56,7 +56,7 @@ outputs:
     # If you add parameters, they will be passed down to the viewer
     # For instance, you may want to adjust optionnal displays, styling, etc.
     # Each viewer will have its own options....
-    # 
+    #
     # You can hide by defaut your debug/heavy outputs
     # default_hidden: false
 
@@ -74,7 +74,7 @@ outputs:
    # Decides what to do when asked to re-run a test for which we already have results
    # action_on_existing: postprocess  # redo the postprocessing
    # #                 | run          # redo both the run and postprocessing
-   # #                 | sync         # reads `metrics.json` to make sure the database is up to date 
+   # #                 | sync         # reads `metrics.json` to make sure the database is up to date
    # #                 | skip         # continue to the next test
 
 
@@ -87,7 +87,7 @@ artifacts:
   binary:
     glob: 'build/sample_project'
   # The "configurations" artifacts are shown in the UI under the commit's "Configuration" tab
-  configurations: 
+  configurations:
     glob: configurations/*.json
 
 
