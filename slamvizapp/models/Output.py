@@ -103,7 +103,7 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return f'{self.platform}/{self.configuration.replace("/", '.')}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    return f'{self.platform}/{self.configuration.replace("/", ".")}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
     # return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property

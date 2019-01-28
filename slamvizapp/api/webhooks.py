@@ -58,26 +58,24 @@ def update_batch():
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
-  # For now, we do nothing with local runs
-  if data['job_type'] != 'ci':
-    print(data['output_directory'], file=sys.stderr)
-    return "OK"
+  # we can only trust CI outputs to run on the exact code from the commit
+  is_ci = data['job_type'] == 'ci'
 
   # We get a handle on the Commit object related to our new output
   try:
     ci_commit = CiCommit.get_or_create(
       session=db_session,
       hexsha=data['git_commit_sha'],
-      project_id=data.get('project', 'dvs/psp_swip'),
+      project_id=data['project'],
     )
   except:
-    return f"404 ERROR:\n there is an issue with your commit id ({data['git_commit_sha']})", 404
-
-  # The output belongs to this batch of outputs
-  batch = ci_commit.get_or_create_batch(data['batch_label'])
+    if is_ci:
+      return f"404 ERROR:\n There is an issue with your commit id ({data['git_commit_sha']}), did you push it?", 404
+    else: # for now let's not break anything...
+      return f"OK"
 
   # We make sure the Test on which we ran exists in the database 
-  test_input_path = data.get('recording_path', data.get('input_path'))
+  test_input_path = data.get('input_path')
   if not test_input_path:
     return jsonify({"error": "the input path was not provided"}, 400)
   test_input = TestInput.get_or_create(
@@ -88,6 +86,10 @@ def new_output_webhook():
   if not test_input: return "KO", 404
 
   # We save the basic information about our result
+  batch = ci_commit.get_or_create_batch(data['batch_label'])
+  if not batch.data:
+    batch.data = {}
+  batch.data.update({"type": data['job_type']})
   output = Output.get_or_create(db_session,
                                          batch=batch,
                                          platform=data['platform'],
@@ -95,8 +97,8 @@ def new_output_webhook():
                                          extra_parameters=data['extra_parameters'],
                                          test_input=test_input,
                                         )
-  output.output_type = data.get('output_type', 'slam/6dof')
-  output.data = data.get('data', {})
+  output.output_type = data.get('output_type', '')
+  output.data = data.get('data', {"ci": is_ci})
 
   # We allow users to save their data in custom locations
   # at the commit and output levels

@@ -2,6 +2,7 @@
 Represents SLAM runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
+import re
 import datetime
 import json
 from pathlib import Path
@@ -13,6 +14,17 @@ from sqlalchemy import Column
 from sqlalchemy.orm import relationship
 
 from slamvizapp.models import Base, Output
+
+
+def slugify(s : str):
+  """Slugiy a string like they do at Gitlab."""
+  # lowercased and shortened to 63 bytes
+  slug = s.lower()[:63]
+  # everything except 0-9 and a-z replaced with -. 
+  slug = re.sub('[^0-9a-z]', '-', slug)
+  # No leading / trailing -. 
+  return slug.strip('-')
+
 
 class Batch(Base):
   __tablename__ = 'batches'
@@ -101,11 +113,3 @@ def aggregated_metrics(outputs, metrics_to_aggregate):
     # aggregated[f'{metric}_threshold_bad'] = treshold
   # remove NaN values
   return {k: v for k, v in aggregated.items() if v == v}
-
-
-def slugify(s):
-  s_slugified = s
-  for c in ' /': # baaaaad
-    s_slugified = s_slugified.replace(c, '-')
-  return s_slugified
-
