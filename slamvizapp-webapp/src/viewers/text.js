@@ -23,7 +23,7 @@ class TextViewer extends React.PureComponent {
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const { data } = this.state;
-    const { output_new, output_ref, style } = this.props;
+    const { output_new, output_ref } = this.props;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url || !!!data.reference || output_new.id === output_ref.id;
 
     const options = {
