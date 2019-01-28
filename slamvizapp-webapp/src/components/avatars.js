@@ -29,12 +29,13 @@ const AvatarPlaceholder = styled.div`
   font-size: 16px;
   line-height: 38px;
   text-align: center;
-  vertical-align: top;
+  vertical-align: center;
 
   border-radius: 50%;
   border: none;
   height: auto;
-  width: 100%;
+  width: 45px;
+  height: 45px;
   margin: 0;
   align-self: center;
 
@@ -43,7 +44,7 @@ const AvatarPlaceholder = styled.div`
 class Avatar extends React.PureComponent {
   render() {
     const { src, href, alt } = this.props;
-    if (src === null || src === undefined) {
+    if (src === null || src === undefined || src === false) {
       return <AvatarCell>
         <Link to={href||'#'}>
           <AvatarPlaceholder style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
@@ -62,11 +63,12 @@ class Avatar extends React.PureComponent {
 class CommitAvatar extends React.PureComponent {
   render() {
     const { commit } = this.props;
+    let maybe_skeleton = (!commit || !commit.committer_name) ? Classes.SKELETON : null;
     return <Avatar
       href={!!commit && !!commit.committer_name && `/committer/${commit.committer_name}`}
-      alt={!!commit && commit.committer_name}
+      alt={!!commit ? commit.committer_name : 'x'}
       src={!!commit && commit.committer_avatar_url}
-      className={(!commit || !commit.committer_name) ? Classes.SKELETON : null}    
+      className={maybe_skeleton}    
       style={this.props.style}
     />
 
