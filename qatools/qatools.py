@@ -29,7 +29,7 @@ from .config import subproject, config, database, platform
 from .config import user
 from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
-from .config import repo, is_ci
+from .config import repo, is_ci, on_windows
 
 
 def entrypoint_module():
@@ -63,6 +63,8 @@ def entrypoint_module():
 default_batch_label = 'default'
 default_platform = platform
 default_configuration = config.get('inputs', {}).get('configuration', "default")
+if isinstance(default_configuration, list):
+  default_configuration = serialize_config(default_configuration)
 
 @click.group()
 @click.pass_context
@@ -108,10 +110,6 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['batch_label'] = batch_label if not ci else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
-  print("CLI configuration", configuration)
-  if not isinstance(configuration, list):
-    configuration = serialize_config(configuration)
-
   ctx.obj['configurations'] = deserialize_config(configuration)
   ctx.obj['no_qa_database'] = no_qa_database
   ctx.obj['extra_parameters'] = {}
@@ -371,6 +369,14 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if not should_run and action_on_existing=='skip':
         continue
 
+      if input_configuration == default_configuration:
+        configuration_cli = None
+      else:
+        input_configuration_ = input_configuration
+        if on_windows:
+          input_configuration_ = input_configuration_.replace('"', '""')
+        configuration_cli =  f'--configuration "{input_configuration_}"'
+
       args = [
           f"cd {subproject} &&" if str(subproject) != '.' else None,
           f"qa",
@@ -378,7 +384,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
           f'--inputs-database "{ctx.obj["database"]}"' if ctx.obj['database'] != database else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
-          f"--configuration '{input_configuration}'" if input_configuration != default_configuration else None,
+          configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
           f'--input-path "{input_path}"',
