@@ -433,9 +433,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "Finished batch."')
             wait.send(interactive=True, dependencies=waiting_job)
-            # sanity check
+            # Sanity check. We could be strict and read the file and check {"is_failed": False}
             for output_directory in output_directories:
-              assert output_directory.exists()
+              assert (output_directory / 'metrics.json').exists()
   except:
     kill_jobs(waiting_job, on_lsf=True)
 
@@ -568,7 +568,6 @@ def save_artifacts():
   # we also allow sub-qatools-projects
   config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
   config['artifacts']['sub-qatools'] = {"glob": '**/qatools/*'}
-  print(config['artifacts']['sub-qatools.yaml'])
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
@@ -577,6 +576,7 @@ def save_artifacts():
 
   for artifact_name, artifact_config in config['artifacts'].items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
+    nb_files = 0
     globs = artifact_config['glob']
     if not isinstance(globs, list):
       globs = [globs]
@@ -588,18 +588,21 @@ def save_artifacts():
         destination = commit_rootproject_ci_dir / path
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
-        click.secho(str(path), dim=True)
-
+        if 'QATOOlS_VERBOSE' in os.environ:
+          click.secho(str(path), dim=True)
         # We are forced to add some retry logic to deal with our broken storage
         # sometimes it raises a permission error but everything is OK on the second try...
         try:
           copy(path, destination)
+          nb_files += 1
         except:
-          time.sleep(0.1) # seconds
+          time.sleep(0.01) # seconds
           try:
             copy(path, destination)
           except: # wt...
             copy_data(path, destination)
+    if nb_files > 0:
+      click.secho(f"{nb_files} files copied")
 
 
 @cli.command()
