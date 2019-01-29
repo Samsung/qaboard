@@ -24,10 +24,10 @@ def deserialize_config(configuration):
   configurations = []
   configuration_part = ''
   for token in configuration.split(':'):
-    if not configuration_part and '{' not in configurations:
+    if not configuration_part and not token.startswith('{'):
       configurations.append(token)
     else:
-      configuration_part = configuration_part + token
+      configuration_part = f"{configuration_part}:{token}" if configuration_part else token
       try:
         configurations.append(json.loads(configuration_part))
         configuration_part = ''
