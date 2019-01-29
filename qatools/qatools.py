@@ -375,7 +375,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_ = input_configuration_
+          input_configuration_ = input_configuration
           configuration_cli =  f'--configuration "{input_configuration_}"'
 
       args = [
