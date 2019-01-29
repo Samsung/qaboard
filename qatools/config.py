@@ -22,6 +22,8 @@ config_has_error = False
 renamings = (
   ('--input-path', '--input'),
   ('--output-path', '--output'),
+  ('save_artifacts', 'save-artifacts'),
+  ('check_bit_accuracy', 'check-bit-accuracy'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
