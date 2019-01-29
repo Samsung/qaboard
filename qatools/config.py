@@ -12,7 +12,6 @@ import click
 from .utils import getenvs
 from .conventions import slugify
 
-
 # In case the qatools.yaml configuration has errors, we don't want to exit directly.
 # We want to show all the errors to fix, and still allow qatools.config to be imported.
 config_has_error = False
@@ -31,34 +30,6 @@ def renamed_deprecated(arg):
   return arg
 sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
 
-
-
-# The `init` command is implemented here to avoid printing config error messages
-# when users use qatools for the first time. Its goal is to provide a sample qatools configuration
-if len(sys.argv)>1 and sys.argv[1] == 'init':
-  if Path('qatools.yaml').exists():
-    click.secho('You already have a qatools.yaml configuration.', fg='green')
-    exit(0)
-
-  import shutil
-  try: # fast, available from python3.7
-    from importlib import resources
-    with resources.path('qatools', '') as qatools_dir:
-      pass
-  except:
-      import pkg_resources
-      qatools_dir = Path(pkg_resources.resource_filename('qatools', ''))
-  click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
-  shutil.copy(str(qatools_dir / 'sample_project/qatools.yaml'), 'qatools.yaml')
-  click.secho('...added qatools.yaml', fg='green', dim=True)
-  shutil.copytree(str(qatools_dir/'sample_project/qatools'), 'qatools')
-  click.secho('...added qatools/', fg='green', dim=True)
-  click.secho(
-    'If you need help configuring qatools. please read the tutorial, and ask @arthurf for help\n'
-    'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
-    fg='blue'
-  )
-  exit(0)
 
 
 
@@ -83,6 +54,14 @@ def find_qatools_configs(path):
     qatools_configs.reverse() 
     qatools_config_paths.reverse()
     return qatools_configs, qatools_config_paths
+
+
+
+# The `init` command is implemented here to avoid printing config error messages
+# when users use qatools for the first time. Its goal is to provide a sample qatools configuration
+if len(sys.argv)>1 and sys.argv[1] == 'init':
+  from .init import qa_init
+  qa_init()
 
 
 qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
