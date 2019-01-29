@@ -347,7 +347,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
   tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
-  for input_path_abs, input_configurations, lsf_configuration in tests_iter:
+  for input_path_abs, input_configurations, lsf_configuration in tests_iter:    
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(ctx.obj['database'])
     click.secho(str(input_path), fg='blue', err=True)

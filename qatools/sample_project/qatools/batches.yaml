@@ -99,5 +99,54 @@ you-can-also-give-an-LSF-configuration-per-test:
         memory: 200
 
 
+## Reusable configurations/tests ##############################################
+# Sometimes you want to mix and match reusabe definitions of configs and tests
+# YAML anchors let you do it:
+
+# You want to reuse those lists of tests across all HDR tests
+.tests_hdr: &tests_hdr
+  tests:
+    - A
+    - B
+
+.lots_of_tests_hdr: &tests_hdr
+  tests:
+    - A
+    - B
+    - C
+    - D
+    - E
+    - F
+
+.HDR: &HDR
+  configuration:
+    - base
+    - hdr_base
+    - hdr_motion
+
+.HDR-disabled: &HDR-disabled
+  configuration:
+    - base
+
+hdr:
+  <<: *HDR
+  <<: *tests_hdr
+no-hdr:
+  <<: *HDR-disabled
+  <<: *tests_hdr
+# qa --batch-label hdr    batch --group hdr
+# qa --batch-label no-hdr batch --group no-hdr
+
+# Maybe on nightly runs you want to run lots of tests:
+lots-of-hdr-tests:
+  <<: *HDR
+  <<: *lots_of_tests_hdr
+lots-of-no-hdr-tests:
+  <<: *HDR-disabled
+  <<: *lots_of_tests_hdr
+
+
+
+
 ...
 
