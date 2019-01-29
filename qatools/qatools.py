@@ -372,10 +372,11 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if input_configuration == default_configuration:
         configuration_cli = None
       else:
-        input_configuration_ = input_configuration
-        if on_windows:
-          input_configuration_ = input_configuration_.replace('"', '""')
-        configuration_cli =  f'--configuration "{input_configuration_}"'
+        if not on_windows:
+          configuration_cli =  f"--configuration '{input_configuration}'"
+        else:
+          input_configuration_ = input_configuration_
+          configuration_cli =  f'--configuration "{input_configuration_}"'
 
       args = [
           f"cd {subproject} &&" if str(subproject) != '.' else None,
