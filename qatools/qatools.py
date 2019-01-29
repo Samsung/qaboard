@@ -49,8 +49,8 @@ def entrypoint_module():
       spec.loader.exec_module(module)
   except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', dim=True)
+      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       click.secho(
           f'{entrypoint} must implement both `run` and `postprocess` functions.\n'
           'Please read the tutorial, and ask @arthurf for help\n'
@@ -431,7 +431,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if not dryrun and not no_wait:
             tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
-            wait = Job(name, 'echo "Finished waiting for LSF jobs."')
+            wait = Job(name, 'echo "Finished batch."')
             wait.send(interactive=True, dependencies=waiting_job)
             # sanity check
             for output_directory in output_directories:
