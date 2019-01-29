@@ -8,6 +8,17 @@ import yaml
 import json
 
 
+
+def slugify(s : str):
+  """Slugiy a string like they do at Gitlab."""
+  # lowercased and shortened to 63 bytes
+  slug = s.lower()[:63]
+  # everything except 0-9 and a-z replaced with -. 
+  slug = re.sub('[^0-9a-z]', '-', slug)
+  # No leading / trailing -. 
+  return slug.strip('-')
+
+
 def deserialize_config(configuration):
   # print("[deserialize] before : ", configuration)
   configurations = []
@@ -78,7 +89,6 @@ def make_hash(obj):
 
 def batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci=False):
   from qatools.config import is_ci, subproject
-  from qatools.utils import slugify
   batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return commit_ci_dir / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
 

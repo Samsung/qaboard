@@ -46,16 +46,6 @@ def latest_commit(repo, branch):
     return list(repo.iter_commits(branch, max_count=1))[0]
 
 
-def slugify(s : str):
-  """Slugiy a string like they do at Gitlab."""
-  # lowercased and shortened to 63 bytes
-  slug = s.lower()[:63]
-  # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z]', '-', slug)
-  # No leading / trailing -. 
-  return slug.strip('-')
-
-
 def getenvs(variables, default=None):
   """Return the value of the environment variable that is defined - or None."""
   for name in variables:
