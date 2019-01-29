@@ -9,7 +9,8 @@ import yaml
 import git
 import click
 
-from .utils import slugify, getenvs
+from .utils import getenvs
+from .config import slugify
 
 
 # In case the qatools.yaml configuration has errors, we don't want to exit directly.
