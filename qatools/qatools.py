@@ -387,8 +387,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
-          f'--input-path "{input_path}"',
-          f'--output-path "{output_directory}"',
+          f'--input "{input_path}"',
+          f'--output "{output_directory}"',
           ' '.join(forwarded_args),
       ]
       command = ' '.join([arg for arg in args if arg is not None])
