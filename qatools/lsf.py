@@ -112,7 +112,7 @@ def kill_jobs(jobs, on_lsf=False):
       f"bkill -J {job.name} 0" for job in jobs
     ])
     if on_lsf:
-        killer = Job(f"killer", '"{command}"', priority=Priority.HIGH)
+        killer = Job(f"killer", f'"{command}"', priority=Priority.HIGH)
         killer.send()
     else:
         out = subprocess.run(
