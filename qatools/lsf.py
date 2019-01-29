@@ -33,7 +33,7 @@ class LsfConfig:
     max_memory: int = 0 #in MB
     sequential: bool = False
     resources: str = None
-    project: str = config["project"]["name"]
+    project: str = config.get("project", {}).get('name', 'qatools')
 
 
 class Job:
