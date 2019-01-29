@@ -448,108 +448,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     kill_jobs(waiting_job, on_lsf=True)
 
 
-@cli.command(context_settings=dict(
-    ignore_unknown_options=True,
-))
-@click.option('--group', '-g', required=True, multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
-@click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
-@click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
-@click.pass_context
-def optimize(ctx, group, groups_file, config_file, forwarded_args):
-  ctx.obj['prefix_output_dir'].mkdir(parents=True, exist_ok=True)
-  ctx.obj['group'] = group
-  ctx.obj['groups_file'] = groups_file
-  ctx.obj['forwarded_args'] = forwarded_args
-
-  from shutil import rmtree
-  from .tuning import init_optimization, make_plots
-  from .api import aggregated_metrics
-  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
-
-  # TODO: warm-start
-  #   load and "tell" existing results (if there are any)
-  #   (or use a checkpoint?)
-
-  for iteration in range(optim_config['evaluations']):
-      suggested = optimizer.ask()
-      y = objective([*suggested, iteration])
-      results = optimizer.tell(suggested, y)
-
-      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
-      iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
-      notify_qa_database(**{
-        **ctx.obj,
-        **{
-          "extra_parameters": dim_mapping(suggested),
-          # TODO: we really should to tuning/platform in make_prefix_outputs_path
-          #       1. make change, 2. rename existing folders)
-          "output_directory": iteration_batch_dir,
-          'input_path': '|'.join(group),
-          # we want to show in the summary tab the best results for the tuning experiment
-          # but in the exploration see the results per iteration....
-          "output_type": 'optim_iteration', # or... single ? don't show them in the UI
-          "is_pending": False,
-          "is_pending": False,
-          "is_failed": False,
-          "metrics": {
-            "iteration": iteration+1,
-            "objective": y,
-            **aggregated_metrics(iteration_batch_label),
-          },
-        },
-      })
-
-      notify_qa_database(object_type='batch', **{
-        **ctx.obj,
-        **{
-            "data": {
-              "optimization": True,
-              "iterations": iteration+1,
-            },
-        },
-      })
-
-      # results
-      #    .x [float]: location of the minimum.
-      #    .fun [float]: function value at the minimum.
-      #    .models: surrogate models used for each iteration.
-      #    .x_iters [array]: location of function evaluation for each iteration.
-      #    .func_vals [array]: function value for each iteration.
-      #    .space [Space]: the optimization space.
-      #    .specs [dict]: parameters passed to the function.
-      is_best = results.fun < results.func_vals[iteration]
-      if iteration==0 or is_best:
-        click.secho(f'New best @iteration{iteration+1}: {y} at iteration {iteration+1}', fg='green')
-        notify_qa_database(object_type='batch', **{
-          **ctx.obj,
-          **{
-              "data": {
-                "best_params": dim_mapping(suggested),
-                "best_iter": iteration+1,
-                "best_metrics": aggregated_metrics(iteration_batch_label),
-              },
-          },
-        })
-        try:
-          make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
-        except:
-          pass
-      else:
-        # We remove the results to make sure we don't waste disk space
-        rmtree(iteration_batch_dir, ignore_errors=True)
-
-  print(results)
-  if not results.models: # needs at least n_initial_points(=5) evaluations!
-    return
-
-  # tuning plots are saved in the label directory
-  make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
-
-
-
-
-
 @cli.command()
 def save_artifacts():
   """Save the results at a standard location"""
@@ -652,6 +550,111 @@ def check_bit_accuracy(reference_branch):
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
+
+
+
+
+
+
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.option('--group', '-g', required=True, multiple=True, help="We run over all recordings in those groups")
+@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+@click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
+@click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def optimize(ctx, group, groups_file, config_file, forwarded_args):
+  ctx.obj['prefix_output_dir'].mkdir(parents=True, exist_ok=True)
+  ctx.obj['group'] = group
+  ctx.obj['groups_file'] = groups_file
+  ctx.obj['forwarded_args'] = forwarded_args
+
+  from shutil import rmtree
+  from .tuning import init_optimization, make_plots
+  from .api import aggregated_metrics
+  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
+
+  # TODO: warm-start
+  #   load and "tell" existing results (if there are any)
+  #   (or use a checkpoint?)
+
+  for iteration in range(optim_config['evaluations']):
+      suggested = optimizer.ask()
+      y = objective([*suggested, iteration])
+      results = optimizer.tell(suggested, y)
+
+      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
+      iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
+      notify_qa_database(**{
+        **ctx.obj,
+        **{
+          "extra_parameters": dim_mapping(suggested),
+          # TODO: we really should to tuning/platform in make_prefix_outputs_path
+          #       1. make change, 2. rename existing folders)
+          "output_directory": iteration_batch_dir,
+          'input_path': '|'.join(group),
+          # we want to show in the summary tab the best results for the tuning experiment
+          # but in the exploration see the results per iteration....
+          "output_type": 'optim_iteration', # or... single ? don't show them in the UI
+          "is_pending": False,
+          "is_pending": False,
+          "is_failed": False,
+          "metrics": {
+            "iteration": iteration+1,
+            "objective": y,
+            **aggregated_metrics(iteration_batch_label),
+          },
+        },
+      })
+
+      notify_qa_database(object_type='batch', **{
+        **ctx.obj,
+        **{
+            "data": {
+              "optimization": True,
+              "iterations": iteration+1,
+            },
+        },
+      })
+
+      # results
+      #    .x [float]: location of the minimum.
+      #    .fun [float]: function value at the minimum.
+      #    .models: surrogate models used for each iteration.
+      #    .x_iters [array]: location of function evaluation for each iteration.
+      #    .func_vals [array]: function value for each iteration.
+      #    .space [Space]: the optimization space.
+      #    .specs [dict]: parameters passed to the function.
+      is_best = results.fun < results.func_vals[iteration]
+      if iteration==0 or is_best:
+        click.secho(f'New best @iteration{iteration+1}: {y} at iteration {iteration+1}', fg='green')
+        notify_qa_database(object_type='batch', **{
+          **ctx.obj,
+          **{
+              "data": {
+                "best_params": dim_mapping(suggested),
+                "best_iter": iteration+1,
+                "best_metrics": aggregated_metrics(iteration_batch_label),
+              },
+          },
+        })
+        try:
+          make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+        except:
+          pass
+      else:
+        # We remove the results to make sure we don't waste disk space
+        rmtree(iteration_batch_dir, ignore_errors=True)
+
+  print(results)
+  if not results.models: # needs at least n_initial_points(=5) evaluations!
+    return
+
+  # tuning plots are saved in the label directory
+  make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+
+
 
 
 
