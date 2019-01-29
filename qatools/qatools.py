@@ -318,11 +318,12 @@ def sync(ctx, input_path, output_path):
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--lsf-threads', default=config.get('lsf', {}).get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-memory', default=config.get('lsf', {}).get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--lsf-resources', default=config.get('lsf', {}).get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-sequential/--lsf-parallel', default=config.get('lsf', {}).get('sequential', False), help="Run locally, dont use LSF")
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, lsf_sequential, action_on_existing, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, lsf_resources, lsf_sequential, action_on_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not groups_file:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
@@ -331,7 +332,12 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     return
 
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
-  default_lsf_config = {"threads": lsf_threads, "memory": lsf_memory, 'sequential': lsf_sequential}
+  default_lsf_config = {
+    "threads": lsf_threads,
+    "memory": lsf_memory,
+    'sequential': lsf_sequential,
+    'resources': lsf_resources
+  }
 
   running_jobs_names = running_lsf_job_names()
   def not_started(output_directory):
@@ -389,13 +395,13 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
           f'--input "{input_path}"',
-          f'--output "{output_directory}"',
+          f'--output "{output_directory}"' if prefix_outputs_path else None,
           ' '.join(forwarded_args),
       ]
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
-      priority = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, priority, lsf_configuration['threads'], lsf_configuration['memory'], lsf_configuration['sequential']))
+      lsf_configuration['priority'] = Priority.LOW if tuning_params else Priority.NORMAL
+      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, lsf_configuration))
       output_directories.append(output_directory)
 
       if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
@@ -425,10 +431,12 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   try:
       for job in jobs:
         if dryrun: continue
+        # print(f'> {job.name}')
         job.send()
         jobs_sent.append(job)
     
       if not dryrun and not no_wait:
+            # print('*')
             tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
             name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
             wait = Job(name, 'echo "Finished batch."')

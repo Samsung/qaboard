@@ -20,7 +20,7 @@ from .config import config, on_windows
 # We could avoid those that lack AVX2, and someday we'll care about AVX512...
 # All possible selectable CPU types can be read at /lsf_top/conf/lsf.cluster.lsf
 old_cpu_architectures = ["IBMX5667", "IBMX5570", "IBMX5690"]
-lsf_select = " && ".join([f"!(model=={arch})" for arch in old_cpu_architectures])
+resources = " && ".join([f"!(model=={arch})" for arch in old_cpu_architectures])
 
 class Priority:
     LOW, NORMAL, HIGH = 1000, 2000, 4000
@@ -29,15 +29,22 @@ class Priority:
 class Job:
     """Wraps LSF jobs for convenience."""
 
-    def __init__(self, name, command="", log_dir=Path().resolve(), priority=2000, max_threads=0, max_memory=0, sequential=False):
+    def __init__(self, name, command="", log_dir=Path().resolve(), lsf_configuration=None):
+        self.lsf_configuration = {
+          'priority': Priority.NORMAL,
+          'max_threads': 0,
+          "max_memory": 0,  #in MB
+          'sequential':False,
+          'resources': None,
+        }
+        if not lsf_configuration:
+            lsf_configuration = {}
+        self.lsf_configuration.update(lsf_configuration)
+
         self.name = str(name).replace(" ", "-").replace('"','')
         self.command = command
         self.log_file = log_dir / "log.txt"
         self.project = config["project"]["name"]
-        self.priority = priority  # max: 4000, LSF-default: 2000
-        self.max_threads = max_threads
-        self.max_memory = max_memory #in MB
-        self.sequential = sequential
 
     def send(
         self, dependencies=None, interactive=False
@@ -45,7 +52,7 @@ class Job:
         """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
-        if on_windows or self.sequential:
+        if on_windows or self.lsf_configuration['sequential']:
             out = subprocess.run(
                 self.command,
                 shell=True,
@@ -79,12 +86,12 @@ class Job:
                 "-I" if interactive else "",
                 f"-P {self.project}",
                 f"-q {queue}",
-                f"-sp {self.priority}",
+                f"-sp {self.lsf_configuration['priority']}",
                 f'-J "{self.name}"',
                 f'-o "{self.log_file}"',
-                f"-R \"affinity[thread({self.max_threads})]\"" if self.max_threads > 0 else "",
-                f"-R \"rusage[mem={self.max_memory}]\"" if self.max_memory > 0 else "",
-                f"-R \"{lsf_select}\"",
+                f"-R \"affinity[thread({self.lsf_configuration['max_threads']})]\"" if self.lsf_configuration['max_threads'] > 0 else "",
+                f"-R \"rusage[mem={self.lsf_configuration['max_memory']}]\"" if self.lsf_configuration['max_memory'] > 0 else "",
+                f"-R \"{self.lsf_configuration['resources']}\"" if self.lsf_configuration['resources'] else '',
                 dependencies_flag,
                 '<< EOF\n'
                 # the click python package hates ascii locales, for good reasons
@@ -112,7 +119,7 @@ def kill_jobs(jobs, on_lsf=False):
       f"bkill -J {job.name} 0" for job in jobs
     ])
     if on_lsf:
-        killer = Job(f"killer", f'"{command}"', priority=Priority.HIGH)
+        killer = Job(f"killer", f'"{command}"', lsf_configuration={'priority': Priority.HIGH})
         killer.send()
     else:
         out = subprocess.run(
