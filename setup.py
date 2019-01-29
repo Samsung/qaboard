@@ -15,6 +15,7 @@ setup(
 
   python_requires='>=3.6',
   install_requires=[
+    'dataclasses', # backport for python3.6
     'click', # CLI for humans
     'requests', # HTTP for humans
     'gitpython',

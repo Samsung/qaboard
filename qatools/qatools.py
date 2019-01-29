@@ -332,9 +332,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     return
 
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
-  default_lsf_config = {
-    "threads": lsf_threads,
-    "memory": lsf_memory,
+  default_lsf_config =  {
+    "max_threads": lsf_threads,
+    "max_memory": lsf_memory,
     'sequential': lsf_sequential,
     'resources': lsf_resources
   }
@@ -348,7 +348,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   jobs = []
   output_directories = []
   batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
-  batch_job_prefix = f"{batch_hash[:10]}/"
+  batch_job_prefix = f"{batch_hash[:8]}/"
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
@@ -381,7 +381,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_ = input_configuration_
+          input_configuration_ = input_configuration
           configuration_cli =  f'--configuration "{input_configuration_}"'
 
       args = [

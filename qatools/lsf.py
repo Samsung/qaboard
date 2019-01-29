@@ -10,6 +10,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
+from dataclasses import dataclass, replace
 
 import click
 
@@ -19,40 +20,40 @@ from .config import config, on_windows
 # We avoid hosts that run on old processors lacking AVX instructions (pre-Sandy Bridge)
 # We could avoid those that lack AVX2, and someday we'll care about AVX512...
 # All possible selectable CPU types can be read at /lsf_top/conf/lsf.cluster.lsf
-old_cpu_architectures = ["IBMX5667", "IBMX5570", "IBMX5690"]
-resources = " && ".join([f"!(model=={arch})" for arch in old_cpu_architectures])
+# old_cpu_architectures = ["IBMX5667", "IBMX5570", "IBMX5690"]
+# resources = " && ".join([f"!(model=={arch})" for arch in old_cpu_architectures])
 
 class Priority:
     LOW, NORMAL, HIGH = 1000, 2000, 4000
+
+@dataclass
+class LsfConfig:
+    priority: int = Priority.NORMAL
+    max_threads: int = 0
+    max_memory: int = 0 #in MB
+    sequential: bool = False
+    resources: str = None
+    project: str = config["project"]["name"]
 
 
 class Job:
     """Wraps LSF jobs for convenience."""
 
-    def __init__(self, name, command="", log_dir=Path().resolve(), lsf_configuration=None):
-        self.lsf_configuration = {
-          'priority': Priority.NORMAL,
-          'max_threads': 0,
-          "max_memory": 0,  #in MB
-          'sequential':False,
-          'resources': None,
-        }
-        if not lsf_configuration:
-            lsf_configuration = {}
-        self.lsf_configuration.update(lsf_configuration)
-
+    def __init__(self, name, command="", log_dir=Path().resolve(), lsf_config_dict=None):
         self.name = str(name).replace(" ", "-").replace('"','')
         self.command = command
         self.log_file = log_dir / "log.txt"
-        self.project = config["project"]["name"]
 
-    def send(
-        self, dependencies=None, interactive=False
-    ):
+        self.lsf_config = LsfConfig()
+        if lsf_config_dict:
+          self.lsf_config = replace(self.lsf_config, **lsf_config_dict)
+
+
+    def send(self, dependencies=None, interactive=False):
         """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
-        if on_windows or self.lsf_configuration['sequential']:
+        if on_windows or self.lsf_config.sequential:
             out = subprocess.run(
                 self.command,
                 shell=True,
@@ -64,18 +65,12 @@ class Job:
             return out
 
         if dependencies:
-            dependencies_expression = " && ".join(
-                [f"ended({job.name})" for job in dependencies]
-            )
+            dependencies_expression = " && ".join([f"ended({job.name})" for job in dependencies])
             dependencies_flag = f'-w "{dependencies_expression}"'
         else:
             dependencies_flag = ""
 
-        queue = (
-            config["lsf"]["queue"]
-            if not interactive
-            else config["lsf"]["fast_queue"]
-        )
+        queue = config["lsf"]["queue"] if not interactive else config["lsf"]["fast_queue"]
         q_command = " ".join(
             [
                 "bsub",
@@ -84,14 +79,14 @@ class Job:
                 # note: we don't request a pseudoterminal here -Is
                 # on our current use-cases, -K should be enough
                 "-I" if interactive else "",
-                f"-P {self.project}",
+                f"-P {self.lsf_config.project}",
                 f"-q {queue}",
-                f"-sp {self.lsf_configuration['priority']}",
+                f"-sp {self.lsf_config.priority}",
                 f'-J "{self.name}"',
                 f'-o "{self.log_file}"',
-                f"-R \"affinity[thread({self.lsf_configuration['max_threads']})]\"" if self.lsf_configuration['max_threads'] > 0 else "",
-                f"-R \"rusage[mem={self.lsf_configuration['max_memory']}]\"" if self.lsf_configuration['max_memory'] > 0 else "",
-                f"-R \"{self.lsf_configuration['resources']}\"" if self.lsf_configuration['resources'] else '',
+                f"-R \"affinity[thread({self.lsf_config.max_threads})]\"" if self.lsf_config.max_threads > 0 else "",
+                f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
+                f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
                 dependencies_flag,
                 '<< EOF\n'
                 # the click python package hates ascii locales, for good reasons
@@ -114,12 +109,12 @@ class Job:
         # click.secho(out.stdout)
         return out
 
+
+
 def kill_jobs(jobs, on_lsf=False):
-    command = " && ".join([
-      f"bkill -J {job.name} 0" for job in jobs
-    ])
+    command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
     if on_lsf:
-        killer = Job(f"killer", f'"{command}"', lsf_configuration={'priority': Priority.HIGH})
+        killer = Job(f"killer", f'"{command}"', lsf_config={'priority': Priority.HIGH})
         killer.send()
     else:
         out = subprocess.run(
@@ -136,15 +131,9 @@ def kill_jobs(jobs, on_lsf=False):
 def running_lsf_job_names():
     """
   Return the names of the running LSF jobs for the current user (as a set)
-
   From Windows we return an empty set, but if you really want to, you should be able to find a way to connect to LSF.
   """
     if on_windows:
-        click.secho(
-            "Warning: on Windows we don't check for running LSF jobs'",
-            fg="yellow",
-            err=True,
-        )
         return set()
 
     cmd = " ".join(["bjobs -u", os.environ["USER"], "-noheader -o 'job_name:100'"])
