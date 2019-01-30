@@ -270,7 +270,7 @@ def postprocess_(runtime_metrics, context, skip=False):
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   if not output_path:
-    output_directory = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
     output_directory = output_path
   ctx.obj['input_path'] =  input_path
@@ -291,7 +291,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
   if not output_path:
-    output_directory = ctx.obj['prefix_output_dir'] / input_path.parent / input_path.stem
+    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
     output_directory = output_path
 
@@ -366,7 +366,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
               prefix_output_dir = prefix_output_dir / Path(tuning_file).stem
-      output_directory = prefix_output_dir / input_path.parent / input_path.stem
+      output_directory = prefix_output_dir / input_path.with_suffix('')
       if return_prefix_outputs_path:
         print(output_directory)
         break
@@ -472,7 +472,8 @@ def save_artifacts():
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
   # we also allow sub-qatools-projects
   config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
-  config['artifacts']['sub-qatools'] = {"glob": '**/qatools/*'}
+  config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools') for p in qatools_config_paths]}
+  config['artifacts']['metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
@@ -482,7 +483,7 @@ def save_artifacts():
   for artifact_name, artifact_config in config['artifacts'].items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
     nb_files = 0
-    globs = artifact_config['glob']
+    globs = artifact_config.get('glob')
     if not isinstance(globs, list):
       globs = [globs]
 
@@ -511,54 +512,62 @@ def save_artifacts():
 
 
 @cli.command()
+@click.pass_context
 @click.option(
     "--reference",
     default=config.get('project', {}).get('reference', 'master'),
     help="Branch, tag or commit used as reference."
 )
 @click.option('--group', '-g', multiple=True, help="Only check bit-accuracy for those groups of tests.")
-def check_bit_accuracy(reference, group):
+@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+def check_bit_accuracy(ctx, reference, group, groups_file):
     """
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
+    from .config import commit, commit_branch, repo, is_ci
     from .utils import latest_commit
-    from .config import commit, commit_branch, repo
-    from .bit_accuracy import assert_bit_accurate_to
-
-    if config["project"].get("type", 'git') != "git":
-      click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
-      exit(1)
 
     if not repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
       exit(1)
 
-    if commit_branch != reference:
-        click.secho(f'Comparing bit-accuracy versus the latest commit fetched from {reference}', fg='cyan', bold=True, err=True)
-        try:
-          reference_commit = latest_commit(repo, f"origin/{reference}")
-        except:
-          reference_commit = latest_commit(repo, reference)
-        assert assert_bit_accurate_to(
-            reference_commit
-        ), "ERRROR: the bit-accuracy test has failed"
 
-    # bit-accuracy on the reference branch is check on the commit's parents
+    if is_ci and commit_branch == reference:
+      click.secho(f'We are on branch {reference}', fg='cyan', bold=True, err=True)
+      click.secho(f"Comparing bit-accuracy against this commit's ({commit.hexsha[:8]}) parents.", fg='cyan', bold=True, err=True)
+      # It will work until we try to rebase merge requests.
+      # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
+      reference_commits = commit.parents
     else:
-        all_bit_accurate = True
-        click.secho(f'We are on branch {reference}', fg='cyan', bold=True, err=True)
-        click.secho(f"Therefore, we check bit-accuracy against the parents of {commit.hexsha[:8]}", fg='cyan', bold=True, err=True)
-        for commit_ref in commit.parents:
-            click.secho(f"* bit-accuracy versus {commit_ref.hexsha[:8]}:", fg='cyan', err=True)
-            if not assert_bit_accurate_to(commit_ref):
-                all_bit_accurate = False
-        assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"
+      click.secho(f'Comparing bit-accuracy versus the latest commit from origin/{reference}', fg='cyan', bold=True, err=True)
+      reference_commits = [latest_commit(repo, reference)]
+
+    reference_shas = ','.join([r.hexsha[:8] for r in reference_commits])
+    click.secho(f"{commit.hexsha[:8]} versus {reference_shas}.", fg='cyan', err=True)
+
+    # This where the new results are located
+    commit_dir = commit_ci_dir if is_ci else Path()
+
+    if not group:
+      output_directories = [subproject / 'output']
+    else:
+      output_directories = []
+      tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
+      for input_path_abs, input_configurations, _ in tests_iter:
+        prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
+        input_path = input_path_abs.relative_to(ctx.obj['database'])
+        output_directory = prefix_output_dir / input_path.with_suffix('')
+        print(output_directory)
+        output_directories.append(output_directory)
+
+
+    bit_accuracies = [is_bit_accurate(commit_dir, reference_commit, output_directories) for reference_commit in reference_commits]
+    assert all(bit_accuracies), "ERRROR: the bit-accuracy test has failed"
 
 
 
-
-
+from .bit_accuracy import is_bit_accurate
 
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,

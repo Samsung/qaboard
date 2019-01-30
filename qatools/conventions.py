@@ -8,6 +8,10 @@ import yaml
 import json
 
 
+def get_commit_ci_dir(ci_dir, commit):
+  dir_name = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
+  return ci_dir / 'commits' / dir_name
+
 
 def slugify(s : str):
   """Slugiy a string like they do at Gitlab."""

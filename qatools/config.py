@@ -10,7 +10,7 @@ import git
 import click
 
 from .utils import getenvs
-from .conventions import slugify
+from .conventions import slugify, get_commit_ci_dir
 
 # In case the qatools.yaml configuration has errors, we don't want to exit directly.
 # We want to show all the errors to fix, and still allow qatools.config to be imported.
@@ -179,13 +179,12 @@ except:
     commit = None
 
 
+
 # This is where results should be saved
 if repo and commit:
-    commit_ci_dirname = f'{commit.authored_date}__{commit.author.name.replace(".","")}__{commit.hexsha[:8]}'
-    commit_rootproject_ci_dir = ci_dir / 'commits' / commit_ci_dirname
+    commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit)
     commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit_rootproject_ci_dir
 else:
-    commit_ci_dirname = None
     commit_rootproject_ci_dir = Path()
     commit_ci_dir = Path()
 # When running qatools from a folder in which we saved a commit's artifacts,
@@ -194,8 +193,7 @@ else:
 # by setting both the QATOOLS_CI_COMMIT_DIR and CI_COMMIT_SHA environment variables
 if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
     commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
-    commit_ci_dirname = commit_ci_dir.name
-    commit_rootproject_ci_dir = commit_ci_dir # FIXME: no support for subprojects 
+    commit_rootproject_ci_dir = commit_ci_dir
 
 
 

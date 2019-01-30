@@ -38,12 +38,18 @@ def file_info(path):
   }
 
 
-def latest_commit(repo, branch):
-    """Returns the latest commit on a branch."""
+def latest_commit(repo, reference):
+    """Returns the latest commit on a reference (commit, tag or branch)."""
     # FIXME: couldn't we just use the project's git repo URL from the configuration?
     # Here we find a local copy of the repo and use it to iterate through commits
     # TODO: we should use the branch slug.... but it will work for develop/master/release...
-    return list(repo.iter_commits(branch, max_count=1))[0]
+    remote = repo.remote()
+    try:
+      return remote.refs[reference].commit
+    except:
+      return repo.commit(rev=reference)
+    # try:
+    #   return list(repo.iter_commits(reference.replace('origin/', ''), max_count=1))[0]
 
 
 def getenvs(variables, default=None):
