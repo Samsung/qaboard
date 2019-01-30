@@ -227,7 +227,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
       json.dump(output_files, f, indent=2)
 
 
-def postprocess_(runtime_metrics, context, skip=True):
+def postprocess_(runtime_metrics, context, skip=False):
   """Computes computes various success metrics and outputs."""
   try:
     if not skip:
