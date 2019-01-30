@@ -137,6 +137,8 @@ const BatchLogs = ({ batch }) => {
   // let now = new Date();
   // .filter(o => !o.is_pending)
   // || now - new Date(o.created_date) > 1e3)
+  if (batch === null || batch === undefined  || batch.output_dir_url === undefined)
+    return <span></span>
   let batch_mock_output = {
     is_failed: false,
     is_pending: false,
@@ -146,7 +148,7 @@ const BatchLogs = ({ batch }) => {
     test_input_path: 'Root output folder for the batch',
     extra_parameters: batch.data || {},
     configuration: '',
-    platform: batch.label,
+    platform: batch.label || '',
   }
   return <>
     {Object.values(batch.outputs)
