@@ -53,13 +53,14 @@ class CiCommitResults extends Component {
     super(props);
     // we initialize optionnal controls with their defaults
     this.state = {
-      controls: this.control_defaults(props),
+      controls: this.controls_defaults(props),
     };
   }
 
-  control_defaults = (props) => {
-    let state_controls = {};
-
+  controls_defaults = (props) => {
+    let state_controls = {
+      show: {}
+    };
     if (!!props.project_data &&
         !!props.project_data.information &&
         !!props.project_data.information.qatools_config &&
@@ -67,6 +68,11 @@ class CiCommitResults extends Component {
       let controls = props.project_data.information.qatools_config.outputs.controls || [];
       controls.forEach(control => {
         state_controls[control.name] = control.default;
+      })
+      let detailed_views = props.project_data.information.qatools_config.outputs.detailed_views || []
+      detailed_views.forEach( (view, idx) => {
+        if (view.default_hidden) 
+        state_controls.show[view.name] = false;          
       })
     }
 
@@ -184,7 +190,7 @@ class CiCommitResults extends Component {
     const new_controls = ((((this.props.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
     const old_controls = ((((prevProps.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
     if (old_controls !== new_controls) {
-      this.setState({controls: this.control_defaults(this.props)});
+      this.setState({controls: this.controls_defaults(this.props)});
     }
   }
   selectSortBy = e => {
@@ -309,13 +315,14 @@ class CiCommitResults extends Component {
       />
     );
 
-    // console.log(this.state.controls)
     let controls_extra = project_data.information.qatools_config.outputs.controls || []
     let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
     let controls = <>
       {detailed_views.map( (view, idx) => {
-        if (!view.default_hidden) return <React.Fragment key={idx}></React.Fragment>
-        console.log(this.state.controls.show[view.name])
+        if (!view.default_hidden ||
+            this.state.controls.show === undefined || this.state.controls.show === null ||
+            this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
+          return <React.Fragment key={idx}></React.Fragment>
         return <Switch
                 key={idx}
                 checked={this.state.controls.show[view.name]}

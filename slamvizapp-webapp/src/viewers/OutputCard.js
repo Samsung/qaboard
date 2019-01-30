@@ -176,7 +176,7 @@ class OutputCard extends Component {
     }
 
     let viewers = views.map( (view, idx) => {
-        let hidden = view.default_hidden===true && !(!!controls.show && controls.show[idx]===true)
+        let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
         if (hidden)
           return <span key={idx}/>
 
