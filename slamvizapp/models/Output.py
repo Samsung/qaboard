@@ -22,6 +22,18 @@ from sqlalchemy import cast, type_coerce
 from slamvizapp.models import Base
 
 
+
+def slugify(s : str):
+  """Slugiy a string like they do at Gitlab."""
+  # lowercased and shortened to 63 bytes
+  slug = s.lower()[:63]
+  # everything except 0-9 and a-z replaced with -. 
+  slug = re.sub('[^0-9a-z]', '-', slug)
+  # No leading / trailing -. 
+  return slug.strip('-')
+
+
+
 class Output(Base):
   __tablename__ = 'outputs'
   id = Column(Integer, primary_key=True)
@@ -103,8 +115,8 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return f'{self.platform}/{self.configuration.replace("/", ".")}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
-    # return Path(self.platform) / self.configuration / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
+    return f'{self.platform}/{slugify(self.configuration)}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    # return Path(self.platform) / slugify(self.configuration) / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property
   def output_dir(self):
