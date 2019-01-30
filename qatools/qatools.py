@@ -420,32 +420,31 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   waiting_job = [Job(f"{batch_job_prefix}*")]
   jobs_sent = []
 
-
-  # in case we receive SIGTERM, we cancel all remaining sent jobs
+  # in case we receive SIGTERM/SIGINT, we cancel all remaining sent jobs
   import signal
   def sigterm_handler(_signo, _stackframe):
-    secho('Terminated', _signo, _stackframe, fg='red')
+    print('Aborted.')
     kill_jobs(waiting_job, on_lsf=True)
+    exit(1)
   signal.signal(signal.SIGTERM, sigterm_handler)
+  signal.signal(signal.SIGINT, sigterm_handler)
 
-  try:
-      for job in jobs:
-        if dryrun: continue
-        # print(f'> {job.name}')
-        job.send()
-        jobs_sent.append(job)
-    
-      if not dryrun and not no_wait:
-            # print('*')
-            tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
-            name = f"{commit_id}--{tuning_search_hash}--{'|'.join(group)}-wait"
-            wait = Job(name, 'echo "Finished batch."')
-            wait.send(interactive=True, dependencies=waiting_job)
-            # Sanity check. We could be strict and read the file and check {"is_failed": False}
-            for output_directory in output_directories:
-              assert (output_directory / 'metrics.json').exists()
-  except:
-    kill_jobs(waiting_job, on_lsf=True)
+  for job in jobs:
+    if dryrun: continue
+    job.send()
+    jobs_sent.append(job)
+
+  if not dryrun and not no_wait:
+    tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
+    name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
+    wait = Job(name, 'echo "Finished batch."')
+    wait.send(interactive=True, dependencies=waiting_job)
+    for output_directory in output_directories:
+      metrics_file = output_directory / 'metrics.json'
+      assert metrics_file.exists()
+      with metrics_file.open() as f:
+        metrics = json.load(f)
+        assert not metrics['is_failed']
 
 
 @cli.command()
@@ -513,10 +512,12 @@ def save_artifacts():
 
 @cli.command()
 @click.option(
-    "--reference-branch",
-    default=config.get('project', {}).get('reference_branch', 'master'),
+    "--reference",
+    default=config.get('project', {}).get('reference', 'master'),
+    help="Branch, tag or commit used as reference."
 )
-def check_bit_accuracy(reference_branch):
+@click.option('--group', '-g', multiple=True, help="Only check bit-accuracy for those groups of tests.")
+def check_bit_accuracy(reference, group):
     """
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
@@ -526,27 +527,30 @@ def check_bit_accuracy(reference_branch):
     from .bit_accuracy import assert_bit_accurate_to
 
     if config["project"].get("type", 'git') != "git":
-        click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
-        exit(1)
+      click.secho("Bit-accuracy tests are only supported for git-based projects", err=True)
+      exit(1)
 
     if not repo:
-        click.secho(
-            "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
-            fg='yellow', dim=True)
+      click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
+      exit(1)
 
-    if commit_branch != reference_branch:
-        click.secho(f'Comparing bit-accuracy versus the latest commit on {reference_branch}', fg='cyan', bold=True, err=True)
+    if commit_branch != reference:
+        click.secho(f'Comparing bit-accuracy versus the latest commit fetched from {reference}', fg='cyan', bold=True, err=True)
+        try:
+          reference_commit = latest_commit(repo, f"origin/{reference}")
+        except:
+          reference_commit = latest_commit(repo, reference)
         assert assert_bit_accurate_to(
-            latest_commit(repo, f"origin/{reference_branch}")
+            reference_commit
         ), "ERRROR: the bit-accuracy test has failed"
 
     # bit-accuracy on the reference branch is check on the commit's parents
     else:
         all_bit_accurate = True
-        click.secho(f'We are on branch {reference_branch}', fg='cyan', bold=True, err=True)
-        click.secho(f"Therefore, we check bit-accuracy against {commit}'s parents", fg='cyan', bold=True, err=True)
+        click.secho(f'We are on branch {reference}', fg='cyan', bold=True, err=True)
+        click.secho(f"Therefore, we check bit-accuracy against the parents of {commit.hexsha[:8]}", fg='cyan', bold=True, err=True)
         for commit_ref in commit.parents:
-            click.secho(f"* bit-accuracy versus {commit_ref}:", fg='cyan', err=True)
+            click.secho(f"* bit-accuracy versus {commit_ref.hexsha[:8]}:", fg='cyan', err=True)
             if not assert_bit_accurate_to(commit_ref):
                 all_bit_accurate = False
         assert all_bit_accurate, "ERRROR: the bit-accuracy test has failed"

@@ -23,6 +23,7 @@ renamings = (
   ('--output-path', '--output'),
   ('save_artifacts', 'save-artifacts'),
   ('check_bit_accuracy', 'check-bit-accuracy'),
+  ('--reference-branch', '--reference'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
