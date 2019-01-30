@@ -301,7 +301,7 @@ class CommitRow extends React.Component {
             </div>
           </CommitContent>
 
-          <CommitResultsStyled project={project} project_data={project_data} commit={commit} />
+          <CommitResultsStyled project={project} dispatch={this.props.dispatch} project_data={project_data} commit={commit} />
         </CommitDetails>
       </CommitRowWrapper>
     );
