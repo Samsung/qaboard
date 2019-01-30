@@ -52,6 +52,19 @@ class CommitParameters extends Component {
   }
 
   componentDidMount() {
+    if (this.props.project === undefined || this.props.project === null)
+      return
+    if (this.props.new_commit === undefined || this.props.new_commit === null)
+      return
+    if (this.props.new_commit.id === undefined || this.props.id === null)
+      return
+    this.getConfigurations()
+  }
+
+  componentDidUpdate(previousProps) {
+    let changed_project = this.props.project !== previousProps.project
+    let changed_commit = (!!this.props.new_commit && !!this.props.new_commit.id) && (!!!previousProps.new_commit || !!!previousProps.new_commit.id || (this.props.new_commit.id !== previousProps.new_commit.id));
+    if (changed_project || changed_commit)
     this.getConfigurations()
   }
 
