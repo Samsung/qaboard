@@ -16,7 +16,7 @@ import {
 } from "@blueprintjs/core";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
-import { CommitRow } from "./components/CommitRow";
+import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
 import { CommitsEvolution } from "./CommitsEvolution";
 import { groupBy, calendarStrings } from "./utils";
@@ -45,7 +45,7 @@ const WrapperCommitRows = styled.ul`
   padding: 0;
 `;
 
-const CommitRows = ({ commits, project, project_data, className, dispatch }) => (
+const CommitRows = ({ commits, project, project_data, className }) => (
   <div className={className}>
     <DayRows>
       <WrapperCommitRows>
@@ -56,7 +56,6 @@ const CommitRows = ({ commits, project, project_data, className, dispatch }) => 
             project_data={project_data}
             key={commit.id}
             toaster={toaster}
-            dispatch={dispatch}
           />
         ))}
       </WrapperCommitRows>
@@ -76,7 +75,7 @@ class CiCommitList extends React.Component {
   }
 
   getData(props) {
-    const { dispatch, project, date_range, aggregated_metrics, branch } = this.props;
+    const { dispatch, project, date_range, aggregated_metrics, branch } = props;
     dispatch(fetchCommits(project, branch, date_range, aggregated_metrics))
   }
 
@@ -92,7 +91,7 @@ class CiCommitList extends React.Component {
       })
     });
 
-    this.getData(this.props);
+    this.getData({...this.props, date_range: default_date_range});
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
   }
 
@@ -112,6 +111,7 @@ class CiCommitList extends React.Component {
     // .map( c => c.batches.default.aggregated_metrics.translation_aape_average )
     let reference_branch = project_data.information.qatools_config.project.reference_branch;
     let ci_root = project_data.information.qatools_config.ci_root.linux.replace("/home/arthurf/ci", "")
+    let project_repo = project_data && project_data.information && project_data.information.git && project_data.information.git.path_with_namespace;
     var information = (
       <>
         <Section>
@@ -122,9 +122,9 @@ class CiCommitList extends React.Component {
             </Link>
           </h3>
           <p>
-            <a href={`http://gitlab-srv/${project}/pipelines`}>
+            <a href={`http://gitlab-srv/${project_repo}/pipelines`}>
               <img
-                src={`http://gitlab-srv/${project}/badges/${reference_branch}/build.svg`}
+                src={`http://gitlab-srv/${project_repo}/badges/${reference_branch}/build.svg`}
                 alt="build status"
               />
             </a>
@@ -146,7 +146,7 @@ class CiCommitList extends React.Component {
               {" "}
               <img
                 alt="coverage report"
-                src={`http://gitlab-srv/${project}/badges/${reference_branch}/coverage.svg`}
+                src={`http://gitlab-srv/${project_repo}/badges/${reference_branch}/coverage.svg`}
               />
             </a>
           </p>
@@ -165,17 +165,21 @@ class CiCommitList extends React.Component {
     ) : (
       tag
     );
+
+    let some_commits_loaded = !!commits && commits.length > 0;
+
     var effective_date_range = date_range;
-    if (commits.length > 0){
+    if (some_commits_loaded){
+      let first_commit_date = commits[commits.length - 1].authored_datetime
+      let last_commit_date = commits[0].authored_datetime
       effective_date_range = [
-        new Date(commits[commits.length - 1].authored_datetime),
-        new Date(commits[0].authored_datetime)
+        (!!first_commit_date ? new Date(first_commit_date) : null),
+        (!!first_commit_date ? new Date(last_commit_date) : null)
       ]
     }
-
     let qa_report = (
       <Section>
-        {is_loaded &&
+        {(is_loaded || some_commits_loaded) &&
           !error && (
             <div>
               <h3 className={Classes.HEADING}>{link_to_tag}</h3>
@@ -207,8 +211,8 @@ class CiCommitList extends React.Component {
     var list;
     var warning_messages = <>
       {error && <NonIdealState description={error.message} icon="error" />}
-      {is_loading && commits.length === 0 && <NonIdealState title="Loading" icon={<Spinner />} />}
-      {is_loaded && !error && commits.length === 0 &&
+      {is_loading && !some_commits_loaded && <NonIdealState title="Loading" icon={<Spinner />} />}
+      {is_loaded && !error && !some_commits_loaded &&
       <NonIdealState
           title="No results"
           description={`Searched commits from ${date_range[0]} to ${
@@ -219,7 +223,6 @@ class CiCommitList extends React.Component {
     </>
 
     let commits_by_day = groupBy(commits, "authored_date");
-
     list = (
       <>
         {Object.keys(commits_by_day).map(day => (
@@ -228,11 +231,11 @@ class CiCommitList extends React.Component {
               <Moment
                 calendar={calendarStrings}
                 tz="Asia/Jerusalem"
-                date={day}
+                date={day !== "undefined" ? day : null}
               />{" "}
               &#8212; {commits_by_day[day].length} commits
             </HeaderDay>
-            <CommitRows project={project} dispatch={this.props.dispatch} project_data={project_data} commits={commits_by_day[day]} />
+            <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
           </React.Fragment>
         ))}
       </>
@@ -242,7 +245,7 @@ class CiCommitList extends React.Component {
         {information}
         {qa_report}
         {warning_messages}
-        {is_loaded && commits.length>0 && list}
+        {(is_loaded || some_commits_loaded) && list}
       </Container>
     );
   }
