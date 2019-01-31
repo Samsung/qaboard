@@ -356,7 +356,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   for input_path_abs, input_configurations, lsf_configuration in tests_iter:    
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(ctx.obj['database'])
-    click.secho(str(input_path), fg='blue', err=True)
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
@@ -526,6 +525,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
   versus the latest commit on origin/develop.
   """
     from .config import commit, commit_branch, repo, is_ci
+    from .bit_accuracy import is_bit_accurate, assert_ci_pipelines_are_done
     from .utils import latest_commit
 
     if not repo:
@@ -545,6 +545,9 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
 
     reference_shas = ','.join([r.hexsha[:8] for r in reference_commits])
     click.secho(f"{commit.hexsha[:8]} versus {reference_shas}.", fg='cyan', err=True)
+    
+    for reference_commit in reference_commits:
+      assert_ci_pipelines_are_done(reference_commit)
 
     # This where the new results are located
     commit_dir = commit_ci_dir if is_ci else Path()
@@ -558,16 +561,13 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
         prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
         input_path = input_path_abs.relative_to(ctx.obj['database'])
         output_directory = prefix_output_dir / input_path.with_suffix('')
-        # print(output_directory)
         output_directories.append(output_directory)
-
 
     bit_accuracies = [is_bit_accurate(commit_dir, reference_commit, output_directories) for reference_commit in reference_commits]
     assert all(bit_accuracies), "ERRROR: the bit-accuracy test has failed"
 
 
 
-from .bit_accuracy import is_bit_accurate
 
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,

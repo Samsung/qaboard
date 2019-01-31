@@ -2,6 +2,7 @@
 """
 Bit-accuracy test between 2 results folders
 """
+import os
 import filecmp
 from pathlib import Path
 
@@ -79,4 +80,25 @@ def is_bit_accurate(commit_dir, reference_commit, output_directories):
     assert len(comparaisons['match']), "At least 1 results file should be compared. Looks like something went wrong."
     assert not len(comparaisons['errors']), "ERROR: while trying to read/compare\n" + "\n".join(comparaisons['error'])
     return not len(comparaisons['mismatch'])
+
+
+def assert_ci_pipelines_are_done(reference_commit):
+  if 'GITLAB_ACCESS_TOKEN' not in os.environ:
+    click.secho(f'Could not check if the CI pipeline for {reference_commit} is done. Please add GITLAB_ACCESS_TOKEN to your environment variables', fg='yellow', err=True)
+    return
+
+  import requests
+  from requests.utils import quote
+  from .config import config, ci_dir
+
+  headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
+  gitlab_api = "http://gitlab-srv/api/v4"
+  project_id = quote(config['project']['name'], safe='')
+
+  r = requests.get(f"{gitlab_api}/projects/{project_id}/repository/commits/{reference_commit.hexsha}", headers=headers)
+  commit_data = r.json()
+  status = commit_data.get('status')
+  if status in ['pending', 'running']:
+    click.secho(f'The CI pipeline for {reference_commit} is not over yet. Please retry later', fg='red', bold=True, err=True)
+    exit(1)
 
