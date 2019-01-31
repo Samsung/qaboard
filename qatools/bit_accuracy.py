@@ -89,11 +89,11 @@ def assert_ci_pipelines_are_done(reference_commit):
 
   import requests
   from requests.utils import quote
-  from .config import config, ci_dir
+  from .config import root_qatools_config, ci_dir
 
   headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
   gitlab_api = "http://gitlab-srv/api/v4"
-  project_id = quote(config['project']['name'], safe='')
+  project_id = quote(root_qatools_config['project']['name'], safe='')
 
   r = requests.get(f"{gitlab_api}/projects/{project_id}/repository/commits/{reference_commit.hexsha}", headers=headers)
   commit_data = r.json()
