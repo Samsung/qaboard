@@ -8,6 +8,7 @@ Describes an output from a CI run:
 - metrics: drift, RMSE, AAPE...
 - what assets are available (debug movies...) [todo]
 """
+import re
 import datetime
 import hashlib
 import json
