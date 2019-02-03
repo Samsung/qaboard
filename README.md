@@ -1,24 +1,15 @@
-# Visualization of algorithmic SLAM results
-Provides a web application to:
+# qatools-webapp
+A web application integrated with [`qatools`](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial) to:
 - Show, debug and compare algorithm results.
-- Perform parameter tuning.
-
-It does it by:
-- Exposing an API to get updates about individual runs
-- Keeping in sync with `git` projects on Gitlab.
-- Storing the data in a database.
-
-> As the developper of a stand-alone project, you should use [`qatools`](gitlab-srv/common-infrastructure/qatools)
-> to send your results to `slamvizapp`
+- Tune parameters.
 
 
 ## Repository organization
+- [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
 - [slamvizapp](slamvizapp/) is the applications' backend:
   * It manages a database where results are stored...
   * and exposes it via a simple HTTP API.
-- [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
-- [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, useful to stream large images to a web client.
-
+- [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, used to stream large images to the users.
 
 ## How to run (with Docker, recommended)
 You need to set two environment variables:
@@ -28,10 +19,46 @@ You need to set two environment variables:
 Then you're all set:
 ```bash
 # This short script wraps `docker run`. By default it will enable "--restart always"
-# Adapt it to your needs. Some commands useful for debugging are commented-out
-./start-docker.sh
+# Adapt it to your needs.
+./deployment/start-docker.sh
 # => now serving http://dvs:5000
 
 # For a interactive debugging...
 CI_DEBUG=ON CI_ENVIRONMENT_SLUG=staging ./deployment/start-docker.sh
+# => now serving http://dvs:9000
 ```
+
+## SSL configuration
+```bash
+cd deployment/nginx/ssl/qa
+
+# 1. Generate a key `.key`.
+openssl genrsa -out qa.key 2048
+
+# 2. Generate a certificate request `.csr`.
+openssl req -new -sha256 -key qa.key -out qa.csr -config qa.csr.conf
+# Accept all the defaults:
+# - Country Name: IL
+# - State or Province Name: Israel
+# - Locality Name: Ramat Gan
+# - Organization Name: Samsung
+# - Organizational Unit Name: SIRC
+# - Common Name: *.qa
+# - Email: arthur.flam@samsung.com
+# - Password: (empty)
+# - Optionnal Company Name: (empty)
+
+# Check all is good.
+openssl req -noout -text -in qa.csr
+
+# 3. Send the CSR to IT.
+# 4. They will give you a `.cer` certificate. Convert it to `.pem` with 
+openssl x509 -in dvs.cer -inform der -outform pem -out qa.pem
+
+# 5. Now you can configure your server to use qa.key and qa.pem
+```
+
+References:
+
+- [nginx configuration](http://nginx.org/en/docs/http/configuring_https_servers.html)
+- [multiname certificates](https://stackoverflow.com/questions/23523456/how-to-give-a-multiline-certificate-name-cn-for-a-certificate-generated-using)
