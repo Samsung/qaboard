@@ -73,6 +73,7 @@ def get_group():
                 groups_path,
                 project.database,
                 project.data["qatools_config"]["inputs"]["configuration"],
+                {},
                 project.data["qatools_config"],
             )
         )
