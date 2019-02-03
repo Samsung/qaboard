@@ -22,6 +22,7 @@ const persistConfig = {
   storage: localForage,
   whitelist: [
     'projects',
+    'tuning',
     // we may not want to store any of the commit.$id.batches.outputs.
     // TODO: look into
     // https://github.com/rt2zz/redux-persist

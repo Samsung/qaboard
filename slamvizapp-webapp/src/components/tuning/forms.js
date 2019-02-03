@@ -1,8 +1,9 @@
 import React, { Component } from "react";
+import { connect } from 'react-redux'
 import { get, post } from "axios";
-import { withCookies } from "react-cookie";
 
 import { CopyToClipboard } from "react-copy-to-clipboard";
+import { updateTuningForm } from "../../actions/tuning";
 
 import AceEditor from "react-ace";
 /*eslint-disable no-alert, no-console */
@@ -93,34 +94,31 @@ const grid_combinations = param_search => {
 class TuningForm extends Component {
   constructor(props) {
     super(props);
-    const { cookies } = this.props;
-    let configuration = cookies.get("configuration") || this.props.project_data.information.qatools_config.inputs.configuration;
-    let default_user = this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
+    let configuration = this.props.configuration || this.props.project_data.information.qatools_config.inputs.configuration;
+    let default_user = this.props.user || this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
     this.state = {
       submitted: false,
-      experiment_name: cookies.get("experiment_name") || "",
-      platform: cookies.get("platform") || "lsf",
+      experiment_name: this.props.experiment_name || "",
+      platform: this.props.platform || "lsf",
       configuration,
       overwrite: false,
 
-      selected_group: cookies.get("selected_group") || "",
+      selected_group: this.props.selected_group || "",
       selected_group_info: {
         number_of_tests: 0
       },
       selected_group_info_loading: false,
 
-      search_type: cookies.get("search_type") || "grid",
+      search_type: this.props.search_type || "grid",
       search_options: {
         n_iter: 50
       },
-      parameter_search: cookies.get("parameter_search", { doNotParse: true })
-        ? JSON.parse(cookies.get("parameter_search", { doNotParse: true }))
-        : templates["none"],
-      parameter_search_auto: cookies.get("parameter_search_auto", { doNotParse: true })
-        ? JSON.parse(cookies.get("parameter_search_auto", { doNotParse: true }))
+      parameter_search: this.props.parameter_search ? JSON.parse(this.props.parameter_search) : templates["none"],
+      parameter_search_auto: this.props.parameter_search_auto
+        ? JSON.parse(this.props.parameter_search_auto)
         : templates['optimize'](this.props.project_data.information.qatools_config, this.props.project_data.information.qatools_metrics),
 
-      user: cookies.get("user") || default_user,
+      user: this.props.user || default_user,
       android_device: "openstf",
 
     };
@@ -129,6 +127,10 @@ class TuningForm extends Component {
   componentDidMount() {
     const { selected_group } = this.state;
     if (selected_group) this.getGroupInfo(selected_group);
+
+    // we used to store large cookies... no more
+    // FIXME: remove this code we everyone has run it once :)    
+    document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
   }
 
   getGroupInfo(group) {
@@ -146,60 +148,52 @@ class TuningForm extends Component {
         });
       });
   }
+
   updateSelectedGroup = e => {
     // for some reason, trailing spaces are removed when making the request.
-    let next_selected_group = e.target.value.replace(/ *$/, "");
-    this.props.cookies.set("selected_group", next_selected_group, { path: "/" });
-    this.setState({ selected_group: next_selected_group });
-    this.getGroupInfo(next_selected_group);
+    let selected_group = e.target.value.replace(/ *$/, "");
+    this.getGroupInfo(selected_group);
+    this.setState({ selected_group });
+    this.props.dispatch(updateTuningForm(this.props.project, {selected_group}))
   };
+
   updateExperimentName = e => {
-    this.props.cookies.set("experiment_name", e.target.value, { path: "/" });
-    this.setState({
-      experiment_name: e.target.value.replace(/[^\w_.@:=]/g, "-")
-    });
+    let experiment_name = e.target.value.replace(/[^\w_.@:=]/g, "-")
+    this.setState({experiment_name});
+    this.props.dispatch(updateTuningForm(this.props.project, {experiment_name}))
   };
+
   update = name => e => {
-    this.props.cookies.set(name, e.target.value, { path: "/" });
-    this.setState({ [name]: e.target.value });      
+    this.setState({[name]: e.target.value});
+    this.props.dispatch(updateTuningForm(this.props.project, {[name] : e.target.value}))
   }
-  updatePlatform = e => {
-    this.setState({ platform: e.target.value });
-    this.props.cookies.set("platform", e.target.value, { path: "/" });
-    if (e.target.value === "s8") {
-      this.setState({ configuration: "parallel-stereo" });
-      this.props.cookies.set("configuration", "parallel-stereo", { path: "/" });
-    }
-    if (
-      e.target.value === "lsf" &&
-      this.state.configuration === "parallel-stereo"
-    ) {
-      this.setState({ configuration: "serial-stereo" });
-      this.props.cookies.set("configuration", "serial-stereo", { path: "/" });
-    }
-  };
+
   updateOverwrite = e => {
-    this.setState({ overwrite: e.target.checked ? "on" : "off" });
+      let overwrite = e.target.checked ? "on" : "off";
+      this.setState({ overwrite });
+      this.props.dispatch(updateTuningForm(this.props.project, {overwrite}))
   };
+
   updateParameterSearch = new_parameter_search => {
-    this.props.cookies.set("parameter_search", JSON.stringify(new_parameter_search), {path: "/"});
     this.setState({ parameter_search: new_parameter_search });
+    this.props.dispatch(updateTuningForm(this.props.project, {parameter_search: JSON.stringify(new_parameter_search)}))
   };
+
   updateParameterSearchAuto = new_parameter_search => {
-    this.props.cookies.set("parameter_search_auto", JSON.stringify(new_parameter_search), {path: "/"});
-    this.props.cookies.set("search_type", "optimize", {path: "/"});
     this.setState({ parameter_search_auto: new_parameter_search, search_type: 'optimize' });
+    this.props.dispatch(updateTuningForm(this.props.project, {parameter_search_auto: JSON.stringify(new_parameter_search), search_type: 'optimize'}))
   };
 
   useAutoTuning = e => {
-    this.setState({ search_type: e.target.checked ? "optimize" : "grid" });
+    let search_type = e.target.checked ? "optimize" : "grid";
+    this.setState({ search_type });
+    this.props.dispatch(updateTuningForm(this.props.project, {search_type}))
   };
-  selectSearchType = e => {
-    this.setState({ search_type: e.target.value });
-    this.props.cookies.set("search_type", e.target.value, {path: "/"});    
-  };
+
   updateIterations = e => {
-    this.setState({ search_options: { n_iter: parseFloat(e.target.value) } });
+    let search_options = { n_iter: parseFloat(e.target.value) }
+    this.setState({ search_options } );
+    this.props.dispatch(updateTuningForm(this.props.project, {search_options}))
   };
 
   onSubmit = e => {
@@ -335,7 +329,7 @@ class TuningForm extends Component {
         <RadioGroup
           // label=""
           // helperText={<span><strong>lsf</strong> is the default. <strong>s8</strong> is </span>}
-          onChange={this.updatePlatform}
+          onChange={this.update('platform')}
           selectedValue={platform}
         >
           <Radio labelElement={<span>Linux</span>} value="lsf" large />
@@ -421,7 +415,7 @@ class TuningForm extends Component {
             <HTMLSelect
               id="select-search-type"
               value={search_type}
-              onChange={this.selectSearchType}
+              onChange={this.update('search_type')}
               minimal
             >
               <option key="grid" value="grid">
@@ -679,5 +673,12 @@ class AddRecordingsForm extends Component {
 }
 
 
-const TuningForm_ = withCookies(TuningForm);
+const mapStateToProps = (state, ownProps) => {
+  return {
+      ...(state.tuning[ownProps.project] || {})
+  }
+}
+
+
+const TuningForm_ = connect(mapStateToProps)(TuningForm);
 export { TuningForm_ as TuningForm, AddRecordingsForm };

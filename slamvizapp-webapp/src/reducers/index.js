@@ -3,7 +3,8 @@ import {
 	UPDATE_COMMITS,
 	UPDATE_COMMIT,
 	FETCH_COMMIT,
-	UPDATE_SELECTED,
+    UPDATE_SELECTED,
+    UPDATE_TUNING_FORM,
 } from '../actions/constants'
 import { projects } from './projects'
 import {
@@ -35,24 +36,22 @@ function selected(state = {
 	}
 }
 
-// function filter(state ={}, action) {
-//   switch (action.type) {
-//     case UPDATE_FILTER:
-//     	return {
-//     		...state,
-//     		project: action.project,
-//     		[action.project]: {
-//     			...state[action.project],
-//     			...action.filter,
-//     		}
-//     	}
-//     default:
-//     	return state
-// 	}
-// }
 
+function tuning(state = {[default_project_id] : {}}, action) {
+  switch (action.type) {
+    case UPDATE_TUNING_FORM:
+            return {
+              ...state,
+              [action.project]: {
+                  ...state[action.project],
+                  ...action.tuning_form,
+              },
+            }
+    default:
+        return state;
+    }
+}
 
-// export const branch_key = branch => (branch.name || branch.committer || 'default');
 
 function commits(state = {}, action) {
 	var new_state;
@@ -100,7 +99,7 @@ const rootReducer = combineReducers({
 	projects,
 	commits,
 	selected,
-	// filter,
+    tuning,
 })
 
 
