@@ -7,15 +7,14 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
 
   const batches_to_options = batches =>
     Object.entries(batches).map(([label, batch]) => {
-      let outputs = Object.entries(batch.outputs || {});
+      let outputs = Object.values(batch.outputs || {});
       if (batch.data.type !== 'local') {
         var title = label === "default" ? "CI results" : label;
       } else {
         var [user, _label] = label.replace('@', '').split('|');
         title = `🏠 ${user} 🚧 ${_label}`;
       }
-      let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed)
-        .length;
+      let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
       let status = `${nb_success}/${outputs.length} ✅`;
       let nb_failed = outputs.filter(o => o.is_failed).length;
       let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
