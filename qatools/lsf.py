@@ -98,6 +98,8 @@ class Job:
             ]
         )
         # click.secho(q_command, dim=True)
+        os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
+
 
         out = subprocess.run(
             q_command,
