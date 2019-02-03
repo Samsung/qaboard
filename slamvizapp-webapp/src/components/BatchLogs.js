@@ -28,6 +28,13 @@ class OutputLog extends Component {
     };
   }
 
+  componentDidUpdate(prevProps) {
+    if (!!!this.props.output || !!!this.props.output_dir_url)
+      return
+    if (!!!prevProps.output || !!!prevProps.output.output_dir_url)
+      this.getLog()
+  }
+
   handleClick = () => {
     if (!this.state.is_loaded) this.getLog();
     this.setState({ is_open: !this.state.is_open });
@@ -35,19 +42,10 @@ class OutputLog extends Component {
 
   getLog() {
     const { output } = this.props;
-    if (
-      output.output_type === "slam/6dof" ||
-      output.output_type === "batch" ||
-      output.output_type === "tof/depth"
-    )
-      var logfile = "log.txt";
-    else if (output.output_type === "cis/image") {
-      logfile = "log.txt";
-      // logfile = `command_line_sw_log_${output.data.config_folder}.txt`;
-    } else {
-      return;
-    }
-    get(`${this.props.output.output_dir_url}/${logfile}`)
+    if (!!!output || !!!output.output_dir_url) return
+    this.setState({is_loaded: false});
+
+    get(`${output.output_dir_url}/log.txt`)
       .then(response => {
         this.setState({
           is_loaded: true,
