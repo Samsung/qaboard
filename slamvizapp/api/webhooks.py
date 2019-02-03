@@ -176,8 +176,15 @@ def gitlab_webhook():
 
     # To update the (sub)project configuration stored in the database,
     # we first need to read relevant qatools.yaml files from this commit.
-    config_paths = [p for p in projects_config_paths if p >= subproject_config_path]
+    def is_relative_to(path, path_maybe_parent):
+      try:
+        relative_path = path.relative_to(path_maybe_parent)
+        return True
+      except:
+        return False
+    config_paths = [p for p in projects_config_paths if is_relative_to(subproject_config_path.parent, p.parent)]
     config_paths.sort()
+    print(config_paths)
     try:
       configs_contents = [repo.git.show(f'{ci_commit.hexsha}:{p}') for p in config_paths]
       configs = [yaml.load(c) for c in configs_contents]
