@@ -559,6 +559,7 @@ class AddRecordingsForm extends Component {
       isLoaded: true,
       error: null,
       groups: null,
+      dirty: false,
 
       submitted: false,
       overwrite: false,
@@ -588,13 +589,13 @@ class AddRecordingsForm extends Component {
   }
 
   updateGroups = newGroups => {
-    this.setState({ groups: newGroups });
+    this.setState({ groups: newGroups, dirty: true });
   };
 
   onSubmit = e => {
     e.preventDefault();
     const { groups } = this.state;
-    this.setState({ submitted: true });
+    this.setState({ submitted: true, dirty: false });
     toaster.show({
       message: "The request was sent!",
       intent: Intent.PRIMARY
@@ -611,7 +612,7 @@ class AddRecordingsForm extends Component {
         });
       })
       .catch(error => {
-        this.setState({ submitted: false });
+        this.setState({ submitted: false, dirty: true });
         toaster.show({
           message: `Something wrong happened ${JSON.stringify(error.response)}`,
           intent: Intent.DANGER
@@ -634,7 +635,7 @@ class AddRecordingsForm extends Component {
       <form onSubmit={this.onSubmit}>
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
           <Button
-            disabled={this.state.submitted}
+            disabled={!this.state.dirty || this.state.submitted}
             type="submit"
             intent={Intent.PRIMARY}
           >
@@ -642,8 +643,8 @@ class AddRecordingsForm extends Component {
           </Button>
         </div>
 
-        <div>
-          <span>Paths are relative to <CopyToClipboard
+        <Callout icon='info-sign'>
+          <p>Paths are relative to <CopyToClipboard
                                         text={this.props.project_data.information.qatools_config.inputs.database.windows}
                                         onCopy={() => {
                                           toaster.show({
@@ -653,8 +654,8 @@ class AddRecordingsForm extends Component {
                                         }}
                                       ><pre>{this.props.project_data.information.qatools_config.inputs.database.windows}</pre>
                                       </CopyToClipboard>
-          </span>
-        </div>
+          </p>
+        </Callout>
 
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
         <AceEditor
