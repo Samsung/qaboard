@@ -274,6 +274,8 @@ class TuningForm extends Component {
         : total_runs < 100
           ? Intent.PRIMARY
           : Intent.WARNING;
+
+    let artifacts_configurations = !!this.props.project_data.information.qatools_config.artifacts && this.props.project_data.information.qatools_config.artifacts.configurations
     return (
       <form onSubmit={this.onSubmit}>
         <FormGroup
@@ -302,13 +304,13 @@ class TuningForm extends Component {
         </FormGroup>
 
         <FormGroup
-          label="Run on those tests:"
+          label="Run on this group of tests:"
           intent={Intent.PRIMARY}
           helperText={`${
             number_of_tests > 0
               ? number_of_tests + " tests. "
               : ""
-          }Path, or one of the groups defined in the "Available Recordings" tab.`}
+          }One of the groups defined in the "Available Recordings" tab.`}
           labelFor="selected-group"
           labelInfo="(required)"
         >
@@ -325,7 +327,7 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
-        {(this.props.project==='dvs/psp_swip' || this.props.project==='tof/swip_tof' ) && 
+        {(this.props.project==='dvs/psp_swip' ) && 
         <RadioGroup
           // label=""
           // helperText={<span><strong>lsf</strong> is the default. <strong>s8</strong> is </span>}
@@ -371,8 +373,8 @@ class TuningForm extends Component {
         )}
 
         <FormGroup
-          label="Configuration"
-          helperText="Configurations are saved as $configuration.json/yaml"
+          label="Configuration (can be overriden by the group of tests chosen)"
+          helperText={artifacts_configurations && `Configurations are saved as ${JSON.stringify(artifacts_configurations.glob)}`}
           labelFor="input-configuration"
         >
           <input
