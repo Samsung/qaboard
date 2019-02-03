@@ -1,26 +1,19 @@
-import React, { Component, Fragment } from "react";
-import { get, all } from "axios";
-import { Classes, NonIdealState } from "@blueprintjs/core";
+import React, { Component, Fragment, lazy, Suspense } from "react";
+import { get } from "axios";
+import { NonIdealState, InputGroup } from "@blueprintjs/core";
 
-import AceEditor from "react-ace";
 
-/*eslint-disable no-alert, no-console */
-import brace from "brace"; // eslint-disable-line no-unused-vars
-import "brace/mode/json";
-import "brace/mode/yaml";
-import "brace/theme/github";
-import "brace/ext/searchbox";
-// import 'brace/mode/diff';
-// import 'brace/ext/language_tools';
-// https://github.com/securingsincity/react-ace/blob/master/docs/Ace.md5
+const LoadableGenericTextViewer = lazy(() => import('../viewers/text' /* webpackChunkName: "generic-text-viewer" */));
+
 
 
 class CommitParameters extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      isLoaded: false,
-      parameters: {}
+      is_loaded: false,
+      // configuration filenames
+      configurations: [],
     };
   }
 
@@ -47,7 +40,7 @@ class CommitParameters extends Component {
           configurations.push(c);
       })
       configurations.unshift(...base_configurations)
-      this.setState({configurations}, this.getParameters)      
+      this.setState({configurations, is_loaded: true}, this.getParameters)      
     })
   }
 
@@ -64,35 +57,19 @@ class CommitParameters extends Component {
   componentDidUpdate(previousProps) {
     let changed_project = this.props.project !== previousProps.project
     let changed_commit = (!!this.props.new_commit && !!this.props.new_commit.id) && (!!!previousProps.new_commit || !!!previousProps.new_commit.id || (this.props.new_commit.id !== previousProps.new_commit.id));
-    if (changed_project || changed_commit)
-    this.getConfigurations()
-  }
-
-  getParameters() {
-    all([
-      this.state.configurations.forEach(c => {
-        get(`${this.props.new_commit.commit_dir_url}/${c}`, {
-          transformResponse: response => response
-        }) // avoid json parsing
-          .then(response => {
-            let previous_parameters = this.state.parameters;
-            if (response.data.length > 0)
-              this.setState({
-                parameters: { ...previous_parameters, [c]: response.data }
-              });
-          });
-      })
-    ])
-      .then(() => this.setState({ isLoaded: true }))
-      .catch(error => {
-        this.setState({ isLoaded: true, error });
-      });
+    if (changed_project || changed_commit) {
+      this.setState({configurations: []})
+      this.getConfigurations()
+    }
   }
 
   render() {
-    const { isLoaded, error, parameters } = this.state;
+    const { is_loaded, error } = this.state;
+    const { new_commit, ref_commit } = this.props;
+    if (new_commit === null || new_commit === undefined) return <span />;
 
-    if (!isLoaded) return <span />;
+
+    if (!is_loaded) return <span />;
     if (error)
       return (
         <NonIdealState
@@ -100,28 +77,28 @@ class CommitParameters extends Component {
           description={JSON.stringify(error.response)}
         />
       );
-    let configuration_parameters = this.state.configurations.map(c => (
+
+    const many_files = this.state.configurations.length > 5
+    let filter = this.state.filter || ''
+    const parameters =  this.state.configurations.filter(filename => filename.toLowerCase().includes(filter.toLowerCase()))
+                                                 .map(c => (
       <Fragment key={c}>
-        <h4 className={Classes.HEADING}>{c}</h4>
-        <AceEditor
-          mode={c.includes('json') ? "json" : 'yaml'}
-          theme="github"
-          readOnly
-          onChange={() => {}}
-          width="100%"
-          maxLines={40}
-          name={`${c}`}
-          value={parameters[c] || ""}
-          editorProps={{ $blockScrolling: true }}
-        />
+        <Suspense fallback={<span></span>}>
+          <LoadableGenericTextViewer
+            show
+            filename={c}
+            text_url_new={(!!new_commit && !!new_commit.commit_dir_url) ? `${new_commit.commit_dir_url}/${c}` : null}
+            text_url_ref={(!!ref_commit && !!ref_commit.commit_dir_url) ? `${ref_commit.commit_dir_url}/${c}` : null}
+          />
+        </Suspense>
       </Fragment>
     ));
-    return (
-      <Fragment>
-        {configuration_parameters}
-      </Fragment>
-    );
+    return <>
+      {many_files && <InputGroup style={{marginBottom: '20px'}} leftIcon='filter' placeholder="Filter by configuration name" onChange={e => this.setState({filter: e.target.value})} />}
+      {parameters}
+    </>
   }
+
 }
 
 export { CommitParameters };

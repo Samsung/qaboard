@@ -123,7 +123,7 @@ const LoadableCisViewer = lazy(() => import('./cis/CisOutputCard' /* webpackChun
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
 const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
-const LoadableTextViewer = lazy(() => import('./text' /* webpackChunkName: "text-viewer" */));
+const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
 
 class OutputViewer extends React.Component {

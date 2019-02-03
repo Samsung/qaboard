@@ -39,6 +39,8 @@ import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
 import { TuningExploration } from "./components/tuning/TuningExploration";
 import { SelectBatches } from "./components/tuning/SelectBatches";
 
+import { getBatches } from './selectors/batches'
+
 
 import {
   default_project,
@@ -477,6 +479,7 @@ class CiCommitResults extends Component {
                         <CommitParameters
                           project={project}
                           new_commit={new_commit}
+                          ref_commit={ref_commit}
                         />
                       }
                     />
