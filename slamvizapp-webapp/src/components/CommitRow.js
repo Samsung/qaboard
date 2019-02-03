@@ -98,7 +98,7 @@ class CommitResults extends React.Component {
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
 
     const { available_metrics, default_metric } = project_data.information.qatools_metrics;
-    const default_metric_info = available_metrics[default_metric];
+    const default_metric_info = available_metrics[default_metric] || {};
 
     let status_messages = (
       <Fragment>

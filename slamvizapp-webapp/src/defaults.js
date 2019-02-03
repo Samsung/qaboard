@@ -6,7 +6,7 @@ export const default_project_id = params.get("project") || 'dvs/psp_swip';
 
 export const default_metrics = {
   available_metrics: {},
-  default_metric: null,
+  default_metric: undefined,
   summary_metrics: [],
   main_metrics: [],
   dashboard_metrics: []
