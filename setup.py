@@ -21,6 +21,7 @@ setup(
     'gitpython',
     'sklearn', # machine learning, used only for parameter sampling
     'simplejson',
+    'pyyaml',
   ],
 
   entry_points='''
