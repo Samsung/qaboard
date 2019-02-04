@@ -20,12 +20,14 @@
     "mathjs": "^5.0.1",
     "moment": "^2.22.2",
     "moment-timezone": "^0.5.21",
+    "monaco-editor-webpack-plugin": "^1.7.0",
     "openseadragon": "^2.4.0",
     "pixelmatch": "^4.0.2",
     "plotly.js": "^1.38.3",
     "qs": "^6.5.2",
     "react": "^16.4.1",
     "react-ace": "^6.1.3",
+    "react-app-rewired": "^2.0.3",
     "react-cookie": "^3.0.4",
     "react-copy-to-clipboard": "^5.0.1",
     "react-dom": "^16.4.1",
@@ -46,9 +48,9 @@
     "three": "^0.95.0"
   },
   "scripts": {
-    "start": "react-scripts --max_old_space_size=4096 start",
-    "build": "react-scripts --max_old_space_size=4096 build",
-    "test": "react-scripts test --env=jsdom",
+    "start": "react-app-rewired --max_old_space_size=4096 start",
+    "build": "react-app-rewired --max_old_space_size=4096 build",
+    "test": "react-app-rewired test --env=jsdom",
     "analyse": "source-map-explorer --html build/static/js/main.*.js build/static/js/main.*.js.map > ~/test.html",
     "eject": "react-scripts eject"
   },
