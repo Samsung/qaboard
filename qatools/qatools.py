@@ -550,7 +550,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
       assert_ci_pipelines_are_done(reference_commit)
 
     # This where the new results are located
-    commit_dir = commit_ci_dir if is_ci else Path()
+    commit_dir = commit_rootproject_ci_dir if is_ci else Path()
 
     if not group:
       output_directories = [subproject / 'output']
