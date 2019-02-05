@@ -652,18 +652,19 @@ class OutputList extends Component {
 
     return (
       <>
-        <Callout style={{marginBottom: '20px'}} icon={this.state.show_all_files ? "changes" : 'comparison'}>
         {type === 'bit_accuracy' && 
-          <FormGroup
-            label={<h4 className={Classes.HEADING}>Show all files</h4>}
-            labelFor="show-all-files"
-          >
-            <Switch
-              checked={this.state.show_all_files}
-              onChange={e => this.setState({ show_all_files: !this.state.show_all_files})}
-              style={{ width: "300px" }}
-            />
-          </FormGroup>
+          <Callout style={{marginBottom: '20px'}} icon={this.state.show_all_files ? "changes" : 'comparison'}>
+            <FormGroup
+              label={<h4 className={Classes.HEADING}>Show all files</h4>}
+              labelFor="show-all-files"
+            >
+              <Switch
+                checked={this.state.show_all_files}
+                onChange={e => this.setState({ show_all_files: !this.state.show_all_files})}
+                style={{ width: "300px" }}
+              />
+            </FormGroup>
+          </Callout>
         }
         {controls.show_debug && (
           <FormGroup
@@ -681,7 +682,6 @@ class OutputList extends Component {
             />
           </FormGroup>
         )}
-        </Callout>
         {ref_batch.label !== "default" && (
           <Callout intent={Intent.WARNING}>
             We compare each output to <strong>any</strong> reference outputs

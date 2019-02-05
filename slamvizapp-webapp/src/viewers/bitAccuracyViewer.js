@@ -1,7 +1,7 @@
 import React from "react";
 import { get, all, CancelToken } from "axios";
 
-import { Classes, Colors, Icon, ITreeNode, Tooltip, Tree } from "@blueprintjs/core";
+import { Classes, Colors, Tag, Icon, ITreeNode, Tooltip, Tree } from "@blueprintjs/core";
 import { OutputViewer } from "./OutputCard"
 
 
@@ -273,7 +273,9 @@ class BitAccuracyViewer extends React.Component {
 
     const { output_new, output_ref, type, ...props } = this.props;
     // console.log('selected', selected)
+    // console.log(tree.mixed)
     return <div>
+      {tree.mixed.length===0 && <Tag>Bit-accurate</Tag>}
       <Tree
        contents={tree.mixed}
        onNodeClick={this.handleNodeClick}
@@ -293,6 +295,8 @@ class BitAccuracyViewer extends React.Component {
 
 
   handleNodeClick = (nodeData: ITreeNode, _nodePath: number[], e: React.MouseEvent<HTMLElement>) => {
+    const is_folder = nodeData.childNodes !== undefined;
+    if (is_folder) return;
     const originallySelected = nodeData.isSelected;
     forEachNode(this.state.tree.mixed, n => (n.isSelected = false));
     nodeData.isSelected = originallySelected === null ? true : !originallySelected;
