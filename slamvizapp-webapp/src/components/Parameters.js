@@ -6,6 +6,7 @@ import { NonIdealState, InputGroup } from "@blueprintjs/core";
 const LoadableGenericTextViewer = lazy(() => import('../viewers/text' /* webpackChunkName: "generic-text-viewer" */));
 
 
+const MANY_CONFIGS = 5;
 
 class CommitParameters extends Component {
   constructor(props) {
@@ -13,6 +14,7 @@ class CommitParameters extends Component {
     this.state = {
       is_loaded: false,
       // configuration filenames
+      // ordered list of configurations
       configurations: [],
     };
   }
@@ -27,6 +29,7 @@ class CommitParameters extends Component {
       // we separate the base/default configurations from the rest
       var base_configurations = [];
       response.data.forEach(c => {
+        configurations[c] = {show: true}
         let is_base_configuration = (
           c === 'params.json' ||
           c.includes('base.json') ||
@@ -64,7 +67,7 @@ class CommitParameters extends Component {
   }
 
   render() {
-    const { is_loaded, error } = this.state;
+    const { is_loaded, error,configurations } = this.state;
     const { new_commit, ref_commit } = this.props;
     if (new_commit === null || new_commit === undefined) return <span />;
 
@@ -78,14 +81,13 @@ class CommitParameters extends Component {
         />
       );
 
-    const many_files = this.state.configurations.length > 5
+    const many_files = configurations.length > MANY_CONFIGS
     let filter = this.state.filter || ''
-    const parameters =  this.state.configurations.filter(filename => filename.toLowerCase().includes(filter.toLowerCase()))
-                                                 .map(c => (
+    const parameters =  configurations.filter(filename => filename.toLowerCase().includes(filter.toLowerCase()))
+                                      .map(c => (
       <Fragment key={c}>
         <Suspense fallback={<span></span>}>
           <LoadableGenericTextViewer
-            show
             filename={c}
             text_url_new={(!!new_commit && !!new_commit.commit_dir_url) ? `${new_commit.commit_dir_url}/${c}` : null}
             text_url_ref={(!!ref_commit && !!ref_commit.commit_dir_url) ? `${ref_commit.commit_dir_url}/${c}` : null}

@@ -5,16 +5,7 @@ import { get, post } from "axios";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { updateTuningForm } from "../../actions/tuning";
 
-import AceEditor from "react-ace";
-/*eslint-disable no-alert, no-console */
-import brace from "brace"; // eslint-disable-line no-unused-vars
-import "brace/mode/json";
-import "brace/mode/javascript";
-import "brace/mode/yaml";
-import "brace/theme/github";
-import "brace/ext/searchbox";
-// import 'brace/mode/diff';
-// import 'brace/ext/language_tools';
+import MonacoEditor from 'react-monaco-editor';
 
 import {
   Classes,
@@ -34,6 +25,14 @@ import {
 
 import templates from './templates'
 export const toaster = Toaster.create();
+
+
+const editor_options = {
+  selectOnLineNumbers: true,
+  seedSearchStringFromSelection: true,
+  //renderSideBySide: false
+};
+
 
 const wrap_values_in_array = object => {
   let output = {};
@@ -443,20 +442,15 @@ class TuningForm extends Component {
               />
             )}
         </FormGroup>
-        <AceEditor
-          mode="javascript"
-          theme="github"
-          onChange={this.updateParameterSearch}
-          width="100%"
-          height="200px"
+        <MonacoEditor
+          readonly
+          height={200}
+          language='javascript'
+          value={this.state.parameter_search || ''}
+          options={editor_options}
           name="editor-tuning-set"
-          value={this.state.parameter_search}
-          editorProps={{ $blockScrolling: true }}
-          setOptions={{
-            tabSize: 2
-          }}
+          onChange={this.updateParameterSearch}
         />
-
         {this.state.search_type !== "optimize" && <Callout
           icon={this.state.selected_group_info_loading ? "dot" : "time"}
           intent={time_intent}
@@ -524,18 +518,13 @@ class TuningForm extends Component {
           />
         </FormGroup>
         <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](this.props.project_data.information.qatools_config, this.props.project_data.information.qatools_metrics) })}>Show Example</Button>
-        <AceEditor
-          mode="yaml"
-          theme="github"
+        <MonacoEditor
+          height={200}
+          language='yaml'
+          options={editor_options}
+          name="editor-tuning-auto"
           onChange={this.updateParameterSearchAuto}
-          width="100%"
-          height="200px"
-          name="editor-tuning-set"
-          value={this.state.parameter_search_auto}
-          editorProps={{ $blockScrolling: true }}
-          setOptions={{
-            tabSize: 2
-          }}
+          value={this.state.parameter_search_auto || ''}
         />
         <Button
           type="submit"
@@ -658,17 +647,13 @@ class AddRecordingsForm extends Component {
         </Callout>
 
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
-        <AceEditor
-          mode="yaml"
-          theme="github"
-          onChange={this.updateGroups}
-          width="100%"
+        <MonacoEditor
+          height={200}
+          language='yaml'
+          options={editor_options}
           name="groups"
+          onChange={this.updateGroups}
           value={groups || ""}
-          editorProps={{ $blockScrolling: true }}
-          setOptions={{
-            tabSize: 2
-          }}
         />
       </form>
     );
