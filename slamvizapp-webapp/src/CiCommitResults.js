@@ -39,7 +39,7 @@ import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
 import { TuningExploration } from "./components/tuning/TuningExploration";
 import { SelectBatches } from "./components/tuning/SelectBatches";
 
-import { getBatches } from './selectors/batches'
+// import { getBatches } from './selectors/batches'
 
 
 import {
@@ -61,7 +61,7 @@ class CiCommitResults extends Component {
 
   controls_defaults = (props) => {
     let state_controls = {
-      show: {}
+      show: {},
     };
     if (!!props.project_data &&
         !!props.project_data.information &&
@@ -114,7 +114,7 @@ class CiCommitResults extends Component {
         ...previousState.controls,
         show: {
           ...previousState.controls.show,          
-          [name]: !this.state[name],
+          [name]: !this.state.controls.show[name],
         }
       }
     }), this.updateQueryUrlWithControls)    
@@ -577,6 +577,23 @@ class CiCommitResults extends Component {
                     }
                   />
                   <Tab
+                    id="bit-accuracy-list"
+                    title="Bit accuracy"
+                    disabled={nb_outputs_new===0}
+                    panel={
+                      <OutputList
+                        type='bit_accuracy'
+                        project={project}
+                        project_data={project_data}
+                        sort_order={this.props.order}
+                        sort_by={this.props.sort_by}
+                        new_batch={new_batch_filtered}
+                        ref_batch={ref_batch_filtered}
+                        controls={this.state.controls}
+                      />
+                    }
+                  />
+                  <Tab
                     id="tuning-results"
                     title="Tuning exploration"
                     disabled={nb_outputs_new===0}
@@ -623,17 +640,31 @@ class OutputList extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      select_debug: ""
+      select_debug: "",
+      show_all_files: false,
     };
   }
 
   render() {
-    const { new_batch, ref_batch, sort_by, sort_order, controls } = this.props;
+    const { new_batch, ref_batch, sort_by, sort_order, controls, type } = this.props;
     const { project, project_data } = this.props;
-    // FIXME: workaround to compare local commits versus git-ci commits
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
+
     return (
       <>
+        <Callout style={{marginBottom: '20px'}} icon={this.state.show_all_files ? "changes" : 'comparison'}>
+        {type === 'bit_accuracy' && 
+          <FormGroup
+            label={<h4 className={Classes.HEADING}>Show all files</h4>}
+            labelFor="show-all-files"
+          >
+            <Switch
+              checked={this.state.show_all_files}
+              onChange={e => this.setState({ show_all_files: !this.state.show_all_files})}
+              style={{ width: "300px" }}
+            />
+          </FormGroup>
+        }
         {controls.show_debug && (
           <FormGroup
             label="Show debug outputs matching"
@@ -650,6 +681,7 @@ class OutputList extends Component {
             />
           </FormGroup>
         )}
+        </Callout>
         {ref_batch.label !== "default" && (
           <Callout intent={Intent.WARNING}>
             We compare each output to <strong>any</strong> reference outputs
@@ -675,6 +707,8 @@ class OutputList extends Component {
               return (
                 <OutputCard
                   key={id}
+                  type={this.props.type}
+                  show_all_files={this.state.show_all_files}
                   project={project}
                   project_data={project_data}
                   output_type={output.output_type}

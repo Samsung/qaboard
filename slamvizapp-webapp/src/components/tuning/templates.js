@@ -34,7 +34,6 @@ return events_per_frame.map(e => ({
 }));
 `,
   optimize: (config, metrics) => {
-    console.log(metrics, config)
     return `# We will optimize the objective function within a budget of this many evaluations
 # Currently, if your objective is cheap to evaluate, the optimization will be dominiated by call overheads.
 evaluations: 50

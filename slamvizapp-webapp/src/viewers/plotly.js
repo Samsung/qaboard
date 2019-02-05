@@ -160,11 +160,9 @@ class PlotlyViewer extends PureComponent {
         {!!data.reference && <Plot key="reference" data={data.reference} layout={layout_}/>};
       </>      
     }
-
-
-
-
   }
+
+
 }
 
 export default PlotlyViewer;

@@ -125,29 +125,44 @@ const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "v
 const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
+const LoadableBitAccuracyViewer = lazy(() => import('./bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
 
 class OutputViewer extends React.Component {
   render() {
     const { type, ...props } = this.props;
     let viewer;
-    if (type === "6dof/txt")
-      viewer =  <LoadableSlamViewer {...props}/>
-    else if (type === "pointcloud/txt")
-      viewer = <LoadableTofViewer {...props} />
-    else if (type === "cis/image")
-      viewer = <LoadableCisViewer {...props} />
-    else if (type === "plotly/json")
-      viewer = <LoadablePlotlyViewer {...props} />
-    else if (type.startsWith('video'))
-      viewer = <LoadableVideoViewer {...props} type={type} />
-    else if (type.startsWith('image'))
-      viewer = <LoadableImageViewer {...props} type={type} />
-    else if (type === 'text/plain')
-      viewer = <LoadableTextViewer {...props} type={type} />
-    else if (type === 'text/html')
-      viewer = <LoadableHtmlViewer {...props} type={type} />
-    else viewer = <span>No viewer is defined for type: {type}</span>;
-
+    if (!!type) {
+      if (type === "6dof/txt")
+        viewer =  <LoadableSlamViewer {...props}/>
+      else if (type === "pointcloud/txt")
+        viewer = <LoadableTofViewer {...props} />
+      else if (type === "cis/image")
+        viewer = <LoadableCisViewer {...props} />
+      else if (type === "plotly/json")
+        viewer = <LoadablePlotlyViewer {...props} />
+      else if (type.startsWith('video'))
+        viewer = <LoadableVideoViewer {...props} type={type} />
+      else if (type.startsWith('image'))
+        viewer = <LoadableImageViewer {...props} type={type} />
+      else if (type === 'text/plain')
+        viewer = <LoadableTextViewer {...props} type={type} />
+      else if (type === 'text/html')
+        viewer = <LoadableHtmlViewer {...props} type={type} />
+      else if (type === 'files/bit-accuracy')
+        viewer = <LoadableBitAccuracyViewer {...props} type={type} />
+      else viewer = <span>No viewer is defined for type: {type}</span>;
+    } else {
+      const { path } = this.props;
+      if (path.endsWith('png') || path.endsWith('jpg')) {
+        viewer = <LoadableImageViewer {...props} type={type} />
+      } else if (path.endsWith('hex') || path.endsWith('raw')) {
+        viewer = <LoadablePlotlyViewer {...props} type={type}/>
+      } else if (path.endsWith('plotly.json')) {
+        viewer = <span>No viewer is registered yet for {path}.</span>;
+      } else {
+        viewer = <LoadableTextViewer {...props} type={type} />
+      }
+    }
   return (
     <Suspense fallback={<div>Loading...</div>}>
       {viewer}
@@ -199,18 +214,34 @@ class OutputCard extends Component {
     return <div style={container_style}>
       <SlimCard className="output-card">
           {!this.props.no_header && <OutputHeader output={output_new} warning={warning}/>}
-          <MetricsTags
-            selected_metrics={main_metrics}
-            available_metrics={available_metrics}
-            metrics_new={output_new.metrics ? output_new.metrics : {}}
-            metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
-          />        
-          {viewers}
+          {this.props.type === 'bit_accuracy'
+            ? <OutputViewer
+               key="bit-accuracy"
+               type="files/bit-accuracy"
+               {...controls}
+               controls={controls}
+               output_new={output_new}
+               output_ref={output_ref}
+               style={style}
+               show_all_files={this.props.show_all_files}
+              />
+            : <>
+              <MetricsTags
+                selected_metrics={main_metrics}
+                available_metrics={available_metrics}
+                metrics_new={output_new.metrics ? output_new.metrics : {}}
+                metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
+              />
+              {viewers}
+            </>
+          }
       </SlimCard>
     </div>
   }
 }
+
+
           // <OutputViewer key="test" type="text/plain" output_new={output_new} output_ref={output_ref} style={style} path='metrics.json'/>
 
 
-export { OutputCard };
+export { OutputCard, OutputViewer };

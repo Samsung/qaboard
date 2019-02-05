@@ -56,7 +56,6 @@ class GenericTextViewer extends React.PureComponent {
     let updated_new = has_new && (!had_new || this.props.text_url_new !== prevProps.text_url_new)
     let updated_ref = has_ref && (!had_ref || this.props.text_url_ref !== prevProps.text_url_ref)
     if (updated_new || updated_ref) {
-      console.log('fetch', updated_new, updated_ref)
       this.fetchData(this.props);
     }
   }
@@ -84,6 +83,12 @@ class GenericTextViewer extends React.PureComponent {
                     .then(load_data(label))
                     .catch(response => {
                       // we don't really care about errors for reference logs
+                      this.setState({
+                        data: {
+                          ...this.state.data,
+                          [label]: null,
+                        }
+                      })
                       if (label==='new' && !!response)
                         this.setState({error: response.data})
                     });
@@ -96,25 +101,30 @@ class GenericTextViewer extends React.PureComponent {
   render() {
     const { is_loaded, error } = this.state;
     if (!is_loaded) return <span/>;
-    if (!!error) return <span>{JSON.stringify(error)}</span>
+    if (!!error && !this.props.always_show_diff) return <span>{JSON.stringify(error)}</span>
 
     const { data } = this.state;
+    if (!!!data.new && !this.props.always_show_diff)
+      return <span></span>
+
     if (this.props.only_diff && data.new === data.ref)
       return <span></span>
 
     const { filename, text_url_new, text_url_ref, width } = this.props;
     let no_reference = !!!text_url_ref || !!!data.reference || (!!text_url_new && text_url_new === text_url_ref);
 
-    const lines = (data.new.match(/\r?\n/g) || '').length + 1
-    const height = Math.min(18 * lines + 10, 400);
-    const editor = !no_reference
+    const max_lines = this.props.max_lines || 400
+    let lines_new = ((data.new || '').match(/\r?\n/g) || '').length + 1
+    let lines_ref = ((data.reference || '').match(/\r?\n/g) || '').length + 1
+    const height = 18 * Math.min(Math.max(lines_new, lines_ref), max_lines) + 10;
+    const editor = (!no_reference || this.props.always_show_diff)
       ? <MonacoDiffEditor
           readonly
           width={width}
           height={height}
           language={language(filename)}
-          value={data.new || ''}
-          original={data.reference || ''}
+          value={data.new}
+          original={data.reference}
           options={editor_options}
         />
       : <MonacoEditor
@@ -127,7 +137,7 @@ class GenericTextViewer extends React.PureComponent {
         />
 
     return <>
-      <h3 className={Classes.HEADING}>{filename} <Tag>{!no_reference ? "reference ➡️ " : ""}new</Tag></h3>
+      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? "reference ➡️ " : ""}new</Tag></h3>
       {editor}
     </>
   }

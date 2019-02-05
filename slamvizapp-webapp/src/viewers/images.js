@@ -74,7 +74,7 @@ class ImgViewer extends PureComponent {
     this.canvas_diff = React.createRef();
     this.state = {
       shown_image: "New",
-      width: this.props.style.width || '390px',
+      width: (this.props.style || {}).width || '390px',
       height: '217.5px', // default 4/3 ratio
       diff_threshold: 0.1,
     }
