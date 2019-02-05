@@ -49,7 +49,7 @@ class ProjectsList extends Component {
     let warnings;
     if (error)
       warnings = <NonIdealState description={error.message} icon="error" />;
-    if (!is_loaded)
+    if (!is_loaded && Object.keys(projects).length===0 )
       warnings = <NonIdealState title="Loading projects..." icon={<Spinner />} />;
 
     let list_projects = (

@@ -45,15 +45,21 @@ const has_outputs_in_batch = label => commit =>
 class CommitResults extends React.Component {
   render() {
     const { project, project_data, commit } = this.props;
+
+    let incomplete_data = commit.message === undefined || commit.message === null;
+    if (incomplete_data)
+      return <span></span>
+
+
     let project_repo = project_data && project_data.information && project_data.information.git && project_data.information.git.path_with_namespace;
-    const gitlab_commit_url = `http://gitlab-srv/${project_repo}/commit/${
-      commit.id
-    }`;
+    const gitlab_commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label, batch]) => label )
     let valid_outputs_not_in_default_batch = (!has_outputs_in_batch('default')(commit) && batches_with_results.length>0)
     let ci_batch = valid_outputs_not_in_default_batch ? commit.batches[batches_with_results[0]] : commit.batches.default;
+
+
     if (
       ci_batch === undefined ||
       (ci_batch.failed_outputs === 0 &&
@@ -92,9 +98,7 @@ class CommitResults extends React.Component {
         !label.startsWith("manual")
     );
 
-    let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(
-      commit
-    );
+    let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(commit);
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
 
     const { available_metrics, default_metric } = project_data.information.qatools_metrics;
