@@ -17,6 +17,7 @@ import {
   Tab,
   Tabs,
   Intent,
+  Icon,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";
@@ -31,6 +32,7 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
 import { OutputCard } from "./viewers/OutputCard";
+import { bit_accuracy_help } from "./viewers/bit_accuracy/utils";
 import { fetchCommit } from "./actions/commit";
 import { updateSelected } from "./actions/selected";
 
@@ -653,18 +655,20 @@ class OutputList extends Component {
     return (
       <>
         {type === 'bit_accuracy' && 
-          <Callout style={{marginBottom: '20px'}} icon={this.state.show_all_files ? "changes" : 'comparison'}>
+          <Callout style={{marginBottom: '20px'}}>
             <FormGroup
-              label={<h4 className={Classes.HEADING}>List all files</h4>}
+              inline
               labelFor="show-all-files"
               helperText="By default the only files shown are those that are different/added/removed."
             >
               <Switch
+                label="Show all files"
                 checked={this.state.show_all_files}
                 onChange={e => this.setState({ show_all_files: !this.state.show_all_files})}
                 style={{ width: "300px" }}
               />
             </FormGroup>
+            <p>{bit_accuracy_help}</p>
           </Callout>
         }
         {controls.show_debug && (

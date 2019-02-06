@@ -1,17 +1,17 @@
 import React from "react";
 import { get, all, CancelToken } from "axios";
 
-import { Classes, Colors, Tag, Icon, ITreeNode, Tooltip, Tree } from "@blueprintjs/core";
-import { OutputViewer } from "./OutputCard"
+import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
+import { OutputViewer } from "../OutputCard"
+import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 
 
 
+// Turns a flat file manifest into a proper tree
 const to_tree = filepaths => {
   var tree = []
-
   Object.entries(filepaths).forEach( ([filepath, meta]) => {    
     let parts = filepath.split('/')
-
     var parent = tree
     let path = []
     for (var i = 0; i < parts.length; i++) {
@@ -28,7 +28,7 @@ const to_tree = filepaths => {
           nodeData: {...meta},
         })
       }
-      // the last node is a file (check?)
+      // the last node is a file
       if (i === parts.length - 1) {
         parent[node_idx].childNodes = undefined
       }
@@ -40,64 +40,9 @@ const to_tree = filepaths => {
 }
 
 
-const getNodeByPath = (tree, path) => {
-  if (tree === undefined || tree === null)
-    return undefined;
-  if (path === undefined || path === null)
-    return undefined;
-  let node = tree;
-  for (var i = 0; i < path.length - 1; i++) {
-    node = node[path[i]] && node[path[i]].childNodes
-    if (node === undefined) return undefined;
-  }
-  return node[path[path.length - 1]]
-}
-
-
-const getNodeById = (tree, id) => {
-  if (tree === undefined || tree === null)
-    return undefined;
-  if (id === undefined || id === null)
-    return undefined;
-  let node = tree;
-  let parts = id.split('/');
-  for (var i = 0; i < parts.length - 1; i++) {
-    node = node.find(child => child.label === parts[i] )
-    node = node && node.childNodes;
-    if (node === undefined) return undefined;
-  }
-  return node.find(child => child.label === parts[parts.length - 1]  )
-
-}
-
-// walk depth depth, starting by the root
-const forEachNode = (nodes, callback) => {
-  if (nodes === undefined || nodes === null)
-    return;
-  nodes.forEach(node => {
-    callback(node);
-    forEachNode(node.childNodes, callback);
-  })
- }
-
-
-// visit the tree starting from the leaft, depth first
-const visitDepthFirst = (nodes, callback) => {
-  if (nodes === undefined || nodes === null)
-    return;
-  nodes.forEach(node => {
-    visitDepthFirst(node.childNodes, callback);
-    callback(node);
-  })
- }
-
-
-const sortChildren = node => {
-    const is_folder = node.childNodes !== undefined;
-    if (!is_folder) return;
-    node.childNodes = node.childNodes.sort( (a, b) => a.label.localeCompare(b.label) )
-}
-
+// Updates a node's data depending on whether it matches its counterpart in the reference tree
+// NOTE: We assume the node's children have already been updateMatch'ed
+// NOTE: We consider nodes absent from the reference tree match
 const updateMatch = tree_reference => node => {
     const is_folder = node.childNodes !== undefined;
     if (is_folder) { // aggregate the information from the children nodes
@@ -105,57 +50,22 @@ const updateMatch = tree_reference => node => {
       return;
     }
     const node_reference = getNodeById(tree_reference, node.id)
-    if (node_reference === undefined) {
+    if (node_reference === undefined)
       node.nodeData.match = true;
-    } else {
+    else
       node.nodeData.match = node.nodeData.md5 === node_reference.nodeData.md5;
-    }
 }
 
-const updateMissingFrom = (tree, label) => node => {
-    let missing = `missing_from_${label}`;
+
+
+// Sort the children of a tree node according to their label
+const sortChildren = node => {
     const is_folder = node.childNodes !== undefined;
-    if (is_folder) { // aggregate the information from the children nodes
-      node.nodeData[missing] = node.childNodes.some(child => child.nodeData[missing]);
-      return;
-    }
-    let missing_reference_tree = tree === undefined || tree === null;
-    node.nodeData[missing] = missing_reference_tree || (getNodeById(tree, node.id) === undefined)
+    if (!is_folder) return;
+    node.childNodes = node.childNodes.sort( (a, b) => a.label.localeCompare(b.label) )
 }
 
-const copyNodeData = (tree_from, tree_to, key) => node => {
-    const missing_from_tree = tree_from === undefined || tree_from === null;
-    const missing_to_tree = tree_to === undefined || tree_to === null;
-    if (missing_from_tree || missing_to_tree)
-      return
 
-    const path = node.path;
-    let node_from_parent = tree_from;
-    let node_to_parent = tree_to;
-    let node_to_path = []
-    // need to make sure the destination node exists, and create it if necessary
-    for (var i = 0; i < path.length; i++) {
-      var node_from = node_from_parent[path[i]];
-      var node_to = node_to_parent.find(child => child.label === node_from.label);
-      if (node_to === undefined) {
-        node_to_parent.push({
-          id: node_from.id,
-          label: node_from.label,
-          path: [...node_to_path, node_to_parent.length-1],
-          childNodes: (i < path.length - 1) ? [] : undefined,
-          nodeData: {
-            ...node_from.nodeData, // will actually already copy the key
-          },
-        })
-        node_to = node_to_parent[node_to_parent.length - 1];        
-      } else {
-        node_to_path = node_to.path
-      }
-      node_from_parent = node_from.childNodes
-      node_to_parent = node_to.childNodes
-    }
-    node.nodeData[key] = node_from.nodeData
-}
 
 
 const icon_style = {
@@ -169,8 +79,9 @@ const applyStyle = node => {
     let color = Colors.GREY1;
     if (is_folder) {
       if (!match && missing_from_new && missing_from_reference) {
-      } else if (!match && missing_from_new) {
         color = Colors.SEPIA1;
+      } else if (!match && missing_from_new) {
+        color = Colors.ROSE1;
       } else if (!match && missing_from_reference) {
         color = Colors.TURQUOISE1;
       } else if (!match) {
@@ -200,37 +111,6 @@ const applyStyle = node => {
     let size_human = humanFileSize(node.nodeData.st_size, true)
     node.secondaryLabel = <Tooltip><span className={Classes.TEXT_MUTED}>{size_human}</span><span>{size_real} B</span></Tooltip>
 }
-
-
-
-function humanFileSize(bytes, si) {
-    var thresh = si ? 1000 : 1024;
-    if(Math.abs(bytes) < thresh) {
-        return bytes + ' B';
-    }
-    var units = si
-        ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
-        : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
-    var u = -1;
-    do {
-        bytes /= thresh;
-        ++u;
-    } while(Math.abs(bytes) >= thresh && u < units.length - 1);
-    return bytes.toFixed(1)+' '+units[u];
-}
-
-const filterNodes = (nodes, filter) => {
-  if (nodes === undefined || nodes === null)
-    return;
-  let filtered_nodes = []
-  nodes.forEach(node => {
-    node.childNodes = filterNodes(node.childNodes, filter);
-    if (filter(node))
-      filtered_nodes.push(node);
-  })
-  return filtered_nodes
- }
-
 
 
 const compareTrees = (tree_new, tree_ref, options) => {
@@ -269,7 +149,7 @@ class BitAccuracyViewer extends React.Component {
       cancel_source: CancelToken.source(),
       manifests: {},
       tree: {},
-      selected: null,
+      selected: [],
     }
   }
 
@@ -280,7 +160,7 @@ class BitAccuracyViewer extends React.Component {
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const { output_new, output_ref, type, ...props } = this.props;
-    // console.log('selected', selected)
+    console.log('selected', selected)
     // console.log(tree.mixed)
     return <div>
       {tree.mixed.length===0 && <Tag>Bit-accurate</Tag>}
@@ -290,42 +170,48 @@ class BitAccuracyViewer extends React.Component {
        onNodeCollapse={this.handleNodeCollapse}
        onNodeExpand={this.handleNodeExpand}
       />
-      {!!selected && <OutputViewer
-          path={selected}
-          always_show_diff max_lines={50}
-          output_new={output_new}
-          output_ref={(this.props.controls.show_reference === undefined || this.props.controls.show_reference) ? output_ref : undefined}
-          {...props}
-      />}
+      {selected.map( filename => 
+        <OutputViewer
+            path={filename}
+            always_show_diff max_lines={50}
+            output_new={output_new}
+            output_ref={(this.props.controls.show_reference === undefined || this.props.controls.show_reference) ? output_ref : undefined}
+            {...props}
+        />
+      )}
+
     </div>
   }
 
 
 
-  handleNodeClick = (nodeData: ITreeNode, _nodePath: number[], e: React.MouseEvent<HTMLElement>) => {
-    const is_folder = nodeData.childNodes !== undefined;
+  handleNodeClick = (node, _nodePath: number[], e: React.MouseEvent<HTMLElement>) => {
+    const is_folder = node.childNodes !== undefined;
     if (is_folder) return;
-    const originallySelected = nodeData.isSelected;
-    forEachNode(this.state.tree.mixed, n => (n.isSelected = false));
-    nodeData.isSelected = originallySelected === null ? true : !originallySelected;
-    this.setState(this.state);
-    this.setState({selected: nodeData.id});    
+    if (!e.shiftKey && !e.ctrlKey) {
+        forEachNode(this.state.nodes, n => (n.isSelected = false));
+        this.setState({selected: [node.id]});
+    }
+    let isSelected = node.isSelected === null ? true : !node.isSelected;
+    node.isSelected = isSelected
+    if (isSelected) {
+      this.setState({selected: [...this.state.selected, node.id]});      
+    } else {
+      this.setState({selected: this.state.selected.filter(filepath => filepath !== node.id) });      
+    }
   };
 
-  handleNodeCollapse = (nodeData) => {
-    nodeData.isExpanded = false;
-    console.log(nodeData);
-    const { props , icon} = nodeData.icon
-    nodeData.icon = <Icon {...props} icon='folder-close'/>
+  handleNodeCollapse = node => {
+    node.isExpanded = false;
+    const { props , icon} = node.icon
+    node.icon = <Icon {...props} icon='folder-close'/>
     this.setState(this.state);
   };
 
-  handleNodeExpand = (nodeData) => {
-    nodeData.isExpanded = true;
-    console.log(nodeData);
-    const { props , icon} = nodeData.icon
-    nodeData.icon = <Icon {...props} icon='folder-open'/>
-    // nodeData.icon.props.icon = 'folder-open'
+  handleNodeExpand = node => {
+    node.isExpanded = true;
+    const { props , icon} = node.icon
+    node.icon = <Icon {...props} icon='folder-open'/>
     this.setState(this.state);
   };
 
@@ -409,5 +295,9 @@ class BitAccuracyViewer extends React.Component {
   }
 
 }
+
+
+
+
 
 export default BitAccuracyViewer;

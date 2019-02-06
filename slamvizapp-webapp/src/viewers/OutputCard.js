@@ -125,7 +125,7 @@ const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "v
 const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
-const LoadableBitAccuracyViewer = lazy(() => import('./bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
+const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
 
 class OutputViewer extends React.Component {
   render() {
