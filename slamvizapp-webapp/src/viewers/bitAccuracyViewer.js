@@ -106,7 +106,7 @@ const updateMatch = tree_reference => node => {
     }
     const node_reference = getNodeById(tree_reference, node.id)
     if (node_reference === undefined) {
-      node.nodeData.match = false;
+      node.nodeData.match = true;
     } else {
       node.nodeData.match = node.nodeData.md5 === node_reference.nodeData.md5;
     }
@@ -132,6 +132,7 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
     const path = node.path;
     let node_from_parent = tree_from;
     let node_to_parent = tree_to;
+    let node_to_path = []
     // need to make sure the destination node exists, and create it if necessary
     for (var i = 0; i < path.length; i++) {
       var node_from = node_from_parent[path[i]];
@@ -140,13 +141,15 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
         node_to_parent.push({
           id: node_from.id,
           label: node_from.label,
-          path: node_from.path,
+          path: [...node_to_path, node_to_parent.length-1],
           childNodes: (i < path.length - 1) ? [] : undefined,
           nodeData: {
             ...node_from.nodeData, // will actually already copy the key
           },
         })
         node_to = node_to_parent[node_to_parent.length - 1];        
+      } else {
+        node_to_path = node_to.path
       }
       node_from_parent = node_from.childNodes
       node_to_parent = node_to.childNodes
@@ -165,12 +168,17 @@ const applyStyle = node => {
 
     let color = Colors.GREY1;
     if (is_folder) {
-      if (missing_from_reference) {
-        color = Colors.GREEN1;
-      } else if (missing_from_new) {
-        color = Colors.RED1;
+      if (!match && missing_from_new && missing_from_reference) {
+      } else if (!match && missing_from_new) {
+        color = Colors.SEPIA1;
+      } else if (!match && missing_from_reference) {
+        color = Colors.TURQUOISE1;
       } else if (!match) {
         color = Colors.ORANGE1;
+      } else if (missing_from_new) {
+        color = Colors.RED1;
+      } else if (missing_from_reference) {
+        color = Colors.GREEN1;
       }
       node.icon = <Icon icon='folder-close' style={{color, ...icon_style}}/>;
       return;
@@ -306,11 +314,18 @@ class BitAccuracyViewer extends React.Component {
 
   handleNodeCollapse = (nodeData) => {
     nodeData.isExpanded = false;
+    console.log(nodeData);
+    const { props , icon} = nodeData.icon
+    nodeData.icon = <Icon {...props} icon='folder-close'/>
     this.setState(this.state);
   };
 
   handleNodeExpand = (nodeData) => {
     nodeData.isExpanded = true;
+    console.log(nodeData);
+    const { props , icon} = nodeData.icon
+    nodeData.icon = <Icon {...props} icon='folder-open'/>
+    // nodeData.icon.props.icon = 'folder-open'
     this.setState(this.state);
   };
 
