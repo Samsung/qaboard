@@ -362,9 +362,9 @@ class CommitsEvolutionPerTest extends React.Component {
       e.points[0].curveNumber
     ];
     let point_number = e.points[0].pointNumber;
-    console.log(point_number)
-    console.log("new", commits[point_number])
-    console.log("ref", point_number < commits.length ? commits[point_number + 1] : null)
+    // console.log(point_number)
+    // console.log("new", commits[point_number])
+    // console.log("ref", point_number < commits.length ? commits[point_number + 1] : null)
     this.setState({
       hovered: true,
       hovered_test_input_path: test_input_path,
