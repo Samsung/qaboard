@@ -655,8 +655,9 @@ class OutputList extends Component {
         {type === 'bit_accuracy' && 
           <Callout style={{marginBottom: '20px'}} icon={this.state.show_all_files ? "changes" : 'comparison'}>
             <FormGroup
-              label={<h4 className={Classes.HEADING}>Show all files</h4>}
+              label={<h4 className={Classes.HEADING}>List all files</h4>}
               labelFor="show-all-files"
+              helperText="By default the only files shown are those that are different/added/removed."
             >
               <Switch
                 checked={this.state.show_all_files}
