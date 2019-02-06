@@ -38,13 +38,13 @@ import { default_project, empty_batch, default_commits_data, default_date_range 
 class Dashboard extends React.Component {
   constructor(props) {
     super(props);
-    const { default_metric, available_metrics, dashboard_metrics } = this.props;
+    const { default_metric, available_metrics, dashboard_metrics, main_metrics } = this.props;
     this.state = {
       latest_commit: null,
       filter: '',
       sort_by: default_metric,
       sort_order: -1,
-      selected_metrics: dashboard_metrics.map(
+      selected_metrics: (dashboard_metrics || main_metrics).map(
         k => available_metrics[k]
       )
     };
