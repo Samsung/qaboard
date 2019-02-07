@@ -16,7 +16,7 @@ setup(
   python_requires='>=3.6',
   install_requires=[
     'dataclasses', # backport for python3.6
-    'click', # CLI for humans
+    'click>=7.0', # CLI for humans
     'requests', # HTTP for humans
     'gitpython',
     'sklearn', # machine learning, used only for parameter sampling
