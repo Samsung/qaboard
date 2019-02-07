@@ -27,7 +27,7 @@ else
 	DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
 	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
 		#                 frontend           debug api            database     https-frontend
-		PORTS="-p0.0.0.0:5000:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:5001:443"
+		PORTS="-p0.0.0.0:5001:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:443:443"
 	else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
       #                 frontend           debug api            database     https-frontend
@@ -74,10 +74,13 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zsh_history:/root/.zsh_history"
 
 if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   echo 'production !'
+  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
+  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 else
   if [ -z ${SLAMVIZAPP_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'
   else
+      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx:/etc/nginx"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/common-infrastructure/qatools/qatools:/opt/anaconda3/lib/python3.6/site-packages/qatools"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
@@ -87,9 +90,6 @@ else
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs2:/etc/nginx/ssl/dvs2"
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/init.sh:/slamvizapp/deployment/init.sh"
 
 # Networking:
