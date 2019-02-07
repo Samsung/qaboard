@@ -44,13 +44,13 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     metrics_new[metric.key] === undefined ||
     metrics_new[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>New missing</td>;
+    return <td style={{ background: "#bbb" }}>NA</td>;
   if (
     !metrics_ref ||
     metrics_ref[metric.key] === undefined ||
     metrics_ref[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>Ref missing</td>;
+    return <td style={{ background: "#bbb" }}>NA</td>;
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
   let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
   let quality = metric.smaller_is_better ? (0.5 - delta_relative) : (0.5 + delta_relative);
@@ -69,7 +69,7 @@ const QualityCell = ({ metric, metrics }) => {
     metrics[metric.key] === undefined ||
     metrics[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>na</td>;
+    return <td style={{ background: "#bbb" }}>NA</td>;
   let value = metrics[metric.key];
   const delta_relative = (metric.target - value) / (metric.target + 0.0001);
   let quality = metric.smaller_is_better ? (0.5 + delta_relative) : (0.5 - delta_relative);
@@ -92,7 +92,7 @@ const TableCompare = ({
   if (new_batch === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
   let outputs = Object.entries(new_batch.outputs)
-    .filter(([id, o]) => !o.is_pending)
+    .filter(([id, o]) => !o.is_pending && !o.is_failed)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
@@ -116,7 +116,7 @@ const TableCompare = ({
             </th>
             {metrics.map(m => (
               <th scope="col" key={m.key}>
-                {label_new}-{label_ref}
+                {label_new} − {label_ref}
               </th>
             ))}
           </tr>
@@ -159,7 +159,7 @@ const TableKpi = ({
   if (new_batch === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Reference"];
   let outputs = Object.entries(new_batch.outputs)
-    .filter(([id, o]) => !o.is_pending)
+    .filter(([id, o]) => !o.is_pending && !o.is_failed)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (

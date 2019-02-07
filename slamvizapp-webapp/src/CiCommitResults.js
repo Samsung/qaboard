@@ -17,7 +17,6 @@ import {
   Tab,
   Tabs,
   Intent,
-  Icon,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";

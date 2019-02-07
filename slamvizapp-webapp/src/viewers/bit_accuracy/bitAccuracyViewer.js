@@ -1,7 +1,7 @@
 import React from "react";
 import { get, all, CancelToken } from "axios";
 
-import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
+import { Tree, Classes, Colors, Tag, Icon, Tooltip, Intent } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputCard"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 
@@ -114,6 +114,8 @@ const applyStyle = node => {
 
 
 const compareTrees = (tree_new, tree_ref, options) => {
+  if (tree_new === null || tree_new === undefined)
+    return []
   // make a deep copy
   var tree_compared = JSON.parse(JSON.stringify(tree_new))
   // find the nodes that are missing in the reference tree
@@ -125,7 +127,7 @@ const compareTrees = (tree_new, tree_ref, options) => {
   visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
 
   if (!options.show_all_files)
-    tree_compared = filterNodes(tree_compared, node => !node.nodeData.match )
+    tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
 
   // sort by alphebetical order
   forEachNode(tree_compared, sortChildren)
@@ -155,15 +157,15 @@ class BitAccuracyViewer extends React.Component {
 
 
   render() {
-    const { manifests, tree, layouts, is_loaded, error, selected } = this.state;
+    const { tree, is_loaded, error, selected } = this.state;
     if (!is_loaded) return <span></span>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const { output_new, output_ref, type, ...props } = this.props;
-    console.log('selected', selected)
-    // console.log(tree.mixed)
     return <div>
-      {tree.mixed.length===0 && <Tag>Bit-accurate</Tag>}
+      {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
+      {output_new.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
+      {tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
       <Tree
        contents={tree.mixed}
        onNodeClick={this.handleNodeClick}
@@ -172,6 +174,7 @@ class BitAccuracyViewer extends React.Component {
       />
       {selected.map( filename => 
         <OutputViewer
+            key={filename}
             path={filename}
             always_show_diff max_lines={50}
             output_new={output_new}
@@ -188,17 +191,21 @@ class BitAccuracyViewer extends React.Component {
   handleNodeClick = (node, _nodePath: number[], e: React.MouseEvent<HTMLElement>) => {
     const is_folder = node.childNodes !== undefined;
     if (is_folder) return;
+
+    let selected = this.state.selected;
+    let was_selected = node.isSelected
     if (!e.shiftKey && !e.ctrlKey) {
-        forEachNode(this.state.nodes, n => (n.isSelected = false));
-        this.setState({selected: [node.id]});
+        forEachNode(this.state.tree.mixed, n => (n.isSelected = false));
+        selected = []
     }
-    let isSelected = node.isSelected === null ? true : !node.isSelected;
+    let isSelected = was_selected===null ? true : !was_selected;
     node.isSelected = isSelected
     if (isSelected) {
-      this.setState({selected: [...this.state.selected, node.id]});      
+      selected = [...selected, node.id]
     } else {
-      this.setState({selected: this.state.selected.filter(filepath => filepath !== node.id) });      
+      selected = selected.filter(filepath => filepath !== node.id)
     }
+    this.setState({selected});
   };
 
   handleNodeCollapse = node => {
@@ -238,7 +245,7 @@ class BitAccuracyViewer extends React.Component {
       if (updated_ref) {
         this.fetchData(this.props, 'reference');
       }
-      if (prevProps.show_all_files !== this.props.show_all_files)
+      if (prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new)
         this.setState({
           tree: {
             ...this.state.tree,
@@ -285,13 +292,16 @@ class BitAccuracyViewer extends React.Component {
                     });
     }).map(f=>f()) )
     // now we loaded and parsed all the data
-    .then( () => this.setState({
-      is_loaded: true,
-      tree: {
-        ...this.state.tree,
-        mixed: compareTrees(this.state.tree.new, this.state.tree.reference, {show_all_files: this.props.show_all_files})}
+    .then( () => {
+      if (this.state.tree.new === undefined || this.state.tree.new === null) return
+      this.setState({
+        is_loaded: true,
+        tree: {
+          ...this.state.tree,
+          mixed: compareTrees(this.state.tree.new, this.state.tree.reference, {show_all_files: this.props.show_all_files})
+        }
       })
-    )
+    })
   }
 
 }

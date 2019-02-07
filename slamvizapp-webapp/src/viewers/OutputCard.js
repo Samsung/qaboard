@@ -82,7 +82,7 @@ class OutputTags extends React.PureComponent {
         rel="noopener noreferrer"
         href={output_dir_url}
       >
-        <Icon icon="download" style={{verticalAlign: 'baseline'}}/>
+        <Icon icon="folder-shared-open" style={{verticalAlign: 'baseline'}}/>
       </a>
       <Tooltip>
         <CopyToClipboard
@@ -98,7 +98,7 @@ class OutputTags extends React.PureComponent {
             title="copy to clipboard"
             intent={Intent.PRIMARY}
             iconSize={Icon.SIZE_SMALL}
-            icon="clipboard"
+            icon="duplicate"
             style={{ marginLeft: "4px" }}
           />
         </CopyToClipboard>
@@ -181,7 +181,9 @@ class OutputCard extends Component {
     const controls = this.props.controls || {};
 
     // layout should be plotly-like. You could also pass down a props named style.
-    if (!output_new || output_new.is_failed || output_new.is_pending)
+    if (!output_new || output_new.is_pending)
+      return <span/>
+    if (output_new.is_failed && !(this.props.type === 'bit_accuracy'))
       return <span/>
 
     const views = qatools_config.outputs.detailed_views || [];
