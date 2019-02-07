@@ -12,9 +12,10 @@ import click
 from .config import config, commit_id, available_metrics
 
 
+# For now we use http, until we deal with cert trust issues
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
-api_host = os.getenv('QATOOLS_DB_HOST', 'dvs')
-api_port = os.getenv('QATOOLS_DB_PORT', '5000')
+api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
+api_port = os.getenv('QATOOLS_DB_PORT', '80')
 
 
 class NumpyEncoder(simplejson.JSONEncoder):
