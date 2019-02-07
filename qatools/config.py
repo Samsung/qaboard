@@ -24,6 +24,8 @@ renamings = (
   ('save_artifacts', 'save-artifacts'),
   ('check_bit_accuracy', 'check-bit-accuracy'),
   ('--reference-branch', '--reference'),
+  ('--batch-label', '--label'),
+  ('--inputs-database', '--database'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
