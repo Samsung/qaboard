@@ -78,7 +78,7 @@ if isinstance(default_configuration, list):
 @click.option('--database', 'inputs_database', default=database, type=PathType(), help="Test database location")
 @click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, ci, database, inputs_glob, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, ci, inputs_database, inputs_glob, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
