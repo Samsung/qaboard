@@ -14,6 +14,8 @@ from slamvizapp.models.LocalMocks import LocalGitCommit
 from ..utils import get_users_per_name
 from ..git_utils import find_branch
 
+
+
 class CiCommit(Base):
   """Refers to a git commit of the code
   on which we ran some SLAM performance test (likely in the CI).
@@ -60,6 +62,11 @@ class CiCommit(Base):
 
 
   @property
+  def authored_date(self):
+    return self.authored_datetime.date()
+
+
+  @property
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
@@ -81,16 +88,23 @@ class CiCommit(Base):
       return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
 
   @property
-  def authored_date(self):
-    return self.authored_datetime.date()
-
-  @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
       return f'/s/{relative_path}' 
     return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
+
+
+  @property
+  def repo_commit_dir_url(self):
+    """The URL at which the data about this commit is stored. It's convenient."""
+    if self.commit_dir_override is not None:
+      relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
+      return f'/s/{relative_path}' 
+    return f"/s/{self.repo_commit_dir}".replace("/home/arthurf/ci", "")
+
+
 
   def __repr__(self):
     return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
@@ -181,6 +195,7 @@ class CiCommit(Base):
         'authored_date': self.authored_date.isoformat(),
         "data": self.data if with_outputs else None,
         'commit_dir_url': str(self.commit_dir_url),
+        # 'repo_commit_dir': str(self.repo_commit_dir),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches
                     if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},
