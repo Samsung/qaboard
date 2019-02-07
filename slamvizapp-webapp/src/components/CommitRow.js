@@ -286,10 +286,11 @@ class CommitRow extends React.Component {
                   }}
                 >
                   <Icon
-                    title="copy to clipboard"
+                    style={{marginLeft: '4px', marginRight: '10px'}}
+                    title="Copy to clipboard"
                     intent={Intent.PRIMARY}
                     iconSize={Icon.SIZE_SMALL}
-                    icon="clipboard"
+                    icon="duplicate"
                   />
                 </CopyToClipboard>
                 <span>Copy to clipboard</span>
