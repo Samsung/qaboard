@@ -2,7 +2,7 @@
   "name": "slamvizapp-tuning",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://dvs:5000",
+  "proxy": "http://qa:5000",
   "dependencies": {
     "@blueprintjs/core": "^3.4.0",
     "@blueprintjs/datetime": "^3.1.0",
