@@ -70,12 +70,12 @@ if isinstance(default_configuration, list):
 @click.pass_context
 @click.option('--platform', default=platform)
 @click.option('--configuration', '-c', default=default_configuration, help="Will be passed to the run function")
-@click.option('--label', '-l', default=default_batch_label, help="Gives tuning experiments a name.")
+@click.option('--label', '-l', 'batch-label', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--ci', is_flag=True, help="Save outputs at the CI's centralized location, and show them in the UI.")
-@click.option('--database', default=database, type=PathType(), help="Test database location")
+@click.option('--database', 'inputs-database', default=database, type=PathType(), help="Test database location")
 @click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
 def cli(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, ci, database, inputs_glob, no_qa_database):
