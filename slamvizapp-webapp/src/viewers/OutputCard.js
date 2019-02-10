@@ -180,12 +180,10 @@ class OutputCard extends Component {
     const { qatools_config } = this.props.project_data.information;
     const controls = this.props.controls || {};
 
-    // layout should be plotly-like. You could also pass down a props named style.
-    if (!output_new || output_new.is_pending)
-      return <span/>
-    if (output_new.is_failed && !(this.props.type === 'bit_accuracy'))
+    if (output_new === undefined  || output_new === null || output_new.is_pending)
       return <span/>
 
+    // layout should be plotly-like. You could also pass down a props named style.
     const views = qatools_config.outputs.detailed_views || [];
     const style = {
       ...qatools_config.outputs.style,
@@ -196,7 +194,6 @@ class OutputCard extends Component {
         let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
         if (hidden)
           return <span key={idx}/>
-
         return <OutputViewer
           key={idx}
           output_new={output_new}
@@ -216,6 +213,8 @@ class OutputCard extends Component {
     return <div style={container_style}>
       <SlimCard className="output-card">
           {!this.props.no_header && <OutputHeader output={output_new} warning={warning}/>}
+          {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
+          {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
           {this.props.type === 'bit_accuracy'
             ? <OutputViewer
                key="bit-accuracy"

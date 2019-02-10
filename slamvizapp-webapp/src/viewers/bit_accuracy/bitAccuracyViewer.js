@@ -163,8 +163,6 @@ class BitAccuracyViewer extends React.Component {
 
     const { output_new, output_ref, type, ...props } = this.props;
     return <div>
-      {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
-      {output_new.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
       {tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
       <Tree
        contents={tree.mixed}
@@ -210,7 +208,7 @@ class BitAccuracyViewer extends React.Component {
 
   handleNodeCollapse = node => {
     node.isExpanded = false;
-    const { props , icon} = node.icon
+    const { props , icon:_} = node.icon
     node.icon = <Icon {...props} icon='folder-close'/>
     this.setState(this.state);
   };
