@@ -99,6 +99,34 @@ you-can-also-give-an-LSF-configuration-per-test:
         memory: 200
 
 
+## Groups of groups ###########################################################
+# For convenience you can define aliases for groups you often run together:
+groups:
+  ci:
+    - basic-list-of-tests
+    - you-can-override-the-default-configuration
+# => those 2 groups will run with `qa batch --group ci`
+
+
+
+## Configuration aliases ######################################################
+# For convenience you can define aliases for common configurations
+.base: &base
+  - base
+  - partial
+  - subchain
+
+hdr:
+  configuration:
+    - *base
+    - hdr
+  tests:
+    - A
+    - B
+    - C
+# context.obj['configurations'] => ["base", "partial", "hdr"]
+
+
 ## Reusable configurations/tests ##############################################
 # Sometimes you want to mix and match reusabe definitions of configs and tests
 # YAML anchors let you do it:
@@ -120,13 +148,13 @@ you-can-also-give-an-LSF-configuration-per-test:
 
 .HDR: &HDR
   configuration:
-    - base
+    - *base
     - hdr_base
     - hdr_motion
 
 .HDR-disabled: &HDR-disabled
   configuration:
-    - base
+    - *base
 
 hdr:
   <<: *HDR
@@ -144,7 +172,6 @@ lots-of-hdr-tests:
 lots-of-no-hdr-tests:
   <<: *HDR-disabled
   <<: *lots_of_tests_hdr
-
 
 
 
