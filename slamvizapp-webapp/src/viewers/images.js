@@ -61,7 +61,7 @@ const iiif_url = (output_dir_url, path) => {
   // console.log(identifier)
   // IIIF specs require encoding the slashes inside the identifier
   identifier = encodeURIComponent(identifier)
-  let url = `http://planet31:8182/iiif/2/${identifier}`  
+  let url = `https://qa:8182/iiif/2/${identifier}`  
   return url
 }
 
