@@ -353,7 +353,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
   tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
-  for input_path_abs, input_configurations, lsf_configuration in tests_iter:    
+  for input_path_abs, input_configurations, lsf_configuration in tests_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(ctx.obj['database'])
 
@@ -440,10 +440,17 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     wait.send(interactive=True, dependencies=waiting_job)
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
-      assert metrics_file.exists()
+      is_failed = False
+      if not metrics_file.exists():
+        click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='red')
+        is_failed = True
       with metrics_file.open() as f:
         metrics = json.load(f)
-        assert not metrics['is_failed']
+        if metrics['is_failed']:
+          is_failed = True
+          click.secho(f'ERROR: is_failed in {metrics_file}', fg='red')
+    if is_failed:
+      exit(1)
 
 
 @cli.command()

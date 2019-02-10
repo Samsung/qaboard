@@ -7,6 +7,7 @@ import json
 import yaml
 import fnmatch
 import hashlib
+from itertools import chain
 from pathlib import Path
 
 import click
@@ -48,7 +49,7 @@ def latest_commit(repo, reference):
       return remote.refs[reference].commit
     except:
       return repo.commit(rev=reference)
-    # try:
+    # try:/
     #   return list(repo.iter_commits(reference.replace('origin/', ''), max_count=1))[0]
 
 
@@ -102,8 +103,13 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   if not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
 
-  maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   available_batches = yaml.load(Path(groups_file).open())
+
+  # for convenience, users can define "groups of groups"
+  group_aliases = available_batches.get('groups', {})
+  groups = chain.from_iterable(group_aliases.get(group, [group]) for group in groups)
+
+  maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
     # We can ask for two types of groups:
     # 1. All tests under a given folder in the database
@@ -129,7 +135,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     # Each group can define his own default runtime and LSF configuration
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
-
+    group_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in group_configuration))
 
     # We also allow each test to have his own configuration...
     if isinstance(locations, list):
@@ -144,6 +150,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
           location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
+          location_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in location_configuration))
           location_configuration = [*group_configuration, *location_configuration]
           location_lsf_configuration = group_lsf_configuration
         else:
