@@ -116,13 +116,17 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     if group not in available_batches:
       # Maybe we asked recordings from a location... Having support for this makes test selection.
       location = group
-      if debug:
+      if debug or True:
         click.secho(str(location), bold=True, fg='cyan', err=True)
       
       for glob in globs:
-        yield from set([(maybe_parent(f), default_configuration, default_lsf_config) for f in (database / location).rglob(glob)])
-        if fnmatch.fnmatch(location, glob) or location.endswith(glob):
-          yield maybe_parent(Path(database / location)), default_configuration, default_lsf_config
+        for matched_location in database.glob(location):
+          rglob = '**/' + glob
+          tests = set([maybe_parent(f) for f in matched_location.rglob(glob)])
+          yield from [(test, default_configuration, default_lsf_configuration) for test in tests]
+
+          if fnmatch.fnmatch(matched_location, rglob) or str(matched_location).endswith(glob):
+            yield maybe_parent(matched_location), default_configuration, default_lsf_configuration
       return
 
     # 2. Those defined in the groups_file
