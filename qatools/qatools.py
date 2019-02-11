@@ -521,7 +521,7 @@ def save_artifacts():
 @click.pass_context
 @click.option(
     "--reference",
-    default=config.get('project', {}).get('reference', 'master'),
+    default=config.get('project', {}).get('reference_branch', 'master'),
     help="Branch, tag or commit used as reference."
 )
 @click.option('--group', '-g', multiple=True, help="Only check bit-accuracy for those groups of tests.")
