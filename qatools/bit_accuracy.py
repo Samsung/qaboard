@@ -84,7 +84,7 @@ def is_bit_accurate(commit_dir, reference_commit, output_directories):
 
 def assert_ci_pipelines_are_done(reference_commit):
   # temporary (...) workaround.
-  os.environ'GITLAB_ACCESS_TOKEN' = 'd5sbmEPvncmsgTcgZLoS'
+  os.environ['GITLAB_ACCESS_TOKEN'] = 'd5sbmEPvncmsgTcgZLoS'
 
   if 'GITLAB_ACCESS_TOKEN' not in os.environ:
     click.secho(f'Could not check if the CI pipeline for {reference_commit} is done. Please add GITLAB_ACCESS_TOKEN to your environment variables', fg='yellow', err=True)
