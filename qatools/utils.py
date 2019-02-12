@@ -33,7 +33,7 @@ def file_info(path):
       md5.update(data)
   stats = os.stat(path)
   return {
-    "st_mtime_ns": stats.st_mtime_ns,
+    # "st_mtime_ns": stats.st_mtime_ns,
     "st_size": stats.st_size,
     "md5": md5.hexdigest(),
   }
