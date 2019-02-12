@@ -141,10 +141,9 @@ mount_flavor = 'windows' if on_windows else 'linux'
 
 if on_windows:
     platform = 'windows'
-elif on_vdi or on_lsf:
+else:
+    # it could be "linux", but we stick to lsf for backward compatibility
     platform = 'lsf'
-else: # unknown linux
-    platform = 'linux'
 
 # All recordings used should be stored at the same location
 # We will refer to them by their relative path related to the "database"
