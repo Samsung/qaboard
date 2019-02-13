@@ -73,12 +73,13 @@ def is_bit_accurate(commit_dir, reference_commit, output_directories):
         ignored_names=['log.txt'],
       )
       # print(comparaison)
-      comparaisons['match'].extend(comparaison['match'])
-      comparaisons['mismatch'].extend(comparaison['mismatch'])
-      comparaisons['errors'].extend(comparaison['errors'])
+      comparaisons['match'].extend(output_directory / p for p in comparaison['match'])
+      comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
+      comparaisons['errors'].extend(output_directory / p for p in comparaison['errors'])
     # print(comparaisons)
     assert len(comparaisons['match']), "At least 1 results file should be compared. Looks like something went wrong."
-    assert not len(comparaisons['errors']), "ERROR: while trying to read/compare\n" + "\n".join(comparaisons['error'])
+    assert not len(comparaisons['errors']), "ERROR: while trying to read/compare\n" + "\n".join(str(p) for p in comparaisons['error'])
+    assert not len(comparaisons['mismatch']), "ERROR: mismatch: \n" + "\n".join(str(p) for p in comparaisons['mismatch'])
     return not len(comparaisons['mismatch'])
 
 
