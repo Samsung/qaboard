@@ -107,8 +107,8 @@ const applyStyle = node => {
       icon = 'cross'
     }
     node.icon = <Icon icon={icon} style={{color, ...icon_style}}/>
-    let size_real = node.nodeData.st_size.toLocaleString('fr-FR')
-    let size_human = humanFileSize(node.nodeData.st_size, true)
+    let size_real = !!node.nodeData.st_size ? node.nodeData.st_size.toLocaleString('fr-FR') : '?'
+    let size_human = !!node.nodeData.st_size ? humanFileSize(node.nodeData.st_size, true) : '?'
     node.secondaryLabel = <Tooltip><span className={Classes.TEXT_MUTED}>{size_human}</span><span>{size_real} B</span></Tooltip>
 }
 
@@ -135,7 +135,7 @@ const compareTrees = (tree_new, tree_ref, options) => {
   tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
 
   forEachNode(tree_compared, applyStyle)
-  
+
   return tree_compared;
 }
 

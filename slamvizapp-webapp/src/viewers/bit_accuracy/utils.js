@@ -173,11 +173,11 @@ let help = <>
   <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
   <h3>File icons</h3>
   <ul>{file_types.map( ({color, label, icon}) =>
-    <li style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
+    <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
   </ul>
   <h3>Folder icons</h3>
   <ul>{folder_types.map( ({color, label, icon}) =>
-    <li style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
+    <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
   </ul>
 </>
 const bit_accuracy_help = <Tooltip><Tag icon='help' minimal round large>Help</Tag>{help}</Tooltip>;
