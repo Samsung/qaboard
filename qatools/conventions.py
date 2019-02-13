@@ -48,7 +48,7 @@ def serialize_config(configurations):
   configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
   configuration = ":".join(configurations)
   # print("[serialize] after: ", configuration)
-  return slugify(configurations)
+  return slugify(configuration)
 
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
