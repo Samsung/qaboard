@@ -173,7 +173,7 @@ ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_
 
 # Make the git metadata easily accessible
 try:
-    repo = git.Repo(str(root_qatools))
+    repo = git.Repo(os.environ.get('QATOOLS_REPO', str(root_qatools)))
     commit = repo.head.commit
 except:
     repo = None

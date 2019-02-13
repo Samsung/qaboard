@@ -438,6 +438,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
     wait = Job(name, 'echo "Finished batch."')
     wait.send(interactive=True, dependencies=waiting_job)
+    time.sleep(1)#s
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
       is_failed = False
@@ -478,11 +479,11 @@ def save_artifacts():
   config['artifacts']['qatools'] = {"glob": 'qatools/*'}
   # we also allow sub-qatools-projects
   config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
-  config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools') for p in qatools_config_paths]}
+  config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   if not repo:
       click.secho(
-          "You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.",
+          "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
           fg='yellow', dim=True)
       exit(1)
 
@@ -494,6 +495,7 @@ def save_artifacts():
       globs = [globs]
 
     for g in globs:
+      if not g: continue
       for path in Path('.').glob(g):
         if not path.is_file():
           continue
