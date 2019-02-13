@@ -213,7 +213,7 @@ const ParallelTuningPlot = ({
          .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
          .map( metric => {
             return {
-             label: metric.label,
+             label: metric.short_label,
              values: values(metric)(metrics_aggregated_by_params),
              // range: [1, 5],
              // constraintrange: [1, 2],
@@ -263,7 +263,7 @@ const ParallelTuningPlot = ({
   }]
   // console.log(traces)
   let layout = {
-    width: 500+100*parameters.length,
+    width: 80*metrics.length + 80*parameters.length,
     autosize: false,
   }
   return <Plot layout={layout} data={traces} config={config} />;
