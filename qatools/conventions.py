@@ -38,7 +38,7 @@ def deserialize_config(configuration):
       except:
         pass
   # print("[deserialize] after: ", configurations)
-  return slugify(configurations)
+  return configurations
 
 
 def serialize_config(configurations):
@@ -48,7 +48,7 @@ def serialize_config(configurations):
   configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
   configuration = ":".join(configurations)
   # print("[serialize] after: ", configuration)
-  return configuration
+  return slugify(configurations)
 
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
