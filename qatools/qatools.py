@@ -570,7 +570,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
         prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
         input_path = input_path_abs.relative_to(ctx.obj['database'])
         output_directory = prefix_output_dir / input_path.with_suffix('')
-        output_directories.append(output_directory)
+        output_directories.append(subproject / output_directory)
 
     bit_accuracies = [is_bit_accurate(commit_dir, reference_commit, output_directories) for reference_commit in reference_commits]
     assert all(bit_accuracies), "ERRROR: the bit-accuracy test has failed"

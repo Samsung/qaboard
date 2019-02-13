@@ -36,10 +36,10 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
       if file_2.is_file():
         try:
           is_same = filecmp.cmp(str(file_1), str(file_2))
+          if not is_same:
+            mismatch.append(rel_path)
         except:
           errors.append(rel_path)
-        if not is_same:
-          mismatch.append(rel_path)
         else:
           match.append(rel_path)
       else:
@@ -65,6 +65,7 @@ def is_bit_accurate(commit_dir, reference_commit, output_directories):
     patterns = [*config["bit_accuracy"]["patterns"], 'manifest.inputs.json']
 
     comparaisons = {'match': [], 'mismatch': [], 'errors': []}
+    print(output_directories)
     for output_directory in output_directories:
       comparaison = cmpfiles(
         dir_1=reference_rootproject_ci_dir / output_directory,
