@@ -7,9 +7,7 @@ import {
   UPDATE_BRANCHES,
   FETCH_COMMITS,
   UPDATE_COMMITS,
-
-  // UPDATE_TUNING_FORM,
-  // UPDATE_CONFIGURATIONS,
+  UPDATE_FAVORITE,
 } from "./constants";
 
 
@@ -85,3 +83,10 @@ export const fetchCommits = (project, branch, date_range, aggregation_metrics, e
       });
   }  
 }
+
+
+export const updateFavorite = (project, is_favorite) => ({
+  type: UPDATE_FAVORITE,
+  project,
+  is_favorite,
+})

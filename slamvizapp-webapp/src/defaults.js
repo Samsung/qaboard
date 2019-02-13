@@ -26,6 +26,9 @@ export const default_qatools_config = {
 	project: {
 		reference_branch: 'develop',
 	},
+	lsf: {
+		user: 'ispq',
+	},
 	ci_root: {
 		linux: '/home/arthurf/ci',
 	},
@@ -72,7 +75,7 @@ export const default_selected = () => {
 		filter_batch_ref: params.get("filter_ref") || "",
 
 		selected_tab_summary: params.get("selected_tab_summary") || "metrics",
-		selected_tab_details: params.get("selected_tab_details") || "output-table-compare",
+		selected_tab_details: params.get("selected_tab_details"), // || "table-compare",
 	}
 }
 
