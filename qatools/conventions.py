@@ -38,7 +38,7 @@ def deserialize_config(configuration):
       except:
         pass
   # print("[deserialize] after: ", configurations)
-  return configurations
+  return slugify(configurations)
 
 
 def serialize_config(configurations):
