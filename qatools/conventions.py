@@ -48,7 +48,7 @@ def serialize_config(configurations):
   configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
   configuration = ":".join(configurations)
   # print("[serialize] after: ", configuration)
-  return slugify(configuration)
+  return configuration
 
 
 def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
@@ -101,7 +101,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
   return (
     batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
     platform /
-    configuration.replace("/", '.') /
+    slugify(configuration) /
     tuning_foldername(batch_label, hash_parameters(tuning))
   )
 
