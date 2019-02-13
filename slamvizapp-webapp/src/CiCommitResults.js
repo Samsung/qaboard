@@ -39,9 +39,9 @@ import { updateSelected } from "./actions/selected";
 import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
 import { TuningExploration } from "./components/tuning/TuningExploration";
 import { SelectBatches } from "./components/tuning/SelectBatches";
+import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 
 // import { getBatches } from './selectors/batches'
-
 
 import {
   default_project,
@@ -56,69 +56,27 @@ class CiCommitResults extends Component {
     super(props);
     // we initialize optionnal controls with their defaults
     this.state = {
-      controls: this.controls_defaults(props),
+      controls: controls_defaults(props),
     };
-  }
-
-  controls_defaults = (props) => {
-    let state_controls = {
-      show: {},
-    };
-    if (!!props.project_data &&
-        !!props.project_data.information &&
-        !!props.project_data.information.qatools_config &&
-        !!props.project_data.information.qatools_config.outputs) {
-      let controls = props.project_data.information.qatools_config.outputs.controls || [];
-      controls.forEach(control => {
-        state_controls[control.name] = control.default;
-      })
-      let detailed_views = props.project_data.information.qatools_config.outputs.detailed_views || []
-      detailed_views.forEach( (view, idx) => {
-        if (view.default_hidden) 
-        state_controls.show[view.name] = false;          
-      })
-    }
-
-    let query = qs.parse(window.location.search.substring(1));
-    if (!!query.controls) {
-      let query_controls = JSON.parse(query.controls)
-      Object.entries(query_controls).forEach( ([key, value]) => {
-        state_controls[key] = value;
-      })
-    }
-    return state_controls;
-  }
-
-  updateQueryUrlWithControls() {
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        controls: JSON.stringify(this.state.controls),
-      })
-    });
   }
 
   toggle = name => () => {
-    this.setState( (previousState, props) => ({
-      controls: {
-        ...previousState.controls,
-        [name]: !this.state.controls[name],
-      }
-    }), this.updateQueryUrlWithControls)  
+    const controls = {
+      ...this.state.controls,
+      [name]: !this.state.controls[name],      
+    }
+    this.setState({controls}, updateQueryUrl(this.props.history, controls));
   }
 
   toggle_show = name => () => {
-    this.setState( (previousState, props) => ({
-      controls: {
-        ...previousState.controls,
+    const controls = {
+        ...this.state.controls,
         show: {
-          ...previousState.controls.show,          
+          ...this.state.controls.show,          
           [name]: !this.state.controls.show[name],
         }
-      }
-    }), this.updateQueryUrlWithControls)    
+    }
+    this.setState({controls}, updateQueryUrl(this.props.history, controls));
   }
 
 
@@ -318,6 +276,7 @@ class CiCommitResults extends Component {
       />
     );
 
+    
     let controls_extra = project_data.information.qatools_config.outputs.controls || []
     let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
     let controls = <>
@@ -516,7 +475,7 @@ class CiCommitResults extends Component {
                   selectedTabId={nb_outputs_new > 0 ? this.props.selected_tab_details : "logs"}
                 >
                   <Tab
-                    id="output-table-compare"
+                    id="table-compare"
                     title="Improvement"
                     disabled={nb_outputs_new===0}
                     panel={
@@ -534,7 +493,7 @@ class CiCommitResults extends Component {
                     }
                   />
                   <Tab
-                    id="output-table-kpi"
+                    id="table-kpi"
                     title="KPI report"
                     disabled={nb_outputs_new===0}
                     panel={
@@ -578,7 +537,7 @@ class CiCommitResults extends Component {
                     }
                   />
                   <Tab
-                    id="bit-accuracy-list"
+                    id="bit-accuracy"
                     title="Bit accuracy"
                     disabled={nb_outputs_new===0}
                     panel={
@@ -777,7 +736,7 @@ const mapStateToProps = (state, ownProps) => {
     let selected_metrics = (state.selected[project] && state.selected[project].selected_metrics) || project_metrics.main_metrics.map(k => available_metrics[k])
 
     let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "metrics";
-    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || "output-table-compare";
+    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || project_data.information.qatools_config.outputs.default_tab_details || 'table-compare';
 
     // sometimes handy to debug slow viewers..
     // project_data.information.qatools_config.outputs.detailed_views.forEach(o => {o.default_hidden=true});

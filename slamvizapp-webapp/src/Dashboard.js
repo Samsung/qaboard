@@ -21,7 +21,7 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 
-import { CommitsEvolution } from "./CommitsEvolution";
+import CommitsEvolution from "./CommitsEvolution";
 import { Container, Section } from "./components/layout";
 import { noMetrics } from "./components/metricSelect";
 import { MetricsSummary } from "./components/metrics";
@@ -365,7 +365,7 @@ class Dashboard extends React.Component {
               selectedTabId={this.state.selectedTabId}
             >
               <Tab
-                id="output-table-kpi"
+                id="table-kpi"
                 title="vs KPI"
                 panel={
                   <TableKpi
@@ -383,7 +383,7 @@ class Dashboard extends React.Component {
               />
               {has_android && (
                 <Tab
-                  id="output-table-compare"
+                  id="table-compare"
                   title="Android vs LSF"
                   panel={
                     <TableCompare
@@ -453,7 +453,7 @@ const mapStateToProps = (state, ownProps) => {
       // selection
       branch,
       date_range: commits_data.date_range || default_date_range,
-      commits: commits_data.ids.map(id=>state.commits[id]),
+      commits: commits_data.ids.map(id=>state.commits[id]).filter(c => !!c),
       // state
       error: commits_data.error,
       is_loaded: commits_data.is_loaded,
