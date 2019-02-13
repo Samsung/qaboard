@@ -439,9 +439,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     wait = Job(name, 'echo "Finished batch."')
     wait.send(interactive=True, dependencies=waiting_job)
     time.sleep(1)#s
+    is_failed = False
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
-      is_failed = False
       if not metrics_file.exists():
         click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='red')
         is_failed = True
