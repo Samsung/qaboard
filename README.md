@@ -15,8 +15,8 @@ pip install --upgrade git+http://gitlab-srv/common-infrastructure/qatools
 
 
 # If you want to develop on qatools
-git clone  git@gitlab-srv:cde/cde-python.git
-cd cde-python
+git clone  git@gitlab-srv:common-infrastructure/qatools
+cd qatools
 pip install --editable .
 ```
 
