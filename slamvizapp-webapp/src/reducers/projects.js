@@ -5,6 +5,7 @@ import {
   UPDATE_BRANCHES,
   FETCH_COMMITS,
   UPDATE_COMMITS,
+  UPDATE_FAVORITE,
 } from '../actions/constants'
 import { default_project_id, default_project } from "../defaults"
 
@@ -78,6 +79,19 @@ export function projects(state = {
           new Date(action.commits[0].authored_datetime)
         ]
       return new_state;
+
+
+    case UPDATE_FAVORITE:
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          [action.project]: {
+              ...state.data[action.project],
+              is_favorite: action.is_favorite,
+            }
+          }
+        }
 
     case FETCH_COMMITS:
       branch = branch_key(action.branch);
