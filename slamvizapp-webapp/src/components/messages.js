@@ -18,22 +18,23 @@ const CommitsWarningMessages = ({commits}) => {
       description="Please first select a commit."
       icon="folder-open"
     />;
+  return <span></span>
 
-  let commits_ = Object.values(commits);
+  // let commits_ = Object.values(commits);
 	// let some_loading = commits_.some( commit => commit===null || commit===undefined || !commit.is_loaded);
-	let commits_with_errors = commits_.filter(commit => !!commit && commit.error);
-	let errors_messages = <span>
-		{commits_with_errors.map( commit =><span key={commit}><strong>{commit.id}:</strong> {commit.error}</span>)}
-	</span>;
+	// let commits_with_errors = commits_.filter(commit => !!commit && commit.error);
+	// let errors_messages = <span>
+	// 	{commits_with_errors.map( commit =><span key={commit}><strong>{commit.id}:</strong> {commit.error}</span>)}
+	// </span>;
 
     // {some_loading && <NonIdealState title="Loading" icon={<Spinner />} />}
-	return <Fragment>
-	  {commits_with_errors.length>0 && <NonIdealState
-      title="Network Error"
-      description={errors_messages}
-      icon="error"
-    />}
-	</Fragment>
+	// return <Fragment>
+	//   {commits_with_errors.length>0 && <NonIdealState
+ //      title="Network Error"
+ //      description={errors_messages}
+ //      icon="error"
+ //    />}
+	// </Fragment>
 }
 
 

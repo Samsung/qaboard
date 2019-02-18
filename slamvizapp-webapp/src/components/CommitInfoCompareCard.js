@@ -10,7 +10,8 @@ import {
   Button,
   Icon,
   Intent,
-  EditableText
+  EditableText,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { CommitAvatar } from "./avatars";
@@ -59,12 +60,6 @@ class BatchTags extends React.PureComponent {
 }
 
 
-// class CommitInfo extends React.PureComponent {
-//   render() {
-//     const { commit, align_right } = this.props;
-//     return <div/>
-//   }
-// }
 
 class CommitParents extends React.PureComponent {
   render() {
@@ -143,7 +138,13 @@ class CommitInfoCompareCard extends React.PureComponent {
           <div style={{ flex: "1 1 auto", minWidth: "450px" }}>
             <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "baseline" }}>
               <CommitAvatar style={{'marginRight': '10px'}} commit={new_commit} />
-              {(!!new_commit && !!new_commit.id) ? shortId(project, new_commit.id) : empty_commit_id}
+              {!!new_commit && !!new_commit.id &&
+              <EditableText
+                onConfirm={this.handleSubmitNew}
+                defaultValue={shortId(project, new_commit.id)}
+              />}
+              {(!new_commit || !new_commit.id) && <span className={Classes.SKELETON}>XXXXXXXX</span>}
+              {!!new_commit && !!new_commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{marginRight: '8px'}}>Error</Tag><span>{new_commit.error}</span></Tooltip>}
             </h1>
             <CommitBranchButton commit={new_commit} onClick={this.handleSubmitBranch}/>
             <CommitParents commit={new_commit} project={project} onClick={this.handleSubmitReference} />
@@ -166,6 +167,7 @@ class CommitInfoCompareCard extends React.PureComponent {
           </div>
           <div style={{ flex: "1 1 auto" }}>
             <h1 className={Classes.HEADING} style={{ display: "flex", justifyContent: "flex-end", alignItems: "baseline"}}>
+              {!!ref_commit && !!ref_commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{marginRight: '8px'}}>Error</Tag><span>{ref_commit.error}</span></Tooltip>}
               {!!ref_commit && !!ref_commit.id &&
               <EditableText
                 style={right_commit_id_style}
@@ -196,42 +198,33 @@ class CommitInfoCompareCard extends React.PureComponent {
     );
   }
 
-  handleSubmitReference = new_ref_commit_id => {
+  handleSubmitNew = id => {
     const { project, dispatch } = this.props;
-    if (!this.props.selected[project] || !this.props.selected[project].ref_commit_id)
+    if (!this.props.selected[project] || !this.props.selected[project].new_commit_id)
       return
-    const ref_commit_id = this.props.selected[project].ref_commit_id;
-    if (!ref_commit_id.startsWith(new_ref_commit_id)) {
-      dispatch(fetchCommit(project, new_ref_commit_id, "ref_commit_id"));
-      dispatch(updateSelected(project, { ref_commit_id: new_ref_commit_id }))
-
-      // let query = qs.parse(window.location.search.substring(1));
-      // this.props.history.push({
-      //   pathname: window.location.pathname,
-      //   search: qs.stringify({
-      //     ...query,
-      //     reference: ref_commit_id
-      //   })
-      // });
-
+    const { new_commit_id } = this.props.selected[project];
+    if (!new_commit_id.startsWith(id)) {
+      dispatch(fetchCommit(project, id, "new_commit_id"));
+      dispatch(updateSelected(project, { new_commit_id: id }))
     }
   };
 
+  handleSubmitReference = id => {
+    const { project, dispatch } = this.props;
+    if (!this.props.selected[project] || !this.props.selected[project].ref_commit_id)
+      return
+    const { ref_commit_id } = this.props.selected[project];
+    if (!ref_commit_id.startsWith(id)) {
+      dispatch(fetchCommit(project, id, "ref_commit_id"));
+      dispatch(updateSelected(project, { ref_commit_id: id }))
+    }
+  };
+
+
   handleSubmitBranch = branch => {
-    console.log(branch);
     const { project, dispatch } = this.props;
     dispatch(fetchCommit(project, null, "ref_commit_id", branch));
     dispatch(updateSelected(project, { ref_commit_id: branch }))
-
-    // let query = qs.parse(window.location.search.substring(1));
-    // this.props.history.push({
-    //   pathname: window.location.pathname,
-    //   search: qs.stringify({
-    //     ...query,
-    //     reference: `origin/${branch}`
-    //   })
-    // });
-
   };
 
 }
