@@ -3,7 +3,7 @@ import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../../components/layout";
-import { groupBy, input_test_color, median, average } from "../../utils";
+import { groupBy, hash_color, median, average } from "../../utils";
 
 const config = {};
 
@@ -29,7 +29,7 @@ const Sensibility1DLines = ({
           (a, b) =>
             a.extra_parameters[parameter] - b.extra_parameters[parameter]
         );
-      let color = input_test_color(test_input_path);
+      let color = hash_color(test_input_path);
       let line = {
         width: 1,
         color,
