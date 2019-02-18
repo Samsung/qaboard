@@ -328,7 +328,7 @@ class CiCommitResults extends Component {
           />
         </Section>
 
-        {(!new_commit) && <Section>
+        {(!new_commit || !ref_commit) && <Section>
           {warning_messages}
         </Section>}
 
@@ -613,11 +613,12 @@ class OutputList extends Component {
     return (
       <>
         {type === 'bit_accuracy' && 
-          <Callout style={{marginBottom: '20px'}}>
+          <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
             <FormGroup
               inline
               labelFor="show-all-files"
               helperText="By default the only files shown are those that are different/added/removed."
+              style={{flex: '50 1 auto'}}
             >
               <Switch
                 label="Show all files"
@@ -626,7 +627,7 @@ class OutputList extends Component {
                 style={{ width: "300px" }}
               />
             </FormGroup>
-            <p>{bit_accuracy_help}</p>
+            <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
           </Callout>
         }
         {controls.show_debug && (
