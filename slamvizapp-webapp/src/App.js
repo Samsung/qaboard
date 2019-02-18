@@ -47,8 +47,7 @@ class App extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    this.setState({error, info})
-    // You can also log the error to an error reporting service
+    this.setState({error: JSON.stringify(error), info})
     console.log(error, info);
   }
 
