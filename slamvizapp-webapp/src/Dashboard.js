@@ -16,7 +16,8 @@ import {
   Colors,
   FormGroup,
   InputGroup,
-  HTMLSelect
+  HTMLSelect,
+  Tooltip,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
@@ -243,7 +244,7 @@ class Dashboard extends React.Component {
     return (
       <Container>
         <Section>
-          <h1 className={Classes.HEADING}>Dashboard</h1>
+          <h1 className={Classes.HEADING}>Dashboard @<Tooltip><span>{this.props.branch.name}</span><span>To view a different branch, append <code>&branch=your_branch</code> to the URL.</span></Tooltip></h1>
           <DateRangeInput
             value={effective_date_range}
             maxDate={new Date()}
