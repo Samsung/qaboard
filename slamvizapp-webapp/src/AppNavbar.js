@@ -86,7 +86,6 @@ class AppNavbar extends Component {
                 onItemSelect={this.handleBranchChange}
                 popoverProps={Classes.MINIMAL}
                 placeholder="View branch..."
-                initialContent="View branch..."
                 onQueryChange={this.maybeFetchBranches}
               />
               <NavbarDivider />
