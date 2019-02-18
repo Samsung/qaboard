@@ -166,8 +166,8 @@ const plotly_palette_colors = [
 ]
 const plotly_palette = idx => plotly_palette_colors[idx % plotly_palette_colors.length]
 
-const input_test_color = (path, label) => {
-  let hash = md5.array(path);
+const hash_color = str => {
+  let hash = md5.array(str);
   let hash_numeric = hash.reduce(
     (accumulator, current, current_idx, array) =>
       accumulator + (current >> 7) / Math.pow(2, current_idx + 1),
@@ -177,6 +177,8 @@ const input_test_color = (path, label) => {
   let color = interpolateRainbow(hash_numeric * correction);
   return color;
 };
+
+
 
 export {
   average,
@@ -188,6 +190,6 @@ export {
   shortId,
   sortOutputs,
   filter_batch,
-  input_test_color,
+  hash_color,
   plotly_palette
 };
