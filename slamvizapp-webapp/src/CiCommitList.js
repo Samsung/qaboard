@@ -18,7 +18,7 @@ import { DateRangeInput } from "@blueprintjs/datetime";
 
 import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
-import { CommitsEvolution } from "./CommitsEvolution";
+import CommitsEvolution from "./CommitsEvolution";
 import { groupBy, calendarStrings } from "./utils";
 
 import { fetchCommits } from './actions/projects'
@@ -170,8 +170,8 @@ class CiCommitList extends React.Component {
 
     var effective_date_range = date_range;
     if (some_commits_loaded){
-      let first_commit_date = commits[commits.length - 1].authored_datetime
-      let last_commit_date = commits[0].authored_datetime
+      let first_commit_date = commits[commits.length - 1].authored_datetime || date_range[0]
+      let last_commit_date = commits[0].authored_datetime  || date_range[1]
       effective_date_range = [
         (!!first_commit_date ? new Date(first_commit_date) : null),
         (!!first_commit_date ? new Date(last_commit_date) : null)
