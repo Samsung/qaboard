@@ -9,6 +9,9 @@ import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, u
 
 // Turns a flat file manifest into a proper tree
 const to_tree = filepaths => {
+  if (filepaths === undefined || filepaths === null)
+    return []
+
   var tree = []
   Object.entries(filepaths).forEach( ([filepath, meta]) => {    
     let parts = filepath.split('/')
@@ -113,45 +116,21 @@ const applyStyle = node => {
 }
 
 
-const compareTrees = (tree_new, tree_ref, options) => {
-  if (tree_new === null || tree_new === undefined)
-    return []
-  // make a deep copy
-  var tree_compared = JSON.parse(JSON.stringify(tree_new))
-  // find the nodes that are missing in the reference tree
-  visitDepthFirst(tree_compared, updateMissingFrom(tree_ref, 'reference'))
-  // find match / mismatches
-  visitDepthFirst(tree_compared, updateMatch(tree_ref))
-
-  visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
-  visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
-
-  if (!options.show_all_files)
-    tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
-
-  // sort by alphebetical order
-  forEachNode(tree_compared, sortChildren)
-  // the root is a "chilNodes" array, not a real root...
-  tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
-
-  forEachNode(tree_compared, applyStyle)
-
-  return tree_compared;
-}
-
-
-
 
 class BitAccuracyViewer extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
+      cancel_source: {
+        new: CancelToken.source(),
+        reference: CancelToken.source(),
+      },
       is_loaded: false,
-      error: null,
-      cancel_source: CancelToken.source(),
+      error: {},
       manifests: {},
       tree: {},
       selected: [],
+      opened: [],
     }
   }
 
@@ -159,10 +138,11 @@ class BitAccuracyViewer extends React.Component {
   render() {
     const { tree, is_loaded, error, selected } = this.state;
     if (!is_loaded) return <span></span>;
-    if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const { output_new, output_ref, type, ...props } = this.props;
     return <div>
+      {error.new && <Tooltip><Tag style={{marginRight: '5px'}} intent={Intent.WARNING}>Missing data @new</Tag><span>{JSON.stringify(error.new)}</span></Tooltip>}
+      {error.reference && <Tooltip><Tag intent={Intent.WARNING}>Missing data @reference</Tag><span>{JSON.stringify(error.reference)}</span></Tooltip>}
       {tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
       <Tree
        contents={tree.mixed}
@@ -174,6 +154,7 @@ class BitAccuracyViewer extends React.Component {
         <OutputViewer
             key={filename}
             path={filename}
+            hash={getNodeById(tree.mixed, filename) && getNodeById(tree.mixed, filename).nodeData.md5}
             always_show_diff max_lines={50}
             output_new={output_new}
             output_ref={(this.props.controls.show_reference === undefined || this.props.controls.show_reference) ? output_ref : undefined}
@@ -184,6 +165,34 @@ class BitAccuracyViewer extends React.Component {
     </div>
   }
 
+
+  mergeTrees = (tree_new, tree_ref) => {
+    if (tree_new === null || tree_new === undefined)
+      return []
+
+    // make a deep copy
+    var tree_compared = JSON.parse(JSON.stringify(tree_new))
+    // find the nodes that are missing in the reference tree
+    visitDepthFirst(tree_compared, updateMissingFrom(tree_ref, 'reference'))
+    // find match / mismatches
+    visitDepthFirst(tree_compared, updateMatch(tree_ref))
+
+    visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
+    visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
+
+    if (!this.props.show_all_files)
+      tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
+
+    // sort by alphebetical order
+    forEachNode(tree_compared, sortChildren)
+    // the root is a "chilNodes" array, not a real root...
+    tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
+
+    forEachNode(tree_compared, applyStyle)
+    forEachNode(tree_compared, node => {if (this.state.opened.includes(node.id)) {node.isExpanded = true}} )
+
+    return tree_compared;
+  }
 
 
   handleNodeClick = (node, _nodePath: number[], e: React.MouseEvent<HTMLElement>) => {
@@ -208,16 +217,18 @@ class BitAccuracyViewer extends React.Component {
 
   handleNodeCollapse = node => {
     node.isExpanded = false;
-    const { props , icon:_} = node.icon
+    const { props , icon: _ } = node.icon
     node.icon = <Icon {...props} icon='folder-close'/>
-    this.setState(this.state);
+    const opened = this.state.opened.filter(filename => filename !== node.id)
+    this.setState({opened});
   };
 
   handleNodeExpand = node => {
     node.isExpanded = true;
-    const { props , icon} = node.icon
+    const { props , icon: _ } = node.icon
     node.icon = <Icon {...props} icon='folder-open'/>
-    this.setState(this.state);
+    const opened = [...this.state.opened, node.id]
+    this.setState({opened});
   };
 
 
@@ -228,8 +239,10 @@ class BitAccuracyViewer extends React.Component {
   }
 
   componentWillUnmount() {
-    if (!!this.state.cancel_source)
-      this.state.cancel_source.cancel();
+    ["new", "reference"].forEach(label => {
+      if (!!this.state.cancel_source[label])
+        this.state.cancel_source[label].cancel();      
+    })
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -238,16 +251,20 @@ class BitAccuracyViewer extends React.Component {
       let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
       let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
       if (updated_new) {
+        if (!!this.state.cancel_source.new)
+          this.state.cancel_source.new.cancel();
         this.fetchData(this.props, 'new');
       }
       if (updated_ref) {
+        if (!!this.state.cancel_source.reference)
+          this.state.cancel_source.reference.cancel();
         this.fetchData(this.props, 'reference');
       }
       if (prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new)
         this.setState({
           tree: {
             ...this.state.tree,
-            mixed: compareTrees(this.state.tree.new, this.state.tree.reference, {show_all_files: this.props.show_all_files}),
+            mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference),
           }
         })
   }
@@ -256,6 +273,7 @@ class BitAccuracyViewer extends React.Component {
   fetchData(props, label) {
     const { output_new, output_ref } = props;
     if (!output_new.output_dir_url) return;
+    this.setState({is_loaded: false})
 
     let results = [];
     const should_get_all = label === undefined || label === null;
@@ -267,7 +285,7 @@ class BitAccuracyViewer extends React.Component {
         results.push(['reference', `${output_ref.output_dir_url}/manifest.outputs.json`])
     }
 
-    const load_data = label => response => {
+    const load_data = label => (response, error) => {
       this.setState((previous_state, props) => ({
         manifests: {
           ...previous_state.manifests,
@@ -277,6 +295,10 @@ class BitAccuracyViewer extends React.Component {
           ...previous_state.tree,
           [label]: to_tree(response.data),
         },
+        error: {
+          ...previous_state.error,
+          [label]: error,
+        }
       }))
     }
 
@@ -284,9 +306,10 @@ class BitAccuracyViewer extends React.Component {
       return () =>  get(url, {cancelToken: this.state.cancel_source.token})
                     .then(load_data(label))
                     .catch(response => {
-                      // we don't really care about errors for reference / groundtruth outputs
-                      if (label==='new' && !!response)
-                        this.setState({error: response.data})
+                     load_data(label)(
+                        {load_data  : {}},
+                        response,
+                      )
                     });
     }).map(f=>f()) )
     // now we loaded and parsed all the data
@@ -296,7 +319,7 @@ class BitAccuracyViewer extends React.Component {
         is_loaded: true,
         tree: {
           ...this.state.tree,
-          mixed: compareTrees(this.state.tree.new, this.state.tree.reference, {show_all_files: this.props.show_all_files})
+          mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference)
         }
       })
     })
