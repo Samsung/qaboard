@@ -180,8 +180,14 @@ class BitAccuracyViewer extends React.Component {
     visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
     visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
 
-    if (!this.props.show_all_files)
+    if (!this.props.show_all_files) {
       tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
+      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
+      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+      const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
+      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new) === hash_metrics(this.props.output_new))
+        tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
+    }
 
     // sort by alphebetical order
     forEachNode(tree_compared, sortChildren)
