@@ -1,10 +1,12 @@
 import React, { Component, Fragment } from "react";
-import Plot from 'react-plotly.js';
+import { withRouter } from "react-router";
 
-import { Classes, HTMLSelect, Tag, Colors, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import Plot from 'react-plotly.js';
+import { Classes, HTMLSelect, Tag, Colors, Intent, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 import { OutputCard } from "./viewers/OutputCard";
-import { input_test_color, matching_output, average, median } from "./utils";
+import { controls_defaults, updateQueryUrl } from "./viewers/controls";
+import { hash_color, matching_output, average, median } from "./utils";
 
 import CommitRow from "./components/CommitRow";
 
@@ -353,14 +355,32 @@ class CommitsEvolutionPerTest extends React.Component {
       hovered_test_configuration: "",
       hovered_label: null,
       hovered_commit: null,
-      hovered_commit_ref: null
+      hovered_commit_ref: null,
+
+      controls: controls_defaults(props),
     };
   }
 
+  toggle = name => () => {
+    const controls = {
+      ...this.state.controls,
+      [name]: !this.state.controls[name],      
+    }
+    this.setState({controls}, updateQueryUrl(this.props.history, controls));
+  }
+
+  toggle_show = name => () => {
+    const controls = {
+        ...this.state.controls,
+        show: {
+          ...this.state.controls.show,          
+          [name]: !this.state.controls.show[name],
+        }
+    }
+    this.setState({controls}, updateQueryUrl(this.props.history, controls));
+  }
   onHover = e => {
-    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[
-      e.points[0].curveNumber
-    ];
+    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[e.points[0].curveNumber];
     let point_number = e.points[0].pointNumber;
     // console.log(point_number)
     // console.log("new", commits[point_number])
@@ -387,6 +407,12 @@ class CommitsEvolutionPerTest extends React.Component {
       prevProps.output_filter !== this.props.output_filter
     )
       this.updateTraces(this.props);
+
+    const new_controls = ((((this.props.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
+    const old_controls = ((((prevProps.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
+    if (old_controls !== new_controls) {
+      this.setState({controls: controls_defaults(this.props)});
+    }
   }
 
   updateTraces(props) {
@@ -449,7 +475,7 @@ class CommitsEvolutionPerTest extends React.Component {
             const y0 = values[values.length - 1];
             const y = relative ? values.map(v => 100 * v / y0) : values;
 
-            let color = input_test_color(test_input_path, label);
+            let color = hash_color(test_input_path, label);
             let trace = {
               name: `${test_input_path} @${configuration}`,
               type: "scatter",
@@ -496,9 +522,9 @@ class CommitsEvolutionPerTest extends React.Component {
       metrics,
       available_metrics,
       relative,
-      details_on_hover,
       project,
       project_data,
+      show_bit_accuracy,
     } = this.props;
     const {
       revision,
@@ -542,7 +568,6 @@ class CommitsEvolutionPerTest extends React.Component {
         hovered_commit.batches[hovered_label].outputs
       ).filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
       if (
-        details_on_hover &&
         !!hovered_commit_ref &&
         !!hovered_commit_ref.batches[hovered_label]
       ) {
@@ -552,12 +577,40 @@ class CommitsEvolutionPerTest extends React.Component {
         });
       }
 
+
+      let controls_extra = project_data.information.qatools_config.outputs.controls || []
+      let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
+      let controls = <>
+        {detailed_views.map( (view, idx) => {
+          if (!view.default_hidden ||
+              this.state.controls.show === undefined || this.state.controls.show === null ||
+              this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
+            return <React.Fragment key={idx}></React.Fragment>
+          return <Switch
+                  style={{marginRight: "8px"}}
+                  key={idx}
+                  checked={this.state.controls.show[view.name]}
+                  onChange={this.toggle_show(view.name)}
+                  label={view.label || view.name || view.path}
+                 />
+        })}
+        {controls_extra.map(control => {
+          return <Switch
+                  style={{marginRight: "8px"}}
+                  key={control.name}
+                  checked={this.state.controls[control.name]}
+                  onChange={this.toggle(control.name)}
+                  label={control.label || control.name}
+                 />
+        })}
+      </>
+
       var legend = (
         <div
           style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}
         >
           <Tag
-            style={{ background: input_test_color(hovered_test_input_path) }}
+            style={{ background: hash_color(hovered_test_input_path) }}
           >
             {hovered_test_input_path} @{hovered_test_configuration}
           </Tag>
@@ -569,19 +622,28 @@ class CommitsEvolutionPerTest extends React.Component {
             project={this.props.project}
             project_data={project_data}
             toaster={toaster}
+            tag={<Tag style={{marginRight: '8px'}} intent={Intent.WARNING}>New</Tag>}
           />
-          {details_on_hover && (
-            <OutputCard
-              project={project}
-              project_data={project_data}
-              output_new={hovered_output}
-              output_ref={output_ref}
-              warning={warning}
-              style={{ width: '1180px', height: '300px' }}
-              no_header={true}
-              dispatch={this.props.dispatch}
-            />
-          )}
+          {!!hovered_commit_ref && <div><CommitRow
+                      commit={hovered_commit_ref}
+                      project={this.props.project}
+                      project_data={project_data}
+                      toaster={toaster}
+                      tag={<Tag style={{marginRight: '8px'}} intent={Intent.PRIMARY}>Reference</Tag>}
+          /></div>}
+          <div style={{display: 'flex', flex: '0 0 auto'}}>{controls}</div>
+          <OutputCard
+            project={project}
+            project_data={project_data}
+            output_new={hovered_output}
+            output_ref={output_ref}
+            warning={warning}
+            style={{ width: '1180px', height: '300px' }}
+            no_header={true}
+            dispatch={this.props.dispatch}
+            type={show_bit_accuracy ? 'bit_accuracy' : undefined}
+            controls={this.state.controls}
+          />
         </div>
       );
     } else {
@@ -617,16 +679,16 @@ class CommitsEvolution extends Component {
       selected_aggregation: "median",
       output_filter: "",
       relative: true,
-      details_on_hover: true,
+      show_bit_accuracy: false,
     };
   }
 
-  selectMetric = e => {
-    this.setState({ selected_metric: e.target.value });
-  };
-  selectAggregation = e => {
-    this.setState({ selected_aggregation: e.target.value });
-  };
+  update = name => e => {
+    this.setState({ [name]: e.target.value });    
+  }
+  toggle = name => e => {
+    this.setState({ [name]: !this.state.name });
+  }
 
   render() {
     const { project, project_data, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
@@ -636,7 +698,7 @@ class CommitsEvolution extends Component {
       breakdown_per_test,
       output_filter,
       relative,
-      details_on_hover
+      show_bit_accuracy
     } = this.state;
     const { select_metrics } = this.state;
 
@@ -651,7 +713,7 @@ class CommitsEvolution extends Component {
           <HTMLSelect
             id="select-metric"
             defaultValue={default_metric}
-            onChange={this.selectMetric}
+            onChange={this.update("selected_metric")}
             minimal
           >
             {select_metrics.map(m => (
@@ -663,16 +725,12 @@ class CommitsEvolution extends Component {
           {!breakdown_per_test && (
             <HTMLSelect
               id="select-aggregation"
-              defaultValue={selected_metric}
-              onChange={this.selectAggregation}
+              defaultValue={selected_aggregation}
+              onChange={this.update("selected_aggregation")}
               minimal
             >
-              <option key="median" value="median">
-                median
-              </option>
-              <option key="average" value="average">
-                average
-              </option>
+              <option key="median" value="median">median</option>
+              <option key="average" value="average">average</option>
             </HTMLSelect>
           )}
           {offer_breakdown_per_test && (
@@ -680,9 +738,7 @@ class CommitsEvolution extends Component {
               inline
               label="Breakdown per test"
               defaultChecked={breakdown_per_test}
-              onChange={e => {
-                this.setState({ breakdown_per_test: !breakdown_per_test });
-              }}
+              onChange={this.toggle("breakdown_per_test")}
             />
           )}
           {offer_breakdown_per_test &&
@@ -691,18 +747,14 @@ class CommitsEvolution extends Component {
                 <Switch
                   inline
                   label="Relative"
-                  defaultChecked={relative}
-                  onChange={e => {
-                    this.setState({ relative: !relative });
-                  }}
+                  checked={relative}
+                  onChange={this.toggle("relative")}
                 />
                 <Switch
                   inline
-                  label="Show details"
-                  defaultChecked={details_on_hover}
-                  onChange={e => {
-                    this.setState({ details_on_hover: !details_on_hover });
-                  }}
+                  label="Show bit-accuracy"
+                  checked={show_bit_accuracy}
+                  onChange={this.toggle("show_bit_accuracy")}
                 />
               </Fragment>
             )}
@@ -711,9 +763,7 @@ class CommitsEvolution extends Component {
                 <InputGroup
                   value={output_filter}
                   placeholder="filter by input path, tag, configuration..."
-                  onChange={e =>
-                    this.setState({ output_filter: e.target.value })
-                  }
+                  onChange={this.update("output_filter")}
                   type="search"
                   leftIcon="search"
                 />
@@ -727,9 +777,10 @@ class CommitsEvolution extends Component {
             metrics={[selected_metric]}
             output_filter={output_filter}
             relative={this.state.relative}
-            details_on_hover={details_on_hover}
+            show_bit_accuracy={show_bit_accuracy}
             available_metrics={available_metrics}
             dispatch={this.props.dispatch}
+            history={this.props.history}
           />
         ) : (
           <CommitsEvolutionPerBatch
@@ -749,4 +800,4 @@ class CommitsEvolution extends Component {
   }
 }
 
-export { CommitsEvolution };
+export default withRouter(CommitsEvolution );
