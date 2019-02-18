@@ -1,17 +1,27 @@
 import React from "react";
 import { get, all, CancelToken } from "axios";
 
-import { Classes, Tag } from "@blueprintjs/core";
+import { Classes, Tag, Tooltip } from "@blueprintjs/core";
 import MonacoEditor from 'react-monaco-editor';
 import { MonacoDiffEditor } from 'react-monaco-editor';
 
+import { hash_color } from '../utils'
 
+
+
+const ansi_pattern = [
+  '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\\u0007)',
+  '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
+].join('|');
+const ansi_regexp = new RegExp(ansi_pattern, 'g');
 
 const language = filename => {    
   if (filename.endsWith('yaml') || filename.endsWith('yml'))
     return 'yaml'
   if (filename.endsWith('json'))
     return 'json'
+  if (filename.endsWith('js'))
+    return 'javascript'
   if (filename.endsWith('cde'))
     return 'python'
   return 'plaintext'
@@ -73,7 +83,7 @@ class GenericTextViewer extends React.PureComponent {
       this.setState({
         data: {
           ...this.state.data,
-          [label]: response.data,
+          [label]: response.data.replace(ansi_regexp, ''),
         },
       })
     }
@@ -83,12 +93,7 @@ class GenericTextViewer extends React.PureComponent {
                     .then(load_data(label))
                     .catch(response => {
                       // we don't really care about errors for reference logs
-                      this.setState({
-                        data: {
-                          ...this.state.data,
-                          [label]: null,
-                        }
-                      })
+                      load_data(label)({data: null})
                       if (label==='new' && !!response)
                         this.setState({error: response.data})
                     });
@@ -110,7 +115,7 @@ class GenericTextViewer extends React.PureComponent {
     if (this.props.only_diff && data.new === data.ref)
       return <span></span>
 
-    const { filename, text_url_new, text_url_ref, width } = this.props;
+    const { filename, text_url_new, text_url_ref, width, hash } = this.props;
     let no_reference = !!!text_url_ref || !!!data.reference || (!!text_url_new && text_url_new === text_url_ref);
 
     const max_lines = this.props.max_lines || 400
@@ -122,7 +127,7 @@ class GenericTextViewer extends React.PureComponent {
           readonly
           width={width}
           height={height}
-          language={language(filename)}
+          language={this.props.language || language(filename)}
           value={data.new}
           original={data.reference}
           options={editor_options}
@@ -131,13 +136,13 @@ class GenericTextViewer extends React.PureComponent {
           readonly
           width={width}
           height={height}
-          language={language(filename)}
+          language={this.props.language || language(filename)}
           value={data.new || ''}
           options={editor_options}
         />
 
     return <>
-      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? "reference ➡️ " : ""}new</Tag></h3>
+      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? "reference ➡️ " : ""}new</Tag> {hash && <Tooltip><Tag style={{backgroundColor: hash_color(hash)}}>hash: {hash.slice(0,8)}</Tag><span>Hash of the new file</span></Tooltip>}</h3>
       {editor}
     </>
   }
