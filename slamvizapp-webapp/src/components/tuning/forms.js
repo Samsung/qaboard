@@ -68,14 +68,19 @@ const eval_combinations = param_search_text => {
   let output = null;
   // users can directly provide tuning sets via objects or arrays of objects
   try {
-    output = JSON.parse(param_search_text);
+    var combinations = JSON.parse(param_search_text);
+    var language = "yaml" // no json support out of the box, yaml is superset so..
   } catch (e) {
     // or they can provide a function that returns a tuning set
-    output = eval_function(param_search_text);
+    combinations = eval_function(param_search_text);
+    language = "javascript"
   }
   if (Array.isArray(output)) {
-    return output.map(wrap_values_in_array);
-  } else return wrap_values_in_array(output);
+    combinations = output.map(wrap_values_in_array);
+  } else {
+    combinations = wrap_values_in_array(combinations)
+  };
+  return {combinations, language}
 };
 
 const grid_combinations = param_search => {
@@ -220,7 +225,7 @@ class TuningForm extends Component {
       tuning_search: {
         search_type,
         search_options,
-        parameter_search: search_type==='optimize' ? parameter_search_auto : eval_combinations(parameter_search),
+        parameter_search: search_type==='optimize' ? parameter_search_auto : eval_combinations(parameter_search).combinations,
       },
       selected_group,
       groups,
@@ -258,13 +263,14 @@ class TuningForm extends Component {
     const { search_type, parameter_search, search_options } = this.state;
     let number_of_tests = selected_group_info.number_of_tests;
     try {
-      var tuning_sets = eval_combinations(parameter_search);
+      var {combinations: tuning_sets, language} = eval_combinations(parameter_search);
       var combinations = grid_combinations(tuning_sets);
       if (combinations === null || combinations === 'optimize') combinations = "invalid";
       else
         combinations = search_options.n_iter < 0 ? combinations : Math.min(search_options.n_iter, combinations);
     } catch (e) {
       combinations = "invalid";
+      language = 'javascript'
     }
     let total_runs = combinations * number_of_tests;
     let time_intent =
@@ -445,7 +451,7 @@ class TuningForm extends Component {
         <MonacoEditor
           readonly
           height={200}
-          language='javascript'
+          language={language || 'javascript'}
           value={this.state.parameter_search || ''}
           options={editor_options}
           name="editor-tuning-set"
