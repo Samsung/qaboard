@@ -1,100 +1,40 @@
-# TODO: replace the http stuff with
-# server {
-#   listen 5000 default_server;
-#   listen [::]:5000 default_server;
-#   server_name _;
-#   return 301 https://$host$request_uri;
-# }
-
-
-
 server {
+  # This endpoint is only used for HTTP API calls,
+  # until all clients trusts IT's certficates
   listen 5000;
   listen [::]:5000;
-  server_name qa, dvs, gpu09-dt, planet31, planet33, localhost;
-
-  # CSS and Javascript
-  location ~* \.(?:css|js)$ {
-    expires 1y;
-    access_log off;
-    add_header Cache-Control "public";
-    root /slamvizapp/slamvizapp-webapp/build;
-    try_files $uri $uri/index.html $uri.html /index.html;
-  }
-
-  location / {
-    root /slamvizapp/slamvizapp-webapp/build;
-    try_files $uri $uri/index.html $uri.html /index.html;
-  }
+  server_name qa, dvs, localhost;
 
   location ^~ /api {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
       uwsgi_read_timeout 300;
   }
-
   location ^~ /webhook {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
   }
-
-  location ^~ /admin {
-      include uwsgi_params;
-      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
-  }
-
- location ^~ /s/ {
-  alias /home/arthurf/ci/;
-  autoindex on;
-  access_log off;
- }
-
- location ^~ /s/home/ {
-  alias /home/;
-  autoindex on;
-  access_log off;
- }
-
- location ^~ /s/home/arthurf {
-    deny all; 
- }
-
- location ^~ /s/algo_archive/ {
-  alias /net/f2/algo_archive/; 
-  autoindex on;
-  access_log off;
- }
-
- location ^~ /s/algo_data/ {
-  alias /stage/algo_data/;
-  autoindex on;
-  access_log off;
- }
-
- location ^~ /s/net/f2/algo_archive/ {
-  alias /net/f2/algo_archive/; 
-  autoindex on;
-  access_log off;
- }
-
- location ^~ /s/stage/algo_data/ {
-  alias /stage/algo_data/;
-  autoindex on;
-  access_log off;
- }
-
 }
+
+
 
 
 server {
   listen 443 ssl http2;
   listen [::]:443 ssl http2;
-  server_name qa, dvs, gpu09-dt, planet31, planet33, localhost;
+  server_name qa, dvs, localhost;
 
   ssl_certificate_key /etc/nginx/ssl/dvs/dvs.key;
   ssl_certificate /etc/nginx/ssl/dvs/dvs.pem;
 
-  # CSS and Javascript
+  location ~* (service-worker\.js)$ {
+    add_header 'Cache-Control' 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
+    expires off;
+    proxy_no_cache 1;
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
+  }
+
   location ~* \.(?:css|js)$ {
     expires 1y;
     access_log off;
@@ -113,27 +53,48 @@ server {
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
       uwsgi_read_timeout 300;
   }
-
   location ^~ /webhook {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
   }
-
   location ^~ /admin {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
   }
 
+
  location ^~ /s/ {
   alias /home/arthurf/ci/;
   autoindex on;
   access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
  }
 
  location ^~ /s/home/ {
   alias /home/;
   autoindex on;
   access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
  }
 
  location ^~ /s/home/arthurf {
@@ -144,32 +105,69 @@ server {
   alias /net/f2/algo_archive/; 
   autoindex on;
   access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
  }
 
  location ^~ /s/algo_data/ {
   alias /stage/algo_data/; 
   autoindex on;
   access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
  }
 
  location ^~ /s/net/f2/algo_archive/ {
   alias /net/f2/algo_archive/; 
   autoindex on;
   access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
  }
 
  location ^~ /s/stage/algo_data/ {
   alias /stage/algo_data/;
   autoindex on;
   access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
  }
 
 
-}
-
-server {
-   listen         80;
-   listen    [::]:80;
-   server_name    qa,dvs,planet31,gpu09-dt;
-   return         302 https://$server_name$request_uri;
 }
