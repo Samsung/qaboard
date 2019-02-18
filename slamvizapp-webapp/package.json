@@ -2,7 +2,7 @@
   "name": "slamvizapp-tuning",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://qa:5000",
+  "proxy": "http://qa",
   "dependencies": {
     "@blueprintjs/core": "^3.4.0",
     "@blueprintjs/datetime": "^3.1.0",
@@ -20,7 +20,7 @@
     "moment": "^2.22.2",
     "moment-timezone": "^0.5.21",
     "monaco-editor-webpack-plugin": "^1.7.0",
-    "openseadragon": "^2.4.0",
+    "openseadragon": "git+https://github.com/openseadragon/openseadragon.git#master",
     "pixelmatch": "^4.0.2",
     "plotly.js": "^1.38.3",
     "qs": "^6.5.2",
@@ -58,5 +58,6 @@
     "not dead",
     "not ie <= 11",
     "not op_mini all"
-  ]
+  ],
+  "devDependencies": {}
 }
