@@ -24,6 +24,12 @@ setup(
     'pyyaml',
   ],
 
+  extras_require={
+    # need for `qa optimize`
+    'optimize':  ["skopt"],
+  },
+
+
   entry_points='''
       [console_scripts]
       qa=qatools.qatools:main
