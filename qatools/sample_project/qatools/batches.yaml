@@ -35,6 +35,15 @@ you-can-override-the-default-configuration:
 # context.obj['configurations'] => ["test"]
 
 
+you-can-override-the-default-database:
+  database: 
+    linux: /net/f2/algo_archive/DVS_SLAM_Database
+    windows: '\\\\netapp\\algo_archive\\DVS_SLAM_Database'
+  tests:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+
 configurations-can-be-arrays:
   configuration:
     - base
@@ -137,7 +146,7 @@ hdr:
     - A
     - B
 
-.lots_of_tests_hdr: &tests_hdr
+.lots_of_tests_hdr: &lots_tests_hdr
   tests:
     - A
     - B
@@ -168,10 +177,10 @@ no-hdr:
 # Maybe on nightly runs you want to run lots of tests:
 lots-of-hdr-tests:
   <<: *HDR
-  <<: *lots_of_tests_hdr
+  <<: *lots_tests_hdr
 lots-of-no-hdr-tests:
   <<: *HDR-disabled
-  <<: *lots_of_tests_hdr
+  <<: *lots_tests_hdr
 
 
 

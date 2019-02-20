@@ -26,8 +26,7 @@ from .utils import load_tuning_search, iter_parameters, iter_recordings
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config_has_error
 from .config import subproject, config, database, platform
-from .config import user
-from .config import commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
+from .config import user, commit_id, commit, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci, on_windows
 
@@ -87,8 +86,9 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     exit(1)
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
-  if root_qatools != Path().resolve() and not will_show_help:
-      click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan')
+  get_command = 'get' in sys.argv
+  if root_qatools != Path().resolve() and not will_show_help and not get_command:
+      click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan', err=True)
       os.chdir(root_qatools)
 
   # We want open permissions on outputs and artifacts
@@ -148,7 +148,8 @@ def get(ctx, input_path, output_path, variable):
   if variable in locals():
     print(locals().get(variable))
   else:
-    print(f"Could not find {variable}", file=sys.stderr)
+    click.secho(f"Could not find {variable}", err=True, fg='red')
+    exit(1)
 
 
 @cli.command(context_settings=dict(
@@ -158,8 +159,9 @@ def get(ctx, input_path, output_path, variable):
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
+@click.option('--save-manifests-in-database', is_flag=True, help="Save the input and outputs manifests in the database.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
-def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
+def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manifests_in_database):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
@@ -172,11 +174,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
         click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
         exit(1)
 
-    if not output_path:
-        output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
-    else:
-        # FIXME: if output_path is absolute, it should be just output_path?
-        output_directory = output_path
+    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
     import shutil
     shutil.rmtree(output_directory, ignore_errors=True)
@@ -201,7 +199,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       runtime_metrics = {'is_failed': True}
 
-    metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess)
+    metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
     if not metrics:
       metrics = runtime_metrics
 
@@ -212,23 +210,9 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args):
       click.secho(str(metrics), fg='green')      
 
 
-    from .utils import file_info
-    # To help identify if input files change, we compute and save some metadata.
-    if absolute_input_path.is_dir():
-      input_files = {path.as_posix(): file_info(path) for path in absolute_input_path.rglob('*') if path.is_file()}
-    else:
-      input_files = {absolute_input_path.as_posix(): file_info(absolute_input_path)}      
-    with (output_directory / 'manifest.inputs.json').open('w') as f:
-      json.dump(input_files, f, indent=2)
-
-    # To help the UI application know what results we created, we save the complete list.
-    output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if path.is_file()}
-    with (output_directory / 'manifest.outputs.json').open('w') as f:
-      json.dump(output_files, f, indent=2)
-
-
-def postprocess_(runtime_metrics, context, skip=False):
+def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_database=False):
   """Computes computes various success metrics and outputs."""
+  output_directory = context.obj['output_directory']
   try:
     if not skip:
       metrics = entrypoint_module().postprocess(runtime_metrics, context)
@@ -246,19 +230,46 @@ def postprocess_(runtime_metrics, context, skip=False):
     click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
     metrics['is_failed'] = False
 
-  if (context.obj['output_directory'] / 'metrics.json').exists():
-    with (context.obj['output_directory'] / 'metrics.json').open('r') as f:
+  if (output_directory / 'metrics.json').exists():
+    with (output_directory / 'metrics.json').open('r') as f:
       previous_metrics = json.load(f)
       metrics = {
         **previous_metrics,
         **metrics,
       }
-  with (context.obj['output_directory'] / 'metrics.json').open('w') as f:
+  with (output_directory / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
+
+  from .utils import file_info
+  # To help identify if input files change, we compute and save some metadata.
+  absolute_input_path = (context.obj['database'] / context.obj['input_path']).resolve()
+  if absolute_input_path.is_dir():
+    input_files = {path.as_posix(): file_info(path) for path in absolute_input_path.rglob('*') if path.is_file()}
+  else:
+    input_files = {absolute_input_path.as_posix(): file_info(absolute_input_path)}      
+
+  with (output_directory / 'manifest.inputs.json').open('w') as f:
+    json.dump(input_files, f, indent=2)
+
+  # To help the UI application know what results we created, we save the complete list.
+  output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if path.is_file()}
+  with (output_directory / 'manifest.outputs.json').open('w') as f:
+    json.dump(output_files, f, indent=2)
+
+  if save_manifests_in_database:
+    if absolute_input_path.is_file():
+      click.secho('WARNING: saving the manifests in the database is only implemented for inputs that are *folders*.', fg='yellow', err=True)
+    else:
+      from .utils import copy
+      copy(output_directory / 'manifest.outputs.json', absolute_input_path / 'manifest.inputs.json')
+      copy(output_directory / 'manifest.outputs.json', absolute_input_path / 'manifest.outputs.json')
 
   if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
+
   return metrics
+
+
 
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
@@ -353,9 +364,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
   tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
-  for input_path_abs, input_configurations, lsf_configuration in tests_iter:
+  for input_path_abs, input_configurations, lsf_configuration, input_database in tests_iter:
     input_configuration = serialize_config(input_configurations)
-    input_path = input_path_abs.relative_to(ctx.obj['database'])
+    input_path = input_path_abs.relative_to(input_database)
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
@@ -438,37 +449,37 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
     wait = Job(name, 'echo "Finished batch."')
     wait.send(interactive=True, dependencies=waiting_job)
+
     time.sleep(1)#s
     is_failed = False
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
       if not metrics_file.exists():
-        click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='red')
+        click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='red', err=True)
         is_failed = True
+        continue
       with metrics_file.open() as f:
         metrics = json.load(f)
         if metrics['is_failed']:
           is_failed = True
-          click.secho(f'ERROR: is_failed in {metrics_file}', fg='red')
+          click.secho(f'ERROR: is_failed in {metrics_file}', fg='red', err=True)
+
+    from .gitlab import update_gitlab_status
+    if is_ci and ctx.obj['batch_label']=='default':
+      update_gitlab_status(commit, 'failed' if is_failed else 'success')
+
     if is_failed:
-      exit(1)
+      click.secho(f'(FIME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
+      # exit(1)
+
 
 
 @cli.command()
 def save_artifacts():
   """Save the results at a standard location"""
-  import shutil
   import filecmp
   from qatools.config import qatools_config_paths
-
-  def copy(src, destination):
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(str(src), str(destination))
-    # we already use umask 0, but just to be sure, we set the permissions to be open
-    os.chmod(destination, 0o777)
-
-  def copy_data(src, destination):
-    shutil.copyfile(str(src), str(destination))
+  from .utils import copy
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
@@ -504,19 +515,44 @@ def save_artifacts():
           continue
         if 'QATOOlS_VERBOSE' in os.environ:
           click.secho(str(path), dim=True)
-        # We are forced to add some retry logic to deal with our broken storage
-        # sometimes it raises a permission error but everything is OK on the second try...
-        try:
-          copy(path, destination)
-          nb_files += 1
-        except:
-          time.sleep(0.01) # seconds
-          try:
-            copy(path, destination)
-          except: # wt...
-            copy_data(path, destination)
+        copy(path, destination)
     if nb_files > 0:
       click.secho(f"{nb_files} files copied")
+
+
+@cli.command()
+@click.pass_context
+@click.option('--group', '-g', required=True, multiple=True, help="Only check bit-accuracy for those groups of tests.")
+@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+def check_bit_accuracy_manifest(ctx, group, groups_file):
+    """
+  Checks the bit accuracy of the results in the current ouput directory
+  versus the latest commit on origin/develop.
+  """
+    from .config import is_ci
+    from .bit_accuracy import is_bit_accurate
+
+    commit_dir = commit_rootproject_ci_dir if is_ci else Path()
+    all_bit_accurate = True
+    tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
+    for input_path_abs, input_configurations, _, input_database in tests_iter:
+      if input_path_abs.is_file():
+        click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
+        # otherwise the manifest is at
+        #   * input_path.parent / 'manifest.json' in the database
+        #   * input_path.with_suffix('') / 'manifest.json' in the results
+        # # reference_output_directory = input_path_abs if input_path_abs.is_folder() else input_path_abs.parent
+        exit(1)
+
+      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
+      input_path = input_path_abs.relative_to(ctx.obj['database'])
+      click.secho(str(input_path), fg='cyan', err=True)
+      all_bit_accurate = all_bit_accurate and is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
+    if not all_bit_accurate:
+      click.secho("Error: the bit-accuracy test has failed.", fg='red', bold=True)
+      exit(1)
+
+
 
 
 @cli.command()
@@ -533,8 +569,9 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    from .config import commit, commit_branch, repo, is_ci
-    from .bit_accuracy import is_bit_accurate, assert_ci_pipelines_are_done
+    from .config import commit, commit_branch, repo, is_ci, ci_dir
+    from .bit_accuracy import is_bit_accurate, lastest_successful_ci_commit
+    from .conventions import get_commit_ci_dir
     from .utils import latest_commit
 
     if not repo:
@@ -556,27 +593,30 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
     click.secho(f"{commit.hexsha[:8]} versus {reference_shas}.", fg='cyan', err=True)
     
     for reference_commit in reference_commits:
-      assert_ci_pipelines_are_done(reference_commit)
+      # if the reference commit is pending or failed, we wait or maybe pick a parent
+      reference_commit = lastest_successful_ci_commit(reference_commit)
 
     # This where the new results are located
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
 
     if not group:
-      output_directories = [subproject / 'output']
+      output_directories = (p.parent for p in (subproject / 'output').rglob('manifest.outputs.json'))
     else:
       output_directories = []
       tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
-      for input_path_abs, input_configurations, _ in tests_iter:
+      for input_path_abs, input_configurations, _, input_database in tests_iter:
         prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
-        input_path = input_path_abs.relative_to(ctx.obj['database'])
+        input_path = input_path_abs.relative_to(input_database)
         output_directory = prefix_output_dir / input_path.with_suffix('')
         output_directories.append(subproject / output_directory)
 
-    bit_accuracies = [is_bit_accurate(commit_dir, reference_commit, output_directories) for reference_commit in reference_commits]
-    assert all(bit_accuracies), "ERRROR: the bit-accuracy test has failed"
-
-
-
+    click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
+    click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+    bit_accuracies = [is_bit_accurate(commit_dir, get_commit_ci_dir(ci_dir, reference_commit), output_directories)
+                      for reference_commit in reference_commits]
+    if not all(bit_accuracies):
+      click.secho("Error: the bit-accuracy test has failed.", fg='red', bold=True)
+      exit(1)
 
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,

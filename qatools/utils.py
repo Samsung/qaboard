@@ -3,12 +3,14 @@ Misc utilities useful for qatools
 """
 import os
 import re
+import time
 import json
 import yaml
 import fnmatch
 import hashlib
 from itertools import chain
 from pathlib import Path
+import shutil
 
 import click
 
@@ -20,6 +22,31 @@ class PathType(click.ParamType):
   name = 'path'
   def convert(self, value, param, ctx):
     return Path(value)
+
+
+
+def _copy(src, destination):
+  shutil.copy(str(src), str(destination))
+  # we already use umask 0, but just to be sure, we set the permissions to be open
+  os.chmod(destination, 0o777)
+
+def copy_data(src, destination):
+  shutil.copyfile(str(src), str(destination))
+
+def copy(src, destination):
+  # We are forced to add some retry logic to deal with our broken storage
+  # sometimes it raises a permission error but everything is OK on the second try...
+  if not destination.parent.exists():
+    destination.parent.mkdir(parents=True, exist_ok=True)
+  try:
+    _copy(src, destination)
+    nb_files += 1
+  except:
+    time.sleep(0.01) # seconds
+    try:
+      _copy(src, destination)
+    except: # wt...
+      copy_data(src, destination)
 
 
 def file_info(path):
@@ -48,7 +75,12 @@ def latest_commit(repo, reference):
     try:
       return remote.refs[reference].commit
     except:
-      return repo.commit(rev=reference)
+      try:
+        # print([r.name for r in remote.refs if ('testing' in r.name)])
+        # print([r for r in remote.refs if r.name==reference or r.name==f'{r.remote_name}/{reference}'])
+        return [r for r in remote.refs if r.name==reference or reference.replace(r.remote_name, '') == r.name or reference==f'{r.remote_name}/{r.name}'][0]
+      except:
+        return repo.commit(rev=reference)
     # try:/
     #   return list(repo.iter_commits(reference.replace('origin/', ''), max_count=1))[0]
 
@@ -123,10 +155,10 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
         for matched_location in database.glob(location):
           rglob = '**/' + glob
           tests = set([maybe_parent(f) for f in matched_location.rglob(glob)])
-          yield from [(test, default_configuration, default_lsf_configuration) for test in tests]
+          yield from [(test, default_configuration, default_lsf_configuration, database) for test in tests]
 
           if fnmatch.fnmatch(matched_location, rglob) or str(matched_location).endswith(glob):
-            yield maybe_parent(matched_location), default_configuration, default_lsf_configuration
+            yield maybe_parent(matched_location), default_configuration, default_lsf_configuration, database
       return
 
     # 2. Those defined in the groups_file
@@ -140,6 +172,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
     group_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in group_configuration))
+    group_database = available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database)
 
     # We also allow each test to have his own configuration...
     if isinstance(locations, list):
@@ -148,26 +181,31 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     for location, location_configuration in locations.items():
       if not location_configuration:
         location_configuration = group_configuration
+        location_database = group_database
         location_lsf_configuration = group_lsf_configuration
       else:
         if isinstance(location_configuration, dict):
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
+          location_database = location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', database)
           location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
           location_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in location_configuration))
           location_configuration = [*group_configuration, *location_configuration]
+          location_database = group_database
           location_lsf_configuration = group_lsf_configuration
         else:
           location_configuration =  [*group_configuration, location_configuration]
+          location_database = group_database
+          location_lsf_configuration = group_lsf_configuration
       if debug:
         click.secho(str(database/location), bold=True, fg='cyan', err=True)
 
       for glob in globs:
         if fnmatch.fnmatch(location, glob) or location.endswith(glob):
-          yield maybe_parent(Path(database / location)), location_configuration, location_lsf_configuration
+          yield maybe_parent(Path(database / location)), location_configuration, location_lsf_configuration, location_database
         else:
           tests = set([maybe_parent(f) for f in (database / location).rglob(glob)])
-          yield from [(test, location_configuration, location_lsf_configuration) for test in tests]
+          yield from [(test, location_configuration, location_lsf_configuration, location_database) for test in tests]
 
 
 

@@ -11,7 +11,6 @@ import click
 
 from .config import config, commit_id, available_metrics
 
-
 # For now we use http, until we deal with cert trust issues
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
 api_host = os.getenv('QATOOLS_DB_HOST', 'dvs')
@@ -76,8 +75,7 @@ def notify_qa_database(object_type='output', **kwargs):
   if 'QATOOLS_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)
-
-
+  
   try:
     # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)

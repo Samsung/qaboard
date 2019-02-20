@@ -96,6 +96,12 @@ bit_accuracy:
   patterns:
     - output.csv
     - '*.hex'
+  # if the CI for commit you compare against failed, you can decide to compare against its first parent
+  # on_reference_failed_ci: compare-first-parent
+  # after that many "replacement commits", fail
+  # max_parents_depth: 5
+  # you can choose the CI stage that defines failure. By default, we use gitlab's global commit status
+  # failed_ci: qa-tests
 
 # Depending on your project, you may want to use different LSF job queues
 # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.

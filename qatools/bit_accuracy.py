@@ -3,19 +3,23 @@
 Bit-accuracy test between 2 results folders
 """
 import os
+import time
 import filecmp
+import fnmatch
+import json
 from pathlib import Path
 
 import click
 import git
+
+from .config import subproject, config
+from .gitlab import ci_commit_data, passed_ci
 
 
 def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
   """Bit-accuracy test between two directories.
   Almost like https://docs.python.org/3/library/filecmp.html
   """
-  # print(dir_1)
-  # print(dir_2)
   if not patterns:
     ignores = ['*']
   if not ignored_names:
@@ -45,65 +49,130 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
       else:
         only_in_1.append(rel_path)
 
-    return {
-      "mismatch": mismatch,
-      "match": match,
-      "only_in_1": only_in_1,
-      "errors": errors,
-    }
+  return {
+    "mismatch": mismatch,
+    "match": match,
+    "only_in_1": only_in_1,
+    "errors": errors,
+  }
 
 
 
-def is_bit_accurate(commit_dir, reference_commit, output_directories):
+def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=None):
+  """Bit-accuracy test between two manifests.
+  Their format is {filepath: {md5, size_st}}"""
+  with manifest_path_1.open() as f:
+    manifest_1 = json.load(f)
+  with manifest_path_1.open() as f:
+    manifest_2 = json.load(f)
+
+  if not patterns:
+    ignores = ['*']
+  if not ignored_names:
+    ignored_names = []
+
+  mismatch = []  # not the same
+  match = []     # the same
+  only_in_1 = [] # exists in dir_1 but not in dir_1
+  errors = []    # or errors accessing
+
+  for pattern in patterns:
+    pattern = f'*{pattern}'
+    for file_1_str, meta_1 in manifest_1.items():
+      if not fnmatch.fnmatch(file_1_str, pattern):
+        continue
+      file_1 = Path(file_1_str)
+      if any(file_1.name == name for name in ignored_names):
+        continue
+      if file_1_str in manifest_2:
+        is_same = meta_1['md5'] == manifest_2[file_1_str]['md5']
+        if not is_same:
+          mismatch.append(file_1)
+        else:
+          match.append(file_1)
+      else:
+        only_in_1.append(file_1)
+
+  return {
+    "mismatch": mismatch,
+    "match": match,
+    "only_in_1": only_in_1,
+    "errors": errors,
+  }
+
+
+
+def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories):
     """Throws if the results of the current output directory are not bit-accurate to the reference commit"""    
-    from .config import config, ci_dir
-    from .conventions import get_commit_ci_dir
-
-    reference_rootproject_ci_dir = get_commit_ci_dir(ci_dir, reference_commit)
-    click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
-    click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+    from .config import config
     patterns = [*config["bit_accuracy"]["patterns"], 'manifest.inputs.json']
 
     comparaisons = {'match': [], 'mismatch': [], 'errors': []}
-    print(output_directories)
     for output_directory in output_directories:
-      comparaison = cmpfiles(
-        dir_1=reference_rootproject_ci_dir / output_directory,
-        dir_2=commit_dir / output_directory,
-        patterns=patterns,
-        ignored_names=['log.txt'],
-      )
-      # print(comparaison)
-      comparaisons['match'].extend(output_directory / p for p in comparaison['match'])
-      comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
-      comparaisons['errors'].extend(output_directory / p for p in comparaison['errors'])
-    # print(comparaisons)
-    assert len(comparaisons['match']), "At least 1 results file should be compared. Looks like something went wrong."
-    assert not len(comparaisons['errors']), "ERROR: while trying to read/compare\n" + "\n".join(str(p) for p in comparaisons['error'])
-    assert not len(comparaisons['mismatch']), "ERROR: mismatch: \n" + "\n".join(str(p) for p in comparaisons['mismatch'])
+      # print(output_directory)
+      dir_1 = reference_rootproject_ci_dir / output_directory
+      dir_2 = commit_dir / output_directory
+      if (dir_1 / 'manifest.outputs.json').exists() and (dir_2 / 'manifest.outputs.json').exists():
+        comparaison = cmpmanifests(
+          manifest_path_1 = dir_1 / 'manifest.outputs.json',
+          manifest_path_2 = dir_2 / 'manifest.outputs.json',
+          patterns=patterns,
+          ignored_names=['log.txt'],
+        )
+        comparaisons['match'].extend(output_directory / p for p in comparaison['match'])
+        comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
+      else:
+        comparaison = cmpfiles(
+          dir_1=dir_1,
+          dir_2=dir_2,
+          patterns=patterns,
+          ignored_names=['log.txt'],
+        )
+        comparaisons['match'].extend(output_directory / p for p in comparaison['match'])
+        comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
+        comparaisons['errors'].extend(output_directory / p for p in comparaison['errors'])
+
+    if not len(comparaisons['match']):
+      click.secho("At least 1 results file should be compared. Looks like something went wrong.", fg='yellow', bold=True, err=True)
+
+    if len(comparaisons['errors']):
+      click.secho("ERROR: while trying to read those files:", fg='red', bold=True)
+      for p in comparaisons['error']:
+        click.secho(str(p), fg='red')
+      return False
+
+    if len(comparaisons['mismatch']):
+      click.secho("ERROR: those files are different:", fg='red', bold=True)
+      for p in comparaisons['mismatch']:
+        click.secho(str(p), fg='red')
+      return False
+    "ERROR: mismatch: \n" + "\n".join(str(p) for p in comparaisons['mismatch'])
     return not len(comparaisons['mismatch'])
 
 
-def assert_ci_pipelines_are_done(reference_commit):
-  # temporary (...) workaround.
-  os.environ['GITLAB_ACCESS_TOKEN'] = 'd5sbmEPvncmsgTcgZLoS'
 
-  if 'GITLAB_ACCESS_TOKEN' not in os.environ:
-    click.secho(f'Could not check if the CI pipeline for {reference_commit} is done. Please add GITLAB_ACCESS_TOKEN to your environment variables', fg='yellow', err=True)
-    return
-
-  import requests
-  from requests.utils import quote
-  from .config import root_qatools_config, ci_dir
-
-  headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
-  gitlab_api = "http://gitlab-srv/api/v4"
-  project_id = quote(root_qatools_config['project']['name'], safe='')
-
-  r = requests.get(f"{gitlab_api}/projects/{project_id}/repository/commits/{reference_commit.hexsha}", headers=headers)
-  commit_data = r.json()
-  status = commit_data.get('status')
-  if status in ['pending', 'running']:
-    click.secho(f'The CI pipeline for {reference_commit} is not over yet. Please retry later', fg='red', bold=True, err=True)
+def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
+  if max_parents_depth < 0:
+    click.secho(f'Could not find a commit that passed CI', fg='red', bold=True, err=True)
     exit(1)
 
+  wait_time = 15 # seconds
+  while True:
+    status = ci_commit_data(commit).get('status')
+    # passed_ci = passed_ci(commit, stage=f"{subproject.name} manifest") # read qatools.yaml >> bit-accuracy: ci_stage_passed: "KITT bit-accuracy/manifest"
+    if status in ['failed', 'canceled']:
+      if config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent':
+        click.secho(f'{commit.hexsha[:8]} was {status}, comparing against a parent commit', fg='yellow', err=True)
+        return lastest_successful_ci_commit(commit.parents[0], max_parents_depth=1)
+      else:
+        click.secho(f'WARNING: {commit.hexsha[:8]} was {status}', fg='yellow', err=True)
+        return commit
+
+    if status is None:
+      click.secho(f'WARNING: Could not get the CI status. You may need a different GITLAB_ACCESS_TOKEN.', fg='yellow', err=True)
+      return commit
+    if status == 'success':
+      return commit
+
+    click.secho(f'The CI pipeline for {commit.hexsha[:8]} is not over yet (status: {status}). Retrying in {wait_time}s', fg='yellow', dim=True, err=True)
+    time.sleep(wait_time)
