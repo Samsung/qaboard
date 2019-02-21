@@ -31,13 +31,19 @@ from .config import user, commit_id, commit, commit_ci_dir, branch_ci_dir, root_
 from .config import repo, is_ci, on_windows
 
 
+class FailingEntrypoint:
+  def run(self, context):
+    return {"is_failed": True}
+  def postprocess(self, metrics, context):
+    return {"is_failed": True}
+
 def entrypoint_module():
   """Lazily returns the entrypoint module defined in qatools.yaml"""
   entrypoint = config['project'].get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
     click.secho(f'Add to qatools.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
-    exit(1)
+    return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
   try:
@@ -55,7 +61,7 @@ def entrypoint_module():
           'Please read the tutorial, and ask @arthurf for help\n'
           'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
           dim=True, err=True)
-      exit(1)
+      return FailingEntrypoint()
   return module
 
 
@@ -611,8 +617,9 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
         output_directories.append(subproject / output_directory)
 
     click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
+    reference_rootproject_ci_dir = get_commit_ci_dir(ci_dir, reference_commit)
     click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
-    bit_accuracies = [is_bit_accurate(commit_dir, get_commit_ci_dir(ci_dir, reference_commit), output_directories)
+    bit_accuracies = [is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories)
                       for reference_commit in reference_commits]
     if not all(bit_accuracies):
       click.secho("Error: the bit-accuracy test has failed.", fg='red', bold=True)

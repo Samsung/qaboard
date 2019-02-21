@@ -12,8 +12,8 @@ from pathlib import Path
 import click
 import git
 
-from .config import subproject, config
-from .gitlab import ci_commit_data, passed_ci
+from .config import subproject, config, commit_branch
+from .gitlab import ci_commit_statuses
 
 
 def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
@@ -156,23 +156,35 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
     click.secho(f'Could not find a commit that passed CI', fg='red', bold=True, err=True)
     exit(1)
 
+  failed_ci_job_name = config.get('bit_accuracy', {}).get('failed_ci_job_name')
+
   wait_time = 15 # seconds
   while True:
-    status = ci_commit_data(commit).get('status')
-    # passed_ci = passed_ci(commit, stage=f"{subproject.name} manifest") # read qatools.yaml >> bit-accuracy: ci_stage_passed: "KITT bit-accuracy/manifest"
-    if status in ['failed', 'canceled']:
-      if config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent':
-        click.secho(f'{commit.hexsha[:8]} was {status}, comparing against a parent commit', fg='yellow', err=True)
-        return lastest_successful_ci_commit(commit.parents[0], max_parents_depth=1)
-      else:
-        click.secho(f'WARNING: {commit.hexsha[:8]} was {status}', fg='yellow', err=True)
-        return commit
+    statuses = ci_commit_statuses(commit, ref=commit_branch, name=failed_ci_job_name)
+    # print(statuses)
 
-    if status is None:
+    if statuses is None:
       click.secho(f'WARNING: Could not get the CI status. You may need a different GITLAB_ACCESS_TOKEN.', fg='yellow', err=True)
       return commit
-    if status == 'success':
+
+    if failed_ci_job_name:
+      # print('filtering')
+      statuses = [s for s in status if s['name'] == f"{subproject.name} {failed_ci_job_name}"]
+      # print(statuses)
+
+    commit_failed = any(s['status'] in ['failed', 'canceled'] and not s.get('allow_failure', False) for s in statuses)
+    if commit_failed:
+      click.secho(f"WARNING: {commit.hexsha[:8]} failed the CI pipeline. (statuses: {set(s['status'] for s in statuses)})", fg='yellow', bold=True, err=True)
+      if config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent':
+        click.secho(f"We now try to compare against its first parent.", fg='yellow', err=True)
+        return lastest_successful_ci_commit(commit.parents[0], max_parents_depth=1)
+      else:
+        return commit
+
+    commit_success = all(s['status'] == 'success' or s.get('allow_failure', False) for s in statuses)
+    if commit_success:
       return commit
 
-    click.secho(f'The CI pipeline for {commit.hexsha[:8]} is not over yet (status: {status}). Retrying in {wait_time}s', fg='yellow', dim=True, err=True)
+    click.secho(f"The CI pipeline for {commit.hexsha[:8]} is not over yet (statuses: {set(s['status'] for s in statuses)}). Retrying in {wait_time}s", fg='yellow', dim=True, err=True)
+    # click.secho(str(statuses), fg='yellow', dim=True, err=True)
     time.sleep(wait_time)
