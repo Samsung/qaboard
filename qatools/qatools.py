@@ -456,7 +456,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     wait = Job(name, 'echo "Finished batch."')
     wait.send(interactive=True, dependencies=waiting_job)
 
-    time.sleep(1)#s
+    # time.sleep(1)#s
     is_failed = False
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
@@ -475,7 +475,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
     if is_failed:
-      click.secho(f'(FIME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
+      click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
       # exit(1)
 
 
