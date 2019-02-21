@@ -9,7 +9,7 @@ import json
 
 
 def get_commit_ci_dir(ci_dir, commit):
-  dir_name = f'{commit.authored_date}__{commit.author.name.replace(" ","")}__{commit.hexsha[:8]}'
+  dir_name = f'{commit.authored_date}__{commit.author.name.replace(" "," ")}__{commit.hexsha[:8]}'
   return ci_dir / 'commits' / dir_name
 
 
