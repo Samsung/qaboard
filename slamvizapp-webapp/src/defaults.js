@@ -34,6 +34,10 @@ export const default_qatools_config = {
 	},
 	inputs: {
 		configuration: 'base',
+		database: {
+			linux: null,
+			windows: null,
+		}
 	},
 	outputs: {
 		detailed_views: [],
