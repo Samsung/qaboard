@@ -168,15 +168,12 @@ class CiCommitList extends React.Component {
 
     let some_commits_loaded = !!commits && commits.length > 0;
 
-    var effective_date_range = date_range;
-    if (some_commits_loaded){
-      let first_commit_date = commits[commits.length - 1].authored_datetime || date_range[0]
-      let last_commit_date = commits[0].authored_datetime  || date_range[1]
-      effective_date_range = [
-        (!!first_commit_date ? new Date(first_commit_date) : null),
-        (!!first_commit_date ? new Date(last_commit_date) : null)
-      ]
-    }
+    const first_commit_date = (some_commits_loaded && commits[commits.length - 1].authored_datetime) || date_range[0]
+    const last_commit_date = (some_commits_loaded && commits[0].authored_datetime)  || date_range[1]
+    const effective_date_range = [
+      (!!first_commit_date ? new Date(first_commit_date) : null),
+      (!!last_commit_date ? new Date(last_commit_date) : null)
+    ]
     let qa_report = (
       <Section>
         {(is_loaded || some_commits_loaded) &&
