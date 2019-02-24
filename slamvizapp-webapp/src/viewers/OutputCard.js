@@ -129,48 +129,48 @@ const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyV
 
 class OutputViewer extends React.Component {
   render() {
-    const { type, ...props } = this.props;
+    const { type, output_ref, ...props } = this.props;
+    const maybe_output_ref = (this.props.show_reference === undefined || this.props.show_reference) ? output_ref : undefined;
     let viewer;
     if (!!type) {
       if (type === "6dof/txt")
-        viewer =  <LoadableSlamViewer {...props}/>
+        viewer =  <LoadableSlamViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "pointcloud/txt")
-        viewer = <LoadableTofViewer {...props} />
+        viewer = <LoadableTofViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "cis/image")
-        viewer = <LoadableCisViewer {...props} />
+        viewer = <LoadableCisViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "plotly/json")
-        viewer = <LoadablePlotlyViewer {...props} />
+        viewer = <LoadablePlotlyViewer {...props} output_ref={maybe_output_ref}/>
       else if (type.startsWith('video'))
-        viewer = <LoadableVideoViewer {...props} type={type} />
+        viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type.startsWith('image'))
-        viewer = <LoadableImageViewer {...props} type={type} />
+        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'text/plain')
-        viewer = <LoadableTextViewer {...props} type={type} />
+        viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       else if (type === 'text/html')
-        viewer = <LoadableHtmlViewer {...props} type={type} />
+        viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
-        viewer = <LoadableBitAccuracyViewer {...props} type={type} />
+        viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <span>No viewer is defined for type: {type}</span>;
     } else {
       const { path } = this.props;
       if (path.endsWith('png') || path.endsWith('jpg')) {
-        viewer = <LoadableImageViewer {...props} type={type} />
+        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('hex') || path.endsWith('raw')) {
-        viewer = <LoadablePlotlyViewer {...props} type={type}/>
+        viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('plotly.json')) {
-        viewer = <span>No viewer is registered yet for {path}.</span>;
+        viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {
-        viewer = <LoadableTextViewer {...props} type={type} />
+        viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       }
     }
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<span></span>}>
       {viewer}
     </Suspense>
   );
   }
 }
-
 
 
 class OutputCard extends Component {
@@ -240,9 +240,6 @@ class OutputCard extends Component {
     </div>
   }
 }
-
-
-          // <OutputViewer key="test" type="text/plain" output_new={output_new} output_ref={output_ref} style={style} path='metrics.json'/>
 
 
 export { OutputCard, OutputViewer };
