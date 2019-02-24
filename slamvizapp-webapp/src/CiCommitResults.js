@@ -36,7 +36,8 @@ import { fetchCommit } from "./actions/commit";
 import { updateSelected } from "./actions/selected";
 
 
-import { AddRecordingsForm, TuningForm } from "./components/tuning/forms";
+import { TuningForm } from "./components/tuning/forms";
+import { AddRecordingsForm } from "./components/tuning/form_groups";
 import { TuningExploration } from "./components/tuning/TuningExploration";
 import { SelectBatches } from "./components/tuning/SelectBatches";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
@@ -151,7 +152,7 @@ class CiCommitResults extends Component {
     const new_controls = ((((this.props.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
     const old_controls = ((((prevProps.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
     if (old_controls !== new_controls) {
-      this.setState({controls: this.controls_defaults(this.props)});
+      this.setState({controls: controls_defaults(this.props)});
     }
   }
   selectSortBy = e => {
@@ -277,8 +278,8 @@ class CiCommitResults extends Component {
     );
 
     
-    let controls_extra = project_data.information.qatools_config.outputs.controls || []
-    let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
+    let controls_extra = (project_data.information.qatools_config.outputs || {}).controls || []
+    let detailed_views = (project_data.information.qatools_config.outputs || {}).detailed_views || []
     let controls = <>
       {detailed_views.map( (view, idx) => {
         if (!view.default_hidden ||
@@ -421,7 +422,7 @@ class CiCommitResults extends Component {
                   >
                     <Tab
                       id="metrics"
-                      title="Performance Summary"
+                      title="Summary"
                       panel={
                         <MetricsSummary
                           project={project}
@@ -445,7 +446,7 @@ class CiCommitResults extends Component {
                     />
                     <Tab
                       id="recordings"
-                      title="Recording Groups"
+                      title="Groups of Tests"
                       disabled={disable_tuning}
                       panel={
                         <AddRecordingsForm
@@ -737,7 +738,7 @@ const mapStateToProps = (state, ownProps) => {
     let selected_metrics = (state.selected[project] && state.selected[project].selected_metrics) || project_metrics.main_metrics.map(k => available_metrics[k])
 
     let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "metrics";
-    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || project_data.information.qatools_config.outputs.default_tab_details || 'table-compare';
+    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || (project_data.information.qatools_config.outputs || {}).default_tab_details || 'table-compare';
 
     // sometimes handy to debug slow viewers..
     // project_data.information.qatools_config.outputs.detailed_views.forEach(o => {o.default_hidden=true});
