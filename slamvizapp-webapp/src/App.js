@@ -1,7 +1,6 @@
 import React, { lazy, Suspense } from "react";
 import { Provider } from 'react-redux'
 import { BrowserRouter as Router, Route } from "react-router-dom";
-import { CookiesProvider } from "react-cookie";
 import { PersistGate } from 'redux-persist/integration/react'
 import qs from "qs";
 
@@ -9,6 +8,7 @@ import AppNavbar from "./AppNavbar";
 import CiCommitList from "./CiCommitList";
 import CiCommitResults from "./CiCommitResults";
 import ProjectsList from "./ProjectsList";
+import ErrorPage from "./components/ErrorPage";
 
 import { Classes } from "@blueprintjs/core";
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
@@ -52,16 +52,9 @@ class App extends React.Component {
   }
 
   render() {
-    if (this.state.hasError) {
-      // You can render any custom fallback UI
-      return <div>
-        <h1>Something went wrong. Please report the bug to Arthur Flam</h1>
-        <p>{JSON.stringify(this.state.error)}</p>
-        <p>{JSON.stringify(this.state.info)}</p>
-       </div>;
-    }
+    if (this.state.hasError)
+      return <ErrorPage error={this.state.error} info={this.state.info}/>
 	  return <Provider store={this.props.store}><PersistGate loading={null} persistor={this.props.persistor}>
-	    <CookiesProvider>
 	      <Router>
 	        <div className={Classes.UI_TEXT}>
 	          <AppNavbar />
@@ -74,7 +67,6 @@ class App extends React.Component {
 	          <Route path="/dashboard" component={WrappedDashboard} />
 	        </div>
 	      </Router>
-	    </CookiesProvider>
 	  </PersistGate></Provider>
   }
 }
