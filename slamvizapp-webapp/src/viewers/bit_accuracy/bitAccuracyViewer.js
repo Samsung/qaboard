@@ -49,7 +49,7 @@ const to_tree = filepaths => {
 const updateMatch = tree_reference => node => {
     const is_folder = node.childNodes !== undefined;
     if (is_folder) { // aggregate the information from the children nodes
-      node.nodeData.match = node.childNodes.every(child => child.nodeData.match);
+      node.nodeData.match = node.childNodes.every(child => child.nodeData.match === undefined || child.nodeData.match);
       return;
     }
     const node_reference = getNodeById(tree_reference, node.id)
@@ -139,7 +139,7 @@ class BitAccuracyViewer extends React.Component {
     const { tree, is_loaded, error, selected } = this.state;
     if (!is_loaded) return <span></span>;
 
-    const { output_new, output_ref, type, ...props } = this.props;
+    const { type, ...props } = this.props;
     return <div>
       {error.new && <Tooltip><Tag style={{marginRight: '5px'}} intent={Intent.WARNING}>Missing data @new</Tag><span>{JSON.stringify(error.new)}</span></Tooltip>}
       {error.reference && <Tooltip><Tag intent={Intent.WARNING}>Missing data @reference</Tag><span>{JSON.stringify(error.reference)}</span></Tooltip>}
@@ -156,8 +156,6 @@ class BitAccuracyViewer extends React.Component {
             path={filename}
             hash={getNodeById(tree.mixed, filename) && getNodeById(tree.mixed, filename).nodeData.md5}
             always_show_diff max_lines={50}
-            output_new={output_new}
-            output_ref={(this.props.controls.show_reference === undefined || this.props.controls.show_reference) ? output_ref : undefined}
             {...props}
         />
       )}
@@ -174,11 +172,12 @@ class BitAccuracyViewer extends React.Component {
     var tree_compared = JSON.parse(JSON.stringify(tree_new))
     // find the nodes that are missing in the reference tree
     visitDepthFirst(tree_compared, updateMissingFrom(tree_ref, 'reference'))
-    // find match / mismatches
-    visitDepthFirst(tree_compared, updateMatch(tree_ref))
 
     visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
     visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
+
+    // find match / mismatches
+    visitDepthFirst(tree_compared, updateMatch(tree_ref))
 
     if (!this.props.show_all_files) {
       tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
