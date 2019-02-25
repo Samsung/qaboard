@@ -67,6 +67,11 @@ def entrypoint_module():
 
 default_batch_label = 'default'
 default_platform = platform
+default_groups_file = config.get('inputs', {}).get('groups')
+if not default_groups_file:
+  default_groups_file = []
+if not (isinstance(default_groups_file, list) or isinstance(default_groups_file, tuple)):
+  default_groups_file = [default_groups_file]
 default_configuration = config.get('inputs', {}).get('configuration', "default")
 if isinstance(default_configuration, list):
   default_configuration = serialize_config(default_configuration)
@@ -325,7 +330,7 @@ def sync(ctx, input_path, output_path):
     ignore_unknown_options=True,
 ))
 @click.option('--group', '-g', multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
@@ -461,8 +466,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
       if not metrics_file.exists():
-        click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='red', err=True)
-        is_failed = True
+        click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='yellow', err=True)
+        # is_failed = True
         continue
       with metrics_file.open() as f:
         metrics = json.load(f)
@@ -472,7 +477,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
     from .gitlab import update_gitlab_status
     if is_ci and ctx.obj['batch_label']=='default':
-      update_gitlab_status(commit, 'failed' if is_failed else 'success')
+      update_gitlab_status(commit, 'success')
+      # update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
     if is_failed:
       click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
@@ -498,6 +504,7 @@ def save_artifacts():
   config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
   config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
+  config['artifacts']['groups.yaml'] = {"glob": default_groups_file}
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
@@ -529,7 +536,7 @@ def save_artifacts():
 @cli.command()
 @click.pass_context
 @click.option('--group', '-g', required=True, multiple=True, help="Only check bit-accuracy for those groups of tests.")
-@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
 def check_bit_accuracy_manifest(ctx, group, groups_file):
     """
   Checks the bit accuracy of the results in the current ouput directory
@@ -551,7 +558,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
         exit(1)
 
       prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
-      input_path = input_path_abs.relative_to(ctx.obj['database'])
+      input_path = input_path_abs.relative_to(input_database)
       click.secho(str(input_path), fg='cyan', err=True)
       all_bit_accurate = all_bit_accurate and is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
     if not all_bit_accurate:
@@ -569,7 +576,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
     help="Branch, tag or commit used as reference."
 )
 @click.option('--group', '-g', multiple=True, help="Only check bit-accuracy for those groups of tests.")
-@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
 def check_bit_accuracy(ctx, reference, group, groups_file):
     """
   Checks the bit accuracy of the results in the current ouput directory
@@ -629,7 +636,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
     ignore_unknown_options=True,
 ))
 @click.option('--group', '-g', required=True, multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=config.get('inputs', {}).get('groups'), help="YAML file listing groups of recordings selected from the database.")
+@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context

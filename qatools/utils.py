@@ -123,7 +123,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   """Returns an iterator over the (recording, configurations, lsf-configuration) from the selected groups
   params:
   - groups: array of group labels
-  - groups_file: yaml file
+  - groups_file: path to a yaml file, or an array of paths
   - configuration, is none is specified
   """
   if not globs:
@@ -135,7 +135,11 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   if not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
 
-  available_batches = yaml.load(Path(groups_file).open())
+  if not (isinstance(groups_file, list) or isinstance(groups_file, tuple)):
+    groups_file = [groups_file]
+  available_batches = {}
+  for p in groups_file:
+    available_batches.update(yaml.load(Path(p).open()))
 
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
@@ -198,13 +202,13 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
       if debug:
-        click.secho(str(database/location), bold=True, fg='cyan', err=True)
+        click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
 
       for glob in globs:
         if fnmatch.fnmatch(location, glob) or location.endswith(glob):
-          yield maybe_parent(Path(database / location)), location_configuration, location_lsf_configuration, location_database
+          yield maybe_parent(Path(location_database / location)), location_configuration, location_lsf_configuration, location_database
         else:
-          tests = set([maybe_parent(f) for f in (database / location).rglob(glob)])
+          tests = set([maybe_parent(f) for f in (location_database / location).rglob(glob)])
           yield from [(test, location_configuration, location_lsf_configuration, location_database) for test in tests]
 
 

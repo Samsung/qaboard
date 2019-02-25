@@ -21,8 +21,7 @@ inputs:
     linux: /net/f2/algo_archive/DVS_SLAM_Database
     windows: F:/DVS_SLAM_Database
 
-  # where we define groups
-  # relative to the root of the project
+  # You can define groups of tests in this file(s)
   groups: qatools/batches.yaml
 
   # if you want to run all recordings under $database/sub_folder
