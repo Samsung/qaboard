@@ -4,6 +4,7 @@ import { get } from "axios";
 
 import {
   Classes,
+  Colors,
   Collapse,
   Button,
   Tag,
@@ -84,8 +85,9 @@ class OutputLog extends Component {
         target="_blank"
         rel="noopener noreferrer"
         href={output.output_dir_url}
+        style={{color: Colors.GRAY1, marginRight: '5px'}}
       >
-        <Icon icon="download" />
+        <Icon icon="folder-shared" />
     </a>;
     // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
     // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
