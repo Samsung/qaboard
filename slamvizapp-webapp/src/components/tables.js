@@ -1,6 +1,7 @@
 import React, { Fragment } from "react";
+import styled from "styled-components";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
-import { HTMLTable, Classes, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
+import { HTMLTable, Classes, Colors, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
 import { Section } from "./layout";
 import { matching_output, sortOutputs } from "../utils";
@@ -15,6 +16,14 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0
 });
+
+
+const Row = styled.tr`
+  transition: background 0.2s;
+  :hover {
+  	background: ${Colors.LIGHT_GRAY3};
+  }
+`
 
 const RowHeaderCell = ({ output, warning }) => {
   let extra_parameters =
@@ -44,13 +53,13 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     metrics_new[metric.key] === undefined ||
     metrics_new[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>NA</td>;
+    return <td></td>;
   if (
     !metrics_ref ||
     metrics_ref[metric.key] === undefined ||
     metrics_ref[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>NA</td>;
+    return <td></td>;
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
   let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
   let quality = metric.smaller_is_better ? (0.5 - delta_relative) : (0.5 + delta_relative);
@@ -69,7 +78,7 @@ const QualityCell = ({ metric, metrics }) => {
     metrics[metric.key] === undefined ||
     metrics[metric.key] === null
   )
-    return <td style={{ background: "#bbb" }}>NA</td>;
+    return <td></td>;
   let value = metrics[metric.key];
   const delta_relative = (metric.target - value) / (metric.target + 0.0001);
   let quality = metric.smaller_is_better ? (0.5 + delta_relative) : (0.5 - delta_relative);
@@ -128,7 +137,7 @@ const TableCompare = ({
               batch: ref_batch
             });
             return (
-              <tr key={id}>
+              <Row key={id}>
                 <RowHeaderCell output={output} warning={warning} />
                 {metrics.map(m => (
                   <ColumnsMetricImprovement
@@ -138,7 +147,7 @@ const TableCompare = ({
                     metrics_ref={output_ref.metrics}
                   />
                 ))}
-              </tr>
+              </Row>
             );
           })}
         </tbody>
@@ -198,7 +207,7 @@ const TableKpi = ({
               soft_match: false
             });
             return (
-              <tr key={id}>
+              <Row key={id}>
                 <RowHeaderCell output={output} warning={warning} />
                 {metrics.map(m => (
                   <Fragment key={m.key}>
@@ -206,7 +215,7 @@ const TableKpi = ({
                     <QualityCell metric={m} metrics={output_ref.metrics} />
                   </Fragment>
                 ))}
-              </tr>
+              </Row>
             );
           })}
         </tbody>
