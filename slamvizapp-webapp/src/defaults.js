@@ -58,6 +58,7 @@ export const default_project = {
 	commits: {
 
 	},
+	git: {},
 	// we will fetch a list of that project's branches
 	branches: [],
 	branches_loading: false,	
