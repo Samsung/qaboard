@@ -176,7 +176,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
     group_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in group_configuration))
-    group_database = available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database)
+    group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
 
     # We also allow each test to have his own configuration...
     if isinstance(locations, list):
@@ -190,7 +190,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
       else:
         if isinstance(location_configuration, dict):
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
-          location_database = location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', database)
+          location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
           location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
           location_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in location_configuration))

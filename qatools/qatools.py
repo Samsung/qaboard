@@ -410,7 +410,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           f"qa",
           f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
-          f'--database "{ctx.obj["database"]}"' if ctx.obj['database'] != database else None,
+          f'--database "{input_database}"' if input_database != database else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
