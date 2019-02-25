@@ -185,7 +185,7 @@ class CommitResults extends React.Component {
             No results
           </Button>
         </Link>}
-        {ci_batch.valid_outputs > 0 &&
+        {ci_batch.valid_outputs > 0 && ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== undefined  &&
             <Fragment>
               <Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
@@ -211,7 +211,7 @@ class CommitResults extends React.Component {
                 </strong>{" "}
                 avg {default_metric_info.short_label}
               </Tag>
-              <Tooltip modifiers>
+              {Object.keys(ci_batch.aggregated_metrics).length > 0 && <Tooltip modifiers>
                 <Tag minimal round>...</Tag>
                 <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics).map(([k, v]) => (
@@ -220,7 +220,7 @@ class CommitResults extends React.Component {
                     </li>
                   ))}
                 </ul>
-              </Tooltip>
+              </Tooltip>}
             </Fragment>}
       </Fragment>
     );
