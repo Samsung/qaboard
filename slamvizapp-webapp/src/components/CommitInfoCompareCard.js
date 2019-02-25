@@ -143,7 +143,7 @@ class CommitInfoCompareCard extends React.PureComponent {
                 onConfirm={this.handleSubmitNew}
                 defaultValue={shortId(project, new_commit.id)}
               />}
-              {(!new_commit || !new_commit.id) && <span className={Classes.SKELETON}>XXXXXXXX</span>}
+              {(!new_commit || !new_commit.id) && empty_commit_id}
               {!!new_commit && !!new_commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{marginRight: '8px'}}>Error</Tag><span>{new_commit.error}</span></Tooltip>}
             </h1>
             <CommitBranchButton commit={new_commit} onClick={this.handleSubmitBranch}/>
