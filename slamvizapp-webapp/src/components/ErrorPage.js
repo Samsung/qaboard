@@ -1,6 +1,6 @@
 import React from "react";
-import { Callout, Intent, Icon, Tag, Classes, Button } from "@blueprintjs/core";
-import { Container, Section } from "./layout";
+import { Callout, Intent, Classes, Button } from "@blueprintjs/core";
+import { Container } from "./layout";
 
 
 class ErrorPage extends React.Component {
