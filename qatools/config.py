@@ -229,6 +229,8 @@ if is_ci:
         'TRAVIS_BRANCH', # TravisCI
     )
     commit_branch = getenvs(branch_env_variables, '').replace('origin/', '')
+    if repo and commit:
+      commit = repo.commit(commit_id)
 else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
