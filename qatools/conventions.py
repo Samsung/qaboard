@@ -13,10 +13,12 @@ def get_commit_ci_dir(ci_dir, commit):
   return ci_dir / 'commits' / dir_name
 
 
-def slugify(s : str):
+def slugify(s : str, maxlength=64):
   """Slugiy a string like they do at Gitlab."""
   # lowercased and shortened to 63 bytes
-  slug = s.lower()[:63]
+  slug = s.lower()
+  if maxlength:
+    slug = slug[:(maxlength - 1)]
   # everything except 0-9 and a-z replaced with -. 
   slug = re.sub('[^0-9a-z]', '-', slug)
   # No leading / trailing -. 
@@ -101,7 +103,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
   return (
     batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
     platform /
-    slugify(configuration) /
+    slugify(configuration, maxlength=None) /
     tuning_foldername(batch_label, hash_parameters(tuning))
   )
 
