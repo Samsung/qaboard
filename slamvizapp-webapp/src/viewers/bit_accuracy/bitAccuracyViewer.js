@@ -184,7 +184,7 @@ class BitAccuracyViewer extends React.Component {
       const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
       const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
-      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new) === hash_metrics(this.props.output_new))
+      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new) === hash_metrics(this.props.output_ref))
         tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
     }
 
@@ -222,6 +222,7 @@ class BitAccuracyViewer extends React.Component {
 
   handleNodeCollapse = node => {
     node.isExpanded = false;
+    // eslint-disable-next-line
     const { props , icon: _ } = node.icon
     node.icon = <Icon {...props} icon='folder-close'/>
     const opened = this.state.opened.filter(filename => filename !== node.id)
@@ -230,6 +231,7 @@ class BitAccuracyViewer extends React.Component {
 
   handleNodeExpand = node => {
     node.isExpanded = true;
+    // eslint-disable-next-line
     const { props , icon: _ } = node.icon
     node.icon = <Icon {...props} icon='folder-open'/>
     const opened = [...this.state.opened, node.id]

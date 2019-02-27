@@ -7,7 +7,9 @@ import { Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
 // Our trees are in the format expected by
 //   https://blueprintjs.com/docs/#core/components/tree
 
+/*
 // Returns a node from a tree, given its path
+// Unused because it's confusing when dealing with multiple trees: order among children doesn't matter.
 const getNodeByPath = (tree, path) => {
   if (tree === undefined || tree === null)
     return undefined;
@@ -20,6 +22,7 @@ const getNodeByPath = (tree, path) => {
   }
   return node[path[path.length - 1]]
 }
+*/
 
 
 // Returns a node from a tree, given its id
@@ -32,6 +35,7 @@ const getNodeById = (tree, id) => {
   let node = tree;
   let parts = id.split('/');
   for (var i = 0; i < parts.length - 1; i++) {
+    // eslint-disable-next-line
     node = node.find(child => child.label === parts[i] )
     node = node && node.childNodes;
     if (node === undefined) return undefined;
@@ -92,6 +96,7 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
     // need to make sure the destination node exists, and create it if necessary
     for (var i = 0; i < path.length; i++) {
       var node_from = node_from_parent[path[i]];
+      // eslint-disable-next-line
       var node_to = node_to_parent.find(child => child.label === node_from.label);
       if (node_to === undefined) {
         node_to_parent.push({
