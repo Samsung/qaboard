@@ -15,7 +15,8 @@ const defaults = {
 
 class DoneAtTagUnstyled extends React.Component {
   render() {
-    const { commit, className } = this.props;
+    const { project, commit, className } = this.props;
+    console.log(project)
     let maybe_skeletton = (!commit || !commit.authored_datetime) ? Classes.SKELETON : null; 
     return (
       <span className={className}>
@@ -27,7 +28,7 @@ class DoneAtTagUnstyled extends React.Component {
           <Moment className={maybe_skeletton} fromNow tz="Asia/Jerusalem" date={(!!commit && !!commit.authored_datetime) ? commit.authored_datetime : defaults.date} />
         </Tooltip>{" "}
         by{" "}
-        <Link className={maybe_skeletton} to={`/committer/${!!commit && commit.committer_name}`}>
+        <Link className={maybe_skeletton} to={`/${project}/committer/${!!commit && commit.committer_name}`}>
           {(!!commit && !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
         </Link>
       </span>

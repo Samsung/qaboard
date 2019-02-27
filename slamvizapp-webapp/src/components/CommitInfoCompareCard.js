@@ -150,7 +150,7 @@ class CommitInfoCompareCard extends React.PureComponent {
             <CommitParents commit={new_commit} project={project} onClick={this.handleSubmitReference} />
             <br />
             <div style={{ marginTop: "10px" }}>
-              <DoneAtTag commit={new_commit} />{" "}
+              <DoneAtTag project={project} commit={new_commit} />{" "}
               <BatchTags batch={new_ci_batch}/>
             </div>
             <CommitMessage
@@ -180,7 +180,7 @@ class CommitInfoCompareCard extends React.PureComponent {
             </h1>
             <CommitBranchButton commit={ref_commit} onClick={this.handleSubmitBranch} align_right/>
             <div style={{ marginTop: "10px", textAlign: "right" }}>
-              <DoneAtTag commit={ref_commit} />{" "}
+              <DoneAtTag project={project} commit={ref_commit} />{" "}
               <BatchTags batch={ref_ci_batch}/>
               {" "}
               <Tag intent={Intent.PRIMARY}>Reference</Tag>
