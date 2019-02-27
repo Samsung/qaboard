@@ -44,18 +44,10 @@ const AvatarPlaceholder = styled.div`
 class Avatar extends React.PureComponent {
   render() {
     const { src, href, alt } = this.props;
-    if (src === null || src === undefined || src === false) {
-      return <AvatarCell>
-        <Link to={href||'#'}>
-          <AvatarPlaceholder style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
-        </Link>
-      </AvatarCell>      
-    }
-    return <AvatarCell>
-      <Link to={href||'#'}>
-        <AvatarImg style={this.props.style} alt={alt||''} src={src||''} />
-      </Link>
-    </AvatarCell>
+    const no_image = src === null || src === undefined || src === false
+    const avatar = no_image ? <AvatarPlaceholder style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
+                            : <AvatarImg style={this.props.style} alt={alt||''} src={src||''} />;
+    return <AvatarCell>{!!!href ? <Link to={href||'#'}>{avatar}</Link> : avatar}</AvatarCell>;
   }
 }
 
