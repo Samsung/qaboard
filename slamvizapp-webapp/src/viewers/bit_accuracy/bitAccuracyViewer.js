@@ -184,6 +184,7 @@ class BitAccuracyViewer extends React.Component {
       const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
       const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
+      tree_compared = tree_compared.filter(node => node.id !== 'logs.txt')
       if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new) === hash_metrics(this.props.output_ref))
         tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
     }
