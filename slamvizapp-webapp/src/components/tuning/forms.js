@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import { connect } from 'react-redux'
 import { get, post } from "axios";
 
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import { updateTuningForm } from "../../actions/tuning";
 
 import MonacoEditor from 'react-monaco-editor';
@@ -11,8 +10,6 @@ import {
   Classes,
   Callout,
   Intent,
-  Spinner,
-  NonIdealState,
   Button,
   FormGroup,
   HTMLSelect,

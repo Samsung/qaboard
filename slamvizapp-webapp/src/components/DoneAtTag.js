@@ -16,7 +16,6 @@ const defaults = {
 class DoneAtTagUnstyled extends React.Component {
   render() {
     const { project, commit, className } = this.props;
-    console.log(project)
     let maybe_skeletton = (!commit || !commit.authored_datetime) ? Classes.SKELETON : null; 
     return (
       <span className={className}>

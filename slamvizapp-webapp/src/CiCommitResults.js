@@ -26,7 +26,7 @@ import CommitInfoCompareCard from "./components/CommitInfoCompareCard";
 import { MetricsSummary } from "./components/metrics";
 import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
-import { matching_output, sortOutputs, filter_batch } from "./utils";
+import { matching_output, sortOutputs } from "./utils";
 import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
@@ -42,13 +42,14 @@ import { TuningExploration } from "./components/tuning/TuningExploration";
 import { SelectBatches } from "./components/tuning/SelectBatches";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 
-// import { getBatches } from './selectors/batches'
-
 import {
-  default_project,
-  default_selected,
-  empty_batch,
-} from "./defaults"
+	projectSelector,
+	projectDataSelector,
+	commitSelector,
+	selectedSelector,
+	batchSelector,
+} from './selectors/projects'
+
 
 
 
@@ -155,84 +156,22 @@ class CiCommitResults extends Component {
       this.setState({controls: controls_defaults(this.props)});
     }
   }
-  selectSortBy = e => {
-    this.props.dispatch(updateSelected(this.props.project, { sort_by: e.target.value }))
-  };
-  selectOrder = e => {
-    this.props.dispatch(updateSelected(this.props.project, { order: e.target.value }))
-  };
-
-  selectBatchNew = e => {
-    this.props.dispatch(updateSelected(this.props.project, { batch_new: e.target.value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        batch_new: e.target.value
-      })
-    });
-  };
-
-  selectBatchRef = e => {
-    this.props.dispatch(updateSelected(this.props.project, { batch_ref: e.target.value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        batch_reference: e.target.value
-      })
-    });
-  };
-
-  UpdateFilterBatchNew = e => {
-    this.props.dispatch(updateSelected(this.props.project, { filter_batch_new: e.target.value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        filter: e.target.value
-      })
-    });
-  };
-  UpdateFilterBatchRef = e => {
-    this.props.dispatch(updateSelected(this.props.project, { filter_batch_ref: e.target.value }))
-    this.setState({ filter_batch_ref: e.target.value });
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        filter_ref: e.target.value
-      })
-    });
-  };
 
 
-  UpdateTabSummary = (newTabId, prevTabId, event) => {
-    this.props.dispatch(updateSelected(this.props.project, { selected_tab_summary: newTabId }))
+
+  
+  update = (attribute, attribute_url) => e => {
+  	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
+    this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
     let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
       pathname: window.location.pathname,
       search: qs.stringify({
         ...query,
-        selected_tab_summary: newTabId,
+        [attribute_url || attribute]: value,
       })
     });
-  };
-  UpdateTabDetails = (newTabId, prevTabId, event) => {
-    this.props.dispatch(updateSelected(this.props.project, { selected_tab_details: newTabId }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        selected_tab_details: newTabId,
-      })
-    });
-  };
+  } 
 
 
   render() {
@@ -303,14 +242,6 @@ class CiCommitResults extends Component {
       })}
     </>
 
-    // we can only do tuning for projects whose database is outside the repo
-    // otherwise we would need to checkout the repo and manage access...
-    const disable_tuning = !!project_data.information &&
-                           !!project_data.information.qatools_config &&
-                           !!project_data.information.qatools_config.inputs &&
-                           !!project_data.information.qatools_config.inputs.database &&
-                           !!project_data.information.qatools_config.inputs.database.linux &&
-                           !project_data.information.qatools_config.inputs.database.linux.startsWith('/');
 
     const nb_good = batch => (Object.values(batch.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length
     const nb_outputs_new = nb_good(this.props.new_batch);
@@ -354,7 +285,7 @@ class CiCommitResults extends Component {
                       <SelectBatches
                         commit={new_commit}
                         selected={selected_batch_new}
-                        onChange={this.selectBatchNew}
+                        onChange={this.update('batch_new')}
                         prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
                       />
                       {nb_outputs_new>0 && <FormGroup
@@ -368,7 +299,7 @@ class CiCommitResults extends Component {
                         <InputGroup
                           value={this.props.filter_batch_new}
                           placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
-                          onChange={this.UpdateFilterBatchNew}
+                          onChange={this.update('filter_batch_new', 'filter')}
                           type="search"
                           leftIcon="search"
                         />
@@ -385,7 +316,7 @@ class CiCommitResults extends Component {
                       <SelectBatches
                         commit={ref_commit}
                         selected={selected_batch_ref}
-                        onChange={this.selectBatchRef}
+                        onChange={this.update('batch_ref', 'batch_reference')}
                         prefix={
                           <Tag intent={Intent.PRIMARY}>Reference commit</Tag>
                         }
@@ -397,7 +328,7 @@ class CiCommitResults extends Component {
                         <InputGroup
                           value={this.props.filter_batch_ref}
                           placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
-                          onChange={this.UpdateFilterBatchRef}
+                          onChange={this.update('filter_batch_ref, filter_ref')}
                           type="search"
                           rightIcon="search"
                         />
@@ -417,11 +348,11 @@ class CiCommitResults extends Component {
                   <Tabs
                     renderActiveTabPanelOnly
                     id="tabs-summary"
-                    onChange={this.UpdateTabSummary}
+                    onChange={this.update('selected_tab_summary')}
                     selectedTabId={this.props.selected_tab_summary}
                   >
                     <Tab
-                      id="metrics"
+                      id="summary"
                       title="Summary"
                       panel={
                         <MetricsSummary
@@ -445,9 +376,9 @@ class CiCommitResults extends Component {
                       }
                     />
                     <Tab
-                      id="recordings"
+                      id="groups"
                       title="Groups of Tests"
-                      disabled={disable_tuning}
+                      disabled={false}
                       panel={
                         <AddRecordingsForm
                           project={project}
@@ -462,7 +393,7 @@ class CiCommitResults extends Component {
                       panel={
                         <TuningForm project={project} project_data={this.props.project_data} commit={new_commit} />
                       }
-                      disabled={disable_tuning}
+                      disabled={false}
                     />
                   </Tabs>
                 </Card>
@@ -472,7 +403,7 @@ class CiCommitResults extends Component {
                 <Tabs
                   renderActiveTabPanelOnly
                   id="tabs-outputs"
-                  onChange={this.UpdateTabDetails}
+                  onChange={this.update('selected_tab_details')}
                   selectedTabId={nb_outputs_new > 0 ? this.props.selected_tab_details : "logs"}
                 >
                   <Tab
@@ -570,7 +501,7 @@ class CiCommitResults extends Component {
                   {controls}
                   <HTMLSelect
                     defaultValue={this.props.sort_by}
-                    onChange={this.selectSortBy}
+                    onChange={this.update('sort_by')}
                   >
                     <option value="test_input_path">Sort by Name</option>
                     {Object.values(this.props.available_metrics).map(
@@ -693,58 +624,47 @@ class OutputList extends Component {
 
 
 
-const unique_batch = commit => {
-  if (!!!commit || !!!commit.batches) return null;
-  const batches = Object.keys(commit.batches);
-  if (batches.length===1) return batches[0];
-}
 
 const mapStateToProps = (state, ownProps) => {
     const params = new URLSearchParams(ownProps.location.search);
-    // project information
-    let project = params.get("project") || state.selected.project;
-    let project_data = state.projects.data[project] || default_project
+
+    let project = projectSelector(state)
+    let project_data = projectDataSelector(state)
+
+
+    let selected = selectedSelector(state)
+    let new_commit_id = selected.new_commit_id
+    let ref_commit_id = selected.ref_commit_id
+    let filter_batch_new = selected.filter_batch_new
+    let filter_batch_ref = selected.filter_batch_ref
+
+    let { new_commit, ref_commit } = commitSelector(state)
+    // console.log(commitSelector(state))
+
+    let {
+    	selected_batch_new,
+    	selected_batch_ref,
+    	new_batch,
+    	ref_batch,
+    	new_batch_filtered,
+    	ref_batch_filtered,
+    } = batchSelector(state)
+    // console.log(batchSelector(state))
+
+
     // metrics
     let project_metrics = project_data.information.qatools_metrics
     let available_metrics = project_metrics.available_metrics
-    // selected commit
-    // FIXME: remove except state/default?
-    let default_selected_ = default_selected();
-    let new_commit_id = (state.selected[project] && state.selected[project].new_commit_id) || default_selected_.new_commit_id
-    let ref_commit_id = (state.selected[project] && state.selected[project].ref_commit_id) || default_selected_.ref_commit_id
+    let selected_metrics = selected.selected_metrics || project_metrics.main_metrics.map(k => available_metrics[k])
 
-    let new_commit = state.commits[new_commit_id];
-    let ref_commit = ref_commit_id && state.commits[ref_commit_id];
 
-    // selected batch
-    let selected_batch_new = unique_batch(new_commit) || (state.selected[project] && state.selected[project].batch_new) || default_selected_.batch_new
-    let selected_batch_ref = unique_batch(ref_commit) || (state.selected[project] && state.selected[project].batch_ref) || default_selected_.batch_ref
-
-    let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
-    let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
-
-    if (!new_batch.outputs)
-      new_batch.outputs = {}
-    if (!ref_batch.outputs)
-      ref_batch.outputs = {}
-    // filtering
-    // FIXME: add missing null/undefined checks
-    let filter_batch_new = (state.selected[project] && state.selected[project].filter_batch_new) || default_selected_.filter_batch_new
-    let filter_batch_ref = (state.selected[project] && state.selected[project].filter_batch_ref) || default_selected_.filter_batch_ref
-    let new_batch_filtered = filter_batch(new_batch, filter_batch_new);
-    let ref_batch_filtered = filter_batch(ref_batch, filter_batch_ref);
-    // summary results
-
-    let selected_metrics = (state.selected[project] && state.selected[project].selected_metrics) || project_metrics.main_metrics.map(k => available_metrics[k])
-
-    let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "metrics";
+    let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "summary";
     let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || (project_data.information.qatools_config.outputs || {}).default_tab_details || 'table-compare';
-
-    // sometimes handy to debug slow viewers..
-    // project_data.information.qatools_config.outputs.detailed_views.forEach(o => {o.default_hidden=true});
+    console.log('selected_tab_summary', selected_tab_summary)
+    console.log('selected_tab_details', selected_tab_details)
 
     return {
-      // project information
+      params,
       project,
       project_data,
       // metrics
@@ -770,8 +690,8 @@ const mapStateToProps = (state, ownProps) => {
       selected_tab_summary,
       selected_tab_details,
 
-      sort_by: (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
-      order: (state.selected[project] && state.selected[project].order) || -1,
+      sort_by: params.get("sort_by") || (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
+      order: params.get("order") || (state.selected[project] && state.selected[project].order) || -1,
     }
 }
 

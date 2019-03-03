@@ -100,8 +100,13 @@ const sortOutputs = (sort_by, order) => {
 
 
 const filter_batch = (batch, filter_values) => {
+  // console.log(filter_values)
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
   	return batch;
+  //if (typeof filter_values !== 'string' || !(filter_values instanceof String))
+  //  return batch;
+
+  // console.log(filter_values)
   let filter_tokens = filter_values
     .toLowerCase()
     .replace(/"/g, "")

@@ -2,7 +2,7 @@ import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
 
 import Plot from 'react-plotly.js';
-import { Classes, HTMLSelect, Tag, Colors, Intent, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Classes, HTMLSelect, Tag, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { OutputCard } from "./viewers/OutputCard";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
@@ -677,7 +677,6 @@ class CommitsEvolution extends Component {
       select_metrics: this.props.select_metrics || main_metrics,
       selected_metric: default_metric,
       selected_aggregation: "median",
-      output_filter: "",
       relative: true,
       show_bit_accuracy: false,
     };
@@ -691,12 +690,11 @@ class CommitsEvolution extends Component {
   }
 
   render() {
-    const { project, project_data, commits, style, offer_breakdown_per_test, per_output_granularity } = this.props;
+    const { project, project_data, commits, style, offer_breakdown_per_test, output_filter, per_output_granularity } = this.props;
     const {
       selected_metric,
       selected_aggregation,
       breakdown_per_test,
-      output_filter,
       relative,
       show_bit_accuracy
     } = this.state;
@@ -758,16 +756,6 @@ class CommitsEvolution extends Component {
                 />
               </Fragment>
             )}
-          { (per_output_granularity || (offer_breakdown_per_test && breakdown_per_test)) &&
-              <FormGroup labelFor="filter-input" inline>
-                <InputGroup
-                  value={output_filter}
-                  placeholder="filter by input path, tag, configuration..."
-                  onChange={this.update("output_filter")}
-                  type="search"
-                  leftIcon="search"
-                />
-              </FormGroup>}
         </FormGroup>
         {breakdown_per_test ? (
           <CommitsEvolutionPerTest

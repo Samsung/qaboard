@@ -1,45 +1,43 @@
-import React, { lazy, Suspense } from "react";
+import React from "react";
 import { Provider } from 'react-redux'
-import { BrowserRouter as Router, Route } from "react-router-dom";
+import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 import { PersistGate } from 'redux-persist/integration/react'
-import qs from "qs";
 
-import AppNavbar from "./AppNavbar";
-import CiCommitList from "./CiCommitList";
-import CiCommitResults from "./CiCommitResults";
+import { Classes } from "@blueprintjs/core";
+
+import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
 
-import { Classes } from "@blueprintjs/core";
+import { fetchProjects } from './actions/projects'
+
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
 import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "../node_modules/@blueprintjs/select/lib/css/blueprint-select.css";
 import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
-const LoadableDashboard = lazy(() => import('./Dashboard' /* webpackChunkName: "dashboard" */));
-class WrappedDashboard extends React.Component {
-  render() {
-    return (
-      <Suspense fallback={<span></span>}>
-        <LoadableDashboard/>
-      </Suspense>
-    );
-  }
-}
+import { routes } from './routes'
 
-
+/*
 let query = qs.parse(window.location.search.substring(1));
 if (!!!query.project && !window.location.pathname.includes('/s/')) {
   // we redirect to the page listing all projects
   window.history.pushState({}, "", `/projects${window.location.search}`)
 }
+*/
+
 
 class App extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false };
   }
+
+  componentDidMount() {
+    this.props.store.dispatch(fetchProjects())
+  }
+
 
   static getDerivedStateFromError(error) {
     // Update state so the next render will show the fallback UI.
@@ -55,21 +53,58 @@ class App extends React.Component {
     if (this.state.hasError)
       return <ErrorPage error={this.state.error} info={this.state.info}/>
 	  return <Provider store={this.props.store}><PersistGate loading={null} persistor={this.props.persistor}>
-	      <Router>
-	        <div className={Classes.UI_TEXT}>
-	          <AppNavbar />
-	          <Route path="/projects" component={ProjectsList} />
-
-	          <Route exact path="/" component={CiCommitList} />
-	          <Route path="/branch/(.*)" component={CiCommitList} />
-	          <Route path="/committer/(.*)" component={CiCommitList} />
-	          <Route path="/commit/(.*)" component={CiCommitResults} />
-	          <Route path="/dashboard" component={WrappedDashboard} />
-	        </div>
-	      </Router>
+	    <Router>
+        <Switch>
+          <Route exact path="/" component={ProjectsList} />
+          <Route component={ProjectApp} />
+        </Switch>
+      </Router>
 	  </PersistGate></Provider>
   }
 }
 
+
+
+class ProjectApp extends React.Component {
+  render() {
+    return <Layout className={Classes.UI_TEXT}>
+      <Switch>
+        {routes.map((route, index) => (
+          <Route
+            key={index}
+            path={route.path}
+            component={route.sider}
+          />
+        ))}
+      </Switch>
+      <div style={{width: '100%'}}>
+        <Switch>
+        {routes.map((route, index) => (
+          <Route
+            key={index}
+            path={route.path}
+            component={route.navbar}
+          />
+        ))}
+        </Switch>
+        <div style={{paddingLeft: '151px', paddingTop: '50px'}}>
+          <Switch>
+            {routes.map((route, index) => (
+              <Route
+                key={index}
+                path={route.path}
+                component={route.main}
+              />
+            ))}
+          </Switch>
+        </div>
+      </div>
+    </Layout>
+  }
+}
+
+
+
+  
 
 export default App;

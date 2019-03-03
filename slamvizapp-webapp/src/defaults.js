@@ -1,8 +1,31 @@
+import { matchPath  } from 'react-router'
 import moment from "moment";
 
 
+// TODO: import from ./routes without triggering cyclic imports... 
+const route_paths = [
+	"/:project_id+/committer/:committer+",
+	"/:project_id+/commits/:branch+",
+	"/:project_id+/commits",
+	"/:project_id+/commit/:commit+",
+	"/:project_id+/commit",
+	"/:project_id+/dashboard/:branch+",
+	"/:project_id+/dashboard",
+	"/:project_id+",
+];
+
+const default_from_url = (attribute) => {
+	for (const path of route_paths) {
+	  const match = matchPath(window.location.pathname, {path})
+	  if (!!match && !!match.params[attribute]) {
+	  	return match.params[attribute];
+	  }
+	}
+}
 const params = new URLSearchParams(window.location.search);
-export const default_project_id = params.get("project") || 'dvs/psp_swip';
+
+export const default_project_id = default_from_url('project_id') || params.get("project");
+
 
 export const default_metrics = {
   available_metrics: {},
@@ -67,19 +90,29 @@ export const default_project = {
 // FIXME: get the /commit/X part...
 
 export const default_selected = () => {
-	let commit_from_pathname = window.location.pathname.includes('/commit') && window.location.pathname.slice(8)
-    var params = new URLSearchParams(window.location.search);
+  var params = new URLSearchParams(window.location.search);
 	return {
-		new_commit_id: params.get("commit_folder") || commit_from_pathname || null,
+    // This decides what is shows on the project page
+    // Do we show all the latests commits? a single branch? commits from a given committer?
+    branch: default_from_url('branch') || params.get("branch") || null,
+    committer: default_from_url('committer') || params.get("committer") || null,
+
+    // What commits should we show results for?
+		new_commit_id: params.get("commit_folder") || default_from_url('commit') || null,
 		ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
 
+    // What batch of results should we show, with what filters?
 		batch_new: params.get("batch_new") || "default",
 		batch_ref: params.get("batch_reference") || "default",
 
 		filter_batch_new: params.get("filter") || "",
 		filter_batch_ref: params.get("filter_ref") || "",
 
-		selected_tab_summary: params.get("selected_tab_summary") || "metrics",
+		// order: params.get("order") || "",
+		// sort_by: params.get("sort_by") || "",
+
+    // What kind of data should we show?
+		selected_tab_summary: params.get("selected_tab_summary") || "summary",
 		selected_tab_details: params.get("selected_tab_details"), // || "table-compare",
 	}
 }

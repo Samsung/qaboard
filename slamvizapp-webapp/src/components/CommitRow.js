@@ -76,7 +76,7 @@ class CommitResults extends React.Component {
         </a>
         <Link
           style={{ marginLeft: "10px" }}
-          to={`/commit/${commit.id}?project=${project}`}
+          to={`/${project}/commit/${commit.id}`}
           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
         >
           <Button intent={Intent.DANGER} minimal>
@@ -123,7 +123,7 @@ class CommitResults extends React.Component {
         {ci_batch.failed_outputs > 0 && (
           <Link
             style={{ marginLeft: "10px" }}
-            to={`/commit/${commit.id}?project=${project}`}
+            to={`/${project}/commit/${commit.id}`}
             onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
           >
             <Button intent={Intent.DANGER} minimal>
@@ -149,7 +149,7 @@ class CommitResults extends React.Component {
                   let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
                   return <Link
                           key={label}
-                          to={`/commit/${commit.id}?project=${project}&batch_new=${label}`}
+                          to={`/${project}/commit/${commit.id}?batch_new=${label}`}
                           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: label, batch_ref: null}))}
                          >
                     <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
@@ -178,7 +178,7 @@ class CommitResults extends React.Component {
         )}
         {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
-          to={`/commit/${commit.id}?project=${project}`}
+          to={`/${project}/commit/${commit.id}`}
           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
         >
           <Button intent={Intent.DANGER} minimal>
@@ -231,7 +231,7 @@ class CommitResults extends React.Component {
           <Link
             onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
             style={{ marginLeft: "10px" }}
-            to={`/commit/${commit.id}?project=${project}`}
+            to={`/${project}/commit/${commit.id}`}
           >
             <Button
               intent={Intent.SUCCESS}
@@ -264,7 +264,8 @@ class CommitRow extends React.Component {
       <CommitRowWrapper className={className}>
         <Avatar
           src={!!commit.committer_avatar_url ? commit.committer_avatar_url : null}
-          href={!!commit.committer_name ? `/committer/${commit.committer_name}?project=${project}` : null}
+          href={!!commit.committer_name ? `/${project}/committer/${commit.committer_name}` : null}
+          onClick={() => this.props.dispatch(updateSelected(this.props.project, {branch: null, committer: commit.committer_name}))}
           alt={commit.committer_name || commit.id || '?'}
         />
 
@@ -298,12 +299,13 @@ class CommitRow extends React.Component {
               </Tooltip>
               <Icon icon="git-branch" />
               <Link
-                style={{ color: "rgba(0,0,0,0.85)" }}
-                to={`/branch/${commit.branch}?project=${project}`}
+                style={{ color: "rgba(0,0,0,0.85)", marginRight: '5px' }}
+                to={`/${project}/commits/${(commit.branch || '').replace('origin/', '')}`}
+                onClick={() => this.props.dispatch(updateSelected(this.props.project, {branch: commit.branch.replace('origin/', ''), committer: null}))}
               >
-                {commit.branch}
+                {(commit.branch || '').replace('origin/', '')}
               </Link>
-              <DoneAtTag commit={commit} />
+              <DoneAtTag project={project} commit={commit} />
             </div>
           </CommitContent>
 

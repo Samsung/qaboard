@@ -2,7 +2,6 @@ import React from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
-import qs from "qs";
 
 import {
   Classes,
@@ -14,13 +13,9 @@ import {
   Button,
   MenuItem,
   Colors,
-  FormGroup,
-  InputGroup,
   HTMLSelect,
-  Tooltip,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
-import { DateRangeInput } from "@blueprintjs/datetime";
 
 import CommitsEvolution from "./CommitsEvolution";
 import { Container, Section } from "./components/layout";
@@ -32,19 +27,23 @@ import { fetchCommit } from "./actions/commit";
 import { fetchCommits } from "./actions/projects";
 
 import { shortId, filter_batch } from "./utils";
-import { default_project, empty_batch, default_commits_data, default_date_range } from "./defaults"
-
+import { empty_batch } from "./defaults";
+import {
+  projectSelector,
+  projectDataSelector,
+  commitsDataSelector,
+  commitsSelector,
+  branchesSelector,
+  selectedSelector,
+} from './selectors/projects'
 
 
 class Dashboard extends React.Component {
   constructor(props) {
     super(props);
-    const { default_metric, available_metrics, dashboard_metrics, main_metrics } = this.props;
+    const { available_metrics, dashboard_metrics, main_metrics } = this.props;
     this.state = {
       latest_commit: null,
-      filter: '',
-      sort_by: default_metric,
-      sort_order: -1,
       selected_metrics: (dashboard_metrics || main_metrics).map(
         k => available_metrics[k]
       )
@@ -80,19 +79,6 @@ class Dashboard extends React.Component {
     if (params.get("commit_android_id"))
       dispatch(fetchCommit(project, params.get("commit_android_id"), "ref_commit_id"));
   }
-
-
-  UpdateFilter = e => {
-    this.setState({ filter: e.target.value });
-    let query = qs.parse(this.props.location.search.substring(1));
-    this.props.history.push({
-      pathname: this.props.location.pathname,
-      search: qs.stringify({
-        ...query,
-        filter: e.target.value
-      })
-    });
-  };
 
 
   renderMetric = (metric, { handleClick, modifiers, query }) => {
@@ -194,8 +180,8 @@ class Dashboard extends React.Component {
     // console.log("linux_batch", linux_batch)
     // console.log("android_batch", android_batch)
 
-    linux_batch = filter_batch(linux_batch, this.state.filter);
-    android_batch = filter_batch(android_batch, this.state.filter);
+    linux_batch = filter_batch(linux_batch, this.props.output_filter);
+    android_batch = filter_batch(android_batch, this.props.output_filter);
 
     // console.log("linux_batch", linux_batch)
     // console.log("android_batch", android_batch)
@@ -233,34 +219,10 @@ class Dashboard extends React.Component {
         : commit_android_id.replace("/f2/algo_archive/PTAM_Results/", "");
     let pretty_commit_id = shortId(project, commit_id);
 
-    var effective_date_range = date_range;
-    if (commits.length > 0){
-      effective_date_range = [
-        new Date(commits[commits.length - 1].authored_datetime),
-        new Date(commits[0].authored_datetime)
-      ]
-    }
-
     return (
       <Container>
         <Section>
-          <h1 className={Classes.HEADING}>Dashboard @<Tooltip><span>{this.props.branch.name}</span><span>To view a different branch, append <code>&branch=your_branch</code> to the URL.</span></Tooltip></h1>
-          <DateRangeInput
-            value={effective_date_range}
-            maxDate={new Date()}
-            allowSingleDayRange
-            formatDate={date => (date == null ? "" : date.toLocaleDateString())}
-            parseDate={str => new Date(Date.parse(str))}
-            onChange={new_date_range => {
-              const { project, branch, aggregation_metrics, dispatch } = this.props; 
-              dispatch(fetchCommits(project, branch, new_date_range, aggregation_metrics, {only_ci_batches: true, with_outputs: true}))
-            }}
-            shortcuts
-          />
           {!is_loaded && <Spinner />}
-        </Section>
-
-        <Section>
           <Card elevation={1} style={{ breakInside: "avoid" }}>
             <h2 className={Classes.HEADING}>Improvement over time</h2>
             <CommitsEvolution
@@ -268,6 +230,7 @@ class Dashboard extends React.Component {
               project_data={project_data}              
               commits={selected_commits}
               select_metrics={evolution_metrics}
+              output_filter={this.props.output_filter}
               per_output_granularity
               offer_breakdown_per_test={true}
               style={{ marginTop: "20px" }}
@@ -276,23 +239,7 @@ class Dashboard extends React.Component {
           </Card>
         </Section>
 
-        <FormGroup
-          labelFor="filter-input"
-          helperText={`${
-            !this.state.filter
-              ? "You can filter all the data below."
-              : ""
-          }`}
-        >
-          <InputGroup
-            value={this.state.filter}
-            placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
-            onChange={this.UpdateFilter}
-            type="search"
-            leftIcon="search"
-            style={{width: '800px'}}
-          />
-        </FormGroup>
+
 
         {has_android && (
           <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
@@ -354,8 +301,8 @@ class Dashboard extends React.Component {
         </Section>}
 
         <Section>
-          <div>
-            <h2 className={Classes.HEADING}>Individual tests</h2>
+          <Card>
+            <h2 className={Classes.HEADING}>Latest results</h2>
 
             <Tabs
               renderActiveTabPanelOnly
@@ -416,7 +363,7 @@ class Dashboard extends React.Component {
                 <option value={1}>ascending</option>
               </HTMLSelect>
             </Tabs>
-          </div>
+          </Card>
         </Section>
       </Container>
     );
@@ -427,11 +374,14 @@ class Dashboard extends React.Component {
 const mapStateToProps = (state, ownProps) => {
     const params = new URLSearchParams(ownProps.location.search);
 
-    // project information
-    let project = params.get("project") || state.selected.project;
-    let project_data = state.projects.data[project] || default_project
+    let project = projectSelector(state)
+    let project_data = projectDataSelector(state)
+    let selected = selectedSelector(state)
 
-    // metrics
+    let commits_data = commitsDataSelector(state)
+    let commits = commitsSelector(state)
+    let branch = {name: (ownProps.match.params.name || params.get("branch") || project_data.information.qatools_config.project.reference_branch || 'latests')}
+
     let project_metrics = project_data.information.qatools_metrics    
     const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
     let aggregation_metrics = {};
@@ -440,21 +390,13 @@ const mapStateToProps = (state, ownProps) => {
     });
 
 
-    // selection
-    let branch = {name: params.get("branch") || project_data.information.qatools_config.project.reference_branch}
-    let branch_key = branch.name || branch.committer || 'default'
-    let commits_data = project_data.commits[branch_key] || default_commits_data;
-
     return {
-      // URL
       params,
-      // project information
       project,
       project_data,
-      // selection
       branch,
-      date_range: commits_data.date_range || default_date_range,
-      commits: commits_data.ids.map(id=>state.commits[id]).filter(c => !!c),
+      date_range: commits_data.date_range,
+      commits: commits.filter(c => !!c),
       // state
       error: commits_data.error,
       is_loaded: commits_data.is_loaded,
@@ -467,6 +409,10 @@ const mapStateToProps = (state, ownProps) => {
       available_metrics,
       dashboard_metrics,
       dashboard_evolution_metrics,
+
+      output_filter: selected.filter_batch_new,
+      sort_by: params.get("sort_by") || (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
+      order: params.get("order") || (state.selected[project] && state.selected[project].order) || -1,
     }
 }
 

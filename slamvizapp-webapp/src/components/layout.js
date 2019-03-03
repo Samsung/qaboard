@@ -1,5 +1,6 @@
 import styled from "styled-components";
 
+
 const Container = styled.div`
   padding-left: 0;
   list-style: none;
@@ -27,4 +28,16 @@ const Section = styled.div`
   margin-top: 30px;
 `;
 
-export { Container, Section };
+
+
+const Layout = styled.div`
+  display: flex;
+  flex: auto;
+  flex-direction: row;
+  box-sizing: border-box;
+  // style
+  background: #f0f2f5;
+  min-height: 1200px;
+`
+
+export { Container, Section, Layout };

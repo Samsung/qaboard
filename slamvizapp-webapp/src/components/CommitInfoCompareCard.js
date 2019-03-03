@@ -136,7 +136,7 @@ class CommitInfoCompareCard extends React.PureComponent {
         <div style={outer_div_style}>
 
           <div style={{ flex: "1 1 auto", minWidth: "450px" }}>
-            <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "baseline" }}>
+            <h1 className={Classes.HEADING} style={{ display: "flex", alignItems: "center" }}>
               <CommitAvatar style={{'marginRight': '10px'}} commit={new_commit} />
               {!!new_commit && !!new_commit.id &&
               <EditableText

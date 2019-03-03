@@ -39,7 +39,7 @@ export const fetchBranches = project => {
     })
     get("/api/v1/project/branches", { params: { project } })
       .then(response => {
-        dispatch(updateBranches(project, response.data))
+        dispatch(updateBranches(project, response.data.map(branch => branch.replace('origin/', '')).filter((v, i, a) => a.indexOf(v) === i) ))
       })
       .catch(error => {
         dispatch(updateBranches(project, null, error))

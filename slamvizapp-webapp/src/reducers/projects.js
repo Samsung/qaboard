@@ -20,7 +20,7 @@ function update_project(state=default_project, data) {
 }
 
 
-export const branch_key = branch => (branch.name || branch.committer || 'default');
+export const branch_key = branch => (branch.name || branch.committer || 'latests');
 
 export function projects(state = {
   data: {
@@ -50,7 +50,6 @@ export function projects(state = {
       return new_state;
 
     case UPDATE_COMMITS:
-      // console.log(state)
       var branch = branch_key(action.branch);
       let previous_ids = state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids;
       new_state = {
@@ -102,6 +101,7 @@ export function projects(state = {
           [action.project]: {
             ...state.data[action.project],
             commits: {
+              ...state.data[action.project].commits,            	
               [branch]: {
                 ...state.data[action.project].commits[branch],
                 ids: (state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids) || [],

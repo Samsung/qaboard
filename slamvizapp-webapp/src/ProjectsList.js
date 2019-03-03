@@ -83,7 +83,7 @@ class ProjectsList extends Component {
                   />
                 </div>
                 <div style={{'alignSelf': 'center', 'minWidth': 0}}>
-                  <h5 className={Classes.HEADING}><Link to={`/?project=${project_id}`}>{project_id}</Link></h5>                  
+                  <h5 className={Classes.HEADING}><Link to={`/${project_id}`}>{project_id}</Link></h5>                  
                   {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{git.description}</p>}
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
