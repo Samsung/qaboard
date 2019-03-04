@@ -476,7 +476,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           click.secho(f'ERROR: is_failed in {metrics_file}', fg='red', err=True)
 
     from .gitlab import update_gitlab_status
-    if is_ci and ctx.obj['batch_label']=='default':
+    if len(output_directories) and is_ci and ctx.obj['batch_label']=='default':
       update_gitlab_status(commit, 'success')
       # update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
