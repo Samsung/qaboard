@@ -119,6 +119,24 @@ def load_tuning_search(tuning_search, tuning_search_file):
   return tuning_search_dict, filetype
 
 
+def flatten(lst):
+  if type(lst) not in (tuple, list):
+    yield(lst)
+    return
+  yield from chain.from_iterable((flatten(x) for x in lst))
+# list(flatten([1, [2], [3, 4, [5], [6, [7]]] ]))
+
+
+def alias_groups(group, group_aliases):
+  if type(group) not in (tuple, list):
+    if group in group_aliases:
+      yield from chain.from_iterable(alias_groups(group_aliases.get(group), group_aliases))
+    else:
+      yield group
+    return
+  yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
+# list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
+
 def iter_recordings(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, globs=None, debug=False):
   """Returns an iterator over the (recording, configurations, lsf-configuration) from the selected groups
   params:
@@ -143,7 +161,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
 
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
-  groups = chain.from_iterable(group_aliases.get(group, [group]) for group in groups)
+  groups = alias_groups(group, group_aliases)
 
   maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
@@ -175,7 +193,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     # Each group can define his own default runtime and LSF configuration
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
-    group_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in group_configuration))
+    group_configuration = flatten(group_configuration)
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
 
     # We also allow each test to have his own configuration...
@@ -193,7 +211,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
           location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
           location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
-          location_configuration = list(chain.from_iterable(c if isinstance(c, list) else [c] for c in location_configuration))
+          location_configuration = flatten(location_configuration)
           location_configuration = [*group_configuration, *location_configuration]
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
