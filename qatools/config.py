@@ -216,8 +216,9 @@ if is_ci:
     # Different CI tools use different environment variables to tell us
     # what commit and branch we're running on
     commit_sha_variables = (
-        'CI_COMMIT_SHA', # GitlabCI 
-        'GIT_COMMIT', # Jenkins
+        'CI_COMMIT_SHA', # GitlabCI
+        'gitlabBranch', # Jenkins gitlab plugin 
+        'GIT_COMMIT', # Jenkins, git plugin
         'CIRCLE_SHA1', # CircleCI
         'TRAVIS_COMMIT', # TravisCI
     )
