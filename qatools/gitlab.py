@@ -8,7 +8,6 @@ from .config import config, root_qatools_config, subproject, commit_branch
 gitlab_api = "http://gitlab-srv/api/v4"
 gitlab_headers = {'Private-Token': os.environ.get('GITLAB_ACCESS_TOKEN', 'd5sbmEPvncmsgTcgZLoS')}
 gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')
-qatools_project_id = quote(config['project']['name'], safe='')
 
 
 
@@ -29,7 +28,7 @@ def update_gitlab_status(commit, state='success'):
   params = {
     "state": state,
     "name": f"QA {subproject.name if subproject else ''}",
-    "target_url": f'https://qa/commit/{commit.hexsha}?project={qatools_project_id}',
+    "target_url": f"https://qa/{config['project']['name']}/commit/{commit.hexsha}",
     "description": "CI results",
     # "ref": commit_branch,
   }
