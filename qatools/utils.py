@@ -125,6 +125,7 @@ def flatten(lst):
     return
   yield from chain.from_iterable((flatten(x) for x in lst))
 # list(flatten([1, [2], [3, 4, [5], [6, [7]]] ]))
+# list(flatten([1, {"cde:" [2, 3]} ]))
 
 
 def alias_groups(group, group_aliases):
@@ -161,7 +162,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
 
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
-  groups = alias_groups(group, group_aliases)
+  groups = alias_groups(groups, group_aliases)
 
   maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
