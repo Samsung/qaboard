@@ -131,12 +131,13 @@ def flatten(lst):
 def alias_groups(group, group_aliases):
   if type(group) not in (tuple, list):
     if group in group_aliases:
-      yield from chain.from_iterable(alias_groups(group_aliases.get(group), group_aliases))
+      yield from alias_groups(group_aliases.get(group), group_aliases)
     else:
       yield group
-    return
-  yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
+  else:
+    yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
 # list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
+# list(alias_groups(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']}))
 
 def iter_recordings(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, globs=None, debug=False):
   """Returns an iterator over the (recording, configurations, lsf-configuration) from the selected groups
