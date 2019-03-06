@@ -21,8 +21,17 @@ def slugify(s : str, maxlength=64):
     slug = slug[:(maxlength - 1)]
   # everything except 0-9 and a-z replaced with -. 
   slug = re.sub('[^0-9a-z]', '-', slug)
+  slug = re.sub('-{2,}', '-', slug)
   # No leading / trailing -. 
   return slug.strip('-')
+
+def slugify_config(s : str, maxlength=64):
+  """Slugiy a string like they do at Gitlab."""
+  # lowercased and shortened to 63 bytes
+  if len(s) < maxlength:
+    return slugify(s)
+  s_hash = make_hash(s)[:8]
+  return f"{s_hash}-{slugify(s[-(maxlength-8):], maxlength=None)}"
 
 
 def deserialize_config(configuration):
@@ -103,7 +112,7 @@ def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration
   return (
     batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
     platform /
-    slugify(configuration, maxlength=None) /
+    slugify_config(configuration) /
     tuning_foldername(batch_label, hash_parameters(tuning))
   )
 
