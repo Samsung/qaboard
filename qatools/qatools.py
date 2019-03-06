@@ -461,13 +461,17 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     wait = Job(name, 'echo "Finished batch."')
     wait.send(interactive=True, dependencies=waiting_job)
 
-    # time.sleep(1)#s
+    # our shared storage takes a while to sync. 
+    # it should be solved, and this sleep removed
+    if is_ci or ctx.obj['ci']: # for local runs, no need to wait
+      time.sleep(15)#s
+
     is_failed = False
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
       if not metrics_file.exists():
         click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='yellow', err=True)
-        # is_failed = True
+        is_failed = True
         continue
       with metrics_file.open() as f:
         metrics = json.load(f)
@@ -477,12 +481,11 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
     from .gitlab import update_gitlab_status
     if len(output_directories) and is_ci and ctx.obj['batch_label']=='default':
-      update_gitlab_status(commit, 'success')
-      # update_gitlab_status(commit, 'failed' if is_failed else 'success')
+      update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
-    if is_failed:
-      click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
-      # exit(1)
+    # if is_failed:
+    #   click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
+    #   # exit(1)
 
 
 
@@ -739,3 +742,4 @@ def main():
 
 if __name__ == '__main__':
   main()
+                                                               

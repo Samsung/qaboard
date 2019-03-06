@@ -163,7 +163,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
 
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
-  groups = alias_groups(groups, group_aliases)
+  groups = list(alias_groups(groups, group_aliases))
 
   maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
@@ -195,7 +195,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     # Each group can define his own default runtime and LSF configuration
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
-    group_configuration = flatten(group_configuration)
+    group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
 
     # We also allow each test to have his own configuration...
@@ -213,7 +213,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
           location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
           location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
-          location_configuration = flatten(location_configuration)
+          location_configuration = list(flatten(location_configuration))
           location_configuration = [*group_configuration, *location_configuration]
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
