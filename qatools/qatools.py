@@ -253,27 +253,27 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 
   from .utils import file_info
   # To help identify if input files change, we compute and save some metadata.
-  absolute_input_path = (context.obj['database'] / context.obj['input_path']).resolve()
-  if absolute_input_path.is_dir():
-    input_files = {path.as_posix(): file_info(path) for path in absolute_input_path.rglob('*') if path.is_file()}
+  full_input_path = (context.obj['database'] / context.obj['input_path'])
+  if full_input_path.is_dir():
+    input_files = {path.as_posix(): file_info(path) for path in full_input_path.rglob('*') if path.is_file()}
   else:
-    input_files = {absolute_input_path.as_posix(): file_info(absolute_input_path)}      
+    input_files = {full_input_path.as_posix(): file_info(full_input_path)}      
 
   with (output_directory / 'manifest.inputs.json').open('w') as f:
     json.dump(input_files, f, indent=2)
 
   # To help the UI application know what results we created, we save the complete list.
-  output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if path.is_file()}
+  output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if (path.is_file() and path.name != 'log.txt')}
   with (output_directory / 'manifest.outputs.json').open('w') as f:
     json.dump(output_files, f, indent=2)
 
   if save_manifests_in_database:
-    if absolute_input_path.is_file():
+    if full_input_path.is_file():
       click.secho('WARNING: saving the manifests in the database is only implemented for inputs that are *folders*.', fg='yellow', err=True)
     else:
       from .utils import copy
-      copy(output_directory / 'manifest.outputs.json', absolute_input_path / 'manifest.inputs.json')
-      copy(output_directory / 'manifest.outputs.json', absolute_input_path / 'manifest.outputs.json')
+      copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.inputs.json')
+      copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
 
   if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
@@ -742,4 +742,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-                                                               
