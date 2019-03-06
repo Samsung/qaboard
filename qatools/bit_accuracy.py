@@ -107,6 +107,9 @@ def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories
     from .config import config
     patterns = [*config["bit_accuracy"]["patterns"], 'manifest.inputs.json']
 
+    if not len(output_directories):
+      return True
+
     comparaisons = {'match': [], 'mismatch': [], 'errors': []}
     for output_directory in output_directories:
       # print(output_directory)
