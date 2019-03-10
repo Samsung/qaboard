@@ -159,7 +159,9 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     groups_file = [groups_file]
   available_batches = {}
   for p in groups_file:
-    available_batches.update(yaml.load(Path(p).open()))
+    new_batches = yaml.load(Path(p).open())
+    if new_batches:
+      available_batches.update(new_batches)
 
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
