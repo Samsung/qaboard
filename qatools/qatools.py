@@ -432,6 +432,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
             "configuration": input_configuration,
             "output_directory": output_directory,
             "input_path": input_path,
+            "database": input_database,
             "extra_parameters": tuning_params,
             "is_pending": True,
           },
