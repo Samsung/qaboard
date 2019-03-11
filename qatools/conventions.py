@@ -9,7 +9,7 @@ import json
 
 
 def get_commit_ci_dir(ci_dir, commit):
-  dir_name = f'{commit.authored_date}__{commit.author.name.replace(" "," ")}__{commit.hexsha[:8]}'
+  dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
   return ci_dir / 'commits' / dir_name
 
 
@@ -66,7 +66,7 @@ def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
   thishash = make_hash(paramstring)
   params_filename = paramstring.replace(",","_")
-  for char in "{}:[] \r\n\"/":
+  for char in "\\{}:[] \r\n\"/":
     params_filename = params_filename.replace(char,"")
   if len(params_filename) > maxlen:
     params_filename = thishash[:8] + '-' + re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
