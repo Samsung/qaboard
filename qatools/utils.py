@@ -163,6 +163,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     if new_batches:
       available_batches.update(new_batches)
 
+  # print(available_batches)
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
   groups = list(alias_groups(groups, group_aliases))
@@ -176,7 +177,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
       location = group
       if debug or True:
         click.secho(str(location), bold=True, fg='cyan', err=True)
-      
+
       for glob in globs:
         for matched_location in database.glob(location):
           rglob = '**/' + glob
@@ -199,7 +200,6 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     group_configuration = available_batches[group].get('configuration', default_configuration)
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
-
     # We also allow each test to have his own configuration...
     if isinstance(locations, list):
       locations = {l: None for l in locations}
