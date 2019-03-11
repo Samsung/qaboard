@@ -116,6 +116,8 @@ const applyStyle = node => {
 }
 
 
+const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
+
 
 class BitAccuracyViewer extends React.Component {
   constructor(props) {
@@ -183,10 +185,13 @@ class BitAccuracyViewer extends React.Component {
       tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
       const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
-      const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
       tree_compared = tree_compared.filter(node => node.id !== 'logs.txt')
-      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new) === hash_metrics(this.props.output_ref))
+      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new.metrics) === hash_metrics(this.props.output_ref.metrics))
         tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
+    }
+    if (!!this.props.files_filter && this.props.files_filter.length > 0) {
+      tree_compared = filterNodes(tree_compared, node => node.id.includes(this.props.files_filter) || (node.childNodes !== undefined && node.childNodes.length > 0))
+      forEachNode(tree_compared, node => {node.isExpanded = true} )    	
     }
 
     // sort by alphebetical order
@@ -196,6 +201,10 @@ class BitAccuracyViewer extends React.Component {
 
     forEachNode(tree_compared, applyStyle)
     forEachNode(tree_compared, node => {if (this.state.opened.includes(node.id)) {node.isExpanded = true}} )
+
+    if (this.props.expand_all !== undefined && !!this.props.expand_all) {
+      forEachNode(tree_compared, node => {node.isExpanded = true} )    	
+    }
 
     return tree_compared;
   }
@@ -268,7 +277,10 @@ class BitAccuracyViewer extends React.Component {
           this.state.cancel_source.reference.cancel();
         this.fetchData(this.props, 'reference');
       }
-      if (prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new)
+      let change_show_all_files = prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new;
+      let change_files_filter = prevProps.files_filter !== this.props.files_filter && !!this.state.tree.new;
+      let change_expand_all = prevProps.expand_all !== this.props.expand_all && !!this.state.tree.new;
+      if (change_show_all_files || change_files_filter || change_expand_all)
         this.setState({
           tree: {
             ...this.state.tree,

@@ -139,6 +139,8 @@ const filterNodes = (nodes, filter) => {
 //----- Misc Components ------------------------------------------------------- 
 // from stackoverflow...
 const humanFileSize = (bytes, si) => {
+	if (bytes === undefined || bytes === null)
+		return ''
     var thresh = si ? 1000 : 1024;
     if(Math.abs(bytes) < thresh) {
         return bytes + ' B';
