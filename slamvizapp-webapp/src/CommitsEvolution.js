@@ -105,7 +105,7 @@ class CommitsEvolutionPerBatch extends React.Component {
     if (this.props.per_output_granularity && this.props.output_filter.length>0) {
       const output_filter_ = make_output_filter(this.props.output_filter);
       Object.keys(commit.batches).forEach(label => {
-        let outputs = commit.batches[label].outputs
+        let outputs = commit.batches[label].outputs || {}
         commit.batches[label].failed_outputs = 0;
         commit.batches[label].valid_outputs = 0;
         commit.batches[label].pending_outputs = 0;
@@ -201,7 +201,7 @@ class CommitsEvolutionPerBatch extends React.Component {
           } else {
             let aggregation_func = shown_aggregation === 'median' ? median : average;
             y = commits_with_batch
-                  .map(c => Object.values(c.batches[label].outputs)
+                  .map(c => Object.values(c.batches[label].outputs || {})
                                   .filter(output_filter_)
                   )
                   .map(outputs => outputs.map(o=> o.metrics[metric.key]) )
@@ -437,7 +437,7 @@ class CommitsEvolutionPerTest extends React.Component {
         if (commits_with_batch.length > 0) {
           let input_configuration_set = new Set();
           commits_with_batch.forEach(c => {
-            Object.values(c.batches[label].outputs)
+            Object.values(c.batches[label].outputs || {})
               .filter(output_filter_)
               .forEach(o => input_configuration_set.add(JSON.stringify([o.test_input_path, o.configuration])));
           });
@@ -445,7 +445,7 @@ class CommitsEvolutionPerTest extends React.Component {
             const [test_input_path, configuration] = JSON.parse(input_config_json)
             let commits_with_output = commits_with_batch.filter(
               c =>
-                (Object.values(c.batches[label].outputs)
+                (Object.values(c.batches[label].outputs || {})
                   .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                   .filter(output_filter_)
                   .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
@@ -458,7 +458,7 @@ class CommitsEvolutionPerTest extends React.Component {
             let values = commits_with_output
               .map(
                 c =>
-                  Object.values(c.batches[label].outputs)
+                  Object.values(c.batches[label].outputs || {})
                     .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                     .filter(output_filter_)
                     .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
@@ -565,7 +565,7 @@ class CommitsEvolutionPerTest extends React.Component {
 
     if (this.state.hovered) {
       let hovered_output = Object.values(
-        hovered_commit.batches[hovered_label].outputs
+        hovered_commit.batches[hovered_label].outputs || {}
       ).filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
       if (
         !!hovered_commit_ref &&

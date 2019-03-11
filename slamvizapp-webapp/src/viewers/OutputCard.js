@@ -5,6 +5,7 @@ import { Card, Icon, Intent, Tag, Classes, Popover, Toaster, Tooltip } from "@bl
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { MetricTag } from "../components/metrics";
 
+import { deserialize_config } from '../utils'
 
 export const toaster = Toaster.create();
 
@@ -73,8 +74,8 @@ class OutputTags extends React.PureComponent {
     //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
     windows_path = windows_path.replace(/\//g, '\\')
     return <span>
-      <Tag intent={Intent.PRIMARY} round minimal>{platform}</Tag>
-      <Tag intent={Intent.PRIMARY} round minimal>{configuration}</Tag>
+      <Tag round minimal style={{marginRight: '5px', marginLeft: '5px'}}>@{platform}</Tag>
+      {deserialize_config(configuration).map(c => <Tag intent={Intent.PRIMARY} key={JSON.stringify(c)} round minimal style={{marginRight: '5px'}}>{typeof(c) === 'string' ? c : JSON.stringify(c)}</Tag>)}
       <a
         title="Show output files"
         style={{ marginLeft: "4px" }}
@@ -154,10 +155,17 @@ class OutputViewer extends React.Component {
       else viewer = <span>No viewer is defined for type: {type}</span>;
     } else {
       const { path } = this.props;
-      if (path.endsWith('png') || path.endsWith('jpg')) {
+      if (path.endsWith('png') ||
+          path.endsWith('jpg') ||
+          path.endsWith('jpeg')||
+          path.endsWith('bmp') ||
+          path.endsWith('pdf') ||
+          path.endsWith('tif') ||
+          path.endsWith('tiff')||
+          path.endsWith('dng') ||
+          path.endsWith('raw') ||
+          path.endsWith('hex')) {
         viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      } else if (path.endsWith('hex') || path.endsWith('raw')) {
-        viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('plotly.json')) {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {
@@ -225,6 +233,8 @@ class OutputCard extends Component {
                output_ref={output_ref}
                style={style}
                show_all_files={this.props.show_all_files}
+               expand_all={this.props.expand_all}
+               files_filter={this.props.files_filter}
               />
             : <>
               <MetricsTags

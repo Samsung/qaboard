@@ -8,7 +8,7 @@ import {
   // Spinner,
   NonIdealState,
 } from "@blueprintjs/core";
-
+import { deserialize_config } from '../utils'
 
 const CommitsWarningMessages = ({commits}) => {
 	let some_ids_not_correct = Object.keys(commits).some(id => id===null)
@@ -38,12 +38,14 @@ const CommitsWarningMessages = ({commits}) => {
 }
 
 
+
+
 const SimpleOutputList = ({outputs, intent}) => {
   return <ul className={Classes.LIST}>
     {outputs.map(o =>
       <li key={o.id}>
-        <Tag intent={intent} minimal>{`${o.configuration} @${o.platform}`}</Tag>{" "}
-        <strong>{o.test_input_path}</strong>
+        <strong style={{paddingRight: '5px'}}>{o.test_input_path}</strong>
+        {deserialize_config(o.configuration).map(c => <Tag key={JSON.stringify(c)} intent={intent} round style={{marginRight: '5px'}}> {typeof(c) === 'string' ? c : JSON.stringify(c)} </Tag>)}
         {Object.keys(o.extra_parameters).length > 0 && (
           <Fragment>
             <br />
@@ -107,7 +109,7 @@ const BatchStatusMessages = ({batch}) => {
       intent={Intent.DANGER}
       title={`${batch.failed_outputs} crashed`}
     >
-      <p>Be sure to read the logs in one of the tabs below.</p>
+      <p>Be sure to read the logs.</p>
       <SimpleOutputList
         outputs={Object.values(batch.outputs).filter(o => o.is_failed)}
         intent={Intent.DANGER}

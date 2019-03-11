@@ -72,7 +72,7 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       out = Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
     else:
-      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
+      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name.replace(" ", " ")}__{self.hexsha[:8]}'
       out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
     if self.project.id_relative:
       return out / self.project.id_relative
@@ -195,7 +195,7 @@ class CiCommit(Base):
         'authored_date': self.authored_date.isoformat(),
         "data": self.data if with_outputs else None,
         'commit_dir_url': str(self.commit_dir_url),
-        # 'repo_commit_dir': str(self.repo_commit_dir),
+        'repo_commit_dir_url': str(self.repo_commit_dir_url),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches
                     if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},

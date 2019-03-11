@@ -37,7 +37,7 @@ const Layout = styled.div`
   box-sizing: border-box;
   // style
   background: #f0f2f5;
-  min-height: 1200px;
+  min-height: 750px;
 `
 
 export { Container, Section, Layout };

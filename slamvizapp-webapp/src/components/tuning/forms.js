@@ -3,6 +3,7 @@ import { connect } from 'react-redux'
 import { get, post } from "axios";
 
 import { updateTuningForm } from "../../actions/tuning";
+import { deserialize_config } from "../../utils";
 
 import MonacoEditor from 'react-monaco-editor';
 
@@ -18,6 +19,8 @@ import {
   Switch,
   Tag,
   Toaster,
+  Tooltip,
+  Icon,
 } from "@blueprintjs/core";
 
 import templates from './templates'
@@ -62,18 +65,18 @@ const eval_function = text => {
 
 const eval_combinations = param_search_text => {
   /*Parses a string describing a tuning set into an object.*/
-  let output = null;
+  let combinations = null;
   // users can directly provide tuning sets via objects or arrays of objects
   try {
-    var combinations = JSON.parse(param_search_text);
+    combinations = JSON.parse(param_search_text);
     var language = "yaml" // no json support out of the box, yaml is superset so..
   } catch (e) {
     // or they can provide a function that returns a tuning set
     combinations = eval_function(param_search_text);
     language = "javascript"
   }
-  if (Array.isArray(output)) {
-    combinations = output.map(wrap_values_in_array);
+  if (Array.isArray(combinations)) {
+    combinations = combinations.map(wrap_values_in_array);
   } else {
     combinations = wrap_values_in_array(combinations)
   };
@@ -95,13 +98,11 @@ const grid_combinations = param_search => {
 class TuningForm extends Component {
   constructor(props) {
     super(props);
-    let configuration = this.props.configuration || this.props.project_data.information.qatools_config.inputs.configuration;
     let default_user = this.props.user || this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
     this.state = {
       submitted: false,
       experiment_name: this.props.experiment_name || "",
       platform: this.props.platform || "lsf",
-      configuration,
       overwrite: false,
 
       selected_group: this.props.selected_group || "",
@@ -134,8 +135,17 @@ class TuningForm extends Component {
     document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
   }
 
+  componentDidUpdate(prevProps, prevState) {
+    const { commit, selected_group } = this.state;
+    const has_commit = this.props.commit !== undefined && this.props.commit !== null;
+    let updated_commit = has_commit && (prevProps.commit === null || prevProps.commit === undefined || prevProps.commit.id !== this.props.commit.id);
+    if (updated_commit && selected_group) this.getGroupInfo(selected_group);
+  }
+
   getGroupInfo(group) {
-    get(`/api/v1/tests/group?project=${this.props.project}&name=${group}`, {})
+  	const commit_part = !!this.props.commit ? `&commit=${this.props.commit.id}` : '';
+  	this.setState({selected_group_info_loading: true})
+    get(`/api/v1/tests/group?project=${this.props.project}&name=${group}${commit_part}`, {})
       .then(response => {
         this.setState({
           selected_group_info_loading: false,
@@ -145,7 +155,7 @@ class TuningForm extends Component {
       .catch(error => {
         this.setState({
           selected_group_info_loading: false,
-          selected_group_info: { number_of_tests: 0 }
+          selected_group_info: { number_of_tests: 0, tests: [] }
         });
       });
   }
@@ -202,7 +212,6 @@ class TuningForm extends Component {
       experiment_name,
       platform,
       android_device,
-      configuration,
       groups,
       selected_group,
       overwrite,
@@ -218,7 +227,7 @@ class TuningForm extends Component {
       project: this.props.project,
       batch_label: experiment_name,
       platform,
-      configuration,
+      configuration: 'xxxxxxxxx',
       tuning_search: {
         search_type,
         search_options,
@@ -251,14 +260,13 @@ class TuningForm extends Component {
     const {
       platform,
       android_device,
-      configuration,
       selected_group,
       selected_group_info,
       experiment_name,
       user
     } = this.state;
     const { search_type, parameter_search, search_options } = this.state;
-    let number_of_tests = selected_group_info.number_of_tests;
+    const { number_of_tests, tests } = selected_group_info;
     try {
       var {combinations: tuning_sets, language} = eval_combinations(parameter_search);
       var combinations = grid_combinations(tuning_sets);
@@ -277,7 +285,6 @@ class TuningForm extends Component {
           ? Intent.PRIMARY
           : Intent.WARNING;
 
-    let artifacts_configurations = !!this.props.project_data.information.qatools_config.artifacts && this.props.project_data.information.qatools_config.artifacts.configurations
     return (
       <form onSubmit={this.onSubmit}>
         <FormGroup
@@ -287,11 +294,10 @@ class TuningForm extends Component {
               corresponds to the CI results
             </span>
           }
-          label="Name the experiment:"
+          label="Experiment name:"
           labelFor="batch-label"
           intent={Intent.PRIMARY}
-          labelInfo="(required)"
-        >
+       >
           <input
             id="batch-label"
             className={Classes.INPUT}
@@ -306,15 +312,21 @@ class TuningForm extends Component {
         </FormGroup>
 
         <FormGroup
-          label="Run on this group of tests:"
+          label="Tests and configurations:"
           intent={Intent.PRIMARY}
-          helperText={`${
-            number_of_tests > 0
-              ? number_of_tests + " tests. "
-              : ""
-          }One of the groups defined in the "Available Recordings" tab.`}
+          helperText={<>
+            {number_of_tests > 0 ? <Tooltip>
+              <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{number_of_tests} tests. </span>
+              <ul>{tests.map(t => <li>
+              	{t.test} {t.configuration.map(c => <Tag intent={Intent.PRIMARY} round style={{marginRight: '5px'}}>
+              		{typeof(c) === 'string' ? c : JSON.stringify(c)} </Tag>)}
+              </li>)}</ul>
+            </Tooltip>
+            : <span>To know your options, go to the "Tests" page. </span>
+            }
+            {this.state.selected_group_info_loading && <Icon icon="time"/>}
+          </>}
           labelFor="selected-group"
-          labelInfo="(required)"
         >
           <input
             id="selected-group"
@@ -359,7 +371,6 @@ class TuningForm extends Component {
             label="Android device"
             helperText="Choose a device from the openstf farm, or your own (host:port)"
             labelFor="input-android-device"
-            labelInfo="(required)"
           >
             <input
               id="input-android-device"
@@ -374,45 +385,29 @@ class TuningForm extends Component {
           </FormGroup>
         )}
 
-        <FormGroup
-          label="Configuration (can be overriden by the group of tests chosen)"
-          helperText={artifacts_configurations && `Configurations are saved as ${JSON.stringify(artifacts_configurations.glob)}`}
-          labelFor="input-configuration"
-        >
-          <input
-            id="input-configuration"
-            className={Classes.INPUT}
-            style={{ width: "300px" }}
-            value={configuration}
-            placeholder={this.props.project_data.information.qatools_config.inputs.configuration}
-            onChange={this.update('configuration')}
-            type="text"
-            dir="auto"
-          />
-        </FormGroup>
-
-        <h3 className={Classes.HEADING}>Manual tuning search</h3>
-        <p>
-          Click to see examples:{" "}
-          {["simple-combinations", "list-of-combinations", "function"].map(x => (
-            <Button
-              style={{margin: '4px'}}
-              key={x}
-              onClick={e =>
-                this.setState({ parameter_search: templates[x] })
-              }
-            >
-              {x}
-            </Button>
-          ))}
-        </p>
+        <h4 className={Classes.HEADING}>Manual tuning</h4>
+        <Callout title="Syntax examples" icon="info-sign" style={{marginBottom: '15px'}}>
+	        <p>
+	          {["simple-combinations", "list-of-combinations", "function"].map(x => (
+	            <Button
+	              style={{margin: '4px'}}
+	              key={x}
+	              onClick={e =>
+	                this.setState({ parameter_search: templates[x] })
+	              }
+	            >
+	              {x}
+	            </Button>
+	          ))}
+	        </p>
+	      </Callout>
         <FormGroup
           inline
           labelFor="select-search-type"
           helperText={
             search_type === "optimize" ? '' :
               search_type === "grid"
-              ? `Explores all the ${combinations} combination${combinations > 1 ? "s" : ""}`
+              ? `Explores ${combinations} combination${combinations > 1 ? "s" : ""}`
               : `Uniform sampling of ${combinations} combinations`
           }
         >
@@ -455,7 +450,6 @@ class TuningForm extends Component {
           onChange={this.updateParameterSearch}
         />
         {this.state.search_type !== "optimize" && <Callout
-          icon={this.state.selected_group_info_loading ? "dot" : "time"}
           intent={time_intent}
         >
           {total_runs} total runs
@@ -503,10 +497,9 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
-        <h3 className={Classes.HEADING}>Automated tuning search <Tag intent={Intent.WARNING}>Experimental</Tag></h3>
-        <Callout icon="info-sign">
-          <p>We use <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>.</p>
-          <p>There are lots of other choices (RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, algorithms and popularity.</p>
+        <h4 className={Classes.HEADING}>Automated tuning <Tag intent={Intent.WARNING}>Experimental</Tag></h4>
+        <Callout icon="info-sign" title="What solver is used?">
+          <p><a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of other choices (RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, algorithms and popularity.</p>
           <p><strong>Get in touch if you have experience/opinions.</strong></p>
         </Callout>
         <FormGroup

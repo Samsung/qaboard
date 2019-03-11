@@ -87,7 +87,7 @@ class ProjectApp extends React.Component {
           />
         ))}
         </Switch>
-        <div style={{paddingLeft: '151px', paddingTop: '50px'}}>
+        <div style={{paddingLeft: '151px'}}>
           <Switch>
             {routes.map((route, index) => (
               <Route

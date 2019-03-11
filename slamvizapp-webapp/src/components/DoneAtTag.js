@@ -5,7 +5,7 @@ import styled from "styled-components";
 import Moment from "react-moment";
 import "moment-timezone";
 
-import { Icon, Tooltip, Classes } from "@blueprintjs/core";
+import { Tooltip, Classes } from "@blueprintjs/core";
 
 
 const defaults = {
@@ -15,20 +15,16 @@ const defaults = {
 
 class DoneAtTagUnstyled extends React.Component {
   render() {
-    const { project, commit, className } = this.props;
+    const { project, commit, className, style } = this.props;
     let maybe_skeletton = (!commit || !commit.authored_datetime) ? Classes.SKELETON : null; 
     return (
-      <span className={className}>
-        <Icon
-          style={{ color: "#999", marginRight: "4px" }}
-          icon="calendar"
-        />
+      <span className={className} style={style}>
         <Tooltip content={!!commit && commit.authored_datetime}>
           <Moment className={maybe_skeletton} fromNow tz="Asia/Jerusalem" date={(!!commit && !!commit.authored_datetime) ? commit.authored_datetime : defaults.date} />
         </Tooltip>{" "}
-        by{" "}
+        {" "}
         <Link className={maybe_skeletton} to={`/${project}/committer/${!!commit && commit.committer_name}`}>
-          {(!!commit && !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
+          by {(!!commit && !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
         </Link>
       </span>
     );

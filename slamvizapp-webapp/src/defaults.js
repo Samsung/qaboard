@@ -91,7 +91,7 @@ export const default_project = {
 
 export const default_selected = () => {
   var params = new URLSearchParams(window.location.search);
-	return {
+	const selected  = {
     // This decides what is shows on the project page
     // Do we show all the latests commits? a single branch? commits from a given committer?
     branch: default_from_url('branch') || params.get("branch") || null,
@@ -108,13 +108,13 @@ export const default_selected = () => {
 		filter_batch_new: params.get("filter") || "",
 		filter_batch_ref: params.get("filter_ref") || "",
 
-		// order: params.get("order") || "",
+		// sort_order: params.get("sort_order") || "",
 		// sort_by: params.get("sort_by") || "",
-
-    // What kind of data should we show?
-		selected_tab_summary: params.get("selected_tab_summary") || "summary",
-		selected_tab_details: params.get("selected_tab_details"), // || "table-compare",
 	}
+	if (!!params.get("selected_views")) {
+	  selected.selected_views = [params.get("selected_views")]		
+	}
+	return selected;
 }
 
 

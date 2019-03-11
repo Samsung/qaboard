@@ -12,7 +12,7 @@ import {
   NonIdealState,
   Icon
 } from "@blueprintjs/core";
-
+import { deserialize_config } from '../utils'
 // import { Convert } from 'ansi-to-html '
 var Convert = require('ansi-to-html');
 var convert = new Convert();
@@ -74,7 +74,17 @@ class OutputLog extends Component {
       ? Intent.DANGER
       : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
 
-    const tag_config = <Tag>{`${output.configuration} @${output.platform}`}</Tag>;
+      
+    const tag_config = deserialize_config(output.configuration).map(c => <Tag
+    	intent={Intent.PRIMARY}
+    	round
+    	minimal
+    	key={JSON.stringify(c)}
+    	style={{marginRight: '5px'}}
+    >
+    		{typeof(c) === 'string' ? c : JSON.stringify(c)}
+    </Tag>)
+    const tag_platform = <Tag round minimal style={{marginRight: '5px', marginLeft: '5px'}}>@{output.platform}</Tag>
     const details = Object.entries(output.extra_parameters).map(([k, v]) => (
       <Tag key={k} intent={Intent.PRIMARY} minimal round>
         {k}:{JSON.stringify(v)}
@@ -114,7 +124,7 @@ class OutputLog extends Component {
     return (
       <div>
         <h6 className={Classes.HEADING}>
-          {show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>} {tag_config}{" "}{download_link}{" "}
+          {show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>} {tag_platform} {tag_config}{" "}{download_link}{" "}
           {output.test_input_path} {details}
         </h6>
           <Collapse isOpen={is_open}>
@@ -145,10 +155,10 @@ const BatchLogs = ({ batch }) => {
     is_running: false,
     output_type: "batch",
     output_dir_url: batch.output_dir_url,
-    test_input_path: 'Root output folder for the batch',
+    test_input_path: 'Tuning logs',
     extra_parameters: batch.data || {},
     configuration: '',
-    platform: batch.label || '',
+    platform: (batch.label === "default" ? "CI" : batch.label) || '',
   }
   return <>
     {Object.values(batch.outputs)

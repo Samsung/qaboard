@@ -4,11 +4,15 @@ APIs related to parameter tuning
 import os
 import subprocess
 import json
+import sys
 import datetime
 from pathlib import Path
 
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
+
+from qatools.utils import iter_recordings
+from qatools.conventions import deserialize_config
 
 from slamvizapp import app, db_session
 from ..models import CiCommit, Project
@@ -24,12 +28,9 @@ def get_groups_path(project_id):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
-            f.write(
-                """
-                # you can define groups of tests using this syntax:
-                # http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools/input_groups.yaml"""
-            )
+            f.write("""# Lots of examples here:\n# http://gitlab-srv/common-infrastructure/qatools/wikis/defining-groups-of-tests""")
     return path
+
 
 
 @app.route("/api/v1/tests/groups", methods=["GET", "POST"])
@@ -62,38 +63,66 @@ def groups():
 
 @app.route("/api/v1/tests/group")
 def get_group():
-    project_id = request.args.get("project", "dvs/psp_swip")
+    project_id = request.args["project"]
     project = Project.get_or_create(session=db_session, id=project_id)
-    groups_path = get_groups_path(project_id)
+
+    groups_paths = [get_groups_path(project_id)]
+    commit_id = request.args.get("commit")
+    if commit_id:
+        try:
+            ci_commit = CiCommit.query.filter(
+                CiCommit.project_id == project_id, CiCommit.hexsha.startswith(commit_id)
+            ).one()
+            commit_group_files = project.data['qatools_config'].get('inputs', {}).get('groups', [])
+            if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
+              commit_group_files = [commit_group_files]
+
+            # custom groups have priority over the commit's groups
+            for group_file in commit_group_files:
+              if (ci_commit.repo_commit_dir / group_file).exists():
+                groups_paths.insert(0, ci_commit.repo_commit_dir / group_file)
+        except NoResultFound:
+            return jsonify("Sorry, the commit id was not found"), 404
+
+    default_configuration = project.data["qatools_config"].get('inputs', {}).get('configuration', "default")
+    if not (isinstance(default_configuration, list) or isinstance(default_configuration, tuple)):
+      default_configuration = deserialize_config(default_configuration)
     try:
-        import qatools.utils
         tests = list(
-            qatools.utils.iter_recordings(
-                [request.args.get("name", "")],
-                groups_path,
+            iter_recordings(
+                [request.args["name"]],
+                groups_paths,
                 project.database,
-                project.data["qatools_config"]["inputs"]["configuration"],
+                default_configuration,
                 {},
                 project.data["qatools_config"],
             )
         )
-        return jsonify({"number_of_tests": len(tests)})
-    except:
-        return jsonify({"number_of_tests": 0})
+        return jsonify({
+            "number_of_tests": len(tests),
+            "tests": [{"test": str(test.relative_to(database)), "configuration": configuration} for test, configuration, _, database in tests],
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        print(groups_paths)
+        return jsonify({"number_of_tests": 0, "tests": []})
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"])
-@app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"])
+@app.route("/api/v1/commit/<hexsha>/batch/", methods=["POST"])
 def add_batch(hexsha):
     """
     Request that we run extra tests for a given project.
     """
-    project_id = request.args.get("project", "dvs/psp_swip")
+    project_id = request.args["project"]
     data = request.get_json()
+    print('> request.args', request.args)
+    print('> request.data', data)
 
     try:
         ci_commit = CiCommit.query.filter(
-            CiCommit.project_id == project_id, CiCommit.hexsha.startswith(hexsha)
+            CiCommit.project_id == project_id,
+            CiCommit.hexsha.startswith(hexsha)
         ).one()
     except NoResultFound:
         return jsonify("Sorry, the commit id was not found"), 404
@@ -139,7 +168,6 @@ def add_batch(hexsha):
         [
             "qa",
             f"--platform '{data['platform']}'" if "platform" in data else "",
-            f"--configuration '{data['configuration']}'" if "configuration" in data else "",
             f"--batch-label '{data['batch_label']}'",
             "optimize" if do_optimize else "batch",
             f"--groups-file '{groups_path}'",
@@ -176,7 +204,7 @@ def add_batch(hexsha):
             f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
             # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
-            f"\nexport CI=true'{ci_commit.gitcommit.hexsha}';\n",
+            f"\nexport CI=true;\n",
             f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
             batch_command,

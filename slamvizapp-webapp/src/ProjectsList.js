@@ -21,6 +21,7 @@ import { Container } from "./components/layout";
 import { Avatar } from "./components/avatars";
 
 import { fetchProjects, updateFavorite } from './actions/projects'
+import { updateSelected } from './actions/selected'
 
 
 class LastCommitAt extends Component {
@@ -78,12 +79,13 @@ class ProjectsList extends Component {
                 <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
                   <Avatar
                     src={!!git.avatar_url ? `http://gitlab-srv${git.avatar_url}` : null}
-                    href={`/?project=${project_id}`}
+                    href={`/${project_id}`}
                     alt={git.name || project_id}
+                    onClick={() => this.props.dispatch(updateSelected(project_id))}
                   />
                 </div>
                 <div style={{'alignSelf': 'center', 'minWidth': 0}}>
-                  <h5 className={Classes.HEADING}><Link to={`/${project_id}`}>{project_id}</Link></h5>                  
+                  <h5 className={Classes.HEADING}><Link onClick={() => this.props.dispatch(updateSelected(project_id))} to={`/${project_id}`}>{project_id}</Link></h5>                  
                   {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{git.description}</p>}
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>

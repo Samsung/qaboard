@@ -25,7 +25,7 @@ const openseadragon_config = {
   maxZoomPixelRatio: 50,
   minZoomImageRatio: 50,
   smoothTileEdgesMinZoom: 1000000,
-  // imageSmoothingEnabled: false,
+  imageSmoothingEnabled: false,
 
   springStiffness: 15,
 
@@ -58,10 +58,12 @@ const iiif_url = (output_dir_url, path) => {
   // remove the URL' leading "/s"
   identifier = identifier.replace(/\/*?s\//, "")
   identifier = `${identifier}/${path}`;
-  // console.log(identifier)
   // IIIF specs require encoding the slashes inside the identifier
+  let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
+  let endpoint = is_cde_file ? 'https://qa:8186/fcgi-bin/iipsrv.fcgi?IIIF='
+                             : 'https://qa:8183/iiif/2/'
   identifier = encodeURIComponent(identifier)
-  let url = `https://qa:8182/iiif/2/${identifier}`  
+  let url = `${endpoint}${identifier}`  
   return url
 }
 

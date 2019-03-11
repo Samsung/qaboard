@@ -10,11 +10,9 @@ import {
   Classes,
   Button,
   MenuItem,
-  Tag,
   InputGroup,
   Callout,
   Card,
-  Tab,
   Tabs,
   Intent,
 } from "@blueprintjs/core";
@@ -22,7 +20,6 @@ import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
-import CommitInfoCompareCard from "./components/CommitInfoCompareCard";
 import { MetricsSummary } from "./components/metrics";
 import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
 
@@ -39,7 +36,6 @@ import { updateSelected } from "./actions/selected";
 import { TuningForm } from "./components/tuning/forms";
 import { AddRecordingsForm } from "./components/tuning/form_groups";
 import { TuningExploration } from "./components/tuning/TuningExploration";
-import { SelectBatches } from "./components/tuning/SelectBatches";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 
 import {
@@ -80,7 +76,6 @@ class CiCommitResults extends Component {
     }
     this.setState({controls}, updateQueryUrl(this.props.history, controls));
   }
-
 
   // these members help us define the metric selector
   renderMetric = (metric, { handleClick, modifiers, query }) => {
@@ -157,9 +152,6 @@ class CiCommitResults extends Component {
     }
   }
 
-
-
-  
   update = (attribute, attribute_url) => e => {
   	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
@@ -173,7 +165,6 @@ class CiCommitResults extends Component {
     });
   } 
 
-
   render() {
     const {
       project,
@@ -182,11 +173,10 @@ class CiCommitResults extends Component {
       new_commit_id,
       new_commit,
       ref_commit,
-      selected_batch_new,
-      selected_batch_ref,
       selected_metrics,
       new_batch_filtered,
       ref_batch_filtered,
+      selected_views,
     } = this.props;
 
     var warning_messages = <CommitsWarningMessages
@@ -242,23 +232,35 @@ class CiCommitResults extends Component {
       })}
     </>
 
+    const all_controls = <Tabs>
+      <Tabs.Expander />
+      {controls}
+      <HTMLSelect
+        defaultValue={this.props.sort_by}
+        onChange={this.update('sort_by')}
+      >
+        <option value="test_input_path">Sort by Name</option>
+        {Object.values(this.props.available_metrics).map(
+          m => (
+            <option key={m.key} value={m.key}>
+              Sort by {m.label}
+            </option>
+          )
+        )}
+      </HTMLSelect>
+      <HTMLSelect
+        defaultValue="descending"
+        onChange={this.selectOrder}
+      >
+        <option value={-1}>descending</option>
+        <option value={1}>ascending</option>
+      </HTMLSelect>
+    </Tabs>
 
-    const nb_good = batch => (Object.values(batch.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length
-    const nb_outputs_new = nb_good(this.props.new_batch);
-    const nb_outputs_ref = nb_good(this.props.ref_batch);
-    const nb_outputs_filtered_new = nb_good(new_batch_filtered);
-    const nb_outputs_filtered_ref = nb_good(ref_batch_filtered);
+    let show_ref_navbar = ! (selected_views === 'logs' || selected_views === 'tuning' || selected_views === 'groups')
+
     return (
-      <Container>
-        <Section>
-          <CommitInfoCompareCard
-            project={project}
-            new_commit={new_commit}
-            ref_commit={ref_commit}
-            new_label={selected_batch_new}
-            ref_label={selected_batch_ref}
-          />
-        </Section>
+      <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
 
         {(!new_commit || !ref_commit) && <Section>
           {warning_messages}
@@ -266,261 +268,138 @@ class CiCommitResults extends Component {
 
         {(!!new_commit) && (
             <>
-              <Section key="high-level">
-                <Card elevation={0}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center"
-                    }}
-                  >
-                    <div
-                      style={{
-                        flex: "1 1 auto",
-                        minWidth: "510px",
-                        maxWidth: "510px"
-                      }}
-                    >
-                      <SelectBatches
-                        commit={new_commit}
-                        selected={selected_batch_new}
-                        onChange={this.update('batch_new')}
-                        prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
-                      />
-                      {nb_outputs_new>0 && <FormGroup
-                        labelFor="filter-new-input"
-                        helperText={`${
-                          !this.props.filter_batch_new
-                            ? "You can filter outputs by all their properties. "
-                            : ""
-                        }${nb_outputs_filtered_new} selected`}
-                      >
-                        <InputGroup
-                          value={this.props.filter_batch_new}
-                          placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
-                          onChange={this.update('filter_batch_new', 'filter')}
-                          type="search"
-                          leftIcon="search"
-                        />
-                      </FormGroup>}
-                    </div>
-                    <div
-                      style={{
-                        flex: "1 1 auto",
-                        minWidth: "490px",
-                        maxWidth: "490px",
-                        textAlign: "right"
-                      }}
-                    >
-                      <SelectBatches
-                        commit={ref_commit}
-                        selected={selected_batch_ref}
-                        onChange={this.update('batch_ref', 'batch_reference')}
-                        prefix={
-                          <Tag intent={Intent.PRIMARY}>Reference commit</Tag>
-                        }
-                      />
-                      {nb_outputs_ref > 0 && <FormGroup
-                        labelFor="filter-ref-input"
-                        helperText={`${nb_outputs_filtered_ref} selected.`}
-                      >
-                        <InputGroup
-                          value={this.props.filter_batch_ref}
-                          placeholder="Input path, tags, platform, configuration, or tuning parameters (key:value)"
-                          onChange={this.update('filter_batch_ref, filter_ref')}
-                          type="search"
-                          rightIcon="search"
-                        />
-                      </FormGroup>}
-                    </div>
-                  </div>
-                </Card>
-              </Section>
-
               <Section key="filters">
                 {warning_messages}
                 <BatchStatusMessages batch={new_batch_filtered} />
               </Section>
 
-              <Section key="summary">
+              {selected_views.includes('summary') && <Section>
                 <Card elevation={2}>
-                  <Tabs
-                    renderActiveTabPanelOnly
-                    id="tabs-summary"
-                    onChange={this.update('selected_tab_summary')}
-                    selectedTabId={this.props.selected_tab_summary}
-                  >
-                    <Tab
-                      id="summary"
-                      title="Summary"
-                      panel={
-                        <MetricsSummary
-                          project={project}
-                          project_data={project_data}
-                          available_metrics={this.props.available_metrics}
-                          new_batch={new_batch_filtered}
-                          ref_batch={ref_batch_filtered}
-                        />
-                      }
-                    />
-                    <Tab
-                      id="parameters"
-                      title="Configurations"
-                      panel={
-                        <CommitParameters
-                          project={project}
-                          new_commit={new_commit}
-                          ref_commit={ref_commit}
-                        />
-                      }
-                    />
-                    <Tab
-                      id="groups"
-                      title="Groups of Tests"
-                      disabled={false}
-                      panel={
-                        <AddRecordingsForm
-                          project={project}
-                          project_data={this.props.project_data}
-                          commit={new_commit}
-                        />
-                      }
-                    />
-                    <Tab
-                      id="tuning"
-                      title="Extra Runs & Tuning"
-                      panel={
-                        <TuningForm project={project} project_data={this.props.project_data} commit={new_commit} />
-                      }
-                      disabled={false}
-                    />
-                  </Tabs>
+                  <h2 className={Classes.HEADING}>Summary</h2>
+                  <MetricsSummary
+                    project={project}
+                    project_data={project_data}
+                    available_metrics={this.props.available_metrics}
+                    new_batch={new_batch_filtered}
+                    ref_batch={ref_batch_filtered}
+                  />
                 </Card>
-              </Section>
+               </Section>}
 
-              <Section key="details">
-                <Tabs
-                  renderActiveTabPanelOnly
-                  id="tabs-outputs"
-                  onChange={this.update('selected_tab_details')}
-                  selectedTabId={nb_outputs_new > 0 ? this.props.selected_tab_details : "logs"}
-                >
-                  <Tab
-                    id="table-compare"
-                    title="Improvement"
-                    disabled={nb_outputs_new===0}
-                    panel={
-                      <div>
-                        <h2 className={Classes.HEADING}>Improvement report</h2>
-                        <TableCompare
-                          sort_order={this.props.order}
-                          sort_by={this.props.sort_by}
-                          new_batch={new_batch_filtered}
-                          ref_batch={ref_batch_filtered}
-                          metrics={selected_metrics}
-                          input={metricTableSelect}
-                        />
-                      </div>
-                    }
+              {selected_views.includes('parameters') && <Section>
+                <Card>
+                  <h2 className={Classes.HEADING}>Algorithm configuration</h2>
+                  <CommitParameters
+                    project={project}
+                    new_commit={new_commit}
+                    ref_commit={ref_commit}
                   />
-                  <Tab
-                    id="table-kpi"
-                    title="KPI report"
-                    disabled={nb_outputs_new===0}
-                    panel={
-                      <div>
-                        <h2 className={Classes.HEADING}>Quality report</h2>
-                        <TableKpi
-                          sort_order={this.props.order}
-                          sort_by={this.props.sort_by}
-                          new_batch={new_batch_filtered}
-                          ref_batch={ref_batch_filtered}
-                          metrics={selected_metrics}
-                          input={metricTableSelect}
-                        />
-                      </div>
-                    }
+                </Card>
+               </Section>}
+
+              {selected_views.includes('groups') && <Section>
+                <Card>
+                  <h2 className={Classes.HEADING}>Groups of tests</h2>
+                  <AddRecordingsForm
+                    project={project}
+                    project_data={this.props.project_data}
+                    commit={new_commit}
                   />
-                  <Tab
-                    id="logs"
-                    title="Logs"
-                    panel={
-                      <BatchLogs
-                        batch={new_batch_filtered}
-                        batch_label={new_batch_filtered.label}
-                      />
-                    }
+                </Card>
+               </Section>}
+
+              {selected_views.includes('tuning') && <Section>
+                <h2 className={Classes.HEADING}>Run experiments</h2>
+                <Card>
+                  <TuningForm
+                    project={project}
+                    project_data={this.props.project_data}
+                    commit={new_commit} />
+                </Card>
+               </Section>}
+
+              {selected_views.includes('table-compare') && <Section>
+                <Card>
+                    {all_controls}
+                    <h2 className={Classes.HEADING}>Improvement report</h2>
+                    <TableCompare
+                      sort_order={this.props.sort_order}
+                      sort_by={this.props.sort_by}
+                      new_batch={new_batch_filtered}
+                      ref_batch={ref_batch_filtered}
+                      metrics={selected_metrics}
+                      input={metricTableSelect}
+                    />
+                </Card>
+               </Section>}
+
+              {selected_views.includes('table-kpi') && <Section>
+                <Card>
+                   {all_controls}
+                    <h2 className={Classes.HEADING}>Quality report</h2>
+                    <TableKpi
+                      sort_order={this.props.sort_order}
+                      sort_by={this.props.sort_by}
+                      new_batch={new_batch_filtered}
+                      ref_batch={ref_batch_filtered}
+                      metrics={selected_metrics}
+                      input={metricTableSelect}
+                    />
+                </Card>
+               </Section>}
+
+              {selected_views.includes('logs') && <Section>
+                  {all_controls}
+                  <h2 className={Classes.HEADING}>Logs</h2>
+                  <BatchLogs
+                    batch={new_batch_filtered}
+                    batch_label={new_batch_filtered.label}
                   />
-                  <Tab
-                    id="output-list"
-                    title="Detailed outputs"
-                    disabled={nb_outputs_new===0}
-                    panel={
-                      <OutputList
-                        project={project}
-                        project_data={project_data}
-                        sort_order={this.props.order}
-                        sort_by={this.props.sort_by}
-                        new_batch={new_batch_filtered}
-                        ref_batch={ref_batch_filtered}
-                        controls={this.state.controls}
-                      />
-                    }
+               </Section>}
+
+
+
+              {selected_views.includes('output-list') && <Section>
+                 {all_controls}
+                  <h2 className={Classes.HEADING}>Outputs</h2>
+                  <OutputList
+                    project={project}
+                    project_data={project_data}
+                    sort_order={this.props.sort_order}
+                    sort_by={this.props.sort_by}
+                    new_batch={new_batch_filtered}
+                    ref_batch={ref_batch_filtered}
+                    controls={this.state.controls}
                   />
-                  <Tab
-                    id="bit-accuracy"
-                    title="Bit accuracy"
-                    disabled={nb_outputs_new===0}
-                    panel={
-                      <OutputList
-                        type='bit_accuracy'
-                        project={project}
-                        project_data={project_data}
-                        sort_order={this.props.order}
-                        sort_by={this.props.sort_by}
-                        new_batch={new_batch_filtered}
-                        ref_batch={ref_batch_filtered}
-                        controls={this.state.controls}
-                      />
-                    }
+               </Section>}
+
+              {selected_views.includes('bit-accuracy') && <Section>
+                 {all_controls}
+                  <h2 className={Classes.HEADING}>Files / Bit accuracy</h2>
+                  <OutputList
+                    type='bit_accuracy'
+                    project={project}
+                    project_data={project_data}
+                    sort_order={this.props.sort_order}
+                    sort_by={this.props.sort_by}
+                    new_batch={new_batch_filtered}
+                    ref_batch={ref_batch_filtered}
+                    controls={this.state.controls}
+                    history={this.props.history}
                   />
-                  <Tab
-                    id="tuning-results"
-                    title="Tuning exploration"
-                    disabled={nb_outputs_new===0}
-                    panel={
-                      <TuningExploration
-                        project={project}
-                        project_data={project_data}
-                        batch={new_batch_filtered}
-                      />
-                    }
+               </Section>}
+
+              {selected_views.includes('tuning-results') && <Section>
+                <Card>
+                  <h2 className={Classes.HEADING}>Tuning understanding</h2>
+                  <TuningExploration
+                    project={project}
+                    project_data={project_data}
+                    batch={new_batch_filtered}
                   />
-                  <Tabs.Expander />
-                  {controls}
-                  <HTMLSelect
-                    defaultValue={this.props.sort_by}
-                    onChange={this.update('sort_by')}
-                  >
-                    <option value="test_input_path">Sort by Name</option>
-                    {Object.values(this.props.available_metrics).map(
-                      m => (
-                        <option key={m.key} value={m.key}>
-                          Sort by {m.label}
-                        </option>
-                      )
-                    )}
-                  </HTMLSelect>
-                  <HTMLSelect
-                    defaultValue="descending"
-                    onChange={this.selectOrder}
-                  >
-                    <option value={-1}>descending</option>
-                    <option value={1}>ascending</option>
-                  </HTMLSelect>
-                </Tabs>
-              </Section>
+                </Card>
+               </Section>}
+
             </>
           )}
       </Container>
@@ -528,18 +407,51 @@ class CiCommitResults extends Component {
   }
 }
 
+
 class OutputList extends Component {
   constructor(props) {
     super(props);
+    const params = new URLSearchParams(window.location.search);
+
     this.state = {
       select_debug: "",
-      show_all_files: false,
+      // bit-accuracy controls
+      show_all_files: params.get("show_all_files") || false,
+      expand_all: params.get("expand_all") || false,
+      files_filter: params.get("files_filter") || '',
     };
   }
 
+  
+  update = (attribute, attribute_url) => e => {
+  	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
+    let query = qs.parse(window.location.search.substring(1));
+    this.setState({[attribute_url || attribute]: value,})
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [attribute_url || attribute]: value,
+      })
+    });
+  }
+
+  toggle = name => () => {
+    this.setState({[name]: !this.state[name]})
+    let query = qs.parse(window.location.search.substring(1));
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [name]: !this.state[name],
+      })
+    });
+  }
+
+
   render() {
-    const { new_batch, ref_batch, sort_by, sort_order, controls, type } = this.props;
-    const { project, project_data } = this.props;
+    const { project, project_data, new_batch, ref_batch, sort_by, sort_order, controls, type } = this.props;
+    const { show_all_files, expand_all, files_filter } = this.state;
     // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
 
     return (
@@ -554,9 +466,35 @@ class OutputList extends Component {
             >
               <Switch
                 label="Show all files"
-                checked={this.state.show_all_files}
-                onChange={e => this.setState({ show_all_files: !this.state.show_all_files})}
+                checked={show_all_files}
+                onChange={this.toggle('show_all_files')}
                 style={{ width: "300px" }}
+              />
+            </FormGroup>
+            <FormGroup
+              inline
+              labelFor="expand-all"
+              style={{flex: '50 1 auto'}}
+            >
+              <Switch
+                label="Expand all folders"
+                checked={expand_all}
+                onChange={this.toggle('expand_all')}
+                style={{ width: "300px" }}
+              />
+            </FormGroup>
+            <FormGroup
+              inline
+              labelFor="files-filter"
+              helperText="Only show files matching"
+              style={{flex: '50 1 auto'}}
+            >
+              <input
+              	className={Classes.INPUT}
+                label="Filter by path"
+                value={files_filter}
+                onChange={this.update('files_filter')}
+                style={{ width: "150px" }}
               />
             </FormGroup>
             <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
@@ -579,11 +517,11 @@ class OutputList extends Component {
           </FormGroup>
         )}
         {ref_batch.label !== "default" && (
-          <Callout intent={Intent.WARNING}>
+          <Section><Callout intent={Intent.WARNING}>
             We compare each output to <strong>any</strong> reference outputs
             with matching recording+configuration+platform,{" "}
             <strong>without looking at the tuning parameters</strong>.
-          </Callout>
+          </Callout></Section>
         )}
         <div
           style={{
@@ -605,6 +543,8 @@ class OutputList extends Component {
                   key={id}
                   type={this.props.type}
                   show_all_files={this.state.show_all_files}
+                  files_filter={files_filter}
+                  expand_all={expand_all}
                   project={project}
                   project_data={project_data}
                   output_type={output.output_type}
@@ -649,8 +589,6 @@ const mapStateToProps = (state, ownProps) => {
     	new_batch_filtered,
     	ref_batch_filtered,
     } = batchSelector(state)
-    // console.log(batchSelector(state))
-
 
     // metrics
     let project_metrics = project_data.information.qatools_metrics
@@ -658,11 +596,7 @@ const mapStateToProps = (state, ownProps) => {
     let selected_metrics = selected.selected_metrics || project_metrics.main_metrics.map(k => available_metrics[k])
 
 
-    let selected_tab_summary = (state.selected[project] && state.selected[project].selected_tab_summary) || "summary";
-    let selected_tab_details = (state.selected[project] && state.selected[project].selected_tab_details) || (project_data.information.qatools_config.outputs || {}).default_tab_details || 'table-compare';
-    console.log('selected_tab_summary', selected_tab_summary)
-    console.log('selected_tab_details', selected_tab_details)
-
+    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ((project_data.information.qatools_config.outputs || {}).default_tab_details || 'table-compare')];
     return {
       params,
       project,
@@ -687,11 +621,10 @@ const mapStateToProps = (state, ownProps) => {
       ref_batch_filtered,
       // FIXME: memoize with reselect
       // getFilteredBatch() ...
-      selected_tab_summary,
-      selected_tab_details,
+      selected_views,
 
       sort_by: params.get("sort_by") || (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
-      order: params.get("order") || (state.selected[project] && state.selected[project].order) || -1,
+      sort_order: params.get("sort_order") || (state.selected[project] && state.selected[project].sort_order) || -1,
     }
 }
 

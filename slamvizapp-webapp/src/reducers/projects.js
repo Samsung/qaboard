@@ -20,8 +20,11 @@ function update_project(state=default_project, data) {
 }
 
 
-export const branch_key = branch => (branch.name || branch.committer || 'latests');
-
+export const branch_key = branch => {
+  if (branch === undefined || branch === null)
+    return 'latests'; 
+  return branch.name || branch.committer || 'latests';
+}
 export function projects(state = {
   data: {
     [default_project_id]: default_project,

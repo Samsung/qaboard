@@ -33,7 +33,6 @@ import {
   projectDataSelector,
   commitsDataSelector,
   commitsSelector,
-  branchesSelector,
   selectedSelector,
 } from './selectors/projects'
 
@@ -144,23 +143,20 @@ class Dashboard extends React.Component {
       selected_metrics,
       evolution_metrics,
     } = this.state;
+    console.log(this.props)
 
-    // console.log("commits.length", commits.length)
-    // console.log("is_loaded", is_loaded);
-    // console.log("is_loading", is_loading);
     if (is_loading)
       return (
-        <Container>
+        <Container style={{paddingTop: '50px'}}>
           <NonIdealState title={`Loading @${this.props.branch.name}`} icon={<Spinner />} />
         </Container>
       );
-    if (commits.length===0) return <Container>
+    if (commits.length===0) return <Container style={{paddingTop: '50px'}}>
       <NonIdealState title="No commits found" description="Too bad......" icon='search' />
     </Container>
-    if (!!error) return <Container>
+    if (!!error) return <Container style={{paddingTop: '50px'}}>
       <NonIdealState title="Error" icon='error' text={JSON.stringify(error)}/>
     </Container>
-    // console.log(commits)
 
     // Find the latest commit with android results [Specific to dvs/psp_swip]
     const has_outputs_in_batch = label => commit => !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
@@ -220,7 +216,7 @@ class Dashboard extends React.Component {
     let pretty_commit_id = shortId(project, commit_id);
 
     return (
-      <Container>
+      <Container style={{paddingTop: '50px'}}>
         <Section>
           {!is_loaded && <Spinner />}
           <Card elevation={1} style={{ breakInside: "avoid" }}>
@@ -317,8 +313,8 @@ class Dashboard extends React.Component {
                 title="vs KPI"
                 panel={
                   <TableKpi
-                    sort_order={this.state.sort_order}
-                    sort_by={this.state.sort_by}
+                    sort_order={this.props.sort_order}
+                    sort_by={this.props.sort_by}
                     new_batch={has_android ? android_batch : linux_batch}
                     ref_batch={has_android ? linux_batch : android_batch}
                     labels={
@@ -335,8 +331,8 @@ class Dashboard extends React.Component {
                   title="Android vs LSF"
                   panel={
                     <TableCompare
-                      sort_order={this.state.sort_order}
-                      sort_by={this.state.sort_by}
+                      sort_order={this.props.sort_order}
+                      sort_by={this.props.sort_by}
                       new_batch={android_batch}
                       ref_batch={linux_batch}
                       labels={["Android", "LSF"]}
@@ -411,8 +407,8 @@ const mapStateToProps = (state, ownProps) => {
       dashboard_evolution_metrics,
 
       output_filter: selected.filter_batch_new,
-      sort_by: params.get("sort_by") || (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
-      order: params.get("order") || (state.selected[project] && state.selected[project].order) || -1,
+      sort_by: params.get("sort_by") || selected.sort_by || project_metrics.default_metric || "input_test_path",
+      sort_order: params.get("sort_order") || selected.sort_order || -1,
     }
 }
 

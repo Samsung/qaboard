@@ -4,7 +4,7 @@ import { interpolateRdYlGn } from "d3-scale-chromatic";
 import { HTMLTable, Classes, Colors, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
 
 import { Section } from "./layout";
-import { matching_output, sortOutputs } from "../utils";
+import { matching_output, sortOutputs, deserialize_config } from "../utils";
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -33,10 +33,8 @@ const RowHeaderCell = ({ output, warning }) => {
   return (
     <th scope="row">
       {output.test_input_path} <span className={Classes.TEXT_MUTED}>{extra_parameters}</span>
-      <Tag minimal round >
-        {output.platform}
-      </Tag>
-      {output.configuration.split(':').map(c=><Tag key={c} minimal round>{c}</Tag>)}
+      <Tag round minimal style={{marginRight: '5px', marginLeft: '5px'}}>@{output.platform}</Tag>
+      {deserialize_config(output.configuration).map(c => <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} minimal round style={{marginRight: '5px'}}> {typeof(c) === 'string' ? c : JSON.stringify(c)} </Tag>)}
       {warning && (
         <Popover interactionKind="hover">
           <Icon intent={Intent.WARNING} icon="warning-sign" />
@@ -62,7 +60,8 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     return <td></td>;
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
   let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
-  let quality = metric.smaller_is_better ? (0.5 - delta_relative) : (0.5 + delta_relative);
+  let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
+  quality = Math.max(Math.min(quality, 0.9), 0.08)
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       {metric_formatter.format(delta)} ({percent_formatter.format(
@@ -80,11 +79,12 @@ const QualityCell = ({ metric, metrics }) => {
   )
     return <td></td>;
   let value = metrics[metric.key];
-  const delta_relative = (metric.target - value) / (metric.target + 0.0001);
-  let quality = metric.smaller_is_better ? (0.5 + delta_relative) : (0.5 - delta_relative);
+  const delta_relative = (metric.target - value) / (metric.target + 0.000001);
+  let quality = metric.smaller_is_better ? (0.5 + delta_relative/2) : (0.5 - delta_relative/2);
+  quality = Math.max(Math.min(quality, 0.9), 0.08)
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
-      {metric_formatter.format(value)}
+      {metric_formatter.format(value * metric.scale)}
     </td>
   );
 };
@@ -98,7 +98,7 @@ const TableCompare = ({
   input,
   labels
 }) => {
-  if (new_batch === null) return <span />;
+  if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
   let outputs = Object.entries(new_batch.outputs)
     .filter(([id, o]) => !o.is_pending && !o.is_failed)
@@ -165,7 +165,7 @@ const TableKpi = ({
   input,
   labels
 }) => {
-  if (new_batch === null) return <span />;
+  if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Reference"];
   let outputs = Object.entries(new_batch.outputs)
     .filter(([id, o]) => !o.is_pending && !o.is_failed)

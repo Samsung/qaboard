@@ -34,14 +34,13 @@ return events_per_frame.map(e => ({
 }));
 `,
   optimize: (config, metrics) => {
-    return `# We will optimize the objective function within a budget of this many evaluations
-# Currently, if your objective is cheap to evaluate, the optimization will be dominiated by call overheads.
+    return `# We will call the objective function that many times
 evaluations: 50
 
 # You can optimize objective functions of the form:
 #
-#  argmin        ∑     weight * reduce(   ⋃     loss(metric, target) ) / #outputs
-#  params     metrics                   outputs
+#  argmin        ∑     ɛ * weight * reduce(   ⋃     loss(metric, target) ) / nb_outputs
+#  params     metrics                      outputs
 #
 
 
@@ -54,7 +53,7 @@ objective:
     #     | relu   # => relu(sum)
     # 
     # Some metrics need to be maximized, not minimized.
-    # This is defined via "smaller_is_better" in qatools' metrics configuration file.
+    # This is defined in qatools' metrics configuration file via "smaller_is_better" .
     #     ɛ = 1 if smaller_is_better else -1
     #
     loss: identity # error, target => ɛ * error

@@ -4,13 +4,15 @@ import styled from "styled-components";
 import { Classes } from "@blueprintjs/core";
 
 const AvatarCell = styled.div`
-  width: 46px;
+  width: ${props => props.size || '45px'};
   color: rgba(0, 0, 0, 0.85);
+
+  align-self: center;
 `;
 
 const AvatarImg = styled.img`
-  width: 45px;
-  height: 45px;
+  width: ${props => props.size || '45px'};
+  height: ${props => props.size || '45px'};
   margin-right: 10px;
   padding: 0;
 
@@ -18,7 +20,9 @@ const AvatarImg = styled.img`
   border: 1px solid rgba(0,0,0,0.1);
   float: left;
   transition: border-color 100ms linear
+
   vertical-align: middle;
+  align-self: center;
 `;
 
 const AvatarPlaceholder = styled.div`
@@ -34,34 +38,40 @@ const AvatarPlaceholder = styled.div`
   border-radius: 50%;
   border: none;
   height: auto;
-  width: 45px;
-  height: 45px;
+  width: ${props => props.size || '45px'};
+  height: ${props => props.size || '45px'};
   margin: 0;
-  align-self: center;
 
+  vertical-align: middle;
+  align-self: center;
 `;
 
 class Avatar extends React.PureComponent {
   render() {
-    const { src, href, alt } = this.props;
+    const { src, href, alt, size } = this.props;
     const no_image = src === null || src === undefined || src === false
-    const avatar = no_image ? <AvatarPlaceholder style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
-                            : <AvatarImg style={this.props.style} alt={alt||''} src={src||''} />;
-    return <AvatarCell>{!!!href ? <Link to={href||'#'}>{avatar}</Link> : avatar}</AvatarCell>;
+    const avatar = no_image ? <AvatarPlaceholder size={size} style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
+                            : <AvatarImg size={size} style={this.props.style} alt={alt||''} src={src||''} />;
+    if (href !== undefined && href !== null)
+      return <AvatarCell size={size} style={this.props.style}><Link to={href || '#'}>{avatar}</Link></AvatarCell>;
+    else 
+      return <AvatarCell size={size} style={this.props.style}>{avatar}</AvatarCell>;
+
   }
 }
 
 
 class CommitAvatar extends React.PureComponent {
   render() {
-    const { commit } = this.props;
+    const { commit, size } = this.props;
     let maybe_skeleton = (!commit || !commit.committer_name) ? Classes.SKELETON : null;
     return <Avatar
       href={!!commit && !!commit.committer_name && `/committer/${commit.committer_name}`}
-      alt={!!commit ? commit.committer_name : 'x'}
+      alt={!!commit ? commit.committer_name : ''}
       src={!!commit && commit.committer_avatar_url}
       className={maybe_skeleton}    
       style={this.props.style}
+      size={size}
     />
 
   }

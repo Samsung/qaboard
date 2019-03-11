@@ -1,6 +1,49 @@
 import React from "react";
 import { FormGroup, HTMLSelect } from "@blueprintjs/core";
 
+const SelectBatchesNav = ({ commit, prefix, onChange, selected, hide_counts }) => {
+  if (!commit || !commit.batches)
+    return <span/>
+
+  const batches_to_options = batches =>
+    Object.entries(batches).map(([label, batch]) => {
+      let outputs = Object.values(batch.outputs || {});
+      if (batch.data.type !== 'local') {
+        var title = label === "default" ? "CI" : label;
+      } else {
+        var [user, _label] = label.replace('@', '').split('|');
+        title = `🏠 ${user} 🚧 ${_label}`;
+      }
+      let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
+      let status = `${nb_success}/${outputs.length} ✅`;
+      let nb_failed = outputs.filter(o => o.is_failed).length;
+      let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
+
+
+      return (
+        <option key={label} value={label}>
+          {title}{(hide_counts===undefined || !hide_counts) && <span>&nbsp;•&nbsp; {status} &nbsp;{failures}</span>}
+        </option>
+      );
+    });
+
+  let has_tuning_batches = Object.values(commit.batches).length >= 1;
+  return (
+      <HTMLSelect
+        minimal
+        disabled={!has_tuning_batches}
+        id="batch-select-new"
+        defaultValue={selected}
+        onChange={onChange}
+      >
+        {batches_to_options(commit.batches)}
+      </HTMLSelect>
+  );
+};
+
+
+
+
 const SelectBatches = ({ commit, prefix, onChange, selected }) => {
   if (!commit || !commit.batches)
     return <span/>
@@ -36,7 +79,7 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
       label={<span>{prefix}</span>}
       labelFor="batch-select"
       helperText={
-        has_tuning_batches
+        has_tuning_batches 
           ? "You can view results from different batches or tuning experiments."
           : " "
       }
@@ -54,4 +97,4 @@ const SelectBatches = ({ commit, prefix, onChange, selected }) => {
   );
 };
 
-export { SelectBatches };
+export { SelectBatches, SelectBatchesNav };

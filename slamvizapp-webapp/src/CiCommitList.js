@@ -1,7 +1,6 @@
 import React from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import { Link } from "react-router-dom";
 import styled from "styled-components";
 
 import Moment from "react-moment";
@@ -9,7 +8,6 @@ import "moment-timezone";
 
 import {
   Classes,
-  Button,
   NonIdealState,
   Spinner,
   Card,
@@ -22,13 +20,12 @@ import CommitsEvolution from "./CommitsEvolution";
 import { groupBy, calendarStrings } from "./utils";
 
 import { fetchCommits } from './actions/projects'
+import { default_date_range } from './defaults'
 import {
 	projectSelector,
 	projectDataSelector,
 	commitsDataSelector,
 	commitsSelector,
-	branchesSelector,
-	selectedSelector,
 } from './selectors/projects'
 
 
@@ -76,10 +73,10 @@ class CiCommitList extends React.Component {
   }
 
   componentDidMount() {
-    const { project, match, date_range } = this.props;
+    const { project, match } = this.props;
     document.title = match.params.name || match.params.committer || project;
 
-    this.getData({...this.props, date_range});
+    this.getData({...this.props, date_range: default_date_range});
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
   }
 
@@ -89,7 +86,6 @@ class CiCommitList extends React.Component {
 
   render() {
     const { error, is_loaded, is_loading, project, match, project_data, commits, date_range } = this.props;
-    let is_committer = !!match.params.committer;
     let is_branch = !!match.params.name;
 
     let some_commits_loaded = !!commits && commits.length > 0;
@@ -139,7 +135,7 @@ class CiCommitList extends React.Component {
       </>
     );
     return (
-      <Container>
+      <Container style={{paddingTop: '50px'}}>
         {qa_report}
         {warning_messages}
         {(is_loaded || some_commits_loaded) && list}
@@ -163,7 +159,6 @@ const mapStateToProps = (state, ownProps) => {
 
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
-    let selected = selectedSelector(state)
 
     return {
       project,

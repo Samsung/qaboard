@@ -23,13 +23,13 @@ function selected(state = {
   switch (action.type) {
     case UPDATE_SELECTED:
 			return {
-				...state,
-    		project: action.project,
-				[action.project]: {
-					...default_selected(),
-					...state[action.project],
-					...action.selected,
-				},
+    			...state,
+        		project: action.project,
+    			[action.project]: {
+    				...default_selected(),
+    				...state[action.project],
+    				...action.selected,
+    			},
 			}
     default:
     	return state;

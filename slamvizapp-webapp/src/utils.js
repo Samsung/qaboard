@@ -185,6 +185,26 @@ const hash_color = str => {
 };
 
 
+const deserialize_config = configuration => {
+  if (configuration === undefined || configuration === null || configuration.length === 0) {
+  	return []
+  }
+  let configurations = []
+  let configuration_part = ''
+  for (const token of configuration.split(':')) {
+    if (configuration_part.length === 0 && !token.startsWith('{')) {
+      configurations.push(token)    	
+    } else {
+      configuration_part = configuration_part ? `${configuration_part}:${token}` : token;
+      try {
+        configurations.push(JSON.parse(configuration_part))
+        configuration_part = '';
+      } catch {}
+    }
+  }
+  return configurations
+}
+
 
 export {
   average,
@@ -197,5 +217,6 @@ export {
   sortOutputs,
   filter_batch,
   hash_color,
-  plotly_palette
+  plotly_palette,
+  deserialize_config,
 };
