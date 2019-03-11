@@ -23,15 +23,30 @@ from sqlalchemy import cast, type_coerce
 from slamvizapp.models import Base
 
 
-
-def slugify(s : str):
+# from qatools.conventions import slugify, slugify_config, make_hash
+def slugify(s : str, maxlength=64):
   """Slugiy a string like they do at Gitlab."""
   # lowercased and shortened to 63 bytes
-  slug = s.lower()[:63]
+  slug = s.lower()
+  if maxlength:
+    slug = slug[:(maxlength - 1)]
   # everything except 0-9 and a-z replaced with -. 
   slug = re.sub('[^0-9a-z]', '-', slug)
+  slug = re.sub('-{2,}', '-', slug)
   # No leading / trailing -. 
   return slug.strip('-')
+
+def slugify_config(s : str, maxlength=64):
+  """Slugiy a string like they do at Gitlab."""
+  # lowercased and shortened to 63 bytes
+  if len(s) < maxlength:
+    return slugify(s)
+  s_hash = make_hash(s)[:8]
+  return f"{s_hash}-{slugify(s[-(maxlength-8):], maxlength=None)}"
+
+def make_hash(obj):
+  params_s = json.dumps(obj, sort_keys=True)
+  return hashlib.md5(params_s.encode()).hexdigest()
 
 
 
@@ -116,8 +131,8 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return f'{self.platform}/{slugify(self.configuration)}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
-    # return Path(self.platform) / slugify(self.configuration) / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
+    return f'{self.platform}/{slugify_config(self.configuration)}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    # return Path(self.platform) / slugify_config(self.configuration) / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property
   def output_dir(self):
