@@ -52,8 +52,8 @@ alembic upgrade head || alembic downgrade head || alembic stamp head
 # su arthurf
 # runuser -u arthurf -- *
 
-echo '...initializing the database'
-sleep 1800 && slamvizapp_init_database --scrap-from slam --loop &
+# echo '...initializing the database'
+# sleep 1800 && slamvizapp_init_database --scrap-from slam --loop &
 # slamvizapp_init_database --scrap-from cis --loop &
 # slamvizapp_init_database --verbose
 
