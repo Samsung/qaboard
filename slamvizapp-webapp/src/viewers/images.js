@@ -1,21 +1,20 @@
 import React, { PureComponent } from "react";
 import { get } from "axios"
 import { Tag } from "@blueprintjs/core";
-// import { OpenSeadragon } from 'openseadragon';
 import pixelmatch from 'pixelmatch';
 // import { Hotkey, Hotkeys, HotkeysTarget } from "@blueprintjs/core";
 
-// https://stackoverflow.com/questions/7615009/disable-interpolation-when-scaling-a-canvas
 import "./image-canvas.css";
 
 var OpenSeadragon = require('openseadragon')
 
-// https://github.com/picturae/Openseadragonrgb/blob/master/src/rgb.js
-
-// http://Openseadragon.github.io/docs/Openseadragon.html#.Options
-// http://Openseadragon.github.io/docs/Openseadragon.Viewer.html
-// http://Openseadragon.github.io/docs/Openseadragon.Viewport.html
-// http://Openseadragon.github.io/#examples-and-features
+// TODO:
+// add plugings
+// - https://github.com/picturae/Openseadragonrgb/blob/master/src/rgb.js
+// - http://Openseadragon.github.io/docs/Openseadragon.html#.Options
+// - http://Openseadragon.github.io/docs/Openseadragon.Viewer.html
+// - http://Openseadragon.github.io/docs/Openseadragon.Viewport.html
+// - http://Openseadragon.github.io/#examples-and-features
 const openseadragon_config = {
   visibilityRatio: 1,
 
@@ -75,9 +74,9 @@ class ImgViewer extends PureComponent {
     super(props);
     this.canvas_diff = React.createRef();
     this.state = {
-      shown_image: "New",
-      width: (this.props.style || {}).width || '390px',
-      height: '217.5px', // default 4/3 ratio
+      first_image: "new",
+      width: parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, '')),
+      height: 217, // default 4/3 ratio
       diff_threshold: 0.1,
     }
   }
@@ -101,10 +100,23 @@ class ImgViewer extends PureComponent {
       this.InitZoomSync();
       this.InitDiff();
     })
+
+    window.addEventListener("keypress", this.keyboard);
   }
 
   componentWillUnmount() {
-      window.removeEventListener('resize', this.state.maintainZoom);
+      window.removeEventListener('keypress', this.keypress);
+  }
+
+  keyboard = ev => {
+    switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
+      case "t":
+    	let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
+    	console.log('first_image ->', first_image)
+    	this.setState({first_image})
+      default:
+        return;
+    }
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -193,11 +205,11 @@ class ImgViewer extends PureComponent {
     viewer_ref.addHandler('pan', viewer_refHandler);
 
     function maintainZoom() {
-        var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-        var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
-        viewer_newLeading = true;
-        viewer_refLeading = true;
-        
+      var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+      var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
+      viewer_newLeading = true;
+      viewer_refLeading = true;      
+      try { // we should try to find how to identify when an image is not loaed...
         viewer_new.viewport.resize(size1, true);
         viewer_ref.viewport.resize(size2, true);
         
@@ -211,7 +223,10 @@ class ImgViewer extends PureComponent {
         viewer_refLeading = false;
         
         viewer_new.forceRedraw();
-        viewer_ref.forceRedraw();
+        viewer_ref.forceRedraw();        
+      } catch {
+        
+      }
     }
     window.addEventListener('resize', maintainZoom);
     this.setState({maintainZoom});
@@ -221,9 +236,12 @@ class ImgViewer extends PureComponent {
     const { path, output_new, output_ref } = this.props;
     const has_reference = !!output_new && !!output_new.output_dir_url;
 
+    
+
     get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
       this.setState({loaded: true})
       // https://Openseadragon.github.io/examples/tilesource-iiif/
+      // image dimensions
       const { height, width } = res.data;
       let source_config = {
           "@context": "http://iiif.io/api/image/2/context.json",
@@ -235,57 +253,22 @@ class ImgViewer extends PureComponent {
           width,
       }
       this.setState({
-        width: this.state.width,
-        height: `${parseFloat(this.state.width.replace(/[^\d]+/, '')) * height / width}px`,
+      	image_width: width,
+      	image_height: height,
       })
 
       const { viewer_new, viewer_ref } = this.state;
 
       viewer_new.open([{
-            ...source_config,
-            "@id": iiif_url(output_new.output_dir_url, path),
+        ...source_config,
+        "@id": iiif_url(output_new.output_dir_url, path),
       }])
       if (has_reference) {
         viewer_ref.open([{
-              ...source_config,
-              "@id": iiif_url(output_ref.output_dir_url, path),
+	        ...source_config,
+	        "@id": iiif_url(output_ref.output_dir_url, path),
         }])
       }
-
-      // console.log(viewer_new.drawer.context.imageSmoothingEnabled)
-      // viewer_new.drawer.setImageSmoothingEnabled(false);
-      // viewer_ref.drawer.setImageSmoothingEnabled(false);
-      // viewer_new.drawer.context.imageSmoothingEnabled = false;
-      // viewer_ref.drawer.context.imageSmoothingEnabled = false;
-
-      // const context = v => v.drawer.canvas.getContext("2d")
-      // context(viewer_new).imageSmoothingEnabled = false;
-      // context(viewer_new).ImageSmoothingEnabled = false;
-      // context(viewer_new).webkitImageSmoothingEnabled = false;
-      // context(viewer_new).mozImageSmoothingEnabled = false;
-      // context(viewer_new).msImageSmoothingEnabled = false;
-
-      // context(viewer_ref).imageSmoothingEnabled = false;
-      // context(viewer_ref).ImageSmoothingEnabled = false;
-      // context(viewer_ref).webkitImageSmoothingEnabled = false;
-      // context(viewer_ref).mozImageSmoothingEnabled = false;
-      // context(viewer_ref).msImageSmoothingEnabled = false;
-
-      // let canvas_new = viewer_new.canvas.childNodes[0];
-      // let ctx_new = canvas_new.getContext('2d');
-      // ctx_new.mozImageSmoothingEnabled = false;
-      // ctx_new.webkitImageSmoothingEnabled = false;
-      // ctx_new.msImageSmoothingEnabled = false;
-      // ctx_new.imageSmoothingEnabled = false;
-
-      // let canvas_ref = viewer_ref.canvas.childNodes[0];
-      // let ctx_ref = canvas_ref.getContext('2d');
-      // ctx_ref.mozImageSmoothingEnabled = false;
-      // ctx_ref.webkitImageSmoothingEnabled = false;
-      // ctx_ref.msImageSmoothingEnabled = false;
-      // ctx_ref.imageSmoothingEnabled = false;
-
-
     }).catch(error => {
       this.setState({error})
     });
@@ -293,19 +276,34 @@ class ImgViewer extends PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
-    const { shown_image, height, width } = this.state;
+    const { first_image, width, image_height, image_width } = this.state;
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
     // if (!!error)
     //   return <span>{JSON.stringify(this.state.error)}</span>;
+
+    const single_image_width = (width - 10) / 2
+    const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
+    const single_image = {
+    	width: `${single_image_width}px`,
+    	height: `${single_image_height}px`,
+    	flex: '0 0 auto',
+    }
+    let images = [
+	      <div style={single_image} id={`osd-new-${output_new.output_dir_url}`} key={`osd-new-${output_new.output_dir_url}`} />,
+	      <div style={single_image} id={`osd-ref-${output_new.output_dir_url}`} key={`osd-ref-${output_new.output_dir_url}`} hidden={no_reference}/>,
+    ]
+    if (first_image === 'reference')
+    	images = images.reverse()
     return <>
       <span>
-        <Tag intent={shown_image === "Reference" ? "primary" : "warning"} id="current_image">{shown_image}</Tag>
+        <Tag intent={first_image === "reference" ? "primary" : "warning"}>{first_image}</Tag>
         {label && (label || path)}
       </span>
-      <div style={{width, height}} id={`osd-new-${output_new.output_dir_url}`} />
-      <div hidden={no_reference} style={{width, height}} id={`osd-ref-${output_new.output_dir_url}`} />
-      <div hidden={!diff || no_reference} style={{width, height}}>
-        <canvas hidden={!diff || no_reference} ref={this.canvas_diff} width={width} height={height} />
+      <div style={{display: 'flex'}}>
+          {images}
+	      {single_image_height && <div hidden={!diff || no_reference} style={single_image}>
+          <canvas hidden={!diff || no_reference} ref={this.canvas_diff} width={single_image_width} height={single_image_height} />
+        </div>}
       </div>
     </>
   }
@@ -323,7 +321,7 @@ class ImgViewer extends PureComponent {
   //         combo="shift + f"
   //         label="Be fancy only when focused"
   //         onKeyDown={() => console.log("So fancy!")}
-  //     />
+	  //     />
   //   </Hotkeys>;
   //   }
 }
