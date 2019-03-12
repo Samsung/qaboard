@@ -70,6 +70,7 @@ OpenSeadragon.extend( OpenSeadragon.RGB.prototype, /** @lends OpenSeadragon.RGB.
                     // point is inside an image
                     result.image = image;
                     result.imageCoordinates = imagePoint;
+                    result.viewportCoordinates = point;
                 }
             }
         }

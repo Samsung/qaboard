@@ -2,8 +2,8 @@ import React, { PureComponent } from "react";
 import { get } from "axios"
 import { Tag } from "@blueprintjs/core";
 import pixelmatch from 'pixelmatch';
-// import { Hotkey, Hotkeys, HotkeysTarget } from "@blueprintjs/core";
 
+import { ColorTooltip } from './images/tooltip';
 import "./image-canvas.css";
 
 var OpenSeadragon = require('openseadragon')
@@ -19,37 +19,26 @@ require('./images/rgb')
 // - http://Openseadragon.github.io/#examples-and-features
 const openseadragon_config = {
   visibilityRatio: 1,
-
   preserveViewport: true,
-  defaultZoomLevel: 1,
-  minZoomLevel: 1,
-  maxZoomPixelRatio: 50,
-  minZoomImageRatio: 50,
-  smoothTileEdgesMinZoom: 1000000,
-  imageSmoothingEnabled: false,
-
   springStiffness: 15,
 
-  showNavigator: true,
-  // sequenceMode: true,
+  defaultZoomLevel: 1,
+  minZoomLevel: 1,
+  // maxZoomLevel: 10,
+  maxZoomPixelRatio: 50,
+  minZoomImageRatio: 50,
 
+  imageSmoothingEnabled: false,
+  smoothTileEdgesMinZoom: 1000000,
+
+  showNavigator: true,
   // for now, manually: cp -r node_modules/Openseadragon/build/Openseadragon /stage/algo_data/ci/
   prefixUrl: "/s/stage/algo_data/ci/openseadragon/images/",
+
   crossOriginPolicy: 'Anonymous',
   ajaxWithCredentials: false,
-  // debugMode: true,
-  // showReferenceStrip: false,
-  // visibilityRatio: 1.0,
+
   // constrainDuringPan: false,
-  // defaultZoomLevel: 1,
-  // minZoomLevel: 1,
-  // maxZoomLevel: 10,
-  // zoomInButton: 'zoom-in',
-  // zoomOutButton: 'zoom-out',
-  // homeButton: 'reset',
-  // fullPageButton: 'full-page',
-  // previousButton: 'sidebar-previous',
-  // nextButton: 'sidebar-next',
 }
 
 
@@ -68,9 +57,7 @@ const iiif_url = (output_dir_url, path) => {
   return url
 }
 
-// https://blueprintjs.com/docs/#core/components/hotkeys
-// viewer.goToPage() 
-// @HotkeysTarget
+
 class ImgViewer extends PureComponent {
   constructor(props) {
     super(props);
@@ -116,7 +103,6 @@ class ImgViewer extends PureComponent {
     switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "t":
     	let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
-    	console.log('first_image ->', first_image)
     	this.setState({first_image})
       default:
         return;
@@ -279,11 +265,19 @@ class ImgViewer extends PureComponent {
   InitMouseTracker() {
     const { viewer_new, viewer_ref} = this.state;
     var rgb_new = viewer_new.rgb({
-      onCanvasHover: color => this.setState({color})
+      onCanvasHover: color_new => {
+        const { x, y } = color_new.viewportCoordinates
+        const color_ref = rgb_ref.getValueAt(x, y)
+        this.setState({color_new, color_ref})
+      }
     });
     var rgb_ref = viewer_ref.rgb({
-      onCanvasHover: color => this.setState({color})
-    });
+      onCanvasHover: color_ref => {
+        const { x, y } = color_ref.viewportCoordinates
+        const color_new = rgb_new.getValueAt(x, y)
+        this.setState({color_new, color_ref})
+    }});
+
   }
 
   render() {
@@ -305,24 +299,24 @@ class ImgViewer extends PureComponent {
 	      <div style={single_image} id={`osd-ref-${output_new.output_dir_url}`} key={`osd-ref-${output_new.output_dir_url}`} hidden={no_reference}/>,
     ]
 
-    const { r, g, b, a } = this.state.color;
-    const color = r !== undefined ? `rgb(${r}, ${g}, ${b})` : null;
+    const colors = [
+      <ColorTooltip color={this.state.color_new} key="new" />,
+      <ColorTooltip color={this.state.color_ref} key="reference"/>,
+    ]
 
-    if (first_image === 'reference')
-    	images = images.reverse()
+    if (first_image === 'reference') {
+      images = images.reverse();
+      colors = colors.reverse();      
+    }
+
     return <>
       <span>
         <Tag intent={first_image === "reference" ? "primary" : "warning"}>{first_image}</Tag>
-        {!!color && <>
-          <span style={{marginLeft: '10px'}}>
-            <Tag style={{background: color}} round></Tag>
-            <code style={{marginLeft: '10px'}}>{color}</code>
-          </span>
-        </>}
+        {colors}
         {label && (label || path)}
       </span>
       <div style={{display: 'flex'}}>
-          {images}
+        {images}
 	      {single_image_height && <div hidden={!diff || no_reference} style={single_image}>
           <canvas hidden={!diff || no_reference} ref={this.canvas_diff} width={single_image_width} height={single_image_height} />
         </div>}
@@ -330,47 +324,7 @@ class ImgViewer extends PureComponent {
     </>
   }
 
-  // renderHotkeys() {
-  //   return <Hotkeys>
-  //     <Hotkey
-  //         global={true}
-  //         combo="t"
-  //         label="Toogle new/referne"
-  //         onKeyDown={() => console.log("Awesome!")}
-  //     />
-  //     <Hotkey
-  //         group="Fancy shortcuts"
-  //         combo="shift + f"
-  //         label="Be fancy only when focused"
-  //         onKeyDown={() => console.log("So fancy!")}
-	  //     />
-  //   </Hotkeys>;
-  //   }
 }
-
-// class ImgViewer extends PureComponent {
-//   render() {
-//     const { path, output_new, output_ref } = this.props;
-//     let new_url = `${output_new.output_dir_url}/${path}`
-//     let ref_url = `${output_ref.output_dir_url}/${path}`
-//     return <div>
-//       <a href={new_url}>
-//         <img
-//           alt="New"
-//           src={new_url}
-//           width={400}
-//         />
-//       </a>
-//       <a href={ref_url}>
-//         <img
-//           alt="Reference"
-//           src={ref_url}
-//           width={400}
-//         />
-//       </a>
-//     </div>
-//   }
-// }
 
 
 
