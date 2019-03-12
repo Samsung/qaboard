@@ -7,6 +7,7 @@ import pixelmatch from 'pixelmatch';
 import "./image-canvas.css";
 
 var OpenSeadragon = require('openseadragon')
+require('./images/rgb')
 
 // TODO:
 // add plugings
@@ -14,6 +15,7 @@ var OpenSeadragon = require('openseadragon')
 // - http://Openseadragon.github.io/docs/Openseadragon.html#.Options
 // - http://Openseadragon.github.io/docs/Openseadragon.Viewer.html
 // - http://Openseadragon.github.io/docs/Openseadragon.Viewport.html
+// - https://github.com/cuberis/openseadragon-curtain-sync/
 // - http://Openseadragon.github.io/#examples-and-features
 const openseadragon_config = {
   visibilityRatio: 1,
@@ -78,6 +80,7 @@ class ImgViewer extends PureComponent {
       width: parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, '')),
       height: 217, // default 4/3 ratio
       diff_threshold: 0.1,
+      color: {},
     }
   }
 
@@ -97,6 +100,7 @@ class ImgViewer extends PureComponent {
       viewer_ref,
     }, () => {
       this.Init(this.props);
+      this.InitMouseTracker(this.props);
       this.InitZoomSync();
       this.InitDiff();
     })
@@ -236,8 +240,6 @@ class ImgViewer extends PureComponent {
     const { path, output_new, output_ref } = this.props;
     const has_reference = !!output_new && !!output_new.output_dir_url;
 
-    
-
     get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
       this.setState({loaded: true})
       // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -274,6 +276,16 @@ class ImgViewer extends PureComponent {
     });
   }
 
+  InitMouseTracker() {
+    const { viewer_new, viewer_ref} = this.state;
+    var rgb_new = viewer_new.rgb({
+      onCanvasHover: color => this.setState({color})
+    });
+    var rgb_ref = viewer_ref.rgb({
+      onCanvasHover: color => this.setState({color})
+    });
+  }
+
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
     const { first_image, width, image_height, image_width } = this.state;
@@ -292,11 +304,21 @@ class ImgViewer extends PureComponent {
 	      <div style={single_image} id={`osd-new-${output_new.output_dir_url}`} key={`osd-new-${output_new.output_dir_url}`} />,
 	      <div style={single_image} id={`osd-ref-${output_new.output_dir_url}`} key={`osd-ref-${output_new.output_dir_url}`} hidden={no_reference}/>,
     ]
+
+    const { r, g, b, a } = this.state.color;
+    const color = r !== undefined ? `rgb(${r}, ${g}, ${b})` : null;
+
     if (first_image === 'reference')
     	images = images.reverse()
     return <>
       <span>
         <Tag intent={first_image === "reference" ? "primary" : "warning"}>{first_image}</Tag>
+        {!!color && <>
+          <span style={{marginLeft: '10px'}}>
+            <Tag style={{background: color}} round></Tag>
+            <code style={{marginLeft: '10px'}}>{color}</code>
+          </span>
+        </>}
         {label && (label || path)}
       </span>
       <div style={{display: 'flex'}}>
