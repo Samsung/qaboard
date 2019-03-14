@@ -227,10 +227,11 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
         click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
 
       for glob in globs:
-        if fnmatch.fnmatch(location, glob) or location.endswith(glob):
-          yield maybe_parent(Path(location_database / location)), location_configuration, location_lsf_configuration, location_database
+        test_path = Path(location_database / location)
+        if (fnmatch.fnmatch(location, glob) or location.endswith(glob)) and test_path.exists():
+          yield maybe_parent(test_path), location_configuration, location_lsf_configuration, location_database
         else:
-          tests = set([maybe_parent(f) for f in (location_database / location).rglob(glob)])
+          tests = set([maybe_parent(f) for f in test_path.rglob(glob)])
           yield from [(test, location_configuration, location_lsf_configuration, location_database) for test in tests]
 
 
