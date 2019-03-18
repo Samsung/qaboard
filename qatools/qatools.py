@@ -406,7 +406,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           configuration_cli =  f'--configuration "{input_configuration_}"'
 
       args = [
-          f"cd {subproject} &&" if str(subproject) != '.' else None,
           f"qa",
           f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
@@ -421,6 +420,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       ]
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
+      if str(subproject) != '.':
+        command = f"cd {subproject} && {command}"
+
       lsf_configuration['priority'] = Priority.LOW if tuning_params else Priority.NORMAL
       jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, lsf_configuration))
       output_directories.append(output_directory)
@@ -478,15 +480,15 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         metrics = json.load(f)
         if metrics['is_failed']:
           is_failed = True
-          click.secho(f'ERROR: is_failed in {metrics_file}', fg='red', err=True)
+          click.secho(f"ERROR: is_failed is {metrics['is_failed']} in {metrics_file}", fg='red', err=True)
 
     from .gitlab import update_gitlab_status
     if len(output_directories) and is_ci and ctx.obj['batch_label']=='default':
       update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
-    # if is_failed:
-    #   click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
-    #   # exit(1)
+    if is_failed:
+      # click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
+      exit(1)
 
 
 
@@ -509,6 +511,7 @@ def save_artifacts():
   config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   config['artifacts']['groups.yaml'] = {"glob": default_groups_file}
+
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
@@ -617,7 +620,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
 
     if not group:
-      output_directories = (p.parent for p in (subproject / 'output').rglob('manifest.outputs.json'))
+      output_directories = list(p.parent for p in (subproject / 'output').rglob('manifest.outputs.json'))
     else:
       output_directories = []
       tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
