@@ -25,9 +25,10 @@ def ci_commit_statuses(commit, **kwargs):
 
 def update_gitlab_status(commit, state='success'):
   url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit.hexsha}"
+  name = f"QA {subproject.name}" if subproject else 'QA'
   params = {
     "state": state,
-    "name": f"QA {subproject.name if subproject else ''}",
+    "name": name,
     "target_url": f"https://qa/{config['project']['name']}/commit/{commit.hexsha}",
     "description": "CI results",
     # "ref": commit_branch,
