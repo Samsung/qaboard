@@ -160,13 +160,17 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   available_batches = {}
   for p in groups_file:
     new_batches = yaml.load(Path(p).open())
-    if new_batches:
+    if new_batches and isinstance(new_batches, dict):
+      old_groups = available_batches.get('groups', {})
+      new_groups = new_batches.get('groups', {})
       available_batches.update(new_batches)
+      available_batches['groups'] = {**old_groups, **new_groups}
 
   # print(available_batches)
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
   groups = list(alias_groups(groups, group_aliases))
+
 
   maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
@@ -226,9 +230,13 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
       if debug:
         click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
 
+
+      test_path = Path(location_database / location)
+      if not test_path.exists():
+        click.secho(f"Warning: {test_path} does not exist.", fg='yellow', err=True)
+        continue
       for glob in globs:
-        test_path = Path(location_database / location)
-        if (fnmatch.fnmatch(location, glob) or location.endswith(glob)) and test_path.exists():
+        if fnmatch.fnmatch(location, glob) or location.endswith(glob):
           yield maybe_parent(test_path), location_configuration, location_lsf_configuration, location_database
         else:
           tests = set([maybe_parent(f) for f in test_path.rglob(glob)])
