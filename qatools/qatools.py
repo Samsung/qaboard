@@ -531,6 +531,7 @@ def save_artifacts():
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
+        # print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
         if 'QATOOlS_VERBOSE' in os.environ:
@@ -566,8 +567,11 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
 
       prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
       input_path = input_path_abs.relative_to(input_database)
-      click.secho(str(input_path), fg='cyan', err=True)
-      all_bit_accurate = all_bit_accurate and is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
+      input_is_bit_accurate = is_bit_accurate(commit_dir / subproject / prefix_output_dir, input_database, [input_path])
+      if input_is_bit_accurate:
+        click.secho(str(input_path), fg='green', err=True)
+      all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+
     if not all_bit_accurate:
       click.secho("Error: the bit-accuracy test has failed.", fg='red', bold=True)
       exit(1)
@@ -612,15 +616,11 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
     reference_shas = ','.join([r.hexsha[:8] for r in reference_commits])
     click.secho(f"{commit.hexsha[:8]} versus {reference_shas}.", fg='cyan', err=True)
     
-    for reference_commit in reference_commits:
-      # if the reference commit is pending or failed, we wait or maybe pick a parent
-      reference_commit = lastest_successful_ci_commit(reference_commit)
-
     # This where the new results are located
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
 
     if not group:
-      output_directories = list(p.parent for p in (subproject / 'output').rglob('manifest.outputs.json'))
+      output_directories = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
     else:
       output_directories = []
       tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
@@ -630,14 +630,17 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
         output_directory = prefix_output_dir / input_path.with_suffix('')
         output_directories.append(subproject / output_directory)
 
-    click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
-    reference_rootproject_ci_dir = get_commit_ci_dir(ci_dir, reference_commit)
-    click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
-    bit_accuracies = [is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories)
-                      for reference_commit in reference_commits]
-    if not all(bit_accuracies):
-      click.secho("Error: the bit-accuracy test has failed.", fg='red', bold=True)
-      exit(1)
+    for reference_commit in reference_commits:
+      # if the reference commit is pending or failed, we wait or maybe pick a parent
+      reference_commit = lastest_successful_ci_commit(reference_commit)
+      click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
+      reference_rootproject_ci_dir = get_commit_ci_dir(ci_dir, reference_commit)
+      click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+      bit_accuracies = [is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories)
+                        for reference_commit in reference_commits]
+      if not all(bit_accuracies):
+        click.secho("Error: the bit-accuracy test has failed.", fg='red', bold=True)
+        exit(1)
 
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
