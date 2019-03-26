@@ -63,7 +63,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=
   Their format is {filepath: {md5, size_st}}"""
   with manifest_path_1.open() as f:
     manifest_1 = json.load(f)
-  with manifest_path_1.open() as f:
+  with manifest_path_2.open() as f:
     manifest_2 = json.load(f)
 
   if not patterns:
@@ -105,9 +105,14 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=
 def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories):
     """Throws if the results of the current output directory are not bit-accurate to the reference commit"""    
     from .config import config
-    patterns = [*config["bit_accuracy"]["patterns"], 'manifest.inputs.json']
-
+    patterns = config.get("bit_accuracy", {}).get("patterns", [])
+    if not (isinstance(patterns, list) or isinstance(patterns, tuple)):
+      patterns = [patterns]
+    if not patterns:
+      patterns = ['manifest.outputs.json']
+    patterns.append('manifest.inputs.json')
     if not len(output_directories):
+      click.secho("WARNING: nothing was compared", fg='yellow')
       return True
 
     comparaisons = {'match': [], 'mismatch': [], 'errors': []}
@@ -135,6 +140,7 @@ def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories
         comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
         comparaisons['errors'].extend(output_directory / p for p in comparaison['errors'])
 
+    # print(comparaisons)
     if not len(comparaisons['match']):
       click.secho("At least 1 results file should be compared. Looks like something went wrong.", fg='yellow', bold=True, err=True)
 
@@ -149,7 +155,6 @@ def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories
       for p in comparaisons['mismatch']:
         click.secho(str(p), fg='red')
       return False
-    "ERROR: mismatch: \n" + "\n".join(str(p) for p in comparaisons['mismatch'])
     return not len(comparaisons['mismatch'])
 
 
@@ -160,6 +165,9 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
     exit(1)
 
   failed_ci_job_name = config.get('bit_accuracy', {}).get('failed_ci_job_name')
+  if failed_ci_job_name and subproject:
+    failed_ci_job_name = f"{failed_ci_job_name} {subproject.name}",
+
 
   wait_time = 15 # seconds
   while True:
