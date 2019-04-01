@@ -1,10 +1,18 @@
 import React, { Fragment } from "react";
 import styled from "styled-components";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
-import { HTMLTable, Classes, Colors, Icon, Tag, Intent, Popover } from "@blueprintjs/core";
+import {
+  HTMLTable,
+  Classes,
+  Colors,
+  Icon,
+  Intent,
+  Popover
+} from "@blueprintjs/core";
 
 import { Section } from "./layout";
-import { matching_output, sortOutputs, deserialize_config } from "../utils";
+import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
+import { matching_output, sortOutputs } from "../utils";
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -26,15 +34,11 @@ const Row = styled.tr`
 `
 
 const RowHeaderCell = ({ output, warning }) => {
-  let extra_parameters =
-    Object.keys(output.extra_parameters).length > 0
-      ? JSON.stringify(output.extra_parameters)
-      : "";
   return (
     <th scope="row">
-      {output.test_input_path} <span className={Classes.TEXT_MUTED}>{extra_parameters}</span>
-      <Tag round minimal style={{marginRight: '5px', marginLeft: '5px'}}>@{output.platform}</Tag>
-      {deserialize_config(output.configuration).map(c => <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} minimal round style={{marginRight: '5px'}}> {typeof(c) === 'string' ? c : JSON.stringify(c)} </Tag>)}
+      {output.test_input_path} <ExtraParametersTags parameters={output.extra_parameters} />
+      <PlatformTag platform={output.platform}/>
+      <ConfigurationsTags configuration={output.configuration}/>      
       {warning && (
         <Popover interactionKind="hover">
           <Icon intent={Intent.WARNING} icon="warning-sign" />
