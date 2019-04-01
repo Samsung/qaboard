@@ -3,12 +3,10 @@ import {
   Classes,
   Intent,
   Callout,
-  Tag,
   Tooltip,
-  // Spinner,
   NonIdealState,
 } from "@blueprintjs/core";
-import { deserialize_config } from '../utils'
+import { ConfigurationsTags, ExtraParametersTags } from './tags'
 
 const CommitsWarningMessages = ({commits}) => {
 	let some_ids_not_correct = Object.keys(commits).some(id => id===null)
@@ -19,22 +17,6 @@ const CommitsWarningMessages = ({commits}) => {
       icon="folder-open"
     />;
   return <span></span>
-
-  // let commits_ = Object.values(commits);
-	// let some_loading = commits_.some( commit => commit===null || commit===undefined || !commit.is_loaded);
-	// let commits_with_errors = commits_.filter(commit => !!commit && commit.error);
-	// let errors_messages = <span>
-	// 	{commits_with_errors.map( commit =><span key={commit}><strong>{commit.id}:</strong> {commit.error}</span>)}
-	// </span>;
-
-    // {some_loading && <NonIdealState title="Loading" icon={<Spinner />} />}
-	// return <Fragment>
-	//   {commits_with_errors.length>0 && <NonIdealState
- //      title="Network Error"
- //      description={errors_messages}
- //      icon="error"
- //    />}
-	// </Fragment>
 }
 
 
@@ -45,13 +27,8 @@ const SimpleOutputList = ({outputs, intent}) => {
     {outputs.map(o =>
       <li key={o.id}>
         <strong style={{paddingRight: '5px'}}>{o.test_input_path}</strong>
-        {deserialize_config(o.configuration).map(c => <Tag key={JSON.stringify(c)} intent={intent} round style={{marginRight: '5px'}}> {typeof(c) === 'string' ? c : JSON.stringify(c)} </Tag>)}
-        {Object.keys(o.extra_parameters).length > 0 && (
-          <Fragment>
-            <br />
-            <span>{JSON.stringify(o.extra_parameters)}</span>
-          </Fragment>
-        )}
+        <ConfigurationsTags intent={intent} configuration={o.configuration}/>
+        <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
       </li>
     )}
   </ul>
