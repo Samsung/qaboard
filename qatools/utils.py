@@ -61,13 +61,11 @@ def file_info(path, normalize_eof=True):
   if os.name == 'nt' and path.suffix in plaintext:
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+') as normalized_file:
-      print(normalized_file.name)
       with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
         raw_lines = raw_file.readlines()
         normalized_file.writelines(raw_lines)
         normalized_file.flush()
-      return file_info(normalized_file.name, normalize_eof=False)
-  
+      return file_info(normalized_file.name, normalize_eof=False)  
 
   md5 = hashlib.md5()
   block_size = 4**10
