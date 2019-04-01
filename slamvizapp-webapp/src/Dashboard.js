@@ -27,7 +27,7 @@ import { fetchCommit } from "./actions/commit";
 import { fetchCommits } from "./actions/projects";
 
 import { shortId, filter_batch } from "./utils";
-import { empty_batch } from "./defaults";
+import { empty_batch, default_date_range } from "./defaults";
 import {
   projectSelector,
   projectDataSelector,
@@ -67,12 +67,12 @@ class Dashboard extends React.Component {
   }
 
   fetchCommits() {
-    const { params, project, dispatch, branch, date_range, aggregation_metrics } = this.props;
+    const { params, project, dispatch, branch, aggregation_metrics } = this.props;
     const extra_params = {
       only_ci_batches: true,
       with_outputs: true,
     } 
-    dispatch(fetchCommits(project, branch, date_range, aggregation_metrics, extra_params))
+    dispatch(fetchCommits(project, branch, default_date_range, aggregation_metrics, extra_params))
     if (params.get("commit_id"))
       dispatch(fetchCommit(project, params.get("commit_id"), "new_commit_id"));
     if (params.get("commit_android_id"))
@@ -137,13 +137,12 @@ class Dashboard extends React.Component {
   };
 
   render() {
-    const { params, project_data, project, commits, available_metrics, date_range } = this.props;
+    const { params, project_data, project, commits, available_metrics, output_filter } = this.props;
     const { is_loaded, is_loading, error  } = this.props;
     const {
       selected_metrics,
       evolution_metrics,
     } = this.state;
-    console.log(this.props)
 
     if (is_loading)
       return (
@@ -152,7 +151,7 @@ class Dashboard extends React.Component {
         </Container>
       );
     if (commits.length===0) return <Container style={{paddingTop: '50px'}}>
-      <NonIdealState title="No commits found" description="Too bad......" icon='search' />
+      <NonIdealState title="No commits found" description="Try expanding the date range." icon='search' />
     </Container>
     if (!!error) return <Container style={{paddingTop: '50px'}}>
       <NonIdealState title="Error" icon='error' text={JSON.stringify(error)}/>
@@ -176,8 +175,11 @@ class Dashboard extends React.Component {
     // console.log("linux_batch", linux_batch)
     // console.log("android_batch", android_batch)
 
-    linux_batch = filter_batch(linux_batch, this.props.output_filter);
-    android_batch = filter_batch(android_batch, this.props.output_filter);
+    console.log(linux_batch)
+    // console.log(android_batch)
+    console.log(output_filter)
+    linux_batch = filter_batch(linux_batch, output_filter);
+    android_batch = filter_batch(android_batch, output_filter);
 
     // console.log("linux_batch", linux_batch)
     // console.log("android_batch", android_batch)
@@ -204,11 +206,6 @@ class Dashboard extends React.Component {
       />
     );
 
-    let selected_commits = commits.filter(
-      c =>
-        new Date(c.authored_datetime) >= date_range[0] &&
-        new Date(c.authored_datetime) <= date_range[1]
-    );
     let pretty_commit_android_id =
       commit_android.type === "git"
         ? shortId(project, commit_android_id)
@@ -224,7 +221,7 @@ class Dashboard extends React.Component {
             <CommitsEvolution
               project={project}
               project_data={project_data}              
-              commits={selected_commits}
+              commits={commits}
               select_metrics={evolution_metrics}
               output_filter={this.props.output_filter}
               per_output_granularity
@@ -385,6 +382,7 @@ const mapStateToProps = (state, ownProps) => {
       aggregation_metrics[m] = available_metrics[m].target;
     });
 
+    console.log(commits)
 
     return {
       params,
