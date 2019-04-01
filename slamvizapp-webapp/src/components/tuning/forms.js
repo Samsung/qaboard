@@ -3,7 +3,6 @@ import { connect } from 'react-redux'
 import { get, post } from "axios";
 
 import { updateTuningForm } from "../../actions/tuning";
-import { deserialize_config } from "../../utils";
 
 import MonacoEditor from 'react-monaco-editor';
 
@@ -136,7 +135,7 @@ class TuningForm extends Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    const { commit, selected_group } = this.state;
+    const { selected_group } = this.state;
     const has_commit = this.props.commit !== undefined && this.props.commit !== null;
     let updated_commit = has_commit && (prevProps.commit === null || prevProps.commit === undefined || prevProps.commit.id !== this.props.commit.id);
     if (updated_commit && selected_group) this.getGroupInfo(selected_group);
@@ -230,7 +229,7 @@ class TuningForm extends Component {
       configuration: 'xxxxxxxxx',
       tuning_search: {
         search_type,
-        search_options,
+        search_options: search_type!=='grid' ? search_options : {},
         parameter_search: search_type==='optimize' ? parameter_search_auto : eval_combinations(parameter_search).combinations,
       },
       selected_group,
@@ -270,9 +269,10 @@ class TuningForm extends Component {
     try {
       var {combinations: tuning_sets, language} = eval_combinations(parameter_search);
       var combinations = grid_combinations(tuning_sets);
-      if (combinations === null || combinations === 'optimize') combinations = "invalid";
+      if (combinations === null || combinations === 'optimize')
+        combinations = "invalid";
       else
-        combinations = search_options.n_iter < 0 ? combinations : Math.min(search_options.n_iter, combinations);
+        combinations = (search_options.n_iter < 0 || search_type==='grid') ? combinations : Math.min(search_options.n_iter, combinations);
     } catch (e) {
       combinations = "invalid";
       language = 'javascript'
@@ -317,9 +317,13 @@ class TuningForm extends Component {
           helperText={<>
             {number_of_tests > 0 ? <Tooltip>
               <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{number_of_tests} tests. </span>
-              <ul>{tests.map(t => <li>
-              	{t.test} {t.configuration.map(c => <Tag intent={Intent.PRIMARY} round style={{marginRight: '5px'}}>
-              		{typeof(c) === 'string' ? c : JSON.stringify(c)} </Tag>)}
+              <ul>{tests.map(t => <li key={t.test}>
+              	<span style={{marginRight: '5px'}}>{t.test}</span>
+              	{t.configuration.map(c =>
+                    <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px'}}>
+                    	{typeof(c) === 'string' ? c : JSON.stringify(c)}
+                    </Tag>
+                )}
               </li>)}</ul>
             </Tooltip>
             : <span>To know your options, go to the "Tests" page. </span>
@@ -427,7 +431,7 @@ class TuningForm extends Component {
                 Automated tuning
               </option>
             </HTMLSelect>
-            {(search_type === "sampler" || search_type === "grid") && (
+            {(search_type === "sampler") && (
               <input
                 id="input-iterations"
                 value={search_options.n_iter}
