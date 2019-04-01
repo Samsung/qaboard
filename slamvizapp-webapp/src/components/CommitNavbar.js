@@ -46,10 +46,8 @@ class CommitBranchButton extends React.PureComponent {
   }
 }
 
-const empty_commit_id = <span style={{marginRight: '5px'}} className={Classes.SKELETON}>ABCDABCD</span>
 
-
-class CommitNavbar extends React.PureComponent {
+class CommitNavbar extends React.Component {
   render() {
     const { project, project_data, commit, label } = this.props;
     const qatools_config = (((project_data || {}).information || {}).qatools_config)
@@ -70,11 +68,13 @@ class CommitNavbar extends React.PureComponent {
             </span>
           </div>
           <div style={{display: 'flex'}}>
-            {(!!commit && !!commit.id) ? <span style={{flex: '0 1 auto', alignSelf: 'center'}}><EditableText
+            <span style={{flex: '0 1 auto', alignSelf: 'center'}}><EditableText
               onConfirm={this.handleSubmit}
               minWidth={60}
-              defaultValue={shortId(project, commit.id)}
-            /></span> : empty_commit_id}
+              placeholder='id'
+              key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+              defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+            /></span>
             <Tooltip position="auto-end"  hoverCloseDelay={500}>
               <CommitBranchButton commit={commit} onClick={this.handleSubmitBranch} style={{flex: '0 1 auto', alignSelf: 'center'}}/>
               <Menu>
@@ -103,10 +103,8 @@ class CommitNavbar extends React.PureComponent {
   handleSubmit = id => {
     const { project, label, selected, dispatch } = this.props;
     const attribute = `${label}_commit_id`
-    if (!selected[attribute])
-      return
     const commit_id = selected[attribute]
-    if (!commit_id.startsWith(id)) {
+    if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id)) {
       dispatch(fetchCommit(project, id, attribute));
       dispatch(updateSelected(project, {[attribute]: id }))
     }
@@ -114,7 +112,6 @@ class CommitNavbar extends React.PureComponent {
 
   handleSubmitBranch = branch => {
     const { project, dispatch } = this.props;
-    console.log(branch)
     dispatch(fetchCommit(project, null, "ref_commit_id", branch));
     dispatch(updateSelected(project, { ref_commit_id: branch }))
   };
