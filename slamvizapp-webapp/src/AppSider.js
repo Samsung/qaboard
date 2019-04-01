@@ -64,12 +64,12 @@ class ProjectSideAvatar extends React.Component {
 	render() {
     const { project, project_data } = this.props;
     let git = ((project_data || {}).information || {}).git || {};
-
+    let name = project.split('/').slice(-1)[0];
     return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: '151px', marginBottom: '25px'}}>
     <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}><><Avatar
 	      src={!!git.avatar_url ? `http://gitlab-srv${git.avatar_url}` : null}
-	      alt={project}
-	     />{project}</>
+	      alt={name}
+	     />{name}</>
     </Link></span>
 
 	}
@@ -97,7 +97,9 @@ class ProjectSideCommitList extends React.Component {
 
     const build_icon = <img alt="build status" src={`http://gitlab-srv/${project_repo}/badges/${tag}/build.svg`}/>;
     const coverage_icon = <img alt="coverage report" src={`http://gitlab-srv/${project_repo}/badges/${tag}/coverage.svg`} />
-	  const dashboard = <Link to={`/${project}/dashboard/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
+    // https://github.com/palantir/blueprint/blob/0c09726bdbbd4be4892c97e67363dc0e8caefb71/packages/core/src/components/menu/menuItem.tsx
+    // const dashboard = <Link to={`/${project}/dashboard/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
+    // <Menu.Item icon="series-search" text={dashboard}/>
 
 
 		return <>
@@ -107,7 +109,9 @@ class ProjectSideCommitList extends React.Component {
   		  }
   		  <Menu.Item href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
   		  <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-  		  <Menu.Item icon="series-search" text={dashboard}/>
+        <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
+
+        <Menu.Item href={`http://gitlab-srv/${project_repo}`} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
   		</>}
   		{false && <Menu.Item icon="locate" text="Metrics"/>}
   		{false && <Menu.Item icon="info-sign" text="Settings"/>}
@@ -119,7 +123,6 @@ class ProjectSideCommitList extends React.Component {
 
 class ProjectSideResults extends React.Component {
   set = (attribute, value) => e => {
-    console.log(e)
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
     let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
@@ -152,8 +155,8 @@ class ProjectSideResults extends React.Component {
       <Menu.Item icon="heat-grid" text="KPI diff" active={active('table-compare')} onClick={this.set('selected_views', 'table-compare')}/>
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="media" text="Outputs" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
-      <Menu.Item icon="saved" text="Files" active={active('bit-accuracy')} onClick={this.set('selected_views', 'bit-accuracy')} />
+      <Menu.Item icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
+      <Menu.Item icon="saved" text="Output Files" active={active('bit-accuracy')} onClick={this.set('selected_views', 'bit-accuracy')} />
       <Menu.Item icon="console" text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
@@ -163,6 +166,8 @@ class ProjectSideResults extends React.Component {
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="layout-group-by" active={active('groups')} text="Tests" onClick={this.set('selected_views', 'groups')} />
       <Menu.Item intent={Intent.PRIMARY} disabled={disable_tuning} icon="add" text="Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
+
+      <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="predictive-analysis" text="Optimization" onClick={this.set('selected_views', 'optimization')}/>
     </>
 	}
