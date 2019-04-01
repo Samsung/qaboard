@@ -157,7 +157,7 @@ class BitAccuracyViewer extends React.Component {
             key={filename}
             path={filename}
             hash={getNodeById(tree.mixed, filename) && getNodeById(tree.mixed, filename).nodeData.md5}
-            always_show_diff max_lines={50}
+            max_lines={30}
             {...props}
         />
       )}
