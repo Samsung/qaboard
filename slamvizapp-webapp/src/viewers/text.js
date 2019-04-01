@@ -118,7 +118,7 @@ class GenericTextViewer extends React.PureComponent {
     const { filename, text_url_new, text_url_ref, width, hash } = this.props;
     let no_reference = !!!text_url_ref || !!!data.reference || (!!text_url_new && text_url_new === text_url_ref);
 
-    const max_lines = this.props.max_lines || 400
+    const max_lines = this.props.max_lines || 40
     let lines_new = ((data.new || '').match(/\r?\n/g) || '').length + 1
     let lines_ref = ((data.reference || '').match(/\r?\n/g) || '').length + 1
     const height = 18 * Math.min(Math.max(lines_new, lines_ref), max_lines) + 10;
