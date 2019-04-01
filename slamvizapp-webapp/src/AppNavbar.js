@@ -3,6 +3,7 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import qs from "qs";
 import styled from "styled-components";
+import copy from 'copy-to-clipboard';
 
 import { Suggest } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
@@ -19,14 +20,16 @@ import {
   Icon,
   Tag,
   Tooltip,
+  Spinner,
 } from "@blueprintjs/core";
-
+import { Toaster } from "@blueprintjs/core";
 
 import { updateSelected } from "./actions/selected";
 import { fetchBranches, fetchCommits } from './actions/projects'
 import { fetchCommit } from './actions/commit'
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { CommitNavbar } from "./components/CommitNavbar";
+import { linux_to_windows } from "./utils";
 
 import {
 	projectSelector,
@@ -37,6 +40,9 @@ import {
   commitSelector,
   batchSelector,
 } from './selectors/projects'
+
+
+export const toaster = Toaster.create();
 
 
 class BatchTags extends React.PureComponent {
@@ -81,6 +87,18 @@ const renderBranch = (item, { handleClick, modifiers, query }) => {
     />
   );
 };
+const renderNewItem = (query, active, handleClick)  => {
+  return <MenuItem
+      icon="git-commit"
+      text={<span><strong>Commit:</strong> {query}</span>}
+      active={active}
+      onClick={handleClick}
+      shouldDismissPopover={false}
+  />
+
+}
+                
+
 
 function filterBranch(query, branch) {
   if (!query) return true;
@@ -125,16 +143,21 @@ class AppNavbar extends Component {
   }
 
   maybeFetchBranches = ({force_fetch}) => {
-    const { is_loading, is_home, project, dispatch, branches} = this.props;
-    if (!is_loading && !is_home && project && (branches.length===0 || force_fetch) ) 
+    const { is_loading_branches, is_home, project, dispatch, branches} = this.props;
+    if (!is_loading_branches && !is_home && project && (branches.length===0 || force_fetch) ) 
       dispatch(fetchBranches(project))
   }
 
   renderInputValue = branch => branch;
   handleBranchChange = branch => {
     const { project } = this.props;
-    this.props.dispatch(updateSelected(project, { branch, committer: null }))
-    this.props.history.push(`/${project}/commits/${branch}`);
+    if (branch.commit !== undefined && branch.commit !== null) {
+      this.props.dispatch(updateSelected(project, { new_commit_id: branch.commit }))
+      this.props.history.push(`/${project}/commit/${branch.commit}`);
+    } else {
+      this.props.dispatch(updateSelected(project, { branch, committer: null }))
+      this.props.history.push(`/${project}/commits/${branch}`);
+    }
   };
 
   componentDidMount() {
@@ -143,16 +166,16 @@ class AppNavbar extends Component {
 
   render() {
     const { branches, commits, match, project, project_data, date_range, selected, dispatch, selected_views } = this.props;
-    const { new_commit, ref_commit, new_batch, ref_batch, new_batch_filtered, ref_batch_filtered, filter_batch_new, filter_batch_ref, selected_batch_new, selected_batch_ref } = this.props;
+    const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered, filter_batch_new, filter_batch_ref, selected_batch_new, selected_batch_ref } = this.props;
     const reference_branch = project_data.information.qatools_config.project.reference_branch;
 
     let show_ref_navbar = ! (selected_views === 'logs' || selected_views === 'tuning' || selected_views === 'groups')
 
     const is_commit = this.props.match.path.startsWith('/:project_id+/commit/');
     if (is_commit) {
-      const nb_good = batch => (Object.values(batch.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length;
-      const nb_outputs_new = nb_good(new_batch);
-      const nb_outputs_ref = nb_good(ref_batch);
+      // const nb_good = batch => (Object.values(batch.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length;
+      // const nb_outputs_new = nb_good(new_batch);
+      // const nb_outputs_ref = nb_good(ref_batch);
       return <>
         <StyledNavbarNew>
           <NavbarGroup style={{marginLeft: '20px'}}>
@@ -160,7 +183,7 @@ class AppNavbar extends Component {
           </NavbarGroup>
 
           <NavbarGroup align="right">
-            {nb_outputs_new>0 && <FormGroup
+            <FormGroup
               style={{marginTop: '36px'}}
               labelFor="filter-new-input"
               helperText={<Tooltip>
@@ -175,18 +198,19 @@ class AppNavbar extends Component {
                 type="search"
                 leftIcon="filter"
               />
-            </FormGroup>}
+            </FormGroup>
             <SelectBatchesNav
               commit={new_commit}
               selected={selected_batch_new}
-              onChange={this.update('batch_new')}
+              onChange={this.update('selected_batch_new', 'batch')}
               prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
               hide_helper_text
               hide_counts
             />
             {!!new_commit && !!commits[new_commit.id] && <>
               <Button className={Classes.TEXT_MUTED} minimal icon="refresh" disabled={!!new_commit && new_commit.id && !this.props.commits[new_commit.id].is_loaded} onClick={() => this.props.dispatch(fetchCommit(project, new_commit.id, `new_commit_id`))} ></Button>
-              <a href={`/api/v1/commit/${!!new_commit && new_commit.id}?project=${project}`}><Button className={Classes.TEXT_MUTED} minimal icon="import"></Button></a>
+              <Button className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(new_commit.commit_dir_url))}} ></Button>
+              <a rel="noopener noreferrer" target="_blank" href={new_commit.commit_dir_url}><Button className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"></Button></a>
             </>}
           </NavbarGroup>
         </StyledNavbarNew>
@@ -196,7 +220,7 @@ class AppNavbar extends Component {
             <CommitNavbar dispatch={dispatch} commit={ref_commit} batch={ref_batch_filtered} project={project} project_data={project_data} selected={selected} label="ref"/>
           </NavbarGroup>
           <NavbarGroup align="right">
-            {nb_outputs_ref>0 && <FormGroup
+            <FormGroup
               style={{marginTop: '36px'}}
               labelFor="filter-ref-input"
               helperText={<BatchTags batch={ref_batch_filtered}/>}
@@ -204,30 +228,33 @@ class AppNavbar extends Component {
               <InputGroup
                 value={filter_batch_ref}
                 placeholder="filter reference outputs"
-                onChange={this.update('filter_batch_ref', 'filter')}
+                onChange={this.update('filter_batch_ref', 'filter_ref')}
                 type="search"
                 leftIcon="filter"
               />
-            </FormGroup>}
+            </FormGroup>
             <SelectBatchesNav
               commit={ref_commit}
               selected={selected_batch_ref}
-              onChange={this.update('batch_ref')}
+              onChange={this.update('selected_batch_ref', 'batch_ref')}
               prefix={<Tag intent={Intent.WARNING}>Ref commit</Tag>}
               hide_helper_text
               hide_counts
             />
             {!!ref_commit && !!commits[ref_commit.id] && <>
               <Button className={Classes.TEXT_MUTED} minimal icon="refresh" disabled={!!ref_commit && ref_commit.id && !commits[ref_commit.id].is_loaded} onClick={() => this.props.dispatch(fetchCommit(project, ref_commit.id, `ref_commit_id`))} ></Button>
-              <a href={`/api/v1/commit/${!!ref_commit && ref_commit.id}?project=${project}`}><Button className={Classes.TEXT_MUTED} minimal icon="import"></Button></a>
+              <Button className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(ref_commit.commit_dir_url))}} ></Button>
+              <a rel="noopener noreferrer" target="_blank" href={ref_commit.commit_dir_url}><Button className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"></Button></a>
             </>}
           </NavbarGroup>
         </StyledNavbarRef>}
       </>
     }
+    /*<a rel="noopener noreferrer" target="_blank" href={`/api/v1/commit/${!!new_commit && new_commit.id}?project=${project}`}><Button className={Classes.TEXT_MUTED} minimal icon="database"></Button></a>*/
 
 
     const is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
+    const is_project_branch_home = this.props.match.path === "/:project_id+/commits/:name+"
     const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard/');
 
     let is_committer = !!match.params.committer;
@@ -246,6 +273,7 @@ class AppNavbar extends Component {
 
     const date_input_props = {style: {width:'100px'}}
     const tag_icon = <Icon icon={is_branch ? "git-branch" : (is_committer ? 'user' : null)} style={{marginRight: '5px'}}/>
+    console.log(this.props)
     return (
       <StyledNavbar>
         <NavbarGroup style={{marginLeft: '20px'}}>
@@ -263,17 +291,19 @@ class AppNavbar extends Component {
               const { project, aggregated_metrics, dispatch } = this.props;
               const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard');
               const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
-              dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics), options)
+              dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))
             }}
             shortcuts
           />}
-          {!is_project_home && !is_commit && <b style={{marginLeft: '15px', color: Colors.DARK_GRAY3}}>{tag_icon}{(is_committer || is_branch) && tag}</b>}
+          {this.props.is_loading && <div style={{marginLeft: '15px'}}><Spinner size={Spinner.SIZE_SMALL} /></div>}
         </NavbarGroup>
         <NavbarGroup align="right">
 
-          {is_project_home &&
+          {(is_project_home || is_project_branch_home) &&
               <Suggest
                 itemPredicate={filterBranch}
+                createNewItemFromQuery={query => ({commit: query})}
+                createNewItemRenderer={renderNewItem}
                 items={branches}
                 itemRenderer={renderBranch}
                 inputValueRenderer={this.renderInputValue}
@@ -334,7 +364,8 @@ const mapStateToProps = (state, ownProps) => {
     project_data,
 
     branches: branchesSelector(state),
-    is_loading: project_data.branches_loading,
+    is_loading_branches: project_data.branches_loading,
+    is_loading: commits_data.is_loading,
     commits: state.commits,
 
     new_commit,
@@ -348,6 +379,7 @@ const mapStateToProps = (state, ownProps) => {
 
     date_range: commits_data.date_range,
     filter_batch_new: selected.filter_batch_new,
+    filter_batch_ref: selected.filter_batch_ref,
 
     selected,
     selected_views,
