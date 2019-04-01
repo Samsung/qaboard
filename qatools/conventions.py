@@ -20,7 +20,7 @@ def slugify(s : str, maxlength=64):
   if maxlength:
     slug = slug[:(maxlength - 1)]
   # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z].=', '-', slug)
+  slug = re.sub('[^0-9a-z.=]', '-', slug)
   slug = re.sub('-{2,}', '-', slug)
   # No leading / trailing -. 
   return slug.strip('-')
