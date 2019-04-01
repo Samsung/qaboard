@@ -31,7 +31,7 @@ def slugify(s : str, maxlength=64):
   if maxlength:
     slug = slug[:(maxlength - 1)]
   # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z]', '-', slug)
+  slug = re.sub('[^0-9a-z.=]', '-', slug)
   slug = re.sub('-{2,}', '-', slug)
   # No leading / trailing -. 
   return slug.strip('-')
@@ -149,7 +149,7 @@ class Output(Base):
 
   def __repr__(self):
     return (f"<Output "
-           f"ci_commit_hexsha='{self.batch.ci_commit_hexsha}' "
+           f"ci_commit.hexsha='{self.batch.ci_commit.hexsha}' "
            f"batch='{self.batch.label}' "
            f"platform='{self.platform}' "
            f"config='{self.configuration}' "
