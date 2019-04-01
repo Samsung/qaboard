@@ -537,6 +537,7 @@ class TofOutputCard extends Component {
           </div>
           <div>
             <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
+			<Button onClick={e => {this.setState({selected_output_type: "intensity"})}}>Show intensity</Button>
             <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
             <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
           </div>
