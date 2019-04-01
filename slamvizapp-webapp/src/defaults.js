@@ -98,18 +98,18 @@ export const default_selected = () => {
     committer: default_from_url('committer') || params.get("committer") || null,
 
     // What commits should we show results for?
-		new_commit_id: params.get("commit_folder") || default_from_url('commit') || null,
-		ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
+	new_commit_id: params.get("commit_folder") || default_from_url('commit') || null,
+	ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
 
     // What batch of results should we show, with what filters?
-		batch_new: params.get("batch_new") || "default",
-		batch_ref: params.get("batch_reference") || "default",
+	selected_batch_new: params.get("batch") || "default",
+	selected_batch_ref: params.get("batch_ref") || "default",
 
-		filter_batch_new: params.get("filter") || "",
-		filter_batch_ref: params.get("filter_ref") || "",
+	filter_batch_new: params.get("filter") || "",
+	filter_batch_ref: params.get("filter_ref") || "",
 
-		// sort_order: params.get("sort_order") || "",
-		// sort_by: params.get("sort_by") || "",
+	// sort_order: params.get("sort_order") || "",
+	// sort_by: params.get("sort_by") || "",
 	}
 	if (!!params.get("selected_views")) {
 	  selected.selected_views = [params.get("selected_views")]		

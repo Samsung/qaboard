@@ -29,8 +29,13 @@ export const commitsDataSelector = createSelector([projectSelector, projectDataS
   return project_data.commits[key] || default_commits_data;
 })
 
+
+const has_batches = c => Object.keys(c.batches).length > 0;
 export const commitsSelector = createSelector([commitsDataSelector, state => state.commits], (commits_data, commits) => {
-  return commits_data.ids.map(id=> commits[id] || {id, batches: {}});
+  let out = commits_data.ids.map(id=> commits[id] || {id, batches: {}})
+  if (out.some(has_batches))
+    return out.filter(c => Date.now() - new Date(c.authored_datetime) < 15 * 1000 || has_batches(c) );
+  return out
 })
 
 
@@ -52,13 +57,13 @@ const unique_batch = commit => {
 }
 
 export const batchSelector = createSelector([selectedSelector, commitSelector], (selected, {new_commit, ref_commit}) => {
-    const selected_batch_new = unique_batch(new_commit) || selected.batch_new
-    const selected_batch_ref = unique_batch(ref_commit) || selected.batch_ref
+    const selected_batch_new = unique_batch(new_commit) || selected.selected_batch_new;
+    const selected_batch_ref = unique_batch(ref_commit) || selected.selected_batch_ref;
 
     let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
     let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
-    if (!new_batch.outputs) new_batch.outputs = {}
-    if (!ref_batch.outputs) ref_batch.outputs = {}
+    if (new_batch.outputs === undefined || new_batch.outputs === null) new_batch.outputs = {}
+    if (ref_batch.outputs === undefined || ref_batch.outputs === null) ref_batch.outputs = {}
 
     let new_batch_filtered = filter_batch(new_batch, selected.filter_batch_new);
     let ref_batch_filtered = filter_batch(ref_batch, selected.filter_batch_ref);
