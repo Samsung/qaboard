@@ -4,8 +4,9 @@ import styled from "styled-components";
 
 import Moment from "react-moment";
 import "moment-timezone";
-
 import { Tooltip, Classes } from "@blueprintjs/core";
+
+import { updateSelected } from "../actions/selected";
 
 
 const defaults = {
@@ -15,7 +16,7 @@ const defaults = {
 
 class DoneAtTagUnstyled extends React.Component {
   render() {
-    const { project, commit, className, style } = this.props;
+    const { project, commit, className, style, dispatch } = this.props;
     let maybe_skeletton = (!commit || !commit.authored_datetime) ? Classes.SKELETON : null; 
     return (
       <span className={className} style={style}>
@@ -23,7 +24,11 @@ class DoneAtTagUnstyled extends React.Component {
           <Moment className={maybe_skeletton} fromNow tz="Asia/Jerusalem" date={(!!commit && !!commit.authored_datetime) ? commit.authored_datetime : defaults.date} />
         </Tooltip>{" "}
         {" "}
-        <Link className={maybe_skeletton} to={`/${project}/committer/${!!commit && commit.committer_name}`}>
+        <Link
+         className={maybe_skeletton}
+         to={`/${project}/committer/${!!commit && commit.committer_name}`}
+         onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
+        >
           by {(!!commit && !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
         </Link>
       </span>
