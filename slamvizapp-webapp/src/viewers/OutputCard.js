@@ -5,7 +5,8 @@ import { Card, Icon, Intent, Tag, Classes, Popover, Toaster, Tooltip } from "@bl
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { MetricTag } from "../components/metrics";
 
-import { deserialize_config } from '../utils'
+import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from '../components/tags'
+import { linux_to_windows } from '../utils'
 
 export const toaster = Toaster.create();
 
@@ -49,11 +50,7 @@ class OutputHeader extends React.PureComponent {
       <h5 className={Classes.HEADING} style={style} >
         {output.test_input_path} <OutputTags output={output} warning={warning}/>
       </h5>
-      <p>{Object.entries(output.extra_parameters).map(([k, v]) => (
-        <Tag key={k} round minimal style={{margin: '3px'}}>
-          {k}:{JSON.stringify(v)}
-        </Tag>
-      ))}
+      <p><ExtraParametersTags parameters={output.extra_parameters}/>
       </p>
       </>
   }
@@ -64,28 +61,22 @@ class OutputTags extends React.PureComponent {
   render() {
     const { platform, configuration, output_dir_url } = this.props.output;
     const { warning } = this.props;
-    let windows_path = output_dir_url
-                         .replace('/s', '')
-                         .replace('//home', '//mars/raid/users')
-                         .replace('/home', '//mars/raid/users')
-                         .replace('//stage', '//netapp2')
-                         .replace('/stage', '//netapp2')
-    // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
-    //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
-    windows_path = windows_path.replace(/\//g, '\\')
+    let windows_path = linux_to_windows(output_dir_url);
     return <span>
-      <Tag round minimal style={{marginRight: '5px', marginLeft: '5px'}}>@{platform}</Tag>
-      {deserialize_config(configuration).map(c => <Tag intent={Intent.PRIMARY} key={JSON.stringify(c)} round minimal style={{marginRight: '5px'}}>{typeof(c) === 'string' ? c : JSON.stringify(c)}</Tag>)}
-      <a
-        title="Show output files"
-        style={{ marginLeft: "4px" }}
-        target="_blank"
-        rel="noopener noreferrer"
-        href={output_dir_url}
-      >
-        <Icon icon="folder-shared-open" style={{verticalAlign: 'baseline'}}/>
-      </a>
+      <PlatformTag platform={platform}/>
+      <ConfigurationsTags configuration={configuration} />
       <Tooltip>
+        <a
+          style={{ marginLeft: "4px" }}
+          target="_blank"
+          rel="noopener noreferrer"
+          href={output_dir_url}
+        >
+          <Icon icon="folder-shared-open" style={{verticalAlign: 'baseline'}}/>
+        </a>
+        <span>Open the output directory</span>
+      </Tooltip>
+    <Tooltip>
         <CopyToClipboard
           text={windows_path}
           onCopy={() => {
@@ -103,7 +94,7 @@ class OutputTags extends React.PureComponent {
             style={{ marginLeft: "4px" }}
           />
         </CopyToClipboard>
-        <span>Copy to clipboard</span>
+        <span>Copy to the clipboard the Windows directory </span>
       </Tooltip>
 
       {warning && (
@@ -237,12 +228,12 @@ class OutputCard extends Component {
                files_filter={this.props.files_filter}
               />
             : <>
-              <MetricsTags
+              {!output_new.is_failed && <MetricsTags
                 selected_metrics={main_metrics}
                 available_metrics={available_metrics}
                 metrics_new={output_new.metrics ? output_new.metrics : {}}
                 metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
-              />
+              />}
               {viewers}
             </>
           }
