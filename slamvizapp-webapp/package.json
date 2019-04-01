@@ -2,7 +2,7 @@
   "name": "slamvizapp-tuning",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://qa",
+  "proxy": "https://qa",
   "dependencies": {
     "@blueprintjs/core": "^3.14.0",
     "@blueprintjs/datetime": "^3.7.1",
@@ -16,6 +16,7 @@
     "glslify": "^6.1.0",
     "js-md5": "^0.7.3",
     "localforage": "^1.7.3",
+    "lodash": "^4.17.11",
     "mathjs": "^5.5.0",
     "moment": "^2.24.0",
     "moment-timezone": "^0.5.21",
