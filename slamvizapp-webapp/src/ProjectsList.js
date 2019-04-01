@@ -70,6 +70,9 @@ class ProjectsList extends Component {
           )
           .map(([project_id, details]) => {
             let git = details.information.git || {};
+            if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
+              return <span key={project_id}/>
+
             return (
               <Card
                 key={project_id}
