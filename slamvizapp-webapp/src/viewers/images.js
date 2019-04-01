@@ -1,13 +1,25 @@
 import React, { PureComponent } from "react";
 import { get } from "axios"
-import { Tag } from "@blueprintjs/core";
+import {
+  Colors,
+  Tag,
+  Slider,
+  Icon,
+  Tooltip
+} from "@blueprintjs/core";
 import pixelmatch from 'pixelmatch';
+import Plot from 'react-plotly.js';
 
-import { ColorTooltip } from './images/tooltip';
+import { ColorTooltip, CoordTooltip } from './images/tooltip';
 import "./image-canvas.css";
+import { histogram_traces } from './images/histogram';
 
 var OpenSeadragon = require('openseadragon')
 require('./images/rgb')
+require('./images/filters')
+require('./images/selection')
+
+const slugify = s => s.replace(/[^a-zA-Z0-9]/g, '-')
 
 // TODO:
 // add plugings
@@ -61,6 +73,7 @@ const iiif_url = (output_dir_url, path) => {
 class ImgViewer extends PureComponent {
   constructor(props) {
     super(props);
+    this.show_histogram = false
     this.canvas_diff = React.createRef();
     this.state = {
       first_image: "new",
@@ -73,40 +86,71 @@ class ImgViewer extends PureComponent {
 
   componentDidMount() {
     const { output_new } = this.props;
-    let viewer_new = OpenSeadragon({
+    this.viewer_new = OpenSeadragon({
         ...openseadragon_config,
-        id: `osd-new-${output_new.output_dir_url}`,
+        id: `osd-new-${slugify(output_new.output_dir_url)}`,
       });
-    let viewer_ref = OpenSeadragon({
+    this.viewer_ref = OpenSeadragon({
         ...openseadragon_config,
-        id: `osd-ref-${output_new.output_dir_url}`,
+        id: `osd-ref-${slugify(output_new.output_dir_url)}`,
     });
 
-    this.setState({
-      viewer_new,
-      viewer_ref,
-    }, () => {
-      this.Init(this.props);
+    this.Init().then(() => {
       this.InitMouseTracker(this.props);
       this.InitZoomSync();
-      this.InitDiff();
+      this.InitFilters();
+      this.InitHistogram();
+      this.InitDiff();        
+      window.addEventListener("keypress", this.keyboard);
     })
-
-    window.addEventListener("keypress", this.keyboard);
   }
 
   componentWillUnmount() {
       window.removeEventListener('keypress', this.keypress);
   }
 
-  keyboard = ev => {
-    switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
-      case "t":
-    	let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
-    	this.setState({first_image})
-      default:
-        return;
-    }
+
+  Init() {
+    return new Promise( (resolve, reject) => {
+      const { path, output_new, output_ref } = this.props;
+      const has_reference = !!output_ref && !!output_ref.output_dir_url;
+
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
+        this.setState({loaded: true})
+        // https://Openseadragon.github.io/examples/tilesource-iiif/
+        // image dimensions
+        const { height, width } = res.data;
+        let source_config = {
+            "@context": "http://iiif.io/api/image/2/context.json",
+            protocol: "http://iiif.io/api/image",
+            profile: ["http://iiif.io/api/image/2/level2.json"],
+            // formats: ["png"],
+            fitBounds: true,
+            height,
+            width,
+        }
+        this.setState({
+          image_width: width,
+          image_height: height,
+        }, () => resolve())
+
+        const { viewer_new, viewer_ref } = this;
+
+        viewer_new.open([{
+          ...source_config,
+          "@id": iiif_url(output_new.output_dir_url, path),
+        }])
+        if (has_reference) {
+          viewer_ref.open([{
+            ...source_config,
+            "@id": iiif_url(output_ref.output_dir_url, path),
+          }])
+        }
+      }).catch(error => {
+        this.setState({error})
+        reject({error})
+      });      
+    })
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -121,7 +165,7 @@ class ImgViewer extends PureComponent {
         (this.props.output_ref == null ||
           prevProps.output_ref.id !== this.props.output_ref.id);
       if (updated_new || updated_ref) {
-        this.Init(this.props);
+        this.Init();
       }
 
       let updated_diff = prevProps.diff !== this.props.diff;
@@ -130,36 +174,64 @@ class ImgViewer extends PureComponent {
       }
   }
 
-  InitDiff(props) {
-    // Implemement perceptual differences
-    const { viewer_new, viewer_ref} = this.state;
-    const { diff } = this.props;
-    if (diff) {
-      var update_diff = () => {
-        let size_new = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-        let canvas_new = viewer_new.drawer.canvas
-        let canvas_ref = viewer_ref.drawer.canvas
-        let data_new = canvas_new.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
-        let data_ref = canvas_ref.getContext("2d").getImageData(0, 0, size_new.x, size_new.y);
-        var canvas_diff_element = this.canvas_diff.current;
-        if (!!canvas_diff_element) {
-          var diff_data = canvas_diff_element.getContext("2d").createImageData(size_new.x, size_new.y);
-          pixelmatch(data_new.data, data_ref.data, diff.data, size_new.x, size_new.y, {threshold: this.state.diff_threshold});
-          canvas_diff_element.getContext("2d").putImageData(diff_data, 0, 0);          
-          // var point = new OpenSeadragon.Point(0.5, 0.5)
-          // viewer_ref.addOverlay(`osd-diff-${output_new.output_dir_url}`, point, OpenSeadragon.Placement.CENTER)
-        }
-      }
-      viewer_new.addHandler('animation-finish', update_diff);
-      // viewer_new.addHandler('tile-drawn', update_diff);
-      update_diff()
+  update_diff = () => {
+    const { viewer_new, viewer_ref} = this;
+    let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+    let data_new = viewer_new.drawer.context.getImageData(0, 0, size.x, size.y);
+    let data_ref = viewer_ref.drawer.context.getImageData(0, 0, size.x, size.y);
+    var canvas_diff_element = this.canvas_diff.current;
+    if (!!canvas_diff_element) {
+      var diff_data = canvas_diff_element.getContext("2d").createImageData(size.x, size.y);
+      pixelmatch(data_new.data, data_ref.data, diff_data.data, size.x, size.y, {threshold: this.state.diff_threshold, includeAA: true});
+      canvas_diff_element.getContext("2d").putImageData(diff_data, 0, 0);
     }
   }
+
+
+  InitDiff(props) {
+    // Implemement perceptual differences
+    const { viewer_new } = this;
+    const { diff } = this.props;
+    if (diff) {
+      viewer_new.addHandler('update-viewport', this.update_diff);
+      this.update_diff()
+    }
+  }
+
+  
+  update_histogram = () => {
+    if (!this.show_histogram)
+      return
+    this.histo_new = histogram_traces(this.viewer_new, this.canvasCoords, 'new')
+    let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
+    if (has_reference)
+      this.histo_ref = histogram_traces(this.viewer_ref, this.canvasCoords, 'ref')
+  }
+  InitHistogram(props) {
+    const { viewer_new } = this;
+    const selection_options = {
+      onSelection: rect => {console.log(rect)},
+
+      onSelectionChange: ({canvasCoords}) => {
+        this.show_histogram = true;
+        this.canvasCoords = canvasCoords;
+        this.update_histogram();
+      },
+      showConfirmDenyButtons: false,
+      restrictToImage: true,
+      allowRotation: false,      
+    }
+    viewer_new.selection(selection_options);
+    viewer_new.addHandler('update-viewport', this.update_histogram);
+    viewer_new.addHandler('selection_cancel', () => {this.show_histogram=false});
+    viewer_new.addHandler('selection_toggle', ({enabled}) => {this.show_histogram = enabled; this.update_histogram()});
+  }
+
 
   InitZoomSync() {
     // Implemement synced zoom
     // https://codepen.io/iangilman/pen/BWKKxQ
-    const { viewer_new, viewer_ref} = this.state;
+    const { viewer_new, viewer_ref} = this;
     var masterZoom;
     var masterCenter;
     var viewer_newLeading = false;
@@ -222,57 +294,31 @@ class ImgViewer extends PureComponent {
     this.setState({maintainZoom});
   }
 
-  Init() {
-    const { path, output_new, output_ref } = this.props;
-    const has_reference = !!output_new && !!output_new.output_dir_url;
-
-    get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
-      this.setState({loaded: true})
-      // https://Openseadragon.github.io/examples/tilesource-iiif/
-      // image dimensions
-      const { height, width } = res.data;
-      let source_config = {
-          "@context": "http://iiif.io/api/image/2/context.json",
-          protocol: "http://iiif.io/api/image",
-          profile: ["http://iiif.io/api/image/2/level2.json"],
-          // formats: ["png"],
-          fitBounds: true,
-          height,
-          width,
-      }
-      this.setState({
-      	image_width: width,
-      	image_height: height,
-      })
-
-      const { viewer_new, viewer_ref } = this.state;
-
-      viewer_new.open([{
-        ...source_config,
-        "@id": iiif_url(output_new.output_dir_url, path),
-      }])
-      if (has_reference) {
-        viewer_ref.open([{
-	        ...source_config,
-	        "@id": iiif_url(output_ref.output_dir_url, path),
-        }])
-      }
-    }).catch(error => {
-      this.setState({error})
-    });
+  InitFilters() {
+    const { viewer_new, viewer_ref } = this;
+    viewer_new.imagefilters({});
+    viewer_ref.imagefilters({});
   }
 
   InitMouseTracker() {
-    const { viewer_new, viewer_ref} = this.state;
+    const { viewer_new, viewer_ref } = this;
     var rgb_new = viewer_new.rgb({
       onCanvasHover: color_new => {
+        if (!!!color_new.viewportCoordinates)
+          return
         const { x, y } = color_new.viewportCoordinates
-        const color_ref = rgb_ref.getValueAt(x, y)
-        this.setState({color_new, color_ref})
+        let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
+        if (has_reference) {
+          const color_ref = rgb_ref.getValueAt(x, y)
+          this.setState({color_ref})
+        }
+        this.setState({color_new})
       }
     });
     var rgb_ref = viewer_ref.rgb({
       onCanvasHover: color_ref => {
+        if (!!!color_ref.viewportCoordinates)
+          return
         const { x, y } = color_ref.viewportCoordinates
         const color_new = rgb_new.getValueAt(x, y)
         this.setState({color_new, color_ref})
@@ -282,10 +328,11 @@ class ImgViewer extends PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
-    const { first_image, width, image_height, image_width } = this.state;
+    const { first_image, width, image_height, image_width, error } = this.state;
+
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
-    // if (!!error)
-    //   return <span>{JSON.stringify(this.state.error)}</span>;
+    if (!!error && Object.keys(error).length > 0)
+      return <span/>;
 
     const single_image_width = (width - 10) / 2
     const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
@@ -294,12 +341,23 @@ class ImgViewer extends PureComponent {
     	height: `${single_image_height}px`,
     	flex: '0 0 auto',
     }
+    let second_image = first_image === "reference" ? 'new' : 'reference' 
     let images = [
-	      <div style={single_image} id={`osd-new-${output_new.output_dir_url}`} key={`osd-new-${output_new.output_dir_url}`} />,
-	      <div style={single_image} id={`osd-ref-${output_new.output_dir_url}`} key={`osd-ref-${output_new.output_dir_url}`} hidden={no_reference}/>,
+        <div style={single_image} id={`osd-new-${slugify(output_new.output_dir_url)}`} key={`osd-new-${slugify(output_new.output_dir_url)}`}>
+          <Tooltip>
+            <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag>
+            <span>Toogle with the keyboard shortcut {first_image}-{second_image}<code>t</code></span>
+          </Tooltip>
+        </div>,
+        <div style={single_image} id={`osd-ref-${slugify(output_new.output_dir_url)}`} key={`osd-ref-${slugify(output_new.output_dir_url)}`} hidden={no_reference}>
+          <Tooltip>
+            <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag>
+            <span>Toogle with the keyboard shortcut <code>t</code></span>
+          </Tooltip>
+        </div>
     ]
 
-    const colors = [
+    let colors = [
       <ColorTooltip color={this.state.color_new} key="new" />,
       <ColorTooltip color={this.state.color_ref} key="reference"/>,
     ]
@@ -309,20 +367,86 @@ class ImgViewer extends PureComponent {
       colors = colors.reverse();      
     }
 
+    const histo_layout = {
+      width: single_image_width,
+      height: single_image_height,
+      autosize: false,
+      traceorder: 'reversed+grouped',
+      barmode: 'overlay',
+      yaxis: {
+        tickformat: '.1%',
+      }
+    }
+
     return <>
       <span>
-        <Tag intent={first_image === "reference" ? "primary" : "warning"}>{first_image}</Tag>
+        <Tooltip>
+          <Icon icon="info-sign" style={{color: Colors.GRAY2}} />
+          <ul>
+            <li>This image is not the real image! It's JPEG compressed (100-quality).</li>
+            <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
+          </ul>
+        </Tooltip>
+        <CoordTooltip color={this.state.color_new}/>
         {colors}
         {label && (label || path)}
       </span>
-      <div style={{display: 'flex'}}>
+      <div style={{display: 'flex', flexWrap: 'wrap', alignContent: 'center',  paddingBottom: 60}}>
         {images}
-	      {single_image_height && <div hidden={!diff || no_reference} style={single_image}>
+	      {single_image_height && <div hidden={!diff || no_reference} style={{...single_image, marginTop: '30px'}}>
+          <Slider
+            style={{width: single_image_width}}
+            min={0} max={1}
+            labelStepSize={0.1}
+            stepSize={0.01}
+            initialValue={this.state.diff_threshold}
+            value={this.state.diff_threshold}
+            showTrackFill
+            onChange={diff_threshold => {
+              this.setState({diff_threshold}, () => this.update_diff())
+            }}
+          />
           <canvas hidden={!diff || no_reference} ref={this.canvas_diff} width={single_image_width} height={single_image_height} />
+          <Tooltip hoverCloseDelay={500}>
+            <p><Icon icon="info-sign" style={{color: Colors.GRAY2}}/></p>
+            <ul>
+              <li>Color difference according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>              
+              <li>Maximum squared difference = 35215 * threshold^2.</li>
+              <li>Anti-aliased pixels are shown as yellow at most.</li>
+              <li><a href="https://github.com/mapbox/pixelmatch/blob/master/index.js">Read the code</a> for more.</li>
+            </ul>
+          </Tooltip>
         </div>}
+        {this.show_histogram && <div style={single_image}>
+            <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={{marginTop: '30px'}} />
+        </div>}
+        
       </div>
     </>
   }
+
+  switch_images = () => {
+    let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
+    this.setState({first_image})
+  }
+
+  keyboard = ev => {
+    switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
+      case "t":
+        if (ev.target.nodeName !== 'INPUT')
+          this.switch_images()
+      break
+      default:
+        return;
+    }
+  }
+
+
+
+
+
+
+
 
 }
 

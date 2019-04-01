@@ -1,19 +1,36 @@
 import React from "react";
 import { Tag } from "@blueprintjs/core";
 
+const margin = {marginLeft: '10px'};
+const colorFormat = color => color.toString().padStart('x', 3)
+const coordFormat = coord => Math.round(coord).toString().padStart('x', 5)
+
 
 class ColorTooltip extends React.PureComponent {
 	render() {
 		if (this.props.color === undefined || this.props.color === null)
 			return <span/>
-
 		const { r, g, b } = this.props.color;
-        const color = `rgb(${r.toString().padStart(3, " ")}, ${g.toString().padStart(3, " ")}, ${b.toString().padStart(3, " ")})`;
-        return <span style={{marginLeft: '10px'}}>
-            <Tag style={{background: color}} round></Tag>
-            <code style={{marginLeft: '10px'}}>{color}</code>
+        const color = `rgb(${colorFormat(r)}, ${colorFormat(g)}, ${colorFormat(b)})`;
+        return <span style={margin}>
+            <Tag style={{background: color, ...margin}} round></Tag>
+            <code style={margin}>{color}</code>
         </span>
 	}
 }
 
-export { ColorTooltip };
+class CoordTooltip extends React.PureComponent {
+	render() {
+		if (this.props.color === undefined || this.props.color === null)
+			return <span/>
+		const { x, y } = this.props.color.imageCoordinates;
+
+        return <span style={margin}>
+            <code>x: {coordFormat(x)}, y: {coordFormat(y)}</code>
+        </span>
+	}
+}
+
+
+
+export { ColorTooltip, CoordTooltip };
