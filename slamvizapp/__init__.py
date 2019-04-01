@@ -31,6 +31,7 @@ def shutdown_session(exception=None):
 import slamvizapp.api.api
 import slamvizapp.api.webhooks
 import slamvizapp.api.tuning
+import slamvizapp.api.export_to_folder
 import slamvizapp.admin
 
 # Enable cross-origin requests to avoid development headcaches  
