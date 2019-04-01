@@ -24,14 +24,46 @@ const templates = {
   ),
   "function":
     `// you can write a javascript function that return your tuning search
-let events_per_frame = [10e3, 20e3, 30e3];
-let delta = 5e3;
 
-return events_per_frame.map(e => ({
-  min_events_per_frame: e,
-  max_events_per_frame: e + delta,
-  smart_frame_on: [true, false],
-}));
+// ========================================= //
+// Example A: test 10 values from 0 to 100
+samples = 10;
+scale = 10;
+
+
+// 1. Using Iterators, return a tuning set
+range = [...Array(samples).keys()]
+return {
+  "my_block|parameter_enable": 1,
+  "my_block|parameter": range.map(i => scale * i),
+}
+
+// 2. Using Iterators, return a list of tuning sets
+return range.map(i => ({
+  "my_block|parameter": scale * i,
+  "my_block|parameter_enable": 1,
+}))
+
+// 3. Using for loops
+search = []
+for (var i = 0; i <= 10; i++) {
+  search.push({
+    "my_block|parameter": scale * i,
+    "my_block|parameter_enable": 1,
+  })
+}
+return search
+
+
+
+// ========================================= //
+// Example A: test 10 values from 0 to 100
+//            for a specific matrix value
+return {
+  "my_block|parameter_enable": 1,
+  "my_block|parameter": range.map( i => [0, 0, 0, i * scale, 0])	
+}
+
 `,
   optimize: (config, metrics) => {
     return `# We will call the objective function that many times
