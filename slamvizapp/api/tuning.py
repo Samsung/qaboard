@@ -61,29 +61,37 @@ def groups():
             )
 
 
+def get_commit_groups_paths(project, commit_id):
+  groups_paths = []
+  try:
+    ci_commit = CiCommit.query.filter(
+        CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
+    ).one()
+    commit_group_files = project.data['qatools_config'].get('inputs', {}).get('groups', [])
+    if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
+      commit_group_files = [commit_group_files]
+
+    # custom groups have priority over the commit's groups
+    for group_file in commit_group_files:
+      if (ci_commit.repo_commit_dir / group_file).exists():
+        groups_paths.insert(0, ci_commit.repo_commit_dir / group_file)
+    return groups_paths
+  except NoResultFound:
+    return []
+
+
 @app.route("/api/v1/tests/group")
 def get_group():
     project_id = request.args["project"]
     project = Project.get_or_create(session=db_session, id=project_id)
 
     groups_paths = [get_groups_path(project_id)]
+    print("A: groups_paths", groups_paths)
     commit_id = request.args.get("commit")
     if commit_id:
-        try:
-            ci_commit = CiCommit.query.filter(
-                CiCommit.project_id == project_id, CiCommit.hexsha.startswith(commit_id)
-            ).one()
-            commit_group_files = project.data['qatools_config'].get('inputs', {}).get('groups', [])
-            if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
-              commit_group_files = [commit_group_files]
+      groups_paths = [*get_commit_groups_paths(project, commit_id), *groups_paths]
 
-            # custom groups have priority over the commit's groups
-            for group_file in commit_group_files:
-              if (ci_commit.repo_commit_dir / group_file).exists():
-                groups_paths.insert(0, ci_commit.repo_commit_dir / group_file)
-        except NoResultFound:
-            return jsonify("Sorry, the commit id was not found"), 404
-
+    print("B: groups_paths", groups_paths)
     default_configuration = project.data["qatools_config"].get('inputs', {}).get('configuration', "default")
     if not (isinstance(default_configuration, list) or isinstance(default_configuration, tuple)):
       default_configuration = deserialize_config(default_configuration)
@@ -104,20 +112,17 @@ def get_group():
         })
     except Exception as e:
         print(f'Error: {e}')
-        print(groups_paths)
+        # print(groups_paths)
         return jsonify({"number_of_tests": 0, "tests": []})
 
 
-@app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"])
-@app.route("/api/v1/commit/<hexsha>/batch/", methods=["POST"])
+@app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
 def add_batch(hexsha):
     """
     Request that we run extra tests for a given project.
     """
     project_id = request.args["project"]
     data = request.get_json()
-    print('> request.args', request.args)
-    print('> request.data', data)
 
     try:
         ci_commit = CiCommit.query.filter(
@@ -136,7 +141,7 @@ def add_batch(hexsha):
     db_session.add(ci_commit)
     db_session.commit()
 
-    groups_path = get_groups_path(shared_data_directory / project_id)
+    groups_paths = [*get_commit_groups_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
@@ -170,7 +175,7 @@ def add_batch(hexsha):
             f"--platform '{data['platform']}'" if "platform" in data else "",
             f"--batch-label '{data['batch_label']}'",
             "optimize" if do_optimize else "batch",
-            f"--groups-file '{groups_path}'",
+            ' '.join([f'--groups-file "{p}"' for p in groups_paths]),
             f"--group '{data['selected_group']}'",
             config_option,
             f"{overwrite} --no-wait" if not do_optimize else '',
@@ -226,7 +231,7 @@ def add_batch(hexsha):
             f'bsub_su {user} -q {queue} ',
             '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
             f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
-            f'\tssh -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',
+            f'\tssh -o StrictHostKeyChecking=no -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',
             '\nEOF'
         ]
     )
