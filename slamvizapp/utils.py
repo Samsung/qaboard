@@ -47,9 +47,12 @@ def get_users_per_name(search_filter):
                      proxies={}
                     )
     users_on_page = r.json()
-    # sadly we don't have access to email adresses since we are not gitlab admins
-    # and git authors are identified by emails...
     for u in users_on_page:
+      # need gitlab admin rights
+      if 'email' in u:
+        users_db['email'] = u
+      if 'username' in u:
+        users_db['username'] = u
       users_db[u['name'].lower()] = u
       users_db[u['username'].lower()] = u
       try:
