@@ -44,7 +44,7 @@ const has_outputs_in_batch = label => commit =>
 
 class CommitResults extends React.Component {
   render() {
-    const { project, project_data, commit } = this.props;
+    const { project, project_data, commit, dispatch } = this.props;
 
     let incomplete_data = commit.message === undefined || commit.message === null;
     if (incomplete_data)
@@ -77,7 +77,7 @@ class CommitResults extends React.Component {
         <Link
           style={{ marginLeft: "10px" }}
           to={`/${project}/commit/${commit.id}`}
-          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+          onClick={() => dispatch(updateSelected(project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: 'default', selected_batch_ref: 'default'}))}
         >
           <Button intent={Intent.DANGER} minimal>
             No results
@@ -124,7 +124,7 @@ class CommitResults extends React.Component {
           <Link
             style={{ marginLeft: "10px" }}
             to={`/${project}/commit/${commit.id}`}
-            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: 'default', selected_batch_ref: 'default'}))}
           >
             <Button intent={Intent.DANGER} minimal>
               {ci_batch.failed_outputs} crashed
@@ -150,7 +150,7 @@ class CommitResults extends React.Component {
                   return <Link
                           key={label}
                           to={`/${project}/commit/${commit.id}?batch_new=${label}`}
-                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: label, batch_ref: null}))}
+                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: 'default'}))}
                          >
                     <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
                   </Link>
@@ -179,7 +179,7 @@ class CommitResults extends React.Component {
         {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
           to={`/${project}/commit/${commit.id}`}
-          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: 'default', selected_batch_ref: 'default'}))}
         >
           <Button intent={Intent.DANGER} minimal>
             No results
@@ -229,7 +229,7 @@ class CommitResults extends React.Component {
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
           <Link
-            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, batch_new: null, batch_ref: null}))}
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: 'default', selected_batch_ref: 'default'}))}
             style={{ marginLeft: "10px" }}
             to={`/${project}/commit/${commit.id}`}
           >
@@ -256,7 +256,7 @@ const CommitShortId = styled.a`
 
 class CommitRow extends React.Component {
   render() {
-    const { commit, project, project_data, className, tag, toaster } = this.props;
+    const { commit, project, project_data, className, tag, toaster, dispatch } = this.props;
     let project_repo = project_data.information.git.path_with_namespace;
     const commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`
     let maybe_skeletton = !!commit.message ? null : Classes.SKELETON;
@@ -265,7 +265,7 @@ class CommitRow extends React.Component {
         <Avatar
           src={!!commit.committer_avatar_url ? commit.committer_avatar_url : null}
           href={!!commit.committer_name ? `/${project}/committer/${commit.committer_name}` : null}
-          onClick={() => this.props.dispatch(updateSelected(this.props.project, {branch: null, committer: commit.committer_name}))}
+          onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
           alt={commit.committer_name || commit.id || '?'}
         />
 
@@ -301,15 +301,15 @@ class CommitRow extends React.Component {
               <Link
                 style={{ color: "rgba(0,0,0,0.85)", marginRight: '5px' }}
                 to={`/${project}/commits/${(commit.branch || '').replace('origin/', '')}`}
-                onClick={() => this.props.dispatch(updateSelected(this.props.project, {branch: commit.branch.replace('origin/', ''), committer: null}))}
+                onClick={() => dispatch(updateSelected(project, {branch: commit.branch.replace('origin/', ''), committer: null}))}
               >
                 {(commit.branch || '').replace('origin/', '')}
               </Link>
-              <DoneAtTag project={project} commit={commit} />
+              <DoneAtTag project={project} commit={commit} dispatch={dispatch} />
             </div>
           </CommitContent>
 
-          <CommitResultsStyled project={project} dispatch={this.props.dispatch} project_data={project_data} commit={commit} />
+          <CommitResultsStyled project={project} dispatch={dispatch} project_data={project_data} commit={commit} />
         </CommitDetails>
       </CommitRowWrapper>
     );
