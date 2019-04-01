@@ -80,8 +80,8 @@ const matching_output = ({ output, batch }) => {
 const sortOutputs = (sort_by, order) => {
   // console.log(sort_by, order)
   return ([ka, a], [kb, b]) => {
-    const a_value = a.metrics[sort_by] || a[sort_by];
-    const b_value = b.metrics[sort_by] || b[sort_by];
+    const a_value = a.metrics[sort_by] || a.extra_parameters[sort_by] || a[sort_by];
+    const b_value = b.metrics[sort_by] || b.extra_parameters[sort_by] || b[sort_by];
     if (a_value === undefined || a_value === null) return 1;
     // console.log(a_value, b_value)
     if (a_value > b_value) {
@@ -90,9 +90,6 @@ const sortOutputs = (sort_by, order) => {
     if (a_value < b_value) {
       return -order;
     }
-    // TODO: we may want to sort also by extra_parameters
-    // the code below won't sort correctly numbers (5 vs 55)...
-    // return JSON.stringify(a.extra_parameters) < JSON.stringify(b.extra_parameters);
     return 0;
   };
 };
@@ -206,6 +203,20 @@ const deserialize_config = configuration => {
 }
 
 
+
+const linux_to_windows = path => {
+  let windows_path = path
+                       .replace(/\/s\//, '/')
+                       .replace('//home', '//mars/raid/users')
+                       .replace('/home', '//mars/raid/users')
+                       .replace('//stage', '//netapp2')
+                       .replace('/stage', '//netapp2')
+  // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
+  //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
+  return windows_path.replace(/\//g, '\\')
+
+}
+
 export {
   average,
   median,
@@ -219,4 +230,5 @@ export {
   hash_color,
   plotly_palette,
   deserialize_config,
+  linux_to_windows,
 };
