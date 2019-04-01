@@ -19,14 +19,6 @@ import "./App.css";
 
 import { routes } from './routes'
 
-/*
-let query = qs.parse(window.location.search.substring(1));
-if (!!!query.project && !window.location.pathname.includes('/s/')) {
-  // we redirect to the page listing all projects
-  window.history.pushState({}, "", `/projects${window.location.search}`)
-}
-*/
-
 
 class App extends React.Component {
   constructor(props) {
