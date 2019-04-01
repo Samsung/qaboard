@@ -36,9 +36,14 @@ export LANG=C.UTF-8
 pg_dump --dbname=slamvizapp --username=ci --password -h localhost  > /var/slamvizapp/backup.07-01-2019.sql
 
 # recovery
-psql --username=ci --password -h localhost slamvizapp  < /var/slamvizapp/backup.07-01-2019.sql
-pg_restore --clean --username=ci --password -h localhost slamvizapp  < /var/slamvizapp/backup.07-01-2019.sql
-
+```
+$ auth=--username=ci --password -h localhost
+$ dropdb $auth  slamvizapp
+Password:
+$ createdb -T template0 $auth slamvizapp
+Password:
+$ pg_restore $auth --dbname slamvizapp /home/arthurf/dvs/slamvizapp/data/backups/2019-03-21.dump
+Password:
 ```
 
 ## Application performance
