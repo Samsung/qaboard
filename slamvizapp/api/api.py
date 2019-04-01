@@ -1,4 +1,3 @@
-
 """
 Simple REST API to list the objects in our database.
 """
@@ -43,13 +42,21 @@ def get_commits(branch=None):
 
   from_date_s = request.args.get('from', None)
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=4))
-  latest_authored_datetime = (db_session
-                              .query(func.max(CiCommit.authored_datetime))
-                              .filter(CiCommit.project_id == project_id)
-                              .scalar()
-                             )
+  ci_commits = (db_session
+                  .query(func.max(CiCommit.authored_datetime))
+                  .filter(CiCommit.batches.any())
+                  .filter(CiCommit.project_id == project_id)
+                )
+  if branch:
+    branch = branch.replace('origin/', '')
+    ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
+  committer_name = request.args.get('committer', None)
+  if committer_name:
+    ci_commits = ci_commits.filter_by(committer_name=committer_name)
+
+  latest_authored_datetime = ci_commits.scalar()
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
-  # print(f'Listing commits from [{from_date}] to [{to_date}]', file=sys.stderr)
+
 
   ci_commits = (db_session
                 .query(CiCommit)
@@ -62,14 +69,11 @@ def get_commits(branch=None):
                 .order_by(CiCommit.authored_datetime.desc())
                )
 
-  committer_name = request.args.get('committer', None)
   if committer_name:
     ci_commits = ci_commits.filter_by(committer_name=committer_name)
-
   if branch:
-      print(f'filtering by branch [{branch}] using SQL', file=sys.stderr)
-      branch = branch.replace('origin/', '')
       ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
+
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
   with_batches = None
