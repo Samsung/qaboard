@@ -57,15 +57,20 @@ def file_info(path, normalize_eof=True):
   """Return metadata about a file."""
   path = Path(path) # just to be sure...
 
-  # on windows we normalized line endings
+  # on windows we normalize line endings
+  # if normalize_eof:
   if os.name == 'nt' and path.suffix in plaintext:
     from tempfile import NamedTemporaryFile
-    with NamedTemporaryFile(mode='w+') as normalized_file:
+    with NamedTemporaryFile(mode='w+', delete=False) as normalized_file:
+      normalized_file_name = normalized_file.name
+      print(normalized_file_name)
       with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
         raw_lines = raw_file.readlines()
         normalized_file.writelines(raw_lines)
-        normalized_file.flush()
-      return file_info(normalized_file.name, normalize_eof=False)  
+        # normalized_file.flush()
+    normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
+    Path(normalized_file_name).unlink()
+    return normalized_file_info
 
   md5 = hashlib.md5()
   block_size = 4**10
