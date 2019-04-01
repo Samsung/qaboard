@@ -580,8 +580,14 @@ class CommitsEvolutionPerTest extends React.Component {
 
       let controls_extra = project_data.information.qatools_config.outputs.controls || []
       let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
+      let maybe_diff = detailed_views.some(v => v.type.startsWith('image')) && <Switch
+          key='diff'
+          checked={this.state.controls.diff}
+          onChange={this.toggle('diff')}
+          label={'Perceptual diff'}
+      />
       let controls = <>
-        {detailed_views.map( (view, idx) => {
+        {!show_bit_accuracy && detailed_views.map( (view, idx) => {
           if (!view.default_hidden ||
               this.state.controls.show === undefined || this.state.controls.show === null ||
               this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -594,6 +600,7 @@ class CommitsEvolutionPerTest extends React.Component {
                   label={view.label || view.name || view.path}
                  />
         })}
+        {maybe_diff}
         {controls_extra.map(control => {
           return <Switch
                   style={{marginRight: "8px"}}

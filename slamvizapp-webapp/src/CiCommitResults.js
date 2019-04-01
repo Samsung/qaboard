@@ -11,6 +11,7 @@ import {
   Button,
   MenuItem,
   InputGroup,
+  ControlGroup,
   Callout,
   Card,
   Tabs,
@@ -37,6 +38,7 @@ import { TuningForm } from "./components/tuning/forms";
 import { AddRecordingsForm } from "./components/tuning/form_groups";
 import { TuningExploration } from "./components/tuning/TuningExploration";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
+import { ExportPlugin } from "./plugins/ExportPlugin";
 
 import {
 	projectSelector,
@@ -137,7 +139,7 @@ class CiCommitResults extends Component {
   }
 
   componentDidMount() {
-    document.title = this.props.new_commit_id;
+    document.title = this.props.new_commit_id.slice(0, 4);
     this.fetchCommits();
   }
 
@@ -209,8 +211,14 @@ class CiCommitResults extends Component {
     
     let controls_extra = (project_data.information.qatools_config.outputs || {}).controls || []
     let detailed_views = (project_data.information.qatools_config.outputs || {}).detailed_views || []
+    let maybe_diff = detailed_views.some(v => v.type.startsWith('image')) && <Switch
+        key='diff'
+        checked={this.state.controls.diff}
+        onChange={this.toggle('diff')}
+        label={'Perceptual diff'}
+    />
     let controls = <>
-      {detailed_views.map( (view, idx) => {
+      {selected_views !== 'bit-accuracy' && detailed_views.map( (view, idx) => {
         if (!view.default_hidden ||
             this.state.controls.show === undefined || this.state.controls.show === null ||
             this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -222,6 +230,7 @@ class CiCommitResults extends Component {
                 label={view.label || view.name || view.path}
                />
       })}
+      {maybe_diff}
       {controls_extra.map(control => {
         return <Switch
                 key={control.name}
@@ -232,14 +241,22 @@ class CiCommitResults extends Component {
       })}
     </>
 
+    let show_viewer_controls = (selected_views === 'output-list' || selected_views === 'bit-accuracy')
+
     const all_controls = <Tabs>
       <Tabs.Expander />
-      {controls}
+      {show_viewer_controls && controls}
       <HTMLSelect
         defaultValue={this.props.sort_by}
         onChange={this.update('sort_by')}
       >
         <option value="test_input_path">Sort by Name</option>
+        {this.props.sorted_extra_parameters.map(
+          param =>
+            <option key={param} value={param}>
+              Sort by {param} ({this.props.extra_parameters[param].size})
+            </option>            
+        )}
         {Object.values(this.props.available_metrics).map(
           m => (
             <option key={m.key} value={m.key}>
@@ -262,7 +279,7 @@ class CiCommitResults extends Component {
     return (
       <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
 
-        {(!new_commit || !ref_commit) && <Section>
+        {(!new_commit || !ref_commit) && show_ref_navbar && <Section>
           {warning_messages}
         </Section>}
 
@@ -362,6 +379,16 @@ class CiCommitResults extends Component {
               {selected_views.includes('output-list') && <Section>
                  {all_controls}
                   <h2 className={Classes.HEADING}>Outputs</h2>
+                  <ExportPlugin
+                    project={project}
+                    project_data={project_data}
+                    new_commit_id={this.props.new_commit_id}
+                    ref_commit_id={this.props.ref_commit_id}
+                    selected_batch_new={this.props.selected_batch_new}
+                    selected_batch_ref={this.props.selected_batch_ref}
+                    filter_batch_new={this.props.filter_batch_new}
+                    filter_batch_ref={this.props.filter_batch_ref}
+                  />
                   <OutputList
                     project={project}
                     project_data={project_data}
@@ -375,7 +402,7 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('bit-accuracy') && <Section>
                  {all_controls}
-                  <h2 className={Classes.HEADING}>Files / Bit accuracy</h2>
+                  <h2 className={Classes.HEADING}>Files & bit-accuracy</h2>
                   <OutputList
                     type='bit_accuracy'
                     project={project}
@@ -406,7 +433,6 @@ class CiCommitResults extends Component {
     );
   }
 }
-
 
 class OutputList extends Component {
   constructor(props) {
@@ -516,7 +542,7 @@ class OutputList extends Component {
             />
           </FormGroup>
         )}
-        {ref_batch.label !== "default" && (
+        {!!ref_batch.label && ref_batch.label !== "default" && (
           <Section><Callout intent={Intent.WARNING}>
             We compare each output to <strong>any</strong> reference outputs
             with matching recording+configuration+platform,{" "}
@@ -595,6 +621,19 @@ const mapStateToProps = (state, ownProps) => {
     let available_metrics = project_metrics.available_metrics
     let selected_metrics = selected.selected_metrics || project_metrics.main_metrics.map(k => available_metrics[k])
 
+    // tuned_parameters holds all tuning values used for each parameter
+    let extra_parameters = {};
+    Object.entries(new_batch.outputs).forEach(([id, o]) => {
+      Object.entries(o.extra_parameters).forEach(([param, value]) => {
+        if (extra_parameters[param] === undefined)
+          extra_parameters[param] = new Set();
+        extra_parameters[param].add(value);
+      });
+    });
+    // we sort tuned parameters by the number of different values that were used
+    let sorted_extra_parameters = Object.entries(extra_parameters)
+      .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
+      .map(([k, v]) => k);
 
     let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ((project_data.information.qatools_config.outputs || {}).default_tab_details || 'table-compare')];
     return {
@@ -612,6 +651,9 @@ const mapStateToProps = (state, ownProps) => {
       // selected batch
       selected_batch_new,
       selected_batch_ref,
+      // tuning...
+      extra_parameters,
+      sorted_extra_parameters,
       // filters
       filter_batch_new,
       filter_batch_ref,
