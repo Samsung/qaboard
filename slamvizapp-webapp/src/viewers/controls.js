@@ -16,8 +16,8 @@ const controls_defaults = props => {
     })
     let detailed_views = props.project_data.information.qatools_config.outputs.detailed_views || []
     detailed_views.forEach( (view, idx) => {
-      if (view.default_hidden) 
-      state_controls.show[view.name] = false;          
+      if (view.default_hidden)
+        state_controls.show[view.name] = false;
     })
   }
 
