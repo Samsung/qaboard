@@ -49,10 +49,28 @@ def copy(src, destination):
       copy_data(src, destination)
 
 
-def file_info(path):
+
+plaintext = set(['.txt', '.cde'])
+
+
+def file_info(path, normalize_eof=True):
   """Return metadata about a file."""
+  path = Path(path) # just to be sure...
+
+  # on windows we normalized line endings
+  if os.name == 'nt' and path.suffix in plaintext:
+    from tempfile import NamedTemporaryFile
+    with NamedTemporaryFile(mode='w+') as normalized_file:
+      print(normalized_file.name)
+      with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
+        raw_lines = raw_file.readlines()
+        normalized_file.writelines(raw_lines)
+        normalized_file.flush()
+      return file_info(normalized_file.name, normalize_eof=False)
+  
+
   md5 = hashlib.md5()
-  block_size = 2**20
+  block_size = 4**10
   with path.open('rb') as f:
     while True:
       data = f.read(block_size)
@@ -170,7 +188,6 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
   groups = list(alias_groups(groups, group_aliases))
-
 
   maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
