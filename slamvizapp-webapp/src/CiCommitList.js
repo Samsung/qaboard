@@ -108,10 +108,12 @@ class CiCommitList extends React.Component {
       {is_loading && !some_commits_loaded && <NonIdealState title="Loading" icon={<Spinner />} />}
       {is_loaded && !is_loading && !error && !some_commits_loaded &&
       <NonIdealState
-          title="No results"
-          description={`Searched commits from ${date_range[0]} to ${
-            date_range[1]
-          }`}
+          title="No commit with results"
+          description={<span>Searched from{" "}
+            <strong><Moment fromNow date={date_range[0]} title={date_range[0]}/></strong>
+            {" "}to{" "}
+            <strong><Moment fromNow date={date_range[1]} title={date_range[1]}/></strong>
+          </span>}
           icon="folder-open"
       />}
     </>
@@ -122,12 +124,12 @@ class CiCommitList extends React.Component {
         {Object.keys(commits_by_day).map(day => (
           <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
             <h4 className={Classes.HEADING}>
-              {!!day ? <><Moment
+              {(!!day && day !== "undefined") ? <><Moment
                 calendar={calendarStrings}
                 tz="Asia/Jerusalem"
-                date={day !== "undefined" ? day : null}
+                date={day}
               />{" "}
-              &#8212; {commits_by_day[day].length} commits</> : "Commits"}
+              &#8212; {commits_by_day[day].length} commits</> : `${commits_by_day[day].length} commits`}
             </h4>
             <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
           </Card>
