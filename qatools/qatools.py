@@ -255,10 +255,14 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
   # To help identify if input files change, we compute and save some metadata.
   full_input_path = (context.obj['database'] / context.obj['input_path'])
   if is_ci or save_manifests_in_database:
-    if full_input_path.is_dir():
-      input_files = {path.as_posix(): file_info(path) for path in full_input_path.rglob('*') if path.is_file()}
-    else:
-      input_files = {full_input_path.as_posix(): file_info(full_input_path)}
+    manifest_inputs = context.obj.get('manifest-inputs', [full_input_path])
+    input_files = {}
+    for manifest_input in manifest_inputs:
+      manifest_input = Path(manifest_input)
+      if manifest_input.is_dir():
+        input_files.update({path.as_posix(): file_info(path) for path in manifest_input.rglob('*') if path.is_file()})
+      else:
+        input_files.update({manifest_input.as_posix(): file_info(manifest_input)})
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
