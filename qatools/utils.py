@@ -125,7 +125,7 @@ def load_tuning_search(tuning_search, tuning_search_file):
     with tuning_search_file.open('r') as f:
       tuning_search = f.read()
     if tuning_search_file.suffix == '.yaml':
-      tuning_search_dict = yaml.load(tuning_search)
+      tuning_search_dict = yaml.load(tuning_search, Loader=yaml.SafeLoader)
       filetype = 'yaml'
     elif tuning_search_file.suffix == '.cde':
       from cde import Config
@@ -180,7 +180,7 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     groups_file = [groups_file]
   available_batches = {}
   for p in groups_file:
-    new_batches = yaml.load(Path(p).open())
+    new_batches = yaml.load(Path(p).open(), Loader=yaml.SafeLoader)
     if new_batches and isinstance(new_batches, dict):
       old_groups = available_batches.get('groups', {})
       new_groups = new_batches.get('groups', {})

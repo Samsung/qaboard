@@ -50,7 +50,7 @@ def find_qatools_configs(path):
         qatools_config_path = parent / 'qatools.yaml'
         if not qatools_config_path.exists(): continue
         with qatools_config_path.open('r') as f:
-            qatools_config = yaml.load(f)
+            qatools_config = yaml.load(f, Loader=yaml.SafeLoader)
             qatools_configs.append(qatools_config)
             qatools_config_paths.append(qatools_config_path)
             if qatools_config.get('root'): break
@@ -256,6 +256,6 @@ if not metrics_file:
   main_metrics = []
 else:
     with Path(root_qatools / metrics_file).open('r') as f:
-        _metrics = yaml.load(f)
+        _metrics = yaml.load(f, Loader=yaml.SafeLoader)
         available_metrics = _metrics['available_metrics']
         main_metrics = _metrics['main_metrics']

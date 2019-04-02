@@ -130,7 +130,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     ctx.obj['tuning_filepath'] = tuning_filepath
     with tuning_filepath.open('r') as f:
       if tuning_filepath.suffix == '.yaml':
-        ctx.obj['extra_parameters'] = yaml.load(f)
+        ctx.obj['extra_parameters'] = yaml.load(f, Loader=yaml.SafeLoader)
       elif tuning_filepath.suffix == '.cde':
         from cde import Config
         ctx.obj['extra_parameters'] = Config.loads(f.read()).asdict()
@@ -254,13 +254,13 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
   from .utils import file_info
   # To help identify if input files change, we compute and save some metadata.
   full_input_path = (context.obj['database'] / context.obj['input_path'])
-  if full_input_path.is_dir():
-    input_files = {path.as_posix(): file_info(path) for path in full_input_path.rglob('*') if path.is_file()}
-  else:
-    input_files = {full_input_path.as_posix(): file_info(full_input_path)}      
-
-  with (output_directory / 'manifest.inputs.json').open('w') as f:
-    json.dump(input_files, f, indent=2)
+  if is_ci or save_manifests_in_database:
+    if full_input_path.is_dir():
+      input_files = {path.as_posix(): file_info(path) for path in full_input_path.rglob('*') if path.is_file()}
+    else:
+      input_files = {full_input_path.as_posix(): file_info(full_input_path)}
+    with (output_directory / 'manifest.inputs.json').open('w') as f:
+      json.dump(input_files, f, indent=2)
 
   # To help the UI application know what results we created, we save the complete list.
   output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if (path.is_file() and path.name != 'log.txt')}
@@ -272,7 +272,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       click.secho('WARNING: saving the manifests in the database is only implemented for inputs that are *folders*.', fg='yellow', err=True)
     else:
       from .utils import copy
-      copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.inputs.json')
+      copy(output_directory / 'manifest.inputs.json', full_input_path / 'manifest.inputs.json')
       copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
 
   if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
@@ -467,7 +467,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     # our shared storage takes a while to sync. 
     # it should be solved, and this sleep removed
     if is_ci or ctx.obj['ci']: # for local runs, no need to wait
-      time.sleep(15)#s
+      time.sleep(20)#s
 
     is_failed = False
     for output_directory in output_directories:
@@ -493,7 +493,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
 
 @cli.command()
-def save_artifacts():
+@click.pass_context
+def save_artifacts(ctx):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import qatools_config_paths
@@ -534,9 +535,10 @@ def save_artifacts():
         # print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
-        if 'QATOOlS_VERBOSE' in os.environ:
+        if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
-        copy(path, destination)
+        if not ctx.obj['dryrun']:
+          copy(path, destination)
     if nb_files > 0:
       click.secho(f"{nb_files} files copied")
 

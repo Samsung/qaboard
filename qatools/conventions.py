@@ -85,7 +85,7 @@ def hash_parameters(parameters):
   else:
     with parameters.open('r') as f:
       if parameters.suffix == '.yaml':
-        params = yaml.load(f)
+        params = yaml.load(f, Loader=yaml.SafeLoader)
       elif parameters.suffix == '.cde':
         from cde import Config
         params = Config.loads(f.read()).asdict()

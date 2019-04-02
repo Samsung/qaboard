@@ -18,7 +18,7 @@ from .config import commit_id, available_metrics
 
 def init_optimization(optim_config_file, ctx):
   with optim_config_file.open('r') as f:
-    optim_config = yaml.load(f)
+    optim_config = yaml.load(f, Loader=yaml.SafeLoader)
 
   # default settings
   if "objective" not in optim_config:
@@ -146,9 +146,9 @@ def matching_output(output_reference, outputs):
   Return the output from from a given batch that looks most similar to a given output.
   This helps us compare an output to historical results.
   """
-  valid_outputs = [o for o in outputs if not o.is_pending and not o.is_failed]
-  possible_matching_outputs = [o for o in valid_outputs if o.test_input_path == output.test_input_path]
-  if not possible_matching_outputs:
+  matching_outputs = [o for o in outputs if o.test_input_path == output_reference.test_input_path]
+  valid_outputs = [o for o in matching_outputs if not o.is_pending and not o.is_failed]
+  if not valid_outputs:
     raise ValueError(f"Could not find an output for {output_reference.test_input_path} in the target batch")
 
   def match_key(output):
@@ -157,8 +157,8 @@ def matching_output(output_reference, outputs):
       3 if output.platform == output_reference.platform else 0 +
       1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
     )
-  outputs.sort(key=match_key, reverse=True)
-  return outputs[0]
+  valid_outputs.sort(key=match_key, reverse=True)
+  return valid_outputs[0]
 
 
 
