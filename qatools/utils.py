@@ -50,7 +50,7 @@ def copy(src, destination):
 
 
 
-plaintext = set(['.txt', '.cde'])
+plaintext = set(['.txt', '.cde', '.hex'])
 
 
 def file_info(path, normalize_eof=True):
