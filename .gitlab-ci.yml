@@ -1,7 +1,9 @@
 stages:
   - test
-  - install
+  -  deploy
 
+before_script:
+  - export PATH=/home/ispq/miniconda3/bin:$PATH
 
 # For now tests are disabled
 test:
@@ -10,9 +12,11 @@ test:
   script:
     - python -munittest
 
-install:
-  stage: install
+deploy:
+  stage: deploy
+  only:
+    - master
   script:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - pip install $PROXY_STUFF .
-  when: manual
+  # when: manual

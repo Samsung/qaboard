@@ -22,3 +22,13 @@ pip install --editable .
 
 ## Usage
 Follow the [tutorial](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial).
+
+
+## CI
+```bash
+ssh ispq@ispq-vdi
+bash
+export GITLAB_RUNNER=1
+export GITLAB_PROJECT=qatools
+export GITLAB_TOKEN="xxxxxxxx"
+```
