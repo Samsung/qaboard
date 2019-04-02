@@ -63,7 +63,6 @@ def file_info(path, normalize_eof=True):
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+', delete=False) as normalized_file:
       normalized_file_name = normalized_file.name
-      print(normalized_file_name)
       with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
         raw_lines = raw_file.readlines()
         normalized_file.writelines(raw_lines)
