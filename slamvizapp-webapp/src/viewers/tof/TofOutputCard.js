@@ -123,6 +123,7 @@ class TofOutputCard extends Component {
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
       depth : default_heatmap, // make a deep copy...
+	  intensity     : JSON.parse(JSON.stringify(default_heatmap)),
       AbsErrHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
       pcmdHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
     };
