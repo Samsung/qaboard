@@ -61,7 +61,7 @@ def file_info(path, normalize_eof=True):
   # if normalize_eof:
   if os.name == 'nt' and path.suffix in plaintext:
     from tempfile import NamedTemporaryFile
-    with NamedTemporaryFile(mode='w+', delete=False) as normalized_file:
+    with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
       normalized_file_name = normalized_file.name
       with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
         raw_lines = raw_file.readlines()
