@@ -165,9 +165,9 @@ class AppNavbar extends Component {
   }
 
   render() {
-    const { branches, commits, match, project, project_data, date_range, selected, dispatch, selected_views } = this.props;
+    const { branches, commits, project, project_data, date_range, selected, dispatch, selected_views } = this.props;
     const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered, filter_batch_new, filter_batch_ref, selected_batch_new, selected_batch_ref } = this.props;
-    const reference_branch = project_data.information.qatools_config.project.reference_branch;
+    // const reference_branch = project_data.information.qatools_config.project.reference_branch;
 
     let show_ref_navbar = ! (selected_views === 'logs' || selected_views === 'tuning' || selected_views === 'groups')
 
@@ -257,11 +257,11 @@ class AppNavbar extends Component {
     const is_project_branch_home = this.props.match.path === "/:project_id+/commits/:name+"
     const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard/');
 
-    let is_committer = !!match.params.committer;
-    let is_branch = !!match.params.name;
-    if (is_branch || is_committer)
-      var tag = match.params.name || match.params.committer;
-    else tag = reference_branch;
+    // let is_committer = !!match.params.committer;
+    // let is_branch = !!match.params.name;
+    // if (is_branch || is_committer)
+    //   var tag = match.params.name || match.params.committer;
+    // else tag = reference_branch;
 
     let some_commits_loaded = !!commits && commits.length > 0;
     const first_commit_date = (some_commits_loaded && commits[commits.length - 1].authored_datetime) || date_range[0]
@@ -272,7 +272,7 @@ class AppNavbar extends Component {
     ]
 
     const date_input_props = {style: {width:'100px'}}
-    const tag_icon = <Icon icon={is_branch ? "git-branch" : (is_committer ? 'user' : null)} style={{marginRight: '5px'}}/>
+    // const tag_icon = <Icon icon={is_branch ? "git-branch" : (is_committer ? 'user' : null)} style={{marginRight: '5px'}}/>
     console.log(this.props)
     return (
       <StyledNavbar>
