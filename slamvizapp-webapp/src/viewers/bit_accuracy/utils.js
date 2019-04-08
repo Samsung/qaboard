@@ -35,8 +35,19 @@ const getNodeById = (tree, id) => {
   let node = tree;
   let parts = id.split('/');
   for (var i = 0; i < parts.length - 1; i++) {
-    // eslint-disable-next-line
-    node = node.find(child => child.label === parts[i] )
+    // ideally we would have the following, but it's slow...
+    // X-eslint-disable-next-line
+    // node = node.find(child => child.label === parts[i] )
+    let part = parts[i];
+    let found = false;
+    for (var j = 0; j < node.length; j++) {
+      if (node[j].label === part) {
+        node = node[j];
+        found = true;
+        break;
+      }
+    }
+    if (!found) node = undefined;
     node = node && node.childNodes;
     if (node === undefined) return undefined;
   }
@@ -96,8 +107,20 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
     // need to make sure the destination node exists, and create it if necessary
     for (var i = 0; i < path.length; i++) {
       var node_from = node_from_parent[path[i]];
+
       // eslint-disable-next-line
-      var node_to = node_to_parent.find(child => child.label === node_from.label);
+      // this is much better but slow....
+      // var node_to = node_to_parent.find(child => child.label === node_from.label);
+      let found = false;
+      for (var j = 0; j < node_to_parent.length; j++) {
+        if (node_to_parent[j].label===node_from.label) {
+          var node_to = node_to_parent[j];
+          found = true;
+          break;
+        }
+      }
+      if (!found) node_to = undefined;
+
       if (node_to === undefined) {
         node_to_parent.push({
           id: node_from.id,
