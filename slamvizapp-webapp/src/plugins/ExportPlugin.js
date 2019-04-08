@@ -6,14 +6,12 @@ import { linux_to_windows } from '../utils'
 
 import {
   Intent,
-  Classes,
   Tag,
   Callout,
   FormGroup,
   ControlGroup,
   InputGroup,
   Button,
-  Switch,
 } from "@blueprintjs/core";
 
 import { Toaster } from "@blueprintjs/core";
@@ -76,8 +74,8 @@ class ExportPlugin extends React.Component {
   }
 
   render() {
-    let qatools_config = ((this.props.project_data || {}).information || {}).qatools_config || {};
-    let settings = ((qatools_config.outputs || {}).plugins) || {};
+    // let qatools_config = ((this.props.project_data || {}).information || {}).qatools_config || {};
+    // let settings = ((qatools_config.outputs || {}).plugins) || {};
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup
         labelFor="pluging-copy"
