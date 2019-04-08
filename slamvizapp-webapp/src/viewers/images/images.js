@@ -10,14 +10,14 @@ import {
 import pixelmatch from 'pixelmatch';
 import Plot from 'react-plotly.js';
 
-import { ColorTooltip, CoordTooltip } from './images/tooltip';
+import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
-import { histogram_traces } from './images/histogram';
+import { histogram_traces } from './histogram';
 
 var OpenSeadragon = require('openseadragon')
-require('./images/rgb')
-require('./images/filters')
-require('./images/selection')
+require('./rgb')
+require('./filters')
+require('./selection')
 
 const slugify = s => s.replace(/[^a-zA-Z0-9]/g, '-')
 
@@ -81,6 +81,7 @@ class ImgViewer extends PureComponent {
       height: 217, // default 4/3 ratio
       diff_threshold: 0.1,
       color: {},
+      hide_labels: false,
     }
   }
 
@@ -328,7 +329,7 @@ class ImgViewer extends PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path } = this.props;
-    const { first_image, width, image_height, image_width, error } = this.state;
+    const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
     if (!!error && Object.keys(error).length > 0)
@@ -341,18 +342,19 @@ class ImgViewer extends PureComponent {
     	height: `${single_image_height}px`,
     	flex: '0 0 auto',
     }
-    let second_image = first_image === "reference" ? 'new' : 'reference' 
+    let second_image = first_image === "reference" ? 'new' : 'reference'
+    const switch_label = <Tag rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     let images = [
         <div style={single_image} id={`osd-new-${slugify(output_new.output_dir_url)}`} key={`osd-new-${slugify(output_new.output_dir_url)}`}>
           <Tooltip>
-            <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag>
-            <span>Toogle with the keyboard shortcut {first_image}-{second_image}<code>t</code></span>
+            {!hide_labels ? <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag> : switch_label}
+            <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
           </Tooltip>
         </div>,
         <div style={single_image} id={`osd-ref-${slugify(output_new.output_dir_url)}`} key={`osd-ref-${slugify(output_new.output_dir_url)}`} hidden={no_reference}>
           <Tooltip>
-            <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag>
-            <span>Toogle with the keyboard shortcut <code>t</code></span>
+            {!hide_labels ? <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag> : switch_label}
+            <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
           </Tooltip>
         </div>
     ]
@@ -431,10 +433,14 @@ class ImgViewer extends PureComponent {
   }
 
   keyboard = ev => {
+    if (ev.target.nodeName === 'INPUT')
+      return;
     switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "t":
-        if (ev.target.nodeName !== 'INPUT')
-          this.switch_images()
+        this.switch_images()
+      break
+      case "h":
+        this.setState({hide_labels: !this.state.hide_labels})
       break
       default:
         return;

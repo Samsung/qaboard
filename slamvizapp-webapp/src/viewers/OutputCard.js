@@ -111,10 +111,9 @@ class OutputTags extends React.PureComponent {
 
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
 const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
-const LoadableCisViewer = lazy(() => import('./cis/CisOutputCard' /* webpackChunkName: "cis-viewer" */));
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
 const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
-const LoadableImageViewer = lazy(() => import('./images' /* webpackChunkName: "image-viewer" */));
+const LoadableImageViewer = lazy(() => import('./images/images' /* webpackChunkName: "image-viewer" */));
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
 const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
@@ -129,8 +128,6 @@ class OutputViewer extends React.Component {
         viewer =  <LoadableSlamViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "pointcloud/txt")
         viewer = <LoadableTofViewer {...props} output_ref={maybe_output_ref}/>
-      else if (type === "cis/image")
-        viewer = <LoadableCisViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "plotly/json")
         viewer = <LoadablePlotlyViewer {...props} output_ref={maybe_output_ref}/>
       else if (type.startsWith('video'))
