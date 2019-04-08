@@ -21,6 +21,7 @@ import {
   projectSelector,
   projectDataSelector,
   commitSelector,
+  batchSelector,
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 
@@ -157,7 +158,7 @@ class ProjectSideResults extends React.Component {
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
       <Menu.Item icon="saved" text="Output Files" active={active('bit-accuracy')} onClick={this.set('selected_views', 'bit-accuracy')} />
-      <Menu.Item icon="console" text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
+      <Menu.Item icon="console" intent={(!!this.props.batch && this.props.batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="settings" text="Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
@@ -189,7 +190,7 @@ class AppSider extends React.Component {
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
         {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/dashboard/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
-        {window.location.pathname.includes('/commit/')  && <ProjectSideResults commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
+        {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.new_batch_filtered} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
       </ul>
     </Sider>
   }
@@ -211,6 +212,8 @@ const mapStateToProps = (state, ownProps) => {
   let { new_commit: commit } = commitSelector(state)
   let selected_views = selected.selected_views || ((project_data.information.qatools_config.outputs || {}).default_tab_details || 'summary')
 
+  const { new_batch_filtered } = batchSelector(state);
+  console.log(batchSelector(state))
 
   if (!state.projects.data[project]) {
     return {
@@ -220,6 +223,7 @@ const mapStateToProps = (state, ownProps) => {
       branches: [],
       commit,
       selected_views,
+      new_batch_filtered,
     };
   }
   // console.log(project_data)
@@ -231,6 +235,7 @@ const mapStateToProps = (state, ownProps) => {
     branches: state.projects.data[project].branches ||  [],
     is_loading: state.projects.data[project].branches_loading,
     selected_views,
+    new_batch_filtered,
   }
 }
 
