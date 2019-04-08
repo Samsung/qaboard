@@ -11,7 +11,6 @@ import {
   Button,
   MenuItem,
   InputGroup,
-  ControlGroup,
   Callout,
   Card,
   Tabs,
@@ -416,7 +415,7 @@ class CiCommitResults extends Component {
                   />
                </Section>}
 
-              {selected_views.includes('tuning-results') && <Section>
+              {selected_views.includes('optimization') && <Section>
                 <Card>
                   <h2 className={Classes.HEADING}>Tuning understanding</h2>
                   <TuningExploration
@@ -605,7 +604,6 @@ const mapStateToProps = (state, ownProps) => {
     let filter_batch_ref = selected.filter_batch_ref
 
     let { new_commit, ref_commit } = commitSelector(state)
-    // console.log(commitSelector(state))
 
     let {
     	selected_batch_new,
