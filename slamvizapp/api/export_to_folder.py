@@ -8,6 +8,7 @@ import hashlib
 import difflib
 from pathlib import Path
 
+from requests.utils import quote
 from flask import request, jsonify, make_response
 from sqlalchemy import func, and_, asc, or_
 from sqlalchemy.orm import joinedload
@@ -51,7 +52,7 @@ def filter_outputs(query, outputs):
 
   tokens = query = query.split()
   negative_tokens = [t[1:] for t in tokens if t.startswith('-')]
-  positive_tokens = [t[1:] for t in tokens if not t.startswith('-')]
+  positive_tokens = [t for t in tokens if not t.startswith('-')]
 
   def match(output):
     extra_parameters = json.dumps(output.extra_parameters).replace('"', '')
@@ -123,7 +124,7 @@ def export_to_folder():
 
   # find common characteristics
   common_data = {}
-  if ref_commit and ref_commit.id == new_commit.id:
+  if not ref_commit or ref_commit.id == new_commit.id:
     common_data['commit'] = new_commit.id
   all_outputs = [*new_outputs, *list(output_refs.values())]
   all_outputs = [o for o in all_outputs if o] # remove None outputs
@@ -138,6 +139,9 @@ def export_to_folder():
     configuration_suffix = reversed(os.path.commonprefix([reversed(o.configuration) for o in all_outputs]))
     common_data['configuration_prefix'] = deserialize_config(configuration_prefix)
     common_data['configuration_suffix'] = deserialize_config(configuration_suffix)
+
+  # To be honest, we really should find what is common in each batch
+  # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
 
   all_extra_parameters = set()
   common_extra_parameters = {}
@@ -203,6 +207,40 @@ def export_to_folder():
           symlink_to(export_dir / copied_to_rel, output_path_ref)
           # copy(output_path, export_dir / copied_to_rel)
 
+  params = {
+    "batch": new_batch.label,
+    "reference": ref_commit.hexsha if ref_commit else None,
+    "batch_ref": ref_batch.label if ref_batch else None,
+    "filter": filter_new if filter_new else None,
+    "filter_ref": filter_ref if filter_ref else None,
+  }
+  params = {k: quote(v) for k, v in params.items() if v}
+  url = f"https://qa/{project_id}/commit/{new_commit.hexsha}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+  redirect = f"""<!DOCTYPE HTML>
+  <html lang="en-US">
+      <head>
+          <meta charset="UTF-8">
+          <meta http-equiv="refresh" content="0; url={url}">
+          <script type="text/javascript">
+              window.location.href = "{url}"
+          </script>
+          <title>Page Redirection</title>
+      </head>
+      <body>
+          <!-- Note: don't tell people to `click` the link, just tell them that it is a link. -->
+          If you are not redirected automatically, follow this <a href='{url}'>link to the QA results</a>.
+      </body>
+  </html>"""
+  redirect_file = export_dir / '0.qa.html'
+  if not redirect_file.exists():
+    with redirect_file.open('w') as f:
+      f.write(redirect)
+
+  link_content = f"[InternetShortcut]\nURL={url}\n"
+  link_file = export_dir / '0.qa.url'
+  if not link_file.exists():
+    with link_file.open('w') as f:
+      f.write(link_content)
   return jsonify({
   	"export_dir": str(export_dir),
   })
@@ -210,11 +248,15 @@ def export_to_folder():
 
 
 
+
 def symlink_to(path_from, path_to):
-  if path_from.exists():
-    path_from.unlink()
-  os.link(str(path_to), str(path_from))
-  # path_from.symlink_to(path_to)
+  try:
+    if path_from.exists():
+        path_from.unlink()
+    os.link(str(path_to), str(path_from))
+    # path_from.symlink_to(path_to)
+  except:
+    pass
 
 
 def copy_path_rel(output, output_path, label):
