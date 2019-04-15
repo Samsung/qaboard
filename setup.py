@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
   name='qatools',
-  version="0.3.0",
+  version="0.4.0", # __version__ needs to be updated in qatools/__init__.py as well
   packages=find_packages(), 
 
   author="Arthur Flam",
