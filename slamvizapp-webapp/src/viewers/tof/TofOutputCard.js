@@ -123,7 +123,9 @@ class TofOutputCard extends Component {
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
       depth : default_heatmap, // make a deep copy...
+	  z     : JSON.parse(JSON.stringify(default_heatmap)),
 	  intensity     : JSON.parse(JSON.stringify(default_heatmap)),
+	  amplitude     : JSON.parse(JSON.stringify(default_heatmap)),
       AbsErrHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
       pcmdHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
     };
@@ -538,7 +540,9 @@ class TofOutputCard extends Component {
           </div>
           <div>
             <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
+			<Button onClick={e => {this.setState({selected_output_type: "z"})}}>Show z</Button>
             <Button onClick={e => {this.setState({selected_output_type: "intensity"})}}>Show intensity</Button>
+			<Button onClick={e => {this.setState({selected_output_type: "amplitude"})}}>Show amplitude</Button>
             <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
             <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
           </div>
