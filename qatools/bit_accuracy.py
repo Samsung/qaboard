@@ -71,10 +71,10 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=
   if not ignored_names:
     ignored_names = []
 
-  mismatch = []  # not the same
-  match = []     # the same
-  only_in_1 = [] # exists in dir_1 but not in dir_1
-  errors = []    # or errors accessing
+  mismatch = set()  # not the same
+  match = set()     # the same
+  only_in_1 = set() # exists in dir_1 but not in dir_1
+  errors = set()    # or errors accessing
 
   for pattern in patterns:
     pattern = f'*{pattern}'
@@ -87,23 +87,23 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=
       if file_1_str in manifest_2:
         is_same = meta_1['md5'] == manifest_2[file_1_str]['md5']
         if not is_same:
-          mismatch.append(file_1)
+          mismatch.add(file_1)
         else:
-          match.append(file_1)
+          match.add(file_1)
       else:
-        only_in_1.append(file_1)
+        only_in_1.add(file_1)
 
   return {
-    "mismatch": mismatch,
-    "match": match,
-    "only_in_1": only_in_1,
-    "errors": errors,
+    "mismatch": list(mismatch),
+    "match": list(match),
+    "only_in_1": list(only_in_1),
+    "errors": list(errors),
   }
 
 
 
-def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories):
-    """Throws if the results of the current output directory are not bit-accurate to the reference commit"""    
+def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_directories):
+    """Compares the results of the current output directory versus a reference"""    
     from .config import config
     patterns = config.get("bit_accuracy", {}).get("patterns", [])
     if not (isinstance(patterns, list) or isinstance(patterns, tuple)):
@@ -117,9 +117,11 @@ def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories
 
     comparaisons = {'match': [], 'mismatch': [], 'errors': []}
     for output_directory in output_directories:
-      # print(output_directory)
-      dir_1 = reference_rootproject_ci_dir / output_directory
-      dir_2 = commit_dir / output_directory
+      # print('output_directory', output_directory)
+      dir_1 = reference_rootproject_dir / output_directory
+      dir_2 = commit_rootproject_dir / output_directory
+      # print('dir_1', dir_1)
+      # print('dir_2', dir_2)
       if (dir_1 / 'manifest.outputs.json').exists() and (dir_2 / 'manifest.outputs.json').exists():
         comparaison = cmpmanifests(
           manifest_path_1 = dir_1 / 'manifest.outputs.json',
@@ -140,9 +142,11 @@ def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories
         comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
         comparaisons['errors'].extend(output_directory / p for p in comparaison['errors'])
 
-    # print(comparaisons)
-    if not len(comparaisons['match']):
-      click.secho("At least 1 results file should be compared. Looks like something went wrong.", fg='yellow', bold=True, err=True)
+    # print(comparaisons['mismatch'])
+    nothing_was_compared = not len(comparaisons['match'])
+    if nothing_was_compared:
+      for o in output_directories:
+        click.echo(click.style(str(o), fg='yellow') + click.style(' (warning: no files were found to compare)', fg='yellow', dim=True), err=True)
 
     if len(comparaisons['errors']):
       click.secho("ERROR: while trying to read those files:", fg='red', bold=True)
@@ -151,11 +155,18 @@ def is_bit_accurate(commit_dir, reference_rootproject_ci_dir, output_directories
       return False
 
     if len(comparaisons['mismatch']):
-      click.secho("ERROR: those files are different:", fg='red', bold=True)
+      for o in output_directories:
+        click.secho(str(o), fg='red', bold=True, err=True)
+      click.secho(f"ERROR: mismatch for:", fg='red')
       for p in comparaisons['mismatch']:
-        click.secho(str(p), fg='red')
+        click.secho(f'  {p}', fg='red', dim=True)
       return False
-    return not len(comparaisons['mismatch'])
+
+    bit_accurate = not len(comparaisons['mismatch'])
+    if bit_accurate and not nothing_was_compared:
+      for o in output_directories:
+        click.secho(str(o), fg='green', err=True)
+    return bit_accurate
 
 
 
@@ -180,7 +191,7 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
 
     if failed_ci_job_name:
       # print('filtering')
-      statuses = [s for s in status if s['name'] == f"{subproject.name} {failed_ci_job_name}"]
+      statuses = [s for s in statuses if s['name'] == f"{subproject.name} {failed_ci_job_name}"]
       # print(statuses)
 
     commit_failed = any(s['status'] in ['failed', 'canceled'] and not s.get('allow_failure', False) for s in statuses)
