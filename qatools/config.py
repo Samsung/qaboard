@@ -3,9 +3,6 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
-import re
-import json
-import datetime
 from pathlib import Path, PurePosixPath
 
 import yaml
@@ -38,40 +35,6 @@ def renamed_deprecated(arg):
 sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
 
 
-def latest_qatools_version():
-  # Everybody install their own local version of qatools,
-  # at a different place on Windows, Linux...
-  # We simple need a way to let them know they are using an old version
-  import requests
-  r = requests.get('http://gitlab-srv/common-infrastructure/qatools/raw/master/setup.py')
-  for l in r.text.split('\n'):
-    version = re.match('.*version="([0-9]+.[0-9]+.[0-9]+)".*', l)
-    if version:
-      return version.group(1)
-
-# Check for the latest qatools version
-qatools_dir = Path.home() / '.qatools'
-if not qatools_dir.exists():
-  qatools_dir.mkdir()
-qatools_latest_update = qatools_dir / 'latest-version'
-
-if qatools_latest_update.exists():
-  with qatools_latest_update.open('r') as f:
-    latest = json.load(f)
-else:
-  latest = None
-now = datetime.datetime.now()
-if not latest or (now - datetime.datetime.fromtimestamp(latest['when_checked'])).total_seconds() > 3600 * 24:
-  latest_version = latest_qatools_version()
-  with qatools_latest_update.open('w') as f:
-    json.dump({"version": latest_version, "when_checked": now.timestamp()}, f)
-else:
-  latest_version = latest['version']
-  from qatools import __version__ as current_version
-  newer_version_available = current_version.split('.') < latest_version.split('.')
-  if newer_version_available:
-    click.secho(f'A new version of qatools is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
-    click.secho('$ pip install --upgrade --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org  git+http://gitlab-srv/common-infrastructure/qatools', fg='yellow', err=True)
 
 
 def find_qatools_configs(path):
