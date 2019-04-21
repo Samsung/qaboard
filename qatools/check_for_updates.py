@@ -17,7 +17,7 @@ def latest_qatools_version():
   import requests
   import re
   try:
-    # we surely could do something more robust 
+    # we surely could do something more robust
     r = requests.get('http://gitlab-srv/common-infrastructure/qatools/raw/master/setup.py', timeout=1)
   except:
     return None
@@ -39,7 +39,7 @@ def check_for_updates():
 
   qatools_config_dir = config_home / 'qatools'
   if not qatools_config_dir.exists():
-    qatools_config_dir.mkdir()
+    qatools_config_dir.mkdir(parents=True)
 
   # We cache the latest version found 
   qatools_latest_update = qatools_config_dir / 'latest-version'
