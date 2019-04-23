@@ -99,7 +99,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   get_command = 'get' in sys.argv
   if root_qatools != Path().resolve() and not will_show_help and not get_command:
-      click.secho(f'Working directory changed to root project folder: {root_qatools}', fg='cyan', err=True)
+      click.secho(f'Working directory changed to: {root_qatools}', fg='cyan', err=True)
       os.chdir(root_qatools)
 
   # We want open permissions on outputs and artifacts
@@ -137,7 +137,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, ci)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, ci)
   if is_ci: # we always want colors in the CI
     ctx.color = True
 
@@ -304,7 +304,11 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
   ctx.obj['absolute_input_path'] = (ctx.obj['database'] / input_path).resolve()
   ctx.obj['forwarded_args'] = forwarded_args
   metrics = postprocess_({}, ctx)
-  click.secho(str(metrics), fg='green')      
+  if metrics['is_failed']:
+    click.secho('[ERROR] The run has failed.', fg='red', err=True, bold=True)
+    click.secho(str(metrics), fg='red')
+  else:
+    click.secho(str(metrics), fg='green')      
 
 
 
@@ -411,6 +415,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
       args = [
           f"qa",
+          f'--ci' if ctx.obj["ci"] else None,
           f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
           f'--database "{input_database}"' if input_database != database else None,
