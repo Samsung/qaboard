@@ -19,13 +19,18 @@ setup(
     'click>=7.0', # CLI for humans
     'requests', # HTTP for humans
     'gitpython',
-    'sklearn', # machine learning, used only for parameter sampling
     'simplejson',
     'pyyaml',
+    # machine learning library, used only for parameter sampling. Depends on numpy/scipy.
+    # TODO: To make installation faster, especially on windows
+    #       we should remove this dependency and do it ourselves.
+    'sklearn',
   ],
 
   extras_require={
-    # need for `qa optimize`
+    # Optionnal needed only for `qa optimize`
+    # Since its CLI usage is not straightforward, it's kept at an optionnal dependency
+    # Enable with  ~pip install qatools[optimize]~
     'optimize':  ["skopt"],
   },
 
