@@ -159,7 +159,7 @@ def alias_groups(group, group_aliases):
 # list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
 # list(alias_groups(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']}))
 
-def iter_recordings(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, globs=None, debug=False):
+def iter_recordings(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, globs=None, debug=os.environ.get('QATOOLS_DEBUG', False)):
   """Returns an iterator over the (recording, configurations, lsf-configuration) from the selected groups
   params:
   - groups: array of group labels
@@ -186,7 +186,8 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
       available_batches.update(new_batches)
       available_batches['groups'] = {**old_groups, **new_groups}
 
-  # print(available_batches)
+  if debug:
+    click.secho(str(available_batches), dim=True)
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
   groups = list(alias_groups(groups, group_aliases))
@@ -195,10 +196,11 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   for group in groups:
     # We can ask for two types of groups:
     # 1. All tests under a given folder in the database
+    if debug: click.secho(f'group: {group}', dim=True)
     if group not in available_batches:
       # Maybe we asked recordings from a location... Having support for this makes test selection.
       location = group
-      if debug or True:
+      if debug:
         click.secho(str(location), bold=True, fg='cyan', err=True)
 
       for glob in globs:
@@ -223,9 +225,17 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
     group_configuration = available_batches[group].get('configuration', default_configuration)
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
+
     # We also allow each test to have his own configuration...
     if isinstance(locations, list):
-      locations = {l: None for l in locations}
+      locations_as_dict = {}
+      for l in locations:
+        if l in locations:
+          if not isinstance(l, dict):
+            locations_as_dict[l] = None
+          else:
+            locations_as_dict.update(l)
+      locations = locations_as_dict
 
     for location, location_configuration in locations.items():
       if not location_configuration:
@@ -235,8 +245,15 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
       else:
         if isinstance(location_configuration, dict):
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
-          location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
-          location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
+          location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', group_database))
+          if 'lsf' in location_configuration:
+            del location_configuration['lsf']
+          if 'database' in location_configuration:
+            del location_configuration['database']
+          if 'configuration' not in location_configuration:
+            location_configuration = [*group_configuration, location_configuration]
+          else:
+            location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
         elif isinstance(location_configuration, list):
           location_configuration = list(flatten(location_configuration))
           location_configuration = [*group_configuration, *location_configuration]
