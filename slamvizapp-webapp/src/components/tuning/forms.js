@@ -97,7 +97,7 @@ const grid_combinations = param_search => {
 class TuningForm extends Component {
   constructor(props) {
     super(props);
-    let default_user = this.props.user || this.props.project_data.information.qatools_config.lsf.user || 'arthurf';
+    let default_user = this.props.user || this.props.project_data.data.qatools_config.lsf.user || 'arthurf';
     this.state = {
       submitted: false,
       experiment_name: this.props.experiment_name || "",
@@ -117,7 +117,7 @@ class TuningForm extends Component {
       parameter_search: this.props.parameter_search ? JSON.parse(this.props.parameter_search) : templates["none"],
       parameter_search_auto: this.props.parameter_search_auto
         ? JSON.parse(this.props.parameter_search_auto)
-        : templates['optimize'](this.props.project_data.information.qatools_config, this.props.project_data.information.qatools_metrics),
+        : templates['optimize'](this.props.project_data.data.qatools_config, this.props.project_data.data.qatools_metrics),
 
       user: this.props.user || default_user,
       android_device: "openstf",
@@ -494,7 +494,7 @@ class TuningForm extends Component {
             className={Classes.INPUT}
             style={{ width: "300px" }}
             value={user}
-            placeholder={this.props.project_data.information.qatools_config.lsf.user || 'arthurf'}
+            placeholder={this.props.project_data.data.qatools_config.lsf.user || 'arthurf'}
             onChange={this.update('user')}
             type="text"
             dir="auto"
@@ -517,7 +517,7 @@ class TuningForm extends Component {
             checked={search_type === "optimize"}
           />
         </FormGroup>
-        <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](this.props.project_data.information.qatools_config, this.props.project_data.information.qatools_metrics) })}>Show Example</Button>
+        <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](this.props.project_data.data.qatools_config, this.props.project_data.data.qatools_metrics) })}>Show Example</Button>
         <MonacoEditor
           height={200}
           language='yaml'

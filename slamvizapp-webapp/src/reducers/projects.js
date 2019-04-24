@@ -11,11 +11,35 @@ import { default_project_id, default_project } from "../defaults"
 
 
 function update_project(state=default_project, data) {
+  // // A quick debug tool
+  // const debug_views = [{
+  //       name: 'Frames',
+  //       type: 'image/bmp',
+  //       path: ':frame/output.bmp',
+  //       // path: '(.*)/output.bmp',
+  //       display: 'single',
+  //       // display: 'all',
+  //     },
+  //     {
+  //       name: 'Files',
+  //       type: 'text/plain',
+  //       path: ':frame/(.*.txt)',
+  //       default_hidden: true,
+  //     }
+  // ]
+  // data.data.qatools_config.outputs.detailed_views = debug_views;
+
+  // for backward compatibility, the API returned .data before
+  if (!!data.information) {
+    data.data = data.information
+    data.information = undefined
+  }
+
   return {
     ...state,
     ...data,
     // for some reason we get null for projects that are not configured with qatools
-    information: {...state.information, ...data.information},
+    data: {...state.data, ...data.data},
   } 
 }
 

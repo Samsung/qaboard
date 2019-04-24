@@ -31,7 +31,7 @@ class ExportPlugin extends React.Component {
 
   componentDidUpdate(prevProps) {
     if (prevProps.project_data !== this.props.project_data) {
-      let qatools_config = ((this.props.project_data || {}).information || {}).qatools_config || {};
+      let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
       let settings = ((qatools_config.outputs || {}).plugins) || {}
       this.setState({path: (settings.path || default_path)})
     }
@@ -74,7 +74,7 @@ class ExportPlugin extends React.Component {
   }
 
   render() {
-    // let qatools_config = ((this.props.project_data || {}).information || {}).qatools_config || {};
+    // let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
     // let settings = ((qatools_config.outputs || {}).plugins) || {};
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup

@@ -64,7 +64,7 @@ class ProjectSideAvatar extends React.Component {
 
 	render() {
     const { project, project_data } = this.props;
-    let git = ((project_data || {}).information || {}).git || {};
+    let git = ((project_data || {}).data || {}).git || {};
     let name = project.split('/').slice(-1)[0];
     return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: '151px', marginBottom: '25px'}}>
     <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}><><Avatar
@@ -85,9 +85,9 @@ class ProjectSideCommitList extends React.Component {
 	render() {
     const { project, project_data, match } = this.props;
 
-    let reference_branch = project_data.information.qatools_config.project.reference_branch;
-    let ci_root = project_data.information.qatools_config.ci_root.linux.replace("/home/arthurf/ci", "")
-    let project_repo = project_data && project_data.information && project_data.information.git && project_data.information.git.path_with_namespace;
+    let reference_branch = project_data.data.qatools_config.project.reference_branch;
+    let ci_root = project_data.data.qatools_config.ci_root.linux.replace("/home/arthurf/ci", "")
+    let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     let is_committer = !!match.params.committer;
@@ -137,17 +137,17 @@ class ProjectSideResults extends React.Component {
 
 	render() {
     const { project_data, commit } = this.props;
-    let project_repo = project_data && project_data.information && project_data.information.git && project_data.information.git.path_with_namespace;
+    let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
 
 		const active = view => this.props.selected_views.includes(view);
     // we can only do tuning for projects whose database is outside the repo
     // otherwise we would need to checkout the repo and manage access...
-    const disable_tuning = !!project_data.information &&
-                           !!project_data.information.qatools_config &&
-                           !!project_data.information.qatools_config.inputs &&
-                           !!project_data.information.qatools_config.inputs.database &&
-                           !!project_data.information.qatools_config.inputs.database.linux &&
-                           !project_data.information.qatools_config.inputs.database.linux.startsWith('/');
+    const disable_tuning = !!project_data.data &&
+                           !!project_data.data.qatools_config &&
+                           !!project_data.data.qatools_config.inputs &&
+                           !!project_data.data.qatools_config.inputs.database &&
+                           !!project_data.data.qatools_config.inputs.database.linux &&
+                           !project_data.data.qatools_config.inputs.database.linux.startsWith('/');
 
     let commit_code_sufffix = !!commit ? `commit/${commit.id}` : ''
     return <>
@@ -210,10 +210,9 @@ const mapStateToProps = (state, ownProps) => {
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
   let { new_commit: commit } = commitSelector(state)
-  let selected_views = selected.selected_views || ((project_data.information.qatools_config.outputs || {}).default_tab_details || 'summary')
+  let selected_views = selected.selected_views || ((project_data.data.qatools_config.outputs || {}).default_tab_details || 'summary')
 
   const { new_batch_filtered } = batchSelector(state);
-  console.log(batchSelector(state))
 
   if (!state.projects.data[project]) {
     return {

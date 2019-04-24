@@ -126,7 +126,7 @@ def get_projects():
     project_id: {
       # TODO: drop qatools_config
       # TODO: drop qatools_metrics
-      'information': data,
+      'information': data, # rename `data` when everybody had updated thei rweb client :)
       'latest_commit_datetime': latest_commit_datetime,
       'total_commits': total_commits,
     } for project_id, data, latest_commit_datetime, total_commits  in projects })

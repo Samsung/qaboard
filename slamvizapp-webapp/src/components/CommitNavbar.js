@@ -50,7 +50,7 @@ class CommitBranchButton extends React.PureComponent {
 class CommitNavbar extends React.Component {
   render() {
     const { project, project_data, commit, label } = this.props;
-    const qatools_config = (((project_data || {}).information || {}).qatools_config)
+    const qatools_config = (((project_data || {}).data || {}).qatools_config)
     const milestones = (((qatools_config || {}).project || {}).milestones || [])
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
     return (

@@ -153,7 +153,7 @@ const mapStateToProps = (state, ownProps) => {
     let project = projectSelector(state)
     let project_data = projectDataSelector(state)
 
-    let project_metrics = project_data.information.qatools_metrics
+    let project_metrics = project_data.data.qatools_metrics
     let aggregated_metrics = {};
     project_metrics.main_metrics.forEach(
       m => (aggregated_metrics[m] = project_metrics.available_metrics[m].target)

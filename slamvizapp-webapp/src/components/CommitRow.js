@@ -51,7 +51,7 @@ class CommitResults extends React.Component {
       return <span></span>
 
 
-    let project_repo = project_data && project_data.information && project_data.information.git && project_data.information.git.path_with_namespace;
+    let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
     const gitlab_commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
@@ -101,7 +101,7 @@ class CommitResults extends React.Component {
     let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(commit);
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
 
-    const { available_metrics, default_metric } = project_data.information.qatools_metrics;
+    const { available_metrics, default_metric } = project_data.data.qatools_metrics;
     const default_metric_info = available_metrics[default_metric] || {};
 
     let status_messages = (
@@ -257,7 +257,7 @@ const CommitShortId = styled.a`
 class CommitRow extends React.Component {
   render() {
     const { commit, project, project_data, className, tag, toaster, dispatch } = this.props;
-    let project_repo = project_data.information.git.path_with_namespace;
+    let project_repo = project_data.data.git.path_with_namespace;
     const commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`
     let maybe_skeletton = !!commit.message ? null : Classes.SKELETON;
     return (

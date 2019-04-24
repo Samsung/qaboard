@@ -436,7 +436,7 @@ const Sensibility2DContour = ({
 class TuningExploration extends Component {
   constructor(props) {
     super(props);
-    const { main_metrics, available_metrics, default_metric } = this.props.project_data.information.qatools_metrics;
+    const { main_metrics, available_metrics, default_metric } = this.props.project_data.data.qatools_metrics;
     const available_metrics_ = {
       iteration: {
         key: "iteration",

@@ -167,7 +167,7 @@ class AppNavbar extends Component {
   render() {
     const { branches, commits, project, project_data, date_range, selected, dispatch, selected_views } = this.props;
     const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered, filter_batch_new, filter_batch_ref, selected_batch_new, selected_batch_ref } = this.props;
-    // const reference_branch = project_data.information.qatools_config.project.reference_branch;
+    // const reference_branch = project_data.data.qatools_config.project.reference_branch;
 
     let show_ref_navbar = ! (selected_views === 'logs' || selected_views === 'tuning' || selected_views === 'groups')
 
@@ -355,7 +355,7 @@ const mapStateToProps = (state, ownProps) => {
     ref_batch_filtered,
   } = batchSelector(state)
 
-  let selected_views = selected.selected_views || ((project_data.information.qatools_config.outputs || {}).default_tab_details || 'summary')
+  let selected_views = selected.selected_views || ((project_data.data.qatools_config.outputs || {}).default_tab_details || 'summary')
 
   // console.log(project)
   return {
