@@ -7,14 +7,14 @@ const controls_defaults = props => {
     show: {},
   };
   if (!!props.project_data &&
-      !!props.project_data.information &&
-      !!props.project_data.information.qatools_config &&
-      !!props.project_data.information.qatools_config.outputs) {
-    let controls = props.project_data.information.qatools_config.outputs.controls || [];
+      !!props.project_data.data &&
+      !!props.project_data.data.qatools_config &&
+      !!props.project_data.data.qatools_config.outputs) {
+    let controls = props.project_data.data.qatools_config.outputs.controls || [];
     controls.forEach(control => {
       state_controls[control.name] = control.default;
     })
-    let detailed_views = props.project_data.information.qatools_config.outputs.detailed_views || []
+    let detailed_views = props.project_data.data.qatools_config.outputs.detailed_views || []
     detailed_views.forEach( (view, idx) => {
       if (view.default_hidden)
         state_controls.show[view.name] = false;

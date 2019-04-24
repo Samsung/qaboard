@@ -55,7 +55,8 @@ class CiCommitResults extends Component {
     super(props);
     // we initialize optionnal controls with their defaults
     this.state = {
-      controls: controls_defaults(props),
+      controls: controls_defaults(props.project_data),
+      qatools_config: 'commit' // or project, to use the project-level configuration only
     };
   }
 
@@ -146,10 +147,17 @@ class CiCommitResults extends Component {
     if (this.props.match.url !== prevProps.match.url) {
       this.fetchCommits();
     }
-    const new_controls = ((((this.props.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
-    const old_controls = ((((prevProps.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
-    if (old_controls !== new_controls) {
-      this.setState({controls: controls_defaults(this.props)});
+    const qatools_config_curr = this.state.qatools_config === 'project'
+                                ? ((this.props.project_data || {}).data || {}).qatools_config 
+                                : ((this.props.new_commit   || {}).data || {}).qatools_config 
+    const qatools_config_prev = this.state.qatools_config === 'project'
+                                ? ((prevProps.project_data || {}).data || {}).qatools_config
+                                : ((prevProps.new_commit   || {}).data || {}).qatools_config 
+    const new_controls = ((qatools_config_curr || {}).outputs || {}).controls;
+    const old_controls = ((qatools_config_prev || {}).outputs || {}).controls;
+    if (new_controls !== old_controls ) {
+      let controls = controls_defaults(this.props.project_data)
+      this.setState({controls});
     }
   }
 
@@ -169,7 +177,6 @@ class CiCommitResults extends Component {
   render() {
     const {
       project,
-      project_data,
       ref_commit_id,
       new_commit_id,
       new_commit,
@@ -179,6 +186,7 @@ class CiCommitResults extends Component {
       ref_batch_filtered,
       selected_views,
     } = this.props;
+    const config_data  = (this.state.qatools_config === 'project' ? this.props.project_data : this.props.new_commit) || {};
 
     var warning_messages = <CommitsWarningMessages
                             commits={{
@@ -207,17 +215,16 @@ class CiCommitResults extends Component {
       />
     );
 
-    
-    let controls_extra = (project_data.information.qatools_config.outputs || {}).controls || []
-    let detailed_views = (project_data.information.qatools_config.outputs || {}).detailed_views || []
+    let controls_extra = (((config_data.data || {}).qatools_config || {}).outputs || {}).controls || []
+    let detailed_views = (((config_data.data || {}).qatools_config || {}).outputs || {}).detailed_views || []
     let maybe_diff = detailed_views.some(v => v.type.startsWith('image')) && <Switch
         key='diff'
-        checked={this.state.controls.diff}
+        checked={this.state.controls.diff || false}
         onChange={this.toggle('diff')}
         label={'Perceptual diff'}
     />
     let controls = <>
-      {selected_views !== 'bit-accuracy' && detailed_views.map( (view, idx) => {
+      {!selected_views.includes('bit-accuracy') && detailed_views.map( (view, idx) => {
         if (!view.default_hidden ||
             this.state.controls.show === undefined || this.state.controls.show === null ||
             this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -240,8 +247,7 @@ class CiCommitResults extends Component {
       })}
     </>
 
-    let show_viewer_controls = (selected_views === 'output-list' || selected_views === 'bit-accuracy')
-
+    let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
     const all_controls = <Tabs>
       <Tabs.Expander />
       {show_viewer_controls && controls}
@@ -273,7 +279,7 @@ class CiCommitResults extends Component {
       </HTMLSelect>
     </Tabs>
 
-    let show_ref_navbar = ! (selected_views === 'logs' || selected_views === 'tuning' || selected_views === 'groups')
+    let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
 
     return (
       <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
@@ -294,7 +300,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Summary</h2>
                   <MetricsSummary
                     project={project}
-                    project_data={project_data}
+                    project_data={config_data}
                     available_metrics={this.props.available_metrics}
                     new_batch={new_batch_filtered}
                     ref_batch={ref_batch_filtered}
@@ -318,7 +324,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Groups of tests</h2>
                   <AddRecordingsForm
                     project={project}
-                    project_data={this.props.project_data}
+                    project_data={config_data}
                     commit={new_commit}
                   />
                 </Card>
@@ -329,7 +335,7 @@ class CiCommitResults extends Component {
                 <Card>
                   <TuningForm
                     project={project}
-                    project_data={this.props.project_data}
+                    project_data={config_data}
                     commit={new_commit} />
                 </Card>
                </Section>}
@@ -380,7 +386,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Outputs</h2>
                   <ExportPlugin
                     project={project}
-                    project_data={project_data}
+                    project_data={config_data}
                     new_commit_id={this.props.new_commit_id}
                     ref_commit_id={this.props.ref_commit_id}
                     selected_batch_new={this.props.selected_batch_new}
@@ -390,12 +396,13 @@ class CiCommitResults extends Component {
                   />
                   <OutputList
                     project={project}
-                    project_data={project_data}
+                    project_data={config_data}
                     sort_order={this.props.sort_order}
                     sort_by={this.props.sort_by}
                     new_batch={new_batch_filtered}
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
+                    sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}
 
@@ -405,13 +412,14 @@ class CiCommitResults extends Component {
                   <OutputList
                     type='bit_accuracy'
                     project={project}
-                    project_data={project_data}
+                    project_data={config_data}
                     sort_order={this.props.sort_order}
                     sort_by={this.props.sort_by}
                     new_batch={new_batch_filtered}
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
                     history={this.props.history}
+                    sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}
 
@@ -420,7 +428,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Tuning understanding</h2>
                   <TuningExploration
                     project={project}
-                    project_data={project_data}
+                    project_data={config_data}
                     batch={new_batch_filtered}
                   />
                 </Card>
@@ -514,11 +522,12 @@ class OutputList extends Component {
               helperText="Only show files matching"
               style={{flex: '50 1 auto'}}
             >
-              <input
-              	className={Classes.INPUT}
-                label="Filter by path"
+              <InputGroup
                 value={files_filter}
+                placeholder="filter by path"
                 onChange={this.update('files_filter')}
+                type="search"
+                leftIcon="filter"
                 style={{ width: "150px" }}
               />
             </FormGroup>
@@ -541,7 +550,7 @@ class OutputList extends Component {
             />
           </FormGroup>
         )}
-        {!!ref_batch.label && ref_batch.label !== "default" && (
+        {!!ref_batch.label && ref_batch.label !== "default" && this.props.sorted_extra_parameters.length > 0 && (
           <Section><Callout intent={Intent.WARNING}>
             We compare each output to <strong>any</strong> reference outputs
             with matching recording+configuration+platform,{" "}
@@ -615,7 +624,7 @@ const mapStateToProps = (state, ownProps) => {
     } = batchSelector(state)
 
     // metrics
-    let project_metrics = project_data.information.qatools_metrics
+    let project_metrics = project_data.data.qatools_metrics
     let available_metrics = project_metrics.available_metrics
     let selected_metrics = selected.selected_metrics || project_metrics.main_metrics.map(k => available_metrics[k])
 
@@ -633,7 +642,7 @@ const mapStateToProps = (state, ownProps) => {
       .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
       .map(([k, v]) => k);
 
-    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ((project_data.information.qatools_config.outputs || {}).default_tab_details || 'table-compare')];
+    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ((project_data.data.qatools_config.outputs || {}).default_tab_details || 'table-compare')];
     return {
       params,
       project,
