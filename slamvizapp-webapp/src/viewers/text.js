@@ -93,7 +93,7 @@ class GenericTextViewer extends React.PureComponent {
                     .then(load_data(label))
                     .catch(response => {
                       // we don't really care about errors for reference logs
-                      load_data(label)({data: null})
+                      this.setState({data: {...this.state.data, [label]: ''}})
                       if (label==='new' && !!response)
                         this.setState({error: response.data})
                     });

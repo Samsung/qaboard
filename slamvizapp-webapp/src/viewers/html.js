@@ -23,6 +23,9 @@ class HtmlViewer extends PureComponent {
   }
 
   componentDidUpdate(prevProps, prevState) {
+    const has_path = this.props.path !== undefined && this.props.path !== null;
+    let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
+
 	  let updated_new =
 	    prevProps.output_new !== undefined &&
 	    prevProps.output_new !== null &&
@@ -33,7 +36,7 @@ class HtmlViewer extends PureComponent {
 	    prevProps.output_ref !== null &&
 	    (this.props.output_ref == null ||
 	      prevProps.output_ref.id !== this.props.output_ref.id);
-	  if (updated_new || updated_ref) {
+	  if (updated_new || updated_ref || updated_path) {
 	    this.Init(this.props);
 	  }
   }
