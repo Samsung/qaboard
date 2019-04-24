@@ -357,7 +357,7 @@ class CommitsEvolutionPerTest extends React.Component {
       hovered_commit: null,
       hovered_commit_ref: null,
 
-      controls: controls_defaults(props),
+      controls: controls_defaults(props.project_data),
     };
   }
 
@@ -408,10 +408,10 @@ class CommitsEvolutionPerTest extends React.Component {
     )
       this.updateTraces(this.props);
 
-    const new_controls = ((((this.props.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
-    const old_controls = ((((prevProps.project_data || {}).information || {}).qatools_config || {}).outputs || {}).controls;
+    const new_controls = ((((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
+    const old_controls = ((((prevProps.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
     if (old_controls !== new_controls) {
-      this.setState({controls: controls_defaults(this.props)});
+      this.setState({controls: controls_defaults(this.props.project_data)});
     }
   }
 
@@ -578,11 +578,11 @@ class CommitsEvolutionPerTest extends React.Component {
       }
 
 
-      let controls_extra = project_data.information.qatools_config.outputs.controls || []
-      let detailed_views = project_data.information.qatools_config.outputs.detailed_views || []
+      let controls_extra = project_data.data.qatools_config.outputs.controls || []
+      let detailed_views = project_data.data.qatools_config.outputs.detailed_views || []
       let maybe_diff = detailed_views.some(v => v.type.startsWith('image')) && <Switch
           key='diff'
-          checked={this.state.controls.diff}
+          checked={this.state.controls.diff || false}
           onChange={this.toggle('diff')}
           label={'Perceptual diff'}
       />
@@ -679,7 +679,7 @@ class CommitsEvolutionPerTest extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
-    const { main_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
+    const { main_metrics, default_metric} = this.props.project_data.data.qatools_metrics;
     this.state = {
       select_metrics: this.props.select_metrics || main_metrics,
       selected_metric: default_metric,
@@ -707,7 +707,7 @@ class CommitsEvolution extends Component {
     } = this.state;
     const { select_metrics } = this.state;
 
-    const { available_metrics, default_metric} = this.props.project_data.information.qatools_metrics;
+    const { available_metrics, default_metric} = this.props.project_data.data.qatools_metrics;
 
     if (!default_metric)
       return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;

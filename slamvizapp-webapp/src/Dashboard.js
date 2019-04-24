@@ -373,9 +373,9 @@ const mapStateToProps = (state, ownProps) => {
 
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
-    let branch = {name: (ownProps.match.params.name || params.get("branch") || project_data.information.qatools_config.project.reference_branch || 'latests')}
+    let branch = {name: (ownProps.match.params.name || params.get("branch") || project_data.data.qatools_config.project.reference_branch || 'latests')}
 
-    let project_metrics = project_data.information.qatools_metrics    
+    let project_metrics = project_data.data.qatools_metrics    
     const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
     let aggregation_metrics = {};
     (dashboard_metrics || main_metrics).forEach(m => {
