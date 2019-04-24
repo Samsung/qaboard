@@ -6,32 +6,37 @@ class SyncedVideos extends React.Component {
     this.syncReferenceVideo = this.syncReferenceVideo.bind(this);
   }
   play_ref = () => this.video_ref.play();
-   pause_ref = () => this.video_ref.pause();
-
+  pause_ref = () => this.video_ref.pause();
+  canplay_ref = () => this.ref_video_ready = true;
   componentDidMount() {
-    // this.video_ref.addEventListener("canplay",
-    //   () => this.setState({ref_video_ready: true})
-    // );
+    this.video_ref.addEventListener("canplay", this.canplay_ref);
     this.video_new.addEventListener("play", this.play_ref);
     this.video_new.addEventListener("pause", this.pause_ref);
-    // this.primary.addEventListener('timeupdate', this.syncReferenceVideo);
-    // this.primary.addEventListener('seeking', this.syncReferenceVideo);
+
+    this.video_new.addEventListener('timeupdate', this.syncReferenceVideo);
+    this.video_new.addEventListener('seeking', this.syncReferenceVideo);
   }
 
   componentWillUnmount() {
     // Make sure to remove the DOM listener when the component is unmounted.
-    // this.video_ref.removeEventListener("canplay");
+    this.video_ref.removeEventListener("canplay", this.canplay_ref);
     this.video_new.removeEventListener("play", this.play_ref);
     this.video_new.removeEventListener("pause", this.pause_ref);
+
+    this.video_new.removeEventListener("timeupdate", this.syncReferenceVideo);
+    this.video_new.removeEventListener("seeking", this.syncReferenceVideo);
+
   }
 
   syncReferenceVideo() {
-    if (this.state.ref_video_ready)
+    if (this.ref_video_ready)
       return (this.video_ref.currentTime = this.video_new.currentTime);
   }
 
   render() {
-    const { output_new, output_ref, path, poster, type } = this.props;
+    const { output_new, output_ref, path, poster='poster.jpg', type } = this.props;
+    let width = parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, ''))
+    const single_video_width = (width - 10) / 2
 
     return (
       <>
@@ -41,7 +46,7 @@ class SyncedVideos extends React.Component {
           controls
           loop="loop"
           title="New"
-          width={350}
+          width={single_video_width}
           poster={`${output_new.output_dir_url}/${poster}`}
           type={type}
         >
@@ -53,7 +58,7 @@ class SyncedVideos extends React.Component {
             preload="none"
             loop="loop"
             title="Reference"
-            width={(this.props.style && this.props.style.width) || 350}
+            width={single_video_width}
             poster={`${output_ref.output_dir_url}/${poster}`}
             type={type}
           >
