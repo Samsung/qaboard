@@ -192,6 +192,9 @@ def iter_recordings(groups, groups_file, database, default_configuration, defaul
   group_aliases = available_batches.get('groups', {})
   groups = list(alias_groups(groups, group_aliases))
 
+  if not groups:
+    click.secho(f'WARNING: No group. Maybe you forgot --group ?', fg='yellow', err=True)
+
   maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
   for group in groups:
     # We can ask for two types of groups:
