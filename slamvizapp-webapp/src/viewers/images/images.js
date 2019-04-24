@@ -86,14 +86,14 @@ class ImgViewer extends PureComponent {
   }
 
   componentDidMount() {
-    const { output_new } = this.props;
+    const { output_new, id, path } = this.props;
     this.viewer_new = OpenSeadragon({
         ...openseadragon_config,
-        id: `osd-new-${slugify(output_new.output_dir_url)}`,
+        id: `osd-new-${slugify(output_new.output_dir_url)}-${id || path}`,
       });
     this.viewer_ref = OpenSeadragon({
         ...openseadragon_config,
-        id: `osd-ref-${slugify(output_new.output_dir_url)}`,
+        id: `osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`,
     });
 
     this.Init().then(() => {
@@ -102,12 +102,22 @@ class ImgViewer extends PureComponent {
       this.InitFilters();
       this.InitHistogram();
       this.InitDiff();        
-      window.addEventListener("keypress", this.keyboard);
+      window.addEventListener("keypress", this.keyboard, {passive: true});
     })
   }
 
   componentWillUnmount() {
-      window.removeEventListener('keypress', this.keypress);
+    if (!!this.viewer_new) {
+      // this.viewer_new.imageLoader.clear()  
+      // this.viewer_new.destroy();
+      // this.viewer_new = null;
+    }
+    if (!!this.viewer_new) {      
+      // this.viewer_new.imageLoader.clear()  
+      // this.viewer_ref.destroy();
+      // this.viewer_ref = null;
+    }
+    window.removeEventListener('keypress', this.keypress);
   }
 
 
@@ -136,16 +146,29 @@ class ImgViewer extends PureComponent {
         }, () => resolve())
 
         const { viewer_new, viewer_ref } = this;
+        // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
+        // https://github.com/openseadragon/openseadragon/issues/1428
+        // let viewer_new_is_open = viewer_new.isOpen()
+        viewer_new.addTiledImage({
+          tileSource: {...source_config, "@id": iiif_url(output_new.output_dir_url, path)},
+          success: () => {
+            // To avoid leaking tile sources, we should remove the previous tile
+            // however, it causes a blink-to-white transition... so until we find a fix...
+            // We may also not want to remove old source, eg cache them. But it's a small gain, and
+            // we already have the browser's cache, the IIIF server's, so...
+            // if (viewer_new.world.getItemCount() > 1)
+            //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
+          },
+          // We would like to do this, there is still a white flicker... 
+          // index: viewer_new_is_open ? 0 : undefined,
+          // replace: viewer_new_is_open ? true : undefined,
+        })
 
-        viewer_new.open([{
-          ...source_config,
-          "@id": iiif_url(output_new.output_dir_url, path),
-        }])
         if (has_reference) {
-          viewer_ref.open([{
-            ...source_config,
-            "@id": iiif_url(output_ref.output_dir_url, path),
-          }])
+          viewer_ref.addTiledImage({
+            tileSource: {...source_config, "@id": iiif_url(output_ref.output_dir_url, path)},
+            success: () => {},
+          })
         }
       }).catch(error => {
         this.setState({error})
@@ -158,14 +181,18 @@ class ImgViewer extends PureComponent {
       let updated_new =
         prevProps.output_new !== undefined &&
         prevProps.output_new !== null &&
-        (this.props.output_new == null ||
+        (this.props.output_new === null ||
           prevProps.output_new.id !== this.props.output_new.id);
       let updated_ref =
         prevProps.output_ref !== undefined &&
         prevProps.output_ref !== null &&
-        (this.props.output_ref == null ||
+        (this.props.output_ref === null ||
           prevProps.output_ref.id !== this.props.output_ref.id);
-      if (updated_new || updated_ref) {
+      const has_path = this.props.path !== undefined && this.props.path !== null;
+      let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
+      if (updated_new || updated_ref || updated_path) {
+        if (this.props.id === undefined)
+          console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
         this.Init();
       }
 
@@ -268,6 +295,8 @@ class ImgViewer extends PureComponent {
     viewer_ref.addHandler('pan', viewer_refHandler);
 
     function maintainZoom() {
+      if (viewer_new === null || viewer_new === undefined || viewer_ref === null || viewer_ref === undefined)
+        return;
       var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
       var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
       viewer_newLeading = true;
@@ -291,7 +320,7 @@ class ImgViewer extends PureComponent {
         
       }
     }
-    window.addEventListener('resize', maintainZoom);
+    window.addEventListener('resize', maintainZoom, {passive: true});
     this.setState({maintainZoom});
   }
 
@@ -328,7 +357,7 @@ class ImgViewer extends PureComponent {
   }
 
   render() {
-    const { output_new, output_ref, diff, label, path } = this.props;
+    const { output_new, output_ref, diff, label, path, id } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
@@ -337,25 +366,27 @@ class ImgViewer extends PureComponent {
 
     const single_image_width = (width - 10) / 2
     const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
-    const single_image = {
+    const flex = {flex: '0 0 auto'}
+    const single_image_size = {
     	width: `${single_image_width}px`,
     	height: `${single_image_height}px`,
-    	flex: '0 0 auto',
     }
-    let second_image = first_image === "reference" ? 'new' : 'reference'
+
     const switch_label = <Tag rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     let images = [
-        <div style={single_image} id={`osd-new-${slugify(output_new.output_dir_url)}`} key={`osd-new-${slugify(output_new.output_dir_url)}`}>
+        <div style={flex} key="new">
           <Tooltip>
             {!hide_labels ? <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag> : switch_label}
             <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-          </Tooltip>
+          </Tooltip>          
+          <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
         </div>,
-        <div style={single_image} id={`osd-ref-${slugify(output_new.output_dir_url)}`} key={`osd-ref-${slugify(output_new.output_dir_url)}`} hidden={no_reference}>
+        <div style={flex} key="ref">
           <Tooltip>
             {!hide_labels ? <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag> : switch_label}
             <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
           </Tooltip>
+          <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={no_reference} />
         </div>
     ]
 
@@ -393,11 +424,14 @@ class ImgViewer extends PureComponent {
         {colors}
         {label && (label || path)}
       </span>
-      <div style={{display: 'flex', flexWrap: 'wrap', alignContent: 'center',  paddingBottom: 60}}>
+
+      <div style={{display: 'flex', flexWrap: 'wrap', alignContent: 'center',  paddingBottom: 5}}>
+
         {images}
-	      {single_image_height && <div hidden={!diff || no_reference} style={{...single_image, marginTop: '30px'}}>
+
+	      {single_image_height > 0 && <div hidden={!diff || no_reference} style={flex}>
           <Slider
-            style={{width: single_image_width}}
+            style={{width: single_image_size.width}}
             min={0} max={1}
             labelStepSize={0.1}
             stepSize={0.01}
@@ -408,7 +442,8 @@ class ImgViewer extends PureComponent {
               this.setState({diff_threshold}, () => this.update_diff())
             }}
           />
-          <canvas hidden={!diff || no_reference} ref={this.canvas_diff} width={single_image_width} height={single_image_height} />
+          <canvas hidden={!diff || no_reference} ref={this.canvas_diff} {...single_image_size} />
+
           <Tooltip hoverCloseDelay={500}>
             <p><Icon icon="info-sign" style={{color: Colors.GRAY2}}/></p>
             <ul>
@@ -419,8 +454,9 @@ class ImgViewer extends PureComponent {
             </ul>
           </Tooltip>
         </div>}
-        {this.show_histogram && <div style={single_image}>
-            <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={{marginTop: '30px'}} />
+
+        {this.show_histogram && <div style={flex}>
+            <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size} />
         </div>}
         
       </div>
@@ -435,7 +471,7 @@ class ImgViewer extends PureComponent {
   keyboard = ev => {
     if (ev.target.nodeName === 'INPUT')
       return;
-    switch (ev.key || String.fromCharCode(ev.keyCode || ev.charCode)) {
+    switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "t":
         this.switch_images()
       break
