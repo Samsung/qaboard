@@ -182,7 +182,7 @@ OpenSeadragon.Selection = function ( options ) {
             this.viewer.container,
             'keypress',
             OpenSeadragon.delegate(this, onKeyPress),
-            false
+            {passive: true}
         );
     }
 
@@ -196,7 +196,7 @@ OpenSeadragon.Selection = function ( options ) {
             element:    this.toggleButton ? OpenSeadragon.getElement( this.toggleButton ) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip:    OpenSeadragon.getString('Tooltips.SelectionToggle') || 'Select a region to see its histogram',
+            tooltip:    'Select a region to see its histogram',
             srcRest:    prefix + this.navImages.selection.REST,
             srcGroup:   prefix + this.navImages.selection.GROUP,
             srcHover:   prefix + this.navImages.selection.HOVER,
@@ -219,7 +219,7 @@ OpenSeadragon.Selection = function ( options ) {
             element:    this.confirmButton ? OpenSeadragon.getElement( this.confirmButton ) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip:    OpenSeadragon.getString('Tooltips.SelectionConfirm') || 'Confirm selection',
+            tooltip:    'Confirm selection',
             srcRest:    prefix + this.navImages.selectionConfirm.REST,
             srcGroup:   prefix + this.navImages.selectionConfirm.GROUP,
             srcHover:   prefix + this.navImages.selectionConfirm.HOVER,
@@ -236,7 +236,7 @@ OpenSeadragon.Selection = function ( options ) {
             element:    this.cancelButton ? OpenSeadragon.getElement( this.cancelButton ) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip:    OpenSeadragon.getString('Tooltips.SelectionCancel') || 'Cancel selection',
+            tooltip:    'Cancel selection',
             srcRest:    prefix + this.navImages.selectionCancel.REST,
             srcGroup:   prefix + this.navImages.selectionCancel.GROUP,
             srcHover:   prefix + this.navImages.selectionCancel.HOVER,

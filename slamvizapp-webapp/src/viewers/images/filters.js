@@ -127,7 +127,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
             element: this.toggleButton ? OpenSeadragon.getElement(this.toggleButton) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip: OpenSeadragon.getString('Tooltips.ImageTools') || 'Image tools',
+            tooltip: 'Image tools',
             srcRest: prefix + this.navImages.imagetools.REST,
             srcGroup: prefix + this.navImages.imagetools.GROUP,
             srcHover: prefix + this.navImages.imagetools.HOVER,
@@ -212,7 +212,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 //add to tools popup with label
                 var label = document.createElement('p');
                 label.style.margin = '0';
-                label.innerHTML = OpenSeadragon.getString('Tool.' + filter.filterName) || filter.filterName;
+                label.innerHTML = `Tool. ${filter.filterName}`;
 
                 popup.appendChild(label);
                 popup.appendChild(filterElement);
@@ -220,7 +220,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
 
             //add reset button
             var resetButton = document.createElement('button');
-            resetButton.innerHTML = OpenSeadragon.getString('Tool.reset') || 'reset';
+            resetButton.innerHTML = 'reset';
             resetButton.style.display = 'block';
             resetButton.style.margin = '0 auto';
             resetButton.style.padding = '2px';
@@ -228,7 +228,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             //add functionality to reset button
             resetButton.addEventListener('click', function () {
                 this.resetFilters();
-            }.bind(this));
+            }.bind(this), {passive: true});
             popup.appendChild(resetButton);
         }
     },
@@ -267,13 +267,13 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
         rangeInputElmt.addEventListener('input', function () {
             inputEvtHasNeverFired = false;
             this.updateFilters();
-        }.bind(this));
+        }.bind(this), {passive: true});
         //needed for older IE should we support it?
         rangeInputElmt.addEventListener('change', function () {
             if (inputEvtHasNeverFired) {
                 this.updateFilters();
             }
-        }.bind(this));
+        }.bind(this), {passive: true});
     }
 });
 
