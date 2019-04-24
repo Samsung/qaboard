@@ -117,5 +117,5 @@ lsf:
 
 # Your artifacts will be saved under this location.
 ci_root:
-  linux: /stage/algo_data/XXX
-  windows: '\\\\netapp\\algo_data\\XXX'
+  linux: /stage/algo_data/ci
+  windows: '\\\\netapp\\algo_data\\ci'
