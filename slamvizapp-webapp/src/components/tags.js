@@ -22,6 +22,7 @@ const on_copy = text => {
 
 class PlatformTag extends React.Component {
 	render() {
+		if (this.props.platform === 'lsf') return <span/>
         return <Tag round minimal style={{marginRight: '5px', marginLeft: '5px'}}>@{this.props.platform}</Tag>
 	}
 }

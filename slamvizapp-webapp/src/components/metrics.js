@@ -51,6 +51,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       </strong>
     </span>
   );
+   
   let intent =
     (metrics_new[metric_info.key] > metric_info.target &&
       metric_info.smaller_is_better) ||
@@ -63,6 +64,11 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       {formatted_valued}
     </Tag>
   );
+
+  if (metric_info.key === 'is_failed' && !metrics_new.is_failed) {
+    metric_tag = <span/>
+  }
+
 
   if (metrics_ref !== undefined && metrics_ref[metric_info.key]) {
     let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
@@ -88,6 +94,28 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     </Fragment>
   );
 };
+
+
+class MetricsTags extends React.PureComponent {
+  render() {
+    const { metrics_new, metrics_ref } = this.props;
+    const { available_metrics, selected_metrics } = this.props;
+    return selected_metrics
+      .filter(key => metrics_new[key] !== undefined)
+      .map(key => (
+        <p key={key}>
+          <MetricTag
+            metrics_new={metrics_new}
+            metrics_ref={metrics_ref}
+            metric_info={available_metrics[key]}
+          />
+        </p>
+      ))
+  }
+}
+
+
+
 
 const MetricRow = styled.div`
   display: flex;
@@ -331,7 +359,7 @@ const SuccessBar = ({ success_frac }) => (
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
-    const { available_metrics, summary_metrics } = this.props.project_data.information.qatools_metrics;
+    const { available_metrics, summary_metrics } = this.props.project_data.data.qatools_metrics;
     const default_selected_metrics = summary_metrics.map(k => available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
@@ -570,4 +598,4 @@ class MetricsSummary extends Component {
   }
 }
 
-export { HistogramComparaison, MetricsSummary, MetricTag };
+export { HistogramComparaison, MetricsSummary, MetricTag, MetricsTags };
