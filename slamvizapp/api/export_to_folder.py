@@ -135,11 +135,9 @@ def export_to_folder():
   if len(all_configurations) == 1:
     common_data['configuration'] = deserialize_config(all_outputs[0].configuration)
   elif len(all_configurations) > 1:
-    configuration_prefix = os.path.commonprefix([o.configuration for o in all_outputs])    
-    configuration_suffix = reversed(os.path.commonprefix([reversed(o.configuration) for o in all_outputs]))
-    common_data['configuration_prefix'] = deserialize_config(configuration_prefix)
-    common_data['configuration_suffix'] = deserialize_config(configuration_suffix)
-
+    common_data['configuration_prefix'] = os.path.commonprefix([deserialize_config(o.configuration) for o in all_outputs])    
+    common_data['configuration_suffix'] = reversed(os.path.commonprefix([reversed(deserialize_config(o.configuration)) for o in all_outputs]))
+    # FIXME test @ http://qa:3000/tof/swip_tof/commit/e4b756d9c245e271093b38c27f934bc891de2714?reference=74c3648718dee48f423979a9225bba34c2917caa&selected_views=output-list
   # To be honest, we really should find what is common in each batch
   # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
 
