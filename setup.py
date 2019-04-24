@@ -1,3 +1,6 @@
+# https://github.com/ninjaaron/fast-entry_points
+import fastentrypoints
+
 from setuptools import setup, find_packages
 
 # more information at
@@ -5,7 +8,7 @@ from setuptools import setup, find_packages
 
 setup(
   name='qatools',
-  version="0.4.0", # __version__ needs to be updated in qatools/__init__.py as well
+  version="0.5.0", # __version__ needs to be updated in qatools/__init__.py as well
   packages=find_packages(), 
 
   author="Arthur Flam",

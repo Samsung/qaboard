@@ -249,7 +249,6 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
 
 
 
-
 metrics_file = config.get('outputs', {}).get('metrics')
 if not metrics_file:
   _metrics = {}
