@@ -1,7 +1,6 @@
 import React from "react";
-import { get, all, CancelToken } from "axios";
 
-import { Tree, Classes, Colors, Tag, Icon, Tooltip, Intent } from "@blueprintjs/core";
+import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputCard"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 
@@ -122,15 +121,17 @@ const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefi
 class BitAccuracyViewer extends React.Component {
   constructor(props) {
     super(props);
+    var tree = {}
+    if (!!this.props.manifests) {
+      Object.entries(this.props.manifests).forEach( ([label, manifest]) => {
+        if (!!manifest)
+          tree[label] = to_tree(manifest)
+      })
+      tree.mixed = this.mergeTrees(tree.new, tree.reference);      
+    }
+
     this.state = {
-      cancel_source: {
-        new: CancelToken.source(),
-        reference: CancelToken.source(),
-      },
-      is_loaded: false,
-      error: {},
-      manifests: {},
-      tree: {},
+      tree,
       selected: [],
       opened: [],
     }
@@ -138,14 +139,11 @@ class BitAccuracyViewer extends React.Component {
 
 
   render() {
-    const { tree, is_loaded, error, selected } = this.state;
-    if (!is_loaded) return <span></span>;
+    const { tree, selected } = this.state;
 
     const { type, ...props } = this.props;
     return <div>
-      {error.new && <Tooltip><Tag style={{marginRight: '5px'}} intent={Intent.WARNING}>Missing data @new</Tag><span>{JSON.stringify(error.new)}</span></Tooltip>}
-      {error.reference && <Tooltip><Tag intent={Intent.WARNING}>Missing data @reference</Tag><span>{JSON.stringify(error.reference)}</span></Tooltip>}
-      {tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
+      {!!tree.new && !!tree.reference && tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
       <Tree
        contents={tree.mixed}
        onNodeClick={this.handleNodeClick}
@@ -200,7 +198,7 @@ class BitAccuracyViewer extends React.Component {
     tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
 
     forEachNode(tree_compared, applyStyle)
-    forEachNode(tree_compared, node => {if (this.state.opened.includes(node.id)) {node.isExpanded = true}} )
+    forEachNode(tree_compared, node => {if (((this.state || {}).opened || []).includes(node.id)) {node.isExpanded = true}} )
 
     if (this.props.expand_all !== undefined && !!this.props.expand_all) {
       forEachNode(tree_compared, node => {node.isExpanded = true} )    	
@@ -249,34 +247,23 @@ class BitAccuracyViewer extends React.Component {
   };
 
 
-
-
-  componentDidMount() {
-    this.fetchData(this.props);
-  }
-
-  componentWillUnmount() {
-    ["new", "reference"].forEach(label => {
-      if (!!this.state.cancel_source[label])
-        this.state.cancel_source[label].cancel();      
-    })
-  }
-
   componentDidUpdate(prevProps, prevState) {
-      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
-      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
-      let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
-      let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
-      if (updated_new) {
-        if (!!this.state.cancel_source.new)
-          this.state.cancel_source.new.cancel();
-        this.fetchData(this.props, 'new');
-      }
-      if (updated_ref) {
-        if (!!this.state.cancel_source.reference)
-          this.state.cancel_source.reference.cancel();
-        this.fetchData(this.props, 'reference');
-      }
+      // console.log(this.props)
+      // console.log(prevProps)
+      const has_new_manifest = !!this.props.manifests && !!this.props.manifests.new;
+      const has_ref_manifest = !!this.props.manifests && !!this.props.manifests.reference;
+
+      const had_new_manifest = !!prevProps.manifests && !!prevProps.manifests.new;
+      const had_ref_manifest = !!prevProps.manifests && !!prevProps.manifests.reference;
+
+      let updated_new = has_new_manifest && (!had_new_manifest || prevProps.manifests.new !== this.props.manifests.new);
+      let updated_ref = has_ref_manifest && (!had_ref_manifest || prevProps.manifests.reference !== this.props.manifests.reference);
+
+      if (updated_new)
+        this.setState({tree: {...this.state.tree, new: to_tree(this.props.manifests.new)}})
+      if (updated_ref)
+        this.setState({tree: {...this.state.tree, reference: to_tree(this.props.manifests.reference)}})
+
       let change_show_all_files = prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new;
       let change_files_filter = prevProps.files_filter !== this.props.files_filter && !!this.state.tree.new;
       let change_expand_all = prevProps.expand_all !== this.props.expand_all && !!this.state.tree.new;
@@ -289,61 +276,6 @@ class BitAccuracyViewer extends React.Component {
         })
   }
 
-
-  fetchData(props, label) {
-    const { output_new, output_ref } = props;
-    if (!output_new.output_dir_url) return;
-    this.setState({is_loaded: false})
-
-    let results = [];
-    const should_get_all = label === undefined || label === null;
-    if (should_get_all || label === 'new') {
-      results.push(['new', `${output_new.output_dir_url}/manifest.outputs.json`])
-    }
-    if (should_get_all || label === 'reference') {
-      if (!!output_ref && !!output_ref.output_dir_url)
-        results.push(['reference', `${output_ref.output_dir_url}/manifest.outputs.json`])
-    }
-
-    const load_data = label => (response, error) => {
-      this.setState((previous_state, props) => ({
-        manifests: {
-          ...previous_state.manifests,
-          [label]: response.data,
-        },
-        tree: {
-          ...previous_state.tree,
-          [label]: to_tree(response.data),
-        },
-        error: {
-          ...previous_state.error,
-          [label]: error,
-        }
-      }))
-    }
-
-    all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: this.state.cancel_source.token})
-                    .then(load_data(label))
-                    .catch(response => {
-                     load_data(label)(
-                        {load_data  : {}},
-                        response,
-                      )
-                    });
-    }).map(f=>f()) )
-    // now we loaded and parsed all the data
-    .then( () => {
-      if (this.state.tree.new === undefined || this.state.tree.new === null) return
-      this.setState({
-        is_loaded: true,
-        tree: {
-          ...this.state.tree,
-          mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference)
-        }
-      })
-    })
-  }
 
 }
 

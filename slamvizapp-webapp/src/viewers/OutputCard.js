@@ -1,40 +1,39 @@
 import React, { Component, lazy, Suspense } from "react";
+import { get, all, CancelToken } from "axios";
+import { matchPath  } from 'react-router'
+import pathToRegexp from 'path-to-regexp'
 
 import styled from "styled-components";
-import { Card, Icon, Intent, Tag, Classes, Popover, Toaster, Tooltip } from "@blueprintjs/core";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { MetricTag } from "../components/metrics";
+import {
+  Classes,
+  Intent,
+  Card,
+  Tag,
+  Icon,
+  Slider,
+  HTMLSelect,
+  Popover,
+  Tooltip,
+  Toaster,
+} from "@blueprintjs/core";
 
+import { MetricsTags } from "../components/metrics";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from '../components/tags'
 import { linux_to_windows } from '../utils'
 
 export const toaster = Toaster.create();
+
+
+// ES2018.....
+Object.fromEntries = arr => Object.assign({}, ...Array.from(arr, ([k, v]) => ({[k]: v}) ));
+
 
 const SlimCard = styled(Card)`
   padding: 5px !important;
   overflow: "auto";
 `;
 
-
-
-
-class MetricsTags extends React.PureComponent {
-  render() {
-    const { metrics_new, metrics_ref } = this.props;
-    const { available_metrics, selected_metrics } = this.props;
-    return selected_metrics
-      .filter(key => metrics_new[key] !== undefined)
-      .map(key => (
-        <p key={key}>
-          <MetricTag
-            metrics_new={metrics_new}
-            metrics_ref={metrics_ref}
-            metric_info={available_metrics[key]}
-          />
-        </p>
-      ))
-  }
-}
 
 
 class OutputHeader extends React.PureComponent {
@@ -161,7 +160,7 @@ class OutputViewer extends React.Component {
       }
     }
   return (
-    <Suspense fallback={<span></span>}>
+    <Suspense fallback={<span/>}>
       {viewer}
     </Suspense>
   );
@@ -170,14 +169,180 @@ class OutputViewer extends React.Component {
 
 
 class OutputCard extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      cancel_source: {
+        new: CancelToken.source(),
+        reference: CancelToken.source(),
+      },
+      is_loaded: false,
+      error: {},
+      manifests: {},
+      options: {
+      }
+    }
+  }
+
+  componentDidMount() {
+    this.fetchData(this.props);
+  }
+
+  componentWillUnmount() {
+    ["new", "reference"].forEach(label => {
+      if (!!this.state.cancel_source[label])
+        this.state.cancel_source[label].cancel();      
+    })
+  }
+
+
+  fetchData(props, label) {
+    const { output_new, output_ref } = props;
+    if (!output_new.output_dir_url) return;
+    this.setState({is_loaded: false})
+
+    let results = [];
+    const should_get_all = label === undefined || label === null;
+    if (should_get_all || label === 'new') {
+      results.push(['new', `${output_new.output_dir_url}/manifest.outputs.json`])
+    }
+    if (should_get_all || label === 'reference') {
+      if (!!output_ref && !!output_ref.output_dir_url)
+        results.push(['reference', `${output_ref.output_dir_url}/manifest.outputs.json`])
+    }
+
+    const load_data = label => (response, error) => {
+      this.setState((previous_state, props) => ({
+        manifests: {
+          ...previous_state.manifests,
+          [label]: response.data,
+        },
+        error: {
+          ...previous_state.error,
+          [label]: error,
+        }
+      }))
+    }
+
+    all(results.map( ([label, url]) => {
+      return () =>  get(url, {cancelToken: this.state.cancel_source.token})
+                    .then(load_data(label))
+                    .catch(response => {
+                     load_data(label)(
+                        {load_data  : {}},
+                        response,
+                      )
+                    });
+    }).map(f=>f()) )
+    // now we loaded and parsed all the data
+    .then( () => {
+      this.updateOptions()
+      // this.setState({
+      //   is_loaded: true,
+      // })
+    })
+  }
+
+
+  componentDidUpdate(prevProps, prevState) {
+      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
+      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+      let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
+      let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
+      if (updated_new) {
+        if (!!this.state.cancel_source.new)
+          this.state.cancel_source.new.cancel();
+        this.fetchData(this.props, 'new');
+      }
+      if (updated_ref) {
+        if (!!this.state.cancel_source.reference)
+          this.state.cancel_source.reference.cancel();
+        this.fetchData(this.props, 'reference');
+      }
+  }
+
+  setSelectedOption = name => e => {
+    const selected = !!e.target ? e.target.value : e;
+    this.setState({
+      options: {
+        ...this.state.options,
+        [name]: {
+          ...this.state.options[name],
+          selected: [selected], 
+        }
+      }
+    })
+  }
+
+
+
+  updateOptions() {
+    if (this.state.manifests.new === undefined || this.state.manifests.new === null)
+      return;
+
+    const views = this.props.project_data.data.qatools_config.outputs.detailed_views || [];
+    var options = {}
+    views.forEach(view => {
+      // be glob-friendly
+      // FIXME: also get the extension, that's the common case...
+      // let path_regex = view.path.replace(/[^\.]\*/g, '(.*)')
+      let view_options = pathToRegexp.parse(view.path)
+      view_options.forEach(token => {
+        if (token.name === undefined) // static part
+          return
+        if (options[token.name] === undefined)
+          options[token.name] = {views: []}
+        options[token.name] = {...options[token.name], ...token}
+        options[token.name].views.push(view.name)
+        options[token.name].path = view.path
+      })
+    })
+
+    const paths = Object.keys(this.state.manifests.new)
+    Object.entries(options).forEach( ([name, option]) => {
+      option.values = new Set()
+      paths.forEach(path => {
+        // const match = option.match.exec(p);
+        const match = matchPath(path, {path: option.path}) // they do their own caching
+        if (match === null || match === undefined) return;
+        option.values.add(match.params[name])
+      })
+      option.values = Array.from(option.values.values())
+      const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(parseFloat(v)) )
+      if (all_is_integer) {
+        option.type = 'slider'
+        option.to_raw = {}
+        option.min =  Infinity
+        option.max = -Infinity
+        option.values.forEach(v => {
+          const v_num = parseFloat(v);
+          if (v_num < option.min) option.min = v_num;
+          if (v_num > option.max) option.max = v_num;
+          option.to_raw[v_num] = v
+        })
+        option.selected = [option.max]
+      } else {
+        option.selected = [option.values[0]]
+      }
+    })
+    this.setState({
+      options,
+      is_loaded: true,
+    })
+  }
+ 
+ 
+
   render() {
-    const { main_metrics, available_metrics } = this.props.project_data.information.qatools_metrics;
+    const { is_loaded, error } = this.state;
+    const { main_metrics, available_metrics } = this.props.project_data.data.qatools_metrics;
     const { output_new, output_ref, warning } = this.props;
-    const { qatools_config } = this.props.project_data.information;
+    const { qatools_config } = this.props.project_data.data;
     const controls = this.props.controls || {};
 
     if (output_new === undefined  || output_new === null || output_new.is_pending)
       return <span/>
+    if (!is_loaded) return <span></span>;
 
     // layout should be plotly-like. You could also pass down a props named style.
     const views = qatools_config.outputs.detailed_views || [];
@@ -187,18 +352,39 @@ class OutputCard extends Component {
     }
 
     let viewers = views.map( (view, idx) => {
-        let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
-        if (hidden)
-          return <span key={idx}/>
-        return <OutputViewer
-          key={idx}
-          output_new={output_new}
-          output_ref={(controls.show_reference === undefined || controls.show_reference) ? output_ref : undefined}
-          {...view}
-          {...controls}
-          style={style}
-        />
+      let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
+      if (hidden)
+        return <span key={idx}/>
 
+      const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
+      if (!(view.display === 'viewer') && view_options.length > 0 ) {
+        if (view.display === undefined || view.display === 'single') {
+          const view_options_selected = view_options.map(o => [o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
+          var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
+        } else if (view.display === 'all') {
+          paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, {path: view.path}))
+        }
+      } else {
+        paths = [view.path]
+      }
+      // console.log(view.display, paths)
+
+      return paths.map(
+        (path, path_idx) => <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
+          {paths.length > 1 && <h3 style={{marginBottom: '0px'}}>{path}</h3>}
+          <OutputViewer
+            key={`${idx}-${path_idx}`}
+            id={`${idx}-${path_idx}`}
+            output_new={output_new}
+            output_ref={(controls.show_reference === undefined || controls.show_reference) ? output_ref : undefined}
+            manifests={this.state.manifests}
+            {...view}
+            path={path}
+            {...controls}
+            style={{...style, ...view.style}}
+          />
+        </div>
+      )
     })
 
     let container_style = {
@@ -208,9 +394,29 @@ class OutputCard extends Component {
     }
     return <div style={container_style}>
       <SlimCard className="output-card">
+          {error.new && <Tooltip key="error-new"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{__html: !!error.new.response ? error.new.response.data : error.new}}/></Tooltip>}
+          {error.reference && <Tooltip key="error-ref"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{__html: !!error.reference.response ? error.reference.response.data : error.reference}}/></Tooltip>}
+
           {!this.props.no_header && <OutputHeader output={output_new} warning={warning}/>}
+
           {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
           {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
+
+          {this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map( ([name, option]) => { // FIXME: need to filter, only care about shown viewers...
+            const option_label = isNaN(option.name) ? option.name : option.pattern
+            if (option.views.every(name => views.find(v => v.name === name).default_hidden===true && !(!!controls.show && controls.show[name]===true)) )
+              return <span key={option.name}/>
+            if (option.type === 'slider') {
+              // let labelStepSize = (option.max - option.min) / 10
+              let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
+              return <div key={option_label} title={option_label} style={{marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px'}}>
+                <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill/>
+              </div>
+            } else {
+              return <div key={option_label} title={option_label}><HTMLSelect options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)}/></div>
+            }
+          })}
+
           {this.props.type === 'bit_accuracy'
             ? <OutputViewer
                key="bit-accuracy"
@@ -219,6 +425,7 @@ class OutputCard extends Component {
                controls={controls}
                output_new={output_new}
                output_ref={output_ref}
+               manifests={this.state.manifests}
                style={style}
                show_all_files={this.props.show_all_files}
                expand_all={this.props.expand_all}
@@ -237,6 +444,25 @@ class OutputCard extends Component {
       </SlimCard>
     </div>
   }
+}
+
+
+
+// Adapted from
+// https://github.com/ReactTraining/react-router/blob/82ce94c3b4e74f71018d104df6dc999801fa9ab2/packages/react-router/modules/matchPath.js
+const cache = {};
+const cacheLimit = 10000;
+let cacheCount = 0;
+function compilePath(path) {
+  if (cache[path]) return cache[path];
+
+  const regexp = pathToRegexp.compile(path);
+
+  if (cacheCount < cacheLimit) {
+    cache[path] = regexp;
+    cacheCount++;
+  }
+  return regexp;
 }
 
 
