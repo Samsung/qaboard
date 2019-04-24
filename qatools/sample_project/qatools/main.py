@@ -51,7 +51,7 @@ def run(context):
   print(command)
   if context.obj['dryrun']: return
 
-  with subprocess.Popen(command,
+  with subprocess.Popen(command, shell=True,
                         cwd=output_directory,
                         encoding='utf-8',
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:

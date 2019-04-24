@@ -29,28 +29,12 @@ default_metric: rmse_mean
 # will be shown in the summary histogramms
 summary_metrics:
   - is_failed
-  - translation_aape
-  - relative_translation_error
-  - translation_drift_pc
-  - translation_rmse
-  - rotation_mean
-  - translation_aape_when_good
-  - rotation_mean_when_good
-  - frac_tracking_state_good
-  - time_pc_before_first_lost
-  - time_pc_before_lost_gt
-  - cpu_med
-  - cpu_avg
-  - processing_time_med
-  - processing_time_q95
+  - rmse_mean
 
 # will be shown in the results table and in the output cards
 main_metrics:
-  - translation_aape
-  - translation_rmse
-  - rotation_mean
-  - translation_drift_pc"
-
+  - is_failed
+  - rmse_mean
 
 
 # In the dashboard, you usually want to show only the metrics important to
@@ -59,22 +43,13 @@ main_metrics:
 # In the dashboard, only those metrics will be available in the plot showing results over time
 # OPTIONNAL: defaults to the main_metrics
 dashboard_evolution_metrics:
-  - translation_aape
-  - translation_rmse
-  - translation_aape_pc
-  - translation_rmse_pc
-  - rotation_mean
-  - translation_drift_pc"
+  - is_failed
+  - rmse_mean
 
 # In the dashboard, only those metrics will be shown in the summary histograms
 # OPTIONNAL: defaults to the summary_metrics
 dashboard_metrics:
   - is_failed
-  - translation_aape
-  - translation_rmse
-  - translation_aape_pc
-  - translation_rmse_pc
-  - rotation_mean
-  - translation_drift_pc
-  - processing_time_med
-  - cpu_med
+  - rmse_mean
+
+
