@@ -16,12 +16,15 @@ from sqlalchemy.orm import relationship
 from slamvizapp.models import Base, Output
 
 
-def slugify(s : str):
+def slugify(s : str, maxlength=64):
   """Slugiy a string like they do at Gitlab."""
   # lowercased and shortened to 63 bytes
-  slug = s.lower()[:63]
+  slug = s.lower()
+  if maxlength:
+    slug = slug[:(maxlength - 1)]
   # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z]', '-', slug)
+  slug = re.sub('[^0-9a-z.=]', '-', slug)
+  slug = re.sub('-{2,}', '-', slug)
   # No leading / trailing -. 
   return slug.strip('-')
 
