@@ -68,14 +68,19 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
   qa_init()
 
 
+# to avoid printing lots and lots of warnings, we define
+no_config_warning = '--help' in sys.argv
+
 qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
 if not qatools_configs:
+  config_has_error = True
+  if not no_config_warning:
     click.secho('ERROR: Could not find a `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
     click.secho(
         'Please read the tutorial, and ask @arthurf for help\n'
         'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
         dim=True, err=True)
-    config_has_error = True
+  no_more_config_warning = True
 
 
 def merge(configs):
@@ -112,18 +117,22 @@ else:
 
   # We check for consistency
   if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
+    config_has_error = True
+    if not no_config_warning:
       click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
-      config_has_error = True
+      no_config_warning = True
 
   # We identify sub-qatools projects using the location of qatools.yaml related to the project root
   # It's not something the user should change...
   leaf_project_name = root_qatools_config['project']['name'] / subproject
   uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
   if uncoherent_name:
+    config_has_error = True
+    if not no_config_warning:
       click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
-      config_has_error = True
+      no_config_warning = True
   config['project']['name'] = leaf_project_name.as_posix()
 
 
@@ -150,9 +159,11 @@ else:
 # We will refer to them by their relative path related to the "database"
 database = config.get('inputs', {}).get('database', {}).get(mount_flavor)
 if not database:
+  database = "."
+  if not no_config_warning:
     click.secho(f'WARNING: Could not find the database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
     click.secho(f'Consider adding to qatools.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
-    database = "."
+    no_config_warning = True
 database = Path(database)
 
 
@@ -163,9 +174,11 @@ database = Path(database)
 try:
     ci_root = config['ci_root'][mount_flavor]
 except KeyError:
+  config_has_error = True
+  if not no_config_warning:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
-    config_has_error = True
+    no_config_warning = True
 
 
 
