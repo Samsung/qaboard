@@ -1,7 +1,4 @@
-l<h1 align="center">
-  <p align="center">qatools</p>
-</h1>
-
+# qatools
 Qatools helps algorithm and QA enginneers build great products with powerful quality evaluation tools:
 
 - **Put the focus on improving and experimenting algorithms**, instead of worrying about the QA infrastructure.
