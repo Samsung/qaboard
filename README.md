@@ -1,5 +1,5 @@
 # qatools
-Qatools helps algorithm and QA enginneers build great products with powerful quality evaluation tools:
+Qatools helps algorithm and QA engineers build great products with powerful quality evaluation tools:
 
 - **Put the focus on improving and experimenting algorithms**, instead of worrying about the QA infrastructure.
 - **Simple to Start** qatools is built to be easy to get up and running in as little time possible. We've built a sample configuration generator, examples for common use use cases. Helpful error messages guide you in case of errors.
@@ -10,10 +10,10 @@ Qatools helps algorithm and QA enginneers build great products with powerful qua
 > Take a look at [SIRC's qatools server](https://qa)
 
 ## Installation
-> `qatools` is already installed on SIRC's vdi servers
+> qatools is already installed on SIRC's vdi servers
 > Install your own to easily use custom python packages.
 
-`qatools` is installable via `pip`:
+Qatools is installable via `pip`:
 
 ```bash
 pip install --upgrade git+http://gitlab-srv/common-infrastructure/qatools
@@ -30,6 +30,8 @@ For the rest, [read the docs!](https://qa/docs).
 
 
 ## Contributing
+> Merge requests are welcomed, and don't hesitate to create issues, or contact [Arthur Flam](mailto:arthur.flam@samsung.com)
+
 qatools is split into:
 
 1. the [CLI application](https://gitlab-srv/common-infrastructure/qatools) that wraps your code. To work on it:
@@ -41,10 +43,8 @@ pip install --editable .
 2. the [web application](https://gitlab-srv/dvs/slamvizapp) that displays results.
 3. the [API server](https://gitlab-srv/dvs/slamvizapp) that exposes a database with all the data.
 
-Each sub-project's *README* has intructions on how to start doing development. Merge requests are welcomed, and don't hesitate to create issues, or contact [Arthur Flam](mailto:arthur.flam@samsung.com)
-
 
 ## Why not X instead?
-- Most comparable tools focus on training for machine learning (`sacred`, `mlflow`, `tensorboard`, `polyaxon`, `cometML`). Our use cases revolve around qualitative outputs. It means we *need* flexible visualizations. This said, those tools are great too! They often have features that qatools is still missing (labelling and commenting outputs, live logs, better GUI in some respects).
+- Most comparable tools focus on **training for machine learning** (`sacred`, `mlflow`, `tensorboard`, `polyaxon`, `cometML`). Our use cases revolve around qualitative outputs. It means we *need* flexible visualizations. This said, those tools are great too! They often have features that qatools is still missing (labelling and commenting outputs, live logs, better GUI in some respects).
 - **Notebooks** are amazing for experimentation and r&d reporting, but are not easy to compare and manage. 
 - **Tensorboard** has a lot of qualities, but it doesn't scale to many experiments, doesn't know about `git`, and is not persistent. We may integrate an "Open in Tensorboard" button, ask about it and stay tuned.
