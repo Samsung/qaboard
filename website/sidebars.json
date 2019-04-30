@@ -1,0 +1,30 @@
+{
+  "docs": {
+    "Introduction": ["introduction"],
+  	"Getting Started": [
+      "installation",
+      "project-init",
+      "project-setup"
+  	],
+  	"Guides": [
+  		"batches-running-on-multiple-inputs",
+  		"tuning-workflows",
+  		"visualizations",
+  		"bit-accuracy",
+  		"subprojects",
+  		"exporting-results",
+  		"test-metadata-management",
+  		"qa-run",
+  		"docker-integration",
+  		"debugging",
+  		"remote-platforms"
+  	],
+  	"Admin Guides": [
+  		"starting-server",
+  		"server-maintenance"
+  	]
+  },
+  "docs-other": {
+    "A Category": ["doc4", "doc5"]
+  }
+}
