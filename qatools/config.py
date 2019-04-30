@@ -69,7 +69,7 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
 
 
 # to avoid printing lots and lots of warnings, we define
-no_config_warning = '--help' in sys.argv
+no_config_warning = '--help' in sys.argv or not sys.argv
 
 qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
 if not qatools_configs:
@@ -80,7 +80,7 @@ if not qatools_configs:
         'Please read the tutorial, and ask @arthurf for help\n'
         'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
         dim=True, err=True)
-  no_more_config_warning = True
+  no_config_warning = True
 
 
 def merge(configs):
