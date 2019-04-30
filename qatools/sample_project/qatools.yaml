@@ -2,11 +2,11 @@ project:
   name: my_group/sample_project
   type: git
   url: git@gitlab-srv/my_group/sample_project
-  # the latest commit on this branch is the reference for bit-accuracy tests
-  # typical choices are master, develop, or release
-  reference_branch: master
   # Where the script implementing `run` and `postprocess` functions is located (relative to the project's root)
   entrypoint: qatools/main.py
+  # the latest commit on this branch is the reference for output comparaisons, bit-accuracy tests, etc.
+  # typical choices are master, develop, or release
+  reference_branch: master
 
 
 

@@ -11,8 +11,6 @@ from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 from qatools.config import is_ci
 
 
-
-
 # To access the CLI arguments from the user, use the context object passed to run() and postprocess().
 # Reference: http://click.pocoo.org/6/complex/
 #
@@ -32,21 +30,19 @@ def run(context):
   command = ' '.join([
        f"{find_executable()}",
 
-       # you will often want to disable debug features in CI runs       
-       f'--no-live-view --no-movie' if is_ci else '',
-
-       # you MUST implement a way to override the default configuration with diffs/deltas, from a base configuration
-       # with partial configurations, corresponding to settings from an upstream block, or modes of operation
-       f'--paramfile configurations/base.json',
-       ' '.join([f'--paramfile configurations/{c}.json' for c in context.obj["configurations"]]),
-
-       # you should support parameter tuning, given to your via a JSON/YAML
-       f'--paramfile {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
-
        f'--input "{context.obj["absolute_input_path"]}"',
        f'--output "{context.obj["output_directory"]}"',
-       # extra flags are passed here
+
+       # You must write somewhere code that merges delta/partial configurations.
+       ' '.join([f'--config configurations/{c}.json' for c in context.obj["configurations"]]),
+       # You should support parameter tuning, given to your via a JSON file that has values for some parameters
+       f'--config {context.obj["tuning_filepath"]}' if 'tuning_filepath' in context.obj else '',
+
+       # Extra flags are passed here. It is often useful for debugging
        ' '.join(context.obj['forwarded_args']),
+
+       # You will often want to disable gui/debug features in CI runs       
+       f'--no-gui' if is_ci else '',
   ])
   print(command)
   if context.obj['dryrun']: return
@@ -63,7 +59,6 @@ def run(context):
       return {"is_failed": True, "returncode": process.returncode}
     return {"is_failed": False}
 
-
   # you could return various metrics: cpu usage, max memory, etc
   return {}
 
@@ -76,12 +71,13 @@ def find_executable():
   should be where the executable is located.
   Of course, if your code is pure python, you don't have to worry about this.
   """
+  binary_name = 'sample_project'
   if is_ci or on_lsf or on_vdi:
-    executable = 'build/sample_project'
+    executable = f'build/{binary_name}'
   elif on_windows:
-    executable = 'x64/release/sample_project.exe'
+    executable = f'x64/release/{binary_name}.exe'
   else:
-    executable = 'build/sample_project'
+    executable = f'build/{binary_name}'
   return Path(executable)
 
 
