@@ -58,7 +58,9 @@ def qa_init():
 
   # We try to tweak the sample configuration much as possible
   repo = find_repo(Path('.'))
-  if repo:
+  if not repo:
+    click.secho('Warning: could not find a git repository', fg='yellow')
+  else:
     remote = repo.remote()
     url = list(remote.urls)[0]
     if url.startswith('git'):
@@ -67,16 +69,16 @@ def qa_init():
       name =  '/'.join(url.split('/')[3:]).replace('.git', '')
     reference_branch = remote.refs.HEAD.reference.name.replace('origin/', '')
 
-  config = Path('qatools.yaml')
-  with config.open() as f:
-    config_content = f.read()
-  config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
-  config_content = config_content.replace('url: git@gitlab-srv/my_group/sample_project', f"url: {url}")
-  config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
+    config = Path('qatools.yaml')
+    with config.open() as f:
+      config_content = f.read()
+    config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
+    config_content = config_content.replace('url: git@gitlab-srv/my_group/sample_project', f"url: {url}")
+    config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
 
-  # Write the file out again
-  with config.open('w') as f:
-    f.write(config_content)
+    # Write the file out again
+    with config.open('w') as f:
+      f.write(config_content)
 
   exit(0)
 
