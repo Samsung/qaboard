@@ -7,6 +7,7 @@
       "project-setup"
   	],
   	"Guides": [
+  		"ci-integration",
   		"batches-running-on-multiple-inputs",
   		"tuning-workflows",
   		"visualizations",

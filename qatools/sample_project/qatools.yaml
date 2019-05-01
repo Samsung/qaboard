@@ -39,7 +39,7 @@ outputs:
 
   # To learn more about how to describe how results should be visualized:
   # http://gitlab-srv/common-infrastructure/qatools/wikis/visualization
-  detailed_views:
+  visualizations:
   - name: My plot
     # If you use plotly, it is very simple to view yours plots in the web UI
     type: plotly/json
