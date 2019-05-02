@@ -29,7 +29,7 @@ skipped_test_nb = 0
 
 
 def on_branch(branch):
-	if not isinstance(branch, list):
+	if not (isinstance(branch, list) or isinstance(branch, set) or isinstance(branch, tuple)):
 	  branch = [branch]
 
 	def on_branch_decorator(func):
@@ -78,6 +78,10 @@ def run_tests():
 # @on_branch(["xyz", "abc"])
 # def tests_multiple():
 # 	pass
+
+# @on_branch(("xyz", "abc"))
+# def tests_multiple():
+#       pass
 
 # @on_branch("ab*")
 # def tests_wildcards():
