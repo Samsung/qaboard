@@ -77,8 +77,8 @@ if not qatools_configs:
   if not no_config_warning:
     click.secho('ERROR: Could not find a `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
     click.secho(
-        'Please read the tutorial, and ask @arthurf for help\n'
-        'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
+        'Please read the tutorial or ask Arthur Flam for help:\n'
+        'http://qa-docs/',
         dim=True, err=True)
   no_config_warning = True
 
@@ -221,6 +221,7 @@ if is_ci:
     )
     commit_id = getenvs(commit_sha_variables, Path().resolve().name)
     branch_env_variables = (
+        'CI_COMMIT_TAG', # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
         'GIT_BRANCH', # Jenkins
         'CIRCLE_BRANCH', # CircleCI
