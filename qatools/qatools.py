@@ -6,8 +6,6 @@ import os
 import time
 from pathlib import Path
 import sys
-import importlib
-import errno
 import traceback
 import json
 import yaml
@@ -19,8 +17,8 @@ from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config
-from .utils import PathType
-from .utils import load_tuning_search, iter_parameters, iter_recordings
+from .utils import PathType, entrypoint_module, input_data, load_tuning_search
+from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
@@ -29,40 +27,6 @@ from .config import subproject, config, database, platform
 from .config import user, commit_id, commit, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci, on_windows
-
-
-class FailingEntrypoint:
-  def run(self, context):
-    return {"is_failed": True}
-  def postprocess(self, metrics, context):
-    return {"is_failed": True}
-
-def entrypoint_module():
-  """Lazily returns the entrypoint module defined in qatools.yaml"""
-  entrypoint = config['project'].get('entrypoint')
-  if not entrypoint:
-    click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
-    click.secho(f'Add to qatools.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
-    return FailingEntrypoint()
-  else:
-    entrypoint = Path(entrypoint)
-  try:
-      # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-      sys.path.append(str(entrypoint.parent)) # for imports from within the entrypoint's directory
-      spec = importlib.util.spec_from_file_location('entrypoint', entrypoint)
-      module = importlib.util.module_from_spec(spec)
-      spec.loader.exec_module(module)
-  except Exception as e:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      click.secho(
-          f'{entrypoint} must implement both `run` and `postprocess` functions.\n'
-          'Please read the tutorial, and ask @arthurf for help\n'
-          'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
-          dim=True, err=True)
-      return FailingEntrypoint()
-  return module
 
 
 default_batch_label = 'default'
@@ -163,6 +127,7 @@ def get(ctx, input_path, output_path, variable):
     exit(1)
 
 
+
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
@@ -176,15 +141,8 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
-    if input_path.is_absolute():
-        click.secho(f"[ERROR] the input should be given as a relative path.", fg='red')
-        exit(1)
-    absolute_input_path = (ctx.obj['database'] / input_path).resolve()
-    ctx.obj['absolute_input_path'] =  absolute_input_path
-    if not absolute_input_path.exists():
-        click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
-        exit(1)
-
+    ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
+    absolute_input_path = ctx.obj['prefix_output_dir']
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
     import shutil
@@ -192,14 +150,13 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     output_directory.mkdir(parents=True, exist_ok=True)
 
     ctx.obj['output_directory'] = output_directory.resolve()
-    ctx.obj['input_path'] =  input_path
     ctx.obj['forwarded_args'] = forwarded_args
     if not ctx.obj['no_qa_database']:
         notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
     start = time.time()
     try:
-      runtime_metrics = entrypoint_module().run(ctx)
+      runtime_metrics = entrypoint_module(config).run(ctx)
       if not runtime_metrics:
         runtime_metrics = {}
       runtime_metrics['compute_time'] = time.time() - start
@@ -226,7 +183,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
   output_directory = context.obj['output_directory']
   try:
     if not skip:
-      metrics = entrypoint_module().postprocess(runtime_metrics, context)
+      metrics = entrypoint_module(config).postprocess(runtime_metrics, context)
     else:
       metrics = runtime_metrics 
   except Exception as e:
@@ -295,13 +252,13 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
+  ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
+  absolute_input_path = ctx.obj['prefix_output_dir']
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
     output_directory = output_path
-  ctx.obj['input_path'] =  input_path
   ctx.obj['output_directory'] =  output_directory
-  ctx.obj['absolute_input_path'] = (ctx.obj['database'] / input_path).resolve()
   ctx.obj['forwarded_args'] = forwarded_args
   metrics = postprocess_({}, ctx)
   if metrics['is_failed']:
@@ -320,6 +277,8 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
+  ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
+  absolute_input_path = ctx.obj['prefix_output_dir']
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
@@ -328,7 +287,6 @@ def sync(ctx, input_path, output_path):
   if (output_directory/'metrics.json').exists():
     with (output_directory/'metrics.json').open('r') as f:
       metrics = json.load(f)
-    ctx.obj['input_path'] =  input_path
     ctx.obj['output_directory'] =  output_directory
     notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
@@ -361,6 +319,13 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     click.secho(f'Where batches.yaml is formatted like in http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools/input_groups.yaml', fg='red', err=True)
     return
 
+  if not group:
+    if not len(forwarded_args):
+        click.secho(f'ERROR: you must provide a group of inputs', fg='red', err=True, bold=True)
+        click.secho(f'Use either `qa batch GROUP`, or `qa batch --group GROUP_2 --group GROUP_2`', fg='red', err=True)
+        exit(1)
+    group, *forwarded_args = forwarded_args
+
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
   default_lsf_config =  {
     "max_threads": lsf_threads,
@@ -382,8 +347,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
 
-  tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
-  for input_path_abs, input_configurations, lsf_configuration, input_database in tests_iter:
+  inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
+  for input_path_abs, input_configurations, lsf_configuration, input_database in inputs_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(input_database)
 
@@ -514,13 +479,13 @@ def save_artifacts(ctx):
   # default artifacts
   if 'artifacts' not in config:
     config['artifacts'] = {}  
-  config['artifacts']['qatools.yaml'] = {"glob": 'qatools.yaml'}
-  config['artifacts']['qatools'] = {"glob": 'qatools/*'}
+  config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
+  config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
   # we also allow sub-qatools-projects
-  config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
-  config['artifacts']['sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
-  config['artifacts']['metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
-  config['artifacts']['groups.yaml'] = {"glob": default_groups_file}
+  config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
+  config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
+  config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
+  config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
 
   if not repo:
       click.secho(
@@ -566,8 +531,8 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
 
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
     all_bit_accurate = True
-    tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
-    for input_path_abs, input_configurations, _, input_database in tests_iter:
+    inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
+    for input_path_abs, input_configurations, _, input_database in inputs_iter:
       if input_path_abs.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
         # otherwise the manifest is at
@@ -642,8 +607,8 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
       output_directories = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
     else:
       output_directories = []
-      tests_iter = iter_recordings(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
-      for input_path_abs, input_configurations, _, input_database in tests_iter:
+      inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
+      for input_path_abs, input_configurations, _, input_database in inputs_iter:
         prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
         input_path = input_path_abs.relative_to(input_database)
         output_directory = prefix_output_dir / input_path.with_suffix('')
