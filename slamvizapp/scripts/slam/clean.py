@@ -70,7 +70,7 @@ def clean(project, protected_branch, days, verbose):
         subprocess.Popen(f'rm -rf "{cicommit_dir}"', shell=True)
       else:
         if commit not in latest_protected_commits:
-          command = f"find '{cicommit_dir}' -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.hex \) -delete -print"
+          command = f"find '{cicommit_dir}' -type f \( -iname \*.mp4 -o -iname \*.pcd -o -iname \*.crc -o -iname \*.png -o -iname \*.hex \) -delete -print"
           # print(command)
           subprocess.Popen(command, shell=True)
 
