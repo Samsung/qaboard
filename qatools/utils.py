@@ -2,19 +2,17 @@
 Misc utilities useful for qatools 
 """
 import os
-import re
+import sys
 import time
-import json
-import yaml
-import fnmatch
+import re
 import hashlib
-from itertools import chain
 from pathlib import Path
 import shutil
+import traceback
+import json
 
+import yaml
 import click
-
-from .conventions import make_hash, make_pretty_tuning_filename
 
 
 class PathType(click.ParamType):
@@ -22,6 +20,74 @@ class PathType(click.ParamType):
   name = 'path'
   def convert(self, value, param, ctx):
     return Path(value)
+
+
+
+class FailingEntrypoint:
+  def run(self, context):
+    return {"is_failed": True}
+  def postprocess(self, metrics, context):
+    return {"is_failed": True}
+
+
+def entrypoint_module(config):
+  """Lazily returns the entrypoint module defined in a qatools config"""
+  import importlib
+  entrypoint = config.get('project', {}).get('entrypoint')
+  if not entrypoint:
+    click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
+    click.secho(f'Add to qatools.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
+    return FailingEntrypoint()
+  else:
+    entrypoint = Path(entrypoint)
+  try:
+      # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+      sys.path.append(str(entrypoint.parent)) # allow imports relative to the entrypoint's directory # FIXME: called multiple times...
+      spec = importlib.util.spec_from_file_location('entrypoint', entrypoint)
+      module = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(module)
+  except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+      click.secho(
+          f'{entrypoint} must implement a `run(context)` function, and optionnally `postprocess` / `metadata`.\n'
+          'Please read the tutorial at http://qa-docs/ or ask @arthurf for help\n',
+          dim=True, err=True)
+      return FailingEntrypoint()
+  return module
+
+
+
+# TODO: consider using @lru_cache since it's called twice within qa batch
+# from functools import lru_cache
+# @lru_cache() # but config not hashable..
+def input_data(database, input_path, config):
+    if input_path.is_absolute():
+      click.secho(f"[ERROR] the input should be given as a relative path.", fg='red')
+      exit(1)
+    absolute_input_path = (database / input_path).resolve()
+    if not absolute_input_path.exists():
+      click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
+      exit(1)
+    if hasattr(entrypoint_module(config), 'metadata'):
+        try:
+          input_metadata = entrypoint_module(config).metadata(absolute_input_path, database, input_path)
+          if input_metadata is None:
+          	input_metadata = {}
+        except Exception as e:
+          exc_type, exc_value, exc_traceback = sys.exc_info()
+          click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
+          click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+          input_metadata = {}
+    else:
+        input_metadata = {}
+    return {
+      "input_path": input_path,
+      "absolute_input_path": absolute_input_path,
+      "input_metadata": input_metadata
+    }
+
 
 
 
@@ -49,16 +115,16 @@ def copy(src, destination):
       copy_data(src, destination)
 
 
-
+# For bit-accuracy checks to work on text files between UNIX/windows,
+# we need to convert end-of-lines
+# TODO: add something like *output.plaintext.extensions
 plaintext = set(['.txt', '.cde', '.hex'])
 
 
 def file_info(path, normalize_eof=True):
   """Return metadata about a file."""
   path = Path(path) # just to be sure...
-
   # on windows we normalize line endings
-  # if normalize_eof:
   if os.name == 'nt' and path.suffix in plaintext:
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
@@ -137,209 +203,3 @@ def load_tuning_search(tuning_search, tuning_search_file):
     tuning_search_dict = json.loads(tuning_search) if tuning_search else None
     filetype = 'json' # we default to json
   return tuning_search_dict, filetype
-
-
-def flatten(lst):
-  if type(lst) not in (tuple, list):
-    yield(lst)
-    return
-  yield from chain.from_iterable((flatten(x) for x in lst))
-# list(flatten([1, [2], [3, 4, [5], [6, [7]]] ]))
-# list(flatten([1, {"cde:" [2, 3]} ]))
-
-
-def alias_groups(group, group_aliases):
-  if type(group) not in (tuple, list):
-    if group in group_aliases:
-      yield from alias_groups(group_aliases.get(group), group_aliases)
-    else:
-      yield group
-  else:
-    yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
-# list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
-# list(alias_groups(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']}))
-
-def iter_recordings(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, globs=None, debug=os.environ.get('QATOOLS_DEBUG', False)):
-  """Returns an iterator over the (recording, configurations, lsf-configuration) from the selected groups
-  params:
-  - groups: array of group labels
-  - groups_file: path to a yaml file, or an array of paths
-  - configuration, is none is specified
-  """
-  if not globs:
-    globs = qatools_config.get('inputs', {}).get('glob', [])
-    if not globs:
-      click.secho(f'WARNING: Could not find how to identify input tests.', fg='yellow', err=True)
-      click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  glob: *.hex\n```', fg='yellow', err=True, dim=True)
-
-  if not isinstance(globs, tuple) and not isinstance(globs, list):
-    globs = [globs]
-
-  if not (isinstance(groups_file, list) or isinstance(groups_file, tuple)):
-    groups_file = [groups_file]
-  available_batches = {}
-  for p in groups_file:
-    new_batches = yaml.load(Path(p).open(), Loader=yaml.SafeLoader)
-    if new_batches and isinstance(new_batches, dict):
-      old_groups = available_batches.get('groups', {})
-      new_groups = new_batches.get('groups', {})
-      available_batches.update(new_batches)
-      available_batches['groups'] = {**old_groups, **new_groups}
-
-  if debug:
-    click.secho(str(available_batches), dim=True)
-  # for convenience, users can define "groups of groups"
-  group_aliases = available_batches.get('groups', {})
-  groups = list(alias_groups(groups, group_aliases))
-
-  if not groups:
-    click.secho(f'WARNING: No group. Maybe you forgot --group ?', fg='yellow', err=True)
-
-  maybe_parent = lambda path: path.parent if qatools_config['inputs'].get('use_parent_folder', False) else path
-  for group in groups:
-    # We can ask for two types of groups:
-    # 1. All tests under a given folder in the database
-    if debug: click.secho(f'group: {group}', dim=True)
-    if group not in available_batches:
-      # Maybe we asked recordings from a location... Having support for this makes test selection.
-      location = group
-      if debug:
-        click.secho(str(location), bold=True, fg='cyan', err=True)
-
-      for glob in globs:
-        for matched_location in database.glob(location):
-          rglob = '**/' + glob
-          tests = set([maybe_parent(f) for f in matched_location.rglob(glob)])
-          yield from [(test, default_configuration, default_lsf_configuration, database) for test in tests]
-
-          if fnmatch.fnmatch(matched_location, rglob) or str(matched_location).endswith(glob):
-            yield maybe_parent(matched_location), default_configuration, default_lsf_configuration, database
-      return
-
-    # 2. Those defined in the groups_file
-    if available_batches[group] is None: continue
-    locations = available_batches[group]['tests']
-    if not locations:
-      click.secho(f"Warning: the selected group is empty ({group})", fg='yellow', err=True)
-      continue
-
-    # Each group can define his own default runtime and LSF configuration
-    group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
-    group_configuration = available_batches[group].get('configuration', default_configuration)
-    group_configuration = list(flatten(group_configuration))
-    group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
-
-    # We also allow each test to have his own configuration...
-    if isinstance(locations, list):
-      locations_as_dict = {}
-      for l in locations:
-        if l in locations:
-          if not isinstance(l, dict):
-            locations_as_dict[l] = None
-          else:
-            locations_as_dict.update(l)
-      locations = locations_as_dict
-
-    for location, location_configuration in locations.items():
-      if not location_configuration:
-        location_configuration = group_configuration
-        location_database = group_database
-        location_lsf_configuration = group_lsf_configuration
-      else:
-        if isinstance(location_configuration, dict):
-          location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
-          location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', group_database))
-          if 'lsf' in location_configuration:
-            del location_configuration['lsf']
-          if 'database' in location_configuration:
-            del location_configuration['database']
-          if 'configuration' not in location_configuration:
-            location_configuration = [*group_configuration, location_configuration]
-          else:
-            location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
-        elif isinstance(location_configuration, list):
-          location_configuration = list(flatten(location_configuration))
-          location_configuration = [*group_configuration, *location_configuration]
-          location_database = group_database
-          location_lsf_configuration = group_lsf_configuration
-        else:
-          location_configuration =  [*group_configuration, location_configuration]
-          location_database = group_database
-          location_lsf_configuration = group_lsf_configuration
-      if debug:
-        click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
-
-
-      test_path = Path(location_database / location)
-      if not test_path.exists():
-        click.secho(f"Warning: {test_path} does not exist.", fg='yellow', err=True)
-        continue
-      for glob in globs:
-        if fnmatch.fnmatch(location, glob) or location.endswith(glob):
-          yield maybe_parent(test_path), location_configuration, location_lsf_configuration, location_database
-        else:
-          tests = set([maybe_parent(f) for f in test_path.rglob(glob)])
-          yield from [(test, location_configuration, location_lsf_configuration, location_database) for test in tests]
-
-
-
-def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
-  extra_params = extra_parameters if extra_parameters else {}
-  # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
-  from sklearn.model_selection import ParameterGrid, ParameterSampler
-
-  if not tuning_search:
-    tuning_search = {
-      'parameter_search': {},
-      'search_type': 'grid',
-    }
-
-  if isinstance(tuning_search['parameter_search'], list):
-    for param_search in tuning_search['parameter_search']:
-      yield from iter_parameters(tuning_search={**tuning_search, 'parameter_search': param_search}, filetype=filetype, extra_parameters=extra_parameters)
-    return
-
-  for parameter, values in tuning_search['parameter_search'].items():
-    if isinstance(values, dict):
-      if not 'function' in values or not 'arguments' in values:
-        raise ValueError
-      if values['function'] == 'range':
-        args = values['arguments']
-        if 'start' not in args: args['start']=0
-        if 'stop' not in args: args['stop']=0
-        if 'step' not in args: args['step']=1
-        tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
-
-  n_iter = tuning_search.get('search_options', {}).get('n_iter', 10)
-  if tuning_search['search_type'] == 'grid':
-    params_iterator = ParameterGrid(tuning_search['parameter_search'])
-  elif tuning_search['search_type'] == 'sampler':
-    params_iterator = ParameterSampler(tuning_search['parameter_search'], n_iter=n_iter)
-  else:
-    raise ValueError
-
-  for counter, params_ in enumerate(params_iterator):
-    if counter >= n_iter and n_iter > 0:
-        click.secho(f"Stopping tuning combination after {n_iter} iterations", fg='yellow', err=True)
-        return
-    # the search overrides the extra parameters specified earlier
-    params = {**extra_params, **params_}
-    # we sort to avoid ordering issues; we want a unique hash per tuning configuration
-    params_s = json.dumps(params, sort_keys=True)
-    params_hash = make_hash(params)
-
-    working_directory = Path('.') # can we do something smarter?
-    params_file = working_directory / 'configurations' / 'tuning' / make_pretty_tuning_filename(params_s, filetype)
-    params_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with params_file.open('w') as f:
-      if filetype == 'json':
-        f.write(params_s)
-      elif filetype == 'yaml':
-        yaml.dump(params, f)
-      elif filetype == 'cde':
-        from cde import Config
-        config = Config()
-        config.load_fromdict(config_dict)
-        yaml.dump(params, f)
-    yield params_file, params_hash, params
