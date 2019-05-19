@@ -51,8 +51,7 @@ def qa_init():
 
   click.secho('...added qatools/', fg='green', dim=True)
   click.secho(
-    'If you need help configuring qatools. please read the tutorial, and ask @arthurf for help\n'
-    'http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial',
+    'If you need help configuring qatools. please read the tutorial at http://qa-docs/ or @arthurf for help\n',
     fg='blue'
   )
 
