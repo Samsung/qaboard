@@ -2,6 +2,7 @@
 Iterators over inputs, parameters...
 """
 import os
+import sys
 import re
 import fnmatch
 import traceback
@@ -14,7 +15,7 @@ import yaml
 import click
 
 from .conventions import make_hash, make_pretty_tuning_filename
-from .utils import input_data
+from .utils import input_metadata, entrypoint_module
 
 
 
@@ -68,6 +69,19 @@ def match(value, value_filter):
 
 
 def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
+  entrypoint_module_ = entrypoint_module(qatools_config)
+  if hasattr(entrypoint_module_, 'iter_inputs'):
+    try:
+      iter_inputs = entrypoint_module_.iter_inputs(path, database, only, exclude)
+      # we filter twice just in case
+      iter_inputs_filtered = (i for i in iter_inputs if (not only or match(i["metadata"], only)) and (not exclude or not match(i["metadata"], exclude)))
+      yield from (i["absolute_input_path"] for i in iter_inputs_filtered)
+    except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+    return
+
   maybe_parent = lambda path: path.parent if use_parent_folder else path
   input_paths = list(database.glob(path)) # to support wildcards
   if not input_paths: 
@@ -79,13 +93,13 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
                # set([maybe_parent(f) for f in input_path.rglob(f'**/{glob}')])
       if only:
-        inputs = [i for i in inputs if match(input_data(database, i.relative_to(database), qatools_config)['input_metadata'], only)]
+        inputs = [i for i in inputs if match(input_metadata(database, i.relative_to(database), qatools_config), only)]
       if exclude:
-        inputs = [i for i in inputs if not match(input_data(database, i.relative_to(database), qatools_config)['input_metadata'], exclude)]
+        inputs = [i for i in inputs if not match(input_metadata(database, i.relative_to(database), qatools_config), exclude)]
       yield from inputs
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-        if only and not match(input_data(database, input_path.relative_to(database), qatools_config)['input_metadata'], only): continue
-        if exclude and match(input_data(database, input_path.relative_to(database), qatools_config)['input_metadata'], exclude): continue
+        if only and not match(input_metadata(database, input_path.relative_to(database), qatools_config), only): continue
+        if exclude and match(input_metadata(database, input_path.relative_to(database), qatools_config), exclude): continue
         yield input_path
 
 
@@ -117,8 +131,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       available_batches.update(new_batches)
       available_batches['groups'] = {**old_groups, **new_groups}
 
-  if debug:
-    click.secho(str(available_batches), dim=True)
+  if debug: click.secho(str(available_batches), dim=True)
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
   groups = list(alias_groups(groups, group_aliases))
