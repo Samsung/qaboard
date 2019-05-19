@@ -45,41 +45,35 @@ def match(value, value_filter):
   # print('match:', value, 'vs', value_filter)
   if isinstance(value_filter, list):
     return any([match(value, e) for e in value_filter])
-  if isinstance(value, str):
-    if not isinstance(value_filter, str):
+  elif isinstance(value_filter, str):
+    number_spec = re.match(r'(==?|<=?|>=?)(.*)', value_filter)
+    if number_spec:
+      if not isinstance(value, numbers.Number):
+        return False
+      operator, value_filter = number_spec.groups()
+      value_filter = float(value_filter)
+      if operator in ['=', '==']: return value == value_filter
+      if operator == '>=': return value >= value_filter
+      if operator == '<=': return value <= value_filter
+      if operator == '>': return value > value_filter
+      if operator == '>': return value > value_filter
       return False
-    return fnmatch.fnmatch(value, value_filter)
-  if isinstance(value, bool):
-    return value == value_filter
-
-  number_spec = re.match('.*(==?|>|>=|<|<=)(.*)', value_filter)
-  if number_spec:
-    operator, value_filter = spec.groups()
-    print(operator, value_filter)
-    if not isinstance(value, numbers.Number):
-      return False
-    if operator in ['=', '==']: return value == value_filter
-    if operator == '>=': return value >= value_filter
-    if operator == '<=': return value <= value_filter
-    if operator == '>': return value > value_filter
-    if operator == '>': return value > value_filter
-    return False
+    else:
+      return fnmatch.fnmatch(value, value_filter)
   elif isinstance(value_filter, dict):
     if value_filter and not value: return False
     return all([match(value.get(k), value_filter[k]) for k,v in value_filter.items()])
-  else:
+  else: # bool, number...
     return value == value_filter
 
 
-def iter_inputs_at_path(path, database, globs, use_parent_folder, configuration, lsf_configuration, qatools_config, only=None, exclude=None):
+def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
   maybe_parent = lambda path: path.parent if use_parent_folder else path
-  # Wildcards/globs are supported
-  input_paths = list(database.glob(path))
+  input_paths = list(database.glob(path)) # to support wildcards
   if not input_paths: 
     click.secho(f"Warning: no inputs for at {path}.", fg='yellow', err=True)
     return
 
-  # TODO: we could make the logic clearer: a first iterator yields the input paths, a second adds the extra variables...
   for glob in globs:
     for input_path in input_paths:
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
@@ -87,13 +81,12 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, configuration,
       if only:
         inputs = [i for i in inputs if match(input_data(database, i.relative_to(database), qatools_config)['input_metadata'], only)]
       if exclude:
-        # print('exclude', exclude)
         inputs = [i for i in inputs if not match(input_data(database, i.relative_to(database), qatools_config)['input_metadata'], exclude)]
-      yield from [(i, configuration, lsf_configuration, database) for i in inputs]
+      yield from inputs
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         if only and not match(input_data(database, input_path.relative_to(database), qatools_config)['input_metadata'], only): continue
         if exclude and match(input_data(database, input_path.relative_to(database), qatools_config)['input_metadata'], exclude): continue
-        yield (input_path), configuration, lsf_configuration, database
+        yield input_path
 
 
 
@@ -141,7 +134,8 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     if group not in available_batches:
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(group), bold=True, fg='cyan', err=True)
-      yield from iter_inputs_at_path(group, database, globs, qatools_config['inputs'].get('use_parent_folder', False), default_configuration, default_lsf_configuration, qatools_config)
+      inputs_iter = iter_inputs_at_path(group, database, globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config)
+      yield from ((i, default_configuration , default_lsf_configuration, database) for i in inputs_iter)
       return
 
     # 2. Those defined in the groups_file
@@ -200,7 +194,8 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
-      yield from iter_inputs_at_path(location, location_database, location_globs, qatools_config['inputs'].get('use_parent_folder', False), location_configuration, location_lsf_configuration, qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = iter_inputs_at_path(location, location_database, location_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
 
 
 
