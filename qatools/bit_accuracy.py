@@ -16,14 +16,14 @@ from .config import subproject, config, commit_branch
 from .gitlab import ci_commit_statuses
 
 
-def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
+def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
   """Bit-accuracy test between two directories.
   Almost like https://docs.python.org/3/library/filecmp.html
   """
   if not patterns:
-    ignores = ['*']
-  if not ignored_names:
-    ignored_names = []
+    patterns = ['*']
+  if not ignore:
+    ignore = []
 
   mismatch = []  # not the same
   match = []     # the same
@@ -33,7 +33,7 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
   for pattern in patterns:
     for file_1 in dir_1.rglob(pattern):
       if not file_1.is_file(): continue
-      if any(file_1.name == name for name in ignored_names): continue
+      if any(fnmatch.fnmatch(file_1.name, i) for i in ignore): continue
 
       rel_path = file_1.relative_to(dir_1)
       file_2 = dir_2 / rel_path
@@ -58,7 +58,7 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignored_names=None):
 
 
 
-def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=None):
+def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
   """Bit-accuracy test between two manifests.
   Their format is {filepath: {md5, size_st}}"""
   with manifest_path_1.open() as f:
@@ -67,9 +67,9 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=
     manifest_2 = json.load(f)
 
   if not patterns:
-    ignores = ['*']
-  if not ignored_names:
-    ignored_names = []
+    patterns = ['*']
+  if not ignore:
+    ignore = []
 
   mismatch = set()  # not the same
   match = set()     # the same
@@ -82,7 +82,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignored_names=
       if not fnmatch.fnmatch(file_1_str, pattern):
         continue
       file_1 = Path(file_1_str)
-      if any(file_1.name == name for name in ignored_names):
+      if any(fnmatch.fnmatch(file_1.name, i) for i in ignore):
         continue
       if file_1_str in manifest_2:
         is_same = meta_1['md5'] == manifest_2[file_1_str]['md5']
@@ -111,6 +111,12 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
     if not patterns:
       patterns = ['manifest.outputs.json']
     patterns.append('manifest.inputs.json')
+
+    ignore = config.get("bit_accuracy", {}).get("ignore", [])
+    if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
+      ignore = [ignore]
+    ignore.append('log.txt')
+
     if not len(output_directories):
       click.secho("WARNING: nothing was compared", fg='yellow')
       return True
@@ -127,7 +133,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
           manifest_path_1 = dir_1 / 'manifest.outputs.json',
           manifest_path_2 = dir_2 / 'manifest.outputs.json',
           patterns=patterns,
-          ignored_names=['log.txt'],
+          ignore=ignore,
         )
         comparaisons['match'].extend(output_directory / p for p in comparaison['match'])
         comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
@@ -136,7 +142,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
           dir_1=dir_1,
           dir_2=dir_2,
           patterns=patterns,
-          ignored_names=['log.txt'],
+          ignore=ignore,
         )
         comparaisons['match'].extend(output_directory / p for p in comparaison['match'])
         comparaisons['mismatch'].extend(output_directory / p for p in comparaison['mismatch'])
