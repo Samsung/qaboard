@@ -62,6 +62,22 @@ def entrypoint_module(config):
 # TODO: consider using @lru_cache since it's called twice within qa batch
 # from functools import lru_cache
 # @lru_cache() # but config not hashable..
+def input_metadata(database, input_path, config):
+  entrypoint_module_ = entrypoint_module(config)
+  if hasattr(entrypoint_module_, 'metadata'):
+    try:
+      metadata = entrypoint_module_.metadata(absolute_input_path, database, input_path)
+      if metadata is None:
+      	metadata = {}
+    except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+      metadata = {}
+  else:
+    metadata = {}
+  return metadata
+
 def input_data(database, input_path, config):
     if input_path.is_absolute():
       click.secho(f"[ERROR] the input should be given as a relative path.", fg='red')
@@ -70,22 +86,10 @@ def input_data(database, input_path, config):
     if not absolute_input_path.exists():
       click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
       exit(1)
-    if hasattr(entrypoint_module(config), 'metadata'):
-        try:
-          input_metadata = entrypoint_module(config).metadata(absolute_input_path, database, input_path)
-          if input_metadata is None:
-          	input_metadata = {}
-        except Exception as e:
-          exc_type, exc_value, exc_traceback = sys.exc_info()
-          click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
-          click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-          input_metadata = {}
-    else:
-        input_metadata = {}
     return {
       "input_path": input_path,
       "absolute_input_path": absolute_input_path,
-      "input_metadata": input_metadata
+      "input_metadata": input_metadata(database, input_path, config)
     }
 
 
