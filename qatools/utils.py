@@ -32,7 +32,7 @@ class FailingEntrypoint:
 
 def entrypoint_module(config):
   """Lazily returns the entrypoint module defined in a qatools config"""
-  import importlib
+  import importlib.util
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
