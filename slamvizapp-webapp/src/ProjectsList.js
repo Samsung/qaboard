@@ -69,7 +69,7 @@ class ProjectsList extends Component {
             }
           )
           .map(([project_id, details]) => {
-            let git = details.data.git || {};
+            let git = (details.data || {}).git || {};
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
@@ -81,7 +81,7 @@ class ProjectsList extends Component {
               >
                 <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
                   <Avatar
-                    src={!!git.avatar_url ? `http://gitlab-srv${git.avatar_url}` : null}
+                    src={!!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null}
                     href={`/${project_id}`}
                     alt={git.name || project_id}
                     onClick={() => this.props.dispatch(updateSelected(project_id))}
@@ -110,9 +110,9 @@ class ProjectsList extends Component {
     return (
       <Container>
         <Callout intent={Intent.PRIMARY}>
-          <h4 className={Classes.HEADING}>Your project is missing?</h4>
+          <h4 className={Classes.HEADING}>Get started with qatools</h4>
           <p>
-            Learn about <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial">qatools</a>!
+            Learn about <a href="http://qa-docs">qatools</a>!
           </p>
         </Callout>
         {warnings}

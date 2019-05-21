@@ -107,7 +107,7 @@ class AddRecordingsForm extends Component {
         />
       );
 
-    const qatools_config = this.props.project_data.data.qatools_config || {};
+    const qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
     let commit_groups_files = (((qatools_config.inputs || {}) || {}).groups || []);
 
     let project_repo = (((this.props.project_data || {}).data || {}).git || {}).path_with_namespace;

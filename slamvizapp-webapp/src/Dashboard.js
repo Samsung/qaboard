@@ -43,7 +43,7 @@ class Dashboard extends React.Component {
     const { available_metrics, dashboard_metrics, main_metrics } = this.props;
     this.state = {
       latest_commit: null,
-      selected_metrics: (dashboard_metrics || main_metrics).map(
+      selected_metrics: (dashboard_metrics || main_metrics || []).map(
         k => available_metrics[k]
       )
     };
@@ -175,9 +175,9 @@ class Dashboard extends React.Component {
     // console.log("linux_batch", linux_batch)
     // console.log("android_batch", android_batch)
 
-    console.log(linux_batch)
+    // console.log(linux_batch)
     // console.log(android_batch)
-    console.log(output_filter)
+    // console.log(output_filter)
     linux_batch = filter_batch(linux_batch, output_filter);
     android_batch = filter_batch(android_batch, output_filter);
 
@@ -217,7 +217,7 @@ class Dashboard extends React.Component {
         <Section>
           {!is_loaded && <Spinner />}
           <Card elevation={1} style={{ breakInside: "avoid" }}>
-            <h2 className={Classes.HEADING}>Improvement over time</h2>
+            <h2 className={Classes.HEADING}>Performance over time</h2>
             <CommitsEvolution
               project={project}
               project_data={project_data}              
@@ -225,7 +225,7 @@ class Dashboard extends React.Component {
               select_metrics={evolution_metrics}
               output_filter={this.props.output_filter}
               per_output_granularity
-              offer_breakdown_per_test={true}
+              default_breakdown_per_test={this.props.breakdown_per_test}
               style={{ marginTop: "20px" }}
               dispatch={this.props.dispatch}
             />
@@ -375,14 +375,12 @@ const mapStateToProps = (state, ownProps) => {
     let commits = commitsSelector(state)
     let branch = {name: (ownProps.match.params.name || params.get("branch") || project_data.data.qatools_config.project.reference_branch || 'latests')}
 
-    let project_metrics = project_data.data.qatools_metrics    
+    let project_metrics = (project_data.data || {}).qatools_metrics || {}    
     const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
     let aggregation_metrics = {};
-    (dashboard_metrics || main_metrics).forEach(m => {
+    (dashboard_metrics || main_metrics || []).forEach(m => {
       aggregation_metrics[m] = available_metrics[m].target;
     });
-
-    console.log(commits)
 
     return {
       params,
@@ -397,7 +395,7 @@ const mapStateToProps = (state, ownProps) => {
       is_loading: commits_data.is_loading,
       // metrics
       aggregation_metrics,
-      evolution_metrics: (dashboard_evolution_metrics || main_metrics),
+      evolution_metrics: (dashboard_evolution_metrics || main_metrics || []),
       default_metric,
       main_metrics,
       available_metrics,
@@ -407,6 +405,7 @@ const mapStateToProps = (state, ownProps) => {
       output_filter: selected.filter_batch_new,
       sort_by: params.get("sort_by") || selected.sort_by || project_metrics.default_metric || "input_test_path",
       sort_order: params.get("sort_order") || selected.sort_order || -1,
+      breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || false,
     }
 }
 

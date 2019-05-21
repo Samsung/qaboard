@@ -273,7 +273,6 @@ class AppNavbar extends Component {
 
     const date_input_props = {style: {width:'100px'}}
     // const tag_icon = <Icon icon={is_branch ? "git-branch" : (is_committer ? 'user' : null)} style={{marginRight: '5px'}}/>
-    console.log(this.props)
     return (
       <StyledNavbar>
         <NavbarGroup style={{marginLeft: '20px'}}>
@@ -355,7 +354,7 @@ const mapStateToProps = (state, ownProps) => {
     ref_batch_filtered,
   } = batchSelector(state)
 
-  let selected_views = selected.selected_views || ((project_data.data.qatools_config.outputs || {}).default_tab_details || 'summary')
+  let selected_views = selected.selected_views || ( (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'summary')
 
   // console.log(project)
   return {

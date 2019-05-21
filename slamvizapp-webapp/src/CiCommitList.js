@@ -108,13 +108,13 @@ class CiCommitList extends React.Component {
       {is_loading && !some_commits_loaded && <NonIdealState title="Loading" icon={<Spinner />} />}
       {is_loaded && !is_loading && !error && !some_commits_loaded &&
       <NonIdealState
-          title="No commit with results"
+          title="Could not find a commit with results"
           description={<span>Searched from{" "}
             <strong><Moment fromNow date={date_range[0]} title={date_range[0]}/></strong>
             {" "}to{" "}
             <strong><Moment fromNow date={date_range[1]} title={date_range[1]}/></strong>
           </span>}
-          icon="folder-open"
+          icon="search"
       />}
     </>
 
@@ -153,9 +153,9 @@ const mapStateToProps = (state, ownProps) => {
     let project = projectSelector(state)
     let project_data = projectDataSelector(state)
 
-    let project_metrics = project_data.data.qatools_metrics
+    let project_metrics = (project_data.data || {}).qatools_metrics || {};
     let aggregated_metrics = {};
-    project_metrics.main_metrics.forEach(
+    (project_metrics.main_metrics || []).forEach(
       m => (aggregated_metrics[m] = project_metrics.available_metrics[m].target)
     );
 

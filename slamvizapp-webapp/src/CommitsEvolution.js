@@ -344,6 +344,7 @@ const make_output_filter = output_filter => {
 class CommitsEvolutionPerTest extends React.Component {
   constructor(props) {
     super(props);
+    const project_qatools_config = ((props.project_data || {}).data || {}).qatools_config;
     this.state = {
       revision: 0,
       traces: [],
@@ -357,7 +358,7 @@ class CommitsEvolutionPerTest extends React.Component {
       hovered_commit: null,
       hovered_commit_ref: null,
 
-      controls: controls_defaults(props.project_data),
+      controls: controls_defaults(project_qatools_config),
     };
   }
 
@@ -411,7 +412,8 @@ class CommitsEvolutionPerTest extends React.Component {
     const new_controls = ((((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
     const old_controls = ((((prevProps.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
     if (old_controls !== new_controls) {
-      this.setState({controls: controls_defaults(this.props.project_data)});
+      const project_qatools_config = ((this.props.project_data || {}).data || {}).qatools_config;
+      this.setState({controls: controls_defaults(project_qatools_config)});
     }
   }
 
@@ -579,15 +581,15 @@ class CommitsEvolutionPerTest extends React.Component {
 
 
       let controls_extra = project_data.data.qatools_config.outputs.controls || []
-      let detailed_views = project_data.data.qatools_config.outputs.detailed_views || []
-      let maybe_diff = detailed_views.some(v => v.type.startsWith('image')) && <Switch
+      let visualizations = project_data.data.qatools_config.outputs.visualizations || project_data.data.qatools_config.outputs.detailed_views || []
+      let maybe_diff = visualizations.some(v => v.type.startsWith('image')) && <Switch
           key='diff'
           checked={this.state.controls.diff || false}
           onChange={this.toggle('diff')}
           label={'Perceptual diff'}
       />
       let controls = <>
-        {!show_bit_accuracy && detailed_views.map( (view, idx) => {
+        {!show_bit_accuracy && visualizations.map( (view, idx) => {
           if (!view.default_hidden ||
               this.state.controls.show === undefined || this.state.controls.show === null ||
               this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -642,6 +644,7 @@ class CommitsEvolutionPerTest extends React.Component {
           <OutputCard
             project={project}
             project_data={project_data}
+            commit={hovered_commit}
             output_new={hovered_output}
             output_ref={output_ref}
             warning={warning}
@@ -654,7 +657,11 @@ class CommitsEvolutionPerTest extends React.Component {
         </div>
       );
     } else {
-      legend = <span />;
+      legend =  <p>
+          <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
+          	Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit.
+          </span>
+        </p>
     }
 
     // console.log(traces)
@@ -681,10 +688,12 @@ class CommitsEvolution extends Component {
     super(props);
     const { main_metrics, default_metric} = this.props.project_data.data.qatools_metrics;
     this.state = {
-      select_metrics: this.props.select_metrics || main_metrics,
+      select_metrics: this.props.select_metrics || main_metrics || [],
       selected_metric: default_metric,
       selected_aggregation: "median",
-      relative: true,
+
+      breakdown_per_test: this.props.default_breakdown_per_test,
+      relative: this.props.default_breakdown_per_test !== true,
       show_bit_accuracy: false,
     };
   }
@@ -693,11 +702,13 @@ class CommitsEvolution extends Component {
     this.setState({ [name]: e.target.value });    
   }
   toggle = name => e => {
-    this.setState({ [name]: !this.state.name });
+  	console.log(name, this.state[name])
+    this.setState({ [name]: !this.state[name] });
   }
 
   render() {
-    const { project, project_data, commits, style, offer_breakdown_per_test, output_filter, per_output_granularity } = this.props;
+    const { project, project_data, commits, style, default_breakdown_per_test, output_filter, per_output_granularity } = this.props;
+    const offer_breakdown_per_test = default_breakdown_per_test !== undefined && default_breakdown_per_test !== null;
     const {
       selected_metric,
       selected_aggregation,
@@ -751,13 +762,13 @@ class CommitsEvolution extends Component {
               <Fragment>
                 <Switch
                   inline
-                  label="Relative"
+                  label="Relative to start (@100)"
                   checked={relative}
                   onChange={this.toggle("relative")}
                 />
                 <Switch
                   inline
-                  label="Show bit-accuracy"
+                  label="Show output files"
                   checked={show_bit_accuracy}
                   onChange={this.toggle("show_bit_accuracy")}
                 />

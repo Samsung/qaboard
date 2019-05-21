@@ -68,7 +68,7 @@ class ProjectSideAvatar extends React.Component {
     let name = project.split('/').slice(-1)[0];
     return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: '151px', marginBottom: '25px'}}>
     <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}><><Avatar
-	      src={!!git.avatar_url ? `http://gitlab-srv${git.avatar_url}` : null}
+          src={!!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null}
 	      alt={name}
 	     />{name}</>
     </Link></span>
@@ -85,9 +85,11 @@ class ProjectSideCommitList extends React.Component {
 	render() {
     const { project, project_data, match } = this.props;
 
-    let reference_branch = project_data.data.qatools_config.project.reference_branch;
-    let ci_root = project_data.data.qatools_config.ci_root.linux.replace("/home/arthurf/ci", "")
+    let qatools_config = (project_data.data || {}).qatools_config || {}
+    let reference_branch = (qatools_config.project || {}).reference_branch;
+    let ci_root = ((qatools_config.ci_root || {}).linux || '').replace("/home/arthurf/ci", "")
     let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
+    console.log(project_data)
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     let is_committer = !!match.params.committer;
@@ -110,7 +112,7 @@ class ProjectSideCommitList extends React.Component {
   		  }
   		  <Menu.Item href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
   		  <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-        <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
+          <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
 
         <Menu.Item href={`http://gitlab-srv/${project_repo}`} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
   		</>}
@@ -210,7 +212,7 @@ const mapStateToProps = (state, ownProps) => {
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
   let { new_commit: commit } = commitSelector(state)
-  let selected_views = selected.selected_views || ((project_data.data.qatools_config.outputs || {}).default_tab_details || 'summary')
+  let selected_views = selected.selected_views || (( ((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'summary')
 
   const { new_batch_filtered } = batchSelector(state);
 
