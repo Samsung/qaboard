@@ -62,7 +62,7 @@ def entrypoint_module(config):
 # TODO: consider using @lru_cache since it's called twice within qa batch
 # from functools import lru_cache
 # @lru_cache() # but config not hashable..
-def input_metadata(database, input_path, config):
+def input_metadata(absolute_input_path, database, input_path, config):
   entrypoint_module_ = entrypoint_module(config)
   if hasattr(entrypoint_module_, 'metadata'):
     try:
@@ -89,7 +89,7 @@ def input_data(database, input_path, config):
     return {
       "input_path": input_path,
       "absolute_input_path": absolute_input_path,
-      "input_metadata": input_metadata(database, input_path, config)
+      "input_metadata": input_metadata(absolute_input_path, database, input_path, config)
     }
 
 

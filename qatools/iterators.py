@@ -76,6 +76,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       # we filter twice just in case
       iter_inputs_filtered = (i for i in iter_inputs if (not only or match(i["metadata"], only)) and (not exclude or not match(i["metadata"], exclude)))
       yield from (i["absolute_input_path"] for i in iter_inputs_filtered)
+      # we really could send a batch update to /our/ database here with all the metadata?
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True)
@@ -93,13 +94,13 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
                # set([maybe_parent(f) for f in input_path.rglob(f'**/{glob}')])
       if only:
-        inputs = [i for i in inputs if match(input_metadata(database, i.relative_to(database), qatools_config), only)]
+        inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
       if exclude:
-        inputs = [i for i in inputs if not match(input_metadata(database, i.relative_to(database), qatools_config), exclude)]
+        inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
       yield from inputs
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-        if only and not match(input_metadata(database, input_path.relative_to(database), qatools_config), only): continue
-        if exclude and match(input_metadata(database, input_path.relative_to(database), qatools_config), exclude): continue
+        if only and not match(input_metadata(input_path, database, input_path.relative_to(database), qatools_config), only): continue
+        if exclude and match(input_metadata(input_path, database, input_path.relative_to(database), qatools_config), exclude): continue
         yield input_path
 
 
@@ -153,19 +154,23 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
 
     # 2. Those defined in the groups_file
     if available_batches[group] is None: continue # happens when there is an orphan "$group:" in in the yaml...
-    locations = available_batches[group].get('inputs', available_batches[group].get('tests'))
-    if not locations:
-      click.secho(f"Warning: the selected group is empty ({group})", fg='yellow', err=True)
-      continue
-
+    group_only = available_batches[group].get('only')
+    group_exclude = available_batches[group].get('exclude')
     # Each group can define his own default runtime and LSF configuration
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
     group_configuration = available_batches[group].get('configuration', default_configuration)
-    group_globs = available_batches[group].get('globs', globs)
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
-    group_only = available_batches[group].get('only')
-    group_exclude = available_batches[group].get('exclude')
+    group_globs = available_batches[group].get('globs', globs)
+    locations = available_batches[group].get('inputs', available_batches[group].get('tests'))
+    if not locations:
+      if not group_only and not group_exclude:
+        click.secho(f"Warning: the selected group is empty ({group})", fg='yellow', err=True)
+        continue
+      else:
+        # run all inputs matching only/exclude
+        inputs_iter = iter_inputs_at_path(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+        yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
 
     # We also allow each input to have its settings...
     if isinstance(locations, list):
