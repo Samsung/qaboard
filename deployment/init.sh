@@ -78,6 +78,9 @@ while sleep 1800; do
   slamvizapp_clean tof/swip_tof --protected-branch "origin/develop" --days 30
 done
 
+
+# pg_dump --dbname=slamvizapp --username=ci --password -h localhost -Fc > ~/dvs/slamvizapp/data/backup/$(date --rfc-3339=date).dump
+
 # quid: check access permissions
 # https://gist.github.com/d11wtq/8699521
 # eval "$(ssh-agent -s)"
