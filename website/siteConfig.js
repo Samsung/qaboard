@@ -106,6 +106,7 @@ const siteConfig = {
     // require('remarkable-emoji')
   ],
 
+  editUrl: 'http://gitlab-srv/common-infrastructure/qatools/edit/master/docs/',
   // Show documentation's last contributor's name.
   // enableUpdateBy: true,
 

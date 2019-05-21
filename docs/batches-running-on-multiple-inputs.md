@@ -9,6 +9,7 @@ Are you using the old `XLS+json` way of defining batches? ? There is a [conversi
 :::
 
 ## How do I run multiple inputs at once?
+If you defined a group of inputs called *my-group*, you all of them with:
 ```bash
 qa batch my-group
 qa batch --group my-first-group --group my-second-group
@@ -16,21 +17,22 @@ qa batch --help
 ```
 
 ## Where are those batches defined?
-You can define groups of inputs in file(s) whose paths are given by  `inputs.groups` in your [qatools.yaml](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L25) configuration:
+You can define groups of inputs in file(s) whose paths are given by  `inputs.groups` in your [qatools.yaml](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L25) configuration.
 
 ```yaml
-# qatools.yaml
-inputs:
-  groups: qatools/batches.yaml
-```
-
-```yaml
-# qatools/batches.yaml
-my-batch:
+# qatools/batches.yaml (default)
+my-group:
  inputs:
    - A.jpg
    - B.jpg
 ```
+
+```bash
+qa batch my-group
+#=> qa run --input A.jpg
+#=> qa run --input B.jpg
+```
+
 ::: note
 Path are relative to *qatools.yaml*'s' `inputs.database`
 :::
@@ -74,7 +76,7 @@ You have **lots of options** to specify what configuration each input should run
 
 ```yaml
 you-can-override-the-default-configuration:
-  configuration: input
+  configuration: base
   inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
