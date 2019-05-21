@@ -11,7 +11,7 @@ from pathlib import Path
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
-from qatools.utils import iter_recordings
+from qatools.iterators import iter_inputs
 from qatools.conventions import deserialize_config
 
 from slamvizapp import app, db_session
@@ -28,7 +28,7 @@ def get_groups_path(project_id):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
-            f.write("""# Lots of examples here:\n# http://gitlab-srv/common-infrastructure/qatools/wikis/defining-groups-of-tests""")
+            f.write("""# Lots of examples here:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
     return path
 
 
@@ -86,24 +86,35 @@ def get_group():
     project = Project.get_or_create(session=db_session, id=project_id)
 
     groups_paths = [get_groups_path(project_id)]
-    print("A: groups_paths", groups_paths)
     commit_id = request.args.get("commit")
     if commit_id:
       groups_paths = [*get_commit_groups_paths(project, commit_id), *groups_paths]
+      try:
+          ci_commit = CiCommit.query.filter(
+              CiCommit.project_id == project_id,
+              CiCommit.hexsha.startswith(commit_id)
+          ).one()
+      except NoResultFound:
+          return jsonify("Sorry, the commit id was not found"), 404
+      qatools_config = ci_commit.data["qatools_config"]
+    else:
+      qatools_config = project.data["qatools_config"]
 
-    print("B: groups_paths", groups_paths)
     default_configuration = project.data["qatools_config"].get('inputs', {}).get('configuration', "default")
     if not (isinstance(default_configuration, list) or isinstance(default_configuration, tuple)):
       default_configuration = deserialize_config(default_configuration)
+    print('group', request.args["name"])
+    print("groups_paths", groups_paths)
+    print("config", qatools_config)
     try:
         tests = list(
-            iter_recordings(
+            iter_inputs(
                 [request.args["name"]],
                 groups_paths,
                 project.database,
                 default_configuration,
                 {},
-                project.data["qatools_config"],
+                qatools_config,
             )
         )
         return jsonify({
@@ -194,7 +205,7 @@ def add_batch(hexsha):
             "#!/bin/bash\n",
             "set -xe\n\n",
             f'cd "{working_directory}";\n\n',
-            "source .envrc" if (working_directory / '.envrc').exists() else "",
+            "source .envrc\n\n" if (working_directory / '.envrc').exists() else "",
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
