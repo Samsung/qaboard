@@ -34,7 +34,7 @@ else
 	else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
       #                 frontend           debug api            database     https-frontend
-		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:5433:5432 -p0.0.0.0:9001:443"
+		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9433:5432 -p0.0.0.0:9001:443"
       # DOCKER_ENV+=" --env SLAMVIZAPP_DB_HOST=dvs"    
       # DOCKER_ENV+=" --env SLAMVIZAPP_DB_PORT=5432"    
 		else
