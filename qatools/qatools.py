@@ -455,7 +455,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         metrics = json.load(f)
         if metrics['is_failed']:
           is_failed = True
-          click.secho(f"ERROR: is_failed is {metrics['is_failed']} in {metrics_file}", fg='red', err=True)
+          click.secho(f"ERROR: Failed run! More info at: {output_directory}/log.txt", fg='red', err=True)
 
     from .gitlab import update_gitlab_status
     if len(output_directories) and is_ci and ctx.obj['batch_label']=='default':
@@ -463,6 +463,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
     if is_failed:
       # click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
+      if is_ci:
+        commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha}?selected_views=logs"
+        click.secho(f'Read all the logs at: {commit_url}', fg='red', bold=True)
       exit(1)
 
 
@@ -574,7 +577,8 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
 )
 @click.option('--group', '-g', multiple=True, help="Only check bit-accuracy for those groups of tests.")
 @click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
-def check_bit_accuracy(ctx, reference, group, groups_file):
+@click.option('--reference-platform', help="Compare against a difference platform.")
+def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
     """
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
@@ -625,7 +629,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file):
       all_bit_accurate = True
       for o in output_directories:
         for reference_commit in reference_commits:
-          all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o]) and all_bit_accurate
+          all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"ERROR: results are not bit-accurate to {reference_shas}.", fg='red', bold=True)
       if is_ci:

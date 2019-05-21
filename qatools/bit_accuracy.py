@@ -102,7 +102,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 
 
 
-def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_directories):
+def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_directories, reference_platform=None):
     """Compares the results of the current output directory versus a reference"""    
     from .config import config
     patterns = config.get("bit_accuracy", {}).get("patterns", [])
@@ -126,6 +126,12 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       # print('output_directory', output_directory)
       dir_1 = reference_rootproject_dir / output_directory
       dir_2 = commit_rootproject_dir / output_directory
+
+      # it's ugly and fragile...
+      if reference_platform:
+        from .config import platform
+        dir_2 = Path(str(dir_2).replace(platform, reference_platform))
+
       # print('dir_1', dir_1)
       # print('dir_2', dir_2)
       if (dir_1 / 'manifest.outputs.json').exists() and (dir_2 / 'manifest.outputs.json').exists():
