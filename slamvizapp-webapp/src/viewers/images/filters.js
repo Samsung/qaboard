@@ -238,6 +238,11 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
      */
     openTools: function () {
         var popup = OpenSeadragon.getElement('osd-imagetools');
+        if (!popup) {
+          this.createPopupDiv();
+          this.updateFilters();            
+          popup = OpenSeadragon.getElement('osd-imagetools');
+        }
         toggleVisablity(popup);
     },
 
