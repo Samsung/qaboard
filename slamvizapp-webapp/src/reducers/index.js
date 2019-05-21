@@ -78,6 +78,29 @@ function commits(state = {}, action) {
     	}
     case UPDATE_COMMIT:
       // FIXME: error handling as action.error
+      /*
+	  // // A quick debug tool
+	  const debug_views = [
+	      //{
+	        //name: 'Frames',
+	        // type: 'image/bmp',
+	        // path: ':frame/output.bmp',
+	        // path: '(.*)/output.bmp',
+	        //display: 'single',
+	        // display: 'all',
+	      //},
+	      {
+	        name: 'Files',
+	        type: 'text/plain',
+	        path: ':frame/(.*.txt)',
+	        // path: '(.*.txt)',
+	        default_hidden: false,
+	      }
+	  ]
+	  console.log(action)
+	  action.data.data.qatools_config.outputs.visualizations = debug_views;
+	  console.log('WARNING: replaced the visualizations for debugging!')
+	  */
     	return {
     		...state,
     		[action.id]: {
