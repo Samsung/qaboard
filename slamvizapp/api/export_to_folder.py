@@ -125,7 +125,7 @@ def export_to_folder():
   # find common characteristics
   common_data = {}
   if not ref_commit or ref_commit.id == new_commit.id:
-    common_data['commit'] = new_commit.id
+    common_data['commit'] = new_commit.hexsha
   all_outputs = [*new_outputs, *list(output_refs.values())]
   all_outputs = [o for o in all_outputs if o] # remove None outputs
   all_platforms = {o.platform for o in all_outputs}
@@ -150,8 +150,10 @@ def export_to_folder():
     values = set()
     for o in all_outputs:
       if not o.extra_parameters: o.extra_parameters = {} 
-      o_value = [o.extra_parameters.get(key)]
-      values.update(set([str(o_value)]))
+      o_value = [str(o.extra_parameters.get(key))]
+      # print(o.id, o_value)
+      values.update(set(o_value))
+    print(key, values)
     if len(values) == 1:
       if not all_outputs[0].extra_parameters: all_outputs[0].extra_parameters = {} 
       common_extra_parameters[key] = all_outputs[0].extra_parameters.get(key)
@@ -165,33 +167,37 @@ def export_to_folder():
   glob = request.args.get('path', '*')
   for output in new_outputs:
     output_ref = output_refs[output.id]
+    if not output_ref:
+      output_ref = output
 
-    if not output_ref or output_ref.id == output.id:
-      label_new = ''
-      label_ref = ''
-    else:
-      labels_new = []
-      labels_ref = []
-      if output.batch.ci_commit.hexsha != output_ref.batch.ci_commit.hexsha:
-        labels_new.append(output.batch.ci_commit.hexsha[:4])
-        labels_ref.append(output_ref.batch.ci_commit.hexsha[:4])
-      if output.platform != output_ref.platform:
-        labels_new.append(output.platform)
-        labels_ref.append(output_ref.platform)
-      if output.configuration != output_ref.configuration: # TODO: only the diffs....
-        stringify_config = lambda c: slugify_config(c.replace(configuration_prefix, '').replace(configuration_suffix, '')) 
-        labels_new.append(stringify_config(output.configuration))
-        labels_ref.append(stringify_config(output_ref.configuration))
-      if str(output.extra_parameters) != str(output_ref.extra_parameters):
+    def get_labels(output):
+      labels = []
+      if output.batch.ci_commit.hexsha != common_data.get("commit"):
+        labels.append(output.batch.ci_commit.hexsha[:4])
+      if output.platform != common_data.get("platform"):
+        labels.append(output.platform)
+      if not common_data.get("configuration"):
+        strip_config = lambda c :c.replace(common_data.get("configuration_prefix", 'xxxxxxxxxxxxxx'), '').replace(common_data.get("configuration_suffix", 'xxxxxxxxxxxxxx'), '')
+        stripped_config = slugify_config(strip_config(output.configuration))
+        if stripped_config:
+          labels.append(stripped_config)
+      if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
-        p_new = tame(output.extra_parameters) - tame(common_extra_parameters)
-        p_ref = tame(output_ref.extra_parameters) - tame(common_extra_parameters)
-        labels_new.append(slugify_config(str(p_new)))
-        labels_ref.append(slugify_config(str(p_ref)))
-      stitch = lambda l: f"@{'@'.join(l)}"
-      label_new = stitch(labels_new)
-      label_ref = stitch(labels_ref)
+        p = tame(output.extra_parameters) - tame(common_extra_parameters)
+        # print('common_extra_parameters', common_extra_parameters)
+        # print('tame(common_extra_parameters)', tame(common_extra_parameters))
+        # print('output.extra_parameters', output.extra_parameters)
+        # print('tame(output.extra_parameters)', tame(output.extra_parameters))
+        # print('p_new', p_new)
+        if p: labels.append(slugify_config(str(p)))
+      stitch = lambda l: f"@{'@'.join(l)}" if l else ''
+      label = stitch(labels)
+      # print('label', label)
+      return label
 
+
+    label_new = get_labels(output)
+    label_ref = get_labels(output_ref)
   
     for output_path in output.output_dir.glob(glob):
       output_path_rel = output_path.relative_to(output.output_dir)
