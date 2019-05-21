@@ -146,7 +146,8 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
     import shutil
-    shutil.rmtree(output_directory, ignore_errors=True)
+    if not 'QATOOLS_RUN_KEEP' in os.environ:
+      shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
     ctx.obj['output_directory'] = output_directory.resolve()
@@ -383,7 +384,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           f'--ci' if ctx.obj["ci"] else None,
           f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
-          f'--database "{input_database}"' if input_database != database else None,
+          f'--database "{input_database.as_posix()}"' if input_database != database else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
@@ -529,7 +530,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
     from .config import is_ci
     from .bit_accuracy import is_bit_accurate
 
-    commit_dir = commit_rootproject_ci_dir if is_ci else Path()
+    commit_dir = commit_ci_dir if is_ci else Path()
     all_bit_accurate = True
     inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
     for input_path_abs, input_configurations, _, input_database in inputs_iter:
@@ -542,6 +543,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
         exit(1)
 
       prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
+      # print(prefix_output_dir)
       input_path = input_path_abs.relative_to(input_database)
       input_is_bit_accurate = is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
