@@ -179,7 +179,7 @@ class CiCommit(Base):
       elif name.replace('.', '') in users_db:
         committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
       elif name.replace(' ', '') in users_db:
-        committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
+        committer_avatar_url = users_db[name.replace(' ', '')]['avatar_url']
       else:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
