@@ -63,7 +63,7 @@ export const default_qatools_config = {
 		}
 	},
 	outputs: {
-		detailed_views: [],
+		visualizations: [],
 		style: {
 			width: '350px',
 		},
