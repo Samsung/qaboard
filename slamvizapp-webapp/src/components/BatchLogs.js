@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import { get } from "axios";
 // import sanitizeHtml from 'sanitize-html';
 
+import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Classes,
   Colors,
@@ -10,12 +11,19 @@ import {
   Tag,
   Intent,
   NonIdealState,
+  Tooltip,
+  Toaster,
   Icon
 } from "@blueprintjs/core";
+
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
+import { linux_to_windows } from '../utils'
 
 var Convert = require('ansi-to-html');
 var convert = new Convert();
+
+
+const toaster = Toaster.create();
 
 
 class OutputLog extends Component {
@@ -86,6 +94,30 @@ class OutputLog extends Component {
       >
         <Icon icon="folder-shared" />
     </a>;
+
+    const windows_path = linux_to_windows(output.output_dir_url);
+    const copy_to_clipboard = <Tooltip>
+        <CopyToClipboard
+          text={windows_path}
+          onCopy={() => {
+            toaster.show({
+              message: "Copied the output directory's windows-path to clipboard!",
+              intent: Intent.PRIMARY
+            });
+          }}
+        >
+          <Icon
+            title="copy to clipboard"
+            intent={Intent.PRIMARY}
+            iconSize={Icon.SIZE_SMALL}
+            icon="duplicate"
+            style={{ marginLeft: "4px", marginRight: "4px", color: Colors.GRAY1}}
+          />
+        </CopyToClipboard>
+        <span>Copy to the clipboard the Windows directory </span>
+    </Tooltip>
+
+
     // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
     // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
     // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
@@ -108,10 +140,11 @@ class OutputLog extends Component {
     //   }
     // });
     // pre: style={{background: '#000'}} 
+
     return (
       <div>
         <h6 className={Classes.HEADING}>
-          {show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>} {tag_platform} {tag_config}{" "}{download_link}{" "}
+          {show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>} {tag_platform} {tag_config}{" "}{copy_to_clipboard}{" "}{download_link}{" "}
           {output.test_input_path} {extra_parameters_tags}
         </h6>
           <Collapse isOpen={is_open}>
