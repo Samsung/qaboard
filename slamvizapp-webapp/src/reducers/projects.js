@@ -11,30 +11,33 @@ import { default_project_id, default_project } from "../defaults"
 
 
 function update_project(state=default_project, data) {
-  // // A quick debug tool
-  // const debug_views = [{
-  //       name: 'Frames',
-  //       type: 'image/bmp',
-  //       path: ':frame/output.bmp',
-  //       // path: '(.*)/output.bmp',
-  //       display: 'single',
-  //       // display: 'all',
-  //     },
-  //     {
-  //       name: 'Files',
-  //       type: 'text/plain',
-  //       path: ':frame/(.*.txt)',
-  //       default_hidden: true,
-  //     }
-  // ]
-  // data.data.qatools_config.outputs.detailed_views = debug_views;
-
   // for backward compatibility, the API returned .data before
   if (!!data.information) {
     data.data = data.information
     data.information = undefined
   }
-
+  // console.log(project_data)
+  /*
+  // // A quick debug tool
+  const debug_views = [{
+        name: 'Frames',
+        type: 'image/bmp',
+        path: ':frame/output.bmp',
+        // path: '(.*)/output.bmp',
+        display: 'single',
+        // display: 'all',
+      },
+      {
+        name: 'Files',
+        type: 'text/plain',
+        // path: ':frame/(.*.txt)',
+        path: '(.*.txt)',
+        default_hidden: false,
+      }
+  ]
+  data.data.qatools_config.outputs.visualizations = debug_views;
+  console.log('WARNING: replaced the visualizations for debugging!')
+  */
   return {
     ...state,
     ...data,

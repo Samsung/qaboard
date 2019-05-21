@@ -2,20 +2,18 @@ import qs from "qs";
 
 
 
-const controls_defaults = props => {
+const controls_defaults = qatools_config => {
   let state_controls = {
     show: {},
   };
-  if (!!props.project_data &&
-      !!props.project_data.data &&
-      !!props.project_data.data.qatools_config &&
-      !!props.project_data.data.qatools_config.outputs) {
-    let controls = props.project_data.data.qatools_config.outputs.controls || [];
+  if (!!qatools_config && !!qatools_config.outputs) {
+    let controls = qatools_config.outputs.controls || [];
     controls.forEach(control => {
       state_controls[control.name] = control.default;
     })
-    let detailed_views = props.project_data.data.qatools_config.outputs.detailed_views || []
-    detailed_views.forEach( (view, idx) => {
+    const outputs = qatools_config.outputs;
+    let visualizations = outputs.visualizations || outputs.detailed_views || []
+    visualizations.forEach( (view, idx) => {
       if (view.default_hidden)
         state_controls.show[view.name] = false;
     })

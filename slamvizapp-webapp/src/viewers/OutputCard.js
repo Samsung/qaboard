@@ -47,7 +47,7 @@ class OutputHeader extends React.PureComponent {
     }
     return <>
       <h5 className={Classes.HEADING} style={style} >
-        {output.test_input_path} <OutputTags output={output} warning={warning}/>
+        <a style={{color: 'inherit'}} href={`/${this.props.project}/dashboard/${this.props.commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}`}>{output.test_input_path}</a> <OutputTags output={output} warning={warning}/>
       </h5>
       <p><ExtraParametersTags parameters={output.extra_parameters}/>
       </p>
@@ -280,7 +280,9 @@ class OutputCard extends Component {
     if (this.state.manifests.new === undefined || this.state.manifests.new === null)
       return;
 
-    const views = this.props.project_data.data.qatools_config.outputs.detailed_views || [];
+    const outputs = (((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}
+    const views = outputs.visualizations || outputs.detailed_views || [];
+    // console.log(views)
     var options = {}
     views.forEach(view => {
       // be glob-friendly
@@ -308,6 +310,7 @@ class OutputCard extends Component {
         option.values.add(match.params[name])
       })
       option.values = Array.from(option.values.values())
+      // console.log(name, option.values)
       const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(parseFloat(v)) )
       if (all_is_integer) {
         option.type = 'slider'
@@ -345,7 +348,7 @@ class OutputCard extends Component {
     if (!is_loaded) return <span></span>;
 
     // layout should be plotly-like. You could also pass down a props named style.
-    const views = qatools_config.outputs.detailed_views || [];
+    const views = qatools_config.outputs.visualizations || qatools_config.outputs.detailed_views || [];
     const style = {
       ...qatools_config.outputs.style,
       ...this.props.style,
@@ -397,7 +400,7 @@ class OutputCard extends Component {
           {error.new && <Tooltip key="error-new"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{__html: !!error.new.response ? error.new.response.data : error.new}}/></Tooltip>}
           {error.reference && <Tooltip key="error-ref"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{__html: !!error.reference.response ? error.reference.response.data : error.reference}}/></Tooltip>}
 
-          {!this.props.no_header && <OutputHeader output={output_new} warning={warning}/>}
+          {!this.props.no_header && <OutputHeader project={this.props.project} commit={this.props.commit} output={output_new} warning={warning}/>}
 
           {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
           {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
