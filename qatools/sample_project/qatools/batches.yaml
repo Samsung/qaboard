@@ -1,7 +1,8 @@
 ---
-# Tests that you want to run together are organized in groups.
-# To run the tests in a group:
-#   $ qa batch --group my-group
+# Inputs that you want to run together are organized in groups.
+# To run the inputs in a group:
+#   $ qa batch my-group
+#   $ qa batch --group my-first-group --group my-second-group
 #   $ qa batch --help
 #
 #
@@ -10,7 +11,7 @@
 #
 # 
 # Tip: From the `run(context)` function qatools requires you to implement,
-# the configuration for each test is available via:
+# the configuration for each input is available via:
 #     ```
 #     context.obj['configurations'] : list of strings/objects
 #     context.obj['configuration']  : *deprecated* serialized string representation.
@@ -18,28 +19,28 @@
 # Your code does whatever it wants with it :)
 #
 
-basic-list-of-tests:
-  # Those tests will run with the project's default configuration,
+basic-list-of-inputs
+  # Those inputs will run with the project's default configuration,
   # or the one specified on the CLI with --configuration
-  tests:
+  inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["the default config defined in qatools.yaml"]
 
 
 you-can-override-the-default-configuration:
-  configuration: test
-  tests:
+  configuration: custom
+  inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
-# context.obj['configurations'] => ["test"]
+# context.obj['configurations'] => ["custom"]
 
 
 you-can-override-the-default-database:
   database: 
     linux: /net/f2/algo_archive/DVS_SLAM_Database
     windows: '\\\\netapp\\algo_archive\\DVS_SLAM_Database'
-  tests:
+  inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 
@@ -48,7 +49,7 @@ configurations-can-be-arrays:
   configuration:
     - base
     - low-light
-  tests:
+  inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["base", "low-light"]
@@ -61,16 +62,16 @@ configurations-can-be-arrays-of-objects:
     - cde:
       - "--my-flag"
       - "--my-other-flag"
-  tests:
+  inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["base", "low-light", {"cde": ["-DD"]}]
 
 
-each-test-can-have-its-own-configuration:
+each-input-can-have-its-own-configuration:
   configuration:
     - base
-  tests:
+  inputs
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
     # context.obj['configurations'] => ["base"]
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_3a:
@@ -91,17 +92,17 @@ you-can-also-give-an-LSF-configuration:
     threads: 1000
   configuration:
     - base
-  tests:
+  inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 
 
-you-can-also-give-an-LSF-configuration-per-test:
+you-can-also-give-an-LSF-configuration-per-input:
   lsf:
     memory: 1000
   configuration:
     - base
-  tests:
+  inputs
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
     DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin:
       lsf:
@@ -112,9 +113,9 @@ you-can-also-give-an-LSF-configuration-per-test:
 # For convenience you can define aliases for groups you often run together:
 groups:
   ci:
-    - basic-list-of-tests
+    - basic-list-of-inputs
     - you-can-override-the-default-configuration
-# => those 2 groups will run with `qa batch --group ci`
+# => those 2 groups will run with `qa batch ci`
 
 
 
@@ -129,25 +130,25 @@ hdr:
   configuration:
     - *base
     - hdr
-  tests:
+  inputs
     - A
     - B
     - C
 # context.obj['configurations'] => ["base", "partial", "hdr"]
 
 
-## Reusable configurations/tests ##############################################
-# Sometimes you want to mix and match reusabe definitions of configs and tests
+## Reusable configurations/inputs ##############################################
+# Sometimes you want to mix and match reusabe definitions of configs and inputs
 # YAML anchors let you do it:
 
-# You want to reuse those lists of tests across all HDR tests
-.tests_hdr: &tests_hdr
-  tests:
+# You want to reuse those lists of inputs across all HDR inputs
+.inputs_hdr: &inputs_hdr
+  inputs
     - A
     - B
 
-.lots_of_tests_hdr: &lots_tests_hdr
-  tests:
+.lots_of_inputs_hdr: &lots_inputs_hdr
+  inputs
     - A
     - B
     - C
@@ -167,20 +168,20 @@ hdr:
 
 hdr:
   <<: *HDR
-  <<: *tests_hdr
+  <<: *inputs_hdr
 no-hdr:
   <<: *HDR-disabled
-  <<: *tests_hdr
-# qa --batch-label hdr    batch --group hdr
-# qa --batch-label no-hdr batch --group no-hdr
+  <<: *inputs_hdr
+# qa --batch-label hdr    batch hdr
+# qa --batch-label no-hdr batch no-hdr
 
-# Maybe on nightly runs you want to run lots of tests:
-lots-of-hdr-tests:
+# Maybe on nightly runs you want to run lots of inputs
+lots-of-hdr-inputs
   <<: *HDR
-  <<: *lots_tests_hdr
-lots-of-no-hdr-tests:
+  <<: *lots_inputs_hdr
+lots-of-no-hdr-inputs
   <<: *HDR-disabled
-  <<: *lots_tests_hdr
+  <<: *lots_inputs_hdr
 
 
 

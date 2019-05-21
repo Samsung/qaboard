@@ -38,7 +38,7 @@ outputs:
   metrics: qatools/metrics.yaml
 
   # To learn more about how to describe how results should be visualized:
-  # http://gitlab-srv/common-infrastructure/qatools/wikis/visualization
+  # http://qa-docs/docs/visualizations
   visualizations:
   - name: My plot
     # If you use plotly, it is very simple to view yours plots in the web UI
@@ -95,6 +95,8 @@ bit_accuracy:
   patterns:
     - output.csv
     - '*.hex'
+  # ignore:
+  #  - XXXX
   # if the CI for commit you compare against failed, you can decide to compare against its first parent
   # on_reference_failed_ci: compare-first-parent
   # after that many "replacement commits", fail
