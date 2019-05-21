@@ -54,8 +54,10 @@ class CiCommitResults extends Component {
   constructor(props) {
     super(props);
     // we initialize optionnal controls with their defaults
+    const commit_qatools_config = ((props.new_commit || {}).data || {}).qatools_config;
+    const project_qatools_config = ((props.project_data || {}).data || {}).qatools_config;
     this.state = {
-      controls: controls_defaults(props.project_data),
+      controls: controls_defaults(commit_qatools_config || project_qatools_config),
       qatools_config: 'commit' // or project, to use the project-level configuration only
     };
   }
@@ -147,16 +149,20 @@ class CiCommitResults extends Component {
     if (this.props.match.url !== prevProps.match.url) {
       this.fetchCommits();
     }
-    const qatools_config_curr = this.state.qatools_config === 'project'
-                                ? ((this.props.project_data || {}).data || {}).qatools_config 
-                                : ((this.props.new_commit   || {}).data || {}).qatools_config 
-    const qatools_config_prev = this.state.qatools_config === 'project'
-                                ? ((prevProps.project_data || {}).data || {}).qatools_config
-                                : ((prevProps.new_commit   || {}).data || {}).qatools_config 
-    const new_controls = ((qatools_config_curr || {}).outputs || {}).controls;
-    const old_controls = ((qatools_config_prev || {}).outputs || {}).controls;
-    if (new_controls !== old_controls ) {
-      let controls = controls_defaults(this.props.project_data)
+    const commit_qatools_config_curr  = ((this.props.new_commit   || {}).data || {}).qatools_config;
+    const project_qatools_config_curr = ((this.props.project_data || {}).data || {}).qatools_config;
+    const commit_qatools_config_prev  = ((prevProps.new_commit   || {}).data || {}).qatools_config;
+    const project_qatools_config_prev = ((prevProps.project_data || {}).data || {}).qatools_config;
+
+    const qatools_config_curr = (this.state.qatools_config === 'project' ? project_qatools_config_curr : commit_qatools_config_curr) || project_qatools_config_curr;
+    const qatools_config_prev = (this.state.qatools_config === 'project' ? project_qatools_config_prev : commit_qatools_config_prev) || project_qatools_config_prev;
+    const new_outputs = (qatools_config_curr || {}).outputs;
+    const old_outputs = (qatools_config_prev || {}).outputs;
+
+    if (new_outputs !== old_outputs ) {
+      const commit_qatools_config = ((this.props.new_commit || {}).data || {}).qatools_config;
+      const project_qatools_config = ((this.props.project_data || {}).data || {}).qatools_config;
+      let controls = controls_defaults(this.state.qatools_config === 'project' ? project_qatools_config : (commit_qatools_config || project_qatools_config))
       this.setState({controls});
     }
   }
@@ -186,7 +192,13 @@ class CiCommitResults extends Component {
       ref_batch_filtered,
       selected_views,
     } = this.props;
-    const config_data  = (this.state.qatools_config === 'project' ? this.props.project_data : this.props.new_commit) || {};
+    if (this.state.qatools_config === 'project') {
+      var config_data = this.props.project_data;
+    } else {
+      config_data = this.props.new_commit || {};
+      if (!!!config_data.data) config_data.data = {}
+      config_data.data.git = (this.props.project_data.data || {}).git || {}
+    }
 
     var warning_messages = <CommitsWarningMessages
                             commits={{
@@ -216,15 +228,16 @@ class CiCommitResults extends Component {
     );
 
     let controls_extra = (((config_data.data || {}).qatools_config || {}).outputs || {}).controls || []
-    let detailed_views = (((config_data.data || {}).qatools_config || {}).outputs || {}).detailed_views || []
-    let maybe_diff = detailed_views.some(v => v.type.startsWith('image')) && <Switch
+    let config_outputs =  ((config_data.data || {}).qatools_config || {}).outputs || {};
+    let visualizations = config_outputs.visualizations || config_outputs.detailed_views || [];
+    let maybe_diff = visualizations.some(v => v.type.startsWith('image')) && <Switch
         key='diff'
         checked={this.state.controls.diff || false}
         onChange={this.toggle('diff')}
         label={'Perceptual diff'}
     />
     let controls = <>
-      {!selected_views.includes('bit-accuracy') && detailed_views.map( (view, idx) => {
+      {!selected_views.includes('bit-accuracy') && visualizations.map( (view, idx) => {
         if (!view.default_hidden ||
             this.state.controls.show === undefined || this.state.controls.show === null ||
             this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -397,6 +410,7 @@ class CiCommitResults extends Component {
                   <OutputList
                     project={project}
                     project_data={config_data}
+                    new_commit={this.props.new_commit}
                     sort_order={this.props.sort_order}
                     sort_by={this.props.sort_by}
                     new_batch={new_batch_filtered}
@@ -413,6 +427,7 @@ class CiCommitResults extends Component {
                     type='bit_accuracy'
                     project={project}
                     project_data={config_data}
+                    new_commit={this.props.new_commit}
                     sort_order={this.props.sort_order}
                     sort_by={this.props.sort_by}
                     new_batch={new_batch_filtered}
@@ -581,6 +596,7 @@ class OutputList extends Component {
                   expand_all={expand_all}
                   project={project}
                   project_data={project_data}
+                  commit={this.props.new_commit}
                   output_type={output.output_type}
                   output_new={output}
                   output_ref={output_ref}
@@ -624,9 +640,9 @@ const mapStateToProps = (state, ownProps) => {
     } = batchSelector(state)
 
     // metrics
-    let project_metrics = project_data.data.qatools_metrics
-    let available_metrics = project_metrics.available_metrics
-    let selected_metrics = selected.selected_metrics || project_metrics.main_metrics.map(k => available_metrics[k])
+    let project_metrics = (project_data.data || {}).qatools_metrics || {}
+    let available_metrics = project_metrics.available_metrics || {}
+    let selected_metrics = selected.selected_metrics || (project_metrics.main_metrics || []).map(k => available_metrics[k])
 
     // tuned_parameters holds all tuning values used for each parameter
     let extra_parameters = {};
@@ -642,7 +658,7 @@ const mapStateToProps = (state, ownProps) => {
       .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
       .map(([k, v]) => k);
 
-    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ((project_data.data.qatools_config.outputs || {}).default_tab_details || 'table-compare')];
+    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ( (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'table-compare')];
     return {
       params,
       project,
