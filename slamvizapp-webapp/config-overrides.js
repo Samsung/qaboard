@@ -18,6 +18,11 @@ module.exports = function override(config, env) {
       plugin.config.navigateFallbackBlacklist = [
         /^\/s\/.*/,
         /^\/api\/.*/,
+        /^\/admin\/.*/,
+        /^\/docs\/.*/,
+        /^\/blog\/.*/,
+        /^\/piwik\.js/,
+        /^\/piwik\.php/,
       ];
       // console.log(plugin.config)
     }
