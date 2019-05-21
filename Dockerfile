@@ -17,9 +17,9 @@ ENV HTTP_PROXY=$PROXY \
         NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
 
 RUN apt-get update && \
-    apt-get install -y git wget && \
+    apt-get install -y git wget software-properties-common && \
     git config --global http.proxy $PROXY
-
+RUN add-apt-repository -y ppa:git-core/ppa
 
 # Essential utilities
 RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
@@ -33,7 +33,7 @@ RUN bash Anaconda3-5.0.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 # ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
 RUN conda install -k pandas
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson sklearn scikit-learn uwsgi
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org pipenv gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson sklearn scikit-learn uwsgi click
 RUn pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/arthurf/scikit-optimize'
 
 # uwsgi and matplotlib dependencies
@@ -93,7 +93,7 @@ RUN pip install --upgrade pip
 # our frontend's dependencies
 WORKDIR /slamvizapp/slamvizapp-webapp
 COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/package-lock.json ./
-ENV NODE_ENV production
+# ENV NODE_ENV production
 ## FIXME ####################################
 # At the  moment we don't build the app from the container (ulimit/network issues)
 # Before, you need to
@@ -110,7 +110,9 @@ ENV LC_ALL 'C.UTF-8'
 WORKDIR /slamvizapp
 # RUN pip install --editable . # proxy madness
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
+RUN echo cache-busting-003
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/common-infrastructure/qatools'
+# RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/common-infrastructure/qatools'
 
 VOLUME /var/slamvizapp
 
