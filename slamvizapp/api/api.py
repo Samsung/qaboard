@@ -55,6 +55,8 @@ def get_commits(branch=None):
     ci_commits = ci_commits.filter_by(committer_name=committer_name)
 
   latest_authored_datetime = ci_commits.scalar()
+  if not latest_authored_datetime:
+  	return jsonify([])
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
 
 
