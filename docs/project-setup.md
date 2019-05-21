@@ -7,7 +7,7 @@ title: First steps with qatools
 ## Defining your algorithm's inputs
 Algorithms turn inputs into outputs. **What are your algorithm's inputs?** They could be image files, folders containing images, whole databases for which you report aggregated results...
 
-> For simplicity though, an input is a path. For clarity, we split this path into **$database** / **$test**
+> For simplicity though, an input is a path. For clarity, we split this path into **$database** / **$input**
 
 In [*qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L27), **tell qatools how to recognize your inputs**: edit `inputs.database` and `inputs.glob`. Here is an example where all *jpg* files are possible inputs:
 
@@ -28,6 +28,11 @@ qa run --input your/input.raw
 :::tip
 You can also define batches of tests. [Here are the docs](batches-running-on-multiple-inputs).
 :::
+
+:::note
+To learn how to integrate with external input databases, [read this](metadata-integration-external-databases).
+:::
+
 
 ## Wrapping your code
 qatools will wrap your code with a nice CLI API:
@@ -64,6 +69,10 @@ subprocess.call([
 ```
 
 > The sample code installed with `qa init` gives you this as a starting point.
+
+::: note
+In some cases you want to distinguish different types of configurations: maybe you run different algorithms together, maybe you need some meta-configuration like how many frames to run in a movie, or some custom flags for your binary... [Here is an example](http://gitlab-srv/igorf/HW_ALG_poc3/blob/develop/tools/qatools/main.py#L35) of how to do this.
+:::
 
 ## Outputs
 Algorithms usually create two kinds of outputs: *qualitative* results and *quantitative* results.
@@ -113,7 +122,7 @@ available_metrics:
 | **How**         |                                                                                |
 |-----------------|--------------------------------------------------------------------------------|
 | `configurations`  | array of strings or dicts. *You* decide how to interpret  it!                                                     |
-| `tuning_filepath` | *(optional)* path to a json file that define values for specific algo parameters |
+| `extra_parameters` | When doing tuning, a dict of `key:values` that should override specific algo parameters. |
 | `platform` | Usually the host (linux/windows), but can be used to send runs to remote hosts |
 
 | **Where**           |                                            |

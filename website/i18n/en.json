@@ -5,21 +5,25 @@
     "previous": "Previous",
     "tagline": "QA + Algorithms",
     "docs": {
-      "doc1": {
-        "title": "Latin-ish",
-        "sidebar_label": "Example Page"
+      "batches-running-on-multiple-inputs": {
+        "title": "Running on batches of inputs",
+        "sidebar_label": "Input Batches"
       },
-      "doc2": {
-        "title": "document number 2"
+      "bit-accuracy": {
+        "title": "Bit accuracy tests",
+        "sidebar_label": "Bit Accuracy"
       },
-      "doc3": {
-        "title": "This is document number 3"
+      "ci-integration": {
+        "title": "Integrating qatools with your CI",
+        "sidebar_label": "CI Integration"
       },
-      "doc4": {
-        "title": "Other Document"
+      "debugging-runs-with-an-IDE": {
+        "title": "Debugging qatools' runs in an IDE",
+        "sidebar_label": "Debugging"
       },
-      "doc5": {
-        "title": "Fifth Document"
+      "faq": {
+        "title": "Frequently Asked Questions",
+        "sidebar_label": "FAQ"
       },
       "installation": {
         "title": "Installing qatools",
@@ -29,6 +33,10 @@
         "title": "Introduction to qatools",
         "sidebar_label": "Introduction"
       },
+      "metadata-integration-external-databases": {
+        "title": "Using input metadata and integrating with external databases",
+        "sidebar_label": "Metadata & external databases"
+      },
       "project-init": {
         "title": "Adding qatools to your project",
         "sidebar_label": "Enabling qatools"
@@ -36,6 +44,14 @@
       "project-setup": {
         "title": "First steps with qatools",
         "sidebar_label": "Project Setup"
+      },
+      "tuning-workflows": {
+        "title": "Tuning workflows: all your options",
+        "sidebar_label": "Tuning workflows"
+      },
+      "visualizations": {
+        "title": "Visualizing your algorithm's outputs",
+        "sidebar_label": "Visualizations"
       }
     },
     "links": {

@@ -6,12 +6,6 @@ sidebar_label: Visualizations
 
 With you run your algorithm with `qa run`, you get an `output_directory` in which you can create any file you want. To display visualizations in the web application, you have to *declare* what visualizations you expect.
 
-:::tip
-If you don't have a [CI infrastructure](ci-integration) to run qatools on each new commit, you can still view your results in the web application by using `qa --ci run`.
-
-*Note: It will only work with commits that were pushed to gitlab!*
-:::
-
 The *list* of your visualizations is defined in your project's [*qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L42) under `outputs.visualizations`. Here is a simple example, assuming your code creates a few images.
 
 ```yaml

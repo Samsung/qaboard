@@ -8,17 +8,18 @@
   	],
   	"Guides": [
   		"ci-integration",
+  		"visualizations",
   		"batches-running-on-multiple-inputs",
   		"tuning-workflows",
-  		"visualizations",
   		"bit-accuracy",
   		"subprojects",
   		"exporting-results",
-  		"test-metadata-management",
+  		"metadata-integration-external-databases",
   		"qa-run",
   		"docker-integration",
-  		"debugging",
-  		"remote-platforms"
+  		"debugging-runs-with-an-IDE",
+  		"remote-platforms",
+  		"faq"
   	],
   	"Admin Guides": [
   		"starting-server",

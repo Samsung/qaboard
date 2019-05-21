@@ -14,7 +14,8 @@ const users = [
     caption: 'Arthur Flam',
     // You will need to prepend the image path with your baseUrl
     // if it is not '/', like: '/test-site/img/docusaurus.svg'.
-    image: '/img/docusaurus.svg',
+    // image: '/img/docusaurus.svg',
+    image: '/img/twemoji_poodle.svg',
     infoLink: 'https://shapescience.xyz',
     pinned: true,
   },
@@ -50,9 +51,12 @@ const siteConfig = {
   users,
 
   /* path to images for header/footer */
-  headerIcon: 'img/docusaurus.svg',
-  footerIcon: 'img/docusaurus.svg',
-  favicon: 'img/favicon.png',
+  // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
+  headerIcon: 'img/twemoji_poodle.svg',
+  footerIcon: 'img/twemoji_poodle.svg',
+  // https://realfavicongenerator.net/
+  favicon: 'img/favicon/favicon-32x32.png',
+
 
   /* Colors for website */
   colors: {
@@ -75,7 +79,7 @@ const siteConfig = {
   */
 
   // This copyright info is used in /core/Footer.js and blog RSS/Atom feeds.
-  copyright: `Copyright © ${new Date().getFullYear()} Samsung`,
+  copyright: `Samsung ©${new Date().getFullYear()}`,
 
   highlight: {
     // Highlight.js theme to use for syntax highlighting in code blocks.
@@ -83,7 +87,9 @@ const siteConfig = {
   },
 
   // Add custom scripts here that would be placed in <script> tags.
-  scripts: ['https://buttons.github.io/buttons.js'],
+  scripts: [
+    //'https://buttons.github.io/buttons.js'
+   ],
 
   // On page navigation for the current documentation page.
   onPageNav: 'separate',
@@ -91,13 +97,13 @@ const siteConfig = {
   cleanUrl: true,
 
   // Open Graph and Twitter card images.
-  ogImage: 'img/docusaurus.png',
-  twitterImage: 'img/docusaurus.png',
+  ogImage: 'img/twemoji_poodle.svg',
+  twitterImage: 'img/twemoji_poodle.svg',
 
   markdownPlugins: [
     // Highlight admonitions.
     require('remarkable-admonitions')({ icon: 'svg-inline' }),
-    require('remarkable-emoji')
+    // require('remarkable-emoji')
   ],
 
   // Show documentation's last contributor's name.

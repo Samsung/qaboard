@@ -35,6 +35,4 @@ root-git-repository
   * __URL:__ `http://qa:5000/webhook/gitlab`
   * __Secret token:__ *(leave the field empty)*
 
-> To test everything went well, scroll. You should get a blue happy `200 OK` message 🎉
-
-
+> To test everything went well, Gitlab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🎉
