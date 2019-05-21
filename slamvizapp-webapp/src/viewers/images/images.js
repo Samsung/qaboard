@@ -218,10 +218,12 @@ class ImgViewer extends PureComponent {
 
   InitDiff(props) {
     // Implemement perceptual differences
-    const { viewer_new } = this;
+    const { viewer_new, viewer_ref } = this;
     const { diff } = this.props;
     if (diff) {
-      viewer_new.addHandler('update-viewport', this.update_diff);
+      viewer_new.addOnceHandler('update-viewport', this.update_diff, {}, 3);
+      viewer_ref.addOnceHandler('update-viewport', this.update_diff, {}, 3);
+      viewer_new.addHandler('animation-finish', this.update_diff);
       this.update_diff()
     }
   }
@@ -443,7 +445,7 @@ class ImgViewer extends PureComponent {
             }}
           />
           <canvas hidden={!diff || no_reference} ref={this.canvas_diff} {...single_image_size} />
-
+          <br/>
           <Tooltip hoverCloseDelay={500}>
             <p><Icon icon="info-sign" style={{color: Colors.GRAY2}}/></p>
             <ul>
