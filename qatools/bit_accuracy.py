@@ -149,7 +149,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
         comparaisons['errors'].extend(output_directory / p for p in comparaison['errors'])
 
     # print(comparaisons['mismatch'])
-    nothing_was_compared = not len(comparaisons['match'])
+    nothing_was_compared = not (len(comparaisons['match']) + len(comparaisons['mismatch']) + len(comparaisons['errors']) )
     if nothing_was_compared:
       for o in output_directories:
         click.echo(click.style(str(o), fg='yellow') + click.style(' (warning: no files were found to compare)', fg='yellow', dim=True), err=True)
