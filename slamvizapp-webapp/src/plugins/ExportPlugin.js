@@ -61,7 +61,7 @@ class ExportPlugin extends React.Component {
       toaster.show({
         message: "Export directory copied to clipboard!",
         intent: Intent.SUCCESS,
-      });              
+      });
 
     })
     .catch(error => {
@@ -69,7 +69,7 @@ class ExportPlugin extends React.Component {
         toaster.show({
           message: `Network error: ${JSON.stringify(error)}`,
           intent: Intent.DANGER,
-        });      
+        });
     })
   }
 
@@ -79,7 +79,7 @@ class ExportPlugin extends React.Component {
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup
         labelFor="pluging-copy"
-        helperText="Files will be exported to a shared directory."
+        helperText={<span>Files will be exported to a shared directory. You can use <a href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '*/*.jpg'</span>}
       >
         <ControlGroup>
            <Button disabled={this.state.is_loading} icon="download" onClick={this.export_to_directory}>Export</Button>
