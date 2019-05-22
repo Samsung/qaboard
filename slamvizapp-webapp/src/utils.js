@@ -209,8 +209,8 @@ const linux_to_windows = path => {
                        .replace(/\/s\//, '/')
                        .replace('//home', '//mars/raid/users')
                        .replace('/home', '//mars/raid/users')
-                       .replace('//stage', '//netapp2')
-                       .replace('/stage', '//netapp2')
+                       .replace('//stage', '//netapp')
+                       .replace('/stage', '//netapp')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
   //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
   return windows_path.replace(/\//g, '\\')
