@@ -60,19 +60,24 @@ class ProjectsList extends Component {
         {Object.entries(projects)
           .sort(
             ([id0, d0], [id1, d1]) => {
+              if (d0.data === undefined || d1.data === undefined) return 1
               let fav0 = projects[id0].is_favorite || false
               let fav1 = projects[id1].is_favorite || false
               if (fav0 === fav1)
-                return new Date(d1.latest_commit_datetime) - new Date(d0.latest_commit_datetime);
+                return new Date(d1.data.latest_output_datetime || d1.latest_commit_datetime) - new Date(d0.data.latest_output_datetime || d0.latest_commit_datetime);
               else
                 return fav1 - fav0;
             }
           )
           .map(([project_id, details]) => {
-            let git = (details.data || {}).git || {};
+            let data = details.data || {};
+            let git = data.git || {};
+            let qatools_config_project = (data.qatools_config || {}).project;
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
+            const avatar_url = qatools_config_project.avatar_url || 
+                               !!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null
             return (
               <Card
                 key={project_id}
@@ -81,7 +86,7 @@ class ProjectsList extends Component {
               >
                 <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
                   <Avatar
-                    src={!!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null}
+                    src={avatar_url}
                     href={`/${project_id}`}
                     alt={git.name || project_id}
                     onClick={() => this.props.dispatch(updateSelected(project_id))}
@@ -89,7 +94,7 @@ class ProjectsList extends Component {
                 </div>
                 <div style={{'alignSelf': 'center', 'minWidth': 0}}>
                   <h5 className={Classes.HEADING}><Link onClick={() => this.props.dispatch(updateSelected(project_id))} to={`/${project_id}`}>{project_id}</Link></h5>                  
-                  {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{git.description}</p>}
+                  {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{qatools_config_project.description || git.description}</p>}
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>

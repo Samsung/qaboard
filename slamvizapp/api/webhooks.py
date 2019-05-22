@@ -3,6 +3,7 @@ import json
 import yaml
 import traceback
 from pathlib import Path
+import datetime
 
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
@@ -73,6 +74,9 @@ def new_output_webhook():
       return f"404 ERROR:\n There is an issue with your commit id ({data['git_commit_sha']}), did you push it?", 404
     else: # for now let's not break anything...
       return f"OK"
+
+  ci_commit.project.data.update({'latest_output_datetime': datetime.datetime.utcnow().isoformat() })
+  flag_modified(ci_commit.project, "data")
 
   # We make sure the Test on which we ran exists in the database 
   test_input_path = data.get('input_path')
