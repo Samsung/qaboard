@@ -64,7 +64,7 @@ class ProjectsList extends Component {
               let fav0 = projects[id0].is_favorite || false
               let fav1 = projects[id1].is_favorite || false
               if (fav0 === fav1)
-                return new Date(d1.data.latest_output_datetime || d1.latest_commit_datetime) - new Date(d0.data.latest_output_datetime || d0.latest_commit_datetime);
+                return new Date(d1.data.latest_output_datetime) - new Date(d0.data.latest_output_datetime);
               else
                 return fav1 - fav0;
             }
