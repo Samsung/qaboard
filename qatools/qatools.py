@@ -327,27 +327,38 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         exit(1)
     group, *forwarded_args = forwarded_args
 
-  dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
+  running_jobs_names = running_lsf_job_names()
+  def not_started(output_directory):
+    is_done = (output_directory / 'metrics.json').exists()
+    is_pending = Job(output_directory).name in running_jobs_names
+    return not (is_done or is_pending)
+
   default_lsf_config =  {
     "max_threads": lsf_threads,
     "max_memory": lsf_memory,
     'sequential': lsf_sequential,
     'resources': lsf_resources
   }
+  batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
+  lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
-  running_jobs_names = running_lsf_job_names()
-  def not_started(output_directory):
-    is_done = (output_directory/'metrics.json').exists()
-    is_pending = Job(output_directory).name in running_jobs_names
-    return not (is_done or is_pending)
+  dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
+  should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
+  if should_notify_qa_database:
+    import uuid
+    import datetime
+    command_data = {
+      "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
+      "argv": sys.argv,
+      "lsf_jobs_prefix": lsf_jobs_prefix,
+      **ctx.obj,
+    }
+    notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
 
   jobs = []
   output_directories = []
-  batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
-  batch_job_prefix = f"{batch_hash[:8]}/"
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
-
   inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
   for input_path_abs, input_configurations, lsf_configuration, input_database in inputs_iter:
     input_configuration = serialize_config(input_configurations)
@@ -399,10 +410,10 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         command = f"cd {subproject} && {command}"
 
       lsf_configuration['priority'] = Priority.LOW if tuning_params else Priority.NORMAL
-      jobs.append(Job(f"{batch_job_prefix}{output_directory}", command, output_directory, lsf_configuration))
+      jobs.append(Job(f"{lsf_jobs_prefix}{output_directory}", command, output_directory, lsf_configuration))
       output_directories.append(output_directory)
 
-      if not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database:
+      if should_notify_qa_database:
         notify_qa_database(**{
           **ctx.obj,
           **{
@@ -416,7 +427,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         })
 
 
-  waiting_job = [Job(f"{batch_job_prefix}*")]
+  waiting_job = [Job(f"{lsf_jobs_prefix}*")]
   jobs_sent = []
 
   # in case we receive SIGTERM/SIGINT, we cancel all remaining sent jobs
@@ -490,7 +501,7 @@ def save_artifacts(ctx):
   config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
-
+  if  'QATOOLS_EXTRA_VERBOSE': print(config['artifacts'])
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
@@ -510,7 +521,7 @@ def save_artifacts(ctx):
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
-        # print(destination)
+        if  'QATOOLS_EXTRA_VERBOSE': print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
         if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
