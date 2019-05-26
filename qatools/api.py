@@ -13,7 +13,7 @@ from .config import config, commit_id, available_metrics
 
 # For now we use http, until we deal with cert trust issues
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
-api_host = os.getenv('QATOOLS_DB_HOST', 'dvs')
+api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
 api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 
 
@@ -34,35 +34,51 @@ class NumpyEncoder(simplejson.JSONEncoder):
 
 
 
+
+def serialize_path(path):
+  from .config import on_windows
+  # The server expects to recieve file that are valid on linux
+  if on_windows:
+    try:
+      value = (Path('/stage/algo_data') / maybe_path.relative_to('\\\\netapp\\algo_data')).as_posix()
+    except:
+      pass
+    try:
+      value = (Path('/stage/algo_archive') / maybe_path.relative_to('\\\\netapp\\algo_archive')).as_posix()
+    except:
+      pass
+    try:
+      value = (Path('/stage/algo_db') / maybe_path.relative_to('\\\\netapp\\algo_db')).as_posix()
+    except:
+      pass
+  else:
+  	value = path
+  return str(value)
+
+
+def serialize_paths(data):
+  """Serialize recursively Path to strings"""
+  if issubclass(type(data), Path):
+  	data = serialize_path(data)
+  elif isinstance(data, dict):
+	  data = {key: serialize_paths(value) for key, value in data.items()}
+  elif isinstance(data, list):
+  	data = [serialize_paths(value) for value in data]
+  return data
+
 def notify_qa_database(object_type='output', **kwargs):
   """
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, on_windows, commit_id, config, ci_root
+  from .config import is_ci, commit_id, config, ci_root
   
   # we only update the output database if we're in a CI run, or if the user used `qa --ci`
   if not is_ci and not kwargs['ci']:
     return
 
   # some light custom serialization for Path objects
-  for key, value in kwargs.items():
-    if issubclass(type(value), Path):
-      # the server expects to recieve file that are valid on linux
-      if on_windows:
-        try:
-          value = (Path('/stage/algo_data') / kwargs[key].relative_to('\\\\netapp\\algo_data')).as_posix()
-        except:
-          pass
-        try:
-          value = (Path('/stage/algo_archive') / kwargs[key].relative_to('\\\\netapp\\algo_archive')).as_posix()
-        except:
-          pass
-        try:
-          value = (Path('/stage/algo_db') / kwargs[key].relative_to('\\\\netapp\\algo_db')).as_posix()
-        except:
-          pass
-      kwargs[key] = str(value)
+  kwargs = serialize_paths(kwargs)
 
   # we send updates to
   url = f"{api_protocol}://{api_host}:{api_port}/api/v1/{object_type}/"
