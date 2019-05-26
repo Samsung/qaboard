@@ -82,6 +82,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
+  ctx.obj['raw_batch_label'] = batch_label
   ctx.obj['batch_label'] = batch_label if not ci else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
@@ -367,7 +368,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, batch_label, ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None, ctx.obj['ci'])
+          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj["batch_label"], ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None, ctx.obj['ci'])
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
@@ -393,7 +394,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       args = [
           f"qa",
           f'--ci' if ctx.obj["ci"] else None,
-          f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["batch_label"] != default_batch_label else None,
+          f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
           f'--database "{input_database.as_posix()}"' if input_database != database else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
