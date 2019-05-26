@@ -64,15 +64,15 @@ def run_tests():
 	click.secho(f"Running {len(test_funcs)} tasks", fg='green')
 	if skipped_test_nb:
 		click.secho(f"{skipped_test_nb} skipped", dim=True)
-    all_success = True
+	all_success = True
 	for test in test_funcs:
 		click.secho(test.__name__, bold=True)
 		return_code = test()
-		if return_code is None
+		if return_code is None:
 			click.secho(f"WARNING: Your test should return a return code (success==0)", fg='yellow', bold=True)		
 		else:
-    		all_success = all_success and not return_code
-    return all_success
+			all_success = all_success and not return_code
+	return all_success
 
 
 
