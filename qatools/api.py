@@ -39,16 +39,17 @@ def serialize_path(path):
   from .config import on_windows
   # The server expects to recieve file that are valid on linux
   if on_windows:
+  	value = path
     try:
-      value = (Path('/stage/algo_data') / maybe_path.relative_to('\\\\netapp\\algo_data')).as_posix()
+      value = (Path('/stage/algo_data') / path.relative_to('\\\\netapp\\algo_data')).as_posix()
     except:
       pass
     try:
-      value = (Path('/stage/algo_archive') / maybe_path.relative_to('\\\\netapp\\algo_archive')).as_posix()
+      value = (Path('/stage/algo_archive') / path.relative_to('\\\\netapp\\algo_archive')).as_posix()
     except:
       pass
     try:
-      value = (Path('/stage/algo_db') / maybe_path.relative_to('\\\\netapp\\algo_db')).as_posix()
+      value = (Path('/stage/algo_db') / path.relative_to('\\\\netapp\\algo_db')).as_posix()
     except:
       pass
   else:
