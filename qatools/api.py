@@ -39,7 +39,7 @@ def serialize_path(path):
   from .config import on_windows
   # The server expects to recieve file that are valid on linux
   if on_windows:
-  	value = path
+    value = path
     try:
       value = (Path('/stage/algo_data') / path.relative_to('\\\\netapp\\algo_data')).as_posix()
     except:
