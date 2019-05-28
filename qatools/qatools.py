@@ -63,7 +63,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   get_command = 'get' in sys.argv
   if root_qatools != Path().resolve() and not will_show_help and not get_command:
-      click.secho(f'Working directory changed to: {root_qatools}', fg='cyan', err=True)
+      click.echo(click.style("Working	directory changed to: ", fg='cyan') + click.style(str(root_qatools), fg='cyan', bold=True), err=True)
       os.chdir(root_qatools)
 
   # We want open permissions on outputs and artifacts
