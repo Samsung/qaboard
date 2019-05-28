@@ -2,6 +2,9 @@ project:
   name: my_group/sample_project
   type: git
   url: git@gitlab-srv/my_group/sample_project
+  # By default the project is shown in the web application with Gitlab's avatar and description
+  # avatar_url: https:// ....
+  # description
   # Where the script implementing `run` and `postprocess` functions is located (relative to the project's root)
   entrypoint: qatools/main.py
   # the latest commit on this branch is the reference for output comparaisons, bit-accuracy tests, etc.
