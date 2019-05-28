@@ -73,6 +73,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
+  ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
   ctx.obj['database'] = inputs_database
   ctx.obj['inputs_globs'] = inputs_glob
   ctx.obj['dryrun'] = dryrun
@@ -343,9 +344,12 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
   lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
+  commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha if commit else ''}"
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
   should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
   if should_notify_qa_database:
+    if is_ci or ctx.obj['ci']:
+      click.echo(click.style("Results at: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
     import uuid
     import datetime
     command_data = {
@@ -476,8 +480,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     if is_failed:
       # click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
       if is_ci:
-        commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha}?selected_views=logs"
-        click.secho(f'Read all the logs at: {commit_url}', fg='red', bold=True)
+        click.secho(f'Read all the logs at: {commit_url}?selected_views=logs', fg='red', bold=True)
       exit(1)
 
 
