@@ -9,6 +9,8 @@ import datetime
 import json
 from pathlib import Path
 
+import click
+
 
 def latest_qatools_version():
   # Everybody install their own local version of qatools,
