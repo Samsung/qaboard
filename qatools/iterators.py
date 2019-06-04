@@ -85,8 +85,8 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 
   maybe_parent = lambda path: path.parent if use_parent_folder else path
   input_paths = list(database.glob(path)) # to support wildcards
-  if not input_paths: 
-    click.secho(f"Warning: no inputs for at {path}.", fg='yellow', err=True)
+  if not input_paths:
+    click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
     return
 
   for glob in globs:
