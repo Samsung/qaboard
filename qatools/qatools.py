@@ -177,6 +177,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     if metrics['is_failed']:
       click.secho('[ERROR] The run has failed.', fg='red', err=True)
       click.secho(str(metrics), fg='red')
+      exit(1)
     else:
       click.secho(str(metrics), fg='green')      
 
