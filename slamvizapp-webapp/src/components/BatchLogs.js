@@ -1,12 +1,16 @@
 import React, { Component } from "react";
 import { get } from "axios";
-// import sanitizeHtml from 'sanitize-html';
 
 import { CopyToClipboard } from "react-copy-to-clipboard";
+import Moment from "react-moment";
+import "moment-timezone";
+// import sanitizeHtml from 'sanitize-html';
+
 import {
   Classes,
   Colors,
   Collapse,
+  Callout,
   Button,
   Tag,
   Intent,
@@ -84,7 +88,7 @@ class OutputLog extends Component {
 
     const tag_config = <ConfigurationsTags configuration={output.configuration}/>
     const tag_platform = <PlatformTag platform={output.platform} />
-    const extra_parameters_tags = <ExtraParametersTags parameters={output.extra_parameters} />
+    const extra_parameters_tags = !!output.extra_parameters ? <ExtraParametersTags parameters={output.extra_parameters} /> : <span/>
     const download_link = <a
         title="Show output files"
         target="_blank"
@@ -162,29 +166,63 @@ class OutputLog extends Component {
   }
 }
 
-const BatchLogs = ({ batch }) => {
-  // let now = new Date();
-  // .filter(o => !o.is_pending)
-  // || now - new Date(o.created_date) > 1e3)
-  if (batch === null || batch === undefined  || batch.output_dir_url === undefined)
-    return <span></span>
-  let batch_mock_output = {
-    is_failed: false,
-    is_pending: false,
-    is_running: false,
-    output_type: "batch",
-    output_dir_url: batch.output_dir_url,
-    test_input_path: 'Tuning logs',
-    extra_parameters: batch.data || {},
-    configuration: '',
-    platform: (batch.label === "default" ? "CI" : batch.label) || '',
+
+
+
+class BatchLogs extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+    };
   }
-  return <>
-    {Object.values(batch.outputs)
-          .filter( output => output.output_type !== "optim_iteration")
-          .map(output => <OutputLog key={output.id} output={output} />)}
-    <OutputLog key={batch.output_dir_url} output={batch_mock_output} />
-  </>
-};
+
+
+  render() {
+    const { batch } = this.props;
+    if (batch === null || batch === undefined  || batch.output_dir_url === undefined)
+      return <span></span>
+
+    let batch_mock_output = {
+      is_failed: false,
+      is_pending: false,
+      is_running: false,
+      output_type: "batch",
+      output_dir_url: batch.output_dir_url,
+      configuration: '',
+    }
+
+    let commands = (batch.data || {}).commands || {};
+
+    if ((batch.data || {}).type !== 'local') {
+      var title = batch.label === "default" ? "CI" : batch.label;
+    } else {
+      var [user, _label] = batch.label.replace('@', '').split('|');
+      title = `🏠 ${user} 🚧 ${_label}`;
+    }
+
+    return <>
+      {Object.values(batch.outputs)
+            .filter( output => output.output_type !== "optim_iteration")
+            .map(output => <OutputLog key={output.id} output={output} />)}
+      <h2 style={{marginTop: '25px'}} class={Classes.HEADING}>Batch logs: {title}</h2>
+      <OutputLog key={batch.output_dir_url} output={batch_mock_output} />
+      <div>{Object.entries(commands).map( ([id, command]) => {
+        return <Callout style={{marginBottom: '5px'}} key={id} title={
+          <>
+          	<Tooltip>
+              <Moment fromNow utc>{command.command_created_at_datetime}</Moment>
+              <Moment utc>{command.command_created_at_datetime}</Moment>
+            </Tooltip>
+            {!!command.user && ` as ${command.user}`}{!!command.HOST && ` @${command.HOST}`}
+          </>}>
+          <code>{command.argv.join(" ")}</code>
+        </Callout>
+      })}
+      </div>
+    </>
+
+	}
+}
+
 
 export { BatchLogs };
