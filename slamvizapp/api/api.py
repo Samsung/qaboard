@@ -199,7 +199,7 @@ def get_ci_commit(commit_id=None):
     except: # for legacy projects...
       globbing = '*.json'
 
-    matches = lambda g: [str(f.relative_to(ci_commit.commit_dir)) for f in ci_commit.repo_commit_dir.glob(g)]
+    matches = lambda g: [str(f.relative_to(ci_commit.repo_commit_dir)) for f in ci_commit.repo_commit_dir.glob(g)]
     if not isinstance(globbing, list):
       globbing = [globbing]
 
