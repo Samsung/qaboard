@@ -2,10 +2,11 @@ import sys
 import json
 import yaml
 import traceback
+import subprocess
 from pathlib import Path
 import datetime
 
-from flask import request
+from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified    
 
@@ -13,8 +14,34 @@ from sqlalchemy.orm.attributes import flag_modified
 import qatools
 
 from slamvizapp import app, repos, db_session
-from ..models import Project, CiCommit, Output, TestInput
+from ..models import Project, CiCommit, Batch, Output, TestInput
 from ..git_utils import git_pull
+
+
+@app.route('/api/v1/batch/stop', methods=['POST'])
+@app.route('/api/v1/batch/stop/', methods=['POST'])
+def stop_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  if not batch.data and 'commands' in batch.data:
+    return f"404 ERROR:\n Not commands found", 404
+  stdouts = []
+  kill_commands = []
+  for _, command in batch.data['commands'].items():
+    kill_command = f"LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {command['user']} -I bkill -J '{command['lsf_jobs_prefix']}/*'"
+    kill_commands.append(kill_command)
+    print(kill_command)
+    out = subprocess.run(kill_command, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+      out.check_returncode()
+      print(out.stdout)
+      stdouts.append(str(out.stdout))
+    except:
+      return jsonify({"error": str(out.stdout), "cmd": str(kill_command)}), 500
+  return jsonify({"cmd": '\n'.join(kill_commands), "stdout": '\n\n'.join(stdouts)})
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -31,10 +58,17 @@ def update_batch():
     return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
+  if not batch.data:
+    batch.data = {}
   batch_data = request.json.get('data', {})
-  is_best = 'best_iter' in batch_data and batch_data['best_iter'] != batch.data.get('best_iter')
   batch.data = {**batch.data, **batch_data}
 
+  command = request.json.get('command')
+  if command:
+    batch.data["commands"] = {**batch.data.get('commands', {}), **command}
+    flag_modified(batch, "data")
+
+  is_best = 'best_iter' in batch_data and batch_data['best_iter'] != batch.data.get('best_iter')
   if is_best:
     # remove all non-optim_iteration results from the batch
     batch.outputs = [o for o in batch.outputs if o.output_type=='optim_iteration']
@@ -162,6 +196,7 @@ def gitlab_webhook():
     # Make sure the it exists in the database, with up-to-date metadata
     project = Project.get_or_create(session=db_session, id=project_id)
     project.data.update({'git': data['project']})
+    flag_modified(project, "data")
     db_session.add(project)
     db_session.commit()
     print(project)
