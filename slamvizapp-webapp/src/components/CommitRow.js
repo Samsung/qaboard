@@ -101,7 +101,7 @@ class CommitResults extends React.Component {
     let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(commit);
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
 
-    const { available_metrics, default_metric } = project_data.data.qatools_metrics;
+    const { available_metrics={}, default_metric } = (project_data.data || {}).qatools_metrics || {};
     const default_metric_info = available_metrics[default_metric] || {};
 
     let status_messages = (
@@ -149,7 +149,7 @@ class CommitResults extends React.Component {
                   let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
                   return <Link
                           key={label}
-                          to={`/${project}/commit/${commit.id}?batch_new=${label}`}
+                          to={`/${project}/commit/${commit.id}?batch=${label}`}
                           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: 'default'}))}
                          >
                     <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
@@ -214,7 +214,7 @@ class CommitResults extends React.Component {
               {Object.keys(ci_batch.aggregated_metrics).length > 0 && <Tooltip modifiers>
                 <Tag minimal round>...</Tag>
                 <ul className={Classes.LIST}>
-                  {Object.entries(ci_batch.aggregated_metrics).map(([k, v]) => (
+                  {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
                     <li key={k}>
                       <strong>{k}:</strong> {formatter.format(v)}
                     </li>
