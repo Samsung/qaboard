@@ -89,7 +89,6 @@ class ProjectSideCommitList extends React.Component {
     let reference_branch = (qatools_config.project || {}).reference_branch;
     let ci_root = ((qatools_config.ci_root || {}).linux || '').replace("/home/arthurf/ci", "")
     let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
-    console.log(project_data)
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     let is_committer = !!match.params.committer;
@@ -141,7 +140,7 @@ class ProjectSideResults extends React.Component {
     const { project_data, commit } = this.props;
     let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
 
-		const active = view => this.props.selected_views.includes(view);
+	const active = view => this.props.selected_views.includes(view);
     // we can only do tuning for projects whose database is outside the repo
     // otherwise we would need to checkout the repo and manage access...
     const disable_tuning = !!project_data.data &&
@@ -212,7 +211,7 @@ const mapStateToProps = (state, ownProps) => {
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
   let { new_commit: commit } = commitSelector(state)
-  let selected_views = selected.selected_views || (( ((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'summary')
+  let selected_views = selected.selected_views || (( ((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || ['summary'])
 
   const { new_batch_filtered } = batchSelector(state);
 
