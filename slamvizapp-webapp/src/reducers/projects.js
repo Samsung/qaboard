@@ -38,6 +38,10 @@ function update_project(state=default_project, data) {
   data.data.qatools_config.outputs.visualizations = debug_views;
   console.log('WARNING: replaced the visualizations for debugging!')
   */
+  if ((data.data || {}).qatools_metrics) {
+    const available_metrics = data.data.qatools_metrics.available_metrics || {};
+    data.data.qatools_metrics.main_metrics = data.data.qatools_metrics.main_metrics.filter(m => !!available_metrics[m]);
+  }
   return {
     ...state,
     ...data,

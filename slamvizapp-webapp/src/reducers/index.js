@@ -101,6 +101,10 @@ function commits(state = {}, action) {
 	  action.data.data.qatools_config.outputs.visualizations = debug_views;
 	  console.log('WARNING: replaced the visualizations for debugging!')
 	  */
+	    if ((action.data.data || {}).qatools_metrics) {
+	      const available_metrics = action.data.data.qatools_metrics.available_metrics || {};
+	      action.data.data.qatools_metrics.main_metrics = action.data.data.qatools_metrics.main_metrics.filter(m => !!available_metrics[m]);
+	    }
     	return {
     		...state,
     		[action.id]: {
