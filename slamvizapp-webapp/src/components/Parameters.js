@@ -89,8 +89,8 @@ class CommitParameters extends Component {
         <Suspense fallback={<span></span>}>
           <LoadableGenericTextViewer
             filename={c}
-            text_url_new={(!!new_commit && !!new_commit.commit_dir_url) ? `${new_commit.commit_dir_url}/${c}` : null}
-            text_url_ref={(!!ref_commit && !!ref_commit.commit_dir_url) ? `${ref_commit.commit_dir_url}/${c}` : null}
+            text_url_new={(!!new_commit && !!new_commit.repo_commit_dir_url) ? `${new_commit.repo_commit_dir_url}/${c}` : null}
+            text_url_ref={(!!ref_commit && !!ref_commit.repo_commit_dir_url) ? `${ref_commit.repo_commit_dir_url}/${c}` : null}
           />
         </Suspense>
       </Fragment>
