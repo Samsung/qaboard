@@ -69,7 +69,7 @@ class SlamOutputCard extends Component {
   }
 
   getData(props) {
-    const { output_new, output_ref, show_debug } = props;
+    const { output_new, output_ref, show_debug, path='camera_poses_debug.csv' } = props;
     let has_groundtruth = output_new.metrics.translation_aape !== null;
 
     const source = CancelToken.source();
@@ -100,7 +100,7 @@ class SlamOutputCard extends Component {
       get_gt = () => {};
     }
     var get_new = () => {
-      return get(`${output_new.output_dir_url}/camera_poses_debug.csv`, {
+      return get(`${output_new.output_dir_url}/${path}`, {
         cancelToken: source.token
       })
         .then(response => {
@@ -127,7 +127,7 @@ class SlamOutputCard extends Component {
       output_ref.output_dir_url !== undefined
     ) {
       get_ref = () => {
-        return get(`${output_ref.output_dir_url}/camera_poses_debug.csv`, {
+        return get(`${output_ref.output_dir_url}/${path}`, {
           cancelToken: source.token
         })
           .then(response => {
