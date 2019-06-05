@@ -35,7 +35,7 @@ import { updateSelected } from "./actions/selected";
 
 import { TuningForm } from "./components/tuning/forms";
 import { AddRecordingsForm } from "./components/tuning/form_groups";
-import { TuningExploration } from "./components/tuning/TuningExploration";
+import TuningExploration from "./components/tuning/TuningExploration";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 
@@ -335,21 +335,22 @@ class CiCommitResults extends Component {
               {selected_views.includes('groups') && <Section>
                 <Card>
                   <h2 className={Classes.HEADING}>Groups of tests</h2>
-                  <AddRecordingsForm
+                  {!!(config_data.data || {}).qatools_config && <AddRecordingsForm
                     project={project}
                     project_data={config_data}
                     commit={new_commit}
-                  />
+                  />}
                 </Card>
                </Section>}
 
               {selected_views.includes('tuning') && <Section>
                 <h2 className={Classes.HEADING}>Run experiments</h2>
                 <Card>
-                  <TuningForm
+                  {!!(config_data.data || {}).qatools_config && <TuningForm
                     project={project}
                     project_data={config_data}
-                    commit={new_commit} />
+                    commit={new_commit}
+                   />}
                 </Card>
                </Section>}
 
@@ -385,7 +386,7 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('logs') && <Section>
                   {all_controls}
-                  <h2 className={Classes.HEADING}>Logs</h2>
+                  <h2 className={Classes.HEADING}>Output logs</h2>
                   <BatchLogs
                     batch={new_batch_filtered}
                     batch_label={new_batch_filtered.label}
@@ -445,7 +446,7 @@ class CiCommitResults extends Component {
                     project={project}
                     project_data={config_data}
                     batch={new_batch_filtered}
-                  />
+                   />
                 </Card>
                </Section>}
 
