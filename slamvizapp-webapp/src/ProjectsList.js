@@ -27,13 +27,15 @@ import { updateSelected } from './actions/selected'
 class LastCommitAt extends Component {
   render() {
     const { project, className } = this.props;
-    let date = project.latest_commit_datetime;
+    let date_commit = project.latest_commit_datetime;
+    let date_output = project.data.latest_output_datetime;
+    let date = date_output || date_commit
     return (
       <span className={className} style={{marginBottom: '5px'}}>
         <Tooltip content={date}>
-          <span style={{ color: "#555"}}>updated <Moment
+          <span style={{ color: "#555"}}>latest {!!date_output ? "output" : "commit"} <Moment
             fromNow
-            tz="Asia/Jerusalem"
+            {...!!date_output ? {utc: true} : {tz: "Asia/Jerusalem"}}
             date={date}
           /></span>
         </Tooltip>
@@ -60,11 +62,16 @@ class ProjectsList extends Component {
         {Object.entries(projects)
           .sort(
             ([id0, d0], [id1, d1]) => {
-              if (d0.data === undefined || d1.data === undefined) return 1
               let fav0 = projects[id0].is_favorite || false
               let fav1 = projects[id1].is_favorite || false
-              if (fav0 === fav1)
-                return new Date(d1.data.latest_output_datetime) - new Date(d0.data.latest_output_datetime);
+              if (fav0 === fav1) {
+                let date0 = (d0.data || {}).latest_output_datetime;
+                let date1 = (d1.data || {}).latest_output_datetime;
+                if (!!date1  && !!!date0) return 1
+                if (!!!date1 &&  !!date0) return -1
+                if (!!!date1 && !!!date0) return new Date(d1.latest_commit_datetime) - new Date(d0.latest_commit_datetime)
+                return new Date(date1) - new Date(date0);
+              }
               else
                 return fav1 - fav0;
             }
@@ -98,7 +105,7 @@ class ProjectsList extends Component {
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>
-                    <Icon icon={projects[project_id].is_favorite ? "star" : "star-empty"} onClick={() => this.props.dispatch(updateFavorite(project_id, !!!projects[project_id].is_favorite)) } style={{color: Colors.GOLD5}}/>
+                    <Tooltip><Icon icon={projects[project_id].is_favorite ? "star" : "star-empty"} onClick={() => this.props.dispatch(updateFavorite(project_id, !!!projects[project_id].is_favorite)) } style={{color: Colors.GOLD5}}/><span>Pin on top of the list.</span></Tooltip>
                     <a href={git.homepage}><Button icon="code" minimal round text="code" style={{color: 'rgb(85, 85, 85)'}}/></a>
                   </p>
                   <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
