@@ -338,7 +338,7 @@ class OutputCard extends Component {
 
   render() {
     const { is_loaded, error } = this.state;
-    const { main_metrics, available_metrics } = this.props.project_data.data.qatools_metrics;
+    const { main_metrics, available_metrics } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
     const { output_new, output_ref, warning } = this.props;
     const { qatools_config } = this.props.project_data.data;
     const controls = this.props.controls || {};
@@ -360,6 +360,9 @@ class OutputCard extends Component {
         return <span key={idx}/>
 
       const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
+      if (view_options.some(o => o.selected[0] === undefined || o.selected[0] === null))
+        return <span key={idx} />
+
       if (!(view.display === 'viewer') && view_options.length > 0 ) {
         if (view.display === undefined || view.display === 'single') {
           const view_options_selected = view_options.map(o => [o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
