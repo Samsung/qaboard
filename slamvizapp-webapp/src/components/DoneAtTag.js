@@ -20,8 +20,9 @@ class DoneAtTagUnstyled extends React.Component {
     let maybe_skeletton = (!commit || !commit.authored_datetime) ? Classes.SKELETON : null; 
     return (
       <span className={className} style={style}>
-        <Tooltip content={!!commit && commit.authored_datetime}>
-          <Moment className={maybe_skeletton} fromNow tz="Asia/Jerusalem" date={(!!commit && !!commit.authored_datetime) ? commit.authored_datetime : defaults.date} />
+        <Tooltip>
+          <Moment className={maybe_skeletton} fromNow date={(!!commit && !!commit.authored_datetime) ? commit.authored_datetime : defaults.date} />
+          <Moment utc>{!!commit && commit.authored_datetime}</Moment>
         </Tooltip>{" "}
         {" "}
         <Link
