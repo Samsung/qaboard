@@ -359,7 +359,7 @@ const SuccessBar = ({ success_frac }) => (
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
-    const { available_metrics, summary_metrics } = this.props.project_data.data.qatools_metrics;
+    const { available_metrics={}, summary_metrics=[] } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
     const default_selected_metrics = summary_metrics.map(k => available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
@@ -435,7 +435,7 @@ class MetricsSummary extends Component {
       .filter(o => run_types_new.has(o.test_input_path))
       .filter(o => !o.is_pending);
 
-    const { selected_metrics } = this.state;
+    const { selected_metrics=[] } = this.state;
     const clearButton =
       selected_metrics.length > 0 ? (
         <Button icon="cross" minimal={true} onClick={this.handleClearMetrics} />
