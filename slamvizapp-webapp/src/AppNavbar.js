@@ -169,7 +169,7 @@ class AppNavbar extends Component {
     const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered, filter_batch_new, filter_batch_ref, selected_batch_new, selected_batch_ref } = this.props;
     // const reference_branch = project_data.data.qatools_config.project.reference_branch;
 
-    let show_ref_navbar = ! (selected_views === 'logs' || selected_views === 'tuning' || selected_views === 'groups')
+    let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
 
     const is_commit = this.props.match.path.startsWith('/:project_id+/commit/');
     if (is_commit) {
