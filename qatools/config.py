@@ -102,18 +102,18 @@ config = merge(qatools_configs)
 # The current subproject corresponds to the lowest qatools.yaml
 if not qatools_config_paths:
   root_qatools = None
-  leaf_qatools = None
+  project_dir = None
   root_qatools_config = {}
   subproject = Path(".")
 else:
   if len(qatools_config_paths)==1:
     root_qatools = qatools_config_paths[0].parent
-    leaf_qatools = root_qatools
+    project_dir = root_qatools
     root_qatools_config = qatools_configs[0]
   else:
-    root_qatools, *_, leaf_qatools = [c.parent for c in qatools_config_paths]
+    root_qatools, *_, project_dir = [c.parent for c in qatools_config_paths]
     root_qatools_config, *_ = qatools_configs
-  subproject = leaf_qatools.relative_to(root_qatools) if root_qatools else None
+  subproject = project_dir.relative_to(root_qatools) if root_qatools else None
 
   # We check for consistency
   if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
