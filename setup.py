@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 
 setup(
   name='qatools',
-  version="0.6.0", # __version__ needs to be updated in qatools/__init__.py as well
+  version="0.7.0", # __version__ needs to be updated in qatools/__init__.py as well
   packages=find_packages(), 
 
   author="Arthur Flam",
