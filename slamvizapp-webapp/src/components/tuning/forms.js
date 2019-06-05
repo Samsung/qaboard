@@ -64,6 +64,8 @@ const eval_function = text => {
 
 const eval_combinations = param_search_text => {
   /*Parses a string describing a tuning set into an object.*/
+  if (param_search_text === '') return {combinations: {}, language: 'javascript'};
+
   let combinations = null;
   // users can directly provide tuning sets via objects or arrays of objects
   try {
@@ -115,7 +117,7 @@ class TuningForm extends Component {
       search_options: {
         n_iter: 50
       },
-      parameter_search: this.props.parameter_search ? JSON.parse(this.props.parameter_search) : templates["none"],
+      parameter_search: this.props.parameter_search ? JSON.parse(this.props.parameter_search) : templates["default"],
       parameter_search_auto: this.props.parameter_search_auto
         ? JSON.parse(this.props.parameter_search_auto)
         : templates['optimize'](qatools_config, this.props.project_data.data.qatools_metrics),
@@ -394,7 +396,7 @@ class TuningForm extends Component {
         <h4 className={Classes.HEADING}>Manual tuning</h4>
         <Callout title="Syntax examples" icon="info-sign" style={{marginBottom: '15px'}}>
 	        <p>
-	          {["simple-combinations", "list-of-combinations", "function"].map(x => (
+	          {["default", "simple-combinations", "list-of-combinations", "function"].map(x => (
 	            <Button
 	              style={{margin: '4px'}}
 	              key={x}
