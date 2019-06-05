@@ -1,11 +1,18 @@
 import React, { Component, Fragment } from "react";
+import { withRouter } from "react-router";
+import qs from "qs";
+
 import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../../components/layout";
 import { groupBy, hash_color, median, average } from "../../utils";
 
-const config = {};
+
+const config = {
+  showSendToCloud: true,
+  displayModeBar: true,
+};
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -204,22 +211,25 @@ const ParallelTuningPlot = ({
       showticksuffix: 'last',
     },
   }
+
+  const metrics_with_different_values = metrics
+    .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
+    .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
+  const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p])) );
   let traces = [{
     type: 'parcoords',
     line: all_good(line.color) ? line : undefined,
     dimensions: [
-       ...metrics
-         .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
-         .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
+       ...metrics_with_different_values
          .map( metric => {
             return {
-             label: metric.short_label,
+             label: metric.short_label || metric.label || metric.key,
              values: values(metric)(metrics_aggregated_by_params),
              // range: [1, 5],
              // constraintrange: [1, 2],
             }
        }),
-      ...parameters.map(p => {
+      ...parameters_with_different_values.map(p => {
         let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p])
         let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
         let integer = values.every(v => Number.isInteger(v));
@@ -263,7 +273,8 @@ const ParallelTuningPlot = ({
   }]
   // console.log(traces)
   let layout = {
-    width: 80*metrics.length + 80*parameters.length,
+    // width: 80*metrics_with_different_values.length + 80*parameters_with_different_values.length,
+    width: 10 * metrics_with_different_values.map(m=>(m.short_label || m.label || m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0),
     autosize: false,
   }
   return <Plot layout={layout} data={traces} config={config} />;
@@ -275,6 +286,7 @@ const EfficientFrontierPlot = ({
   metric_y,
   available_metrics,
   aggregation,
+  parameter,
 }) => {
   let outputs_ok = Object.values(outputs).filter(
     o => !o.is_pending && !o.is_failed
@@ -303,16 +315,27 @@ const EfficientFrontierPlot = ({
     }
   )
 
+  let color = metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => JSON.parse(extra_parameters_s)[parameter])
   let traces = [{
     type: 'scatter',
     mode: 'markers',
-    marker: { size: 12 },
+    marker: {
+      size: 12,
+      color,
+      colorbar: {
+        title: parameter,
+      },
+      colorscale: 'RdBu',
+    },
     x: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => aggregated_metrics[metric_x.key]),
     y: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => aggregated_metrics[metric_y.key]),
-    text: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => extra_parameters_s),
+    text: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => extra_parameters_s.replace(/,/g, '<br />')),
+    showscale: true,
   }];
 
   let layout_ = {
+    hovermode: "closest",
+    hoverinfo: "name",
     xaxis: {
       title: metric_x.label,
       ticksuffix: metric_x.suffix || '',
@@ -433,11 +456,71 @@ const Sensibility2DContour = ({
   return <Plot data={traces} layout={layout_} config={config} />;
 };
 
+
+
 class TuningExploration extends Component {
   constructor(props) {
     super(props);
-    const { main_metrics, available_metrics, default_metric } = this.props.project_data.data.qatools_metrics;
-    const available_metrics_ = {
+    const params = new URLSearchParams(props.location.search);
+    this.state = {
+      ...this.metrics_data(props),
+      ...this.parameters_data(props),
+      relative: true,
+      aggregation: params.get('aggregation') || 'median',
+      layout: {
+        xaxis: {
+          type: "linear"
+        }
+      }
+    };
+  }
+
+  componentDidUpdate(prevProps) {
+    const project_qatools_metrics_curr = ((this.props.project_data || {}).data || {}).qatools_metrics;
+    const project_qatools_metrics_prev = ((prevProps.project_data || {}).data || {}).qatools_metrics;
+    if (project_qatools_metrics_curr !== project_qatools_metrics_prev) {
+        this.setState(this.metrics_data(this.props))
+    }
+
+    if (!!this.props.batch && this.props.batch !== prevProps.batch) {
+      this.setState(this.parameters_data(this.props))
+    }
+
+  }
+  
+  parameters_data(props) {
+    const params = new URLSearchParams(props.location.search);
+    const { batch } = props;
+    if (batch === undefined || batch === null) return {};
+
+    // tuned_parameters holds all tuning values used for each parameter
+    let tuned_parameters = {};
+    Object.entries(batch.outputs).forEach(([id, o]) => {
+      Object.entries(o.extra_parameters).forEach(([param, value]) => {
+        if (tuned_parameters[param] === undefined)
+          tuned_parameters[param] = new Set();
+          tuned_parameters[param].add(value);
+      });
+    });
+    // we sort tuned parameters by the number of different values that were used
+    let sorted_parameters = Object.entries(tuned_parameters)
+      .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
+      .map(([k, v]) => k);
+    return {
+      tuned_parameters,
+      sorted_parameters,
+      selected_parameter: params.get("selected_parameter") || sorted_parameters[0],
+      selected_parameter_2: params.get("selected_parameter_2") || (sorted_parameters.length > 1 ? sorted_parameters[1] : sorted_parameters[0]),
+    }
+  }
+
+  metrics_data(props) {
+    const params = new URLSearchParams(props.location.search);
+  	const qatools_metrics = ((props.project_data || {}).data || {}).qatools_metrics || {}
+    const { main_metrics=[], available_metrics={}, default_metric="objective" } = qatools_metrics;
+     
+    let is_optimization_batch = ((props.batch || {}).data || {}).best_metrics !== undefined;
+    const optimization_metrics = is_optimization_batch ? {
       iteration: {
         key: "iteration",
         label: "Iteration",
@@ -456,38 +539,26 @@ class TuningExploration extends Component {
         suffix: "",
         target: -1,
         smaller_is_better: true,
-      },
+      },      
+    } : {}
+    const available_metrics_ = {
+      ...optimization_metrics,
       ...available_metrics,
     }
-    this.state = {
+    const main_metrics_ = [
+      ...(is_optimization_batch ? ["iteration", "objective"] : []),
+      ...main_metrics.filter(m => !!available_metrics_[m])
+    ];
+    return {
       selected_parameter: null,
       available_metrics: available_metrics_,
-      main_metrics: ["iteration", "objective", ...main_metrics],
+      main_metrics: main_metrics_,
       default_metric,
-      selected_metric: default_metric,
-      selected_metric2: main_metrics.filter(l=>l!==default_metric)[0],
-      relative: true,
-      aggregation: 'median',
-      layout: {
-        xaxis: {
-          type: "linear"
-        }
-      }
-    };
+      selected_metric: params.get("selected_metric") || default_metric,
+      selected_metric2: params.get("selected_metric2") || main_metrics.filter(l=>l !== default_metric)[0] || default_metric,    	
+    }
   }
 
-  selectParameter = e => {
-    this.setState({ selected_parameter: e.target.value });
-  };
-  selectParameter2 = e => {
-    this.setState({ selected_parameter_2: e.target.value });
-  };
-  selectMetric = e => {
-    this.setState({ selected_metric: e.target.value });
-  };
-  selectMetric2 = e => {
-    this.setState({ selected_metric2: e.target.value });
-  };
   updateXScale = e => {
     const toogleScale = scale => (scale === "log" ? "linear" : "log");
     this.setState((previousState, newProps) => ({
@@ -501,51 +572,44 @@ class TuningExploration extends Component {
     }));
   };
 
+  select = (attribute, attribute_url) => e => {
+    const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
+    this.setState({[attribute]: value});    
+    let query = qs.parse(window.location.search.substring(1));
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [attribute_url || attribute]: value,
+      })
+    });
+  } 
+
   render() {
     const { batch } = this.props;
-    const { layout, relative, available_metrics, default_metric, main_metrics, aggregation } = this.state;
+    const { selected_metric, selected_metric2 } = this.state;
+    const { layout, relative, available_metrics, main_metrics, aggregation } = this.state;
+    const { tuned_parameters, sorted_parameters } = this.state;
 
-    if (!batch) return <p>Loading...</p>;
-    const batch_data = batch.data || {};
+    if (!batch)
+      return <p>Loading...</p>;
 
-    // tuned_parameters holds all tuning values used for each parameter
-    let tuned_parameters = {};
-    Object.entries(batch.outputs).forEach(([id, o]) => {
-      Object.entries(o.extra_parameters).forEach(([param, value]) => {
-        if (tuned_parameters[param] === undefined)
-          tuned_parameters[param] = new Set();
-        tuned_parameters[param].add(value);
-      });
-    });
-    // we sort tuned parameters by the number of different values that were used
-    let sorted_parameters = Object.entries(tuned_parameters)
-      .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
-      .map(([k, v]) => k);
-    let default_selected_parameter = sorted_parameters[0];
-    if (sorted_parameters.length===0)
-      return <Callout>You did not do any tuning :)</Callout>
-    let default_selected_parameter_2 =
-      sorted_parameters.length > 1
-        ? sorted_parameters[1]
-        : default_selected_parameter;
-    let selected_parameter =
-      this.state.selected_parameter || default_selected_parameter;
-    let selected_parameter_2 =
-      this.state.selected_parameter_2 || default_selected_parameter_2;
+    if (sorted_parameters.length===0 && Object.keys(batch.outputs).length > 0)
+      return <Callout>You did not do any parameter tuning.</Callout>
+
+    let selected_parameter = this.state.selected_parameter;
+    let selected_parameter_2 = this.state.selected_parameter_2;
 
     // what metric are we looking at?
-    let metric = available_metrics[this.state.selected_metric];
-    let metric2 = available_metrics[this.state.selected_metric2];
+    let metric = available_metrics[this.state.selected_metric] || {label: 'NA'};
+    let metric2 = available_metrics[this.state.selected_metric2] || {label: 'NA'};
 
-    let show_2d_sensibility =
-      sorted_parameters.length > 1 &&
-      tuned_parameters[sorted_parameters[1]].size > 1;
+    let show_2d_sensibility = sorted_parameters.length > 1 && tuned_parameters[sorted_parameters[1]].size > 1;
 
     let total_outputs = Object.keys(batch.outputs).length;
-    let number_inputs = Object.keys(
-      groupBy(Object.values(batch.outputs), "test_input_path")
-    ).length;
+    let number_inputs = Object.keys(groupBy(Object.values(batch.outputs), "test_input_path")).length;
 
+    const batch_data = batch.data || {};
     let filtered_best_metrics = batch_data.best_metrics!==undefined ? Object.keys(batch_data.best_metrics)
                                   .filter(k => main_metrics.includes(k) )
                                   .reduce((obj, key) => ({
@@ -555,7 +619,7 @@ class TuningExploration extends Component {
     return (
       <Section>
 
-        {batch.data.optimization && <Callout icon='crown' title="Best parameters">
+        {batch_data.optimization && <Callout icon='crown' title="Best parameters">
           {Object.entries(batch_data.best_params).map(([k, v]) => 
             <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
           )}
@@ -578,32 +642,21 @@ class TuningExploration extends Component {
           aggregation={this.state.aggregation}
         />
 
-        <FormGroup
-          inline
-          labelFor="select-metric"
-          helperText={"Highlighted above via a color-scale. This metric is shown on the plots below on the Y-axis."}
-        >
+        <FormGroup inline labelFor="select-metric" helperText={"Highlighted above via a color-scale. This metric is shown on the plots below on the Y-axis."}>
           <HTMLSelect
             id="select-metric"
-            defaultValue={default_metric}
-            onChange={this.selectMetric}
+            value={selected_metric}
+            options={Object.values(available_metrics).map(m => ({value: m.key, label: m.label}) )}
+            onChange={this.select('selected_metric')}
             minimal
-          >
-            {Object.values(available_metrics).map(m => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </HTMLSelect>
+          />
           <HTMLSelect
             id="aggregation"
-            defaultValue={aggregation}
-            onChange={e =>this.setState({aggregation: e.target.value})}
+            value={aggregation}
+            options={[{label: "Median aggregation", value: "median"}, {label: "Average aggregation", value: "average"}]}
+            onChange={this.select('aggregation')}
             minimal
-          >
-            <option key="median" value="median">Median aggregation</option>
-            <option key="average" value="average">Average aggregation</option>
-          </HTMLSelect>
+          />
         </FormGroup>
 
         {batch_data.optimization && <>
@@ -617,26 +670,14 @@ class TuningExploration extends Component {
 
 
         <h4 className={Classes.HEADING}>Sensibility to tuning parameters</h4>
-        <FormGroup
-          inline
-          labelFor="select-parameter"
-          helperText="Shown on the X-axis"
-        >
+        <FormGroup inline labelFor="select-parameter" helperText="Shown on the X-axis">
           <HTMLSelect
             id="select-parameter"
-            defaultValue={default_selected_parameter}
-            onChange={this.selectParameter}
+            value={selected_parameter}
+            options={sorted_parameters.map(p => ({value: p, label: `${p} (${tuned_parameters[p].size} different${tuned_parameters[p].size > 1 ? "s" : ""})`}))}
+            onChange={this.select('selected_parameter')}
             minimal
-          >
-            {sorted_parameters.map(p => (
-              <option key={p} value={p}>
-                {p} ({tuned_parameters[p].size} different{tuned_parameters[p]
-                  .size > 1
-                  ? "s"
-                  : ""})
-              </option>
-            ))}
-          </HTMLSelect>
+          />
           <Switch
             inline
             label="Log-scale"
@@ -647,27 +688,14 @@ class TuningExploration extends Component {
 
 
         {show_2d_sensibility && <>
-          <FormGroup
-            inline
-            labelFor="select-parameter-2"
-            helperText="Shown on the Y-axis in the 2D sensibility plot"
-          >
+          <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensibility plot">
             <HTMLSelect
               id="select-parameter-2"
-              defaultValue={default_selected_parameter_2}
-              onChange={this.selectParameter2}
+              value={selected_parameter_2}
+              options={sorted_parameters.map(p => ({value: p, label: `${p} (${tuned_parameters[p].size} different${tuned_parameters[p].size > 1? "s" : ""})`}))}
+              onChange={this.select('selected_parameter_2')}
               minimal
-            >
-              {sorted_parameters.map(p => (
-                <option key={p} value={p}>
-                  {p} ({tuned_parameters[p].size} different{tuned_parameters[
-                    p
-                  ].size > 1
-                    ? "s"
-                    : ""})
-                </option>
-              ))}
-            </HTMLSelect>
+            />
           </FormGroup>
           <Sensibility2DContour
             outputs={batch.outputs}
@@ -693,9 +721,7 @@ class TuningExploration extends Component {
         <Switch
           label="Relative"
           defaultChecked={relative}
-          onChange={e => {
-            this.setState({ relative: !relative });
-          }}
+          onChange={e => {this.setState({ relative: !relative });}}
         />
         <Sensibility1DLines
           outputs={batch.outputs}
@@ -708,23 +734,14 @@ class TuningExploration extends Component {
 
         {show_2d_sensibility &&<Fragment>
         <h4 className={Classes.HEADING}>Efficient frontier & tradeoffs</h4>
-        <FormGroup
-          inline
-          labelFor="select-metric-2"
-          helperText="Metric on Y-axis"
-        >
+        <FormGroup inline labelFor="select-metric-2" helperText="Metric on Y-axis">
           <HTMLSelect
             id="select-metric-2"
-            defaultValue={main_metrics[1] || main_metrics[0]}
-            onChange={this.selectMetric2}
+            value={selected_metric2}
+            options={Object.values(available_metrics).map(m => ({value:m.key, label: m.label}))}
+            onChange={this.select('selected_metric2')}
             minimal
-          >
-            {Object.values(available_metrics).map(m => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </HTMLSelect>
+          />
         </FormGroup>
         <EfficientFrontierPlot
           outputs={batch.outputs}
@@ -732,6 +749,7 @@ class TuningExploration extends Component {
           metric_y={metric2}
           available_metrics={available_metrics}
           aggregation={this.state.aggregation}
+          parameter={selected_parameter}
         />
         </Fragment>
       }
@@ -741,4 +759,4 @@ class TuningExploration extends Component {
   }
 }
 
-export { TuningExploration };
+export default withRouter(TuningExploration);
