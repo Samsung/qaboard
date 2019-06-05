@@ -1,4 +1,5 @@
 const templates = {
+  "default": "",
   "none": "{}",
   "simple-combinations": JSON.stringify(
     {
