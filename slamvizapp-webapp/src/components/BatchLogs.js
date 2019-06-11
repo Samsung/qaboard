@@ -48,10 +48,27 @@ class OutputLog extends Component {
       this.getLog()
   }
 
+  refreshLog = () => {
+    if ((!!this.props.output && !this.props.output.is_pending) || !this.state.is_open) {
+      clearInterval(this.refreshLogInterval);
+    } else {
+      this.getLog();
+    }
+  }
+
   handleClick = () => {
     if (!this.state.is_loaded) this.getLog();
     this.setState({ is_open: !this.state.is_open });
+
+    if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
+    if (!!this.props.output && this.props.output.is_pending) {
+      this.refreshLogInterval = setInterval(this.refreshLog, 1000);
+    }
   };
+
+  componentWillUnmount(){
+    if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
+  }
 
   getLog() {
     const { output } = this.props;
