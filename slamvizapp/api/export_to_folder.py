@@ -5,7 +5,6 @@ import os
 import re
 import json
 import hashlib
-import difflib
 from pathlib import Path
 
 from requests.utils import quote
@@ -16,13 +15,11 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
 
 from qatools.utils import copy
-from qatools.conventions import deserialize_config
+from qatools.conventions import deserialize_config, serialize_config
 from slamvizapp import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_config
 
 
-
-differ = difflib.Differ()
 
 def load_commit(project_id, commit_id):
   if not commit_id: return None
@@ -135,8 +132,8 @@ def export_to_folder():
   if len(all_configurations) == 1:
     common_data['configuration'] = deserialize_config(all_outputs[0].configuration)
   elif len(all_configurations) > 1:
-    common_data['configuration_prefix'] = os.path.commonprefix([deserialize_config(o.configuration) for o in all_outputs])    
-    common_data['configuration_suffix'] = reversed(os.path.commonprefix([reversed(deserialize_config(o.configuration)) for o in all_outputs]))
+    common_data['configuration_prefix'] = os.path.commonprefix([deserialize_config(o.configuration) for o in all_outputs])
+    common_data['configuration_suffix'] = list(reversed(os.path.commonprefix([list(reversed(deserialize_config(o.configuration))) for o in all_outputs])))
     # FIXME test @ http://qa:3000/tof/swip_tof/commit/e4b756d9c245e271093b38c27f934bc891de2714?reference=74c3648718dee48f423979a9225bba34c2917caa&selected_views=output-list
   # To be honest, we really should find what is common in each batch
   # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
@@ -177,7 +174,10 @@ def export_to_folder():
       if output.platform != common_data.get("platform"):
         labels.append(output.platform)
       if not common_data.get("configuration"):
-        strip_config = lambda c :c.replace(common_data.get("configuration_prefix", 'xxxxxxxxxxxxxx'), '').replace(common_data.get("configuration_suffix", 'xxxxxxxxxxxxxx'), '')
+        def strip_config(c):
+          c_prefix = serialize_config(common_data.get("configuration_prefix", 'placeholder-placeholder'))
+          c_suffix = serialize_config(common_data.get("configuration_suffix", 'placeholder-placeholder'))
+          return c.replace(c_prefix, '').replace(c_suffix, '')
         stripped_config = slugify_config(strip_config(output.configuration))
         if stripped_config:
           labels.append(stripped_config)
@@ -271,10 +271,3 @@ def copy_path_rel(output, output_path, label):
   copied_rel = copied_rel.parent / f"{output_path_rel.stem}{label}{output_path_rel.suffix}" 
   copied_rel = str(copied_rel).replace('/', '•') # or \ ? or just name .... ??
   return copied_rel
-
-
-def diff(s1, s2):
-  p_diff = list(differ.compare(s1, s2))
-  p_new = ''.join([s[2:] for s in p_diff if s.startswith('+')])
-  p_ref = ''.join([s[2:] for s in p_diff if s.startswith('-')])
-  return p_new, p_ref
