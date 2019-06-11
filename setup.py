@@ -24,6 +24,7 @@ setup(
     'gitpython',
     'simplejson',
     'pyyaml',
+    'joblib',
     # machine learning library, used only for parameter sampling. Depends on numpy/scipy.
     # TODO: To make installation faster, especially on windows
     #       we should remove this dependency and do it ourselves.
