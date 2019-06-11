@@ -32,12 +32,12 @@ class ConfigurationsTags extends React.Component {
 		const configurations = this.props.configurations || deserialize_config(this.props.configuration)
 		const intent = this.props.intent || Intent.PRIMARY;
 
-	    const tags = configurations.map(c => <Tag
+	    const tags = configurations.map( (c, idx) => <Tag
 	    	intent={intent}
 	    	round
 	    	minimal
 	    	interactive
-	    	key={JSON.stringify(c)}
+	    	key={idx}
 	    	style={{marginRight: '5px', marginBottom: '3px'}}
 	    >
 	    		{typeof(c) === 'string' ? c : JSON.stringify(c)}
