@@ -399,7 +399,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       args = [
           f"qa",
           f'--ci' if ctx.obj["ci"] else None,
-          f'--label "{ctx.obj["batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
+          f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
           f'--database "{input_database.as_posix()}"' if input_database != database else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
@@ -465,7 +465,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     for output_directory in output_directories:
       metrics_file = output_directory / 'metrics.json'
       if not metrics_file.exists():
-        click.secho(f'ERROR: The batch crashed: could not find {metrics_file}', fg='yellow', err=True)
+        click.secho(f'ERROR: A run crashed: could not find {metrics_file}', fg='red', err=True)
         is_failed = True
         continue
       with metrics_file.open() as f:
