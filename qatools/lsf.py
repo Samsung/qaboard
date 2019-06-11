@@ -99,6 +99,8 @@ class Job:
         )
         # click.secho(q_command, dim=True)
         os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
+        # https://www.ibm.com/support/knowledgecenter/en/SSWRJV_10.1.0/lsf_config_ref/lsf.conf.lsb_stdout_direct.5.html
+        os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
 
         out = subprocess.run(
