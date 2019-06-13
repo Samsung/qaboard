@@ -22,7 +22,7 @@ if (process.env.NODE_ENV !== 'production' && module.hot) {
     renderApp()
   })
 } else {
-  serviceWorker.register();
+  serviceWorker.unregister();
 }
 
 renderApp()
