@@ -686,7 +686,7 @@ class CommitsEvolutionPerTest extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
-    const { main_metrics, default_metric} = this.props.project_data.data.qatools_metrics;
+    const { main_metrics, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
     this.state = {
       select_metrics: this.props.select_metrics || main_metrics || [],
       selected_metric: default_metric,
@@ -718,7 +718,7 @@ class CommitsEvolution extends Component {
     } = this.state;
     const { select_metrics } = this.state;
 
-    const { available_metrics, default_metric} = this.props.project_data.data.qatools_metrics;
+    const { available_metrics={}, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
 
     if (!default_metric)
       return <div>To see metrics over time, define your project's metrics with <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/introduction">qatools</a></div>;
