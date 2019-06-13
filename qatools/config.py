@@ -263,6 +263,20 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
 
 
 
+from .conventions import serialize_config
+default_batch_label = 'default'
+default_platform = platform
+default_groups_file = config.get('inputs', {}).get('groups')
+if not default_groups_file:
+  default_groups_file = []
+if not (isinstance(default_groups_file, list) or isinstance(default_groups_file, tuple)):
+  default_groups_file = [default_groups_file]
+default_configuration = config.get('inputs', {}).get('configuration', "default")
+if isinstance(default_configuration, list):
+  default_configuration = serialize_config(default_configuration)
+
+
+
 metrics_file = config.get('outputs', {}).get('metrics')
 if not metrics_file:
   _metrics = {}

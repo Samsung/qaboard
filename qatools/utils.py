@@ -13,6 +13,7 @@ import json
 
 import yaml
 import click
+from click._compat import isatty, strip_ansi
 
 
 class PathType(click.ParamType):
@@ -21,6 +22,36 @@ class PathType(click.ParamType):
   def convert(self, value, param, ctx):
     return Path(value)
 
+
+class RedirectStream():
+  def __init__(self, stream_name, file, color):
+    self.stream_name = stream_name
+    self.stream = getattr(sys, stream_name)
+    self.file = file.open('a')
+    self.stream_color = color or isatty(self.stream)
+    self.file_color = color
+    setattr(sys, stream_name, self)
+  def write(self, data):
+    if self.file_color and self.stream_color:
+      self.stream.write(data)
+      self.file.write(data)
+    else:
+      data_stripped = data # strip_ansi(data)
+      self.stream.write(data if self.stream_color else data_stripped)
+      self.file.write(data if self.file_color else data_stripped)
+    self.stream.flush()
+    self.file.flush()
+  def __del__(self):
+    setattr(sys, self.stream_name, getattr(sys, f"__{self.stream_name}__"))
+    self.file.close()
+  def flush(self):
+    self.file.flush()
+    self.stream.flush()
+
+
+def redirect_std_streams(file, color=None):
+  RedirectStream('stdout', file, color)
+  RedirectStream('stderr', file, color)
 
 
 class FailingEntrypoint:

@@ -17,28 +17,20 @@ from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config
-from .utils import PathType, entrypoint_module, input_data, load_tuning_search
+from .utils import PathType, entrypoint_module, input_data, load_tuning_search, redirect_std_streams
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config_has_error
 from .config import subproject, config, database, platform
+from .config import default_configuration, default_platform, default_groups_file, default_batch_label
 from .config import user, commit_id, commit, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci, on_windows
 
 
-default_batch_label = 'default'
-default_platform = platform
-default_groups_file = config.get('inputs', {}).get('groups')
-if not default_groups_file:
-  default_groups_file = []
-if not (isinstance(default_groups_file, list) or isinstance(default_groups_file, tuple)):
-  default_groups_file = [default_groups_file]
-default_configuration = config.get('inputs', {}).get('configuration', "default")
-if isinstance(default_configuration, list):
-  default_configuration = serialize_config(default_configuration)
+
 
 @click.group()
 @click.pass_context
@@ -104,8 +96,12 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
   ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, ci)
-  if is_ci: # we always want colors in the CI
-    ctx.color = True
+
+  # we manage stripping ansi color codes ourselfs since we redirect std streams
+  # to both the original stream and a log file
+  ctx.color = True
+  # colors in log files colors will be interpreted in the UIs
+  ctx.obj['color'] = is_ci or ci
 
 
 @cli.command()
@@ -152,6 +148,10 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
+    # without this, we can only log runs from `qa batch`, on linux, via LSF
+    # this redirect is not 100% perfect, we don't get stdout from C calls
+    redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color'])
+
     ctx.obj['output_directory'] = output_directory.resolve()
     ctx.obj['forwarded_args'] = forwarded_args
     if not ctx.obj['no_qa_database']:
@@ -166,7 +166,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
 
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `run` function in your raised an exception:', fg='red', bold=True)
+      click.secho(f'[ERROR] Your `run` function raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       runtime_metrics = {'is_failed': True}
 
@@ -194,7 +194,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
     # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    click.secho(f'[ERROR] The `postprocess` function in your entrypoint raised an exception:', fg='red', bold=True)
+    click.secho(f'[ERROR] Your `postprocess` function raised an exception:', fg='red', bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
     metrics = {**runtime_metrics, 'is_failed': True}
 
