@@ -106,6 +106,7 @@ def get_group():
     print('group', request.args["name"])
     print("groups_paths", groups_paths)
     print("config", qatools_config)
+    qatools_config['project']['entrypoint'] = ci_commit.repo_commit_dir / qatools_config['project']['entrypoint']
     try:
         tests = list(
             iter_inputs(
