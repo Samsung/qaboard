@@ -150,7 +150,8 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
 
     # without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
-    redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color'])
+    if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
+      redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color'])
 
     ctx.obj['output_directory'] = output_directory.resolve()
     ctx.obj['forwarded_args'] = forwarded_args
