@@ -31,6 +31,7 @@ const language = filename => {
 const editor_options = {
   selectOnLineNumbers: true,
   seedSearchStringFromSelection: true,
+  readOnly: true,
   //renderSideBySide: false
 };
 
