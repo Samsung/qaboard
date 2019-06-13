@@ -70,6 +70,7 @@ def run_tests():
   def run_test(test):
     click.secho(test.__name__, bold=True)
     return_code = test()
+    return return_code
       
   return_codes = Parallel(n_jobs=-1, verbose=50)(delayed(run_test)(t) for t in test_funcs)
   if any((return_code is None for return_code in return_codes)):
@@ -77,29 +78,30 @@ def run_tests():
   return all((not return_code for return_code in return_codes))
 
 
-
+# import os
+# import subprocess
 # @on_branch("abc")
 # def tests_basic():
-#   pass
+#   return os.system("echo OK")
 
 # @on_branch(["xyz", "abc"])
 # def tests_multiple():
-#   pass
+#   return os.system("echo OK")
 
 # @on_branch(("xyz", "abc"))
 # def tests_multiple_tuple():
-#       pass
+#   return os.system("echo OK")
 
 # @on_branch("ab*")
 # def tests_wildcards():
-#   pass
+#   return subprocess.call("echo OK", shell=True)
 
 # @on_branch("r")
 # def tests_redefinition():
-#   pass
+#   return os.system("echo OK")
 # @on_branch("r")
 # def tests_redefinition():
-#   pass
+#   system.call("echo OK")
 
 
 
