@@ -103,7 +103,8 @@ class ProjectSideCommitList extends React.Component {
     // const dashboard = <Link to={`/${project}/dashboard/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
     // <Menu.Item icon="series-search" text={dashboard}/>
 
-
+    let subproject = project.slice(project_repo.length);
+    let code_url = subproject.length > 0 ? `http://gitlab-srv/${project_repo}/tree/${reference_branch}${subproject}` : `http://gitlab-srv/${project_repo}`
 		return <>
       {!is_committer && <>
   		  {is_project_home ? <div><Menu.Item text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
@@ -111,9 +112,10 @@ class ProjectSideCommitList extends React.Component {
   		  }
   		  <Menu.Item href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
   		  <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-          <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
+        <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
 
-        <Menu.Item href={`http://gitlab-srv/${project_repo}`} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+
+        <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
   		</>}
   		{false && <Menu.Item icon="locate" text="Metrics"/>}
   		{false && <Menu.Item icon="info-sign" text="Settings"/>}
@@ -137,10 +139,12 @@ class ProjectSideResults extends React.Component {
   } 
 
 	render() {
-    const { project_data, commit } = this.props;
+    const { project, project_data, commit } = this.props;
     let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
-
-	const active = view => this.props.selected_views.includes(view);
+    let subproject = project.slice(project_repo.length);
+    let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}${subproject}` : `commit/${commit.id}`) : ''
+    let code_url = `http://gitlab-srv/${project_repo}/${commit_code_sufffix}`
+	  const active = view => this.props.selected_views.includes(view);
     // we can only do tuning for projects whose database is outside the repo
     // otherwise we would need to checkout the repo and manage access...
     const disable_tuning = !!project_data.data &&
@@ -150,7 +154,6 @@ class ProjectSideResults extends React.Component {
                            !!project_data.data.qatools_config.inputs.database.linux &&
                            !project_data.data.qatools_config.inputs.database.linux.startsWith('/');
 
-    let commit_code_sufffix = !!commit ? `commit/${commit.id}` : ''
     return <>
       <Menu.Item icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
       <Menu.Item icon="locate" text="KPIs" active={active('table-kpi')} onClick={this.set('selected_views', 'table-kpi')} />
@@ -163,7 +166,7 @@ class ProjectSideResults extends React.Component {
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="settings" text="Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
-      <Menu.Item href={`http://gitlab-srv/${project_repo}/${commit_code_sufffix}`} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+      <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="layout-group-by" active={active('groups')} text="Tests" onClick={this.set('selected_views', 'groups')} />
