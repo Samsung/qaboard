@@ -62,7 +62,7 @@ class OutputLog extends Component {
 
     if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
     if (!!this.props.output && this.props.output.is_pending) {
-      this.refreshLogInterval = setInterval(this.refreshLog, 1000);
+      this.refreshLogInterval = setInterval(this.refreshLog, 2000);
     }
   };
 
@@ -79,7 +79,8 @@ class OutputLog extends Component {
       .then(response => {
         this.setState({
           is_loaded: true,
-          logs: response.data
+          logs: response.data,
+          error: null,
         });
       })
       .catch(error => {
