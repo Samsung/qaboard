@@ -158,7 +158,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     group_exclude = available_batches[group].get('exclude')
     # Each group can define his own default runtime and LSF configuration
     group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
-    group_configuration = available_batches[group].get('configuration', default_configuration)
+    group_configuration = available_batches[group].get('configurations', available_batches[group].get('configuration', default_configuration))
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
     group_globs = available_batches[group].get('globs', globs)
