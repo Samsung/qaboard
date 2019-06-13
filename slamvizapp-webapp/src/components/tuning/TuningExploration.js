@@ -94,7 +94,7 @@ const Sensibility1DLines = ({
   return <Plot data={traces} layout={layout_} config={config} />;
 };
 
-const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
+const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }) => {
   let outputs_values = Object.values(outputs).map(o => ({
     ...o,
     extra_parameter: o.extra_parameters[parameter]
@@ -140,7 +140,7 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
     },
   };
   return <Plot data={traces} layout={layout_} config={config} />;
-};
+});
 
 // SensibilityScatterMatrix
 // type: 'splom', // Scatter PLOt Matrix
@@ -152,7 +152,7 @@ const Sensibility1DBoxplots = ({ outputs, metric, parameter, layout }) => {
 //   values: outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
-const ParallelTuningPlot = ({
+const ParallelTuningPlot = React.memo(({
   outputs,
   metrics,
   main_metric,
@@ -278,9 +278,9 @@ const ParallelTuningPlot = ({
     autosize: false,
   }
   return <Plot layout={layout} data={traces} config={config} />;
-}
+})
 
-const EfficientFrontierPlot = ({
+const EfficientFrontierPlot = React.memo(({
   outputs,
   metric_x,
   metric_y,
@@ -348,11 +348,11 @@ const EfficientFrontierPlot = ({
     },
   };
   return <Plot data={traces} layout={layout_} config={config} />;
-}
+})
 
 
 
-const Sensibility2DContour = ({
+const Sensibility2DContour = React.memo(({
   outputs,
   metric,
   parameters,
@@ -454,7 +454,7 @@ const Sensibility2DContour = ({
     }
   };
   return <Plot data={traces} layout={layout_} config={config} />;
-};
+});
 
 
 
