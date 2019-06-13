@@ -659,7 +659,7 @@ const mapStateToProps = (state, ownProps) => {
       .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
       .map(([k, v]) => k);
 
-    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [ "metrics", ( (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'table-compare')];
+    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [(((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || "summary"];
     return {
       params,
       project,
