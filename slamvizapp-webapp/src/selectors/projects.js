@@ -1,6 +1,6 @@
 import { createSelector } from 'reselect'
 
-import { filter_batch } from "../utils";
+import { filter_batch, matching_output } from "../utils";
 import {
 	default_project,
 	default_selected,
@@ -67,6 +67,13 @@ export const batchSelector = createSelector([selectedSelector, commitSelector], 
 
     let new_batch_filtered = filter_batch(new_batch, selected.filter_batch_new);
     let ref_batch_filtered = filter_batch(ref_batch, selected.filter_batch_ref);
+
+    // we find the matching outputs once
+    Object.values(new_batch_filtered.outputs).forEach(output => {
+    	const { output_ref, warning } = matching_output({output, batch: ref_batch});
+        output.reference_id = output_ref.id
+        output.reference_warning = warning
+    })
 
     return {
     	selected_batch_new,

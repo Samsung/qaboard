@@ -1,4 +1,5 @@
 import React from "react";
+import { VariableSizeList as List } from 'react-window';
 import qs from "qs";
 
 import {
@@ -11,11 +12,12 @@ import {
 
 import { Section } from "../components/layout";
 import { bit_accuracy_help } from "./bit_accuracy/utils";
-import { matching_output, sortOutputs } from "../utils";
+import { sortOutputs } from "../utils";
 import { OutputCard } from "./OutputCard";
 
 
-
+ 
+ 
 
 class OutputCardsList extends React.Component {
   constructor(props) {
@@ -23,45 +25,44 @@ class OutputCardsList extends React.Component {
     const params = new URLSearchParams(window.location.search);
 
     this.state = {
+      outputs: [],
       select_debug: "",
       // bit-accuracy controls
-      show_all_files: params.get("show_all_files") || false,
-      expand_all: params.get("expand_all") || false,
+      show_all_files: params.get("show_all_files") === 'true' || false,
+      expand_all: params.get("expand_all") === 'true' || false,
       files_filter: params.get("files_filter") || '',
     };
   }
 
-  
-  update = (attribute, attribute_url) => e => {
-  	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
-    let query = qs.parse(window.location.search.substring(1));
-    this.setState({[attribute_url || attribute]: value,})
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [attribute_url || attribute]: value,
-      })
-    });
-  }
-
-  toggle = name => () => {
-    this.setState({[name]: !this.state[name]})
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [name]: !this.state[name],
-      })
-    });
-  }
-
+  componentDidUpdate(prevProps, prevState) {
+    const { new_batch, sort_by, sort_order } = this.props;
+    const has_outputs = !!this.props.new_batch && !!this.props.new_batch.outputs;
+    const had_outputs = !!prevProps.new_batch && !!prevProps.new_batch.outputs;
+    let updated_outputs = has_outputs && (!had_outputs || (had_outputs && prevProps.new_batch.outputs !== this.props.new_batch.outputs));
+    if (updated_outputs) {
+      const outputs = Object.entries(new_batch.outputs)
+        .filter( ([id, output]) => output.output_type !== "optim_iteration")
+        .sort(sortOutputs(sort_by, sort_order))
+      this.setState({outputs})      
+    }
+}
 
   render() {
-    const { project, project_data, new_batch, ref_batch, sort_by, sort_order, controls, type } = this.props;
-    const { show_all_files, expand_all, files_filter } = this.state;
-    // https://github.com/bvaughn/react-virtualized/blob/master/docs/List.md
+    const { project, project_data, new_commit, new_batch, ref_batch } = this.props;
+    const { type, controls } = this.props;
+    const { show_all_files, expand_all, files_filter, select_debug } = this.state;
+    const misc_output_props = {
+      project,
+      project_data,
+      commit,
+      controls,
+      type,
+      show_all_files,
+      files_filter,
+      expand_all
+      select_debug,
+    } 
+
 
     return (
       <>
@@ -140,30 +141,15 @@ class OutputCardsList extends React.Component {
             flexFlow: "row wrap"
           }}
         >
-          {Object.entries(new_batch.outputs)
-            .filter( ([id, output]) => output.output_type!=="optim_iteration")
-            .sort(sortOutputs(sort_by, sort_order))
-            .map(([id, output]) => {
-              let { output_ref, warning } = matching_output({
-                output: output,
-                batch: ref_batch
-              });
+          {this.state.outputs.map(([id, output]) => {
               return (
                 <OutputCard
                   key={id}
-                  type={this.props.type}
-                  show_all_files={this.state.show_all_files}
-                  files_filter={files_filter}
-                  expand_all={expand_all}
-                  project={project}
-                  project_data={project_data}
-                  commit={this.props.new_commit}
                   output_type={output.output_type}
                   output_new={output}
-                  output_ref={output_ref}
-                  warning={warning}
-                  controls={controls}
-                  select_debug={this.state.select_debug}
+                  output_ref={ref_batch.outputs[output.reference_id]}
+                  warning={output.reference_warning}
+                  {...misc_output_props}
                 />
               );
             })}
@@ -171,6 +157,34 @@ class OutputCardsList extends React.Component {
       </>
     );
   }
+
+
+  
+  update = (attribute, attribute_url) => e => {
+    const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
+    let query = qs.parse(window.location.search.substring(1));
+    this.setState({[attribute_url || attribute]: value,})
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [attribute_url || attribute]: value,
+      })
+    });
+  }
+
+  toggle = name => () => {
+    this.setState({[name]: !this.state[name]})
+    let query = qs.parse(window.location.search.substring(1));
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [name]: !this.state[name],
+      })
+    });
+  }
+
 }
 
 export { OutputCardsList }
