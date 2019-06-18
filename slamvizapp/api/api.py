@@ -131,7 +131,7 @@ def get_projects():
       'data': data,
       'latest_commit_datetime': latest_commit_datetime,
       'total_commits': total_commits,
-    } for project_id, data, latest_commit_datetime, total_commits  in projects })
+    } for project_id, data, latest_commit_datetime, total_commits in projects })
 
 @app.route("/api/v1/project")
 def get_project():
