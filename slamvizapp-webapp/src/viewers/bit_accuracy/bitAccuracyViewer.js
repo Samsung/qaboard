@@ -1,7 +1,7 @@
 import React from "react";
 
 import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
-import { OutputViewer } from "../OutputCard"
+import { OutputViewer } from "../OutputViewer"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 
 
@@ -109,8 +109,9 @@ const applyStyle = node => {
       icon = 'cross'
     }
     node.icon = <Icon icon={icon} style={{color, ...icon_style}}/>
-    let size_real = !!node.nodeData.st_size ? node.nodeData.st_size.toLocaleString('fr-FR') : '?'
-    let size_human = !!node.nodeData.st_size ? humanFileSize(node.nodeData.st_size, true) : '?'
+    let has_size = node.nodeData.st_size !== undefined && node.nodeData.st_size !== null
+    let size_real = has_size ? node.nodeData.st_size.toLocaleString('fr-FR') : '?'
+    let size_human = has_size ? humanFileSize(node.nodeData.st_size, true) : '?'
     node.secondaryLabel = <Tooltip><span className={Classes.TEXT_MUTED}>{size_human}</span><span>{size_real} B</span></Tooltip>
 }
 
