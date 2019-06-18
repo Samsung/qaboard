@@ -493,7 +493,7 @@ def save_artifacts(ctx):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import qatools_config_paths
-  from .utils import copy
+  from .utils import copy, file_info
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
@@ -503,11 +503,10 @@ def save_artifacts(ctx):
   config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
   config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
   # we also allow sub-qatools-projects
-  config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools)) for p in qatools_config_paths]}
   config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
-  if  'QATOOLS_EXTRA_VERBOSE': print(config['artifacts'])
+  if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
   if not repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
@@ -516,6 +515,14 @@ def save_artifacts(ctx):
 
   for artifact_name, artifact_config in config['artifacts'].items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
+    manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    if manifest_path.exists():
+    	with manifest_path.open() as f:
+    		manifest = json.load(f)
+    else:
+      manifest = {} 
+
     nb_files = 0
     globs = artifact_config.get('glob')
     if not isinstance(globs, list):
@@ -527,13 +534,17 @@ def save_artifacts(ctx):
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
-        if  'QATOOLS_EXTRA_VERBOSE': print(destination)
+        if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           continue
         if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
         if not ctx.obj['dryrun']:
           copy(path, destination)
+          manifest[path.as_posix()] = file_info(path)
+
+    with manifest_path.open('w') as f:
+      json.dump(manifest, f)
     if nb_files > 0:
       click.secho(f"{nb_files} files copied")
 
