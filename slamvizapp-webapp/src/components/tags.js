@@ -3,12 +3,15 @@ import React from "react";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Classes,
+  Icon,
   Tag,
   Intent,
+  Popover,
+  Tooltip,
   Toaster,
 } from "@blueprintjs/core";
 
-import { deserialize_config } from '../utils'
+import { deserialize_config, linux_to_windows } from '../utils'
 
 
 const toaster = Toaster.create();
@@ -73,4 +76,56 @@ class ExtraParametersTags extends React.Component {
 }
 
 
-export { PlatformTag, ConfigurationsTags, ExtraParametersTags };
+class OutputTags extends React.PureComponent {
+  render() {
+    const { platform, configuration, output_dir_url } = this.props.output;
+    const { warning } = this.props;
+    let windows_path = linux_to_windows(output_dir_url);
+    return <span>
+      <PlatformTag platform={platform}/>
+      <ConfigurationsTags configuration={configuration} />
+      <Tooltip>
+        <a
+          style={{ marginLeft: "4px" }}
+          target="_blank"
+          rel="noopener noreferrer"
+          href={output_dir_url}
+        >
+          <Icon icon="folder-shared-open" style={{verticalAlign: 'baseline'}}/>
+        </a>
+        <span>Open the output directory</span>
+      </Tooltip>
+    <Tooltip>
+        <CopyToClipboard
+          text={windows_path}
+          onCopy={() => {
+            toaster.show({
+              message: "Copied the output directory's windows-path to clipboard!",
+              intent: Intent.PRIMARY
+            });
+          }}
+        >
+          <Icon
+            title="copy to clipboard"
+            intent={Intent.PRIMARY}
+            iconSize={Icon.SIZE_SMALL}
+            icon="duplicate"
+            style={{ marginLeft: "4px" }}
+          />
+        </CopyToClipboard>
+        <span>Copy to the clipboard the Windows directory </span>
+      </Tooltip>
+
+      {warning && (
+        <Popover interactionKind="hover">
+          <Icon intent={Intent.WARNING} icon="warning-sign" style={{verticalAlign: 'baseline'}} />
+          <span>{warning}</span>
+        </Popover>
+      )}
+    </span>
+  }
+}
+
+
+
+export { PlatformTag, ConfigurationsTags, ExtraParametersTags, OutputTags };

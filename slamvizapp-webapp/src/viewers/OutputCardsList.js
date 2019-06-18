@@ -1,5 +1,4 @@
 import React from "react";
-import { VariableSizeList as List } from 'react-window';
 import qs from "qs";
 
 import {
@@ -16,8 +15,11 @@ import { sortOutputs } from "../utils";
 import { OutputCard } from "./OutputCard";
 
 
- 
- 
+
+// https://github.com/bvaughn/react-virtualized/blob/master/docs/WindowScroller.md
+// Example
+// https://codesandbox.io/s/xvl23p7okp
+// http://bvaughn.github.io/react-virtualized/#/components/WindowScroller
 
 class OutputCardsList extends React.Component {
   constructor(props) {
@@ -25,7 +27,7 @@ class OutputCardsList extends React.Component {
     const params = new URLSearchParams(window.location.search);
 
     this.state = {
-      outputs: [],
+      outputs: this.orderedOutputs(props),
       select_debug: "",
       // bit-accuracy controls
       show_all_files: params.get("show_all_files") === 'true' || false,
@@ -34,36 +36,39 @@ class OutputCardsList extends React.Component {
     };
   }
 
+  orderedOutputs = props => {
+    const { new_batch, sort_by, sort_order } = props;
+    if (new_batch === undefined || new_batch === null)
+      return []
+    return Object.entries(new_batch.outputs)
+                 .filter( ([id, output]) => output.output_type !== "optim_iteration")
+                 .sort(sortOutputs(sort_by, sort_order))
+  }
+
   componentDidUpdate(prevProps, prevState) {
-    const { new_batch, sort_by, sort_order } = this.props;
     const has_outputs = !!this.props.new_batch && !!this.props.new_batch.outputs;
     const had_outputs = !!prevProps.new_batch && !!prevProps.new_batch.outputs;
     let updated_outputs = has_outputs && (!had_outputs || (had_outputs && prevProps.new_batch.outputs !== this.props.new_batch.outputs));
     if (updated_outputs) {
-      const outputs = Object.entries(new_batch.outputs)
-        .filter( ([id, output]) => output.output_type !== "optim_iteration")
-        .sort(sortOutputs(sort_by, sort_order))
-      this.setState({outputs})      
+      this.setState({outputs: this.orderedOutputs(this.props)})      
     }
 }
 
   render() {
-    const { project, project_data, new_commit, new_batch, ref_batch } = this.props;
+    const { project, project_data, new_commit, ref_batch } = this.props;
     const { type, controls } = this.props;
-    const { show_all_files, expand_all, files_filter, select_debug } = this.state;
+    const { outputs, show_all_files, expand_all, files_filter, select_debug } = this.state;
     const misc_output_props = {
       project,
       project_data,
-      commit,
+      commit: new_commit,
       controls,
       type,
       show_all_files,
       files_filter,
-      expand_all
+      expand_all,
       select_debug,
     } 
-
-
     return (
       <>
         {type === 'bit_accuracy' && 
@@ -138,10 +143,10 @@ class OutputCardsList extends React.Component {
           style={{
             display: "flex",
             justifyContent: "space-between",
-            flexFlow: "row wrap"
+            flexFlow: "row wrap",
           }}
         >
-          {this.state.outputs.map(([id, output]) => {
+          {outputs.map(([id, output]) => {
               return (
                 <OutputCard
                   key={id}
@@ -186,5 +191,33 @@ class OutputCardsList extends React.Component {
   }
 
 }
+
+
+/*
+          <List
+            height={800}
+            itemCount={outputs.length}
+            itemSize={index => 75}
+            itemData={{outputs, misc_output_props, ref_batch}}
+            width={1240}
+          >
+            {OutputCartWindowed}
+          </List>
+
+
+const OutputCartWindowed = React.memo(({data, index, style}) => {
+  const { outputs, ref_batch, misc_output_props } = data;
+  const [id, output] = outputs[index];
+  return <OutputCard
+    style={style}
+    key={id}
+    output_type={output.output_type}
+    output_new={output}
+    output_ref={ref_batch.outputs[output.reference_id]}
+    warning={output.reference_warning}
+    {...misc_output_props}
+  />
+})
+*/
 
 export { OutputCardsList }

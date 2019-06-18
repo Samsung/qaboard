@@ -1,29 +1,26 @@
-import React, { Component, lazy, Suspense } from "react";
+import React from "react";
+import { InView } from 'react-intersection-observer'
 import { get, all, CancelToken } from "axios";
 import { matchPath  } from 'react-router'
 import pathToRegexp from 'path-to-regexp'
 
 import styled from "styled-components";
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Classes,
   Intent,
   Card,
   Tag,
-  Icon,
   Slider,
   HTMLSelect,
-  Popover,
   Tooltip,
   Toaster,
 } from "@blueprintjs/core";
 
+import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
-import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from '../components/tags'
-import { linux_to_windows } from '../utils'
+import { OutputTags, ExtraParametersTags } from '../components/tags'
 
 export const toaster = Toaster.create();
-
 
 // ES2018.....
 Object.fromEntries = arr => Object.assign({}, ...Array.from(arr, ([k, v]) => ({[k]: v}) ));
@@ -36,156 +33,42 @@ const SlimCard = styled(Card)`
 
 
 
-class OutputHeader extends React.PureComponent {
-  render() {
-    const { output, warning } = this.props;
-    const style = {
-      fontSize: ".7rem",
-      fontWeight: 500,
-      lineHeight: 1.6,
-      letterSpacing: "-1px",
-    }
+const output_header_style = {
+  fontSize: ".7rem",
+  fontWeight: 500,
+  lineHeight: 1.6,
+  letterSpacing: "-1px",
+};
+const OutputHeader = React.memo( ({project, commit, output, warning}) => {
+    const input_over_time_url = `/${project}/dashboard/${commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}`
     return <>
-      <h5 className={Classes.HEADING} style={style} >
-        <a style={{color: 'inherit'}} href={`/${this.props.project}/dashboard/${this.props.commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}`}>{output.test_input_path}</a> <OutputTags output={output} warning={warning}/>
+      <h5 className={Classes.HEADING} style={output_header_style} >
+        <a style={{color: 'inherit'}} href={input_over_time_url}>{output.test_input_path}</a> <OutputTags output={output} warning={warning}/>
       </h5>
       <p><ExtraParametersTags parameters={output.extra_parameters}/>
       </p>
       </>
-  }
-}
+  })
 
 
-class OutputTags extends React.PureComponent {
-  render() {
-    const { platform, configuration, output_dir_url } = this.props.output;
-    const { warning } = this.props;
-    let windows_path = linux_to_windows(output_dir_url);
-    return <span>
-      <PlatformTag platform={platform}/>
-      <ConfigurationsTags configuration={configuration} />
-      <Tooltip>
-        <a
-          style={{ marginLeft: "4px" }}
-          target="_blank"
-          rel="noopener noreferrer"
-          href={output_dir_url}
-        >
-          <Icon icon="folder-shared-open" style={{verticalAlign: 'baseline'}}/>
-        </a>
-        <span>Open the output directory</span>
-      </Tooltip>
-    <Tooltip>
-        <CopyToClipboard
-          text={windows_path}
-          onCopy={() => {
-            toaster.show({
-              message: "Copied the output directory's windows-path to clipboard!",
-              intent: Intent.PRIMARY
-            });
-          }}
-        >
-          <Icon
-            title="copy to clipboard"
-            intent={Intent.PRIMARY}
-            iconSize={Icon.SIZE_SMALL}
-            icon="duplicate"
-            style={{ marginLeft: "4px" }}
-          />
-        </CopyToClipboard>
-        <span>Copy to the clipboard the Windows directory </span>
-      </Tooltip>
-
-      {warning && (
-        <Popover interactionKind="hover">
-          <Icon intent={Intent.WARNING} icon="warning-sign" style={{verticalAlign: 'baseline'}} />
-          <span>{warning}</span>
-        </Popover>
-      )}
-    </span>
-  }
-}
-
-
-
-const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
-const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
-const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
-const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
-const LoadableImageViewer = lazy(() => import('./images/images' /* webpackChunkName: "image-viewer" */));
-const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
-const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
-const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
-
-class OutputViewer extends React.Component {
-  render() {
-    const { type, output_ref, ...props } = this.props;
-    const maybe_output_ref = (this.props.show_reference === undefined || this.props.show_reference) ? output_ref : undefined;
-    let viewer;
-    if (!!type) {
-      if (type === "6dof/txt")
-        viewer =  <LoadableSlamViewer {...props} output_ref={maybe_output_ref}/>
-      else if (type === "pointcloud/txt")
-        viewer = <LoadableTofViewer {...props} output_ref={maybe_output_ref}/>
-      else if (type === "plotly/json")
-        viewer = <LoadablePlotlyViewer {...props} output_ref={maybe_output_ref}/>
-      else if (type.startsWith('video'))
-        viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      else if (type.startsWith('image'))
-        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      else if (type === 'text/plain')
-        viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
-      else if (type === 'text/html')
-        viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      else if (type === 'files/bit-accuracy')
-        viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
-      else viewer = <span>No viewer is defined for type: {type}</span>;
-    } else {
-      const { path } = this.props;
-      if (path.endsWith('png') ||
-          path.endsWith('jpg') ||
-          path.endsWith('jpeg')||
-          path.endsWith('bmp') ||
-          path.endsWith('pdf') ||
-          path.endsWith('tif') ||
-          path.endsWith('tiff')||
-          path.endsWith('dng') ||
-          path.endsWith('raw') ||
-          path.endsWith('hex')) {
-        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      } else if (path.endsWith('plotly.json')) {
-        viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      } else {
-        viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
-      }
-    }
-  return (
-    <Suspense fallback={<span/>}>
-      {viewer}
-    </Suspense>
-  );
-  }
-}
-
-
-class OutputCard extends Component {
+class OutputCard extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
+      // we delay fetching the output manifest and rendering the viewers
+      // until the card comes into view
+      viewable: false || props.viewable,
+      // the output manifest lists all files created by the run
+      manifests: {},
+      is_loaded: false,
+      error: {},
       cancel_source: {
         new: CancelToken.source(),
         reference: CancelToken.source(),
       },
-      is_loaded: false,
-      error: {},
-      manifests: {},
       options: {
       }
     }
-  }
-
-  componentDidMount() {
-    this.fetchData(this.props);
   }
 
   componentWillUnmount() {
@@ -244,7 +127,21 @@ class OutputCard extends Component {
   }
 
 
+  becameViewable = inView => {
+  	if (!inView)
+  		return
+  	this.setState(
+  		{
+  		  viewable: true,
+  		},
+  		() => this.fetchData(this.props)
+  	)
+  }
+ 
+
   componentDidUpdate(prevProps, prevState) {
+  	  if (!this.viewable)
+  	  	return;
       const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
       let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
@@ -334,64 +231,101 @@ class OutputCard extends Component {
     })
   }
  
- 
 
   render() {
     const { is_loaded, error } = this.state;
-    const { main_metrics, available_metrics } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
     const { output_new, output_ref, warning } = this.props;
-    const { qatools_config } = this.props.project_data.data;
-    const controls = this.props.controls || {};
+
 
     if (output_new === undefined  || output_new === null || output_new.is_pending)
       return <span/>
-    if (!is_loaded) return <span></span>;
 
-    // layout should be plotly-like. You could also pass down a props named style.
-    const views = qatools_config.outputs.visualizations || qatools_config.outputs.detailed_views || [];
+    const { qatools_config } = (this.props.project_data || {}).data || {};
     const style = {
       ...qatools_config.outputs.style,
       ...this.props.style,
     }
 
-    let viewers = views.map( (view, idx) => {
-      let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
-      if (hidden)
-        return <span key={idx}/>
 
-      const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
-      if (view_options.some(o => o.selected[0] === undefined || o.selected[0] === null))
-        return <span key={idx} />
+    var content;
+    if (!is_loaded) {
+      content = <span/>;
+    } else {
+      const { main_metrics, available_metrics } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
+      var controls = this.props.controls || {};
 
-      if (!(view.display === 'viewer') && view_options.length > 0 ) {
-        if (view.display === undefined || view.display === 'single') {
-          const view_options_selected = view_options.map(o => [o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
-          var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
-        } else if (view.display === 'all') {
-          paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, {path: view.path}))
-        }
+	    // layout should be plotly-like. You could also pass down a props named style.
+	    var views = qatools_config.outputs.visualizations || qatools_config.outputs.detailed_views || [];
+
+	    let viewers = views.map( (view, idx) => {
+	      let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
+	      if (hidden)	
+	        return <span key={idx}/>
+
+	      const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
+	      if (view_options.some(o => o.selected[0] === undefined || o.selected[0] === null))
+	        return <span key={idx} />
+
+	      if (!(view.display === 'viewer') && view_options.length > 0 ) {
+	        if (view.display === undefined || view.display === 'single') {
+	          const view_options_selected = view_options.map(o => [o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
+	          var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
+	        } else if (view.display === 'all') {
+	          paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, {path: view.path}))
+	        }
+	      } else {
+	        paths = !!this.state.manifests.new[view.path] ? [view.path] : []
+	      }
+	      // console.log(view.display, paths)
+
+	      return paths.map(
+	        (path, path_idx) => <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
+	          {paths.length > 1 && <h3 style={{marginBottom: '0px'}}>{path}</h3>}
+	          <OutputViewer
+	            key={`${idx}-${path_idx}`}
+	            id={`${idx}-${path_idx}`}
+	            output_new={output_new}
+	            output_ref={(controls.show_reference === undefined || controls.show_reference) ? output_ref : undefined}
+	            manifests={this.state.manifests}
+	            {...view}
+	            path={path}
+	            {...controls}
+	            style={{...style, ...view.style}}
+	          />
+	        </div>
+	      )
+	    })
+
+      if (this.props.type === 'bit_accuracy') {
+	      content = <OutputViewer
+		       key="bit-accuracy"
+		       type="files/bit-accuracy"
+		       {...controls}
+		       controls={controls}
+		       output_new={output_new}
+		       output_ref={output_ref}
+		       manifests={this.state.manifests}
+		       style={style}
+		       show_all_files={this.props.show_all_files}
+		       expand_all={this.props.expand_all}
+		       files_filter={this.props.files_filter}
+		      />
       } else {
-        paths = [view.path]
+      	content = <>
+          {!output_new.is_failed && <MetricsTags
+            selected_metrics={main_metrics}
+            available_metrics={available_metrics}
+            metrics_new={output_new.metrics ? output_new.metrics : {}}
+            metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
+          />}
+         {viewers}
+        </>
       }
-      // console.log(view.display, paths)
+    }
 
-      return paths.map(
-        (path, path_idx) => <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
-          {paths.length > 1 && <h3 style={{marginBottom: '0px'}}>{path}</h3>}
-          <OutputViewer
-            key={`${idx}-${path_idx}`}
-            id={`${idx}-${path_idx}`}
-            output_new={output_new}
-            output_ref={(controls.show_reference === undefined || controls.show_reference) ? output_ref : undefined}
-            manifests={this.state.manifests}
-            {...view}
-            path={path}
-            {...controls}
-            style={{...style, ...view.style}}
-          />
-        </div>
-      )
-    })
+
+  	// https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API
+  	// https://www.npmjs.com/package/react-intersection-observer
 
     let container_style = {
       flex: "0 0 auto",
@@ -408,7 +342,7 @@ class OutputCard extends Component {
           {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
           {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
 
-          {this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map( ([name, option]) => { // FIXME: need to filter, only care about shown viewers...
+          {is_loaded && this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map( ([name, option]) => { // FIXME: need to filter, only care about shown viewers...
             const option_label = isNaN(option.name) ? option.name : option.pattern
             if (option.views.every(name => views.find(v => v.name === name).default_hidden===true && !(!!controls.show && controls.show[name]===true)) )
               return <span key={option.name}/>
@@ -423,30 +357,10 @@ class OutputCard extends Component {
             }
           })}
 
-          {this.props.type === 'bit_accuracy'
-            ? <OutputViewer
-               key="bit-accuracy"
-               type="files/bit-accuracy"
-               {...controls}
-               controls={controls}
-               output_new={output_new}
-               output_ref={output_ref}
-               manifests={this.state.manifests}
-               style={style}
-               show_all_files={this.props.show_all_files}
-               expand_all={this.props.expand_all}
-               files_filter={this.props.files_filter}
-              />
-            : <>
-              {!output_new.is_failed && <MetricsTags
-                selected_metrics={main_metrics}
-                available_metrics={available_metrics}
-                metrics_new={output_new.metrics ? output_new.metrics : {}}
-                metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
-              />}
-              {viewers}
-            </>
-          }
+        	{!this.state.viewable && <InView threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+    	      <span></span>
+    	    </InView>}
+          {is_loaded && content}
       </SlimCard>
     </div>
   }
@@ -461,9 +375,7 @@ const cacheLimit = 10000;
 let cacheCount = 0;
 function compilePath(path) {
   if (cache[path]) return cache[path];
-
   const regexp = pathToRegexp.compile(path);
-
   if (cacheCount < cacheLimit) {
     cache[path] = regexp;
     cacheCount++;
@@ -472,4 +384,4 @@ function compilePath(path) {
 }
 
 
-export { OutputCard, OutputViewer };
+export { OutputCard };
