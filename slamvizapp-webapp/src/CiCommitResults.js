@@ -411,6 +411,7 @@ class CiCommitResults extends Component {
                     new_batch={new_batch_filtered}
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
+                    history={this.props.history}
                     sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}
