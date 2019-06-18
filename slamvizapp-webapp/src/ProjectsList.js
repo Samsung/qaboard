@@ -79,7 +79,7 @@ class ProjectsList extends Component {
           .map(([project_id, details]) => {
             let data = details.data || {};
             let git = data.git || {};
-            let qatools_config_project = (data.qatools_config || {}).project;
+            let qatools_config_project = (data.qatools_config || {}).project || {};
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
