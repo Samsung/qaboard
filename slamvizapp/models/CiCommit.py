@@ -3,6 +3,7 @@ A version of the code on which we ran SLAM performance test.
 """
 from pathlib import Path
 from hashlib import md5
+import re
 
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy import or_, UniqueConstraint
@@ -186,7 +187,7 @@ class CiCommit(Base):
     out = {
         'id': self.hexsha,
         'type': self.commit_type,
-        'branch': self.branch,
+        'branch': re.sub('origin/', '', self.branch),
         'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,
         'committer_name': self.committer_name,
