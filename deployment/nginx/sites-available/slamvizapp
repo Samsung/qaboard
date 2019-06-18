@@ -14,6 +14,79 @@ server {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
   }
+
+
+ location ^~ /s/algo_archive/ {
+  alias /net/f2/algo_archive/; 
+  autoindex on;
+  access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
+ }
+
+ location ^~ /s/algo_data/ {
+  alias /stage/algo_data/; 
+  autoindex on;
+  access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
+ }
+
+ location ^~ /s/net/f2/algo_archive/ {
+  alias /net/f2/algo_archive/; 
+  autoindex on;
+  access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
+ }
+
+ location ^~ /s/stage/algo_data/ {
+  alias /stage/algo_data/;
+  autoindex on;
+  access_log off;
+
+  if ($request_method ~* "(GET|POST)") {
+    add_header "Access-Control-Allow-Origin"  *;
+  }
+  # Preflighted requests
+  if ($request_method = OPTIONS ) {
+    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+    add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+    return 200;
+  }
+ }
+
+
+
+
 }
 
 
@@ -52,6 +125,16 @@ server {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
       uwsgi_read_timeout 300;
+      if ($request_method ~* "(GET|POST|PUT|DELETE)") {
+        add_header "Access-Control-Allow-Origin"  *;
+      }
+      # Preflighted requests
+      if ($request_method = OPTIONS ) {
+        add_header "Access-Control-Allow-Origin"  *;
+        add_header "Access-Control-Allow-Methods" "GET, POST, OPTIONS, HEAD";
+        add_header "Access-Control-Allow-Headers" "Authorization, Origin, X-Requested-With, Content-Type, Accept";
+        return 200;
+      }
   }
   location ^~ /webhook {
       include uwsgi_params;
