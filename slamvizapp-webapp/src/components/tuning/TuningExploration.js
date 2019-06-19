@@ -53,16 +53,13 @@ const Sensibility1DLines = ({
         ? Math.min(...values)
         : Math.max(...values);
       let y = relative ? values.map(v => 100 * v / v0) : values;
-      let tunings = new Set(outputs.map(o => o.extra_parameters))
-      // let text = `${configuration}<br />${tunings.size < 2 ? JSON.stringify(tunings.values().next().value) : `${tunings.size} parameter sets`}`
       return {
         type: "scatter",
         mode: "lines+markers",
-        name: test_input_path,
+        name: `${test_input_path} ${configuration}`,
         x: outputs.map(o => o.extra_parameters[parameter]),
         y,
-        // text,
-        text: outputs.map(o => JSON.stringify(o.extra_parameters).replace(/,/g, '<br />')),
+        text: outputs.map(o => `${configuration}<br />${JSON.stringify(o.extra_parameters).replace(/,/g, '<br />')}`),
         marker: {
           size: 4,
           color,
