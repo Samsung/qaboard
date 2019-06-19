@@ -48,17 +48,16 @@ export const commitSelector = createSelector([selectedSelector, state => state.c
 })
 
 
-
-
-const unique_batch = commit => {
-  if (!!!commit || !!!commit.batches) return null;
+const available_batch = (commit, default_batch) => {
+  if (!!!commit || !!!commit.batches) return default_batch;
   const batches = Object.keys(commit.batches);
-  if (batches.length===1) return batches[0];
+  if (batches.length===1 || !!!commit.batches[default_batch]) return batches[0];
+  return default_batch
 }
 
 export const batchSelector = createSelector([selectedSelector, commitSelector], (selected, {new_commit, ref_commit}) => {
-    const selected_batch_new = unique_batch(new_commit) || selected.selected_batch_new;
-    const selected_batch_ref = unique_batch(ref_commit) || selected.selected_batch_ref;
+    const selected_batch_new = available_batch(new_commit, selected.selected_batch_new);
+    const selected_batch_ref = available_batch(ref_commit, selected.selected_batch_ref);
 
     let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
     let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
