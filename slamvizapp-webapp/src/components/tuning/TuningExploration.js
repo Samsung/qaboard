@@ -6,7 +6,7 @@ import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../../components/layout";
-import { groupBy, hash_color, median, average } from "../../utils";
+import { groupBy, groupByObject, hash_color, median, average } from "../../utils";
 
 
 const config = {
@@ -27,9 +27,15 @@ const Sensibility1DLines = ({
   relative,
   layout
 }) => {
-  let outputs_by_input = groupBy(Object.values(outputs), "test_input_path");
-  let traces = Object.entries(outputs_by_input).map(
-    ([test_input_path, outputs_for_input]) => {
+  Object.keys(outputs).forEach(id => {
+    const output = outputs[id]
+    output.input_configuration = {test_input_path: output.test_input_path, configuration: output.configuration}
+  })
+  let outputs_by_input_config = groupByObject(Object.values(outputs), "input_configuration");
+
+  let traces = Object.entries(outputs_by_input_config).map(
+    ([input_path_config,  outputs_for_input]) => {
+      const { test_input_path, configuration } =  JSON.parse(input_path_config)
       let outputs = outputs_for_input
         .filter(o => !o.is_pending && !o.is_failed)
         .sort(
@@ -38,21 +44,25 @@ const Sensibility1DLines = ({
         );
       let color = hash_color(test_input_path);
       let line = {
-        width: 1,
         color,
-        opacity: 0.8
+        width: 2,
+        opacity: 0.8,
       };
       let values = outputs.map(o => o.metrics[metric.key] * metric.scale);
       let v0 = metric.smaller_is_better
         ? Math.min(...values)
         : Math.max(...values);
       let y = relative ? values.map(v => 100 * v / v0) : values;
+      let tunings = new Set(outputs.map(o => o.extra_parameters))
+      // let text = `${configuration}<br />${tunings.size < 2 ? JSON.stringify(tunings.values().next().value) : `${tunings.size} parameter sets`}`
       return {
         type: "scatter",
         mode: "lines+markers",
         name: test_input_path,
         x: outputs.map(o => o.extra_parameters[parameter]),
         y,
+        // text,
+        text: outputs.map(o => JSON.stringify(o.extra_parameters).replace(/,/g, '<br />')),
         marker: {
           size: 4,
           color,
