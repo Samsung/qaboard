@@ -279,3 +279,27 @@ def gitlab_webhook():
     db_session.commit()
 
   return "{status:'OK'}"
+
+
+@app.route("/api/v1/webhook/proxy", methods=['POST'])
+@app.route("/api/v1/webhook/proxy/", methods=['POST'])
+def proxy_webook():
+  """
+  Proxy users' webhook triggers to avoid CORS issues.
+  """
+  from requests import Request, Session
+  from requests.auth import HTTPBasicAuth
+
+  data = request.get_json()
+  data['method'] = data['method'].upper()
+  if 'auth' in data:
+    # we could easily support other types of authentification
+    # https://2.python-requests.org/en/master/user/authentication/
+    data['auth'] = HTTPBasicAuth(data['auth']['username'], data['auth']['password'])
+  session = Session()
+  r = Request(**data)
+  r_prepped = r.prepare()
+
+  response = session.send(r_prepped)
+  print(response.headers)
+  return response.content, response.status_code
