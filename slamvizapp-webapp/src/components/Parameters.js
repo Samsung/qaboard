@@ -3,7 +3,6 @@ import { get, all, CancelToken } from "axios";
 import qs from "qs";
 
 import {
-    Classes,
     Button,
     Intent,
     Callout,
