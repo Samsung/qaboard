@@ -320,8 +320,10 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Algorithm configuration</h2>
                   <CommitParameters
                     project={project}
+                    project_data={config_data}
                     new_commit={new_commit}
                     ref_commit={ref_commit}
+                    history={this.props.history}
                   />
                 </Card>
                </Section>}
