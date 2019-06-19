@@ -536,6 +536,10 @@ def save_artifacts(ctx):
         destination = commit_rootproject_ci_dir / path
         if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
+          # when working on subprojects, the artifact might be copied already,
+          #but manifests are saved per-subproject
+          if path.as_posix() not in manifest:
+            manifest[path.as_posix()] = file_info(path)
           continue
         if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
