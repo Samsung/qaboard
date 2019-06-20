@@ -107,6 +107,24 @@ bit_accuracy:
   # you can choose the CI stage that defines failure. By default, we use gitlab's global commit status
   # failed_ci: qa-tests
 
+
+
+# the web application can give users buttons to trigger builds via webhooks
+# http://qa-docs/docs/triggering-third-party-tools
+integrations:
+  - text: Windows
+    webhook:
+      host: jensirc:8080
+      params:
+        commit_id: "${commit_id}"
+        # you can use ${branch}...
+      method: POST
+  # You can style the buttons using the Menu.Iten props defined here
+  # https://blueprintjs.com/docs/#core/components/menu
+  - text: Documentation
+    disabled: true
+    href: 'http://direct.link/anywhere'
+
 # Depending on your project, you may want to use different LSF job queues
 # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
 lsf:

@@ -19,7 +19,7 @@
       },
       "debugging-runs-with-an-IDE": {
         "title": "Debugging qatools' runs in an IDE",
-        "sidebar_label": "Debugging"
+        "sidebar_label": "Debugging with IDEs"
       },
       "faq": {
         "title": "Frequently Asked Questions",
@@ -35,7 +35,10 @@
       },
       "metadata-integration-external-databases": {
         "title": "Using input metadata and integrating with external databases",
-        "sidebar_label": "Metadata & external databases"
+        "sidebar_label": "Metadata & External Databases"
+      },
+      "metrics-quantitative-outputs": {
+        "title": "metrics-quantitative-outputs"
       },
       "project-init": {
         "title": "Adding qatools to your project",
@@ -45,9 +48,13 @@
         "title": "First steps with qatools",
         "sidebar_label": "Project Setup"
       },
+      "triggering-third-party-tools": {
+        "title": "Triggering CI and third-party tools via the web application",
+        "sidebar_label": "Triggering External Tools"
+      },
       "tuning-workflows": {
         "title": "Tuning workflows: all your options",
-        "sidebar_label": "Tuning workflows"
+        "sidebar_label": "Tuning Workflows"
       },
       "visualizations": {
         "title": "Visualizing your algorithm's outputs",

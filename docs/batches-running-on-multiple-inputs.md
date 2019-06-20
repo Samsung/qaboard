@@ -98,8 +98,9 @@ configurations-can-be-arrays-of-objects:
     - base
     - low-light
     - cde:
-      - "--my-flag"
-      - "--my-other-flag"
+      - "-w 9920"
+      - "-h 2448"
+      - "-it BAYER10"
   inputs
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin

@@ -14,6 +14,7 @@
   		"bit-accuracy",
   		"subprojects",
   		"exporting-results",
+      "triggering-third-party-tools",
   		"metadata-integration-external-databases",
   		"qa-run",
   		"docker-integration",

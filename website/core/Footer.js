@@ -51,7 +51,7 @@ class Footer extends React.Component {
             <h5>More</h5>
             /*<a href={`${this.props.config.baseUrl}blog`}>Blog</a>*/
             <a href={this.props.config.repoUrl}>Code</a>
-            <a href="https://github.com/Samsung">Samsung Open-Source @GitHub</a>
+            <a href="https://github.sec.samsung.net/arthur-flam/qatools/">Samsung Open-Source @GitHub</a>
           </div>
         </section>
 

@@ -1,6 +1,6 @@
 ---
 id: tuning-workflows
-sidebar_label: Tuning workflows
+sidebar_label: Tuning Workflows
 title: Tuning workflows: all your options
 ---
 

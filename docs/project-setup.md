@@ -113,9 +113,11 @@ available_metrics:
 
 ## Reference
 ### Useful `context` properties
+
 | **What**              |                                            |
 |-----------------------|--------------------------------------------|
 | `test_input`          | path of the test, relative to the database |
+| `test_metadata`       | if relevant, test metadata                 |
 | `database`            | path to the database                       |
 | `absolute_test_input` | $database / $test_input                    |
 
@@ -129,7 +131,12 @@ available_metrics:
 |---------------------|--------------------------------------------|
 | `output_directory`  | where your code should save its outputs    |
 
-
+## Accessing the project configuration
+```python
+from qatools.config import config
+config['project']['name']
+# ...
+```
 
 
 

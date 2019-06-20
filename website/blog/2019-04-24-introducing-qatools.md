@@ -5,6 +5,10 @@ authorURL: https://shapescience.xyz/
 authorFBID: 508446717
 ---
 
+## What is qatools made of?
+- a client library
+- ..a web application that displays results.
+
 Icon? Maybe ask samsung design. Chekc github how they do it....
 - papillon (spent a lot of effort preparing), chrysalide
 - diamond (too common?)
@@ -46,7 +50,7 @@ It is a step above notebooks
 - you need to manage long training sessions, and need live training feedback
 - you
 
-# What you still need to integrate with qatools
+# What you still need   to integrate with qatools
 - task-runner infrastructure: internally we use X. TODO: sample Celery integration.
 - deployment infrastructure
 - model and database versionning

@@ -1,6 +1,6 @@
 ---
 id: metadata-integration-external-databases
-sidebar_label: Metadata & external databases
+sidebar_label: Metadata & External Databases
 title: Using input metadata and integrating with external databases
 ---
 

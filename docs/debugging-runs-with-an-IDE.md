@@ -1,7 +1,7 @@
 ---
 id: debugging-runs-with-an-IDE
 title: Debugging qatools' runs in an IDE
-sidebar_label: Debugging
+sidebar_label: Debugging with IDEs
 ---
 
 ## Debugging with PyCharm
@@ -13,6 +13,7 @@ Edit your "debug configurations" like this:
 
 ![pyCharm setup](http://gitlab-srv/common-infrastructure/qatools/uploads/e799a84559ca42b5b8da0bb609245721/pycharm-debugg.png)
 
+> In some cases you'll also need to define as environment variables `LC_ALL=en_US.utf8 LANG=en_US.utf8`
 
 ## Debugging with VSCode
 To configure debugging, the editor opens a file called *launch.json*. You want to add configurations that look like those:

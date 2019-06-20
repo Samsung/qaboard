@@ -8,6 +8,9 @@ title: Adding qatools to your project
 Go at the root of your project's git repository and run:
 
 ```bash
+# setenv LC_ALL en_US.utf8
+# setenv LANG en_US.utf8
+
 qa init
 #=> 🎉🎉🎉
 ```

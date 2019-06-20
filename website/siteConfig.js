@@ -24,13 +24,14 @@ const users = [
 const siteConfig = {
   title: 'qatools', // Title for your website.
   tagline: 'QA + Algorithms',
+  // SIRC
   url: 'http://qa-docs', // Your website URL
   baseUrl: '/', // Base URL for your project */
-  // url: 'https://qa', // Your website URL
-  // baseUrl: '/docs', // Base URL for your project */
+
+  // CODE-GITHUB
   // For github.io type URLs, you would set the url and baseUrl like:
-  //   url: 'https://facebook.github.io',
-  //   baseUrl: '/test-site/',
+  // url: 'https://github.sec.samsung.net',
+  // baseUrl: '/arthur-flam/',
 
   // Used for publishing and more
   projectName: 'qatools',
