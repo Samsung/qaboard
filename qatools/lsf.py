@@ -9,12 +9,12 @@ If you run into issues with LSF
 import os
 import sys
 import subprocess
+import time
+import json
 from pathlib import Path
 from dataclasses import dataclass, replace
 
 import click
-
-from .config import config, on_windows
 
 
 # We avoid hosts that run on old processors lacking AVX instructions (pre-Sandy Bridge)
@@ -23,102 +23,163 @@ from .config import config, on_windows
 # old_cpu_architectures = ["IBMX5667", "IBMX5570", "IBMX5690"]
 # resources = " && ".join([f"!(model=={arch})" for arch in old_cpu_architectures])
 
-class Priority:
-    LOW, NORMAL, HIGH = 1000, 2000, 4000
+class LsfPriority:
+  LOW, NORMAL, HIGH = 1000, 2000, 4000
 
 @dataclass
 class LsfConfig:
-    priority: int = Priority.NORMAL
-    max_threads: int = 0
-    max_memory: int = 0 #in MB
-    sequential: bool = False
-    resources: str = None
-    project: str = config.get("project", {}).get('name', 'qatools')
+  project: str = None
+  queue: str = None
+  fast_queue: str = None
+  priority: int = LsfPriority.NORMAL
+  max_threads: int = 0
+  max_memory: int = 0 #in MB
+  resources: str = None
 
 
 class Job:
-    """Wraps LSF jobs for convenience."""
+  """Wraps LSF jobs for convenience."""
 
-    def __init__(self, name, command="", log_dir=Path().resolve(), lsf_config_dict=None):
-        self.name = str(name).replace(" ", "-").replace('"','')
-        self.command = command
-        self.log_file = log_dir / "log.txt"
+  def __init__(self, name, command="", output_directory=Path().resolve(), lsf_config_dict=None):
+    self.name = str(name).replace(" ", "-").replace('"','')
+    self.command = command
+    self.output_directory = output_directory
+    self.log_file = output_directory / "log.txt"
 
-        self.lsf_config = LsfConfig()
-        if lsf_config_dict:
-          self.lsf_config = replace(self.lsf_config, **lsf_config_dict)
+    self.lsf_config = LsfConfig()
+    if lsf_config_dict:
+      self.lsf_config = replace(self.lsf_config, **lsf_config_dict)
 
 
-    def send(self, dependencies=None, interactive=False):
-        """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
+  def is_failed(self):
+    metrics_file = self.output_directory / 'metrics.json'
+    if not metrics_file.exists():
+      click.secho(f'ERROR: A run crashed: could not find {metrics_file}', fg='red', err=True)
+      return True
+    with metrics_file.open() as f:
+      metrics = json.load(f)
+      if metrics['is_failed']:
+        click.secho(f"ERROR: Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+        return True
+
+
+ 
+  def run_local(self, cwd):
+    with subprocess.Popen(self.command, shell=True,
+                          encoding='utf-8',
+                          cwd=cwd,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+      for line in iter(process.stdout.readline, ''):
+        print(line, end='')
+      process.wait()
+      return process.returncode
+
+  def run_lsf(self, dependencies=None, interactive=False):
+    """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
-        if on_windows or self.lsf_config.sequential:
-            out = subprocess.run(
-                self.command,
-                shell=True,
-                encoding="utf-8",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-            click.secho(out.stdout)
-            return out
+    if dependencies:
+      dependencies_expression = " && ".join([f"ended({job.name})" for job in dependencies])
+      dependencies_flag = f'-w "{dependencies_expression}"'
+    else:
+      dependencies_flag = ""
 
-        if dependencies:
-            dependencies_expression = " && ".join([f"ended({job.name})" for job in dependencies])
-            dependencies_flag = f'-w "{dependencies_expression}"'
-        else:
-            dependencies_flag = ""
-
-        queue = config["lsf"]["queue"] if not interactive else config["lsf"]["fast_queue"]
-        q_command = " ".join(
-            [
-                "bsub",
-                # only necessary if we send the job through ssh
-                # f'-cwd "{os.getcwd()}"',
-                # note: we don't request a pseudoterminal here -Is
-                # on our current use-cases, -K should be enough
-                "-I" if interactive else "",
-                f"-P {self.lsf_config.project}",
-                f"-q {queue}",
-                f"-sp {self.lsf_config.priority}",
-                f'-J "{self.name}"',
-                f'-o "{self.log_file}"',
-                f"-R \"affinity[thread({self.lsf_config.max_threads})]\"" if self.lsf_config.max_threads > 0 else "",
-                f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
-                f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
-                dependencies_flag,
-                '<< EOF\n'
-                # the click python package hates ascii locales, for good reasons
-                "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
-                # forces a non-interactive matplotlib backend
-                "MPLBACKEND=agg",
-                self.command,
-                "\nEOF",
-            ]
-        )
-        # click.secho(q_command, dim=True)
-        os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
-        # https://www.ibm.com/support/knowledgecenter/en/SSWRJV_10.1.0/lsf_config_ref/lsf.conf.lsb_stdout_direct.5.html
-        os.environ['LSB_STDOUT_DIRECT'] = 'Y'
+    queue = self.lsf_config.queue if not interactive else self.lsf_config.fast_queue
+    q_command = " ".join(
+      [
+        "bsub",
+        # only necessary if we send the job through ssh
+        # f'-cwd "{os.getcwd()}"',
+        # note: we don't request a pseudoterminal here -Is
+        # on our current use-cases, -K should be enough
+        "-I" if interactive else "",
+        f"-P {self.lsf_config.project}",
+        f"-q {queue}",
+        f"-sp {self.lsf_config.priority}",
+        f'-J "{self.name}"',
+        f'-o "{self.log_file}"',
+        f"-R \"affinity[thread({self.lsf_config.max_threads})]\"" if self.lsf_config.max_threads > 0 else "",
+        f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
+        f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
+        dependencies_flag,
+        '<< EOF\n'
+        # the click python package hates ascii locales, for good reasons
+        "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
+        # forces a non-interactive matplotlib backend
+        "MPLBACKEND=agg",
+        self.command,
+        "\nEOF",
+      ]
+    )
+    if 'QATOOLS_BATCH_VERBOSE' in os.environ:
+      click.secho(q_command, dim=True)
+    os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
+    # https://www.ibm.com/support/knowledgecenter/en/SSWRJV_10.1.0/lsf_config_ref/lsf.conf.lsb_stdout_direct.5.html
+    os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
 
-        out = subprocess.run(
-            q_command,
-            shell=True,
-            encoding="utf-8",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        # click.secho(out.stdout)
-        return out
+    out = subprocess.run(
+      q_command,
+      shell=True,
+      encoding="utf-8",
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT,
+    )
+    # click.secho(out.stdout)
+    return out
 
 
 
-def kill_jobs(jobs, on_lsf=False):
+def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None, delay_before_status_check=0):
+  for job in jobs:
+    job.run_lsf()
+
+  if not no_wait:
+    waiting_job = [Job(f"{lsf_jobs_prefix}*", lsf_config_dict=lsf_config)]
+    # in case we receive SIGTERM/SIGINT, we cancel all remaining sent jobs
+    import signal
+    def sigterm_handler(_signo, _stackframe):
+      print('Aborted.')
+      kill_jobs_lsf(waiting_job, via_lsf=True)
+      exit(1)
+    signal.signal(signal.SIGTERM, sigterm_handler)
+    signal.signal(signal.SIGINT, sigterm_handler)
+
+    wait = Job(waiting_job_name, 'echo "Done."', lsf_config_dict=lsf_config)
+    wait.run_lsf(interactive=True, dependencies=waiting_job)
+ 
+    if delay_before_status_check:
+      time.sleep(delay_before_status_check)
+
+    is_failed = False
+    for job in jobs:
+      is_failed = is_failed or job.is_failed()
+
+
+def run_jobs_local(jobs, config, ctx):
+  from joblib import Parallel, delayed
+  n_jobs = config.get('runners', {}).get('local', {}).get('concurrency', -1)
+  verbose = int(os.environ.get('QATOOLS_BATCH_VERBOSE', 0))
+  # multiprocessing will try to reimport qatools, which relies on the CWD
+  cwd = os.getcwd()
+  os.chdir(ctx.obj['previous_cwd'])
+  Parallel(n_jobs=n_jobs, verbose=verbose)(delayed(lambda j: j.run_local(cwd=cwd))(j) for j in jobs)
+  os.chdir(cwd)
+
+def run_jobs(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None, delay_before_status_check=0, config=None, ctx=None):
+  if runner == 'lsf':
+    run_jobs_lsf(jobs, runner, no_wait, lsf_jobs_prefix, lsf_config, waiting_job_name)
+  if runner == 'local':
+    if no_wait:
+      click.secho(f'WARNING: --no-wait is not supported for local runs', fg='yellow', err=True)
+    run_jobs_local(jobs, config, ctx)
+
+
+
+def kill_jobs_lsf(jobs, via_lsf=False):
     command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
     if on_lsf:
-        killer = Job(f"killer", f'"{command}"', lsf_config_dict={'priority': Priority.HIGH})
+        killer = Job(f"killer", f'"{command}"', lsf_config_dict={'priority': LsfPriority.HIGH})
         killer.send()
     else:
         out = subprocess.run(
@@ -132,12 +193,13 @@ def kill_jobs(jobs, on_lsf=False):
         return out
 
 
-def running_lsf_job_names():
+
+def get_running_lsf_jobs():
     """
   Return the names of the running LSF jobs for the current user (as a set)
   From Windows we return an empty set, but if you really want to, you should be able to find a way to connect to LSF.
   """
-    if on_windows:
+    if os.name=='nt':
         return set()
 
     cmd = " ".join(["bjobs -u", os.environ["USER"], "-noheader -o 'job_name:100'"])
@@ -149,3 +211,17 @@ def running_lsf_job_names():
         return set(job_names)
     else:
         return set()
+
+
+
+def not_started_or_failed(output_directory, running_jobs_names):
+  metrics_path = output_directory / 'metrics.json'
+  is_done = metrics_path.exists()
+  if is_done:
+    with metrics_path.open() as f:
+      is_failed = json.load(f).get('is_failed', True)
+  else:
+    is_failed = False
+  # LSF job names are based on the output directory and transformed 
+  is_pending = Job(output_directory).name in running_jobs_names
+  return not (is_done or is_pending or is_failed)

@@ -12,7 +12,8 @@ import yaml
 
 import click
 
-from .lsf import Job, running_lsf_job_names, Priority, kill_jobs
+from .lsf import Job, LsfPriority
+from .lsf import get_running_lsf_jobs, not_started_or_failed, run_jobs
 from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
@@ -52,19 +53,21 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     click.secho(f'Aborting: please first fix the configuration errrors in qatools.yaml', fg='red', err=True, bold=True)
     exit(1)
 
+  # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
+  # http://click.pocoo.org/6/complex/
+  ctx.obj = {}
+
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   get_command = 'get' in sys.argv
   if root_qatools != Path().resolve() and not will_show_help and not get_command:
-      click.echo(click.style("Working	directory changed to: ", fg='cyan') + click.style(str(root_qatools), fg='cyan', bold=True), err=True)
-      os.chdir(root_qatools)
+    ctx.obj['previous_cwd'] = os.getcwd()
+    click.echo(click.style("Working	directory changed to: ", fg='cyan') + click.style(str(root_qatools), fg='cyan', bold=True), err=True)
+    os.chdir(root_qatools)
 
   # We want open permissions on outputs and artifacts
   # it makes collaboration among mutliple users / automated tools so much easier...
   os.umask(0)
 
-  # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
-  # http://click.pocoo.org/6/complex/
-  ctx.obj = {}
   ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
   ctx.obj['database'] = inputs_database
   ctx.obj['inputs_globs'] = inputs_glob
@@ -177,7 +180,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
 
     if metrics['is_failed']:
       click.secho('[ERROR] The run has failed.', fg='red', err=True)
-      click.secho(str(metrics), fg='red')
+      click.secho(str(metrics), fg='red', bold=True)
       exit(1)
     else:
       click.secho(str(metrics), fg='green')      
@@ -297,6 +300,7 @@ def sync(ctx, input_path, output_path):
     click.secho(str(metrics), fg='green')      
 
 
+lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else config.get('lsf', {})
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
@@ -307,16 +311,18 @@ def sync(ctx, input_path, output_path):
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.option('--return-prefix-outputs-path', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
-@click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
-@click.option('--lsf-threads', default=config.get('lsf', {}).get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
-@click.option('--lsf-memory', default=config.get('lsf', {}).get('memory', 0), type=int, help="restrict memory (MB) to use. 0=no restriction")
-@click.option('--lsf-resources', default=config.get('lsf', {}).get('resources', None), help="LSF resources restrictions (-R)")
-@click.option('--lsf-sequential/--lsf-parallel', default=config.get('lsf', {}).get('sequential', False), help="Run locally, dont use LSF")
+@click.option('--runner', default=config.get('runners', {}).get('default', 'lsf' if os.name!='nt' else 'local'), help="Run runs locally or on LSF")
+@click.option('--lsf-threads', default=lsf_config.get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
+@click.option('--lsf-memory', default=lsf_config.get('memory', 0), help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--lsf-queue', default=lsf_config.get('queue'), help="LSF queue (-q)")
+@click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue'), help="Fast LSF queue, for interactive jobs")
+@click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
+@click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, dryrun, no_batch_qa_database, lsf_threads, lsf_memory, lsf_resources, lsf_sequential, action_on_existing, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, return_prefix_outputs_path, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not groups_file:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
@@ -330,23 +336,24 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         click.secho(f'Use either `qa batch GROUP`, or `qa batch --group GROUP_2 --group GROUP_2`', fg='red', err=True)
         exit(1)
     group, *forwarded_args = forwarded_args
+    group = [group]
 
-  running_jobs_names = running_lsf_job_names()
-  def not_started(output_directory):
-    is_done = (output_directory / 'metrics.json').exists()
-    is_pending = Job(output_directory).name in running_jobs_names
-    return not (is_done or is_pending)
+  batch_label = ctx.obj['batch_label']
+  commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha if commit else ''}{f'?label={batch_label}' if batch_label != 'default' else ''}"
 
+
+  running_lsf_jobs = get_running_lsf_jobs()
   default_lsf_config =  {
+    "project": lsf_config.get('project', config.get("project", {}).get('name', 'qatools')),
     "max_threads": lsf_threads,
     "max_memory": lsf_memory,
-    'sequential': lsf_sequential,
+    "queue": lsf_queue,
+    "fast_queue": lsf_fast_queue,
     'resources': lsf_resources
   }
   batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
   lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
-  commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha if commit else ''}"
   dryrun = ctx.obj['dryrun'] or return_prefix_outputs_path
   should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
   if should_notify_qa_database:
@@ -363,7 +370,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
 
   jobs = []
-  output_directories = []
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
   inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
@@ -384,7 +390,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         print(output_directory)
         break
 
-      should_run = action_on_existing=='run' or not_started(output_directory)
+      should_run = action_on_existing=='run' or not_started_or_failed(output_directory, running_lsf_jobs)
       if not should_run and action_on_existing=='skip':
         continue
 
@@ -394,8 +400,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_ = input_configuration
-          configuration_cli =  f'--configuration "{input_configuration_}"'
+          configuration_cli =  f'--configuration "{input_configuration}"'
 
       args = [
           f"qa",
@@ -416,9 +421,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if str(subproject) != '.':
         command = f"cd {subproject} && {command}"
 
-      lsf_configuration['priority'] = Priority.LOW if tuning_params else Priority.NORMAL
+      lsf_configuration['priority'] = LsfPriority.LOW if tuning_params else LsfPriority.NORMAL
       jobs.append(Job(f"{lsf_jobs_prefix}{output_directory}", command, output_directory, lsf_configuration))
-      output_directories.append(output_directory)
 
       if should_notify_qa_database:
         notify_qa_database(**{
@@ -433,56 +437,21 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
           },
         })
 
-
-  waiting_job = [Job(f"{lsf_jobs_prefix}*")]
-  jobs_sent = []
-
-  # in case we receive SIGTERM/SIGINT, we cancel all remaining sent jobs
-  import signal
-  def sigterm_handler(_signo, _stackframe):
-    print('Aborted.')
-    kill_jobs(waiting_job, on_lsf=True)
-    exit(1)
-  signal.signal(signal.SIGTERM, sigterm_handler)
-  signal.signal(signal.SIGINT, sigterm_handler)
-
-  for job in jobs:
-    if dryrun: continue
-    job.send()
-    jobs_sent.append(job)
-
-  if not dryrun and not no_wait:
+  if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
-    name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
-    wait = Job(name, 'echo "Finished batch."')
-    wait.send(interactive=True, dependencies=waiting_job)
-
-    # our shared storage takes a while to sync. 
-    # it should be solved, and this sleep removed
-    if is_ci or ctx.obj['ci']: # for local runs, no need to wait
-      time.sleep(20)#s
-
-    is_failed = False
-    for output_directory in output_directories:
-      metrics_file = output_directory / 'metrics.json'
-      if not metrics_file.exists():
-        click.secho(f'ERROR: A run crashed: could not find {metrics_file}', fg='red', err=True)
-        is_failed = True
-        continue
-      with metrics_file.open() as f:
-        metrics = json.load(f)
-        if metrics['is_failed']:
-          is_failed = True
-          click.secho(f"ERROR: Failed run! More info at: {output_directory}/log.txt", fg='red', err=True)
+    waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
+    # Our shared storage takes a while to sync. It should be solved, and this sleep removed
+    # But for local runs, no need to wait
+    delay_before_status_check = 20 if is_ci or ctx.obj['ci'] else 0 #seconds
+    is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, delay_before_status_check=delay_before_status_check, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
-    if len(output_directories) and is_ci and ctx.obj['batch_label']=='default':
+    if jobs and is_ci and batch_label=='default':
       update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
     if is_failed:
-      # click.secho(f'(FIXME: due to false positives errors about metrics.json missing, **we exit succesfully**.)', fg='yellow')
       if is_ci:
-        click.secho(f'Read all the logs at: {commit_url}?selected_views=logs', fg='red', bold=True)
+        click.secho(f"Read all the logs at: {commit_url}{'?' if batch_label == 'default' else ''}selected_views=logs", fg='red', bold=True)
       exit(1)
 
 

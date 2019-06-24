@@ -125,20 +125,26 @@ integrations:
     disabled: true
     href: 'http://direct.link/anywhere'
 
-# Depending on your project, you may want to use different LSF job queues
-# Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
-lsf:
-  user: arthurf
-  queue: alg_q
-  # qatools uses a fast queue to launch jobs that create subsequent LSF jobs
-  # It helps get faster feeback about which outputs are pending
-  fast_queue: alg_fast_q
-  # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
-  # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
-  # sequential: false # disable LSF and run sequentially
+
+runners:
+  # By default `qa batch` uses LSF on linux and the local host on Windows
+  # default: lsf
+  local:
+    concurrency: -1
+  lsf: # we use our cluster on linux
+    user: ispq
+    # Depending on your project, you may want to use different LSF job queues
+    # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
+    queue: alg_q
+    # qatools uses a fast queue to launch jobs that create subsequent LSF jobs
+    # It helps get faster feeback about which outputs are pending
+    fast_queue: alg_fast_q
+    # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
+    # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # You can also set: project, resources, priority
 
 
 # Your artifacts will be saved under this location.
 ci_root:
   linux: /stage/algo_data/ci
-  windows: '\\\\netapp\\algo_data\\ci'
+  windows: '//netapp/algo_data/ci'
