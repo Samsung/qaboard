@@ -142,7 +142,6 @@ def copy(src, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
   try:
     _copy(src, destination)
-    nb_files += 1
   except:
     time.sleep(0.01) # seconds
     try:
