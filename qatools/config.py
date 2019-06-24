@@ -33,8 +33,8 @@ def renamed_deprecated(arg):
     if arg == before: return after
   return arg
 sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
-
-
+if '--lsf-sequential' in sys.argv:
+  click.secho('WARNING: --lsf-sequential was replaced with `--runner local`', fg='yellow', bold=True)
 
 
 def find_qatools_configs(path):

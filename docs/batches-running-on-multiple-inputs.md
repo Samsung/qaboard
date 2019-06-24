@@ -130,9 +130,7 @@ each-input-can-have-its-own-configuration:
 ## LSF cluster integration
 At SIRC we're fortunate to have a big cluster with ~100 servers. qatools uses its task management tool (LSF) to submit batch jobs.
 
-:::note
-On Windows, jobs are run sequentially. **Merge requests are welcome** to use multiprocessing, or use the experimental Windows LSF hosts.
-:::
+> To run jobs locally on Linux, you can either define in *qatools.yaml* `runners.default: local` or use `qa batch --runner local`. On Windows jobs are always local. The number of concurrent local jobs is `runners.local.concurrency`. 
 
 You can change in your project's [*qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L107) the default LSF configuration:
 
