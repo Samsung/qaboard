@@ -25,7 +25,7 @@ class PathType(click.ParamType):
 
 class RedirectStream():
   def __init__(self, stream_name, file, color):
-    print(f'Redirecting {stream_name}')
+    # print(f'Redirecting {stream_name}')
     self.stream_name = stream_name
     self.stream = getattr(sys, stream_name)
     self.file = file.open('a')
