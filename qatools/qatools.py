@@ -488,7 +488,10 @@ def save_artifacts(ctx):
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     if manifest_path.exists():
     	with manifest_path.open() as f:
-    		manifest = json.load(f)
+        try:
+    		  manifest = json.load(f)
+        except: 
+          manifest = {}
     else:
       manifest = {} 
 
