@@ -487,9 +487,9 @@ def save_artifacts(ctx):
     manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     if manifest_path.exists():
-    	with manifest_path.open() as f:
+      with manifest_path.open() as f:
         try:
-    		  manifest = json.load(f)
+          manifest = json.load(f)
         except: 
           manifest = {}
     else:
