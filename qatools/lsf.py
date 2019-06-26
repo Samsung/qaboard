@@ -130,7 +130,7 @@ class Job:
 
 
 
-def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None, delay_before_status_check=0):
+def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None):
   for job in jobs:
     job.run_lsf()
 
@@ -148,13 +148,6 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
     wait = Job(waiting_job_name, 'echo "Done."', lsf_config_dict=lsf_config)
     wait.run_lsf(interactive=True, dependencies=waiting_job)
  
-    if delay_before_status_check:
-      time.sleep(delay_before_status_check)
-
-    is_failed = False
-    for job in jobs:
-      is_failed = is_failed or job.is_failed()
-
 
 def run_jobs_local(jobs, config, ctx):
   from joblib import Parallel, delayed
@@ -166,14 +159,22 @@ def run_jobs_local(jobs, config, ctx):
   Parallel(n_jobs=n_jobs, verbose=verbose)(delayed(lambda j: j.run_local(cwd=cwd))(j) for j in jobs)
   os.chdir(cwd)
 
+
 def run_jobs(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None, delay_before_status_check=0, config=None, ctx=None):
   if runner == 'lsf':
     run_jobs_lsf(jobs, runner, no_wait, lsf_jobs_prefix, lsf_config, waiting_job_name)
+    if delay_before_status_check:
+      time.sleep(delay_before_status_check)
+
   if runner == 'local':
     if no_wait:
       click.secho(f'WARNING: --no-wait is not supported for local runs', fg='yellow', err=True)
     run_jobs_local(jobs, config, ctx)
 
+  is_failed = False
+  for job in jobs:
+    is_failed = is_failed or job.is_failed()
+  return is_failed
 
 
 def kill_jobs_lsf(jobs, via_lsf=False):
