@@ -22,6 +22,8 @@ const language = filename => {
     return 'json'
   if (filename.endsWith('js'))
     return 'javascript'
+  if (filename.endsWith('py'))
+    return 'python'
   if (filename.endsWith('cde'))
     return 'python'
   return 'plaintext'
