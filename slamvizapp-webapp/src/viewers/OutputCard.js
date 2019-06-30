@@ -178,10 +178,11 @@ class OutputCard extends React.Component {
       return;
 
     const outputs = (((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}
-    const views = outputs.visualizations || outputs.detailed_views || [];
+    const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
     // console.log(views)
     var options = {}
     views.forEach(view => {
+      if (view.path === undefined) return
       // be glob-friendly
       // FIXME: also get the extension, that's the common case...
       // let path_regex = view.path.replace(/[^\.]\*/g, '(.*)')
@@ -255,7 +256,7 @@ class OutputCard extends React.Component {
       var controls = this.props.controls || {};
 
 	    // layout should be plotly-like. You could also pass down a props named style.
-	    var views = qatools_config.outputs.visualizations || qatools_config.outputs.detailed_views || [];
+      var views = [...(qatools_config.outputs.visualizations || []), ...(qatools_config.outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
 
 	    let viewers = views.map( (view, idx) => {
 	      let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
@@ -274,7 +275,8 @@ class OutputCard extends React.Component {
 	          paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, {path: view.path}))
 	        }
 	      } else {
-	        paths = !!this.state.manifests.new[view.path] ? [view.path] : []
+          let necessary_files_exist = view.path===undefined || !!this.state.manifests.new[view.path] || view.path === 'pointcloud.pcd';
+	        paths = necessary_files_exist ? [view.path] : []
 	      }
 	      // console.log(view.display, paths)
 

@@ -192,7 +192,9 @@ class CiCommitResults extends Component {
       config_data = this.props.new_commit || {};
       if (!!!config_data.data) config_data.data = {}
       config_data.data.git = (this.props.project_data.data || {}).git || {}
+      // console.log("outputs", config_data.data.qatools_config.outputs)
     }
+    // console.log("config_data", config_data)
 
     var warning_messages = <CommitsWarningMessages
                             commits={{
@@ -223,7 +225,7 @@ class CiCommitResults extends Component {
 
     let controls_extra = (((config_data.data || {}).qatools_config || {}).outputs || {}).controls || []
     let config_outputs =  ((config_data.data || {}).qatools_config || {}).outputs || {};
-    let visualizations = config_outputs.visualizations || config_outputs.detailed_views || [];
+    let visualizations = [...(config_outputs.visualizations || []), ...(config_outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
     let maybe_diff = visualizations.some(v => v.type.startsWith('image')) && <Switch
         key='diff'
         checked={this.state.controls.diff || false}
