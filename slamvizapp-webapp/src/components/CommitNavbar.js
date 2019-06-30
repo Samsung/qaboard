@@ -75,7 +75,7 @@ class CommitNavbar extends React.Component {
               key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
               defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
             /></span>
-            <Tooltip position="auto-end"  hoverCloseDelay={500}>
+            <Tooltip position="auto-end"  hoverCloseDelay={1500}>
               <CommitBranchButton commit={commit} onClick={this.handleSubmitBranch} style={{flex: '0 1 auto', alignSelf: 'center'}}/>
               <Menu>
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
@@ -89,10 +89,12 @@ class CommitNavbar extends React.Component {
                     />}
                 )}
                 {milestones.length===0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
+                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
+                <Menu.Item text="Remove reference" icon="delete" onClick={() => this.handleSubmitBranch(null)}/>
               </Menu>
             </Tooltip>
 
-            <DoneAtTag project={project} commit={commit} style={{flex: '0 1 auto', alignSelf: 'center'}} />{" "}
+            <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{flex: '0 1 auto', alignSelf: 'center'}} />{" "}
             {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{marginRight: '8px'}}>Error</Tag><span>{commit.error}</span></Tooltip>}
           </div>
       </FormGroup>
