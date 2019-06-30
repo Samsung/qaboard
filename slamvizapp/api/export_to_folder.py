@@ -1,6 +1,7 @@
 """
 Implement the API used by the "Export to a shared directory" plugin.
 """
+import sys
 import os
 import re
 import json
@@ -85,6 +86,19 @@ def matching_output(output_reference, outputs):
 
 
 
+def commonprefix(m):
+  # https://github.com/python/cpython/blob/3.7/Lib/genericpath.py#L69
+  if not m: return []
+  def key(x):
+    return (len(x), str(x))
+  s1 = min(m, key=key)
+  s2 = max(m, key=key)
+  for i, c in enumerate(s1):
+    print(i, c, file=sys.stderr)
+    if c != s2[i]:
+      return s1[:i]
+  return s1
+
 
 @app.route("/api/v1/export")
 @app.route("/api/v1/export/")
@@ -132,9 +146,10 @@ def export_to_folder():
   if len(all_configurations) == 1:
     common_data['configuration'] = deserialize_config(all_outputs[0].configuration)
   elif len(all_configurations) > 1:
-    common_data['configuration_prefix'] = os.path.commonprefix([deserialize_config(o.configuration) for o in all_outputs])
-    common_data['configuration_suffix'] = list(reversed(os.path.commonprefix([list(reversed(deserialize_config(o.configuration))) for o in all_outputs])))
-    # FIXME test @ http://qa:3000/tof/swip_tof/commit/e4b756d9c245e271093b38c27f934bc891de2714?reference=74c3648718dee48f423979a9225bba34c2917caa&selected_views=output-list
+    all_configurations = [deserialize_config(o.configuration) for o in all_outputs]
+    common_data['configuration_prefix'] = commonprefix(all_configurations)
+    all_reversed_configurations = [list(reversed(deserialize_config(o.configuration))) for o in all_outputs]
+    common_data['configuration_suffix'] = list(reversed(commonprefix(all_reversed_configurations)))
   # To be honest, we really should find what is common in each batch
   # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
 
@@ -142,7 +157,7 @@ def export_to_folder():
   common_extra_parameters = {}
   for o in all_outputs:
     all_extra_parameters.update(set(o.extra_parameters.keys()))
-  all_extra_parameters_prefix = os.path.commonprefix([p for p in all_extra_parameters])
+  all_extra_parameters_prefix = commonprefix([p for p in all_extra_parameters])
   for key in all_extra_parameters:
     values = set()
     for o in all_outputs:
