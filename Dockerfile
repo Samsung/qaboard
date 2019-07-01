@@ -19,7 +19,10 @@ ENV HTTP_PROXY=$PROXY \
 RUN apt-get update && \
     apt-get install -y git wget software-properties-common && \
     git config --global http.proxy $PROXY
-RUN add-apt-repository -y ppa:git-core/ppa
+# RUN add-apt-repository -y ppa:git-core/ppa
+RUN echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list
+RUN echo "deb-src http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list
+RUN apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver keyserver.ubuntu.com --recv-keys A1715D88E1DF1F24
 
 # Essential utilities
 RUN apt-get update && apt-get install -y build-essential libgl1-mesa-glx
