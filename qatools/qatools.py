@@ -400,7 +400,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          configuration_cli =  f'--configuration "{input_configuration}"'
+          configuration_cli =  f'--configuration "{input_configuration}"' # .replace("\"", "\\\"")
 
       args = [
           f"qa",
@@ -552,6 +552,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
       prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
       # print(prefix_output_dir)
       input_path = input_path_abs.relative_to(input_database)
+      print(commit_dir / prefix_output_dir, input_database, [input_path])
       input_is_bit_accurate = is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
