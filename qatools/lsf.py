@@ -156,7 +156,8 @@ def run_jobs_local(jobs, config, ctx):
   verbose = int(os.environ.get('QATOOLS_BATCH_VERBOSE', 0))
   # multiprocessing will try to reimport qatools, which relies on the CWD
   cwd = os.getcwd()
-  os.chdir(ctx.obj['previous_cwd'])
+  if 'previous_cwd' in ctx.obj:
+    os.chdir(ctx.obj['previous_cwd'])
   Parallel(n_jobs=n_jobs, verbose=verbose)(delayed(lambda j: j.run_local(cwd=cwd))(j) for j in jobs)
   os.chdir(cwd)
 
