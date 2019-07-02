@@ -65,11 +65,16 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
     manifest_1 = json.load(f)
   with manifest_path_2.open() as f:
     manifest_2 = json.load(f)
+  # print(manifest_1)
+  # print(manifest_2)
+  # print(set(manifest_1.keys()) & set(manifest_2.keys()))
 
   if not patterns:
     patterns = ['*']
   if not ignore:
     ignore = []
+
+  # print(patterns)
 
   mismatch = set()  # not the same
   match = set()     # the same
@@ -109,7 +114,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
     if not (isinstance(patterns, list) or isinstance(patterns, tuple)):
       patterns = [patterns]
     if not patterns:
-      patterns = ['manifest.outputs.json']
+      patterns = ['*']
     patterns.append('manifest.inputs.json')
 
     ignore = config.get("bit_accuracy", {}).get("ignore", [])
