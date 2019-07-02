@@ -13,7 +13,7 @@ import yaml
 import click
 
 from .lsf import Job, LsfPriority
-from .lsf import get_running_lsf_jobs, pending_or_failed, run_jobs
+from .lsf import get_running_lsf_jobs, job_is_failed, run_jobs
 from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
@@ -390,7 +390,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         print(output_directory)
         break
 
-      should_run = action_on_existing=='run' or pending_or_failed(output_directory, running_lsf_jobs)
+      # LSF job names are based on the output directory and transformed 
+      is_pending = Job(output_directory).name in running_lsf_jobs
+      should_run = not is_pending and (action_on_existing=='run' or job_is_failed(output_directory, running_lsf_jobs)) 
       if not should_run and action_on_existing=='skip':
         continue
 

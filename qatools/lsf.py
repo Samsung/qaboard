@@ -217,14 +217,12 @@ def get_running_lsf_jobs():
 
 
 
-def pending_or_failed(output_directory, running_jobs_names):
+def job_is_failed(output_directory, running_jobs_names):
   metrics_path = output_directory / 'metrics.json'
   is_done = metrics_path.exists()
   if is_done:
     with metrics_path.open() as f:
-      is_failed = json.load(f).get('is_failed', True)
+      return json.load(f).get('is_failed', True)
   else:
-    is_failed = False
-  # LSF job names are based on the output directory and transformed 
-  is_pending = Job(output_directory).name in running_jobs_names
+    return False
   return is_pending or is_failed
