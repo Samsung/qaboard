@@ -121,6 +121,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
     if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
       ignore = [ignore]
     ignore.append('log.txt')
+    ignore.append('metrics.json')
 
     if not len(output_directories):
       click.secho("WARNING: nothing was compared", fg='yellow')
