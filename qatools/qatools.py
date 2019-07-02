@@ -231,7 +231,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
-  def should_be_in_manifest():
+  def should_be_in_manifest(path):
     # avoid logs with timestamps and temporary NFS files
     return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
   # To help the UI application know what results we created, we save the complete list.
