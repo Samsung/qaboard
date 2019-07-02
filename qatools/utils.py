@@ -6,6 +6,7 @@ import sys
 import time
 import re
 import hashlib
+import fnmatch
 from pathlib import Path
 import shutil
 import traceback
@@ -150,17 +151,30 @@ def copy(src, destination):
       copy_data(src, destination)
 
 
-# For bit-accuracy checks to work on text files between UNIX/windows,
-# we need to convert end-of-lines
-# TODO: add something like *output.plaintext.extensions
-plaintext = set(['.txt', '.cde', '.hex', '.iir', '.dvs'])
+
+default_plaintext = set(['.txt', '.cde', '.hex', '.iir', '.dvs'])
+def is_plaintext(path, config=None):
+  if not config:
+    config = {}
+  binary_patterns = config.get('bit-accuracy', {}).get('binary')
+  plaintext_patterns = config.get('bit-accuracy', {}).get('plaintext')
+  if not plaintext_patterns and not binary_patterns:
+    return path.suffix in default_plaintext
+  if plaintext_patterns and not binary_patterns:
+    return any(fnmatch.fnmatch(path.name, p) for p in plaintext_patterns)
+  if not plaintext_patterns and binary_patterns:
+    return not any(fnmatch.fnmatch(path.name, p) for p in binary_patterns)
+  click.secho('ERROR: Cannot define both bit-accuracy.binary and bit-accuracy.plaintext in qatools.yaml', fg='red')
+  exit(1)
 
 
-def file_info(path, normalize_eof=True):
+def file_info(path, normalize_eof=True, config=None):
   """Return metadata about a file."""
   path = Path(path) # just to be sure...
-  # on windows we normalize line endings
-  if os.name == 'nt' and path.suffix in plaintext:
+
+  # For bit-accuracy checks to work on text files between UNIX/windows,
+  # we need to convert end-of-lines on Windows
+  if os.name == 'nt' and is_plaintext(path, config):
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
       normalized_file_name = normalized_file.name
