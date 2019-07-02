@@ -225,4 +225,3 @@ def job_is_failed(output_directory, running_jobs_names):
       return json.load(f).get('is_failed', True)
   else:
     return False
-  return is_pending or is_failed
