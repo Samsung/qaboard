@@ -153,7 +153,7 @@ def copy(src, destination):
 # For bit-accuracy checks to work on text files between UNIX/windows,
 # we need to convert end-of-lines
 # TODO: add something like *output.plaintext.extensions
-plaintext = set(['.txt', '.cde', '.hex'])
+plaintext = set(['.txt', '.cde', '.hex', '.iir', '.dvs'])
 
 
 def file_info(path, normalize_eof=True):
