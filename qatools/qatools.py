@@ -13,7 +13,7 @@ import yaml
 import click
 
 from .lsf import Job, LsfPriority
-from .lsf import get_running_lsf_jobs, not_started_or_failed, run_jobs
+from .lsf import get_running_lsf_jobs, pending_or_failed, run_jobs
 from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
@@ -390,7 +390,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         print(output_directory)
         break
 
-      should_run = action_on_existing=='run' or not_started_or_failed(output_directory, running_lsf_jobs)
+      should_run = action_on_existing=='run' or pending_or_failed(output_directory, running_lsf_jobs)
       if not should_run and action_on_existing=='skip':
         continue
 
@@ -552,7 +552,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
       prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
       # print(prefix_output_dir)
       input_path = input_path_abs.relative_to(input_database)
-      print(commit_dir / prefix_output_dir, input_database, [input_path])
+      # print(commit_dir / prefix_output_dir, input_database, [input_path])
       input_is_bit_accurate = is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 

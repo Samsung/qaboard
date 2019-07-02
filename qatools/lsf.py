@@ -217,7 +217,7 @@ def get_running_lsf_jobs():
 
 
 
-def not_started_or_failed(output_directory, running_jobs_names):
+def pending_or_failed(output_directory, running_jobs_names):
   metrics_path = output_directory / 'metrics.json'
   is_done = metrics_path.exists()
   if is_done:
@@ -227,4 +227,4 @@ def not_started_or_failed(output_directory, running_jobs_names):
     is_failed = False
   # LSF job names are based on the output directory and transformed 
   is_pending = Job(output_directory).name in running_jobs_names
-  return not (is_done or is_pending or is_failed)
+  return is_pending or is_failed
