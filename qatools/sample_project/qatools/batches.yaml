@@ -9,7 +9,7 @@
 # You have lots of options to specify each batch's configuration.
 # The examples below describe all the ways you can do it.
 #
-# 
+#
 # Tip: From the `run(context)` function qatools requires you to implement,
 # the configuration for each input is available via:
 #     ```
@@ -19,10 +19,10 @@
 # Your code does whatever it wants with it :)
 #
 
-basic-list-of-inputs
+basic-list-of-inputs:
   # Those inputs will run with the project's default configuration,
   # or the one specified on the CLI with --configuration
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["the default config defined in qatools.yaml"]
@@ -30,17 +30,17 @@ basic-list-of-inputs
 
 you-can-override-the-default-configuration:
   configuration: custom
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["custom"]
 
 
 you-can-override-the-default-database:
-  database: 
+  database:
     linux: /net/f2/algo_archive/DVS_SLAM_Database
     windows: '\\\\netapp\\algo_archive\\DVS_SLAM_Database'
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 
@@ -49,7 +49,7 @@ configurations-can-be-arrays:
   configuration:
     - base
     - low-light
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["base", "low-light"]
@@ -62,7 +62,7 @@ configurations-can-be-arrays-of-objects:
     - cde:
       - "--my-flag"
       - "--my-other-flag"
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # context.obj['configurations'] => ["base", "low-light", {"cde": ["-DD"]}]
@@ -71,7 +71,7 @@ configurations-can-be-arrays-of-objects:
 each-input-can-have-its-own-configuration:
   configuration:
     - base
-  inputs
+  inputs:
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
     # context.obj['configurations'] => ["base"]
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_3a:
@@ -92,7 +92,7 @@ you-can-also-give-an-LSF-configuration:
     threads: 1000
   configuration:
     - base
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 
@@ -102,7 +102,7 @@ you-can-also-give-an-LSF-configuration-per-input:
     memory: 1000
   configuration:
     - base
-  inputs
+  inputs:
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
     DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin:
       lsf:
@@ -130,7 +130,7 @@ hdr:
   configuration:
     - *base
     - hdr
-  inputs
+  inputs:
     - A
     - B
     - C
@@ -143,12 +143,12 @@ hdr:
 
 # You want to reuse those lists of inputs across all HDR inputs
 .inputs_hdr: &inputs_hdr
-  inputs
+  inputs:
     - A
     - B
 
 .lots_of_inputs_hdr: &lots_inputs_hdr
-  inputs
+  inputs:
     - A
     - B
     - C
@@ -176,10 +176,10 @@ no-hdr:
 # qa --batch-label no-hdr batch no-hdr
 
 # Maybe on nightly runs you want to run lots of inputs
-lots-of-hdr-inputs
+lots-of-hdr-inputs:
   <<: *HDR
   <<: *lots_inputs_hdr
-lots-of-no-hdr-inputs
+lots-of-no-hdr-inputs:
   <<: *HDR-disabled
   <<: *lots_inputs_hdr
 
