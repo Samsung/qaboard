@@ -107,6 +107,19 @@ def input_metadata(absolute_input_path, database, input_path, config):
       click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       metadata = {}
+  elif hasattr(entrypoint_module_, 'iter_inputs'):
+    try:
+      inputs = list(entrypoint_module_.iter_inputs(input_path, database, only=None, exclude=None))
+      print(inputs)
+      if len(inputs)==1:
+        metadata = inputs[0].get('metadata', {})
+      else:
+        metadata = {}
+    except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      click.secho(f'[ERROR] The `iter_inputs` function in your raised an exception:', fg='red', bold=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+      metadata = {}
   else:
     metadata = {}
   return metadata
