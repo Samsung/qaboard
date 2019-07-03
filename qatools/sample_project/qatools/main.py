@@ -11,6 +11,8 @@ from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 from qatools.config import is_ci
 
 
+
+
 # To access the CLI arguments from the user, use the context object passed to run() and postprocess().
 # Reference: http://click.pocoo.org/6/complex/
 #
@@ -26,6 +28,8 @@ from qatools.config import is_ci
 # - database: pathlib Path: absolute path to your database
 # - forwarded_args: other unrecognized CLI arguments
 def run(context):
+  print(context.obj)
+  return {}
   """Sample implementation of a run() function."""
   command = ' '.join([
        f"{find_executable()}",
@@ -97,10 +101,10 @@ def postprocess(runtime_metrics, context):
     runtime_metrics: metrics from the run
   """
   # You should know what files you algo writes to, and what they mean
+  poses_path = context.obj["output_directory"] / 'camera_poses_debug.txt'
   metrics = {"is_failed": not poses_path.exists()}
   if metrics["is_failed"]: return metrics
 
-  poses_path = context.obj["output_directory"] / 'camera_poses_debug.txt'
   poses_estimated = read_poses(poses_path)
 
   # You could also get metadata about your test to decide to compute, or not, some metrics 
