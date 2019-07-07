@@ -330,7 +330,7 @@ class TuningForm extends Component {
                 )}
               </li>)}</ul>
             </Tooltip>
-            : <span>To know your options, go to the "Tests" page. </span>
+            : <span>To know your options, go to the "Tests" tab. </span>
             }
             {this.state.selected_group_info_loading && <Icon icon="time"/>}
           </>}
@@ -349,7 +349,7 @@ class TuningForm extends Component {
           />
         </FormGroup>
 
-        {(this.props.project==='dvs/psp_swip' ) && 
+        {(this.props.project==='dvs/psp_swip' || this.props.project==='tof/swip_tof' ) && 
         <RadioGroup
           // label=""
           // helperText={<span><strong>lsf</strong> is the default. <strong>s8</strong> is </span>}
@@ -357,21 +357,7 @@ class TuningForm extends Component {
           selectedValue={platform}
         >
           <Radio labelElement={<span>Linux</span>} value="lsf" large />
-          <Radio
-            label={
-              <span>
-                Android<br />
-                <span className={Classes.TEXT_MUTED}>
-                  Available on <code className={Classes.CODE}>develop</code> or if you ran the{" "}
-                  <a href={`http://gitlab-srv/${this.props.project}/pipelines`}>
-                    <code className={Classes.CODE}>performance:android:manual</code> job
-                  </a>
-                </span>
-              </span>
-            }
-            value="s8"
-            large
-          />
+          <Radio label={<span>Android</span>} value="s8" large/>
         </RadioGroup>}
 
         {platform === "s8" && (
