@@ -3,14 +3,13 @@ import qs from "qs";
 
 import {
   FormGroup,
-  Switch,
   InputGroup,
   Callout,
   Intent,
 } from "@blueprintjs/core";
 
 import { Section } from "../components/layout";
-import { bit_accuracy_help } from "./bit_accuracy/utils";
+import { BitAccuracyForm } from "./bit_accuracy/utils";
 import { sortOutputs } from "../utils";
 import { OutputCard } from "./OutputCard";
 
@@ -49,7 +48,12 @@ class OutputCardsList extends React.Component {
     const has_outputs = !!this.props.new_batch && !!this.props.new_batch.outputs;
     const had_outputs = !!prevProps.new_batch && !!prevProps.new_batch.outputs;
     let updated_outputs = has_outputs && (!had_outputs || (had_outputs && prevProps.new_batch.outputs !== this.props.new_batch.outputs));
-    if (updated_outputs) {
+
+    const has_ref_batch= !!this.props.ref_batch;
+    const had_ref_batch = !!prevProps.ref_batch;
+    let updated_ref_batch = has_ref_batch && (!had_ref_batch || (had_ref_batch && prevProps.ref_batch !== this.props.ref_batch))
+
+    if (updated_outputs || updated_ref_batch) {
       this.setState({outputs: this.orderedOutputs(this.props)})      
     }
 }
@@ -71,50 +75,13 @@ class OutputCardsList extends React.Component {
     } 
     return (
       <>
-        {type === 'bit_accuracy' && 
-          <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
-            <FormGroup
-              inline
-              labelFor="show-all-files"
-              helperText="By default the only files shown are those that are different/added/removed."
-              style={{flex: '50 1 auto'}}
-            >
-              <Switch
-                label="Show all files"
-                checked={show_all_files}
-                onChange={this.toggle('show_all_files')}
-                style={{ width: "300px" }}
-              />
-            </FormGroup>
-            <FormGroup
-              inline
-              labelFor="expand-all"
-              style={{flex: '50 1 auto'}}
-            >
-              <Switch
-                label="Expand all folders"
-                checked={expand_all}
-                onChange={this.toggle('expand_all')}
-                style={{ width: "300px" }}
-              />
-            </FormGroup>
-            <FormGroup
-              inline
-              labelFor="files-filter"
-              helperText="Only show files matching"
-              style={{flex: '50 1 auto'}}
-            >
-              <InputGroup
-                value={files_filter}
-                placeholder="filter by path"
-                onChange={this.update('files_filter')}
-                type="search"
-                leftIcon="filter"
-                style={{ width: "150px" }}
-              />
-            </FormGroup>
-            <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
-          </Callout>
+        {type === 'bit_accuracy' && <BitAccuracyForm
+                                     show_all_files={show_all_files}
+                                     expand_all={expand_all}
+                                     files_filter={files_filter}
+                                     toggle={this.toggle}
+                                     update={this.update}
+                                    />
         }
         {controls.show_debug && (
           <FormGroup
