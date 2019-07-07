@@ -39,11 +39,26 @@ const output_header_style = {
   lineHeight: 1.6,
   letterSpacing: "-1px",
 };
-const OutputHeader = React.memo( ({project, commit, output, warning}) => {
-    const input_over_time_url = `/${project}/dashboard/${commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}`
+const OutputHeader = React.memo( ({project, commit, output, warning, type}) => {
+    const input_over_time_url = `/${project}/dashboard/${commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}${type==='bit_accuracy' ? "show_bit_accuracy=true" : ""}`
+    const has_metadata = !!output.test_input_metadata
+    const has_label = has_metadata && !!output.test_input_metadata.label
     return <>
       <h5 className={Classes.HEADING} style={output_header_style} >
-        <a style={{color: 'inherit'}} href={input_over_time_url}>{output.test_input_path}</a> <OutputTags output={output} warning={warning}/>
+        <Tooltip hoverCloseDelay={500} disabled={!has_metadata}>
+          <span><a style={{color: 'inherit'}} href={input_over_time_url}>{has_label ? output.test_input_metadata.label : output.test_input_path}</a> <OutputTags output={output} warning={warning}/></span>
+          <div>
+            {has_metadata && <>
+                {has_label && <>
+                  <h4 className={Classes.HEADING}>Path</h4>
+                  <p>{output.test_input_path}</p>
+                </>}
+                <h4 className={Classes.HEADING}>Metadata</h4>
+                <p>{JSON.stringify(output.test_input_metadata, null, 2)}</p>
+            </>
+            }
+          </div>
+        </Tooltip>
       </h5>
       <p><ExtraParametersTags parameters={output.extra_parameters}/>
       </p>
@@ -140,7 +155,7 @@ class OutputCard extends React.Component {
  
 
   componentDidUpdate(prevProps, prevState) {
-  	  if (!this.viewable)
+  	  if (!this.state.viewable)
   	  	return;
       const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
@@ -181,7 +196,7 @@ class OutputCard extends React.Component {
     const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
     // console.log(views)
     var options = {}
-    views.forEach(view => {
+    views.forEach((view, idx) => {
       if (view.path === undefined) return
       // be glob-friendly
       // FIXME: also get the extension, that's the common case...
@@ -190,6 +205,11 @@ class OutputCard extends React.Component {
       view_options.forEach(token => {
         if (token.name === undefined) // static part
           return
+        if (Number.isInteger(token.name)) {
+          // we must not confuse unnamed group
+          token.unnamed_group = token.name
+          token.name = `${idx}-${token.name}`
+        }
         if (options[token.name] === undefined)
           options[token.name] = {views: []}
         options[token.name] = {...options[token.name], ...token}
@@ -205,10 +225,10 @@ class OutputCard extends React.Component {
         // const match = option.match.exec(p);
         const match = matchPath(path, {path: option.path}) // they do their own caching
         if (match === null || match === undefined) return;
-        option.values.add(match.params[name])
+        let name_ = option.unnamed_group !== undefined ? option.unnamed_group : name;
+        option.values.add(match.params[name_])
       })
       option.values = Array.from(option.values.values())
-      // console.log(name, option.values)
       const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(parseFloat(v)) )
       if (all_is_integer) {
         option.type = 'slider'
@@ -243,7 +263,7 @@ class OutputCard extends React.Component {
 
     const { qatools_config } = (this.props.project_data || {}).data || {};
     const style = {
-      ...qatools_config.outputs.style,
+      ...((qatools_config.outputs|| {}).style || {}),
       ...this.props.style,
     }
 
@@ -269,7 +289,7 @@ class OutputCard extends React.Component {
 
 	      if (!(view.display === 'viewer') && view_options.length > 0 ) {
 	        if (view.display === undefined || view.display === 'single') {
-	          const view_options_selected = view_options.map(o => [o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
+	          const view_options_selected = view_options.map(o => [o.unnamed_group !==undefined ? o.unnamed_group : o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
 	          var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
 	        } else if (view.display === 'all') {
 	          paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, {path: view.path}))
@@ -339,7 +359,7 @@ class OutputCard extends React.Component {
           {error.new && <Tooltip key="error-new"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{__html: !!error.new.response ? error.new.response.data : error.new}}/></Tooltip>}
           {error.reference && <Tooltip key="error-ref"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{__html: !!error.reference.response ? error.reference.response.data : error.reference}}/></Tooltip>}
 
-          {!this.props.no_header && <OutputHeader project={this.props.project} commit={this.props.commit} output={output_new} warning={warning}/>}
+          {!this.props.no_header && <OutputHeader project={this.props.project} commit={this.props.commit} output={output_new} warning={warning} type={this.props.type}/>}
 
           {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
           {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
