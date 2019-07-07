@@ -15,6 +15,7 @@ import {
   Tag,
   Intent,
   NonIdealState,
+  Spinner,
   Tooltip,
   Toaster,
   Icon
@@ -177,7 +178,7 @@ class OutputLog extends Component {
                   error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
                 }
               />
-            : <pre className={Classes.CODE_BLOCK} dangerouslySetInnerHTML={{__html: safe_formatted_logs || ""}} />}
+            : <><pre className={Classes.CODE_BLOCK} dangerouslySetInnerHTML={{__html: safe_formatted_logs || ""}} />{output.is_pending && <Spinner small/>}</>}
           </Collapse>
       </div>
     );
@@ -222,7 +223,7 @@ class BatchLogs extends Component {
       {Object.values(batch.outputs)
             .filter( output => output.output_type !== "optim_iteration")
             .map(output => <OutputLog key={output.id} output={output} />)}
-      <h2 style={{marginTop: '25px'}} class={Classes.HEADING}>Batch logs: {title}</h2>
+      <h2 style={{marginTop: '25px'}} className={Classes.HEADING}>Batch logs: {title}</h2>
       <OutputLog key={batch.output_dir_url} output={batch_mock_output} />
       <div>{Object.entries(commands).map( ([id, command]) => {
         return <Callout style={{marginBottom: '5px'}} key={id} title={
