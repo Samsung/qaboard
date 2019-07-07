@@ -294,6 +294,22 @@ class AppNavbar extends Component {
             }}
             shortcuts
           />}
+          {<div style={{marginLeft: '5px'}}>
+              <Button icon="refresh"
+                      disabled={this.props.is_loading}
+                      minimal
+                      onClick={() =>{
+                          const { project, aggregated_metrics, dispatch } = this.props;
+                          let extended_date_range = [date_range[0], date_range[1]]
+                          extended_date_range[0].setHours(0,0,0,0);
+                          extended_date_range[1].setHours(23,59,59,999);
+                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard');
+                          const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
+                          dispatch(fetchCommits(project, {...this.props.match.params}, extended_date_range, aggregated_metrics, options))
+                        }
+                      }
+              />
+          </div>}
           {this.props.is_loading && <div style={{marginLeft: '15px'}}><Spinner size={Spinner.SIZE_SMALL} /></div>}
         </NavbarGroup>
         <NavbarGroup align="right">
