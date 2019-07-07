@@ -201,13 +201,16 @@ def add_batch(hexsha):
     # We could also play with heredocs-within-heredocs, but it is painful, and this way we get logs
     # openstf is our Android device farm
     use_openstf = data["android_device"].lower() == "openstf"
-    envrcs = [f"source {p}/.envrc\n" for p in list(reversed(list(working_directory.parents))) if (p / '.envrc').exists()]
+    parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
+    envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
             "set -xe\n\n",
             f'cd "{working_directory}";\n\n',
             ('\n'.join(envrcs) + '\n') if envrcs else "",
+            # we want this for now....
+            'export LD_LIBRARY_PATH=/usr/local/gcc/7.2.0/lib64:$LD_LIBRARY_PATH;\n',
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
