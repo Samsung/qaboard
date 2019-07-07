@@ -1,5 +1,5 @@
 import React from "react";
-import { Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
+import { Colors, Tag, Icon, Tooltip, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 
 //----- Trees ----------------------------------------------------------------- 
@@ -216,6 +216,58 @@ const bit_accuracy_help = <Tooltip><Tag icon='help' minimal round large>Help</Ta
 
 
 
+class BitAccuracyForm extends React.Component {
+  render() {
+    const { show_all_files, expand_all, files_filter, toggle, update } = this.props;
+    return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
+      <FormGroup
+        inline
+        labelFor="show-all-files"
+        helperText="By default the only files shown are those that are different/added/removed."
+        style={{flex: '50 1 auto'}}
+      >
+        <Switch
+          label="Show all files"
+          checked={show_all_files}
+          onChange={toggle('show_all_files')}
+          style={{ width: "300px" }}
+        />
+      </FormGroup>
+      <FormGroup
+        inline
+        labelFor="expand-all"
+        style={{flex: '50 1 auto'}}
+      >
+        <Switch
+          label="Expand all folders"
+          checked={expand_all}
+          onChange={toggle('expand_all')}
+          style={{ width: "300px" }}
+        />
+      </FormGroup>
+      <FormGroup
+        inline
+        labelFor="files-filter"
+        helperText="Only show files matching"
+        style={{flex: '50 1 auto'}}
+      >
+        <InputGroup
+          value={files_filter}
+          placeholder="filter by path"
+          onChange={update('files_filter')}
+          type="search"
+          leftIcon="filter"
+          style={{ width: "150px" }}
+        />
+      </FormGroup>
+      <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
+    </Callout>
+
+  }
+}
 
 
-export { bit_accuracy_help, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom }
+
+
+
+export { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help }
