@@ -66,4 +66,6 @@ class TestInput(Base):
       test_input = TestInput(database=str(database), path=str(path))
       # session.add(test_input)
       # session.commit()
+    if not test_input.data:
+      test_input.data = {}
     return test_input

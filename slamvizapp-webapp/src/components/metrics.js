@@ -360,13 +360,28 @@ class MetricsSummary extends Component {
   constructor(props) {
     super(props);
     const { available_metrics={}, summary_metrics=[] } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
-    const default_selected_metrics = summary_metrics.map(k => available_metrics[k]) || [];
+    const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {
       available_metrics,
       selected_metrics
     };
   }
+
+
+  componentDidUpdate(prevProps) {
+    if (this.props.project_data !== prevProps.project_data) {
+      const { available_metrics={}, summary_metrics=[] } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
+      const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
+      let selected_metrics = this.props.selected_metrics || default_selected_metrics;
+      this.setState({
+        available_metrics,
+        selected_metrics
+      });
+    }
+  }
+
+
 
   renderMetric = (metric, { handleClick, modifiers, query }) => {
     if (!modifiers.matchesPredicate) {
@@ -436,6 +451,7 @@ class MetricsSummary extends Component {
       .filter(o => !o.is_pending);
 
     const { selected_metrics=[] } = this.state;
+
     const clearButton =
       selected_metrics.length > 0 ? (
         <Button icon="cross" minimal={true} onClick={this.handleClearMetrics} />
@@ -453,8 +469,8 @@ class MetricsSummary extends Component {
     if (breakdown_by_tag) {
       var tags = {};
       Object.values(outputs_new).forEach(output => {
-        if (output.test_input_tags !== undefined)
-          output.test_input_tags.forEach(tag => {
+        if (output.test_input_metadata !== undefined && output.test_input_metadata.tags !== undefined)
+          output.test_input_metadata.tags.forEach(tag => {
             if (tags[tag] === undefined) tags[tag] = 0;
             tags[tag] += 1;
           });
@@ -463,8 +479,8 @@ class MetricsSummary extends Component {
 
       var outputs_by_tag = {};
       Object.values(outputs_new).forEach(output => {
-        if (output.test_input_tags !== undefined)
-          output.test_input_tags.forEach(tag => {
+        if (output.test_input_metadata !== undefined && output.test_input_metadata.tags !== undefined)
+          output.test_input_metadata.tags.forEach(tag => {
             if (outputs_by_tag[tag] === undefined) outputs_by_tag[tag] = [];
             outputs_by_tag[tag].push(output);
           });
@@ -473,7 +489,6 @@ class MetricsSummary extends Component {
     }
 
     let batch_data = new_batch.data || {};
-
     return (
       <div>
         {(!batch_data.optimization && tuned_parameters_array.length > 0) && (

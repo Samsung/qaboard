@@ -115,19 +115,16 @@ const filter_batch = (batch, filter_values) => {
   batch_filtered.outputs = {};
 
   Object.entries(batch.outputs).forEach(([id, output]) => {
-    let extra_parameters_s =
-      Object.keys(output.extra_parameters).length > 0
-        ? JSON.stringify(output.extra_parameters)
-        : "";
+    let extra_parameters_s = Object.keys(output.extra_parameters || {}).length > 0 ? JSON.stringify(output.extra_parameters || {}) : "";
+    let metadata_s = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
     let extra_parameters = extra_parameters_s.replace(/"/g, "");
-    let searched = `${output.test_input_path} ${output.platform} ${
-      output.configuration
-    } ${output.test_input_tags.join()} ${extra_parameters}`.toLowerCase();
+    let metadata = metadata_s.replace(/"/g, "");
+    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters}`.toLowerCase();
 
     let negative_filter_tokens = filter_tokens
       .filter(t => t[0] === "-")
       .map(t => t.substring(1));
-    if (negative_filter_tokens.some(token => searched.includes(token)))
+    if (negative_filter_tokens.some(token => !!token && searched.includes(token)))
       return;
 
     let positive_filter_tokens = filter_tokens.filter(t => t[0] !== "-");
