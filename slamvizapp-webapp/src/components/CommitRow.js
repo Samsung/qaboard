@@ -76,7 +76,7 @@ class CommitResults extends React.Component {
         </a>
         <Link
           style={{ marginLeft: "10px" }}
-          to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' && `?batch=${ci_batch_label}`}`}
+          to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
           onClick={() => dispatch(updateSelected(project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
         >
           <Button intent={Intent.DANGER} minimal>
@@ -123,7 +123,7 @@ class CommitResults extends React.Component {
         {ci_batch.failed_outputs > 0 && (
           <Link
             style={{ marginLeft: "10px" }}
-            to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' && `?batch=${ci_batch_label}`}`}
+            to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
             onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
           >
             <Button intent={Intent.DANGER} minimal>
@@ -178,7 +178,7 @@ class CommitResults extends React.Component {
         )}
         {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
-          to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' && `?batch=${ci_batch_label}`}`}
+          to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
         >
           <Button intent={Intent.DANGER} minimal>
@@ -231,7 +231,7 @@ class CommitResults extends React.Component {
           <Link
             onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
             style={{ marginLeft: "10px" }}
-            to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' && `?batch=${ci_batch_label}`}`}
+            to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
           >
             <Button
               intent={Intent.SUCCESS}
