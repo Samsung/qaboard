@@ -1,11 +1,14 @@
 import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
+import qs from "qs";
 
 import Plot from 'react-plotly.js';
 import { Classes, HTMLSelect, Tag, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
 import { OutputCard } from "./viewers/OutputCard";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
+import { BitAccuracyForm } from "./viewers/bit_accuracy/utils";
+
 import { hash_color, matching_output, average, median } from "./utils";
 
 import CommitRow from "./components/CommitRow";
@@ -28,7 +31,6 @@ let layout = {
   yaxis: {
     showgrid: false,
     showline: false,
-    type: "log"
   },
   hovermode: "closest",
   hoverinfo: "y",
@@ -275,8 +277,10 @@ class CommitsEvolutionPerBatch extends React.Component {
     let threshold = metric.target * metric.scale;
     let layout_ = {
       ...layout,
-      shapes: [
-        {
+      shapes: [],
+    }
+    if (!!threshold) {
+      layout_.shapes.push({
           type: "line",
           layer: "below",
           xref: "paper",
@@ -290,11 +294,28 @@ class CommitsEvolutionPerBatch extends React.Component {
             width: 3,
             dash: "dashdot"
           }
-        }
-      ]
-    };
+        })
+    }
+    if (!!hovered_commit) {
+      layout_.shapes.push({
+          type: "line",
+          layer: "below",
+          xref: "x",
+          x0: hovered_commit.authored_datetime,
+          x1: hovered_commit.authored_datetime,
+          yref: "paper",
+          y0: 0,
+          y1: 1,
+          line: {
+            color: "rgba(150, 150, 150, 0.5)",
+            width: 3,
+            dash: "dashdot"
+          }
+        })
+    }
     layout_.yaxis.ticksuffix = metric.suffix || '';
     layout_.yaxis.showticksuffix = 'last';
+    layout_.yaxis.type = metric.plot_scale || 'log'
     return (
       <div>
         {traces.length > 0 && (
@@ -325,9 +346,9 @@ const make_output_filter = output_filter => {
   return o => {
     if (o.is_pending || o.is_failed) return false;
     if (output_filter.length === 0) return true;
-    let searched = `${o.test_input_path} ${o.platform} ${(o.test_input_tags || []).join()} ${
-      o.configuration
-    }`.toLowerCase();
+    let metadata_s = Object.keys(o.test_input_metadata).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
+    let metadata = metadata_s.replace(/"/g, "")
+    let searched = `${o.test_input_path} ${o.platform} ${metadata} ${o.configuration}`.toLowerCase();
 
     let negative_filter_tokens = filter_tokens
       .filter(t => t[0] === "-")
@@ -352,6 +373,7 @@ class CommitsEvolutionPerTest extends React.Component {
       traces_metadata: [],
 
       hovered: false,
+      selected_ref: false,
       hovered_test_input_path: "",
       hovered_test_configuration: "",
       hovered_label: null,
@@ -380,20 +402,39 @@ class CommitsEvolutionPerTest extends React.Component {
     }
     this.setState({controls}, updateQueryUrl(this.props.history, controls));
   }
+  onDoubleClick = e => {
+    this.setState({selected_ref: false})
+  }
+  onClick = e => {
+    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[e.points[0].curveNumber];
+    let point_number = e.points[0].pointNumber;
+    this.setState({
+      hovered: true,
+      selected_ref: true,
+      hovered_test_input_path: test_input_path,
+      hovered_test_configuration: configuration,
+      hovered_label: label,
+      hovered_commit: commits[point_number],
+      hovered_commit_ref: commits[point_number],
+    });
+
+  }
   onHover = e => {
     let { label, test_input_path, configuration, commits } = this.state.traces_metadata[e.points[0].curveNumber];
     let point_number = e.points[0].pointNumber;
     // console.log(point_number)
     // console.log("new", commits[point_number])
     // console.log("ref", point_number < commits.length ? commits[point_number + 1] : null)
+    let hovered_commit_ref = point_number < commits.length ? commits[point_number + 1] : null;
     this.setState({
       hovered: true,
       hovered_test_input_path: test_input_path,
       hovered_test_configuration: configuration,
       hovered_label: label,
       hovered_commit: commits[point_number],
-      hovered_commit_ref: point_number < commits.length ? commits[point_number + 1] : null,
+      ...(!this.state.selected_ref ? {hovered_commit_ref}: {}),
     });
+
   };
 
   componentDidMount() {
@@ -432,6 +473,7 @@ class CommitsEvolutionPerTest extends React.Component {
     let traces_metadata = [];
 
 
+    // console.log("shown_metrics", shown_metrics)
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
       shown_batches.forEach(label => {
@@ -443,6 +485,7 @@ class CommitsEvolutionPerTest extends React.Component {
               .filter(output_filter_)
               .forEach(o => input_configuration_set.add(JSON.stringify([o.test_input_path, o.configuration])));
           });
+          // console.log("commits_with_batch", commits_with_batch)
           input_configuration_set.forEach( input_config_json => {
             const [test_input_path, configuration] = JSON.parse(input_config_json)
             let commits_with_output = commits_with_batch.filter(
@@ -456,7 +499,6 @@ class CommitsEvolutionPerTest extends React.Component {
                   .length > 0)
             );
             // console.log("commits_with_output", commits_with_output)
-
             let values = commits_with_output
               .map(
                 c =>
@@ -475,7 +517,7 @@ class CommitsEvolutionPerTest extends React.Component {
               );
             // console.log(test_input_path, '@', configuration, values)
             const y0 = values[values.length - 1];
-            const y = relative ? values.map(v => 100 * v / y0) : values;
+            const y = (relative && !!y0) ? values.map(v => 100 * v / y0) : values;
 
             let color = hash_color(test_input_path, label);
             let trace = {
@@ -484,17 +526,17 @@ class CommitsEvolutionPerTest extends React.Component {
               mode: "lines+markers",
               x: commits_with_output.map(c => c.authored_datetime),
               y,
-              opacity: 0.8,
+              // opacity: 0.8,
               marker: {
-                size: 5,
+                size: 7,
                 color,
-                opacity: 0.8
+                opacity: 0.95
               },
               line: {
-                width: 2,
+                width: 3,
                 color,
                 dash: label === "default" ? "solid" : "dot",
-                opacity: 0.3
+                opacity: 0.5
               },
               legendgroup: test_input_path,
               showlegend: false,
@@ -541,14 +583,14 @@ class CommitsEvolutionPerTest extends React.Component {
     let threshold = metric.target * metric.scale;
     let layout_ = {
       ...layout,
-      height: 250
+      height: 250,
+      shapes: [],
     };
     layout_.yaxis.ticksuffix = metric.suffix || '';
     layout_.yaxis.showticksuffix = 'last';
-
-    if (!relative)
-      layout_.shapes = [
-        {
+    layout_.yaxis.type = metric.plot_scale || 'log'
+    if (!relative && !!threshold)
+      layout_.shapes.push({
           type: "line",
           layer: "below",
           xref: "paper",
@@ -562,8 +604,42 @@ class CommitsEvolutionPerTest extends React.Component {
             width: 3,
             dash: "dashdot"
           }
-        }
-      ];
+      })
+    if (!!hovered_commit) {
+      layout_.shapes.push({
+          type: "line",
+          layer: "below",
+          xref: "x",
+          x0: hovered_commit.authored_datetime,
+          x1: hovered_commit.authored_datetime,
+          yref: "paper",
+          y0: 0,
+          y1: 1,
+          line: {
+            color: "rgba(217, 130, 43, 0.5)",
+            width: 3,
+            dash: "dashdot"
+          }
+        })
+    }
+    if (!!hovered_commit_ref) {
+      layout_.shapes.push({
+          type: "line",
+          layer: "below",
+          xref: "x",
+          x0: hovered_commit_ref.authored_datetime,
+          x1: hovered_commit_ref.authored_datetime,
+          yref: "paper",
+          y0: 0,
+          y1: 1,
+          line: {
+            color: "rgba(19, 124, 189, 0.5)",
+            width: 3,
+            dash: "dashdot"
+          }
+        })
+    }
+
 
     if (this.state.hovered) {
       let hovered_output = Object.values(
@@ -652,6 +728,9 @@ class CommitsEvolutionPerTest extends React.Component {
             no_header={true}
             dispatch={this.props.dispatch}
             type={show_bit_accuracy ? 'bit_accuracy' : undefined}
+            show_all_files={this.props.show_all_files}
+            expand_all={this.props.expand_all}
+            files_filter={this.props.files_filter}
             controls={this.state.controls}
           />
         </div>
@@ -659,7 +738,7 @@ class CommitsEvolutionPerTest extends React.Component {
     } else {
       legend =  <p>
           <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-          	Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit.
+          	Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit. Click on a commit to freeze it as a reference.
           </span>
         </p>
     }
@@ -675,6 +754,8 @@ class CommitsEvolutionPerTest extends React.Component {
             data={traces}
             layout={layout_}
             onHover={this.onHover}
+            onClick={this.onClick}
+            onDoubleClick={this.onDoubleClick}
           />
         )}
         {legend}
@@ -686,24 +767,48 @@ class CommitsEvolutionPerTest extends React.Component {
 class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
+    const params = new URLSearchParams(window.location.search);
     const { main_metrics, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
     this.state = {
       select_metrics: this.props.select_metrics || main_metrics || [],
-      selected_metric: default_metric,
-      selected_aggregation: "median",
+      selected_metric: params.get("selected_metric") || default_metric,
+      selected_aggregation: params.get("selected_aggregation") || "median",
 
-      breakdown_per_test: this.props.default_breakdown_per_test,
-      relative: this.props.default_breakdown_per_test !== true,
-      show_bit_accuracy: false,
+      breakdown_per_test: params.get("breakdown_per_test") === 'true' || this.props.default_breakdown_per_test,
+      relative: params.get("relative")==='true' || this.props.default_breakdown_per_test !== true,
+      show_bit_accuracy: params.get("show_bit_accuracy")==='true',
+
+      // file viewer controls
+      show_all_files: params.get("show_all_files") === 'true' || false,
+      expand_all: params.get("expand_all") === 'true' || false,
+      files_filter: params.get("files_filter") || '',
     };
   }
 
-  update = name => e => {
-    this.setState({ [name]: e.target.value });    
+  update = (attribute, attribute_url) => e => {
+    const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
+    let query = qs.parse(window.location.search.substring(1));
+    this.setState({[attribute_url || attribute]: value,})
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [attribute_url || attribute]: value,
+      })
+    });
   }
   toggle = name => e => {
-  	console.log(name, this.state[name])
+    console.log(name, this.state)
     this.setState({ [name]: !this.state[name] });
+    let query = qs.parse(window.location.search.substring(1));
+    this.props.history.push({
+      pathname: window.location.pathname,
+      search: qs.stringify({
+        ...query,
+        [name]: !this.state[name],
+      })
+    });
+
   }
 
   render() {
@@ -787,6 +892,9 @@ class CommitsEvolution extends Component {
             available_metrics={available_metrics}
             dispatch={this.props.dispatch}
             history={this.props.history}
+            show_all_files={this.state.show_all_files}
+            expand_all={this.state.expand_all}
+            files_filter={this.state.files_filter}
           />
         ) : (
           <CommitsEvolutionPerBatch
@@ -801,6 +909,13 @@ class CommitsEvolution extends Component {
             dispatch={this.props.dispatch}
           />
         )}
+        {show_bit_accuracy && <BitAccuracyForm
+                                     show_all_files={this.state.show_all_files}
+                                     expand_all={this.state.expand_all}
+                                     files_filter={this.state.files_filter}
+                                     toggle={this.toggle}
+                                     update={this.update}
+        />}
       </div>
     );
   }
