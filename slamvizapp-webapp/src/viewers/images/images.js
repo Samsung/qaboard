@@ -179,14 +179,12 @@ class ImgViewer extends PureComponent {
 
   componentDidUpdate(prevProps, prevState) {
       let updated_new =
-        prevProps.output_new !== undefined &&
-        prevProps.output_new !== null &&
-        (this.props.output_new === null ||
+        prevProps.output_new !== undefined && prevProps.output_new !== null &&
+        (this.props.output_new === null || this.props.output_new === undefined ||
           prevProps.output_new.id !== this.props.output_new.id);
       let updated_ref =
-        prevProps.output_ref !== undefined &&
-        prevProps.output_ref !== null &&
-        (this.props.output_ref === null ||
+        prevProps.output_ref !== undefined && prevProps.output_ref !== null &&
+        (this.props.output_ref === null || this.props.output_ref === undefined ||
           prevProps.output_ref.id !== this.props.output_ref.id);
       const has_path = this.props.path !== undefined && this.props.path !== null;
       let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
