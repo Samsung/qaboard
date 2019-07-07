@@ -14,7 +14,7 @@ from flask import request, jsonify, make_response
 
 from sqlalchemy import func, and_, asc, or_
 from sqlalchemy.orm import joinedload
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.sql import label
 
 from slamvizapp import app, db_session
@@ -149,7 +149,7 @@ def get_project():
 @app.route("/api/v1/commit/")
 @app.route("/api/v1/commit/<path:commit_id>")
 def get_ci_commit(commit_id=None):
-  project_id = request.args.get('project', 'dvs/psp_swip')
+  project_id = request.args['project']
   if not commit_id:
     commit_id = request.args.get('commit', None)
 
@@ -177,37 +177,38 @@ def get_ci_commit(commit_id=None):
                    )
                    .one()
                   )
+    except MultipleResultsFound:
+      print(f'!!!!!!!!!!!!! multiple results for commit {commit_id} @{project_id}')
+      ci_commit = (db_session
+                   .query(CiCommit)
+                   .options(
+                     joinedload(CiCommit.batches).
+                     joinedload(Batch.outputs)
+                    )
+                   .filter(
+                     CiCommit.project_id==project_id,
+                     CiCommit.hexsha.startswith(commit_id),
+                   )
+                   .first()
+                  )
+    except NoResultFound:
+      try:
+        commit = project.repo.commit(commit_id)
+        ci_commit = CiCommit(commit, project=project)
+        db_session.add(ci_commit)
+        db_session.commit()
+      except:
+        return jsonify({'error': 'Sorry, we could not find the commit in the cloned git repo.'}), 404
     except BadName:
       try:
         ci_commit = LocalCommit(commit_id)
       except:
         return jsonify({'error': 'Sorry, we could not find the commit folder.'}), 404
-    except NoResultFound:
-      return jsonify({'error': 'Sorry, we could not find the commit in the database.'}), 404
     except Exception as e:
       raise(e)
       return jsonify({'error': 'Sorry, the request failed.'}), 500
     # FIXME: we should add details about the outputs...
     # FIXME: how do we get the reference commit?
-
-  # we allow searching in the commit folder for artifacts via globbing
-  # it's useful to eg inspect the available configurations
-  artifacts = request.args.get('artifacts', False)
-  if artifacts:
-    try:
-      globbing = ci_commit.project.data['qatools_config']['artifacts'][artifacts]['glob']
-    except: # for legacy projects...
-      globbing = '*.json'
-
-    matches = lambda g: [str(f.relative_to(ci_commit.repo_commit_dir)) for f in ci_commit.repo_commit_dir.glob(g)]
-    if not isinstance(globbing, list):
-      globbing = [globbing]
-
-    files = []
-    for g in globbing:
-      for f in matches(g):
-        files.append(f)
-    return jsonify(files)
 
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches

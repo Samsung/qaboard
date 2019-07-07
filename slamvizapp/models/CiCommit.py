@@ -8,7 +8,7 @@ import re
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.orm import relationship, reconstructor, joinedload
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 
 from slamvizapp.models import Base, Batch, Output
 from slamvizapp.models.LocalMocks import LocalGitCommit
@@ -25,8 +25,8 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = Column(Integer(), primary_key=True)
   hexsha = Column(String(), index=True, nullable=False)
-
   project_id = Column(String(), ForeignKey('projects.id'), index=True)
+
   project = relationship("Project", back_populates="ci_commits")
   __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
@@ -149,6 +149,14 @@ class CiCommit(Base):
                            CiCommit.hexsha.startswith(hexsha),
                          )
                          .one())
+    except MultipleResultsFound:
+      print(f'!!!!!!!!!!!!! multiple results for commit {hexsha} @{project_id}')
+      ci_commit =(session.query(CiCommit)
+                         .filter(
+                           CiCommit.project_id==project_id,
+                           CiCommit.hexsha.startswith(hexsha),
+                         )
+                         .first())
     except NoResultFound:
       try:
         from slamvizapp.models import Project
@@ -156,16 +164,21 @@ class CiCommit(Base):
         try:
           commit = project.repo.commit(hexsha)
         except Exception as e:
-          raise (ValueError, f'[ERROR] Could not create a commit for {hexsha}. {e}')
+          error = f'[ERROR] Could not create a commit for {hexsha}. {e}'
+          print(error)
+          raise (ValueError, error)
 
         ci_commit = CiCommit(commit, project=project)
-        # session.add(ci_commit)
-        # session.commit()
+        session.add(ci_commit)
+        session.commit()
       except ValueError:
-        raise (ValueError, f'[ERROR] could not create a commit for {hexsha}')
+        error = f'[ERROR] ValueError: could not create a commit for {hexsha}'
+        print(error)
+        raise (ValueError, error)
       if ci_commit is None:
-        raise (ValueError, f'[ERROR] something is wrong,\
-                             maybe an error opening param.json for {hexsha}')
+        error = f'[ERROR] something is wrong, maybe an error opening param.json for {hexsha}'
+        print(error)
+        raise (ValueError, error)
     if not ci_commit.data:
       ci_commit.data = {}
     return ci_commit

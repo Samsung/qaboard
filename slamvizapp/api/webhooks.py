@@ -8,7 +8,7 @@ import datetime
 
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm.attributes import flag_modified    
+from sqlalchemy.orm.attributes import flag_modified
 
 # from qatools.config import merge
 import qatools
@@ -52,10 +52,10 @@ def update_batch():
     ci_commit = CiCommit.get_or_create(
       session=db_session,
       hexsha=request.json['git_commit_sha'],
-      project_id=request.json.get('project', 'dvs/psp_swip'),
+      project_id=request.json['project'],
     )
   except:
-    return f"404 ERROR:\n there is an issue with your commit id ({request.json['git_commit_sha']})", 404
+    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
   if not batch.data:
@@ -105,7 +105,7 @@ def new_output_webhook():
     )
   except:
     if is_ci:
-      return f"404 ERROR:\n There is an issue with your commit id ({data['git_commit_sha']}), did you push it?", 404
+      return f"404 ERROR:\n Could not find your commit ({data['git_commit_sha']}).", 404
     else: # for now let's not break anything...
       return f"OK"
 
@@ -128,6 +128,10 @@ def new_output_webhook():
   if not batch.data:
     batch.data = {}
   batch.data.update({"type": data['job_type']})
+  if 'input_metadata' in data:
+    test_input.data['metadata'] = data['input_metadata']
+    flag_modified(test_input, "data")
+
   output = Output.get_or_create(db_session,
                                          batch=batch,
                                          platform=data['platform'],
@@ -300,6 +304,6 @@ def proxy_webook():
   r = Request(**data)
   r_prepped = r.prepare()
 
-  response = session.send(r_prepped)
+  response = session.send(r_prepped, verify=False)
   print(response.headers)
   return response.content, response.status_code
