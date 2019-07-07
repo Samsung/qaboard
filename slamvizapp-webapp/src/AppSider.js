@@ -4,6 +4,7 @@ import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
 import qs from "qs";
+import axios from "axios";
 
 import {
   Classes,
@@ -12,6 +13,7 @@ import {
   Menu,
   Navbar,
   Icon,
+  Toaster,
 } from "@blueprintjs/core";
 
 import { Avatar } from "./components/avatars";
@@ -25,6 +27,7 @@ import {
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 
+export const toaster = Toaster.create();
 
 const sider_width = '151px'
 
@@ -33,6 +36,8 @@ const Sider = styled.div`
     max-width: ${sider_width};
     min-width: ${sider_width};
     width: ${sider_width};
+    padding-left: 0 !important;
+    margin-top: 0;
 
     z-index: 15 !important;
 
@@ -41,17 +46,14 @@ const Sider = styled.div`
     bottom: 0;
 
     transition: all .2s;
-    // padding-bottom: 48px;   
 
     transform: translate3d(0, 0, 0);
 
-    padding-left: 0 !important;
-    margin-top: 0;
     list-style: none;
     display: flex;
 
     & a:hover {
-  	  text-decoration: none;
+      text-decoration: none;
     }
 `
 
@@ -88,7 +90,7 @@ class ProjectSideCommitList extends React.Component {
     let qatools_config = (project_data.data || {}).qatools_config || {}
     let reference_branch = (qatools_config.project || {}).reference_branch;
     let ci_root = ((qatools_config.ci_root || {}).linux || '').replace("/home/arthurf/ci", "")
-    let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
+    let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     let is_committer = !!match.params.committer;
@@ -103,8 +105,8 @@ class ProjectSideCommitList extends React.Component {
     // const dashboard = <Link to={`/${project}/dashboard/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
     // <Menu.Item icon="series-search" text={dashboard}/>
 
-    let subproject = project.slice(project_repo.length);
-    let code_url = subproject.length > 0 ? `http://gitlab-srv/${project_repo}/tree/${reference_branch}${subproject}` : `http://gitlab-srv/${project_repo}`
+    let subproject = project.slice(project_repo.length + 1);
+    let code_url = subproject.length > 0 ? `http://gitlab-srv/${project_repo}/tree/${reference_branch}/${subproject}` : `http://gitlab-srv/${project_repo}`
 		return <>
       {!is_committer && <>
   		  {is_project_home ? <div><Menu.Item text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
@@ -125,7 +127,33 @@ class ProjectSideCommitList extends React.Component {
 }
 
 
+const recursively_apply = function(object, func) {
+  if (typeof object === 'object') {
+    Object.keys(object).forEach(k => {object[k] = recursively_apply(object[k], func)})
+    return object
+  } else {
+    object = func(object)
+    return object
+  }
+}
+
+const fill_template = function(template_string, parameters) {
+  if (typeof template_string !== 'string') return template_string;
+   // eslint-disable-next-line
+  var func = new Function(...Object.keys(parameters),  "return `" + template_string + "`;")
+  return func(...Object.values(parameters));
+}
+
+
 class ProjectSideResults extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      integrations: {}
+    }
+  }
+
+
   set = (attribute, value) => e => {
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
     let query = qs.parse(window.location.search.substring(1));
@@ -138,22 +166,196 @@ class ProjectSideResults extends React.Component {
     });
   } 
 
+  trigger = integration => e => {
+    if (!!integration.webhook) {
+      this.setState({
+        integrations: {
+          ...this.state.integrations,
+          [integration.text]: {loading: true},
+        }
+      });
+      axios.post('/api/v1/webhook/proxy/', integration.webhook)
+        .then(response => {
+            console.log(response)
+            toaster.show({
+              message: `Trigger sent! [${response.status} ${response.statusText}]`,
+              intent: Intent.SUCCESS,
+            });
+            this.setState({
+              integrations: {
+                ...this.state.integrations,
+                [integration.text]: {is_loaded: true, loading: false, error: null, statusText: response.statusText},
+              }
+            });
+          })
+          .catch(error => {
+            console.log(error.response)
+            toaster.show({
+              message: `Something wrong happened: ${JSON.stringify(error.response)}`,
+              intent: Intent.DANGER,
+            });
+            this.setState({
+              integrations: {
+                ...this.state.integrations,
+                [integration.text]: {is_loaded: true, loading: false, error, statusText: error.response.statusText},
+              }
+            });
+          }); 
+    }
+  }
+
+
+  updateIntegrationStatuses = () => {
+    const { project_data, commit } = this.props;
+    const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
+    const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
+    const integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+    integrations.filter(i => i.href !== undefined).forEach(integration => {
+       this.setState({
+         integrations: {
+           ...this.state.integrations,
+           [integration.text]: {loading: true},
+         }
+       });
+       console.log(integration, integration.href, integration.href.startsWith('/'))
+       let url = integration.href.startsWith('/') ? `https://qa${integration.href}`: integration.href
+       console.log(url)
+       axios.post('/api/v1/webhook/proxy/', {method: 'HEAD', url})
+        .then(response => {
+            // console.log(response)
+            this.setState({
+              integrations: {
+                ...this.state.integrations,
+                [integration.text]: {is_loaded: true, loading: false, error: null},
+              }
+            });
+          })
+          .catch(error => {
+            // console.log(error.response)
+            this.setState({
+              integrations: {
+                ...this.state.integrations,
+                [integration.text]: {is_loaded: true, loading: false, error, statusText: error.response.statusText},
+              }
+            });
+          });
+    })
+  }
+
 	render() {
     const { project, project_data, commit } = this.props;
-    let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
-    let subproject = project.slice(project_repo.length);
-    let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}${subproject}` : `commit/${commit.id}`) : ''
+    let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
+    let subproject = project.slice(project_repo.length + 1);
+    let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
     let code_url = `http://gitlab-srv/${project_repo}/${commit_code_sufffix}`
-	  const active = view => this.props.selected_views.includes(view);
+
+
+    let context = {
+      git: project_data && project_data.data && project_data.data.git,
+      project,
+      subproject,
+      commit,
+      user: this.props.tuning_user,
+    }
+
+    // https://blueprintjs.com/docs/#core/components/menu
+    // https://github.com/axios/axios#axios-api
+    //2.python-requests.org/en/master/user/advanced/#request-and-response-objects
+
+    /*
+    const default_integrations = [
+      {
+        divider: true,
+        title: 'Build',
+      },
+      {
+        text: 'Windows',
+        icon: 'build',
+        // when triggered, gives a way to check the status
+        //status: {
+        //  // ? maybe sh
+        //}
+        webhook: {
+          url: 'http://jensirc:8080/job/CDE_Project_DLL/buildWithParameters',
+          method: 'post',
+          auth: {
+            username: 'arthurf',
+            password: '11089462c1273c2e5dc3f2746f03578bc5',
+          },
+          headers: {
+            'Jenkins-Crumb': 'c762b20d61bd34c5fd8e49ad6637a8a1',
+          },
+          params: {
+            token: 'qatools',
+            project_name: 'CIS',
+            branch: '${commit.branch}',
+            cause: 'Triggered via the QA app'
+          }
+          // success: {**webhook_others, matches: /200: OK/ }
+        }
+      },
+      {
+        text: 'Linux Debug/ASAN',
+        icon: 'build',
+        disabled: true,
+      },
+      {
+        divider: true,
+        title: 'Artifacts',
+      },
+      {
+        text: 'Executable',
+        icon: 'download',
+        label: 'Linux',
+        href: '${commit.repo_commit_dir_url}/build/bin',
+      },
+      {
+        text: 'DLL',
+        icon: 'download',
+        label: 'Windows',
+        href: '${commit.repo_commit_dir_url}/build/bin',
+      },
+      {
+        text: 'EXE',
+        icon: 'download',
+        label: 'Windows',
+        href: '${commit.repo_commit_dir_url}/build/bin',
+      },
+      {
+        divider: true,
+        title: 'Docs',
+      },
+      {
+        text: 'Generate',
+        icon: 'build',
+      },
+      {
+        text: 'View',
+        icon: 'book',
+        label: 'link',
+        href: 'http://example.com/docs',
+      },
+      {
+        divider: true,
+      },
+      {
+        text: 'Publish',
+        intent: 'warning',
+        icon: 'upload',
+      },
+    ]
+    const qatools_integrations = default_integrations;
+    */
+
     // we can only do tuning for projects whose database is outside the repo
     // otherwise we would need to checkout the repo and manage access...
-    const disable_tuning = !!project_data.data &&
-                           !!project_data.data.qatools_config &&
-                           !!project_data.data.qatools_config.inputs &&
-                           !!project_data.data.qatools_config.inputs.database &&
-                           !!project_data.data.qatools_config.inputs.database.linux &&
-                           !project_data.data.qatools_config.inputs.database.linux.startsWith('/');
-
+    const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
+    const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
+    const qatools_config = commit_qatools_config || project_qatools_config || {};
+    const qatools_integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+    const disable_tuning = !!qatools_config.inputs && !!qatools_config.inputs.database && !!qatools_config.inputs.database.linux &&
+                           !qatools_config.inputs.database.linux.startsWith('/');
+    const active = view => this.props.selected_views.includes(view);
     return <>
       <Menu.Item icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
       <Menu.Item icon="locate" text="KPIs" active={active('table-kpi')} onClick={this.set('selected_views', 'table-kpi')} />
@@ -174,6 +376,30 @@ class ProjectSideResults extends React.Component {
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="predictive-analysis" text="Optimization" onClick={this.set('selected_views', 'optimization')}/>
+      <Menu.Item icon="take-action" text="Trigger / CI" popoverProps={{usePortal: true, hoverCloseDelay: 1000, transitionDuration: 1000, onOpening: this.updateIntegrationStatuses}}>
+        {(qatools_integrations.length > 0)
+        ? 
+          qatools_integrations.map( (integration, idx) => {
+            try {
+            integration = recursively_apply(integration, s => fill_template(s, context))
+            } catch {
+              // problem can happen when the project/commit data is not loaded yet... 
+              // we should wait for everything to be loaded
+            }
+            if (integration.divider)
+              return <Menu.Divider key={idx} {...integration}/>
+            let status = this.state.integrations[integration.text]
+            let disabled = integration.disabled || (!!status && (status.loading || !!status.error));
+            let show_status = !!status && !status.loading && !!status.statusText
+            let right_label = show_status ? `${!!integration.label ? integration.label : ''} [${status.statusText}]`
+                                          : integration.label;
+            if (!!integration.href)
+              return <Menu.Item key={idx} disabled={disabled} {...integration} target="_blank" label={right_label}/>
+            return <Menu.Item key={idx} {...integration} disabled={disabled} label={right_label} onClick={this.trigger(integration)}/>
+          })
+        : <Menu.Item icon="info-sign" target="_blank"  href="http://qa-docs/docs/triggering-third-party-tools" text="More info..."/>
+        }
+      </Menu.Item>
     </>
 	}
 }
@@ -185,16 +411,17 @@ class AppSider extends React.Component {
   render() {
     return <Sider className={`${Classes.DARK} ${Classes.NAVBAR}`} style={{padding: '0px!important', overflowX: 'hidden', overflowY: 'auto'}}>
       <ul className={Classes.LARGE} style={{'listStyle': 'none', padding: '0px'}}>
-      	<Navbar.Heading style={{paddingLeft: '15px'}}>
+      	<Navbar.Heading style={{paddingLeft: '15px', display: 'flex', 'justifyContent': 'space-around'}}>
       		<Link style={{ color: "#fff" }}  to="/">
-              <b>QA</b>
-            </Link>
+              <b>QA-board</b>
+          </Link>
+          <a href="http://qa-docs/" rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a>
       	</Navbar.Heading>
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
         {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/dashboard/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
-        {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.new_batch_filtered} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
+        {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.new_batch_filtered} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
       </ul>
     </Sider>
   }
@@ -214,7 +441,8 @@ const mapStateToProps = (state, ownProps) => {
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
   let { new_commit: commit } = commitSelector(state)
-  let selected_views = selected.selected_views || (( ((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || ['summary'])
+  const qatools_config = (project_data.data || {}).qatools_config || {}
+  let selected_views = selected.selected_views || [ ( qatools_config.outputs || {}).default_tab_details || 'summary']
 
   const { new_batch_filtered } = batchSelector(state);
 
@@ -229,7 +457,8 @@ const mapStateToProps = (state, ownProps) => {
       new_batch_filtered,
     };
   }
-  // console.log(project_data)
+
+
   return {
     is_home,
     project,
@@ -239,6 +468,7 @@ const mapStateToProps = (state, ownProps) => {
     is_loading: state.projects.data[project].branches_loading,
     selected_views,
     new_batch_filtered,
+    tuning_user: (!!state.tuning[project] && state.tuning[project].user) || (qatools_config.lsf || {}).user || "arthurf",
   }
 }
 
