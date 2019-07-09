@@ -245,7 +245,7 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
         if 'step' not in args: args['step']=1
         tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
-  n_iter = tuning_search.get('search_options', {}).get('n_iter', 10)
+  n_iter = tuning_search.get('search_options', {}).get('n_iter')
   if tuning_search['search_type'] == 'grid':
     params_iterator = ParameterGrid(tuning_search['parameter_search'])
   elif tuning_search['search_type'] == 'sampler':
@@ -254,7 +254,7 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
     raise ValueError
 
   for counter, params_ in enumerate(params_iterator):
-    if counter >= n_iter and n_iter > 0:
+    if n_iter and counter >= n_iter and n_iter > 0:
         click.secho(f"Stopping tuning combination after {n_iter} iterations", fg='yellow', err=True)
         return
     # the search overrides the extra parameters specified earlier
