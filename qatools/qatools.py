@@ -405,7 +405,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          configuration_cli =  f'--configuration "{input_configuration}"' # .replace("\"", "\\\"")
+          input_configuration_serialized = input_configuration.replace('"', '\\"')
+          configuration_cli =  f'--configuration "{input_configuration_serialized}"'
 
       args = [
           f"qa",
@@ -524,10 +525,13 @@ def save_artifacts(ctx):
           copy(path, destination)
           manifest[path.as_posix()] = file_info(path)
 
-    with manifest_path.open('w') as f:
-      json.dump(manifest, f)
+    if not ctx.obj['dryrun']:
+      with manifest_path.open('w') as f:
+        json.dump(manifest, f)
     if nb_files > 0:
       click.secho(f"{nb_files} files copied")
+    # if the commit was deleted, this notification will mark it as good again 
+  notify_qa_database(object_type='commit', **ctx.obj)
 
 
 @cli.command()
