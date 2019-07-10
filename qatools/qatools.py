@@ -13,7 +13,7 @@ import yaml
 import click
 
 from .lsf import Job, LsfPriority
-from .lsf import get_running_lsf_jobs, job_is_failed, run_jobs
+from .lsf import get_running_lsf_jobs, job_is_failed, job_ran_once, run_jobs
 from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
@@ -395,7 +395,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
       # LSF job names are based on the output directory and transformed 
       is_pending = Job(output_directory).name in running_lsf_jobs
-      should_run = not is_pending and (action_on_existing=='run' or job_is_failed(output_directory, running_lsf_jobs)) 
+      is_failed = job_is_failed(output_directory, running_lsf_jobs)
+      should_run = not is_pending and (action_on_existing=='run' or is_failed or not job_ran_once(output_directory)) 
       if not should_run and action_on_existing=='skip':
         continue
 
@@ -457,7 +458,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
     if is_failed:
       if is_ci:
-        click.secho(f"Read all the logs at: {commit_url}{'?' if batch_label == 'default' else ''}selected_views=logs", fg='red', bold=True)
+        click.secho(f"Read all the logs at: {commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs", fg='red', bold=True)
       exit(1)
 
 

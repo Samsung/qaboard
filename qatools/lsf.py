@@ -216,6 +216,9 @@ def get_running_lsf_jobs():
         return set()
 
 
+def job_ran_once(output_directory):
+  return (output_directory / 'metrics.json').exists()
+
 
 def job_is_failed(output_directory, running_jobs_names):
   metrics_path = output_directory / 'metrics.json'
