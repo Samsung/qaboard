@@ -23,6 +23,8 @@ const PCDLoader = function ( manager ) {
 PCDLoader.prototype = {
 
 	constructor: PCDLoader,
+	
+	use_intensity: false,
 
 	load: function ( url, onLoad, onProgress, onError ) {
 
@@ -197,21 +199,27 @@ PCDLoader.prototype = {
 				}
 
 				if ( offset.rgb !== undefined ) {
-					let parsed_color = parseFloat(line[offset.rgb]) // 0.0 //
-					if (parsed_color<0.0)
-						parsed_color = 0.0;
-					if (parsed_color>1.0)
-						parsed_color = 1.0;
-					let z_color = rgb(interpolateViridis(parsed_color))
-					color.push(z_color.r / 255.0);
-					color.push(z_color.g / 255.0);
-					color.push(z_color.b / 255.0);
-					/*if (parsed_color<0.1) {
+					if (this.use_intensity) {
+						let parsed_color = parseFloat(line[offset.rgb]) // 0.0 //
+						if (parsed_color<0.0)
+							parsed_color = 0.0;
+						if (parsed_color>1.0)
+							parsed_color = 1.0;
+						parsed_color = Math.sqrt(parsed_color);
+						let z_color = rgb(interpolateViridis(parsed_color))
+						color.push(z_color.r / 255.0);
+						color.push(z_color.g / 255.0);
+						color.push(z_color.b / 255.0);
+					}
+					else {
 						let z_scaled = (z - min_z) / (max_z - min_z);
 						let z_color = rgb(interpolateViridis(z_scaled))
 						color.push(z_color.r / 255.0);
 						color.push(z_color.g / 255.0);
 						color.push(z_color.b / 255.0);
+					}
+					/*if (parsed_color<0.1) {
+						
 					} else {
 						var c = new Float32Array( [parsed_color] );
 						var dataview = new DataView( c.buffer, 0 );
