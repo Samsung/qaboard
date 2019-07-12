@@ -197,8 +197,16 @@ PCDLoader.prototype = {
 				}
 
 				if ( offset.rgb !== undefined ) {
-					let parsed_color = 0.0 //parseFloat(line[offset.rgb])
-					if (parsed_color<0.1) {
+					let parsed_color = parseFloat(line[offset.rgb]) // 0.0 //
+					if (parsed_color<0.0)
+						parsed_color = 0.0;
+					if (parsed_color>1.0)
+						parsed_color = 1.0;
+					let z_color = rgb(interpolateViridis(parsed_color))
+					color.push(z_color.r / 255.0);
+					color.push(z_color.g / 255.0);
+					color.push(z_color.b / 255.0);
+					/*if (parsed_color<0.1) {
 						let z_scaled = (z - min_z) / (max_z - min_z);
 						let z_color = rgb(interpolateViridis(z_scaled))
 						color.push(z_color.r / 255.0);
@@ -211,7 +219,9 @@ PCDLoader.prototype = {
 						color.push( dataview.getUint8( 1 ) / 255.0 );
 						color.push( dataview.getUint8( 2 ) / 255.0 );						
 					}
+					*/
 				}
+				
 
 				if ( offset.normal_x !== undefined ) {
 
@@ -272,7 +282,7 @@ PCDLoader.prototype = {
 		// build geometry
 
 		var geometry = new THREE.BufferGeometry();
-
+		console.error( 'AHOY BLYAT' );
 		if ( position.length > 0 ) geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( position, 3 ) );
 		if ( normal.length > 0 ) geometry.addAttribute( 'normal', new THREE.Float32BufferAttribute( normal, 3 ) );
 		if ( color.length > 0 ) geometry.addAttribute( 'color', new THREE.Float32BufferAttribute( color, 3 ) );
