@@ -99,7 +99,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
 class MetricsTags extends React.PureComponent {
   render() {
     const { metrics_new, metrics_ref } = this.props;
-    const { available_metrics, selected_metrics } = this.props;
+    const { available_metrics={}, selected_metrics=[] } = this.props;
     return selected_metrics
       .filter(key => metrics_new[key] !== undefined)
       .map(key => (
