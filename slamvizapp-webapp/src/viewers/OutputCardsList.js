@@ -72,7 +72,7 @@ class OutputCardsList extends React.Component {
       files_filter,
       expand_all,
       select_debug,
-    } 
+    }
     return (
       <>
         {type === 'bit_accuracy' && <BitAccuracyForm
