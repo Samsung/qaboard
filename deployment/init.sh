@@ -25,7 +25,16 @@ sudo chown -R arthurf:uucp /var/slamvizapp
 sudo nginx &
 
 echo '...starting the database'
+# initdb -D /usr/local/pgsql/data
+# pg_createcluster
 sudo /etc/init.d/postgresql start &
+sleep 10
+
+# the first time you may need to
+# #docker run --entrypoint /bin/bash --rm -it  --volume=slamvizapp-postgresql-production:/etc/postgresql --volume=slamvizapp-postgresql-log-production:/var/log/postgresql --volume=slamvizapp-postgresql-lib-production:/var/lib/postgresql  gitlab-srv.transchip.com:4567/dvs/slamvizapp:production
+
+# sudo pg_createcluster 10 main
+
 # sudo -u postgres /usr/lib/postgresql/9.6/bin/postgres \
 #   -D /var/lib/postgresql/9.6/main \
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &
@@ -73,10 +82,16 @@ cd /slamvizapp && SLAMVIZAPP_DB_ECHO=True FLASK_APP=slamvizapp FLASK_DEBUG=1 fla
 #   exit $status
 # fi
 
+
+# on the server there is a crontab that does every night
+#    slamvizapp_clean
+
 while sleep 43200; do
-  slamvizapp_clean dvs/psp_swip --protected-branch "origin/develop" --protected-branch "origin/Release/AugustDemo"
-  slamvizapp_clean tof/swip_tof --protected-branch "origin/develop" --days 30
+  echo OK
+  # slamvizapp_clean dvs/psp_swip --protected-branch "origin/develop" --protected-branch "origin/Release/AugustDemo"
+  # slamvizapp_clean tof/swip_tof --protected-branch "origin/develop" --days 30
 done
+
 
 
 # pg_dump --dbname=slamvizapp --username=ci --password -h localhost -Fc > ~/dvs/slamvizapp/data/backup/$(date --rfc-3339=date).dump
