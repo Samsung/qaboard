@@ -260,8 +260,9 @@ class TofOutputCard extends Component {
     });
   }
   
-  getPointcloud(frame_id, label) {
+  getPointcloud(frame_id, label, use_intensity) {
     var loader = new PCDLoader();
+	loader.use_intensity = use_intensity;
     if (label === "new") {
       var pointcloud_dir = this.props.output_new.output_dir_url;
     } else if (label === "reference") {
@@ -361,14 +362,14 @@ class TofOutputCard extends Component {
     if (!this.frameId) this.frameId = requestAnimationFrame(this.animate);
   }
 
-  updatePointCloud(selected_frame) {
+  updatePointCloud(selected_frame, use_intensity) {
     if (!this.state.show_pointcloud) {
       this.setState({show_pointcloud: true})
       this.startPointCloud()
     }
-    this.getPointcloud(selected_frame, "new");
-    this.getPointcloud(selected_frame, "reference");
-    this.getPointcloud(selected_frame, "groundtruth");
+    this.getPointcloud(selected_frame, "new", use_intensity);
+    this.getPointcloud(selected_frame, "reference", use_intensity);
+    this.getPointcloud(selected_frame, "groundtruth", use_intensity);
     this.setState({selected_frame});
   }
 
@@ -549,11 +550,19 @@ class TofOutputCard extends Component {
           <div>
             <Button onClick={e => {
               if (!show_pointcloud)
-                this.updatePointCloud(selected_frame)
+                this.updatePointCloud(selected_frame, false)
               else
                 this.setState({show_pointcloud: false})                
             }}>
               {!show_pointcloud ? "Show Point Cloud"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
+            </Button>
+			<Button onClick={e => {
+              if (!show_pointcloud)
+                this.updatePointCloud(selected_frame, true)
+              else
+                this.setState({show_pointcloud: false})                
+            }}>
+              {!show_pointcloud ? "Show Point Cloud (Intensity)"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
             </Button>
           </div>
         </div>
