@@ -6,9 +6,8 @@ import {
   Slider,
   Icon,
   Tooltip,
-  // itamar persi
-  MenuItem,
-  // end
+  Divider,
+  Button
 } from "@blueprintjs/core";
 import pixelmatch from 'pixelmatch';
 import Plot from 'react-plotly.js';
@@ -18,10 +17,9 @@ import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 
 // itamar persi
-import { MultiSelect } from "@blueprintjs/select";
-import { updateSelected } from "../../actions/selected";
-import TagForm from "./tag_form";
-//end
+import MultiSelectTags from "./multiSelectTags";
+import ButtonsExample from "./buttonsExample"
+// end 
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -78,14 +76,10 @@ const iiif_url = (output_dir_url, path) => {
   return url
 }
 
+
 class ImgViewer extends PureComponent {
   constructor(props) {
     super(props);
-    // itamar persi
-    this.show_add_tag = false
-    this.AddTag = this.add_tag.bind(this);
-    this.HandleTagClick = this.handle_tag_click.bind(this);
-    //end
     this.show_histogram = false
     this.canvas_diff = React.createRef();
     this.state = {
@@ -95,12 +89,6 @@ class ImgViewer extends PureComponent {
       diff_threshold: 0.1,
       color: {},
       hide_labels: false,
-      // itamar persi
-      fileds: [{ key: "BPC", label: "bpc" }, { key: "HM1", label: "hm1" }],
-      items: [],
-      createdItems: [],
-      tags: [],
-      // end
     }
   }
 
@@ -119,7 +107,7 @@ class ImgViewer extends PureComponent {
       this.InitMouseTracker(this.props);
       this.InitZoomSync();
       this.InitFilters();
-      this.InitSelection();
+      this.InitHistogram();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
     })
@@ -254,116 +242,13 @@ class ImgViewer extends PureComponent {
     if (has_reference)
       this.histo_ref = histogram_traces(this.viewer_ref, this.canvasCoords, 'ref')
   }
-
-  // itamar persi
-  add_tag(tag_name) {
-    //return this.viewer_new.selection.rect
-    const { viewer_new } = this;
-    const newItem = {
-      text: tag_name,
-      id: Date.now(),
-      rect: this.canvasCoords
-    };
-
-    //alert(newItem.canvasCoords);
-
-
-
-    this.setState(state => ({
-      tags: state.tags.concat(newItem)
-    }));
-    /*
-
-    //this.props.handleSubmit(event);
-    //event.preventDefault();
- 
-    */
-  }
-
-  handle_tag_click(tag) {
-    // Implemement synced zoom
-    // https://codepen.io/iangilman/pen/BWKKxQ
-    const { viewer_new, viewer_ref } = this;
-    var masterZoom;
-    var masterCenter;
-    var viewer_newLeading = false;
-    var viewer_refLeading = false;
-    /*
-    var viewer_newHandler = function () {
-      if (viewer_refLeading)
-        return;
-        */
-    masterZoom = viewer_new.viewport.getZoom();
-    masterCenter = viewer_new.viewport.getCenter();
-    //lert("masterZoom:" + masterZoom + "\nmasterCenter:" + masterCenter);
-    /*
-            if (masterCenter === undefined || masterCenter === null) return
-
-      viewer_newLeading = true;
-      viewer_ref.viewport.zoomTo(masterZoom);
-      viewer_ref.viewport.panTo(masterCenter);
-      viewer_newLeading = false;
-    };
-
-    var viewer_refHandler = function () {
-      if (viewer_newLeading)
-        return;
-      masterZoom = viewer_ref.viewport.getZoom();
-      masterCenter = viewer_ref.viewport.getCenter();
-      if (masterCenter === undefined || masterCenter === null) return
-
-      viewer_refLeading = true;
-      viewer_new.viewport.zoomTo(masterZoom);
-      viewer_new.viewport.panTo(masterCenter);
-      viewer_refLeading = false;
-    };
-    viewer_new.addHandler('zoom', viewer_newHandler);
-    viewer_ref.addHandler('zoom', viewer_refHandler);
-    viewer_new.addHandler('pan', viewer_newHandler);
-    viewer_ref.addHandler('pan', viewer_refHandler);
-
-    function maintainZoom() {
-      if (viewer_new === null || viewer_new === undefined || viewer_ref === null || viewer_ref === undefined)
-        return;
-      var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-      var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
-      viewer_newLeading = true;
-      viewer_refLeading = true;
-      try { // we should try to find how to identify when an image is not loaed...
-        viewer_new.viewport.resize(size1, true);
-        viewer_ref.viewport.resize(size2, true);
-
-        viewer_ref.viewport.zoomTo(masterZoom, null, true);
-        viewer_ref.viewport.panTo(masterCenter, true);
-
-        viewer_new.viewport.zoomTo(masterZoom, null, true);
-        viewer_new.viewport.panTo(masterCenter, true);
-
-        viewer_newLeading = false;
-        viewer_refLeading = false;
-
-        viewer_new.forceRedraw();
-        viewer_ref.forceRedraw();
-      } catch {
-
-      }
-    }
-    window.addEventListener('resize', maintainZoom, { passive: true });
-    this.setState({ maintainZoom });
-  */
-  }
-  //end
-
-  InitSelection(props) {
+  InitHistogram(props) {
     const { viewer_new } = this;
     const selection_options = {
       onSelection: rect => { console.log(rect) },
 
       onSelectionChange: ({ canvasCoords }) => {
         this.show_histogram = true;
-        // itamar persi
-        this.show_add_tag = true;
-        // end
         this.canvasCoords = canvasCoords;
         this.update_histogram();
       },
@@ -373,19 +258,8 @@ class ImgViewer extends PureComponent {
     }
     viewer_new.selection(selection_options);
     viewer_new.addHandler('update-viewport', this.update_histogram);
-    viewer_new.addHandler('selection_cancel', () => {
-      this.show_histogram = false;
-      // itamar persi
-      this.show_add_tag = false
-      // end
-    });
-    viewer_new.addHandler('selection_toggle', ({ enabled }) => {
-      this.show_histogram = enabled;
-      this.update_histogram();
-      // itamar persi
-      this.show_add_tag = enabled
-      // end
-    });
+    viewer_new.addHandler('selection_cancel', () => { this.show_histogram = false });
+    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_histogram = enabled; this.update_histogram() });
   }
 
 
@@ -490,118 +364,6 @@ class ImgViewer extends PureComponent {
 
   }
 
-  // itamar persi
-  // these members help us define the metric selector
-  arrayContainsFilm(films, filmToFind) {
-    return films.some((film) => film.title === filmToFind.title);
-  }
-
-  addFilmToArray(films, filmToAdd) {
-    return [...films, filmToAdd];
-  }
-
-  deleteFilmFromArray(films, filmToDelete) {
-    return films.filter(film => film !== filmToDelete);
-  }
-
-  maybeAddCreatedFilmToArrays(items, createdItems, film, ) {
-    const isNewlyCreatedItem = !arrayContainsFilm(items, film);
-    return {
-      createdItems: isNewlyCreatedItem ? addFilmToArray(createdItems, film) : createdItems,
-      // Add a created film to `items` so that the film can be deselected.
-      items: isNewlyCreatedItem ? addFilmToArray(items, film) : items,
-    };
-  }
-
-  maybeDeleteCreatedFilmFromArrays(items, createdItems, film, ) {
-    const wasItemCreatedByUser = arrayContainsFilm(createdItems, film);
-
-    // Delete the item if the user manually created it.
-    return {
-      createdItems: wasItemCreatedByUser ? deleteFilmFromArray(createdItems, film) : createdItems,
-      items: wasItemCreatedByUser ? deleteFilmFromArray(items, film) : items,
-    };
-  }
-
-  getSelectedMetricIndex = metric => {
-    return this.state.fileds.indexOf(metric);
-  };
-
-  isMetricSelected(metric) {
-    return this.getSelectedMetricIndex(metric) !== -1;
-  }
-
-  selectMetric(metric) {
-    this.selectMetrices([metric]);
-  }
-
-  selectMetrices(filedsToSelect) {
-    const { createdItems, fileds, items } = this.state;
-
-    let nextCreatedItems = createdItems.slice();
-    let nextfileds = fileds.slice();
-    let nextItems = items.slice();
-
-    filedsToSelect.forEach(filed => {
-      const results = maybeAddCreatedfiledToArrays(nextItems, nextCreatedItems, filed);
-      nextItems = results.items;
-      nextCreatedItems = results.createdItems;
-      // Avoid re-creating an item that is already selected (the "Create
-      // Item" option will be shown even if it matches an already selected
-      // item).
-      nextfileds = !arrayContainsfiled(nextfileds, filed) ? [...nextfileds, filed] : nextfileds;
-    });
-
-    this.setState({
-      createdItems: nextCreatedItems,
-      fileds: nextfileds,
-      items: nextItems,
-    });
-  }
-
-  handleMetricSelect = metric => {
-    if (!this.isMetricSelected(metric)) {
-      this.selectMetric(metric);
-    } else {
-      this.deselectMetric(this.getSelectedMetricIndex(metric));
-    }
-  };
-
-  deselectMetric = index => {/*
-    this.props.dispatch(updateSelected(
-      this.props.project, {
-        selected_metrics: this.props.selected_metrics.filter((metric, i) => i !== index)
-      }))*/
-
-    const { fileds } = this.state;
-
-    const field = fileds[index];
-
-    // Delete the item if the user manually created it.
-    this.setState({
-      fields: fields.filter((_field, i) => i !== index),
-    });
-  }
-
-  renderMetric = (metric, { handleClick, modifiers, query }) => {
-    if (!modifiers.matchesPredicate) {
-      return null;
-    }
-    return (
-      <MenuItem
-        active={modifiers.active}
-        icon={this.isMetricSelected(metric) ? "tick" : "blank"}
-        key={metric.key}
-        label={metric.key}
-        text={`${metric.label}`}
-        onClick={handleClick}
-        shouldDismissPopover={false}
-      />
-    );
-  };
-
-  //end
-
   render() {
     const { output_new, output_ref, diff, label, path, id } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
@@ -658,6 +420,14 @@ class ImgViewer extends PureComponent {
     }
 
     return <>
+
+      {/* itamar persi */}
+      <div>
+        <MultiSelectTags />
+        <ButtonsExample func={() => this.cropFunction(this.crop1)} />
+      </div>
+      {/* end */}
+
       <span>
         <Tooltip>
           <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
@@ -670,34 +440,6 @@ class ImgViewer extends PureComponent {
         {colors}
         {label && (label || path)}
       </span>
-
-      <span>Hello World!</span>
-
-      {/* itamar persi */}
-      <div className="Container">
-        <p>Add crops using the crop tool</p>
-        <ul>
-          {this.state.tags.map(tag => (
-            <ul key={tag.id} >
-              <button type="button" onClick={this.HandleTagClick(tag)}>
-                {tag.text}
-              </button>
-            </ul>
-          ))}
-        </ul>
-        <MultiSelect
-          items={this.state.fileds}
-          itemRenderer={this.renderMetric}
-          onItemSelect={this.handleMetricSelect}
-          tagRenderer={m => m.label}
-        />
-
-        {this.show_add_tag &&
-          <TagForm handleSubmit={this.AddTag} />
-        }
-      </div>
-      {/* end */}
-
       <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
 
         {images}
@@ -756,7 +498,88 @@ class ImgViewer extends PureComponent {
     }
   }
 
+  // itamar persi
 
+  crop1 = {
+    masterZoom: 4.3,
+    masterCenter: new OpenSeadragon.Point(0.5, 0.5),
+  }
+
+  cropFunction(crop) {
+
+
+    console.log("button pressed");
+
+    // Implemement synced zoom
+    // https://codepen.io/iangilman/pen/BWKKxQ
+    const { viewer_new, viewer_ref } = this;
+    var masterZoom;
+    var masterCenter;
+
+
+    //    masterZoom = viewer_new.viewport.getZoom();
+    masterZoom = crop.masterZoom;
+    //  masterCenter = viewer_new.viewport.getCenter();
+    masterCenter = crop.masterCenter;
+
+    console.log(masterZoom);
+    console.log(masterCenter);
+
+    viewer_new.viewport.zoomTo(masterZoom);
+    viewer_new.viewport.panTo(masterCenter);
+
+    //if (masterCenter === undefined || masterCenter === null) return
+
+    /*
+ 
+    var viewer_refHandler = function () {
+      if (viewer_newLeading)
+        return;
+      masterZoom = viewer_ref.viewport.getZoom();
+      masterCenter = viewer_ref.viewport.getCenter();
+      if (masterCenter === undefined || masterCenter === null) return
+ 
+      viewer_refLeading = true;
+      viewer_new.viewport.zoomTo(masterZoom);
+      viewer_new.viewport.panTo(masterCenter);
+      viewer_refLeading = false;
+    };
+    viewer_new.addHandler('zoom', viewer_newHandler);
+    viewer_ref.addHandler('zoom', viewer_refHandler);
+    viewer_new.addHandler('pan', viewer_newHandler);
+    viewer_ref.addHandler('pan', viewer_refHandler);
+ 
+    function maintainZoom() {
+      if (viewer_new === null || viewer_new === undefined || viewer_ref === null || viewer_ref === undefined)
+        return;
+      var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+      var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
+      viewer_newLeading = true;
+      viewer_refLeading = true;
+      try { // we should try to find how to identify when an image is not loaed...
+        viewer_new.viewport.resize(size1, true);
+        viewer_ref.viewport.resize(size2, true);
+ 
+        viewer_ref.viewport.zoomTo(masterZoom, null, true);
+        viewer_ref.viewport.panTo(masterCenter, true);
+ 
+        viewer_new.viewport.zoomTo(masterZoom, null, true);
+        viewer_new.viewport.panTo(masterCenter, true);
+ 
+        viewer_newLeading = false;
+        viewer_refLeading = false;
+ 
+        viewer_new.forceRedraw();
+        viewer_ref.forceRedraw();
+      } catch {
+ 
+      }
+    }
+    window.addEventListener('resize', maintainZoom, { passive: true });
+    this.setState({ maintainZoom });
+  */
+  };
+  // end
 
 
 
