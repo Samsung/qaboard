@@ -74,7 +74,7 @@ const OrbitControls = function ( object, domElement ) {
 	this.enableKeys = true;
 
 	// The four arrow keys
-	this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40 };
+	this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40, A: 65, D: 68, S: 83, W: 87};
 
 	// Mouse buttons
 	this.mouseButtons = { ORBIT: THREE.MOUSE.LEFT, ZOOM: THREE.MOUSE.MIDDLE, PAN: THREE.MOUSE.RIGHT };
@@ -346,12 +346,41 @@ const OrbitControls = function ( object, domElement ) {
 
 	}();
 
+	var panIn = function () {
+
+		var v = new THREE.Vector3();
+
+		return function panUp( distance, objectMatrix ) {
+
+			switch ( scope.panningMode ) {
+
+				case OrbitControls.ScreenSpacePanning:
+
+					v.setFromMatrixColumn( objectMatrix, 2 );
+					break;
+
+				case OrbitControls.HorizontalPanning:
+
+					v.setFromMatrixColumn( objectMatrix, 0 );
+					v.crossVectors( scope.object.up, v );
+					break;
+
+			}
+
+			v.multiplyScalar( distance );
+
+			panOffset.add( v );
+
+		};
+
+	}();
+	
 	// deltaX and deltaY are in pixels; right and down are positive
 	var pan = function () {
 
 		var offset = new THREE.Vector3();
 
-		return function pan( deltaX, deltaY ) {
+		return function pan( deltaX, deltaY, deltaZ = 0 ) {
 
 			var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
 
@@ -368,12 +397,16 @@ const OrbitControls = function ( object, domElement ) {
 				// we actually don't use screenWidth, since perspective camera is fixed to screen height
 				panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
 				panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+				console.log( deltaX );
+				console.log( deltaZ );
+				panIn( 2 * deltaZ * targetDistance / element.clientHeight, scope.object.matrix );
 
 			} else if ( scope.object.isOrthographicCamera ) {
 
 				// orthographic
 				panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
 				panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+				// panIn( deltaZ * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix ); // hmmm what to do here
 
 			} else {
 
@@ -549,23 +582,35 @@ const OrbitControls = function ( object, domElement ) {
 
 		switch ( event.keyCode ) {
 
+			case scope.keys.S:
+				pan( 0, 0, scope.keyPanSpeed );
+				scope.update();
+				break;
+				
 			case scope.keys.UP:
-				pan( 0, scope.keyPanSpeed );
+				pan( 0, scope.keyPanSpeed, 0 );
 				scope.update();
 				break;
 
+			case scope.keys.W:
+				pan( 0, 0, -scope.keyPanSpeed );
+				scope.update();
+				break;
+			
 			case scope.keys.BOTTOM:
-				pan( 0, - scope.keyPanSpeed );
+				pan( 0, - scope.keyPanSpeed, 0 );
 				scope.update();
 				break;
 
+			case scope.keys.A:
 			case scope.keys.LEFT:
-				pan( scope.keyPanSpeed, 0 );
+				pan( scope.keyPanSpeed, 0, 0 );
 				scope.update();
 				break;
 
+			case scope.keys.D:
 			case scope.keys.RIGHT:
-				pan( - scope.keyPanSpeed, 0 );
+				pan( - scope.keyPanSpeed, 0, 0 );
 				scope.update();
 				break;
 
@@ -661,7 +706,7 @@ const OrbitControls = function ( object, domElement ) {
 
 		panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
 
-		pan( panDelta.x, panDelta.y );
+		pan( panDelta.x, panDelta.y, 0 );
 
 		panStart.copy( panEnd );
 
