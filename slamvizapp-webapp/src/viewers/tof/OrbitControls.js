@@ -397,8 +397,6 @@ const OrbitControls = function ( object, domElement ) {
 				// we actually don't use screenWidth, since perspective camera is fixed to screen height
 				panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
 				panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
-				console.log( deltaX );
-				console.log( deltaZ );
 				panIn( 2 * deltaZ * targetDistance / element.clientHeight, scope.object.matrix );
 
 			} else if ( scope.object.isOrthographicCamera ) {
