@@ -41,7 +41,7 @@ const output_header_style = {
 };
 const OutputHeader = React.memo( ({project, commit, output, warning, type}) => {
     const input_over_time_url = `/${project}/dashboard/${commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}${type==='bit_accuracy' ? "show_bit_accuracy=true" : ""}`
-    const has_metadata = !!output.test_input_metadata
+    const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
     const has_label = has_metadata && !!output.test_input_metadata.label
     return <>
       <h5 className={Classes.HEADING} style={output_header_style} >
@@ -261,9 +261,9 @@ class OutputCard extends React.Component {
     if (output_new === undefined  || output_new === null || output_new.is_pending)
       return <span/>
 
-    const { qatools_config } = (this.props.project_data || {}).data || {};
+    const qatools_config = (((this.props.project_data || {}).data || {}) || {}).qatools_config;
     const style = {
-      ...((qatools_config.outputs|| {}).style || {}),
+      ...((qatools_config.outputs || {}).style || {}),
       ...this.props.style,
     }
 
@@ -276,7 +276,7 @@ class OutputCard extends React.Component {
       var controls = this.props.controls || {};
 
 	    // layout should be plotly-like. You could also pass down a props named style.
-      var views = [...(qatools_config.outputs.visualizations || []), ...(qatools_config.outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
+      var views = [...((qatools_config.outputs || {}).visualizations || []), ...((qatools_config.outputs || {}).detailed_views || []) ]; // we allow both for some leeway with half updated projects
 
 	    let viewers = views.map( (view, idx) => {
 	      let hidden = view.default_hidden===true && !(!!controls.show && controls.show[view.name]===true)
@@ -363,6 +363,8 @@ class OutputCard extends React.Component {
 
           {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
           {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
+          {output_new.deleted && <Tag intent={Intent.DANGER}>Deleted</Tag>}
+          {output_ref && output_ref.deleted && <Tag intent={Intent.WARNING}>Reference deleted</Tag>}
 
           {is_loaded && this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map( ([name, option]) => { // FIXME: need to filter, only care about shown viewers...
             const option_label = isNaN(option.name) ? option.name : option.pattern

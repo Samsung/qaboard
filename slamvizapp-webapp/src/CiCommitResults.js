@@ -148,15 +148,14 @@ class CiCommitResults extends Component {
     const commit_qatools_config_prev  = ((prevProps.new_commit   || {}).data || {}).qatools_config;
     const project_qatools_config_prev = ((prevProps.project_data || {}).data || {}).qatools_config;
 
+
     const qatools_config_curr = (this.state.qatools_config === 'project' ? project_qatools_config_curr : commit_qatools_config_curr) || project_qatools_config_curr;
     const qatools_config_prev = (this.state.qatools_config === 'project' ? project_qatools_config_prev : commit_qatools_config_prev) || project_qatools_config_prev;
     const new_outputs = (qatools_config_curr || {}).outputs;
     const old_outputs = (qatools_config_prev || {}).outputs;
 
     if (new_outputs !== old_outputs ) {
-      const commit_qatools_config = ((this.props.new_commit || {}).data || {}).qatools_config;
-      const project_qatools_config = ((this.props.project_data || {}).data || {}).qatools_config;
-      let controls = controls_defaults(this.state.qatools_config === 'project' ? project_qatools_config : (commit_qatools_config || project_qatools_config))
+      let controls = controls_defaults(qatools_config_curr)
       this.setState({controls});
     }
   }
@@ -186,15 +185,15 @@ class CiCommitResults extends Component {
       ref_batch_filtered,
       selected_views,
     } = this.props;
-    if (this.state.qatools_config === 'project') {
-      var config_data = this.props.project_data;
-    } else {
-      config_data = this.props.new_commit || {};
-      if (!!!config_data.data) config_data.data = {}
-      config_data.data.git = (this.props.project_data.data || {}).git || {}
-      // console.log("outputs", config_data.data.qatools_config.outputs)
-    }
-    // console.log("config_data", config_data)
+    // TODO: ugly... should do it once and save in state..
+    const config_data = this.state.qatools_config === 'project' ? this.props.project_data : ({
+      ...(this.props.project_data || {}),
+      ...(this.props.new_commit || {}),
+      data: {
+        ...((this.props.project_data || {}).data || {}),
+        ...((this.props.new_commit || {}).data || {}),
+      }
+    })
 
     var warning_messages = <CommitsWarningMessages
                             commits={{
