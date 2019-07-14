@@ -28,7 +28,7 @@ class LastCommitAt extends Component {
   render() {
     const { project, className } = this.props;
     let date_commit = project.latest_commit_datetime;
-    let date_output = project.data.latest_output_datetime;
+    let date_output = project.latest_output_datetime || project.data.latest_output_datetime;
     let date = date_output || date_commit
     return (
       <span className={className} style={{marginBottom: '5px'}}>
@@ -65,8 +65,8 @@ class ProjectsList extends Component {
               let fav0 = projects[id0].is_favorite || false
               let fav1 = projects[id1].is_favorite || false
               if (fav0 === fav1) {
-                let date0 = (d0.data || {}).latest_output_datetime;
-                let date1 = (d1.data || {}).latest_output_datetime;
+                let date0 = d0.latest_output_datetime || (d0.data || {}).latest_output_datetime;
+                let date1 = d1.latest_output_datetime || (d1.data || {}).latest_output_datetime;
                 if (!!date1  && !!!date0) return 1
                 if (!!!date1 &&  !!date0) return -1
                 if (!!!date1 && !!!date0) return new Date(d1.latest_commit_datetime) - new Date(d0.latest_commit_datetime)
