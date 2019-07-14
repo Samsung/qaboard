@@ -54,7 +54,17 @@ RUN wget --no-check-certificate https://repo.continuum.io/archive/Anaconda3-5.3.
     bash Anaconda3-5.3.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 # ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
-RUN conda install -k -c conda-forge uwsgi
+#RUN wget --no-check-certificate https://projects.unbit.it/downloads/uwsgi-2.0.18.tar.gz && \
+#    tar xvf uwsgi-2.0.18.tar.gz
+#RUN cd uwsgi-2.0.18 && \
+#    export CFLAGS="$CFLAGS -fPIC" && \
+#    make PROFILE=nolang PYTHON=python3.7 && \
+#    python uwsgiconfig.py --build --verbose
+#RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host pypi.org projects.unbit.it \
+#    https://projects.unbit.it/downloads/uwsgi-lts.tar.gz
+# RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
+#     pandas
+RUN conda install -k -c conda-forge/label/gcc7 uwsgi
 RUN conda install -k -c conda-forge libiconv
 RUN conda install -k pandas
 # RUN conda update -n base -c defaults conda
