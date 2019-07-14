@@ -217,7 +217,6 @@ class ProjectSideResults extends React.Component {
            [integration.text]: {loading: true},
          }
        });
-       console.log(integration, integration.href, integration.href.startsWith('/'))
        let url = integration.href.startsWith('/') ? `https://qa${integration.href}`: integration.href
        console.log(url)
        axios.post('/api/v1/webhook/proxy/', {method: 'HEAD', url})
@@ -258,101 +257,14 @@ class ProjectSideResults extends React.Component {
       user: this.props.tuning_user,
     }
 
-    // https://blueprintjs.com/docs/#core/components/menu
-    // https://github.com/axios/axios#axios-api
-    //2.python-requests.org/en/master/user/advanced/#request-and-response-objects
-
-    /*
-    const default_integrations = [
-      {
-        divider: true,
-        title: 'Build',
-      },
-      {
-        text: 'Windows',
-        icon: 'build',
-        // when triggered, gives a way to check the status
-        //status: {
-        //  // ? maybe sh
-        //}
-        webhook: {
-          url: 'http://jensirc:8080/job/CDE_Project_DLL/buildWithParameters',
-          method: 'post',
-          auth: {
-            username: 'arthurf',
-            password: '11089462c1273c2e5dc3f2746f03578bc5',
-          },
-          headers: {
-            'Jenkins-Crumb': 'c762b20d61bd34c5fd8e49ad6637a8a1',
-          },
-          params: {
-            token: 'qatools',
-            project_name: 'CIS',
-            branch: '${commit.branch}',
-            cause: 'Triggered via the QA app'
-          }
-          // success: {**webhook_others, matches: /200: OK/ }
-        }
-      },
-      {
-        text: 'Linux Debug/ASAN',
-        icon: 'build',
-        disabled: true,
-      },
-      {
-        divider: true,
-        title: 'Artifacts',
-      },
-      {
-        text: 'Executable',
-        icon: 'download',
-        label: 'Linux',
-        href: '${commit.repo_commit_dir_url}/build/bin',
-      },
-      {
-        text: 'DLL',
-        icon: 'download',
-        label: 'Windows',
-        href: '${commit.repo_commit_dir_url}/build/bin',
-      },
-      {
-        text: 'EXE',
-        icon: 'download',
-        label: 'Windows',
-        href: '${commit.repo_commit_dir_url}/build/bin',
-      },
-      {
-        divider: true,
-        title: 'Docs',
-      },
-      {
-        text: 'Generate',
-        icon: 'build',
-      },
-      {
-        text: 'View',
-        icon: 'book',
-        label: 'link',
-        href: 'http://example.com/docs',
-      },
-      {
-        divider: true,
-      },
-      {
-        text: 'Publish',
-        intent: 'warning',
-        icon: 'upload',
-      },
-    ]
-    const qatools_integrations = default_integrations;
-    */
-
     // we can only do tuning for projects whose database is outside the repo
     // otherwise we would need to checkout the repo and manage access...
     const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
     const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
-    const qatools_config = commit_qatools_config || project_qatools_config || {};
+    // const qatools_integrations = default_integrations;
     const qatools_integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+
+    const qatools_config = commit_qatools_config || project_qatools_config || {};
     const disable_tuning = !!qatools_config.inputs && !!qatools_config.inputs.database && !!qatools_config.inputs.database.linux &&
                            !qatools_config.inputs.database.linux.startsWith('/');
     const active = view => this.props.selected_views.includes(view);
@@ -473,3 +385,89 @@ const mapStateToProps = (state, ownProps) => {
 }
 
 export default withRouter(connect(mapStateToProps)(AppSider) );
+
+
+/*
+    const default_integrations = [
+      {
+        divider: true,
+        title: 'Build',
+      },
+      {
+        text: 'Windows',
+        icon: 'build',
+        // when triggered, gives a way to check the status
+        //status: {
+        //  // ? maybe sh
+        //}
+        webhook: {
+          url: 'http://jensirc:8080/job/CDE_Project_DLL/buildWithParameters',
+          method: 'post',
+          auth: {
+            username: 'arthurf',
+            password: '11089462c1273c2e5dc3f2746f03578bc5',
+          },
+          headers: {
+            'Jenkins-Crumb': 'c762b20d61bd34c5fd8e49ad6637a8a1',
+          },
+          params: {
+            token: 'qatools',
+            project_name: 'CIS',
+            branch: '${commit.branch}',
+            cause: 'Triggered via the QA app'
+          }
+          // success: {**webhook_others, matches: /200: OK/ }
+        }
+      },
+      {
+        text: 'Linux Debug/ASAN',
+        icon: 'build',
+        disabled: true,
+      },
+      {
+        divider: true,
+        title: 'Artifacts',
+      },
+      {
+        text: 'Executable',
+        icon: 'download',
+        label: 'Linux',
+        href: '${commit.repo_commit_dir_url}/build/bin',
+      },
+      {
+        text: 'DLL',
+        icon: 'download',
+        label: 'Windows',
+        href: '${commit.repo_commit_dir_url}/build/bin',
+      },
+      {
+        text: 'EXE',
+        icon: 'download',
+        label: 'Windows',
+        href: '${commit.repo_commit_dir_url}/build/bin',
+      },
+      {
+        divider: true,
+        title: 'Docs',
+      },
+      {
+        text: 'Generate',
+        icon: 'build',
+      },
+      {
+        text: 'View',
+        icon: 'book',
+        label: 'link',
+        href: 'http://example.com/docs',
+      },
+      {
+        divider: true,
+      },
+      {
+        text: 'Publish',
+        intent: 'warning',
+        icon: 'upload',
+      },
+    ]
+
+*/
