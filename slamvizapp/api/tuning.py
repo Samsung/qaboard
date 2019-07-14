@@ -147,11 +147,16 @@ def add_batch(hexsha):
     if "qatools_config" not in ci_commit.project.data:
         return jsonify("Please configure `qatools first`"), 404
 
-    now = datetime.datetime.now()
-    ci_commit.time_of_last_batch = now.astimezone()
+    ci_commit.latest_output_datetime = datetime.datetime.now()
+    ci_commit.latest_output_datetime = datetime.datetime.now()
     batch = ci_commit.get_or_create_batch(data['batch_label'])
     db_session.add(ci_commit)
     db_session.commit()
+
+    if ci_commit.deleted:
+        # Now that we updated the last_output_datetime, it won't be deleted again until a little while
+        return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
+
 
     groups_paths = [*get_commit_groups_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
     # We store in this directory the scripts used to run this new batch, as well as the logs
@@ -244,7 +249,8 @@ def add_batch(hexsha):
         [
             "#!/bin/bash\n",
             "set -xe\n\n",
-            f'bsub_su {user} -q {queue} ',
+            'mkdir -p "{batch.output_dir}"\n',
+            f'bsub_su "{user}" -q "{queue}" ',
             '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
             f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
             f'\tssh -o StrictHostKeyChecking=no -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',

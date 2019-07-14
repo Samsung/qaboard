@@ -4,8 +4,9 @@ A version of the code on which we ran SLAM performance test.
 from pathlib import Path
 from hashlib import md5
 import re
+import json
 
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -46,6 +47,11 @@ class CiCommit(Base):
                          order_by=Batch.created_date,
                         )
 
+  latest_output_datetime = Column(DateTime(timezone=True))
+  deleted = Column(Boolean(), default=False)
+
+
+
   def get_or_create_batch(self, label):
     matching_batches = [b for b in self.batches if b.label == label]
     if matching_batches: return matching_batches[0]
@@ -54,12 +60,6 @@ class CiCommit(Base):
   @property
   def ci_batch(self):
     return self.get_or_create_batch('default')
-
-  # this helps us understand if we expect pending results
-  time_of_last_batch = Column(DateTime(timezone=True))
-
-  latest_gitlab_pipeline = Column(String())
-  # pipeline_failed = Column(Boolean)
 
 
   @property
@@ -71,7 +71,7 @@ class CiCommit(Base):
   def commit_dir(self):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
-      out = Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
+      out = Path(self.commit_dir_override)
     else:
       commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name.replace(" ", " ")}__{self.hexsha[:8]}'
       out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
@@ -83,7 +83,7 @@ class CiCommit(Base):
   @property
   def repo_commit_dir(self):
     if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override.replace("/home/arthurf/ci", ""))
+      return Path(self.commit_dir_override)
     else:
       commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
       return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
@@ -92,7 +92,7 @@ class CiCommit(Base):
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
-      relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
+      relative_path = self.commit_dir_override
       return f'/s/{relative_path}' 
     return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
 
@@ -101,14 +101,16 @@ class CiCommit(Base):
   def repo_commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
-      relative_path = self.commit_dir_override.replace("/home/arthurf/ci/", "")
+      relative_path = self.commit_dir_override
       return f'/s/{relative_path}' 
-    return f"/s/{self.repo_commit_dir}".replace("/home/arthurf/ci", "")
+    return f"/s/{self.repo_commit_dir}"
 
 
 
   def __repr__(self):
-    return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha}' type='{self.commit_type}' ci_batch.outputs={len(self.ci_batch.outputs)}>"
+    outputs = f"ci_batch.outputs={len(self.ci_batch.outputs)}" if len(self.ci_batch.outputs) else ''
+    branch = re.sub('origin/', '', self.branch)
+    return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha[:8]}' branch='{branch}' {outputs}>"
 
 
 
@@ -127,7 +129,7 @@ class CiCommit(Base):
     else: # a commit belong to many branches, so this is a guess..
       self.branch = find_branch(commit.hexsha, self.project.repo)
     self.authored_datetime = commit.authored_datetime
-    self.time_of_last_batch = commit.authored_datetime
+    self.latest_output_datetime = commit.authored_datetime
     self.committer_name = commit.committer.name
 
 
@@ -139,6 +141,33 @@ class CiCommit(Base):
       # this mocks a real git commit
       return LocalGitCommit(self.hexsha, self.message, self.committer_name, self.authored_datetime)
 
+
+  def delete(self, ignore=None, dryrun=False):
+    manifest_dir = self.commit_dir / 'manifests'
+    if self.commit_dir.exists():
+      if not manifest_dir.exists():
+        # Old versions of qatools don't have those manifests...
+        for p in self.commit_dir.iterdir():
+          if not dryrun and p.name not in ['output', 'tuning']:
+            remove(p)
+        self.deleted = True
+        return
+      else:
+        for manifest in manifest_dir.iterdir():
+          print(f'...delete artifacts {manifest.name}')
+          with manifest.open() as f:
+            files = json.load(f)
+          for file in files.keys():
+            if ignore:
+              if any([fnmatch.fnmatch(file, i) for i in ignore]):
+                continue
+            print(f'{self.commit_dir / file}')
+            if not dryrun:
+              try:
+                (self.commit_dir / file).unlink()
+              except:
+                print(f"WARNING: Could not remove: {self.commit_dir / file}")
+    self.deleted = True
 
   @staticmethod
   def get_or_create(session, hexsha, project_id):
@@ -207,13 +236,14 @@ class CiCommit(Base):
         'committer_avatar_url': committer_avatar_url,
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
+        'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,
+        'deleted': self.deleted,
         "data": self.data if with_outputs else None,
         'commit_dir_url': str(self.commit_dir_url),
         'repo_commit_dir_url': str(self.repo_commit_dir_url),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches
                     if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},
-        'time_of_last_batch': self.time_of_last_batch.isoformat(),
     }
     if with_outputs:
       out["data"] = self.data
@@ -276,3 +306,24 @@ def parent_successful_commit(ci_commit):
     if len(parent_ci_commit.ci_batch.outputs) > 10:
       return parent_ci_commit
     parent_hexsha = parent_ci_commit.gitcommit.parents[0]
+
+
+
+
+def remove(path):
+  if not path.exists():
+    raise ValueError(f"ERROR: {path} doesn't exist")
+  if path.is_file():
+    print(str(path))
+    try:
+      path.unlink()
+    except:
+      print(f"WARNING: Could not remove: {p}")
+    return
+  for p in path.iterdir():
+    remove(p)
+  print(str(path))
+  try:
+    p.unlink()
+  except:
+    print(f"WARNING: Could not remove: {p}")

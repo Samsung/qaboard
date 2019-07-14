@@ -12,6 +12,7 @@ import re
 import datetime
 import hashlib
 import json
+import fnmatch
 from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey
@@ -20,33 +21,10 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
 from sqlalchemy import cast, type_coerce
 
+from qatools.conventions import slugify, slugify_config, make_hash
+
 from slamvizapp.models import Base
 
-
-# from qatools.conventions import slugify, slugify_config, make_hash
-def slugify(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
-  # lowercased and shortened to 63 bytes
-  slug = s.lower()
-  if maxlength:
-    slug = slug[:(maxlength - 1)]
-  # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z.=]', '-', slug)
-  slug = re.sub('-{2,}', '-', slug)
-  # No leading / trailing -. 
-  return slug.strip('-')
-
-def slugify_config(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
-  # lowercased and shortened to 63 bytes
-  if len(s) < maxlength:
-    return slugify(s)
-  s_hash = make_hash(s)[:8]
-  return f"{s_hash}-{slugify(s[-(maxlength-8):], maxlength=None)}"
-
-def make_hash(obj):
-  params_s = json.dumps(obj, sort_keys=True)
-  return hashlib.md5(params_s.encode()).hexdigest()
 
 
 
@@ -57,6 +35,10 @@ class Output(Base):
   batch_id = Column(Integer(), ForeignKey('batches.id'), index=True)
   batch = relationship("Batch", back_populates="outputs",)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
+  # when we delete an output we still keep the metadata and manifest
+  # to *really* delete it, feel free to delete Output.output_dir and remove the row
+  deleted = Column(Boolean(), default=False)
+
 
   ####  Where results are stored (eg logs, images, 6dof, whatever)
   # It is easier if there is a centralized way of storing results, but
@@ -78,14 +60,13 @@ class Output(Base):
 
   #### How good we ran
   is_pending = Column(Boolean(), default=False)
-  is_running = Column(Boolean(), default=False) # in addition to pending
+  is_running = Column(Boolean(), default=False) # a running ouput is still pending...
   is_failed = Column(Boolean(), default=False)
 
   metrics = Column(JSON(), default={})
   data = Column(JSON(), default={})
 
 
-  # TODO: refactor as SLAM-specific, move into the scrapping code
   def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""
     if not filepath:
@@ -167,6 +148,7 @@ class Output(Base):
      'is_pending',
      'is_running',
      'data',
+     'deleted',
     ]
     as_dict = {c: getattr(self, c) for c in cols}
     return {
@@ -224,3 +206,26 @@ class Output(Base):
       session.add(output)
       session.commit()
       return output
+
+
+  def delete(self, ignore=None, dryrun=False):
+    output_dir = self.output_dir
+    if output_dir.exists():
+      # FIXME: If a run crashes, or in case of network issues, the manifests may not be updated...
+      manifest_path = output_dir / 'manifest.outputs.json'
+      if manifest_path.exists():
+        with manifest_path.open() as f:
+          files = json.load(f)
+        for file in files.keys():
+          if file in ['manifest.outputs.json', 'manifest.inputs.json']:
+            continue
+          if ignore:
+            if any([fnmatch.fnmatch(file, i) for i in ignore]):
+              continue
+          print(f'{output_dir / file}')
+          if not dryrun:
+            try:
+              (output_dir / file).unlink()
+            except: # already deleted?
+              print(f"WARNING: Could not remove: {output_dir / file}")
+      self.deleted = True

@@ -116,6 +116,7 @@ def get_projects():
               .query(
                 Project.id,
                 Project.data,
+                Project.latest_output_datetime,
                 label('latest_commit_datetime', func.max(CiCommit.authored_datetime)),
                 label('total_commits', func.count(CiCommit.id)),
               )
@@ -129,9 +130,10 @@ def get_projects():
       # TODO: drop qatools_config
       # TODO: drop qatools_metrics
       'data': data,
-      'latest_commit_datetime': latest_commit_datetime,
+      'latest_output_datetime': latest_output_datetime.isoformat() if latest_output_datetime else None, # isoformat not necessary?
+      'latest_commit_datetime': latest_commit_datetime.isoformat(),
       'total_commits': total_commits,
-    } for project_id, data, latest_commit_datetime, total_commits in projects })
+    } for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects })
 
 @app.route("/api/v1/project")
 def get_project():
