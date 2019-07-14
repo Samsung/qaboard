@@ -7,6 +7,8 @@ Web application to display results from various algorithmic projects.
 ```
 # depending on your proxies you may need to....
 # npm config set strict-ssl false
+# For windows:
+# set NODE_TLS_REJECT_UNAUTHORIZED=0
 npm install
 npm start
 #=> listenning on port 3000
