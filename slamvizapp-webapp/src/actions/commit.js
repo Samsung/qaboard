@@ -22,7 +22,7 @@ export const fetchCommit = (project, id, used_for, branch) => {
       project,
       id,
     })
-		// the API defaults to the latest commit on develop, it is useful
+		// the API defaults to the latest commit on the reference branch, it is useful
     let use_default_reference_commit = !id
     get(`/api/v1/commit${use_default_reference_commit ? "" : `/${id}`}`, { params: { project, branch } })
       .then(response => {
