@@ -5,7 +5,9 @@ import {
   Tag,
   Slider,
   Icon,
-  Tooltip
+  Tooltip,
+  Divider,
+  Button
 } from "@blueprintjs/core";
 import pixelmatch from 'pixelmatch';
 import Plot from 'react-plotly.js';
@@ -13,6 +15,11 @@ import Plot from 'react-plotly.js';
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
+
+// itamar persi
+import MultiSelectTags from "./multiSelectTags";
+//import ButtonsExample from "./buttonsExample"
+// end 
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -63,9 +70,9 @@ const iiif_url = (output_dir_url, path) => {
   // IIIF specs require encoding the slashes inside the identifier
   let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
   let endpoint = is_cde_file ? 'https://qa:8186/fcgi-bin/iipsrv.fcgi?IIIF='
-                             : 'https://qa:8183/iiif/2/'
+    : 'https://qa:8183/iiif/2/'
   identifier = encodeURIComponent(identifier)
-  let url = `${endpoint}${identifier}`  
+  let url = `${endpoint}${identifier}`
   return url
 }
 
@@ -88,12 +95,12 @@ class ImgViewer extends PureComponent {
   componentDidMount() {
     const { output_new, id, path } = this.props;
     this.viewer_new = OpenSeadragon({
-        ...openseadragon_config,
-        id: `osd-new-${slugify(output_new.output_dir_url)}-${id || path}`,
-      });
+      ...openseadragon_config,
+      id: `osd-new-${slugify(output_new.output_dir_url)}-${id || path}`,
+    });
     this.viewer_ref = OpenSeadragon({
-        ...openseadragon_config,
-        id: `osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`,
+      ...openseadragon_config,
+      id: `osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`,
     });
 
     this.Init().then(() => {
@@ -101,8 +108,8 @@ class ImgViewer extends PureComponent {
       this.InitZoomSync();
       this.InitFilters();
       this.InitHistogram();
-      this.InitDiff();        
-      window.addEventListener("keypress", this.keyboard, {passive: true});
+      this.InitDiff();
+      window.addEventListener("keypress", this.keyboard, { passive: true });
     })
   }
 
@@ -112,7 +119,7 @@ class ImgViewer extends PureComponent {
       // this.viewer_new.destroy();
       // this.viewer_new = null;
     }
-    if (!!this.viewer_new) {      
+    if (!!this.viewer_new) {
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_ref.destroy();
       // this.viewer_ref = null;
@@ -122,23 +129,23 @@ class ImgViewer extends PureComponent {
 
 
   Init() {
-    return new Promise( (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const { path, output_new, output_ref } = this.props;
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
 
       get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
-        this.setState({loaded: true})
+        this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
         // image dimensions
         const { height, width } = res.data;
         let source_config = {
-            "@context": "http://iiif.io/api/image/2/context.json",
-            protocol: "http://iiif.io/api/image",
-            profile: ["http://iiif.io/api/image/2/level2.json"],
-            // formats: ["png"],
-            fitBounds: true,
-            height,
-            width,
+          "@context": "http://iiif.io/api/image/2/context.json",
+          protocol: "http://iiif.io/api/image",
+          profile: ["http://iiif.io/api/image/2/level2.json"],
+          // formats: ["png"],
+          fitBounds: true,
+          height,
+          width,
         }
         this.setState({
           image_width: width,
@@ -150,7 +157,7 @@ class ImgViewer extends PureComponent {
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
         viewer_new.addTiledImage({
-          tileSource: {...source_config, "@id": iiif_url(output_new.output_dir_url, path)},
+          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path) },
           success: () => {
             // To avoid leaking tile sources, we should remove the previous tile
             // however, it causes a blink-to-white transition... so until we find a fix...
@@ -166,49 +173,49 @@ class ImgViewer extends PureComponent {
 
         if (has_reference) {
           viewer_ref.addTiledImage({
-            tileSource: {...source_config, "@id": iiif_url(output_ref.output_dir_url, path)},
-            success: () => {},
+            tileSource: { ...source_config, "@id": iiif_url(output_ref.output_dir_url, path) },
+            success: () => { },
           })
         }
       }).catch(error => {
-        this.setState({error})
-        reject({error})
-      });      
+        this.setState({ error })
+        reject({ error })
+      });
     })
   }
 
   componentDidUpdate(prevProps, prevState) {
-      let updated_new =
-        prevProps.output_new !== undefined && prevProps.output_new !== null &&
-        (this.props.output_new === null || this.props.output_new === undefined ||
-          prevProps.output_new.id !== this.props.output_new.id);
-      let updated_ref =
-        prevProps.output_ref !== undefined && prevProps.output_ref !== null &&
-        (this.props.output_ref === null || this.props.output_ref === undefined ||
-          prevProps.output_ref.id !== this.props.output_ref.id);
-      const has_path = this.props.path !== undefined && this.props.path !== null;
-      let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
-      if (updated_new || updated_ref || updated_path) {
-        if (this.props.id === undefined)
-          console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
-        this.Init();
-      }
+    let updated_new =
+      prevProps.output_new !== undefined && prevProps.output_new !== null &&
+      (this.props.output_new === null || this.props.output_new === undefined ||
+        prevProps.output_new.id !== this.props.output_new.id);
+    let updated_ref =
+      prevProps.output_ref !== undefined && prevProps.output_ref !== null &&
+      (this.props.output_ref === null || this.props.output_ref === undefined ||
+        prevProps.output_ref.id !== this.props.output_ref.id);
+    const has_path = this.props.path !== undefined && this.props.path !== null;
+    let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
+    if (updated_new || updated_ref || updated_path) {
+      if (this.props.id === undefined)
+        console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
+      this.Init();
+    }
 
-      let updated_diff = prevProps.diff !== this.props.diff;
-      if (updated_diff) {
-        this.InitDiff(this.props);
-      }
+    let updated_diff = prevProps.diff !== this.props.diff;
+    if (updated_diff) {
+      this.InitDiff(this.props);
+    }
   }
 
   update_diff = () => {
-    const { viewer_new, viewer_ref} = this;
+    const { viewer_new, viewer_ref } = this;
     let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
     let data_new = viewer_new.drawer.context.getImageData(0, 0, size.x, size.y);
     let data_ref = viewer_ref.drawer.context.getImageData(0, 0, size.x, size.y);
     var canvas_diff_element = this.canvas_diff.current;
     if (!!canvas_diff_element) {
       var diff_data = canvas_diff_element.getContext("2d").createImageData(size.x, size.y);
-      pixelmatch(data_new.data, data_ref.data, diff_data.data, size.x, size.y, {threshold: this.state.diff_threshold, includeAA: true});
+      pixelmatch(data_new.data, data_ref.data, diff_data.data, size.x, size.y, { threshold: this.state.diff_threshold, includeAA: true });
       canvas_diff_element.getContext("2d").putImageData(diff_data, 0, 0);
     }
   }
@@ -226,7 +233,7 @@ class ImgViewer extends PureComponent {
     }
   }
 
-  
+
   update_histogram = () => {
     if (!this.show_histogram)
       return
@@ -238,38 +245,38 @@ class ImgViewer extends PureComponent {
   InitHistogram(props) {
     const { viewer_new } = this;
     const selection_options = {
-      onSelection: rect => {console.log(rect)},
+      onSelection: rect => { console.log(rect) },
 
-      onSelectionChange: ({canvasCoords}) => {
+      onSelectionChange: ({ canvasCoords }) => {
         this.show_histogram = true;
         this.canvasCoords = canvasCoords;
         this.update_histogram();
       },
       showConfirmDenyButtons: false,
       restrictToImage: true,
-      allowRotation: false,      
+      allowRotation: false,
     }
     viewer_new.selection(selection_options);
     viewer_new.addHandler('update-viewport', this.update_histogram);
-    viewer_new.addHandler('selection_cancel', () => {this.show_histogram=false});
-    viewer_new.addHandler('selection_toggle', ({enabled}) => {this.show_histogram = enabled; this.update_histogram()});
+    viewer_new.addHandler('selection_cancel', () => { this.show_histogram = false });
+    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_histogram = enabled; this.update_histogram() });
   }
 
 
   InitZoomSync() {
     // Implemement synced zoom
     // https://codepen.io/iangilman/pen/BWKKxQ
-    const { viewer_new, viewer_ref} = this;
+    const { viewer_new, viewer_ref } = this;
     var masterZoom;
     var masterCenter;
     var viewer_newLeading = false;
     var viewer_refLeading = false;
-    var viewer_newHandler = function() {
+    var viewer_newHandler = function () {
       if (viewer_refLeading)
         return;
       masterZoom = viewer_new.viewport.getZoom();
       masterCenter = viewer_new.viewport.getCenter();
-      if (masterCenter===undefined || masterCenter===null) return 
+      if (masterCenter === undefined || masterCenter === null) return
 
       viewer_newLeading = true;
       viewer_ref.viewport.zoomTo(masterZoom);
@@ -277,12 +284,12 @@ class ImgViewer extends PureComponent {
       viewer_newLeading = false;
     };
 
-    var viewer_refHandler = function() {
+    var viewer_refHandler = function () {
       if (viewer_newLeading)
         return;
       masterZoom = viewer_ref.viewport.getZoom();
       masterCenter = viewer_ref.viewport.getCenter();
-      if (masterCenter===undefined || masterCenter===null) return
+      if (masterCenter === undefined || masterCenter === null) return
 
       viewer_refLeading = true;
       viewer_new.viewport.zoomTo(masterZoom);
@@ -300,28 +307,28 @@ class ImgViewer extends PureComponent {
       var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
       var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
       viewer_newLeading = true;
-      viewer_refLeading = true;      
+      viewer_refLeading = true;
       try { // we should try to find how to identify when an image is not loaed...
         viewer_new.viewport.resize(size1, true);
         viewer_ref.viewport.resize(size2, true);
-        
+
         viewer_ref.viewport.zoomTo(masterZoom, null, true);
         viewer_ref.viewport.panTo(masterCenter, true);
 
         viewer_new.viewport.zoomTo(masterZoom, null, true);
         viewer_new.viewport.panTo(masterCenter, true);
-        
+
         viewer_newLeading = false;
         viewer_refLeading = false;
-        
+
         viewer_new.forceRedraw();
-        viewer_ref.forceRedraw();        
+        viewer_ref.forceRedraw();
       } catch {
-        
+
       }
     }
-    window.addEventListener('resize', maintainZoom, {passive: true});
-    this.setState({maintainZoom});
+    window.addEventListener('resize', maintainZoom, { passive: true });
+    this.setState({ maintainZoom });
   }
 
   InitFilters() {
@@ -340,9 +347,9 @@ class ImgViewer extends PureComponent {
         let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
         if (has_reference) {
           const color_ref = rgb_ref.getValueAt(x, y)
-          this.setState({color_ref})
+          this.setState({ color_ref })
         }
-        this.setState({color_new})
+        this.setState({ color_new })
       }
     });
     var rgb_ref = viewer_ref.rgb({
@@ -351,8 +358,9 @@ class ImgViewer extends PureComponent {
           return
         const { x, y } = color_ref.viewportCoordinates
         const color_new = rgb_new.getValueAt(x, y)
-        this.setState({color_new, color_ref})
-    }});
+        this.setState({ color_new, color_ref })
+      }
+    });
 
   }
 
@@ -362,42 +370,42 @@ class ImgViewer extends PureComponent {
 
     let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
     if (!!error && Object.keys(error).length > 0)
-      return <span/>;
+      return <span />;
 
     const single_image_width = (width - 10) / 2
     const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
-    const flex = {flex: '0 0 auto'}
+    const flex = { flex: '0 0 auto' }
     const single_image_size = {
-    	width: `${single_image_width}px`,
-    	height: `${single_image_height}px`,
+      width: `${single_image_width}px`,
+      height: `${single_image_height}px`,
     }
 
     const switch_label = <Tag rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     let images = [
-        <div style={flex} key="new">
-          <Tooltip>
-            {!hide_labels ? <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag> : switch_label}
-            <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-          </Tooltip>          
-          <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
-        </div>,
-        <div style={flex} key="ref">
-          <Tooltip>
-            {!hide_labels ? <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag> : switch_label}
-            <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-          </Tooltip>
-          <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={no_reference} />
-        </div>
+      <div style={flex} key="new">
+        <Tooltip>
+          {!hide_labels ? <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag> : switch_label}
+          <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
+        </Tooltip>
+        <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
+      </div>,
+      <div style={flex} key="ref">
+        <Tooltip>
+          {!hide_labels ? <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag> : switch_label}
+          <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
+        </Tooltip>
+        <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={no_reference} />
+      </div>
     ]
 
     let colors = [
       <ColorTooltip color={this.state.color_new} key="new" />,
-      <ColorTooltip color={this.state.color_ref} key="reference"/>,
+      <ColorTooltip color={this.state.color_ref} key="reference" />,
     ]
 
     if (first_image === 'reference') {
       images = images.reverse();
-      colors = colors.reverse();      
+      colors = colors.reverse();
     }
 
     const histo_layout = {
@@ -412,26 +420,33 @@ class ImgViewer extends PureComponent {
     }
 
     return <>
+
+      {/* itamar persi */}
+      <div>
+        <MultiSelectTags cropFunction={this.cropFunction} />
+        {/*<ButtonsExample func={() => this.cropFunction(this.crops[0])} />*/}
+      </div>
+      {/* end */}
+
       <span>
         <Tooltip>
-          <Icon icon="info-sign" style={{color: Colors.GRAY2}} />
+          <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
           <ul>
             <li>This image is not the real image! It's JPEG compressed (100-quality).</li>
             <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
           </ul>
         </Tooltip>
-        <CoordTooltip color={this.state.color_new}/>
+        <CoordTooltip color={this.state.color_new} />
         {colors}
         {label && (label || path)}
       </span>
-
-      <div style={{display: 'flex', flexWrap: 'wrap', alignContent: 'center',  paddingBottom: 5}}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
 
         {images}
 
-	      {single_image_height > 0 && <div hidden={!diff || no_reference} style={flex}>
+        {single_image_height > 0 && <div hidden={!diff || no_reference} style={flex}>
           <Slider
-            style={{width: single_image_size.width}}
+            style={{ width: single_image_size.width }}
             min={0} max={1}
             labelStepSize={0.1}
             stepSize={0.01}
@@ -439,15 +454,15 @@ class ImgViewer extends PureComponent {
             value={this.state.diff_threshold}
             showTrackFill
             onChange={diff_threshold => {
-              this.setState({diff_threshold}, () => this.update_diff())
+              this.setState({ diff_threshold }, () => this.update_diff())
             }}
           />
           <canvas hidden={!diff || no_reference} ref={this.canvas_diff} {...single_image_size} />
-          <br/>
+          <br />
           <Tooltip hoverCloseDelay={500}>
-            <p><Icon icon="info-sign" style={{color: Colors.GRAY2}}/></p>
+            <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
             <ul>
-              <li>Color difference according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>              
+              <li>Color difference according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>
               <li>Maximum squared difference = 35215 * threshold^2.</li>
               <li>Anti-aliased pixels are shown as yellow at most.</li>
               <li><a href="https://github.com/mapbox/pixelmatch/blob/master/index.js">Read the code</a> for more.</li>
@@ -456,16 +471,16 @@ class ImgViewer extends PureComponent {
         </div>}
 
         {this.show_histogram && <div style={flex}>
-            <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size} />
+          <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size} />
         </div>}
-        
+
       </div>
     </>
   }
 
   switch_images = () => {
     let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
-    this.setState({first_image})
+    this.setState({ first_image })
   }
 
   keyboard = ev => {
@@ -474,16 +489,41 @@ class ImgViewer extends PureComponent {
     switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "t":
         this.switch_images()
-      break
+        break
       case "h":
-        this.setState({hide_labels: !this.state.hide_labels})
-      break
+        this.setState({ hide_labels: !this.state.hide_labels })
+        break
       default:
         return;
     }
   }
 
 
+
+  // itamar persi
+
+  cropFunction = (crop) => {
+    console.log("crop function clicked");
+
+    const { viewer_new } = this;
+    var masterZoom;
+    var masterCenter;
+
+    //masterZoom = viewer_new.viewport.getZoom();
+    //masterCenter = viewer_new.viewport.getCenter();
+
+    masterZoom = crop.masterZoom;
+    masterCenter = crop.masterCenter;
+    console.log(masterZoom);
+    console.log(masterCenter);
+
+
+    viewer_new.viewport.zoomTo(masterZoom);
+    viewer_new.viewport.panTo(masterCenter);
+
+    //if (masterCenter === undefined || masterCenter === null) return
+  };
+  // end
 
 
 
