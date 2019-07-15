@@ -24,7 +24,6 @@ const CategoryMultiSelect = MultiSelect.ofType();
 const INTENTS = [Intent.NONE, Intent.PRIMARY, Intent.SUCCESS, Intent.DANGER, Intent.WARNING];
 
 
-
 class MultiSelectTags extends React.PureComponent {
     state = {
         allowCreate: false,
@@ -72,7 +71,7 @@ class MultiSelectTags extends React.PureComponent {
         const ActiveTags = ({ categories }) => (
             <>
                 {categories.map(category => (
-                    <Tags category={category.title} />
+                    <Tags category={category.title} cropFunction={this.props.cropFunction} />
                 ))}
             </>
         );
@@ -103,7 +102,7 @@ class MultiSelectTags extends React.PureComponent {
 
                 {/* itamar persi */}
                 <p />
-                <ActiveTags categories={this.state.categories} />
+                <ActiveTags cropFunction={this.props.cropFunction} categories={this.state.categories} />
 
                 {/* end */}
             </>

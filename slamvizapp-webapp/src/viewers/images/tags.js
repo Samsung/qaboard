@@ -3,10 +3,42 @@ import * as React from "react";
 import { Button, H5, Intent, Switch, Tag } from "@blueprintjs/core";
 
 // itamar persi
+var OpenSeadragon = require('openseadragon')
+
+// itamar persi
 const tags_map = {
-  'HM1': ["HM1/crop1", "HM1/crop2"],
-  'BPC': ["BPC/crop1", "BPC/crop2"],
+  'HM2': ["HM2/crop1", "HM2/crop2", "HM2/crop3"],
+  'GBPC': ["GBPC/crop1", "GBPC/crop2"],
 };
+
+const crops = {
+  "HM2/crop1":
+  {
+    masterZoom: 4.3,
+    masterCenter: new OpenSeadragon.Point(0.5, 0.5),
+  },
+  "HM2/crop2":
+  {
+    masterZoom: 5.16,
+    masterCenter: new OpenSeadragon.Point(0.27, 0.46),
+  },
+  "HM2/crop3":
+  {
+    masterZoom: 2.5,
+    masterCenter: new OpenSeadragon.Point(0.6, 0.174),
+  },
+  "GBPC/crop1":
+  {
+    masterZoom: 12.0,
+    masterCenter: new OpenSeadragon.Point(0.5, 0.47),
+  },
+  "GBPC/crop2":
+  {
+    masterZoom: 12.0,
+    masterCenter: new OpenSeadragon.Point(0.5, 0.35),
+  },
+}
+
 // end
 
 const INTENTS = [
@@ -30,13 +62,9 @@ class Tags extends React.PureComponent {
     round: true,
     // itamar persi
     tags: tags_map[this.props.category],
-    //onClick: console.log("clicked "),
     // end
   };
 
-  cropFunction() {
-    console.log("crop pressed")
-  };
 
   render() {
     const { icon, removable, rightIcon, tags, onClick, ...tagProps } = this.state;
@@ -48,7 +76,7 @@ class Tags extends React.PureComponent {
           onRemove={removable && onRemove}
           icon={icon === true ? "home" : undefined}
           rightIcon={rightIcon === true ? "map" : undefined}
-          onClick={() => this.cropFunction()}
+          onClick={() => this.props.cropFunction(crops[tag])}
           {...tagProps}
 
         >

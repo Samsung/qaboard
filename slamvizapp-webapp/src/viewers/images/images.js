@@ -18,7 +18,7 @@ import { histogram_traces } from './histogram';
 
 // itamar persi
 import MultiSelectTags from "./multiSelectTags";
-import ButtonsExample from "./buttonsExample"
+//import ButtonsExample from "./buttonsExample"
 // end 
 
 var OpenSeadragon = require('openseadragon')
@@ -423,8 +423,8 @@ class ImgViewer extends PureComponent {
 
       {/* itamar persi */}
       <div>
-        <MultiSelectTags />
-        <ButtonsExample func={() => this.cropFunction(this.crop1)} />
+        <MultiSelectTags cropFunction={this.cropFunction} />
+        {/*<ButtonsExample func={() => this.cropFunction(this.crops[0])} />*/}
       </div>
       {/* end */}
 
@@ -498,86 +498,30 @@ class ImgViewer extends PureComponent {
     }
   }
 
+
+
   // itamar persi
 
-  crop1 = {
-    masterZoom: 4.3,
-    masterCenter: new OpenSeadragon.Point(0.5, 0.5),
-  }
+  cropFunction = (crop) => {
+    console.log("crop function clicked");
 
-  cropFunction(crop) {
-
-
-    console.log("button pressed");
-
-    // Implemement synced zoom
-    // https://codepen.io/iangilman/pen/BWKKxQ
-    const { viewer_new, viewer_ref } = this;
+    const { viewer_new } = this;
     var masterZoom;
     var masterCenter;
 
+    //masterZoom = viewer_new.viewport.getZoom();
+    //masterCenter = viewer_new.viewport.getCenter();
 
-    //    masterZoom = viewer_new.viewport.getZoom();
     masterZoom = crop.masterZoom;
-    //  masterCenter = viewer_new.viewport.getCenter();
     masterCenter = crop.masterCenter;
-
     console.log(masterZoom);
     console.log(masterCenter);
+
 
     viewer_new.viewport.zoomTo(masterZoom);
     viewer_new.viewport.panTo(masterCenter);
 
     //if (masterCenter === undefined || masterCenter === null) return
-
-    /*
- 
-    var viewer_refHandler = function () {
-      if (viewer_newLeading)
-        return;
-      masterZoom = viewer_ref.viewport.getZoom();
-      masterCenter = viewer_ref.viewport.getCenter();
-      if (masterCenter === undefined || masterCenter === null) return
- 
-      viewer_refLeading = true;
-      viewer_new.viewport.zoomTo(masterZoom);
-      viewer_new.viewport.panTo(masterCenter);
-      viewer_refLeading = false;
-    };
-    viewer_new.addHandler('zoom', viewer_newHandler);
-    viewer_ref.addHandler('zoom', viewer_refHandler);
-    viewer_new.addHandler('pan', viewer_newHandler);
-    viewer_ref.addHandler('pan', viewer_refHandler);
- 
-    function maintainZoom() {
-      if (viewer_new === null || viewer_new === undefined || viewer_ref === null || viewer_ref === undefined)
-        return;
-      var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-      var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
-      viewer_newLeading = true;
-      viewer_refLeading = true;
-      try { // we should try to find how to identify when an image is not loaed...
-        viewer_new.viewport.resize(size1, true);
-        viewer_ref.viewport.resize(size2, true);
- 
-        viewer_ref.viewport.zoomTo(masterZoom, null, true);
-        viewer_ref.viewport.panTo(masterCenter, true);
- 
-        viewer_new.viewport.zoomTo(masterZoom, null, true);
-        viewer_new.viewport.panTo(masterCenter, true);
- 
-        viewer_newLeading = false;
-        viewer_refLeading = false;
- 
-        viewer_new.forceRedraw();
-        viewer_ref.forceRedraw();
-      } catch {
- 
-      }
-    }
-    window.addEventListener('resize', maintainZoom, { passive: true });
-    this.setState({ maintainZoom });
-  */
   };
   // end
 

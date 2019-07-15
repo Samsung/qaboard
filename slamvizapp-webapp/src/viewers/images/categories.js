@@ -1,11 +1,12 @@
 import { MenuItem } from "@blueprintjs/core";
 import * as React from "react";
 
-
+// itamar persi
 export const Categories = [
-    { title: "HM1", year: " " },
-    { title: "BPC", year: " " },
+    { title: "HM2", year: " " },
+    { title: "GBPC", year: " " },
 ].map((m, index) => ({ ...m, index: index + 1 }));
+// end
 
 export const renderCategory = (category, { handleClick, modifiers, query }) => {
     if (!modifiers.matchesPredicate) {
