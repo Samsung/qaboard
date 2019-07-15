@@ -25,6 +25,7 @@ PCDLoader.prototype = {
 	constructor: PCDLoader,
 	
 	use_intensity: false,
+	flip_xy: true,
 
 	load: function ( url, onLoad, onProgress, onError ) {
 
@@ -193,8 +194,8 @@ PCDLoader.prototype = {
 					var x = parseFloat( line[ offset.x ] );
 					var y = parseFloat( line[ offset.y ] );
 					var z = parseFloat( line[ offset.z ] );
-					position.push(x);
-					position.push(y);
+					position.push(this.flip_xy ? -x : x);
+					position.push(this.flip_xy ? -y : y);
 					position.push(z);
 				}
 
