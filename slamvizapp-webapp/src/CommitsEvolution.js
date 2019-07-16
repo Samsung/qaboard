@@ -16,7 +16,7 @@ import CommitRow from "./components/CommitRow";
 import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();
 
-let layout = {
+let default_layout = {
   width: 1200,
   height: 150,
   margin: {
@@ -275,12 +275,12 @@ class CommitsEvolutionPerBatch extends React.Component {
 
     let metric = available_metrics[metrics[0]];
     let threshold = metric.target * metric.scale;
-    let layout_ = {
-      ...layout,
+    let layout = {
+      ...default_layout,
       shapes: [],
     }
     if (!!threshold) {
-      layout_.shapes.push({
+      layout.shapes.push({
           type: "line",
           layer: "below",
           xref: "paper",
@@ -297,7 +297,7 @@ class CommitsEvolutionPerBatch extends React.Component {
         })
     }
     if (!!hovered_commit) {
-      layout_.shapes.push({
+      layout.shapes.push({
           type: "line",
           layer: "below",
           xref: "x",
@@ -313,16 +313,16 @@ class CommitsEvolutionPerBatch extends React.Component {
           }
         })
     }
-    layout_.yaxis.ticksuffix = metric.suffix || '';
-    layout_.yaxis.showticksuffix = 'last';
-    layout_.yaxis.type = metric.plot_scale || 'log'
+    layout.yaxis.ticksuffix = metric.suffix || '';
+    layout.yaxis.showticksuffix = 'last';
+    layout.yaxis.type = metric.plot_scale || 'log'
     return (
       <div>
         {traces.length > 0 && (
           <Plot
             revision={revision}
             data={traces}
-            layout={layout_}
+            layout={layout}
             onHover={this.onHover}
           />
         )}
@@ -367,8 +367,9 @@ class CommitsEvolutionPerTest extends React.Component {
     super(props);
     const project_qatools_config = ((props.project_data || {}).data || {}).qatools_config;
     this.state = {
-      revision: 0,
+      // revision: 0,
       traces: [],
+      layout: {},
       // metadata to link hover events to the corresponding batch/commit
       traces_metadata: [],
 
@@ -416,15 +417,12 @@ class CommitsEvolutionPerTest extends React.Component {
       hovered_label: label,
       hovered_commit: commits[point_number],
       hovered_commit_ref: commits[point_number],
-    });
+    }, () => this.updateLayout(this.props));
 
   }
   onHover = e => {
     let { label, test_input_path, configuration, commits } = this.state.traces_metadata[e.points[0].curveNumber];
     let point_number = e.points[0].pointNumber;
-    // console.log(point_number)
-    // console.log("new", commits[point_number])
-    // console.log("ref", point_number < commits.length ? commits[point_number + 1] : null)
     let hovered_commit_ref = point_number < commits.length ? commits[point_number + 1] : null;
     this.setState({
       hovered: true,
@@ -433,12 +431,13 @@ class CommitsEvolutionPerTest extends React.Component {
       hovered_label: label,
       hovered_commit: commits[point_number],
       ...(!this.state.selected_ref ? {hovered_commit_ref}: {}),
-    });
+    }, () => this.updateLayout(this.props));
 
   };
 
   componentDidMount() {
     this.updateTraces(this.props);
+    this.updateLayout(this.props);
   }
 
   componentDidUpdate(prevProps) {
@@ -447,8 +446,10 @@ class CommitsEvolutionPerTest extends React.Component {
       prevProps.metrics[0] !== this.props.metrics[0] ||
       prevProps.relative !== this.props.relative ||
       prevProps.output_filter !== this.props.output_filter
-    )
+    ) {
       this.updateTraces(this.props);
+      this.updateLayout(this.props);
+    }
 
     const new_controls = ((((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
     const old_controls = ((((prevProps.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
@@ -557,40 +558,36 @@ class CommitsEvolutionPerTest extends React.Component {
     this.setState({
       traces,
       traces_metadata,
-      revision: this.state.revision + 1
+      // revision: this.state.revision + 1
     });
   }
 
-  render() {
-    const {
-      metrics,
-      available_metrics,
+  updateLayout = props => {
+     const {
+      available_metrics={},
+      metrics=[],
       relative,
-      project,
-      project_data,
-      show_bit_accuracy,
-    } = this.props;
+    } = props;
     const {
       revision,
       traces,
-      hovered_test_input_path,
-      hovered_test_configuration,
-      hovered_label,
       hovered_commit,
-      hovered_commit_ref
+      hovered_commit_ref,
     } = this.state;
+
     let metric = available_metrics[metrics[0]];
     let threshold = metric.target * metric.scale;
-    let layout_ = {
-      ...layout,
+    let layout = {
+      ...default_layout,
+      ...this.state.layout, // save eg the zoom
       height: 250,
       shapes: [],
     };
-    layout_.yaxis.ticksuffix = metric.suffix || '';
-    layout_.yaxis.showticksuffix = 'last';
-    layout_.yaxis.type = metric.plot_scale || 'log'
+    layout.yaxis.ticksuffix = metric.suffix || '';
+    layout.yaxis.showticksuffix = 'last';
+    layout.yaxis.type = metric.plot_scale || 'log'
     if (!relative && !!threshold)
-      layout_.shapes.push({
+      layout.shapes.push({
           type: "line",
           layer: "below",
           xref: "paper",
@@ -606,7 +603,7 @@ class CommitsEvolutionPerTest extends React.Component {
           }
       })
     if (!!hovered_commit) {
-      layout_.shapes.push({
+      layout.shapes.push({
           type: "line",
           layer: "below",
           xref: "x",
@@ -623,7 +620,7 @@ class CommitsEvolutionPerTest extends React.Component {
         })
     }
     if (!!hovered_commit_ref) {
-      layout_.shapes.push({
+      layout.shapes.push({
           type: "line",
           layer: "below",
           xref: "x",
@@ -639,7 +636,31 @@ class CommitsEvolutionPerTest extends React.Component {
           }
         })
     }
+    this.setState({
+      layout,
+      /*revision: revision + 1,*/
+    })
+  }
 
+  render() {
+    const {
+      metrics,
+      available_metrics,
+      relative,
+      project,
+      project_data,
+      show_bit_accuracy,
+    } = this.props;
+    const {
+      revision,
+      traces,
+      layout,
+      hovered_test_input_path,
+      hovered_test_configuration,
+      hovered_label,
+      hovered_commit,
+      hovered_commit_ref,
+    } = this.state;
 
     if (this.state.hovered) {
       let hovered_output = Object.values(
@@ -750,12 +771,15 @@ class CommitsEvolutionPerTest extends React.Component {
       <div>
         {traces.length > 0 && (
           <Plot
-            revision={revision}
+            /* revision={revision} */
             data={traces}
-            layout={layout_}
+            layout={layout}
             onHover={this.onHover}
             onClick={this.onClick}
             onDoubleClick={this.onDoubleClick}
+            /* https://github.com/plotly/react-plotly.js#state-management */
+            onInitialized={({layout}) => this.setState(layout)}
+            onUpdate={({layout}) => this.setState(layout)} 
           />
         )}
         {legend}
@@ -782,6 +806,9 @@ class CommitsEvolution extends Component {
       show_all_files: params.get("show_all_files") === 'true' || false,
       expand_all: params.get("expand_all") === 'true' || false,
       files_filter: params.get("files_filter") || '',
+
+      // keep pan-zoom settings
+      layout: {},
     };
   }
 
@@ -819,7 +846,7 @@ class CommitsEvolution extends Component {
       selected_aggregation,
       breakdown_per_test,
       relative,
-      show_bit_accuracy
+      show_bit_accuracy,
     } = this.state;
     const { select_metrics } = this.state;
 
