@@ -24,19 +24,21 @@ from ..models import Project, CiCommit, Batch, slugify_config
 
 def load_commit(project_id, commit_id):
   if not commit_id: return None
-  return (db_session
-          .query(CiCommit)
-          .options( # avoid n+1 queries
-            joinedload(CiCommit.batches).
-            joinedload(Batch.outputs)
-          )
-          .filter(
-            CiCommit.project_id==project_id,
-            CiCommit.hexsha==commit_id,
-          )
-          .one()
-          )
-
+  try:
+    return (db_session
+            .query(CiCommit)
+            .options( # avoid n+1 queries
+              joinedload(CiCommit.batches).
+              joinedload(Batch.outputs)
+            )
+            .filter(
+              CiCommit.project_id==project_id,
+              CiCommit.hexsha==commit_id,
+            )
+            .one()
+            )
+  except:
+    return None
 
 
 
@@ -53,7 +55,8 @@ def filter_outputs(query, outputs):
   positive_tokens = [t for t in tokens if not t.startswith('-')]
 
   def match(output):
-    extra_parameters = json.dumps(output.extra_parameters).replace('"', '')
+    extra_parameters = json.dumps(output.extra_parameters)
+    extra_parameters = re.sub(r'[=:] +', ':', extra_parameters).replace('"', '')
     searched = f"{output.test_input.path} {output.platform} {output.configuration} {extra_parameters}".lower()
     # print(searched)
     # not using output.test_input_tags.join() like in the JS
@@ -106,11 +109,15 @@ def export_to_folder():
   project_id = request.args['project']
 
   new_commit = load_commit(project_id, request.args['new_commit_id'])
+  if not new_commit:
+    return f"ERROR: Commit {request.args['new_commit_id']} not found", 404
   new_batch = new_commit.get_or_create_batch(request.args.get('batch_new', 'default'))
   new_outputs = new_batch.outputs
 
   if request.args.get('ref_commit_id'):
     ref_commit = load_commit(project_id, request.args['ref_commit_id'])
+    if not ref_commit:
+      return f"ERROR: Commit {request.args['ref_commit_id']} not found", 404    
     ref_batch = ref_commit.get_or_create_batch(request.args.get('batch_ref', 'default'))
     ref_outputs = ref_batch.outputs
   else:
