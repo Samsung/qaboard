@@ -15,11 +15,9 @@ import Plot from 'react-plotly.js';
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
+import { deserialize_config } from './../../utils';
+import Crops from "./crops";
 
-// itamar persi
-import MultiSelectTags from "./multiSelectTags";
-//import ButtonsExample from "./buttonsExample"
-// end 
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -419,14 +417,18 @@ class ImgViewer extends PureComponent {
       }
     }
 
+    // import crops
+    // TODO: read from tests.yaml
+    // TODO: the next line isn't backward compatible
+    //console.log(deserialize_config(output_new.configuration))
+    let configs_rois = deserialize_config(output_new.configuration).filter(c => typeof c === 'object' && !!c.roi)
+    let { roi } = configs_rois.length ? configs_rois[0] : {}
+
     return <>
 
-      {/* itamar persi */}
       <div>
-        <MultiSelectTags cropFunction={this.cropFunction} />
-        {/*<ButtonsExample func={() => this.cropFunction(this.crops[0])} />*/}
+        {roi && <Crops viewer={this.viewer_new} regionsOfInterest={roi} />}
       </div>
-      {/* end */}
 
       <span>
         <Tooltip>
@@ -497,38 +499,6 @@ class ImgViewer extends PureComponent {
         return;
     }
   }
-
-
-
-  // itamar persi
-
-  cropFunction = (crop) => {
-    console.log("crop function clicked");
-
-    const { viewer_new } = this;
-    var masterZoom;
-    var masterCenter;
-
-    //masterZoom = viewer_new.viewport.getZoom();
-    //masterCenter = viewer_new.viewport.getCenter();
-
-    masterZoom = crop.masterZoom;
-    masterCenter = crop.masterCenter;
-    console.log(masterZoom);
-    console.log(masterCenter);
-
-
-    viewer_new.viewport.zoomTo(masterZoom);
-    viewer_new.viewport.panTo(masterCenter);
-
-    //if (masterCenter === undefined || masterCenter === null) return
-  };
-  // end
-
-
-
-
-
 
 }
 
