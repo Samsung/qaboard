@@ -372,9 +372,18 @@ class TofOutputCard extends Component {
     this.getPointcloud(selected_frame, "groundtruth", use_intensity);
     this.setState({selected_frame});
   }
+  
+  closePointCloud() {
+    console.log("killing context");
+    // this.renderer.dispose();
+	this.renderer.forceContextLoss();
+    this.setState({show_pointcloud: false});
+  }
 
   stopPointCloud() {
     cancelAnimationFrame(this.frameId);
+    console.log("killing context");
+    this.renderer.forceContextLoss();
   }
 
   animate = () => {
@@ -473,7 +482,7 @@ class TofOutputCard extends Component {
       <>
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
-                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.setState({show_pointcloud: false})}>close</Button></span>
+                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
                         : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
         </p>
         <div hidden={!show_pointcloud} ref={threeRoot => {this.threeRoot = threeRoot;}}> </div>
@@ -552,7 +561,7 @@ class TofOutputCard extends Component {
               if (!show_pointcloud)
                 this.updatePointCloud(selected_frame, false)
               else
-                this.setState({show_pointcloud: false})                
+                this.closePointCloud() //this.setState({show_pointcloud: false})                
             }}>
               {!show_pointcloud ? "Show Point Cloud"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
             </Button>
@@ -560,7 +569,7 @@ class TofOutputCard extends Component {
               if (!show_pointcloud)
                 this.updatePointCloud(selected_frame, true)
               else
-                this.setState({show_pointcloud: false})                
+                this.closePointCloud() //this.setState({show_pointcloud: false})                
             }}>
               {!show_pointcloud ? "Show Point Cloud (Intensity)"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
             </Button>
