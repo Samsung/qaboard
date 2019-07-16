@@ -69,7 +69,7 @@ export const batchSelector = createSelector([selectedSelector, commitSelector], 
 
     // we find the matching outputs once
     Object.values(new_batch_filtered.outputs).forEach(output => {
-    	const { output_ref, warning } = matching_output({output, batch: ref_batch});
+    	const { output_ref, warning } = matching_output({output, batch: ref_batch_filtered});
         output.reference_id = output_ref.id
         output.reference_warning = warning
     })
