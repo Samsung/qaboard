@@ -1,4 +1,4 @@
-import React, { PureComponent } from "react";
+import React from "react";
 import { get } from "axios"
 import {
   Colors,
@@ -15,7 +15,6 @@ import Plot from 'react-plotly.js';
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
-import { deserialize_config } from './../../utils';
 import Crops from "./crops";
 
 
@@ -75,12 +74,13 @@ const iiif_url = (output_dir_url, path) => {
 }
 
 
-class ImgViewer extends PureComponent {
+class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
     this.show_histogram = false
     this.canvas_diff = React.createRef();
     this.state = {
+      ready: false,
       first_image: "new",
       width: parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, '')),
       height: 217, // default 4/3 ratio
@@ -102,6 +102,7 @@ class ImgViewer extends PureComponent {
     });
 
     this.Init().then(() => {
+      this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
       this.InitMouseTracker(this.props);
       this.InitZoomSync();
       this.InitFilters();
@@ -417,19 +418,8 @@ class ImgViewer extends PureComponent {
       }
     }
 
-    // import crops
-    // TODO: read from tests.yaml
-    // TODO: the next line isn't backward compatible
-    //console.log(deserialize_config(output_new.configuration))
-    let configs_rois = deserialize_config(output_new.configuration).filter(c => typeof c === 'object' && !!c.roi)
-    let { roi } = configs_rois.length ? configs_rois[0] : {}
-
     return <>
-
-      <div>
-        {roi && <Crops viewer={this.viewer_new} regionsOfInterest={roi} />}
-      </div>
-
+      {this.state.ready && <Crops viewer={this.viewer_new} output_new={output_new} />}
       <span>
         <Tooltip>
           <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />

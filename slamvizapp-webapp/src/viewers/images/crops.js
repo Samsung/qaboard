@@ -1,69 +1,95 @@
-// TODO: documentation
+import React from "react";
 
-import * as React from "react";
-import { Button, H5, Intent, Switch, Tag } from "@blueprintjs/core";
+import {
+  Button,
+  Intent,
+  Tooltip,
+} from "@blueprintjs/core";
 
+import { deserialize_config } from './../../utils';
 
 class Crops extends React.PureComponent {
-  state = {
-    intent: Intent.PRIMARY,
-    interactive: true,
-    large: true,
-    round: false,
-    tags: this.props.regionsOfInterest,
-    style: { margin: "5px" },
-  };
-
   render() {
+    const { output_new, viewer } = this.props;
+    if (!!!output_new || !!!viewer) return <span />
 
-    const { tags, onClick, ...tagProps } = this.state;
-    const tagElements = tags.map(crop => {
-      return (
-        <Tag
-          onClick={() => { this.cropFunction(crop, this.props.viewer) }}
-          {...tagProps}
+    let configs_with_regions_of_interest =
+      deserialize_config(output_new.configuration).filter(c => typeof c === 'object' && !!c.roi)
+    let { roi: regions_of_interest } = configs_with_regions_of_interest.length ?
+      configs_with_regions_of_interest[0] : {}
+
+    if (!!!regions_of_interest) return <span />
+
+    const tags = regions_of_interest.map((roi, idx) => {
+
+      const is_valid = isValidRoi(roi, viewer);
+      let is_selected = true; // viewer.coordinates === roi.coordinates
+      return <Tooltip
+        disabled={is_valid && !!!roi.tooltip}
+        intent={Intent.DANGER}
+        content={`Invalid coordinates! ${JSON.stringify(roi)}`}
+      >
+        <Button
+          onClick={() => { this.fitTo(roi, viewer) }}
+          intent={is_selected ? Intent.PRIMARY : null}
+          minimal={!is_valid}
+          large
+          style={{ margin: "5px" }}
         >
-          {crop.tag}
-        </Tag>
-      );
+          {roi.label || roi.tag || idx}
+        </Button>
+      </Tooltip>
     });
-    return (
-      <div >
-        {tagElements}
-      </div>
-    );
+
+    return <div>{tags}</div>;
   }
 
-  // best fit algorithm
-  cropFunction = (crop, viewer) => {
+  fitTo = (roi, viewer) => {
+    if (!isValidRoi(roi, viewer))
+      return;
 
-    let masterCenter;
-    let masterZoom;
-
-    let viewport_rec = viewer.viewport.imageToViewportRectangle(
-      crop.x,
-      crop.y,
-      crop.w,
-      crop.h);
-
-    masterCenter = {
-      x: (viewport_rec.x + viewport_rec.width / 2),
-      y: (viewport_rec.y + viewport_rec.height / 2)
+    let { x, y, width, height } = viewer.viewport.imageToViewportRectangle(
+      roi.x,
+      roi.y,
+      roi.w,
+      roi.h,
+    );
+    const center = {
+      x: x + width / 2,
+      y: y + height / 2,
     };
 
-    let orig_dimensions = viewer.world.getItemAt(0).getContentSize();
+    // best fit algorithm
+    let { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
+    const zoom = (roi.w > roi.h) ? image_width / roi.w : image_height / roi.h;
 
-    let orig_zoom = () => {
-      if (crop.w > crop.h) return (orig_dimensions.x / crop.w);
-      else return (orig_dimensions.y / crop.h);
-    }
+    //console.log(center, zoom)
 
-    masterZoom = (orig_zoom());
-
-    viewer.viewport.zoomTo(masterZoom);
-    viewer.viewport.panTo(masterCenter);
+    viewer.viewport.zoomTo(zoom);
+    viewer.viewport.panTo(center);
   };
-
 }
+
+
+const isValidRoi = (roi, viewer) => {
+
+  if (isNaN(roi.x + roi.y + roi.w + roi.h)) return false;
+
+  let viewport_rec = viewer.viewport.imageToViewportRectangle(
+    roi.x,
+    roi.y,
+    roi.w,
+    roi.h,
+  );
+
+  if (!(0 <= viewport_rec.x && viewport_rec.x <= 1) ||
+    !(0 <= viewport_rec.y && viewport_rec.y <= 1) ||
+    !(0 <= viewport_rec.width && viewport_rec.width <= 1) ||
+    !(0 <= viewport_rec.height && viewport_rec.height <= 1)) {
+    return false;
+  }
+  return true;
+};
+
 
 export default Crops;
