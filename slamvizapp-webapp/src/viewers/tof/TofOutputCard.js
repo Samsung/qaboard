@@ -198,9 +198,10 @@ class TofOutputCard extends Component {
 
     get(`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
     .then(response => {
+      let convert_nan = selected_output_type == 'z' || selected_output_type == 'depth'
       const newHexData = {
         ...hex_layout,
-        z: parse_hex(response.data).z,
+        z: parse_hex(response.data, convert_nan).z,
       }
       const z_minmax = maxmin(newHexData.z.flat());
 	    this.setState({
@@ -230,6 +231,7 @@ class TofOutputCard extends Component {
     });
     get(`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
     .then(response => {
+      let convert_nan = selected_output_type == 'z' || selected_output_type == 'depth'
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
@@ -239,7 +241,7 @@ class TofOutputCard extends Component {
             is_loading: false,
             refHexData: {
               ...hex_layout,
-              z: parse_hex(response.data).z,
+              z: parse_hex(response.data, convert_nan).z,
             },
           }
         }
