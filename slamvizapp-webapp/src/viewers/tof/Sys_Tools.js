@@ -1,4 +1,4 @@
-const parse_hex = text => {
+const parse_hex = (text, convert_nan ) => {
   if (!!!text) return {z: null}
   // console.log(text)
   let width = parseFloat(text.match(/width=(\d+)/)[1])
@@ -7,6 +7,9 @@ const parse_hex = text => {
                    .split('\n')
                    .slice(0, width * height)
 		   .map(parseFloat)
+  if (convert_nan){
+	  data_array = data_array.map(x => x <= 0 ? NaN : x)
+  }
   let newArr = [];
   while(data_array.length)
     newArr.push(data_array.splice(0, width));
