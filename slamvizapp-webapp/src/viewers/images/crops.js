@@ -61,9 +61,7 @@ class Crops extends React.PureComponent {
 
     // best fit algorithm
     let { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
-    const zoom = (roi.w > roi.h) ? image_width / roi.w : image_height / roi.h;
-
-    //console.log(center, zoom)
+    const zoom = (Math.abs(roi.w) > Math.abs(roi.h)) ? image_width / Math.abs(roi.w) : image_height / Math.abs(roi.h);
 
     viewer.viewport.zoomTo(zoom);
     viewer.viewport.panTo(center);
