@@ -250,6 +250,13 @@ class ImgViewer extends React.PureComponent {
         this.show_histogram = true;
         this.canvasCoords = canvasCoords;
         this.update_histogram();
+        // itamar
+        console.log(canvasCoords);
+        console.log(canvasCoords.getSize());
+        console.log(canvasCoords.getTopLeft());
+
+        // end
+
       },
       showConfirmDenyButtons: false,
       restrictToImage: true,

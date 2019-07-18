@@ -33,7 +33,7 @@ class Crops extends React.PureComponent {
           onClick={() => { this.fitTo(roi, viewer) }}
           intent={is_selected ? Intent.PRIMARY : null}
           minimal={!is_valid}
-          large
+          large={false}
           style={{ margin: "5px" }}
         >
           {roi.label || roi.tag || idx}
@@ -84,8 +84,8 @@ const isValidRoi = (roi, viewer) => {
 
   if (!(0 <= viewport_rec.x && viewport_rec.x <= 1) ||
     !(0 <= viewport_rec.y && viewport_rec.y <= 1) ||
-    !(0 <= viewport_rec.width && viewport_rec.width <= 1) ||
-    !(0 <= viewport_rec.height && viewport_rec.height <= 1)) {
+    !(-1 <= viewport_rec.width && viewport_rec.width <= 1) ||
+    !(-1 <= viewport_rec.height && viewport_rec.height <= 1)) {
     return false;
   }
   return true;
