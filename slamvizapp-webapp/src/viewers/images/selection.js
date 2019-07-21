@@ -2,7 +2,7 @@
 var OpenSeadragon = require('openseadragon')
 
 
-OpenSeadragon.Viewer.prototype.selection = function(options) {
+OpenSeadragon.Viewer.prototype.selection = function (options) {
     if (!this.selectionInstance || options) {
         options = options || {};
         options.viewer = this;
@@ -18,113 +18,113 @@ OpenSeadragon.Viewer.prototype.selection = function(options) {
 * @memberof OpenSeadragon
 * @param {Object} options
 */
-OpenSeadragon.Selection = function ( options ) {
+OpenSeadragon.Selection = function (options) {
 
-    OpenSeadragon.extend( true, this, {
+    OpenSeadragon.extend(true, this, {
         // internal state properties
-        viewer:                  null,
-        isSelecting:             false,
-        buttonActiveImg:         false,
-        rectDone:                true,
+        viewer: null,
+        isSelecting: false,
+        buttonActiveImg: false,
+        rectDone: true,
 
         // options
-        element:                 null,
-        toggleButton:            null,
-        showSelectionControl:    true,
-        showConfirmDenyButtons:  true,
+        element: null,
+        toggleButton: null,
+        showSelectionControl: true,
+        showConfirmDenyButtons: true,
         styleConfirmDenyButtons: true,
-        returnPixelCoordinates:  true,
-        keyboardShortcut:        'c',
-        rect:                    null,
-        allowRotation:           true,
-        startRotated:            false, // useful for rotated crops
-        startRotatedHeight:      0.1,
-        restrictToImage:         false,
-        onSelection:             null,
-        prefixUrl:               null,
-        navImages:               {
+        returnPixelCoordinates: true,
+        keyboardShortcut: 'c',
+        rect: null,
+        allowRotation: true,
+        startRotated: false, // useful for rotated crops
+        startRotatedHeight: 0.1,
+        restrictToImage: false,
+        onSelection: null,
+        prefixUrl: null,
+        navImages: {
             selection: {
-                REST:   'selection_rest.png',
-                GROUP:  'selection_grouphover.png',
-                HOVER:  'selection_hover.png',
-                DOWN:   'selection_pressed.png'
+                REST: 'selection_rest.png',
+                GROUP: 'selection_grouphover.png',
+                HOVER: 'selection_hover.png',
+                DOWN: 'selection_pressed.png'
             },
             selectionConfirm: {
-                REST:   'selection_confirm_rest.png',
-                GROUP:  'selection_confirm_grouphover.png',
-                HOVER:  'selection_confirm_hover.png',
-                DOWN:   'selection_confirm_pressed.png'
+                REST: 'selection_confirm_rest.png',
+                GROUP: 'selection_confirm_grouphover.png',
+                HOVER: 'selection_confirm_hover.png',
+                DOWN: 'selection_confirm_pressed.png'
             },
             selectionCancel: {
-                REST:   'selection_cancel_rest.png',
-                GROUP:  'selection_cancel_grouphover.png',
-                HOVER:  'selection_cancel_hover.png',
-                DOWN:   'selection_cancel_pressed.png'
+                REST: 'selection_cancel_rest.png',
+                GROUP: 'selection_cancel_grouphover.png',
+                HOVER: 'selection_cancel_hover.png',
+                DOWN: 'selection_cancel_pressed.png'
             },
         },
         handleStyle: {
-            top:        '50%',
-            left:       '50%',
-            width:      '6px',
-            height:     '6px',
-            margin:     '-4px 0 0 -4px',
+            top: '50%',
+            left: '50%',
+            width: '6px',
+            height: '6px',
+            margin: '-4px 0 0 -4px',
             background: '#000',
-            border:     '1px solid #ccc'
+            border: '1px solid #ccc'
         },
         cornersStyle: {
-            width:      '6px',
-            height:     '6px',
+            width: '6px',
+            height: '6px',
             background: '#000',
-            border:     '1px solid #ccc'
+            border: '1px solid #ccc'
         }
 
-    }, options );
+    }, options);
 
-    OpenSeadragon.extend( true, this.navImages, this.viewer.navImages );
+    OpenSeadragon.extend(true, this.navImages, this.viewer.navImages);
 
     if (!this.element) {
         this.element = OpenSeadragon.makeNeutralElement('div');
         this.element.style.background = 'rgba(0, 0, 0, 0.1)';
-        this.element.className        = 'selection-box';
+        this.element.className = 'selection-box';
     }
     this.borders = this.borders || [];
     var handle;
     var corners = [];
     for (var i = 0; i < 4; i++) {
         if (!this.borders[i]) {
-            this.borders[i]                  = OpenSeadragon.makeNeutralElement('div');
-            this.borders[i].className        = 'border-' + i;
-            this.borders[i].style.position   = 'absolute';
-            this.borders[i].style.width      = '1px';
-            this.borders[i].style.height     = '1px';
+            this.borders[i] = OpenSeadragon.makeNeutralElement('div');
+            this.borders[i].className = 'border-' + i;
+            this.borders[i].style.position = 'absolute';
+            this.borders[i].style.width = '1px';
+            this.borders[i].style.height = '1px';
             this.borders[i].style.background = '#fff';
         }
 
-        handle                  = OpenSeadragon.makeNeutralElement('div');
-        handle.className        = 'border-' + i + '-handle';
-        handle.style.position   = 'absolute';
-        handle.style.top        = this.handleStyle.top;
-        handle.style.left       = this.handleStyle.left;
-        handle.style.width      = this.handleStyle.width;
-        handle.style.height     = this.handleStyle.height;
-        handle.style.margin     = this.handleStyle.margin;
+        handle = OpenSeadragon.makeNeutralElement('div');
+        handle.className = 'border-' + i + '-handle';
+        handle.style.position = 'absolute';
+        handle.style.top = this.handleStyle.top;
+        handle.style.left = this.handleStyle.left;
+        handle.style.width = this.handleStyle.width;
+        handle.style.height = this.handleStyle.height;
+        handle.style.margin = this.handleStyle.margin;
         handle.style.background = this.handleStyle.background;
-        handle.style.border     = this.handleStyle.border;
+        handle.style.border = this.handleStyle.border;
         new OpenSeadragon.MouseTracker({
-            element:     this.borders[i],
+            element: this.borders[i],
             dragHandler: onBorderDrag.bind(this, i),
             dragEndHandler: onBorderDragEnd.bind(this, i),
         });
 
-        corners[i]                  = OpenSeadragon.makeNeutralElement('div');
-        corners[i].className        = 'corner-' + i + '-handle';
-        corners[i].style.position   = 'absolute';
-        corners[i].style.width      = this.cornersStyle.width;
-        corners[i].style.height     = this.cornersStyle.height;
+        corners[i] = OpenSeadragon.makeNeutralElement('div');
+        corners[i].className = 'corner-' + i + '-handle';
+        corners[i].style.position = 'absolute';
+        corners[i].style.width = this.cornersStyle.width;
+        corners[i].style.height = this.cornersStyle.height;
         corners[i].style.background = this.cornersStyle.background;
-        corners[i].style.border     = this.cornersStyle.border;
+        corners[i].style.border = this.cornersStyle.border;
         new OpenSeadragon.MouseTracker({
-            element:     corners[i],
+            element: corners[i],
             dragHandler: onBorderDrag.bind(this, i + 0.5),
             dragEndHandler: onBorderDragEnd.bind(this, i),
         });
@@ -156,25 +156,25 @@ OpenSeadragon.Selection = function ( options ) {
     }
 
     this.innerTracker = new OpenSeadragon.MouseTracker({
-        element:            this.element,
+        element: this.element,
         clickTimeThreshold: this.viewer.clickTimeThreshold,
         clickDistThreshold: this.viewer.clickDistThreshold,
-        dragHandler:        OpenSeadragon.delegate( this, onInsideDrag ),
-        dragEndHandler:     OpenSeadragon.delegate( this, onInsideDragEnd ),
+        dragHandler: OpenSeadragon.delegate(this, onInsideDrag),
+        dragEndHandler: OpenSeadragon.delegate(this, onInsideDragEnd),
         // keyHandler:         OpenSeadragon.delegate( this, onKeyPress ),
-        clickHandler:       OpenSeadragon.delegate( this, onClick ),
+        clickHandler: OpenSeadragon.delegate(this, onClick),
         // scrollHandler:      OpenSeadragon.delegate( this.viewer, this.viewer.innerTracker.scrollHandler ),
         // pinchHandler:       OpenSeadragon.delegate( this.viewer, this.viewer.innerTracker.pinchHandler ),
     });
 
     this.outerTracker = new OpenSeadragon.MouseTracker({
-        element:            this.viewer.canvas,
+        element: this.viewer.canvas,
         clickTimeThreshold: this.viewer.clickTimeThreshold,
         clickDistThreshold: this.viewer.clickDistThreshold,
-        dragHandler:        OpenSeadragon.delegate( this, onOutsideDrag ),
-        dragEndHandler:     OpenSeadragon.delegate( this, onOutsideDragEnd ),
-        clickHandler:       OpenSeadragon.delegate( this, onClick ),
-        startDisabled:      !this.isSelecting,
+        dragHandler: OpenSeadragon.delegate(this, onOutsideDrag),
+        dragEndHandler: OpenSeadragon.delegate(this, onOutsideDragEnd),
+        clickHandler: OpenSeadragon.delegate(this, onClick),
+        startDisabled: !this.isSelecting,
     });
 
     if (this.keyboardShortcut) {
@@ -182,7 +182,7 @@ OpenSeadragon.Selection = function ( options ) {
             this.viewer.container,
             'keypress',
             OpenSeadragon.delegate(this, onKeyPress),
-            {passive: true}
+            { passive: true }
         );
     }
 
@@ -193,17 +193,17 @@ OpenSeadragon.Selection = function ( options ) {
     var onBlurHandler = anyButton ? anyButton.onBlur : null;
     if (this.showSelectionControl) {
         this.toggleButton = new OpenSeadragon.Button({
-            element:    this.toggleButton ? OpenSeadragon.getElement( this.toggleButton ) : null,
+            element: this.toggleButton ? OpenSeadragon.getElement(this.toggleButton) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip:    'Select a region to see its histogram',
-            srcRest:    prefix + this.navImages.selection.REST,
-            srcGroup:   prefix + this.navImages.selection.GROUP,
-            srcHover:   prefix + this.navImages.selection.HOVER,
-            srcDown:    prefix + this.navImages.selection.DOWN,
-            onRelease:  this.toggleState.bind( this ),
-            onFocus:    onFocusHandler,
-            onBlur:     onBlurHandler
+            tooltip: 'Select a region to see its histogram',
+            srcRest: prefix + this.navImages.selection.REST,
+            srcGroup: prefix + this.navImages.selection.GROUP,
+            srcHover: prefix + this.navImages.selection.HOVER,
+            srcDown: prefix + this.navImages.selection.DOWN,
+            onRelease: this.toggleState.bind(this),
+            onFocus: onFocusHandler,
+            onBlur: onBlurHandler
         });
         if (useGroup) {
             this.viewer.buttons.buttons.push(this.toggleButton);
@@ -216,34 +216,34 @@ OpenSeadragon.Selection = function ( options ) {
     }
     if (this.showConfirmDenyButtons) {
         this.confirmButton = new OpenSeadragon.Button({
-            element:    this.confirmButton ? OpenSeadragon.getElement( this.confirmButton ) : null,
+            element: this.confirmButton ? OpenSeadragon.getElement(this.confirmButton) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip:    'Confirm selection',
-            srcRest:    prefix + this.navImages.selectionConfirm.REST,
-            srcGroup:   prefix + this.navImages.selectionConfirm.GROUP,
-            srcHover:   prefix + this.navImages.selectionConfirm.HOVER,
-            srcDown:    prefix + this.navImages.selectionConfirm.DOWN,
-            onRelease:  this.confirm.bind( this ),
-            onFocus:    onFocusHandler,
-            onBlur:     onBlurHandler
+            tooltip: 'Confirm selection',
+            srcRest: prefix + this.navImages.selectionConfirm.REST,
+            srcGroup: prefix + this.navImages.selectionConfirm.GROUP,
+            srcHover: prefix + this.navImages.selectionConfirm.HOVER,
+            srcDown: prefix + this.navImages.selectionConfirm.DOWN,
+            onRelease: this.confirm.bind(this),
+            onFocus: onFocusHandler,
+            onBlur: onBlurHandler
         });
         var confirm = this.confirmButton.element;
         confirm.classList.add('confirm-button');
         this.element.appendChild(confirm);
 
         this.cancelButton = new OpenSeadragon.Button({
-            element:    this.cancelButton ? OpenSeadragon.getElement( this.cancelButton ) : null,
+            element: this.cancelButton ? OpenSeadragon.getElement(this.cancelButton) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
-            tooltip:    'Cancel selection',
-            srcRest:    prefix + this.navImages.selectionCancel.REST,
-            srcGroup:   prefix + this.navImages.selectionCancel.GROUP,
-            srcHover:   prefix + this.navImages.selectionCancel.HOVER,
-            srcDown:    prefix + this.navImages.selectionCancel.DOWN,
-            onRelease:  this.cancel.bind( this ),
-            onFocus:    onFocusHandler,
-            onBlur:     onBlurHandler
+            tooltip: 'Cancel selection',
+            srcRest: prefix + this.navImages.selectionCancel.REST,
+            srcGroup: prefix + this.navImages.selectionCancel.GROUP,
+            srcHover: prefix + this.navImages.selectionCancel.HOVER,
+            srcDown: prefix + this.navImages.selectionCancel.DOWN,
+            onRelease: this.cancel.bind(this),
+            onFocus: onFocusHandler,
+            onBlur: onBlurHandler
         });
         var cancel = this.cancelButton.element;
         cancel.classList.add('cancel-button');
@@ -271,13 +271,13 @@ OpenSeadragon.Selection = function ( options ) {
     this.viewer.addHandler('rotate', this.draw.bind(this));
 };
 
-OpenSeadragon.extend( OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDock.prototype, /** @lends OpenSeadragon.Selection.prototype */{
+OpenSeadragon.extend(OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDock.prototype, /** @lends OpenSeadragon.Selection.prototype */{
 
-    toggleState: function() {
+    toggleState: function () {
         return this.setState(!this.isSelecting);
     },
 
-    setState: function(enabled) {
+    setState: function (enabled) {
         this.isSelecting = enabled;
         // this.viewer.innerTracker.setTracking(!enabled);
         this.outerTracker.setTracking(enabled);
@@ -285,23 +285,23 @@ OpenSeadragon.extend( OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDo
         if (this.buttonActiveImg) {
             this.buttonActiveImg.style.visibility = enabled ? 'visible' : 'hidden';
         }
-        this.viewer.raiseEvent('selection_toggle', {enabled: enabled});
+        this.viewer.raiseEvent('selection_toggle', { enabled: enabled });
         return this;
     },
 
-    setAllowRotation: function(allowRotation) {
+    setAllowRotation: function (allowRotation) {
         this.allowRotation = allowRotation;
     },
 
-    enable: function() {
+    enable: function () {
         return this.setState(true);
     },
 
-    disable: function() {
+    disable: function () {
         return this.setState(false);
     },
 
-    draw: function() {
+    draw: function () {
         if (this.rect) {
             var imageCoords = this.rect.normalize();
             if (this.returnPixelCoordinates) {
@@ -310,24 +310,24 @@ OpenSeadragon.extend( OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDo
                 real.rotation = imageCoords.rotation;
                 imageCoords = real;
             }
-            let top_left = this.viewer.viewport.viewportToViewerElementCoordinates(this.rect.getTopLeft()); 
-            let bottom_left = this.viewer.viewport.viewportToViewerElementCoordinates(this.rect.getBottomLeft()); 
-            let top_right = this.viewer.viewport.viewportToViewerElementCoordinates(this.rect.getTopRight()); 
-            let canvasCoords = new OpenSeadragon.Rect(top_left.x, top_left.y, top_right.x-top_left.x, bottom_left.y-top_left.y)
-            this.viewer.raiseEvent('selection_change', {imageCoords, canvasCoords, viewportCoords: this.rect});
+            let top_left = this.viewer.viewport.viewportToViewerElementCoordinates(this.rect.getTopLeft());
+            let bottom_left = this.viewer.viewport.viewportToViewerElementCoordinates(this.rect.getBottomLeft());
+            let top_right = this.viewer.viewport.viewportToViewerElementCoordinates(this.rect.getTopRight());
+            let canvasCoords = new OpenSeadragon.Rect(top_left.x, top_left.y, top_right.x - top_left.x, bottom_left.y - top_left.y)
+            this.viewer.raiseEvent('selection_change', { imageCoords, canvasCoords, viewportCoords: this.rect });
             this.overlay.update(this.rect.normalize());
             this.overlay.drawHTML(this.viewer.drawer.container, this.viewer.viewport);
         }
         return this;
     },
 
-    undraw: function() {
+    undraw: function () {
         this.overlay.destroy();
         this.rect = null;
         return this;
     },
 
-    confirm: function() {
+    confirm: function () {
         if (this.rect) {
             var result = this.rect.normalize();
             if (this.returnPixelCoordinates) {
@@ -342,7 +342,7 @@ OpenSeadragon.extend( OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDo
         return this;
     },
 
-    cancel: function() {
+    cancel: function () {
         /*
          * These two lines have been added to fix a issue with mobile where the selection is just a pinpoint after the first drag
          * For some reason disabling then re-enabling the tracking fixes this issue.
@@ -405,15 +405,15 @@ function onOutsideDrag(e) {
 function onOutsideDragEnd() {
     // Resizing a selection will function
     // when drawn any direction
-    if (this.rect.width < 0){
+    if (this.rect.width < 0) {
         this.rect.x += this.rect.width;
         this.rect.width = Math.abs(this.rect.width);
     }
-    if (this.rect.height < 0){
+    if (this.rect.height < 0) {
         this.rect.y += this.rect.height;
         this.rect.height = Math.abs(this.rect.height);
     }
-    
+
     // Eable move after new selection is done
     this.viewer.setMouseNavEnabled(true);
     this.rectDone = true;
@@ -487,7 +487,7 @@ function onBorderDrag(border, e) {
             this.rect.width -= delta.x;
             break;
         default:
-          break;
+            break;
     }
     if (rotation !== 0) {
         // calc center deviation
@@ -508,12 +508,12 @@ function onBorderDrag(border, e) {
 
 // After you have completed dragging, ensure the top left of the selection
 // box is still the top left corner of the box
-function onBorderDragEnd(){
-    if (this.rect.width < 0){
+function onBorderDragEnd() {
+    if (this.rect.width < 0) {
         this.rect.x += this.rect.width;
         this.rect.width = Math.abs(this.rect.width);
     }
-    if (this.rect.height < 0){
+    if (this.rect.height < 0) {
         this.rect.y += this.rect.height;
         this.rect.height = Math.abs(this.rect.height);
     }
@@ -563,7 +563,7 @@ function pointIsInImage(self, point) {
 
 function restrictVector(delta, end) {
     var start;
-    for (var prop in {x: 0, y: 0}) {
+    for (var prop in { x: 0, y: 0 }) {
         start = end[prop] - delta[prop];
         if (start < 1 && start > 0) {
             if (end[prop] > 1) {
@@ -596,8 +596,8 @@ function restrictVector(delta, end) {
  * @param {Number} height The vector component 'width'.
  * @param {Number} rotation The rotation in radians
  */
-OpenSeadragon.SelectionRect = function( x, y, width, height, rotation ) {
-    OpenSeadragon.Rect.apply( this, [ x, y, width, height ] );
+OpenSeadragon.SelectionRect = function (x, y, width, height, rotation) {
+    OpenSeadragon.Rect.apply(this, [x, y, width, height]);
 
     /**
      * The rotation in radians
@@ -607,7 +607,7 @@ OpenSeadragon.SelectionRect = function( x, y, width, height, rotation ) {
     this.rotation = rotation || 0;
 };
 
-OpenSeadragon.SelectionRect.fromRect = function(rect) {
+OpenSeadragon.SelectionRect.fromRect = function (rect) {
     return new OpenSeadragon.SelectionRect(
         rect.x,
         rect.y,
@@ -616,13 +616,13 @@ OpenSeadragon.SelectionRect.fromRect = function(rect) {
     );
 };
 
-OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(OpenSeadragon.Rect.prototype), {
+OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend(Object.create(OpenSeadragon.Rect.prototype), {
 
     /**
      * @function
      * @returns {OpenSeadragon.Rect} a duplicate of this Rect
      */
-    clone: function() {
+    clone: function () {
         return new OpenSeadragon.SelectionRect(this.x, this.y, this.width, this.height, this.rotation);
     },
 
@@ -632,9 +632,9 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @param {OpenSeadragon.Rect} rectangle The Rectangle to compare to.
      * @return {Boolean} 'true' if all components are equal, otherwise 'false'.
      */
-    equals: function( other ) {
-        return OpenSeadragon.Rect.prototype.equals.apply(this, [ other ]) &&
-            ( this.rotation === other.rotation );
+    equals: function (other) {
+        return OpenSeadragon.Rect.prototype.equals.apply(this, [other]) &&
+            (this.rotation === other.rotation);
     },
 
     /**
@@ -643,17 +643,17 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @function
      * @returns {String} A string representation of the rectangle.
      */
-    toString: function() {
+    toString: function () {
         return '[' +
-            (Math.round(this.x*100) / 100) + ',' +
-            (Math.round(this.y*100) / 100) + ',' +
-            (Math.round(this.width*100) / 100) + 'x' +
-            (Math.round(this.height*100) / 100) + '@' +
-            (Math.round(this.rotation*100) / 100) +
-        ']';
+            (Math.round(this.x * 100) / 100) + ',' +
+            (Math.round(this.y * 100) / 100) + ',' +
+            (Math.round(this.width * 100) / 100) + 'x' +
+            (Math.round(this.height * 100) / 100) + '@' +
+            (Math.round(this.rotation * 100) / 100) +
+            ']';
     },
 
-    swapWidthHeight: function() {
+    swapWidthHeight: function () {
         var swapped = this.clone();
         swapped.width = this.height;
         swapped.height = this.width;
@@ -666,8 +666,8 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @function
      * @returns {Number} The rotaion in degrees
      */
-    getDegreeRotation: function() {
-        return this.rotation * (180/Math.PI);
+    getDegreeRotation: function () {
+        return this.rotation * (180 / Math.PI);
     },
 
     /**
@@ -675,7 +675,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @param {OpenSeadragon.Point} point
      * @returns {Number} The angle in radians
      */
-    getAngleFromCenter: function(point) {
+    getAngleFromCenter: function (point) {
         var diff = point.minus(this.getCenter());
         return Math.atan2(diff.x, diff.y);
     },
@@ -685,7 +685,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @function
      * @returns {SelectionRect} The altered rect
      */
-    round: function() {
+    round: function () {
         return new OpenSeadragon.SelectionRect(
             Math.round(this.x),
             Math.round(this.y),
@@ -700,7 +700,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @function
      * @returns {SelectionRect} The normalized rect
      */
-    normalize: function() {
+    normalize: function () {
         var fixed = this.clone();
         if (fixed.width < 0) {
             fixed.x += fixed.width;
@@ -719,7 +719,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @param {OpenSeadragon.Rect} area
      * @returns {Boolean} Does this rect fit in a specified area
      */
-    fitsIn: function(area) {
+    fitsIn: function (area) {
         var rect = this.normalize();
         var corners = [
             rect.getTopLeft(),
@@ -745,7 +745,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
      * @function
      * @returns {SelectionRect} The altered rect
      */
-    reduceRotation: function() {
+    reduceRotation: function () {
         var reduced;
         if (this.rotation < Math.PI / (-4)) {
             reduced = this.swapWidthHeight();
@@ -785,25 +785,25 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend( Object.create(Open
  * {@link OpenSeadragon.Point} as options.location. It will improve
  * performances but will cause a misalignment if the overlay size changes.
  */
-OpenSeadragon.SelectionOverlay = function( element, location) {
-    OpenSeadragon.Overlay.apply( this, arguments );
+OpenSeadragon.SelectionOverlay = function (element, location) {
+    OpenSeadragon.Overlay.apply(this, arguments);
 
     // set the rotation in radians
-    if ( OpenSeadragon.isPlainObject( element ) ) {
+    if (OpenSeadragon.isPlainObject(element)) {
         this.rotation = element.location.rotation || 0;
     } else {
         this.rotation = location.rotation || 0;
     }
 };
 
-OpenSeadragon.SelectionOverlay.prototype = OpenSeadragon.extend( Object.create(OpenSeadragon.Overlay.prototype), {
+OpenSeadragon.SelectionOverlay.prototype = OpenSeadragon.extend(Object.create(OpenSeadragon.Overlay.prototype), {
 
     /**
      * @function
      * @param {Element} container
      */
-    drawHTML: function() {
-        OpenSeadragon.Overlay.prototype.drawHTML.apply( this, arguments );
+    drawHTML: function () {
+        OpenSeadragon.Overlay.prototype.drawHTML.apply(this, arguments);
         this.style.transform = this.style.transform.replace(/ ?rotate\(.+rad\)/, '') +
             ' rotate(' + this.rotation + 'rad)';
     },
@@ -813,8 +813,8 @@ OpenSeadragon.SelectionOverlay.prototype = OpenSeadragon.extend( Object.create(O
      * @param {OpenSeadragon.Point|OpenSeadragon.Rect} location
      * @param {OpenSeadragon.OverlayPlacement} position
      */
-    update: function( location ) {
-        OpenSeadragon.Overlay.prototype.update.apply( this, arguments );
+    update: function (location) {
+        OpenSeadragon.Overlay.prototype.update.apply(this, arguments);
         this.rotation = location.rotation || 0;
     }
 });
