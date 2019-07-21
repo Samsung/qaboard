@@ -16,10 +16,7 @@ import Plot from 'react-plotly.js';
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
-import Crops from "./crops";
-// itamar persi
-import cropSelection from "./crop_selection"
-// end
+import { Crops, CropSelection } from "./crops";
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -80,7 +77,7 @@ const iiif_url = (output_dir_url, path) => {
 class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
-    this.show_histogram = false;
+    this.show_selection_tools = false;
     this.canvas_diff = React.createRef();
     this.state = {
       ready: false,
@@ -109,7 +106,7 @@ class ImgViewer extends React.PureComponent {
       this.InitMouseTracker(this.props);
       this.InitZoomSync();
       this.InitFilters();
-      this.InitHistogram();
+      this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
     })
@@ -237,7 +234,7 @@ class ImgViewer extends React.PureComponent {
 
 
   update_histogram = () => {
-    if (!this.show_histogram)
+    if (!this.show_selection_tools)
       return
     this.histo_new = histogram_traces(this.viewer_new, this.canvasCoords, 'new')
     let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
@@ -247,26 +244,26 @@ class ImgViewer extends React.PureComponent {
 
 
 
-  InitHistogram(props) {
+  InitSelectionTool(props) {
     const { viewer_new } = this;
     const selection_options = {
       onSelection: rect => { console.log(rect) },
 
-      onSelectionChange: ({ canvasCoords }) => {
-        this.show_histogram = true;
+      onSelectionChange: ({ canvasCoords, imageCoords }) => {
+        this.show_selection_tools = true;
         this.canvasCoords = canvasCoords;
+        this.imageCoords = imageCoords;
         this.update_histogram();
       },
       showConfirmDenyButtons: false,
       restrictToImage: true,
       allowRotation: false,
     }
-    // itamar persi
+
     this.selection = viewer_new.selection(selection_options);
-    // end
     viewer_new.addHandler('update-viewport', this.update_histogram);
-    viewer_new.addHandler('selection_cancel', () => { this.show_histogram = false; });
-    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_histogram = enabled; this.update_histogram(); });
+    viewer_new.addHandler('selection_cancel', () => { this.show_selection_tools = false; });
+    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_selection_tools = enabled; this.update_histogram(); });
   }
 
 
@@ -439,11 +436,11 @@ class ImgViewer extends React.PureComponent {
           </ul>
         </Tooltip>
         <CoordTooltip color={this.state.color_new} />
+        {this.show_selection_tools && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
         {colors}
         {label && (label || path)}
       </span>
 
-      {/* itamar persi */ cropSelection(this.viewer_new, this.canvasCoords, this.selection) /* end */}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
 
@@ -475,7 +472,7 @@ class ImgViewer extends React.PureComponent {
           </Tooltip>
         </div>}
 
-        {this.show_histogram && <div style={flex}>
+        {this.show_selection_tools && <div style={flex}>
           <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size} />
         </div>}
 

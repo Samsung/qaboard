@@ -1,12 +1,19 @@
 import React from "react";
+import copy from 'copy-to-clipboard';
 
 import {
-  Button,
+  AnchorButton,
   Intent,
+  Icon,
   Tooltip,
+  Toaster,
 } from "@blueprintjs/core";
 
 import { deserialize_config } from './../../utils';
+
+
+const toaster = Toaster.create();
+
 
 class Crops extends React.PureComponent {
   render() {
@@ -29,15 +36,15 @@ class Crops extends React.PureComponent {
         intent={Intent.DANGER}
         content={`Invalid coordinates! ${JSON.stringify(roi)}`}
       >
-        <Button
+        <AnchorButton
           onClick={() => { this.fitTo(roi, viewer) }}
           intent={is_selected ? Intent.PRIMARY : null}
-          minimal={!is_valid}
+          disabled={!is_valid}
           large={false}
           style={{ margin: "5px" }}
         >
           {roi.label || roi.tag || idx}
-        </Button>
+        </AnchorButton>
       </Tooltip>
     });
 
@@ -70,7 +77,6 @@ class Crops extends React.PureComponent {
 
 
 const isValidRoi = (roi, viewer) => {
-
   if (isNaN(roi.x + roi.y + roi.w + roi.h)) return false;
 
   let viewport_rec = viewer.viewport.imageToViewportRectangle(
@@ -90,4 +96,33 @@ const isValidRoi = (roi, viewer) => {
 };
 
 
-export default Crops;
+
+const CropSelection = ({ imageCoords }) => {
+  if (imageCoords) {
+    // const image_coords = viewer.viewport.viewportToImageRectangle(selection.rect);
+    const to_clipboard =
+      `- {` +
+      `x: ${Math.round(imageCoords.x)}, ` +
+      `y: ${Math.round(imageCoords.y)}, ` +
+      `w: ${Math.round(imageCoords.width)}, ` +
+      `h: ${Math.round(imageCoords.height)}, ` +
+      `label: ""}`;
+    return (
+      <Tooltip hoverCloseDelay={1000}>
+        <Icon
+          icon="clipboard"
+          onClick={() => {
+            copy(to_clipboard)
+            toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });
+          }}
+          intent={Intent.PRIMARY}
+          iconSize={Icon.SIZE_LARGE}
+          style={{ marginRight: '5px', marginLeft: '5px' }}
+        />
+        <span>{to_clipboard}</span>
+      </Tooltip>
+    )
+  }
+}
+
+export { Crops, CropSelection };
