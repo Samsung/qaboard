@@ -1,4 +1,4 @@
-import React, { PureComponent } from "react";
+import React from "react";
 import { get } from "axios"
 import {
   Colors,
@@ -7,7 +7,8 @@ import {
   Icon,
   Tooltip,
   Divider,
-  Button
+  Button,
+  Intent
 } from "@blueprintjs/core";
 import pixelmatch from 'pixelmatch';
 import Plot from 'react-plotly.js';
@@ -15,11 +16,7 @@ import Plot from 'react-plotly.js';
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
-
-// itamar persi
-import MultiSelectTags from "./multiSelectTags";
-//import ButtonsExample from "./buttonsExample"
-// end 
+import { Crops, CropSelection } from "./crops";
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -77,12 +74,13 @@ const iiif_url = (output_dir_url, path) => {
 }
 
 
-class ImgViewer extends PureComponent {
+class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
-    this.show_histogram = false
+    this.show_selection_tools = false;
     this.canvas_diff = React.createRef();
     this.state = {
+      ready: false,
       first_image: "new",
       width: parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, '')),
       height: 217, // default 4/3 ratio
@@ -104,10 +102,11 @@ class ImgViewer extends PureComponent {
     });
 
     this.Init().then(() => {
+      this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
       this.InitMouseTracker(this.props);
       this.InitZoomSync();
       this.InitFilters();
-      this.InitHistogram();
+      this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
     })
@@ -235,31 +234,36 @@ class ImgViewer extends PureComponent {
 
 
   update_histogram = () => {
-    if (!this.show_histogram)
+    if (!this.show_selection_tools)
       return
     this.histo_new = histogram_traces(this.viewer_new, this.canvasCoords, 'new')
     let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
     if (has_reference)
       this.histo_ref = histogram_traces(this.viewer_ref, this.canvasCoords, 'ref')
   }
-  InitHistogram(props) {
+
+
+
+  InitSelectionTool(props) {
     const { viewer_new } = this;
     const selection_options = {
       onSelection: rect => { console.log(rect) },
 
-      onSelectionChange: ({ canvasCoords }) => {
-        this.show_histogram = true;
+      onSelectionChange: ({ canvasCoords, imageCoords }) => {
+        this.show_selection_tools = true;
         this.canvasCoords = canvasCoords;
+        this.imageCoords = imageCoords;
         this.update_histogram();
       },
       showConfirmDenyButtons: false,
       restrictToImage: true,
       allowRotation: false,
     }
-    viewer_new.selection(selection_options);
+
+    this.selection = viewer_new.selection(selection_options);
     viewer_new.addHandler('update-viewport', this.update_histogram);
-    viewer_new.addHandler('selection_cancel', () => { this.show_histogram = false });
-    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_histogram = enabled; this.update_histogram() });
+    viewer_new.addHandler('selection_cancel', () => { this.show_selection_tools = false; });
+    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_selection_tools = enabled; this.update_histogram(); });
   }
 
 
@@ -421,13 +425,8 @@ class ImgViewer extends PureComponent {
 
     return <>
 
-      {/* itamar persi */}
-      <div>
-        <MultiSelectTags cropFunction={this.cropFunction} />
-        {/*<ButtonsExample func={() => this.cropFunction(this.crops[0])} />*/}
-      </div>
-      {/* end */}
 
+      {this.state.ready && <Crops viewer={this.viewer_new} output_new={output_new} />}
       <span>
         <Tooltip>
           <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
@@ -437,9 +436,12 @@ class ImgViewer extends PureComponent {
           </ul>
         </Tooltip>
         <CoordTooltip color={this.state.color_new} />
+        {this.show_selection_tools && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
         {colors}
         {label && (label || path)}
       </span>
+
+
       <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
 
         {images}
@@ -470,7 +472,7 @@ class ImgViewer extends PureComponent {
           </Tooltip>
         </div>}
 
-        {this.show_histogram && <div style={flex}>
+        {this.show_selection_tools && <div style={flex}>
           <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size} />
         </div>}
 
@@ -497,38 +499,6 @@ class ImgViewer extends PureComponent {
         return;
     }
   }
-
-
-
-  // itamar persi
-
-  cropFunction = (crop) => {
-    console.log("crop function clicked");
-
-    const { viewer_new } = this;
-    var masterZoom;
-    var masterCenter;
-
-    //masterZoom = viewer_new.viewport.getZoom();
-    //masterCenter = viewer_new.viewport.getCenter();
-
-    masterZoom = crop.masterZoom;
-    masterCenter = crop.masterCenter;
-    console.log(masterZoom);
-    console.log(masterCenter);
-
-
-    viewer_new.viewport.zoomTo(masterZoom);
-    viewer_new.viewport.panTo(masterCenter);
-
-    //if (masterCenter === undefined || masterCenter === null) return
-  };
-  // end
-
-
-
-
-
 
 }
 
