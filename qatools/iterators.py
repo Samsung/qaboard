@@ -193,7 +193,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
         if isinstance(location_configuration, dict):
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
           location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', group_database))
-          location_globs = location_globs.get('globs', group_globs)
+          location_globs = location_configuration.get('globs', group_globs)
           for k in ['lsf', 'globs', 'database']:
             if k in location_configuration:
               del location_configuration[k]
@@ -209,6 +209,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           location_lsf_configuration = group_lsf_configuration
         else:
           location_configuration =  [*group_configuration, location_configuration]
+          location_globs = group_globs
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
