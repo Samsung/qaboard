@@ -9,6 +9,8 @@ import {
   Tooltip,
   FormGroup,
   Menu,
+  Icon,
+  Colors,
 } from "@blueprintjs/core";
 
 import { CommitAvatar } from "./avatars";
@@ -22,9 +24,9 @@ import { shortId } from "../utils";
 class CommitMessage extends React.PureComponent {
   render() {
     const { commit } = this.props;
-    const style = {marginTop: "10px", whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...this.props.style}
-    if (commit === undefined || commit === null  || commit.message === undefined || commit.message === null || commit.message === '') {
-      return <span className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`} style={style}>This is a placeholder for the commit message. Yep.</span>    	
+    const style = { marginTop: "10px", whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...this.props.style }
+    if (commit === undefined || commit === null || commit.message === undefined || commit.message === null || commit.message === '') {
+      return <span className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`} style={style}>This is a placeholder for the commit message. Yep.</span>
     }
     return <>
       <span style={style} title={commit.message} className={Classes.MONOSPACE_TEXT} >
@@ -39,7 +41,7 @@ class CommitBranchButton extends React.PureComponent {
     const { commit, onClick, style } = this.props;
     const has_branch = !!commit && !!commit.branch
     return <span style={style}>
-      <Button minimal onClick={e => {onClick(commit.branch)} } className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
+      <Button minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
         {has_branch ? commit.branch.replace('origin/', '') : 'master'}
       </Button>
     </span>
@@ -54,50 +56,55 @@ class CommitNavbar extends React.Component {
     const milestones = (((qatools_config || {}).project || {}).milestones || [])
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
     return (
-       <FormGroup style={{marginTop: '45px'}}>
-          <div style={{'marginRight': '10px', display: 'block', position: 'relative', maxWidth: '600px', marginBottom: '6px'}}>
-            <span style={{display: 'flex'}}>
-              <Tag style={{flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace'}} minimal>{label}</Tag>
-              <CommitAvatar size='20px' commit={commit} style={{marginRight: '5px'}}/>
-              <CommitMessage
-                project={project}
-                commit={commit}
-                style={{maxWidth: "450px", flex: '0 1 auto', alignSelf: 'center'}}
-                is_loaded={!!commit && commit.id && !this.props.commit.is_loaded}
-              />
-            </span>
-          </div>
-          <div style={{display: 'flex'}}>
-            <span style={{flex: '0 1 auto', alignSelf: 'center'}}><EditableText
-              onConfirm={this.handleSubmit}
-              minWidth={60}
-              placeholder='id'
-              key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-              defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-            /></span>
-            <Tooltip position="auto-end"  hoverCloseDelay={1500}>
-              <CommitBranchButton commit={commit} onClick={this.handleSubmitBranch} style={{flex: '0 1 auto', alignSelf: 'center'}}/>
-              <Menu>
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
-                <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.handleSubmitBranch(reference_branch)}/>
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
-                {milestones.map(m => {
-                    return <Menu.Item
-                      key={m}
-                      text={m}
-                      icon="locate"
-                      onClick={() => this.handleSubmitBranch(m)}
-                    />}
-                )}
-                {milestones.length===0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
-                <Menu.Item text="Remove reference" icon="delete" onClick={() => this.handleSubmitBranch(null)}/>
-              </Menu>
-            </Tooltip>
+      <FormGroup style={{ marginTop: '45px' }}>
+        <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
+          <span style={{ display: 'flex' }}>
+            <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{label}</Tag>
+            <CommitAvatar size='20px' commit={commit} style={{ marginRight: '5px' }} />
+            <CommitMessage
+              project={project}
+              commit={commit}
+              style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto', alignSelf: 'center' }}
+              is_loaded={!!commit && commit.id && !this.props.commit.is_loaded}
+            />
+          </span>
+        </div>
+        <div style={{ display: 'flex' }}>
 
-            <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{flex: '0 1 auto', alignSelf: 'center'}} />{" "}
-            {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{marginRight: '8px'}}>Error</Tag><span>{commit.error}</span></Tooltip>}
-          </div>
+          {/* {itamar persi} */}
+          <CommitMilestone />
+          {/* {end} */}
+
+          <span style={{ flex: '0 1 auto', alignSelf: 'center' }}><EditableText
+            onConfirm={this.handleSubmit}
+            minWidth={60}
+            placeholder='id'
+            key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+            defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+          /></span>
+          <Tooltip position="auto-end" hoverCloseDelay={1500}>
+            <CommitBranchButton commit={commit} onClick={this.handleSubmitBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
+            <Menu>
+              <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
+              <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.handleSubmitBranch(reference_branch)} />
+              <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
+              {milestones.map(m => {
+                return <Menu.Item
+                  text={m}
+                  icon="locate"
+                  onClick={() => this.handleSubmitBranch(m)}
+                />
+              }
+              )}
+              {milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
+              <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
+              <Menu.Item text="Remove reference" icon="delete" onClick={() => this.handleSubmitBranch(null)} />
+            </Menu>
+          </Tooltip>
+
+          <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
+          {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag><span>{commit.error}</span></Tooltip>}
+        </div>
       </FormGroup>
     );
   }
@@ -109,7 +116,7 @@ class CommitNavbar extends React.Component {
     const commit_id = selected[attribute]
     if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id)) {
       dispatch(fetchCommit(project, id, attribute));
-      dispatch(updateSelected(project, {[attribute]: id }))
+      dispatch(updateSelected(project, { [attribute]: id }))
     }
   };
 
@@ -121,6 +128,31 @@ class CommitNavbar extends React.Component {
 
 }
 
+class CommitMilestone extends React.PureComponent {
+  constructor(props) {
+    super(props);
+    this.state = {
+      is_milestone: false,
+    };
+
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  handleClick() {
+    this.setState(state => ({
+      is_milestone: !state.is_milestone,
+    }));
+  }
+
+  render() {
+    const star_icon = this.state.is_milestone ? "star" : "star-empty";
+    const color = this.state.is_milestone ? Colors.GOLD4 : undefined
+    return <>
+      <Icon icon={star_icon} onClick={this.handleClick} style={{ marginRight: '5px' }} color={color} />
+    </>
+  }
+
+}
 
 
 export { CommitNavbar };
