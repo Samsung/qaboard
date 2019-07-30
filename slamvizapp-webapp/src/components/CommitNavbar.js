@@ -11,6 +11,7 @@ import {
   Menu,
   Icon,
   Colors,
+  Position,
 } from "@blueprintjs/core";
 
 import { CommitAvatar } from "./avatars";
@@ -146,9 +147,15 @@ class CommitMilestone extends React.PureComponent {
 
   render() {
     const star_icon = this.state.is_milestone ? "star" : "star-empty";
-    const color = this.state.is_milestone ? Colors.GOLD4 : undefined
+    const color = this.state.is_milestone ? Colors.GOLD4 : undefined;
+    const tip = this.state.is_milestone ? "Unset" : "Set";
+
     return <>
-      <Icon icon={star_icon} onClick={this.handleClick} style={{ marginRight: '5px' }} color={color} />
+      <Tooltip content={tip + " commit as milestone"} position={Position.BOTTOM} intent={Intent.PRIMARY}>
+        <Button minimal="true" onClick={this.handleClick} style={{ marginRight: '5px' }}>
+          <Icon icon={star_icon} color={color} />
+        </Button>
+      </Tooltip>
     </>
   }
 
