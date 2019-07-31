@@ -123,11 +123,12 @@ class TofOutputCard extends Component {
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
       depth : default_heatmap, // make a deep copy...
-	  z     : JSON.parse(JSON.stringify(default_heatmap)),
-	  intensity     : JSON.parse(JSON.stringify(default_heatmap)),
-	  amplitude     : JSON.parse(JSON.stringify(default_heatmap)),
+      z     : JSON.parse(JSON.stringify(default_heatmap)),
+      intensity     : JSON.parse(JSON.stringify(default_heatmap)),
+      amplitude     : JSON.parse(JSON.stringify(default_heatmap)),
       AbsErrHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
       pcmdHeatmap : JSON.parse(JSON.stringify(default_heatmap)),
+      customMap : JSON.parse(JSON.stringify(default_heatmap)),
     };
   }
 
@@ -195,10 +196,14 @@ class TofOutputCard extends Component {
         [selected_frame]: {is_loaded: false, is_loading: true}
       }
     })
-
-    get(`${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
+    let fileNameToGet = selected_output_type
+    // TODO SNR
+    if (selected_output_type === 'Custom'){
+        fileNameToGet = document.getElementById("customFileInput").value;
+    }
+    get(`${output_new.output_dir_url}/Frame${selected_frame}/${fileNameToGet}.hex`)
     .then(response => {
-      let convert_nan = selected_output_type == 'z' || selected_output_type == 'depth'
+      let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       const newHexData = {
         ...hex_layout,
         z: parse_hex(response.data, convert_nan).z,
@@ -231,7 +236,7 @@ class TofOutputCard extends Component {
     });
     get(`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
     .then(response => {
-      let convert_nan = selected_output_type == 'z' || selected_output_type == 'depth'
+      let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
@@ -549,6 +554,7 @@ class TofOutputCard extends Component {
         <div className="viewButtons">
           <div>
             <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>
+            <input type="text" id="customFileInput" value="[Add custom filename to display here].hex"> </input>
           </div>
           <div>
             <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
@@ -557,6 +563,7 @@ class TofOutputCard extends Component {
 			<Button onClick={e => {this.setState({selected_output_type: "amplitude"})}}>Show amplitude</Button>
             <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
             <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "Custom"})}}>Show Custom</Button>
           </div>
           <div>
             <Button onClick={e => {
