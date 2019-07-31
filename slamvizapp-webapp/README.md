@@ -9,6 +9,7 @@ Web application to display results from various algorithmic projects.
 # npm config set strict-ssl false
 # For windows:
 # set NODE_TLS_REJECT_UNAUTHORIZED=0
+# You may also have to delete the file package-lock.json
 npm install
 npm start
 #=> listenning on port 3000
