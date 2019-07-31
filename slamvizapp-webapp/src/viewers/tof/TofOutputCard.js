@@ -286,14 +286,23 @@ class TofOutputCard extends Component {
         if (previous_pointcloud) 
           this.scene.remove(previous_pointcloud);
         pointcloud.name = label;
-        pointcloud.material.size = 0.01;
+        if (use_intensity)
+            pointcloud.material.size = 0.5;
+        else
+            pointcloud.material.size = 0.01;
         if (label === "reference")
           pointcloud.visible = false;
         else if (label === "new") {
           var center = pointcloud.geometry.boundingSphere.center;
-          this.camera.position.z = center.y;
+          if (use_intensity)
+              this.camera.position.z = -10.0;
+          else
+            this.camera.position.z = center.y;
           if (this.state.control==='orbit') {
-            this.controls.target.set(center.x, center.y, center.z);
+            if (use_intensity)
+                this.controls.target.set(0, 0, 80.0);
+            else
+                this.controls.target.set(center.x, center.y, center.z);
             this.controls.update();            
           }
         }
