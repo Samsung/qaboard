@@ -122,7 +122,7 @@ class TofOutputCard extends Component {
       show_heatmap: false,
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
-      custom_output_filename: "somefile.hex",
+      custom_output_filename: "[custom filename].hex",
       depth : default_heatmap, // make a deep copy...
       z     : JSON.parse(JSON.stringify(default_heatmap)),
       intensity     : JSON.parse(JSON.stringify(default_heatmap)),
@@ -176,6 +176,12 @@ class TofOutputCard extends Component {
     const heatmaps = this.state[selected_output_type] || {}
     const heatmap = heatmaps[this.state.selected_frame] || {is_loading: false, is_loaded: false};
     let should_load_heatmap = !heatmap.is_loaded && !heatmap.is_loading;
+    if (prevState.custom_output_filename != this.state.custom_output_filename)
+    {
+        if (selected_output_type == 'customMap')
+            should_load_heatmap = true;
+        this.setState({customMap: {} } );
+    }
     if (this.state.show_heatmap && (should_load_heatmap || outputs_changed) )
         this.getHeatmapData(this.props);
   }
@@ -183,7 +189,7 @@ class TofOutputCard extends Component {
   
   getHeatmapData(props) {
     const { output_new, output_ref } = props;
-    const { selected_frame, selected_output_type }  = this.state;
+    const { selected_frame, selected_output_type, custom_output_filename }  = this.state;
     let hex_layout = {
         type: 'heatmap',
         name: `${selected_output_type}`,
@@ -197,12 +203,10 @@ class TofOutputCard extends Component {
         [selected_frame]: {is_loaded: false, is_loading: true}
       }
     })
-    let fileNameToGet = selected_output_type
-    // TODO SNR
-    if (selected_output_type === 'Custom'){
-        fileNameToGet = document.getElementById("customFileInput").value;
-    }
-    get(`${output_new.output_dir_url}/Frame${selected_frame}/${fileNameToGet}.hex`)
+    let fileNameToGet = selected_output_type != 'customMap' ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
+    
+    console.log(fileNameToGet)
+    get(fileNameToGet)
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       const newHexData = {
@@ -235,7 +239,10 @@ class TofOutputCard extends Component {
         }
       })
     });
-    get(`${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`)
+    
+    let fileNameToGetRef = selected_output_type != 'customMap' ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
+    
+    get(fileNameToGetRef)
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       this.setState({
@@ -563,7 +570,7 @@ class TofOutputCard extends Component {
         </div>
         <div className="viewButtons">
           <div>
-            <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>
+            <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>&nbsp; &nbsp;
             <input type="text" id="customFileInput" value={`${custom_output_filename}`} onChange={e=> {this.setState({custom_output_filename: e.target.value})}}></input>
           </div>
           <div>
@@ -573,7 +580,7 @@ class TofOutputCard extends Component {
 			<Button onClick={e => {this.setState({selected_output_type: "amplitude"})}}>Show amplitude</Button>
             <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
             <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "Custom"})}}>Show Custom</Button>
+            <Button onClick={e => {this.setState({selected_output_type: "customMap"})}}>Show Custom</Button>
           </div>
           <div>
             <Button onClick={e => {
