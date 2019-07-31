@@ -122,6 +122,7 @@ class TofOutputCard extends Component {
       show_heatmap: false,
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
+      custom_output_filename: "somefile.hex",
       depth : default_heatmap, // make a deep copy...
       z     : JSON.parse(JSON.stringify(default_heatmap)),
       intensity     : JSON.parse(JSON.stringify(default_heatmap)),
@@ -438,7 +439,7 @@ class TofOutputCard extends Component {
 
   render() {
     const { output_new, output_ref } = this.props;
-    const { selected_frame, frames, first_frame_id, last_frame_id } = this.state;
+    const { selected_frame, frames, first_frame_id, last_frame_id, custom_output_filename } = this.state;
     const { show_pointcloud, pointclouds, selected_output_type } = this.state;
     let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
 
@@ -563,7 +564,7 @@ class TofOutputCard extends Component {
         <div className="viewButtons">
           <div>
             <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>
-            <input type="text" id="customFileInput" value="[Add custom filename to display here].hex"> </input>
+            <input type="text" id="customFileInput" value={`${custom_output_filename}`} onChange={e=> {this.setState({custom_output_filename: e.target.value})}}></input>
           </div>
           <div>
             <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
