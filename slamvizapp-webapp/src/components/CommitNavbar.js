@@ -6,12 +6,16 @@ import {
   Button,
   Intent,
   EditableText,
+  TextArea,
   Tooltip,
+  Popover,
   FormGroup,
+  InputGroup,
   Menu,
   Icon,
   Colors,
   Position,
+  H5,
 } from "@blueprintjs/core";
 
 import { CommitAvatar } from "./avatars";
@@ -56,6 +60,7 @@ class CommitNavbar extends React.Component {
     const qatools_config = (((project_data || {}).data || {}).qatools_config)
     const milestones = (((qatools_config || {}).project || {}).milestones || [])
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
+
     return (
       <FormGroup style={{ marginTop: '45px' }}>
         <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
@@ -73,7 +78,7 @@ class CommitNavbar extends React.Component {
         <div style={{ display: 'flex' }}>
 
           {/* {itamar persi} */}
-          <CommitMilestone />
+          <CommitMilestone commit={commit} project={project} />
           {/* {end} */}
 
           <span style={{ flex: '0 1 auto', alignSelf: 'center' }}><EditableText
@@ -129,14 +134,20 @@ class CommitNavbar extends React.Component {
 
 }
 
+///////////////////////////// CommitMilestone //////////////////////////////////
 class CommitMilestone extends React.PureComponent {
   constructor(props) {
     super(props);
+
     this.state = {
       is_milestone: false,
+      name: '',
+      textContent: " ",
     };
 
     this.handleClick = this.handleClick.bind(this);
+    this.onInputChange = this.onInputChange.bind(this);
+    this.onNameChange = this.onNameChange.bind(this);
   }
 
   handleClick() {
@@ -145,17 +156,64 @@ class CommitMilestone extends React.PureComponent {
     }));
   }
 
+  onNameChange(event) {
+    this.setState({ name: event.target.value });
+  }
+
+  onInputChange(event) {
+    this.setState({ textContent: event.target.value });
+  }
+
+  componentDidMount() {
+    this.setState({
+      name: (!!this.props.commit && !!this.props.commit.id) ? shortId(this.props.project, this.props.commit.id) : '',
+    });
+  }
+
   render() {
     const star_icon = this.state.is_milestone ? "star" : "star-empty";
     const color = this.state.is_milestone ? Colors.GOLD4 : undefined;
     const tip = this.state.is_milestone ? "Unset" : "Set";
 
-    return <>
-      <Tooltip content={tip + " commit as milestone"} position={Position.BOTTOM} intent={Intent.PRIMARY}>
-        <Button minimal="true" onClick={this.handleClick} style={{ marginRight: '5px' }}>
-          <Icon icon={star_icon} color={color} />
+    const popover_body = () => {
+      return < div >
+        <H5>Edit Milestone </H5>
+        <FormGroup
+          inline={true}
+          label={"Name"}
+          labelFor="text-input"
+        >
+          <InputGroup id="text-input" value={this.state.name} onChange={this.onNameChange}
+            autoFocus={true} style={{ width: "200px" }} OnFocus={(event) => event.target.select()} />
+        </FormGroup>
+        <FormGroup
+          inline={true}
+          label={"Notes"}
+          labelFor="text-input"
+        >
+          <TextArea onChange={this.onInputChange} value={this.state.textContent} style={{ width: "200px" }} />
+        </FormGroup>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 15 }}>
+          <Button className={Classes.POPOVER_DISMISS} style={{ marginRight: 10 }}>
+            Cancel
         </Button>
-      </Tooltip>
+          <Button intent={Intent.PRIMARY} className={Classes.POPOVER_DISMISS} onClick={this.handleClick}>
+            Done
+        </Button>
+        </div>
+      </div >
+    }
+
+    return <>
+      <Popover content={popover_body()}
+        position={Position.RIGHT}
+        popoverClassName={Classes.POPOVER_CONTENT_SIZING} >
+        <Tooltip content={tip + " commit as milestone"} position={Position.BOTTOM} intent={Intent.PRIMARY}>
+          <Button minimal="true" style={{ marginRight: '5px' }}>
+            <Icon icon={star_icon} color={color} />
+          </Button>
+        </Tooltip>
+      </Popover>
     </>
   }
 
