@@ -16,7 +16,7 @@ Qatools helps algorithm and QA engineers build great products with powerful qual
 Qatools is installable via `pip`:
 
 ```bash
-pip install --upgrade git+http://gitlab-srv/common-infrastructure/qatools
+pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools
 # If you have SSL/certificates/trust errors, use --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org
 # If you have timeouts, not authorized, proxy errors, or "this is not a git repo error", use --proxy http://dlp2-wcg01:8080 # in case of proxy issues (TIMEOUT error) in case of SSL/proxy issues
 ```
@@ -45,6 +45,6 @@ pip install --editable .
 
 
 ## Why not X instead?
-- Most comparable tools focus on **training for machine learning** (`sacred`, `mlflow`, `tensorboard`, `polyaxon`, `cometML`). Our use cases revolve around qualitative outputs. It means we *need* flexible visualizations. This said, those tools are great too! They often have features that qatools is still missing (labelling and commenting outputs, live logs, better GUI in some respects).
+- Most comparable tools focus on **training for machine learning** (`sacred`, `mlflow`, `tensorboard`, `polyaxon`, `cometML`). Our use cases revolve around qualitative outputs. It means we *need* flexible visualizations. This said, those tools are great too! They often have features that qatools is still missing (labelling and commenting outputs, better GUI in some respects).
 - **Notebooks** are amazing for experimentation and r&d reporting, but are not easy to compare and manage. 
 - **Tensorboard** has a lot of qualities, but it doesn't scale to many experiments, doesn't know about `git`, and is not persistent. We may integrate an "Open in Tensorboard" button, ask about it and stay tuned.

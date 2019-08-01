@@ -9,7 +9,7 @@ sidebar_label: Installation
 Qatools is installable via `pip` on both Linux and Windows:
 
 ```bash
-pip install --upgrade git+http://gitlab-srv/common-infrastructure/qatools
+pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools
 # If you have SSL/certificates/trust errors, use --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org
 # If you have timeouts, not authorized, proxy errors, or "this is not a git repo error", use --proxy http://dlp2-wcg01:8080 # in case of proxy issues (TIMEOUT error) in case of SSL/proxy issues
 
