@@ -2,8 +2,8 @@
 ```bash
 docker build --tag cantaloupe .
 
-export REPOSITORY_BASE="/repository"
-docker run -p --name slamvizapp_iiif_cantaloupe-production 8182:8182 -v /opt/dockermounts/stage/algo_data:/repository --rm --detach --restart always -it cantaloupe
+docker run --name slamvizapp_iiif_cantaloupe-production -p 0.0.0.0:8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
+
 ```
 ## Image formats
 https://medusa-project.github.io/cantaloupe/manual/3.4/images.html
