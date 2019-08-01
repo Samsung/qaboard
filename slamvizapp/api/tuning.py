@@ -67,7 +67,7 @@ def get_commit_groups_paths(project, commit_id):
     ci_commit = CiCommit.query.filter(
         CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
     ).one()
-    commit_group_files = project.data['qatools_config'].get('inputs', {}).get('groups', [])
+    commit_group_files = ci_commit.data['qatools_config'].get('inputs', {}).get('groups', [])
     if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
       commit_group_files = [commit_group_files]
 
