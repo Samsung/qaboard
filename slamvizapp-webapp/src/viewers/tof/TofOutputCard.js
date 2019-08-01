@@ -35,6 +35,25 @@ const colors = {
   groundtruth: `${Colors.GREEN2}dd`,
 };
 
+const default_heatmap = {
+  axes: {
+    xaxis: {
+      autorange : true,
+    },
+    yaxis: {
+      autorange: "reversed",
+    }
+  },
+  zscale: {
+    zmin: 0,
+    zmax: 750,
+  },
+  scaleMinMax: {
+    zmin: 0,
+    zmax: 750,
+  },
+};
+
 // Creates plotly traces for the plot displaying metrics over frames.
 const make_metric_trace = function(metrics_over_frames /*: Map*/, label) {
   if (metrics_over_frames === undefined)
@@ -60,6 +79,7 @@ const make_metric_trace = function(metrics_over_frames /*: Map*/, label) {
 };
 
 
+
 class TofOutputCard extends Component {
   constructor(props) {
     super(props);
@@ -82,24 +102,6 @@ class TofOutputCard extends Component {
 
     let last_frame_id = 0 // default
     let first_frame_id = 0 // default
-    const default_heatmap = {
-      axes: {
-        xaxis: {
-          autorange : true,
-        },
-        yaxis: {
-          autorange: "reversed",
-        }
-      },
-      zscale: {
-        zmin: 0,
-        zmax: 750,
-      },
-      scaleMinMax: {
-        zmin: 0,
-        zmax: 750,
-      },
-    };
 
     this.state = {
       first_frame_id,
@@ -180,7 +182,7 @@ class TofOutputCard extends Component {
     {
         if (selected_output_type == 'customMap')
             should_load_heatmap = true;
-        this.setState({customMap: {} } );
+        this.setState({customMap: JSON.parse(JSON.stringify(default_heatmap)) } );
     }
     if (this.state.show_heatmap && (should_load_heatmap || outputs_changed) )
         this.getHeatmapData(this.props);
