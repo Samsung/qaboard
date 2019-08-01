@@ -65,7 +65,7 @@ def update_commit():
     commit.deleted = False
   db_session.add(commit)
   db_session.commit()
-  return "OK"
+  return jsonify({"status": "OK"})
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -108,7 +108,7 @@ def update_batch():
 
   db_session.add(batch)
   db_session.commit()
-  return "OK"
+  return jsonify({"status": "OK"})
 
 
 
@@ -193,7 +193,7 @@ def new_output_webhook():
 
   db_session.add(output)
   db_session.commit()
-  return "OK"
+  return jsonify(output.to_dict())
 
 
 
