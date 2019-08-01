@@ -58,7 +58,10 @@ class Job:
   def is_failed(self):
     if self.id:
       output_db = get_output(self.id)
-      return output_db["is_failed"]
+      failed = output_db["is_failed"]
+      if failed:
+        click.secho(f'ERROR: At least a run crashed... {self.output_directory}', fg='red', err=True)
+      return failed
     else:
       metrics_file = self.output_directory / 'metrics.json'
       if not metrics_file.exists():
