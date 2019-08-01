@@ -377,7 +377,7 @@ class OutputCard extends React.Component {
                 <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill/>
               </div>
             } else {
-              return <div key={option_label} title={option_label}><HTMLSelect options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)}/></div>
+              return <div key={option_label} title={option_label}>{option.values.length>0 && <HTMLSelect options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)}/>}</div>
             }
           })}
 
