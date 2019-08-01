@@ -15,7 +15,7 @@ from .config import config, commit_id, available_metrics
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
 api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
 api_port = os.getenv('QATOOLS_DB_PORT', '5000')
-
+api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 class NumpyEncoder(simplejson.JSONEncoder):
     """ Special simplejson encoder for numpy types """
@@ -82,7 +82,7 @@ def notify_qa_database(object_type='output', **kwargs):
   kwargs = serialize_paths(kwargs)
 
   # we send updates to
-  url = f"{api_protocol}://{api_host}:{api_port}/api/v1/{object_type}/"
+  url = f"{api_prefix}/{object_type}/"
 
   data = {
     'job_type': 'ci' if is_ci else 'local',
@@ -98,6 +98,9 @@ def notify_qa_database(object_type='output', **kwargs):
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
     r.raise_for_status()
+    if 'QATOOLS_VERBOSE' in os.environ:
+      print(r.json())
+    return r.json()
   except:
     click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
     click.secho(url, fg='yellow', err=True)
@@ -109,6 +112,20 @@ def notify_qa_database(object_type='output', **kwargs):
     except:
       pass
 
+
+def get_output(output_id):
+  import requests
+  url = f"{api_prefix}/output/{output_id}/"
+  try:
+    r = requests.get(url, headers={'Content-Type': 'application/json'})
+    r.raise_for_status()
+    return r.json()
+  except:
+    click.secho(f'WARNING: Failed to contact the QA database. (GET Output {output_id})', fg='yellow', err=True)
+    try:
+      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
+    except:
+      pass
 
 
 @lru_cache()
@@ -124,7 +141,7 @@ def batch_info(reference, is_branch, batch):
   if is_branch:
     params["branch"] = reference
   commit_id = reference if not is_branch else ''
-  url = f'{api_protocol}://{api_host}:{api_port}/api/v1/commit/{commit_id}'
+  url = f'{api_prefix}/commit/{commit_id}'
   r = requests.get(url, params=params)
   if 'batches' not in r.json():
   	print(r.url)

@@ -16,6 +16,7 @@ from dataclasses import dataclass, replace
 
 import click
 
+from .api import get_output
 
 # We avoid hosts that run on old processors lacking AVX instructions (pre-Sandy Bridge)
 # We could avoid those that lack AVX2, and someday we'll care about AVX512...
@@ -50,17 +51,24 @@ class Job:
     if lsf_config_dict:
       self.lsf_config = replace(self.lsf_config, **lsf_config_dict)
 
+    # Id of the corresponding Output in the qatools database
+    self.id = None
+
 
   def is_failed(self):
-    metrics_file = self.output_directory / 'metrics.json'
-    if not metrics_file.exists():
-      click.secho(f'ERROR: A run crashed: could not find {metrics_file}', fg='red', err=True)
-      return True
-    with metrics_file.open() as f:
-      metrics = json.load(f)
-      if metrics['is_failed']:
-        click.secho(f"ERROR: Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+    if self.id:
+      output_db = get_output(self.id)
+      return output_db["is_failed"]
+    else:
+      metrics_file = self.output_directory / 'metrics.json'
+      if not metrics_file.exists():
+        click.secho(f'ERROR: A run crashed: could not find {metrics_file}', fg='red', err=True)
         return True
+      with metrics_file.open() as f:
+        metrics = json.load(f)
+        if metrics['is_failed']:
+          click.secho(f"ERROR: Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+          return True
 
 
  
@@ -181,7 +189,7 @@ def run_jobs(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, 
 
 def kill_jobs_lsf(jobs, via_lsf=False):
     command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
-    if on_lsf:
+    if True:
         killer = Job(f"killer", f'"{command}"', lsf_config_dict={'priority': LsfPriority.HIGH})
         killer.send()
     else:
@@ -220,7 +228,7 @@ def job_ran_once(output_directory):
   return (output_directory / 'metrics.json').exists()
 
 
-def job_is_failed(output_directory, running_jobs_names):
+def job_is_failed(output_directory):
   metrics_path = output_directory / 'metrics.json'
   is_done = metrics_path.exists()
   if is_done:

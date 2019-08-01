@@ -342,7 +342,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     group = [group]
 
   batch_label = ctx.obj['batch_label']
-  commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha if commit else ''}{f'?label={batch_label}' if batch_label != 'default' else ''}"
+  commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha if commit else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
 
 
   running_lsf_jobs = get_running_lsf_jobs()
@@ -395,7 +395,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
       # LSF job names are based on the output directory and transformed 
       is_pending = Job(output_directory).name in running_lsf_jobs
-      is_failed = job_is_failed(output_directory, running_lsf_jobs)
+      is_failed = job_is_failed(output_directory)
       should_run = not is_pending and (action_on_existing=='run' or is_failed or not job_ran_once(output_directory)) 
       if not should_run and action_on_existing=='skip':
         continue
@@ -429,10 +429,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         command = f"cd {subproject} && {command}"
 
       lsf_configuration['priority'] = LsfPriority.LOW if tuning_params else LsfPriority.NORMAL
-      jobs.append(Job(f"{lsf_jobs_prefix}{output_directory}", command, output_directory, lsf_configuration))
-
+      job = Job(f"{lsf_jobs_prefix}{output_directory}", command, output_directory, lsf_configuration)
       if should_notify_qa_database:
-        notify_qa_database(**{
+        db_output = notify_qa_database(**{
           **ctx.obj,
           **{
             "configuration": input_configuration,
@@ -443,13 +442,19 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
             "is_pending": True,
           },
         })
+        if db_output:
+          job.id = db_output["id"]
+
+      jobs.append(job)
+
+
 
   if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
     waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
     # Our shared storage takes a while to sync. It should be solved, and this sleep removed
     # But for local runs, no need to wait
-    delay_before_status_check = 20 if is_ci or ctx.obj['ci'] else 0 #seconds
+    delay_before_status_check = 0 if is_ci or ctx.obj['ci'] else 0 #seconds
     is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, delay_before_status_check=delay_before_status_check, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
