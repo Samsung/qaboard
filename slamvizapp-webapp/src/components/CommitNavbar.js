@@ -173,7 +173,7 @@ class CommitMilestone extends React.PureComponent {
   render() {
     const star_icon = this.state.is_milestone ? "star" : "star-empty";
     const color = this.state.is_milestone ? Colors.GOLD4 : undefined;
-    const tip = this.state.is_milestone ? "Unset" : "Set";
+    const tip = this.state.is_milestone ? "Edit" : "Set";
 
     const popover_body = () => {
       return < div >
@@ -194,6 +194,9 @@ class CommitMilestone extends React.PureComponent {
           <TextArea onChange={this.onInputChange} value={this.state.textContent} style={{ width: "200px" }} />
         </FormGroup>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 15 }}>
+          {this.state.is_milestone && <Button className={Classes.POPOVER_DISMISS} intent={Intent.DANGER} style={{ marginRight: 20 }}>
+            Remove
+        </Button>}
           <Button className={Classes.POPOVER_DISMISS} style={{ marginRight: 10 }}>
             Cancel
         </Button>
