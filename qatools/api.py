@@ -98,9 +98,12 @@ def notify_qa_database(object_type='output', **kwargs):
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
     r.raise_for_status()
-    if 'QATOOLS_VERBOSE' in os.environ:
-      print(r.json())
-    return r.json()
+    try:
+      data = r.json()
+      if 'QATOOLS_VERBOSE' in os.environ:
+        print(data)
+    except:
+      pass
   except:
     click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
     click.secho(url, fg='yellow', err=True)
