@@ -5,11 +5,13 @@ import qs from "qs";
 import Plot from 'react-plotly.js';
 import { Classes, HTMLSelect, Tag, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
 
+import { updateSelected } from "./actions/selected";
+
 import { OutputCard } from "./viewers/OutputCard";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { BitAccuracyForm } from "./viewers/bit_accuracy/utils";
 
-import { hash_color, matching_output, average, median } from "./utils";
+import { hash_color, match_query, average, median } from "./utils";
 
 import CommitRow from "./components/CommitRow";
 
@@ -18,7 +20,6 @@ export const toaster = Toaster.create();
 
 let default_layout = {
   width: 1200,
-  height: 150,
   margin: {
     // will eat into the drawing area
     l: 40,
@@ -43,34 +44,6 @@ let default_layout = {
   // },
 };
 
-// const CommitsEvolution1D = ({ commits, metrics, aggregation, available_metrics }) => {
-//   let shown_metrics = metrics || [default_metric];
-//   let shown_aggregation = aggregation || 'median';
-//   let valid_commits = commits.filter( c => !!c.batches.default )
-//                              .filter(c => has_all_metrics(c, metrics, shown_aggregation) )
-
-//   let traces = shown_metrics
-//                 .map( key => available_metrics[key] )
-//                 .map( metric => ({
-//                   name: metric.label,
-//                   type: 'scatter',
-//                   x: valid_commits.map( c => c.authored_datetime ),
-//                   y: valid_commits
-//                      .map( c => c.batches.default.aggregated_metrics[`${metric.key}_${shown_aggregation}`] )
-//                      .map( value => Math.min(100, value*metric.scale) ),
-//                   text: valid_commits.map( c => c.message ),
-//                   marker: {
-//                     size: 10,
-//                     color: Colors.BLUE2,
-//                   },
-//                   line: {
-//                     width: 2,
-//                     color: Colors.BLUE3,
-//                   },
-//                 }),
-//               );
-//   return <Plot data={traces} layout={layout}/>
-// }
 
 const has_all_metrics = (commit, metrics, aggregation) => {
   for (var index in metrics) {
@@ -82,73 +55,144 @@ const has_all_metrics = (commit, metrics, aggregation) => {
 };
 
 
-class CommitsEvolutionPerBatch extends React.Component {
+const make_output_filter = output_filter => {
+  const matcher = match_query(output_filter)
+  return o => {
+    if (o.is_pending) return false;
+    if (output_filter.length === 0) return true;
+    let metadata_s = Object.keys(o.test_input_metadata).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
+    let metadata = metadata_s.replace(/"/g, "")
+    let searched = `${o.test_input_path} ${o.platform} ${metadata} ${o.configuration}`;
+    return matcher(searched)
+  };
+};
+
+
+const update_output_counts_in_batches = (commit, output_filter) => {
+  Object.keys(commit.batches).forEach(label => {
+    let outputs = commit.batches[label].outputs || {}
+    commit.batches[label].failed_outputs = 0;
+    commit.batches[label].valid_outputs = 0;
+    commit.batches[label].pending_outputs = 0;
+    let filtered_outputs = {}
+    Object.entries(outputs).forEach( ([key, output]) => {
+      if (output_filter(output)) {
+        filtered_outputs[key] = output
+        if (output.is_pending) {
+          commit.batches[label].pending_outputs += 1
+        } else if (output.is_failed) {
+          commit.batches[label].failed_outputs += 1;
+        } else {
+          commit.batches[label].valid_outputs += 1;
+        }
+      }
+    })
+    commit.batches[label].outputs = filtered_outputs;
+
+  })
+}
+
+
+
+class CommitsEvolutionPerTest extends React.Component {
   constructor(props) {
     super(props);
+    const project_qatools_config = ((props.project_data || {}).data || {}).qatools_config;
     this.state = {
-      revision: 0,
+      layout: {},
       traces: [],
       // metadata to link hover events to the corresponding batch/commit
       traces_metadata: [],
-      // date_to_commit: {},
 
-      hovered: false,
-      hovered_test_input_path: "",
       hovered_label: null,
-      hovered_commit: null
+      hovered_commit: undefined,
+      hovered_commit_ref: undefined,
+      selected_ref: false,
+      // when displaying per-input data 
+      hovered_test_input_path: "",
+      hovered_test_configuration: "",
+
+      controls: controls_defaults(project_qatools_config),
     };
   }
 
   onHover = e => {
-    let { label, commits } = this.state.traces_metadata[
-      e.points[0].curveNumber
-    ];
-    let commit = commits[e.points[0].pointNumber];
-    if (this.props.per_output_granularity && this.props.output_filter.length>0) {
+    let point_number = e.points[0].pointNumber;
+    let curve_number = e.points[0].curveNumber;
+    // when not doing per-input display, test_input_path and configuration will be undefined 
+    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[curve_number];
+    let hovered_commit_ref = point_number < commits.length ? commits[point_number + 1] : null;
+    const hovered_commit = commits[point_number]
+    if (!!this.props.aggregation && this.props.per_output_granularity && this.props.output_filter.length>0) {
       const output_filter_ = make_output_filter(this.props.output_filter);
-      Object.keys(commit.batches).forEach(label => {
-        let outputs = commit.batches[label].outputs || {}
-        commit.batches[label].failed_outputs = 0;
-        commit.batches[label].valid_outputs = 0;
-        commit.batches[label].pending_outputs = 0;
-        let filtered_outputs = {}
-        Object.entries(outputs).forEach( ([key, output]) => {
-          if (output_filter_(output)) {
-            filtered_outputs[key] = output
-            if (output.is_pending) {
-              commit.batches[label].pending_outputs += 1
-            } else if (output.is_failed) {
-              commit.batches[label].failed_outputs += 1;
-            } else {
-              commit.batches[label].valid_outputs += 1;
-            }
-          }
-        })
-        commit.batches[label].outputs = filtered_outputs;
-      })
+      update_output_counts_in_batches(hovered_commit, output_filter_)
+      update_output_counts_in_batches(hovered_commit_ref, output_filter_)
     }
+    this.props.dispatch(updateSelected(this.props.project, {
+      new_commit_id: hovered_commit.id,
+      ...((!this.state.selected_ref && !!hovered_commit_ref) ? {ref_commit_id: hovered_commit_ref.id}: {}),
+    }))
     this.setState({
-      hovered: true,
+      hovered_test_input_path: test_input_path,
+      hovered_test_configuration: configuration,
       hovered_label: label,
-      hovered_commit: commit
-    });
+      hovered_commit,
+      ...((!this.state.selected_ref && !!hovered_commit_ref) ? {hovered_commit_ref}: {}),
+    }, () => this.updateLayout(this.props));
   };
+
+
+  onDoubleClick = e => {
+    this.setState({selected_ref: false})
+  }
+  onClick = e => {
+    const curve_number = e.points[0].curveNumber
+    let point_number = e.points[0].pointNumber;
+    // when not doing per-input display, test_input_path and configuration will be undefined 
+    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[curve_number];
+    let hovered_commit = commits[point_number];
+    this.props.dispatch(updateSelected(this.props.project, {
+      ref_commit_id: hovered_commit.id,
+      new_commit_id: hovered_commit.id,
+    }))
+    this.setState({
+      selected_ref: true,
+      hovered_test_input_path: test_input_path,
+      hovered_test_configuration: configuration,
+      hovered_label: label,
+      hovered_commit,
+      hovered_commit_ref: hovered_commit,
+    }, () => this.updateLayout(this.props));
+  }
 
   componentDidMount() {
     this.updateTraces(this.props);
+    this.updateLayout(this.props);
   }
 
   componentDidUpdate(prevProps) {
     if (
-      prevProps.output_filter !== this.props.output_filter ||
       prevProps.commits !== this.props.commits ||
+      prevProps.new_commit !== this.props.new_commit ||
+      prevProps.ref_commit !== this.props.ref_commit ||
+      prevProps.output_filter !== this.props.output_filter ||
       prevProps.metrics[0] !== this.props.metrics[0] ||
-      prevProps.aggregation !== this.props.aggregation
-    )
+      prevProps.relative !== this.props.relative
+    ) {
       this.updateTraces(this.props);
+      this.updateLayout(this.props);
+    }
+
+    const new_controls = ((((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
+    const old_controls = ((((prevProps.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
+    if (old_controls !== new_controls) {
+      const project_qatools_config = ((this.props.project_data || {}).data || {}).qatools_config;
+      this.setState({controls: controls_defaults(project_qatools_config)});
+    }
   }
 
-  updateTraces(props) {
+
+  updateTracesPerBatch(props) {
     const { commits, metrics, aggregation, available_metrics, per_output_granularity, output_filter } = props;
     let shown_metrics = metrics;
     let shown_batches = ["default", "ci-android-rt", "manual-android-rt"];
@@ -248,218 +292,12 @@ class CommitsEvolutionPerBatch extends React.Component {
     this.setState({
       traces,
       traces_metadata,
-      revision: this.state.revision + 1
     });
   }
 
-  render() {
-    const { metrics, available_metrics, project_data, project } = this.props;
-    const { revision, hovered, hovered_commit, traces } = this.state;
-
-    if (hovered) {
-      var legend = (
-        <div
-          style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}
-        >
-          <CommitRow
-            commit={hovered_commit}
-            project={project}
-            project_data={project_data}
-            toaster={toaster}
-          />
-        </div>
-      );
-    } else {
-      legend = <span />;
-    }
-
-    let metric = available_metrics[metrics[0]];
-    let threshold = metric.target * metric.scale;
-    let layout = {
-      ...default_layout,
-      shapes: [],
-    }
-    if (!!threshold) {
-      layout.shapes.push({
-          type: "line",
-          layer: "below",
-          xref: "paper",
-          x0: 0,
-          x1: 1,
-          yref: "y",
-          y0: threshold,
-          y1: threshold,
-          line: {
-            color: "rgba(150, 150, 150, 0.5)",
-            width: 3,
-            dash: "dashdot"
-          }
-        })
-    }
-    if (!!hovered_commit) {
-      layout.shapes.push({
-          type: "line",
-          layer: "below",
-          xref: "x",
-          x0: hovered_commit.authored_datetime,
-          x1: hovered_commit.authored_datetime,
-          yref: "paper",
-          y0: 0,
-          y1: 1,
-          line: {
-            color: "rgba(150, 150, 150, 0.5)",
-            width: 3,
-            dash: "dashdot"
-          }
-        })
-    }
-    layout.yaxis.ticksuffix = metric.suffix || '';
-    layout.yaxis.showticksuffix = 'last';
-    layout.yaxis.type = metric.plot_scale || 'log'
-    return (
-      <div>
-        {traces.length > 0 && (
-          <Plot
-            revision={revision}
-            data={traces}
-            layout={layout}
-            onHover={this.onHover}
-          />
-        )}
-        <p>
-          <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-            Results are to clamped to >20x KPIs. The performance for each commit
-            may not be evaluated on the same tests.
-          </span>
-        </p>
-        {legend}
-      </div>
-    );
-  }
-}
-
-const make_output_filter = output_filter => {
-  const filter_tokens = output_filter
-    .toLowerCase()
-    .replace("android", "s8")
-    .split(" ");
-  return o => {
-    if (o.is_pending || o.is_failed) return false;
-    if (output_filter.length === 0) return true;
-    let metadata_s = Object.keys(o.test_input_metadata).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
-    let metadata = metadata_s.replace(/"/g, "")
-    let searched = `${o.test_input_path} ${o.platform} ${metadata} ${o.configuration}`.toLowerCase();
-
-    let negative_filter_tokens = filter_tokens
-      .filter(t => t[0] === "-")
-      .map(t => t.substring(1));
-    if (negative_filter_tokens.some(token => searched.includes(token)))
-      return false;
-
-    let positive_filter_tokens = filter_tokens.filter(t => t[0] !== "-");
-    if (positive_filter_tokens.length === 0) return true;
-    return positive_filter_tokens.every(token => searched.includes(token));
-  };
-};
-
-class CommitsEvolutionPerTest extends React.Component {
-  constructor(props) {
-    super(props);
-    const project_qatools_config = ((props.project_data || {}).data || {}).qatools_config;
-    this.state = {
-      // revision: 0,
-      traces: [],
-      layout: {},
-      // metadata to link hover events to the corresponding batch/commit
-      traces_metadata: [],
-
-      hovered: false,
-      selected_ref: false,
-      hovered_test_input_path: "",
-      hovered_test_configuration: "",
-      hovered_label: null,
-      hovered_commit: null,
-      hovered_commit_ref: null,
-
-      controls: controls_defaults(project_qatools_config),
-    };
-  }
-
-  toggle = name => () => {
-    const controls = {
-      ...this.state.controls,
-      [name]: !this.state.controls[name],      
-    }
-    this.setState({controls}, updateQueryUrl(this.props.history, controls));
-  }
-
-  toggle_show = name => () => {
-    const controls = {
-        ...this.state.controls,
-        show: {
-          ...this.state.controls.show,          
-          [name]: !this.state.controls.show[name],
-        }
-    }
-    this.setState({controls}, updateQueryUrl(this.props.history, controls));
-  }
-  onDoubleClick = e => {
-    this.setState({selected_ref: false})
-  }
-  onClick = e => {
-    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[e.points[0].curveNumber];
-    let point_number = e.points[0].pointNumber;
-    this.setState({
-      hovered: true,
-      selected_ref: true,
-      hovered_test_input_path: test_input_path,
-      hovered_test_configuration: configuration,
-      hovered_label: label,
-      hovered_commit: commits[point_number],
-      hovered_commit_ref: commits[point_number],
-    }, () => this.updateLayout(this.props));
-
-  }
-  onHover = e => {
-    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[e.points[0].curveNumber];
-    let point_number = e.points[0].pointNumber;
-    let hovered_commit_ref = point_number < commits.length ? commits[point_number + 1] : null;
-    this.setState({
-      hovered: true,
-      hovered_test_input_path: test_input_path,
-      hovered_test_configuration: configuration,
-      hovered_label: label,
-      hovered_commit: commits[point_number],
-      ...(!this.state.selected_ref ? {hovered_commit_ref}: {}),
-    }, () => this.updateLayout(this.props));
-
-  };
-
-  componentDidMount() {
-    this.updateTraces(this.props);
-    this.updateLayout(this.props);
-  }
-
-  componentDidUpdate(prevProps) {
-    if (
-      prevProps.commits !== this.props.commits ||
-      prevProps.metrics[0] !== this.props.metrics[0] ||
-      prevProps.relative !== this.props.relative ||
-      prevProps.output_filter !== this.props.output_filter
-    ) {
-      this.updateTraces(this.props);
-      this.updateLayout(this.props);
-    }
-
-    const new_controls = ((((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
-    const old_controls = ((((prevProps.project_data || {}).data || {}).qatools_config || {}).outputs || {}).controls;
-    if (old_controls !== new_controls) {
-      const project_qatools_config = ((this.props.project_data || {}).data || {}).qatools_config;
-      this.setState({controls: controls_defaults(project_qatools_config)});
-    }
-  }
-
   updateTraces(props) {
+    if (!!this.props.aggregation)
+      return this.updateTracesPerBatch(props);
     const {
       commits,
       metrics,
@@ -469,10 +307,9 @@ class CommitsEvolutionPerTest extends React.Component {
     } = props;
     const output_filter_ = make_output_filter(output_filter);
     let shown_metrics = metrics;
-    let shown_batches = ["default", "ci-android-rt"];
+    let shown_batches = ["default"];
     let traces = [];
     let traces_metadata = [];
-
 
     // console.log("shown_metrics", shown_metrics)
     shown_metrics.forEach(key => {
@@ -558,21 +395,21 @@ class CommitsEvolutionPerTest extends React.Component {
     this.setState({
       traces,
       traces_metadata,
-      // revision: this.state.revision + 1
     });
   }
 
   updateLayout = props => {
-     const {
+    const {
       available_metrics={},
       metrics=[],
+      aggregation,
       relative,
+      new_commit,
+      ref_commit,
     } = props;
     const {
-      revision,
-      traces,
-      hovered_commit,
-      hovered_commit_ref,
+      hovered_commit=new_commit,
+      hovered_commit_ref=ref_commit,
     } = this.state;
 
     let metric = available_metrics[metrics[0]];
@@ -580,7 +417,7 @@ class CommitsEvolutionPerTest extends React.Component {
     let layout = {
       ...default_layout,
       ...this.state.layout, // save eg the zoom
-      height: 250,
+      height: !!aggregation ? 150 : 250,
       shapes: [],
     };
     layout.yaxis.ticksuffix = metric.suffix || '';
@@ -638,45 +475,55 @@ class CommitsEvolutionPerTest extends React.Component {
     }
     this.setState({
       layout,
-      /*revision: revision + 1,*/
     })
   }
 
+
+  toggle = name => () => {
+    const controls = {
+      ...this.state.controls,
+      [name]: !this.state.controls[name],      
+    }
+    this.setState({controls}, updateQueryUrl(this.props.history, controls));
+  }
+
+  toggle_show = name => () => {
+    const controls = {
+        ...this.state.controls,
+        show: {
+          ...this.state.controls.show,          
+          [name]: !this.state.controls.show[name],
+        }
+    }
+    this.setState({controls}, updateQueryUrl(this.props.history, controls));
+  }
+
+
   render() {
     const {
-      metrics,
-      available_metrics,
-      relative,
       project,
       project_data,
       show_bit_accuracy,
+      aggregation,
+      new_commit,
+      ref_commit,
     } = this.props;
     const {
-      revision,
       traces,
       layout,
       hovered_test_input_path,
       hovered_test_configuration,
       hovered_label,
-      hovered_commit,
-      hovered_commit_ref,
+      hovered_commit=new_commit,
+      hovered_commit_ref=ref_commit,
     } = this.state;
 
-    if (this.state.hovered) {
-      let hovered_output = Object.values(
-        hovered_commit.batches[hovered_label].outputs || {}
-      ).filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
-      if (
-        !!hovered_commit_ref &&
-        !!hovered_commit_ref.batches[hovered_label]
-      ) {
-        var { output_ref, warning } = matching_output({
-          output: hovered_output,
-          batch: hovered_commit_ref.batches[hovered_label]
-        });
-      }
-
-
+    if (!!hovered_commit) {
+      let hovered_commit_outputs = Object.values((hovered_commit.batches[hovered_label] || {}).outputs || {})
+      let hovered_output = hovered_commit_outputs.filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
+      let should_look_for_ref = !!hovered_output &&  !!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]
+      let { reference_id, reference_warning } = should_look_for_ref ? hovered_output : {}
+      let output_ref = should_look_for_ref ? (((hovered_commit_ref || {}).batches[hovered_label] || {}).outputs || {})[reference_id] : null
       let controls_extra = project_data.data.qatools_config.outputs.controls || []
       let visualizations = project_data.data.qatools_config.outputs.visualizations || project_data.data.qatools_config.outputs.detailed_views || []
       let maybe_diff = visualizations.some(v => v.type.startsWith('image')) && <Switch
@@ -715,14 +562,10 @@ class CommitsEvolutionPerTest extends React.Component {
         <div
           style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}
         >
-          <Tag
-            style={{ background: hash_color(hovered_test_input_path) }}
-          >
-            {hovered_test_input_path} @{hovered_test_configuration}
-          </Tag>
-          <Tag style={{ marginLeft: "15px" }}>
-            {hovered_label === "default" ? "LSF" : "Android"}
-          </Tag>
+          {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
+              {hovered_test_input_path} @{hovered_test_configuration}
+          </Tag>}
+          {(!!hovered_label && hovered_label !== "default") && <Tag style={{ marginLeft: "15px" }}>{hovered_label}</Tag>}
           <CommitRow
             commit={hovered_commit}
             project={this.props.project}
@@ -738,40 +581,42 @@ class CommitsEvolutionPerTest extends React.Component {
                       tag={<Tag style={{marginRight: '8px'}} intent={Intent.PRIMARY}>Reference</Tag>}
           /></div>}
           <div style={{display: 'flex', flex: '0 0 auto'}}>{controls}</div>
-          <OutputCard
-            project={project}
-            project_data={project_data}
-            commit={hovered_commit}
-            output_new={hovered_output}
-            output_ref={output_ref}
-            warning={warning}
-            style={{ width: '1180px', height: '300px' }}
-            no_header={true}
-            dispatch={this.props.dispatch}
-            type={show_bit_accuracy ? 'bit_accuracy' : undefined}
-            show_all_files={this.props.show_all_files}
-            expand_all={this.props.expand_all}
-            files_filter={this.props.files_filter}
-            controls={this.state.controls}
-          />
+          {!!hovered_output && <OutputCard
+                      project={project}
+                      project_data={project_data}
+                      commit={hovered_commit}
+                      output_new={hovered_output}
+                      output_ref={output_ref}
+                      warning={reference_warning}
+                      style={{ width: '1180px', height: '300px' }}
+                      no_header={true}
+                      dispatch={this.props.dispatch}
+                      type={show_bit_accuracy ? 'bit_accuracy' : undefined}
+                      show_all_files={this.props.show_all_files}
+                      expand_all={this.props.expand_all}
+                      files_filter={this.props.files_filter}
+                      controls={this.state.controls}
+          />}
         </div>
       );
     } else {
       legend =  <p>
-          <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-          	Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit. Click on a commit to freeze it as a reference.
-          </span>
+          {!!aggregation && <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
+                      Results are to clamped to >20x KPIs. The performance for each commit
+                      may not be evaluated on the same tests.
+          </span>}
+          {!!!aggregation && <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
+                      Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit. Click on a commit to freeze it as a reference.
+          </span>}
         </p>
     }
 
     // console.log(traces)
     // console.log(revision)
-
     return (
       <div>
         {traces.length > 0 && (
           <Plot
-            /* revision={revision} */
             data={traces}
             layout={layout}
             onHover={this.onHover}
@@ -825,7 +670,6 @@ class CommitsEvolution extends Component {
     });
   }
   toggle = name => e => {
-    console.log(name, this.state)
     this.setState({ [name]: !this.state[name] });
     let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({
@@ -839,7 +683,7 @@ class CommitsEvolution extends Component {
   }
 
   render() {
-    const { project, project_data, commits, style, default_breakdown_per_test, output_filter, per_output_granularity } = this.props;
+    const { project, project_data, commits, new_commit, ref_commit, style, default_breakdown_per_test, output_filter, per_output_granularity } = this.props;
     const offer_breakdown_per_test = default_breakdown_per_test !== undefined && default_breakdown_per_test !== null;
     const {
       selected_metric,
@@ -907,35 +751,25 @@ class CommitsEvolution extends Component {
               </Fragment>
             )}
         </FormGroup>
-        {breakdown_per_test ? (
-          <CommitsEvolutionPerTest
+        <CommitsEvolutionPerTest
             project={project}
             project_data={project_data}
             commits={commits}
+            new_commit={new_commit}
+            ref_commit={ref_commit}
             metrics={[selected_metric]}
             output_filter={output_filter}
+            aggregation={breakdown_per_test ? null : selected_aggregation}
+            per_output_granularity={per_output_granularity}
             relative={this.state.relative}
             show_bit_accuracy={show_bit_accuracy}
             available_metrics={available_metrics}
-            dispatch={this.props.dispatch}
             history={this.props.history}
             show_all_files={this.state.show_all_files}
             expand_all={this.state.expand_all}
             files_filter={this.state.files_filter}
-          />
-        ) : (
-          <CommitsEvolutionPerBatch
-            project={project}
-            project_data={project_data}
-            commits={commits}
-            metrics={[selected_metric]}
-            output_filter={output_filter}
-            aggregation={selected_aggregation}
-            available_metrics={available_metrics}
-            per_output_granularity={per_output_granularity}
             dispatch={this.props.dispatch}
-          />
-        )}
+        />
         {show_bit_accuracy && <BitAccuracyForm
                                      show_all_files={this.state.show_all_files}
                                      expand_all={this.state.expand_all}
@@ -947,5 +781,7 @@ class CommitsEvolution extends Component {
     );
   }
 }
+
+
 
 export default withRouter(CommitsEvolution );

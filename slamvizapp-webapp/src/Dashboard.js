@@ -1,7 +1,6 @@
 import React from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import { Link } from "react-router-dom";
 
 import {
   Classes,
@@ -24,7 +23,6 @@ import { TableCompare, TableKpi } from "./components/tables";
 
 import { fetchCommits } from "./actions/projects";
 
-import { shortId } from "./utils";
 import { empty_batch, default_date_range } from "./defaults";
 import {
   projectSelector,
@@ -133,10 +131,7 @@ class Dashboard extends React.Component {
   render() {
     const { project_data, project, commits, available_metrics, output_filter } = this.props;
     const { is_loaded, is_loading, error  } = this.props;
-    const {
-      selected_metrics,
-      evolution_metrics,
-    } = this.state;
+    const { selected_metrics, evolution_metrics } = this.state;
 
     if (is_loading)
       return (
@@ -152,7 +147,7 @@ class Dashboard extends React.Component {
     </Container>
 
 
-    const { new_commit, ref_commit, new_commit_id, ref_commit_id, new_batch_filtered, ref_batch_filtered } = this.props;
+    const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered } = this.props;
     const has_reference = !!ref_batch_filtered && !!ref_batch_filtered.outputs && Object.keys(ref_batch_filtered.outputs).length > 0
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
@@ -173,9 +168,8 @@ class Dashboard extends React.Component {
       />
     );
 
-    let pretty_commit_id = !!new_commit ? shortId(project, new_commit.id) : '';
-    let pretty_commit_id_ref = !!ref_commit ? shortId(project, ref_commit.id) : '';
-
+    let outputs_nb = Object.keys(new_batch_filtered.outputs).length
+    let count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} output{outputs_nb > 1 ? 's' : ''}</p> : <span/>
     return (
       <Container style={{paddingTop: '50px'}}>
         <Section>
@@ -186,6 +180,8 @@ class Dashboard extends React.Component {
               project={project}
               project_data={project_data}              
               commits={commits}
+              new_commit={new_commit}
+              ref_commit={ref_commit}
               select_metrics={evolution_metrics}
               output_filter={output_filter}
               per_output_granularity
@@ -202,24 +198,7 @@ class Dashboard extends React.Component {
           <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
             <Card elevation={0}>
               <h2 className={Classes.HEADING}>Metrics distribution</h2>
-              <ul className={Classes.LIST}>
-                <li>
-                  <strong>New:</strong>{" "}
-                  {Object.keys(new_batch_filtered.outputs).length} results from{" "}
-                  <Link to={`/commit/${new_commit_id}?project=${project}`}>
-                    <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>{pretty_commit_id}</code>
-                  </Link>
-                </li>
-                <li>
-                  <strong>Reference:</strong>{" "}
-                  {Object.keys(ref_batch_filtered.outputs).length} results from{" "}
-                  <Link to={`/commit/${ref_commit}?project=${project}`}>
-                    <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
-                      {pretty_commit_id_ref}
-                    </code>
-                  </Link>
-                </li>
-              </ul>
+              {count}
               <MetricsSummary
                 selected_metrics={selected_metrics}
                 project={project}
@@ -235,13 +214,7 @@ class Dashboard extends React.Component {
         {project==='dvs/psp_swip' && <Section>
           <Card elevation={1}>
             <h2 className={Classes.HEADING}>Algorithmic bottlenecks</h2>
-            <p className={Classes.TEXT_MUTED}>{Object.keys(new_batch_filtered.outputs).length} offline results{" "}
-            <Link to={`/commit/${new_commit_id}`}>
-              <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
-                {pretty_commit_id}
-              </code>
-            </Link>
-            </p>
+            {count}
             <MetricsSummary
               breakdown_by_tag
               selected_metrics={selected_metrics}
@@ -255,7 +228,7 @@ class Dashboard extends React.Component {
 
         <Section>
           <Card>
-            <h2 className={Classes.HEADING}>Metrics per-tes</h2>
+            <h2 className={Classes.HEADING}>Metrics per-test</h2>
             <Tabs
               renderActiveTabPanelOnly
               id="tabs-outputs"
@@ -331,8 +304,6 @@ const mapStateToProps = (state, ownProps) => {
     let { new_commit, ref_commit } = commitSelector(state)
 
     let {
-      selected_batch_new,
-      selected_batch_ref,
       new_batch_filtered,
       ref_batch_filtered,
     } = batchSelector(state)
