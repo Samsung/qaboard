@@ -110,6 +110,7 @@ const StyledNavbar = styled(Navbar)`
    position: fixed !important;
    top: 0;
    padding-left: 151px !important;
+   overflow-y: auto !important;
 `
 
 const StyledNavbarNew = styled(Navbar)`
@@ -188,7 +189,11 @@ class AppNavbar extends Component {
               labelFor="filter-new-input"
               helperText={<Tooltip>
                 <><BatchTags batch={new_batch_filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
-                <div><span>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</span></div>
+                <ul>
+                  <li>You can use negative filters: <code>-2X5</code></li>
+                  <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
+                  <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
+                </ul>
               </Tooltip>}
             >
               <InputGroup
@@ -255,7 +260,7 @@ class AppNavbar extends Component {
 
     const is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     const is_project_branch_home = this.props.match.path === "/:project_id+/commits/:name+"
-    const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard/');
+    const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel/');
 
     // let is_committer = !!match.params.committer;
     // let is_branch = !!match.params.name;
@@ -288,7 +293,7 @@ class AppNavbar extends Component {
             parseDate={str => new Date(Date.parse(str))}
             onChange={new_date_range => {
               const { project, aggregated_metrics, dispatch } = this.props;
-              const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard');
+              const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
               const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
               dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))
             }}
@@ -303,7 +308,7 @@ class AppNavbar extends Component {
                           let extended_date_range = [date_range[0], date_range[1]]
                           extended_date_range[0].setHours(0,0,0,0);
                           extended_date_range[1].setHours(23,59,59,999);
-                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard');
+                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
                           const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
                           dispatch(fetchCommits(project, {...this.props.match.params}, extended_date_range, aggregated_metrics, options))
                         }
@@ -317,7 +322,7 @@ class AppNavbar extends Component {
           {(is_project_home || is_project_branch_home) &&
               <Suggest
                 itemPredicate={filterBranch}
-                createNewItemFromQuery={query => ({commit: query})}
+                createNewItemFromQuery={query => ({commit: query.trim()})}
                 createNewItemRenderer={renderNewItem}
                 items={branches}
                 itemRenderer={renderBranch}
