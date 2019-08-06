@@ -178,9 +178,9 @@ class TofOutputCard extends Component {
     const heatmaps = this.state[selected_output_type] || {}
     const heatmap = heatmaps[this.state.selected_frame] || {is_loading: false, is_loaded: false};
     let should_load_heatmap = !heatmap.is_loaded && !heatmap.is_loading;
-    if (prevState.custom_output_filename != this.state.custom_output_filename)
+    if (prevState.custom_output_filename !== this.state.custom_output_filename)
     {
-        if (selected_output_type == 'customMap')
+        if (selected_output_type === 'customMap')
             should_load_heatmap = true;
         this.setState({customMap: JSON.parse(JSON.stringify(default_heatmap)) } );
     }
@@ -205,7 +205,7 @@ class TofOutputCard extends Component {
         [selected_frame]: {is_loaded: false, is_loading: true}
       }
     })
-    let fileNameToGet = selected_output_type != 'customMap' ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
+    let fileNameToGet = selected_output_type !== 'customMap' ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
     
     console.log(fileNameToGet)
     get(fileNameToGet)
@@ -242,7 +242,7 @@ class TofOutputCard extends Component {
       })
     });
     
-    let fileNameToGetRef = selected_output_type != 'customMap' ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
+    let fileNameToGetRef = selected_output_type !== 'customMap' ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
     
     get(fileNameToGetRef)
     .then(response => {

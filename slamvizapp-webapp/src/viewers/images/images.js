@@ -3,12 +3,9 @@ import { get } from "axios"
 import {
   Colors,
   Tag,
-  Slider,
   Icon,
   Tooltip,
-  Divider,
-  Button,
-  Intent
+  Slider,
 } from "@blueprintjs/core";
 import pixelmatch from 'pixelmatch';
 import Plot from 'react-plotly.js';

@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import Plot from 'react-plotly.js';
 import { get, all, spread, CancelToken } from "axios";
 import { tsvParse } from "d3-dsv";
-import { TEXT_HIGHLIGHT } from "@blueprintjs/icons/lib/esm/generated/iconNames";
 
 const config = {
   showSendToCloud: true,
@@ -335,7 +334,8 @@ const parse_debug = text_string => {
 };
 
 // we want to share the same t0 for a given recording
-var t0s = {}; // maps recording -> t0
+// var t0s = {}; // maps recording -> t0
+/*
 const parse_poses_old = (text_string, test_input_path) => {
   let headers = [
     "rX",
@@ -398,6 +398,7 @@ const parse_poses_old = (text_string, test_input_path) => {
   // }
   // return { rX, rY, rZ, tX, tY, tZ, t, confidence, tracking_state};
 };
+*/
 
 const is_old_format = (text_string, test_input_path) => {
   let data = tsvParse(text_string);
