@@ -16,6 +16,8 @@ import {
   Colors,
   Position,
   H5,
+  Alert,
+  Toaster,
 } from "@blueprintjs/core";
 
 import { CommitAvatar } from "./avatars";
@@ -135,6 +137,8 @@ class CommitNavbar extends React.Component {
 }
 
 ///////////////////////////// CommitMilestone //////////////////////////////////
+const toaster = Toaster.create();
+
 class CommitMilestone extends React.PureComponent {
   constructor(props) {
     super(props);
@@ -143,18 +147,40 @@ class CommitMilestone extends React.PureComponent {
       is_milestone: false,
       name: '',
       textContent: " ",
+      alert_is_open: false,
     };
 
-    this.handleClick = this.handleClick.bind(this);
+    this.handleConfirm = this.handleConfirm.bind(this);
+    this.handleRemoveOpen = this.handleRemoveOpen.bind(this);
+    this.handleRemoveCancel = this.handleRemoveCancel.bind(this);
+    this.handleRemoveConfirm = this.handleRemoveConfirm.bind(this);
     this.onInputChange = this.onInputChange.bind(this);
     this.onNameChange = this.onNameChange.bind(this);
   }
 
-  handleClick() {
+  handleConfirm() {
     this.setState(state => ({
-      is_milestone: !state.is_milestone,
+      is_milestone: true,
     }));
+    toaster.show({
+      message: <div><b>{this.state.name}</b> was saved!</div>,
+      intent: Intent.SUCCESS,
+      timeout: 3000
+    });
   }
+
+  handleRemoveOpen = () => this.setState({ alert_is_open: true });
+
+  handleRemoveCancel = () => this.setState({ alert_is_open: false });
+
+  handleRemoveConfirm = () => {
+    this.setState({ is_milestone: false, alert_is_open: false });
+    toaster.show({
+      message: <div><b>{this.state.name}</b> was removed</div>,
+      intent: Intent.NONE,
+      timeout: 3000
+    });
+  };
 
   onNameChange(event) {
     this.setState({ name: event.target.value });
@@ -174,6 +200,7 @@ class CommitMilestone extends React.PureComponent {
     const star_icon = this.state.is_milestone ? "star" : "star-empty";
     const color = this.state.is_milestone ? Colors.GOLD4 : undefined;
     const tip = this.state.is_milestone ? "Edit" : "Set";
+    const { alert_is_open } = this.state
 
     const popover_body = () => {
       return < div >
@@ -193,16 +220,31 @@ class CommitMilestone extends React.PureComponent {
         >
           <TextArea onChange={this.onInputChange} value={this.state.textContent} style={{ width: "200px" }} />
         </FormGroup>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 15 }}>
-          {this.state.is_milestone && <Button className={Classes.POPOVER_DISMISS} intent={Intent.DANGER} style={{ marginRight: 20 }}>
-            Remove
-        </Button>}
-          <Button className={Classes.POPOVER_DISMISS} style={{ marginRight: 10 }}>
-            Cancel
-        </Button>
-          <Button intent={Intent.PRIMARY} className={Classes.POPOVER_DISMISS} onClick={this.handleClick}>
-            Done
-        </Button>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
+          {this.state.is_milestone && <>
+            <Button
+              text={"Remove"}
+              onClick={this.handleRemoveOpen}
+              intent={Intent.DANGER}
+              style={{ marginRight: 50 }}
+            />
+            <Alert
+              Button className={Classes.POPOVER_DISMISS}
+              canEscapeKeyCancel="true"
+              cancelButtonText="Cancel"
+              confirmButtonText="Remove"
+              icon="trash"
+              intent={Intent.DANGER}
+              isOpen={alert_is_open}
+              onCancel={this.handleRemoveCancel}
+              onConfirm={this.handleRemoveConfirm}
+            >
+              <p>
+                Are you sure you want to remove <b>{this.state.name}</b>?</p>
+            </Alert>
+          </>}
+          <Button className={Classes.POPOVER_DISMISS} text={"Cancel"} style={{ marginRight: 10 }} />
+          <Button className={Classes.POPOVER_DISMISS} text={"Done"} intent={Intent.PRIMARY} onClick={this.handleConfirm} />
         </div>
       </div >
     }
@@ -211,7 +253,7 @@ class CommitMilestone extends React.PureComponent {
       <Popover content={popover_body()}
         position={Position.RIGHT}
         popoverClassName={Classes.POPOVER_CONTENT_SIZING} >
-        <Tooltip content={tip + " commit as milestone"} position={Position.BOTTOM} intent={Intent.PRIMARY}>
+        <Tooltip content={tip + " commit milestone"} position={Position.BOTTOM} intent={Intent.PRIMARY}>
           <Button minimal="true" style={{ marginRight: '5px' }}>
             <Icon icon={star_icon} color={color} />
           </Button>
