@@ -3,7 +3,7 @@ import React from "react";
 import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
-
+import { match_query } from "../../utils"
 
 
 // Turns a flat file manifest into a proper tree
@@ -128,9 +128,8 @@ class BitAccuracyViewer extends React.Component {
         if (!!manifest)
           tree[label] = to_tree(manifest)
       })
-      tree.mixed = this.mergeTrees(tree.new, tree.reference);      
+      tree.mixed = this.mergeTrees(tree.new, tree.reference, props);      
     }
-
     this.state = {
       tree,
       selected: [],
@@ -165,7 +164,7 @@ class BitAccuracyViewer extends React.Component {
   }
 
 
-  mergeTrees = (tree_new, tree_ref) => {
+  mergeTrees = (tree_new, tree_ref, props) => {
     if (tree_new === null || tree_new === undefined)
       return []
 
@@ -180,16 +179,18 @@ class BitAccuracyViewer extends React.Component {
     // find match / mismatches
     visitDepthFirst(tree_compared, updateMatch(tree_ref))
 
-    if (!this.props.show_all_files) {
+    const has_filter = !!props.files_filter && props.files_filter.length > 0;
+    if (!props.show_all_files && !has_filter) {
       tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
-      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
-      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+      const has_new = props.output_new !== undefined && props.output_new !== null;
+      const has_ref = props.output_ref !== undefined && props.output_ref !== null;
       tree_compared = tree_compared.filter(node => node.id !== 'logs.txt')
-      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(this.props.output_new.metrics) === hash_metrics(this.props.output_ref.metrics))
+      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(props.output_new.metrics) === hash_metrics(props.output_ref.metrics))
         tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
     }
-    if (!!this.props.files_filter && this.props.files_filter.length > 0) {
-      tree_compared = filterNodes(tree_compared, node => node.id.includes(this.props.files_filter) || (node.childNodes !== undefined && node.childNodes.length > 0))
+    const matcher = match_query(props.files_filter)
+    if (has_filter) {
+      tree_compared = filterNodes(tree_compared, node => matcher(node.id) || (node.childNodes !== undefined && node.childNodes.length > 0))
       forEachNode(tree_compared, node => {node.isExpanded = true} )    	
     }
 
@@ -201,7 +202,7 @@ class BitAccuracyViewer extends React.Component {
     forEachNode(tree_compared, applyStyle)
     forEachNode(tree_compared, node => {if (((this.state || {}).opened || []).includes(node.id)) {node.isExpanded = true}} )
 
-    if (this.props.expand_all !== undefined && !!this.props.expand_all) {
+    if (props.expand_all !== undefined && !!props.expand_all) {
       forEachNode(tree_compared, node => {node.isExpanded = true} )    	
     }
 
@@ -260,21 +261,33 @@ class BitAccuracyViewer extends React.Component {
       let updated_new = has_new_manifest && (!had_new_manifest || prevProps.manifests.new !== this.props.manifests.new);
       let updated_ref = has_ref_manifest && (!had_ref_manifest || prevProps.manifests.reference !== this.props.manifests.reference);
 
-      if (updated_new)
-        this.setState({tree: {...this.state.tree, new: to_tree(this.props.manifests.new)}})
-      if (updated_ref)
-        this.setState({tree: {...this.state.tree, reference: to_tree(this.props.manifests.reference)}})
-
-      let change_show_all_files = prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new;
-      let change_files_filter = prevProps.files_filter !== this.props.files_filter && !!this.state.tree.new;
-      let change_expand_all = prevProps.expand_all !== this.props.expand_all && !!this.state.tree.new;
-      if (change_show_all_files || change_files_filter || change_expand_all)
+      if (updated_new || updated_ref) {
+        const tree_new = updated_new ? to_tree(this.props.manifests.new) : this.state.tree.new;
+        const tree_reference = updated_ref ? to_tree(this.props.manifests.reference) : this.state.tree.reference;
+        const tree_mixed = this.mergeTrees(
+          tree_new,
+          tree_reference,
+          this.props
+        );
         this.setState({
           tree: {
-            ...this.state.tree,
-            mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference),
+            new: tree_new,
+            reference: tree_reference,
+            mixed: tree_mixed,
           }
-        })
+        })        
+      } else {
+        let change_show_all_files = prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new;
+        let change_files_filter = prevProps.files_filter !== this.props.files_filter && !!this.state.tree.new;
+        let change_expand_all = prevProps.expand_all !== this.props.expand_all && !!this.state.tree.new;
+        if (change_show_all_files || change_files_filter || change_expand_all)
+          this.setState({
+            tree: {
+              ...this.state.tree,
+              mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference, this.props),
+            }
+          })        
+      }
   }
 
 
