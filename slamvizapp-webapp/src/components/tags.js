@@ -6,7 +6,6 @@ import {
   Icon,
   Tag,
   Intent,
-  Popover,
   Tooltip,
   Toaster,
 } from "@blueprintjs/core";
@@ -117,10 +116,10 @@ class OutputTags extends React.PureComponent {
       </Tooltip>
 
       {warning && (
-        <Popover interactionKind="hover">
-          <Icon intent={Intent.WARNING} icon="warning-sign" style={{ verticalAlign: 'baseline' }} />
+        <Tooltip>
+          <Tag intent={Intent.WARNING} icon="not-equal-to" style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>ref</Tag>
           <span>{warning}</span>
-        </Popover>
+        </Tooltip>
       )}
     </span>
   }
