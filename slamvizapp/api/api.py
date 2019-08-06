@@ -18,7 +18,7 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.sql import label
 
 from slamvizapp import app, db_session
-from ..models import Project, CiCommit, Batch
+from ..models import Project, CiCommit, Batch, Output
 from ..models.LocalMocks import LocalCommit
 from ..models import latest_successful_commit
 
@@ -145,6 +145,14 @@ def get_project():
                .one()
               )
   return jsonify(project.data)
+
+
+@app.route("/api/v1/output/<output_id>")
+@app.route("/api/v1/output/<output_id>/")
+def get_output(output_id):
+  output = Output.query.filter(Output.id==output_id).one()
+  return jsonify(output.to_dict())
+
 
 
 @app.route("/api/v1/commit")
