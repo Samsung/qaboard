@@ -9,6 +9,8 @@ const route_paths = [
 	"/:project_id+/commits",
 	"/:project_id+/commit/:commit+",
 	"/:project_id+/commit",
+	"/:project_id+/time-travel/:branch+",
+	"/:project_id+/time-travel",
 	"/:project_id+/dashboard/:branch+",
 	"/:project_id+/dashboard",
 	"/:project_id+",
@@ -103,7 +105,7 @@ export const default_selected = () => {
 
     // What batch of results should we show, with what filters?
 	selected_batch_new: params.get("batch") || params.get("batch_new") || "default",
-	selected_batch_ref: params.get("batch_ref") || "default",
+	selected_batch_ref: params.get("batch_ref") || params.get("batch") || "default",
 
 	filter_batch_new: params.get("filter") || "",
 	filter_batch_ref: params.get("filter_ref") || "",
