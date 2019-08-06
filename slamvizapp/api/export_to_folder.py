@@ -80,8 +80,8 @@ def matching_output(output_reference, outputs):
 
   def match_key(output):
     return (
-      5 if output.configuration == output_reference.configuration else 0 +
-      3 if output.platform == output_reference.platform else 0 +
+      4 if output.configuration == output_reference.configuration else 0 +
+      2 if output.platform == output_reference.platform else 0 +
       1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
     )
   valid_outputs.sort(key=match_key, reverse=True)
