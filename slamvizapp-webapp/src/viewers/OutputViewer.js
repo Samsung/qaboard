@@ -10,10 +10,9 @@ const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "
 const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
 
-class OutputViewer extends React.Component {
-  render() {
-    const { type, output_ref, ...props } = this.props;
-    const maybe_output_ref = (this.props.show_reference === undefined || this.props.show_reference) ? output_ref : undefined;
+const OutputViewer = React.memo( props_ => {
+    const { type, output_ref, ...props } = props_;
+    const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
     let viewer;
     if (!!type) {
       if (type === "6dof/txt")
@@ -34,7 +33,7 @@ class OutputViewer extends React.Component {
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <span>No viewer is defined for type: {type}</span>;
     } else {
-      const { path } = this.props;
+      const { path } = props_;
       if (path.endsWith('png') ||
           path.endsWith('jpg') ||
           path.endsWith('jpeg')||
@@ -57,8 +56,7 @@ class OutputViewer extends React.Component {
       {viewer}
     </Suspense>
   );
-  }
-}
+})
 
 
 export { OutputViewer };
