@@ -415,6 +415,7 @@ class CiCommitResults extends Component {
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
                     history={this.props.history}
+                    dispatch={this.props.dispatch}
                     sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}
@@ -433,6 +434,7 @@ class CiCommitResults extends Component {
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
                     history={this.props.history}
+                    dispatch={this.props.dispatch}
                     sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}

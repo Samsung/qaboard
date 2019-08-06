@@ -94,10 +94,10 @@ class CiCommitList extends React.Component {
     let qa_report = show_metrics_over_time && <Section>
       <Card>
         <CommitsEvolution
-                project={project}
-                project_data={project_data}
-                commits={commits}
-                style={{ marginTop: "20px" }}
+          project={project}
+          project_data={project_data}
+          commits={commits}
+          style={{ marginTop: "20px" }}
         />
       </Card>
     </Section>;
