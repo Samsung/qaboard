@@ -114,7 +114,7 @@ class ProjectSideCommitList extends React.Component {
   		  }
   		  <Menu.Item href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
   		  <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-        <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
+        <Menu.Item href={`/${project}/time-travel/${reference_branch}`} icon="series-search" text="Time Travel"/>
 
 
         <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
@@ -332,7 +332,7 @@ class AppSider extends React.Component {
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
-        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/dashboard/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
+        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/time-travel/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
         {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.new_batch_filtered} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
       </ul>
     </Sider>
