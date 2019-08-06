@@ -1,6 +1,10 @@
+import React from "react";
+
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 import { median as mathjs_median } from "mathjs";
+
+import { ExtraParametersTags, ConfigurationsTags, PlatformTag } from './components/tags'
 
 // import math from '@mathjs';
 
@@ -50,8 +54,8 @@ const empty_output = { metrics: undefined, extra_parameters: {} };
 const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
-    5 * ((o.configuration !== output.configuration) | 0) +
-    3 * ((o.platform !== output.platform) | 0) +
+    4 * ((o.configuration !== output.configuration) | 0) +
+    2 * ((o.platform !== output.platform) | 0) +
     1 *
       ((JSON.stringify(o.extra_parameters) !==
         JSON.stringify(output.extra_parameters)) |
@@ -67,13 +71,17 @@ const matching_output = ({ output, batch }) => {
     .sort((a, b) => match_score(a) - match_score(b));
   // if (matching_outputs) console.log(matching_outputs)
   let output_ref = matching_outputs[0] || empty_output;
-  let imperfect_match = match_score(output_ref) > 0;
-  let warning =
-    imperfect_match && matching_outputs.length > 0
-      ? `vs ${output_ref.configuration} @${
-          output_ref.platform
-        }  with ${JSON.stringify(output_ref.extra_parameters)}`
-      : null;
+  let ref_match_score = match_score(output_ref);
+  let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
+
+  let warning = imperfect_match ? <div>
+    <h3>Comparing to</h3> 
+    {((ref_match_score & 4) === 1) && <p><ConfigurationsTags configuration={output_ref.configuration}/></p>}
+    {((ref_match_score & 2) === 1) && <p><PlatformTag platform={output_ref.platform} /></p>}
+    {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0
+                                          ? <ExtraParametersTags parameters={output_ref.extra_parameters} />
+                                          : 'No tuning'}</p>}
+  </div> : null
   return { output_ref, warning, imperfect_match };
 };
 
@@ -96,20 +104,38 @@ const sortOutputs = (sort_by, order) => {
 
 
 
-const filter_batch = (batch, filter_values) => {
-  // console.log(filter_values)
-  if (filter_values === undefined || filter_values === null || filter_values.length === 0)
-  	return batch;
-  //if (typeof filter_values !== 'string' || !(filter_values instanceof String))
-  //  return batch;
-
-  // console.log(filter_values)
-  let filter_tokens = filter_values
+const match_query = pattern => {
+  const tokens = pattern
+    .trim()
     .toLowerCase()
     .replace(/"/g, "")
     .replace(/=+/g, ":")
     .replace(/: /g, ":")
     .split(" ");
+  const negative_tokens = tokens
+    .filter(t => t[0] === "-" && t.length > 1)
+    .map(t => t.substring(1));
+  const positive_tokens = tokens.filter(t => t[0] !== "-");
+  const positive_regexp = new RegExp(`(${positive_tokens.join('|')})`)
+  // console.log(positive_tokens, negative_tokens)
+  return query => {
+    const searched = query.toLowerCase();
+    // console.log(searched)
+    if (negative_tokens.some(token => searched.includes(token)))
+      return false;
+    if (positive_tokens.length === 0)
+      return true;
+    return searched.match(positive_regexp)
+  }
+}
+
+const filter_batch = (batch, filter_values) => {
+  if (filter_values === undefined || filter_values === null || filter_values.length === 0)
+  	return batch;
+  //if (typeof filter_values !== 'string' || !(filter_values instanceof String))
+  //  return batch;
+
+  const matcher = match_query(filter_values)
 
   let batch_filtered = Object.create(batch); // copy
   batch_filtered.outputs = {};
@@ -119,19 +145,8 @@ const filter_batch = (batch, filter_values) => {
     let metadata_s = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
     let extra_parameters = extra_parameters_s.replace(/"/g, "");
     let metadata = metadata_s.replace(/"/g, "");
-    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters}`.toLowerCase();
-
-    let negative_filter_tokens = filter_tokens
-      .filter(t => t[0] === "-")
-      .map(t => t.substring(1));
-    if (negative_filter_tokens.some(token => !!token && searched.includes(token)))
-      return;
-
-    let positive_filter_tokens = filter_tokens.filter(t => t[0] !== "-");
-    let found = positive_filter_tokens.every(token =>
-      searched.includes(token)
-    );
-    if (positive_filter_tokens.length === 0 || found)
+    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters}`;
+    if (matcher(searched))
       batch_filtered.outputs[id] = output;
   });
   // we update the summary metrics
@@ -224,6 +239,7 @@ export {
   shortId,
   sortOutputs,
   filter_batch,
+  match_query,
   hash_color,
   plotly_palette,
   deserialize_config,
