@@ -49,6 +49,18 @@ export const routes = [
     navbar: AppNavbar,
   },
   {
+    path: "/:project_id+/time-travel/:name+",
+    main: Dashboard,
+    sider: AppSider,
+    navbar: AppNavbar,
+  },
+  {
+    path: "/:project_id+/time-travel",
+    main: Dashboard,
+    sider: AppSider,
+    navbar: AppNavbar,
+  },
+  {
     path: "/:project_id+",
     main: CiCommitList,
     sider: AppSider,
