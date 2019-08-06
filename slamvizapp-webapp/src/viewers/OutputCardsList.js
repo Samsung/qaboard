@@ -121,6 +121,7 @@ class OutputCardsList extends React.Component {
                   output_new={output}
                   output_ref={ref_batch.outputs[output.reference_id]}
                   warning={output.reference_warning}
+                  dispatch={this.props.dispatch}
                   {...misc_output_props}
                 />
               );
