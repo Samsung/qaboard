@@ -55,14 +55,14 @@ class CommitNavbar extends React.Component {
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
     return (
        <FormGroup style={{marginTop: '45px'}}>
-          <div style={{'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px'}}>
+          <div style={{'marginRight': '10px', display: 'block', position: 'relative', maxWidth: '600px', marginBottom: '6px'}}>
             <span style={{display: 'flex'}}>
               <Tag style={{flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace'}} minimal>{label}</Tag>
               <CommitAvatar size='20px' commit={commit} style={{marginRight: '5px'}}/>
               <CommitMessage
                 project={project}
                 commit={commit}
-                style={{maxWidth: "450px", minWidth: "450px", flex: '0 1 auto', alignSelf: 'center'}}
+                style={{maxWidth: "450px", flex: '0 1 auto', alignSelf: 'center'}}
                 is_loaded={!!commit && commit.id && !this.props.commit.is_loaded}
               />
             </span>
@@ -83,6 +83,7 @@ class CommitNavbar extends React.Component {
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
                 {milestones.map(m => {
                     return <Menu.Item
+                      key={m}
                       text={m}
                       icon="locate"
                       onClick={() => this.handleSubmitBranch(m)}
