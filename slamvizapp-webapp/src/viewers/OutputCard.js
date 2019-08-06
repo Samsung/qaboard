@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { InView } from 'react-intersection-observer'
 import { get, all, CancelToken } from "axios";
 import { matchPath  } from 'react-router'
@@ -20,6 +21,8 @@ import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
 import { OutputTags, ExtraParametersTags } from '../components/tags'
 
+import { updateSelected } from "../actions/selected";
+
 export const toaster = Toaster.create();
 
 // ES2018.....
@@ -39,14 +42,23 @@ const output_header_style = {
   lineHeight: 1.6,
   letterSpacing: "-1px",
 };
-const OutputHeader = React.memo( ({project, commit, output, warning, type}) => {
-    const input_over_time_url = `/${project}/dashboard/${commit.branch.replace('origin/', '')}?breakdown_per_test=true&filter=${output.test_input_path}${type==='bit_accuracy' ? "show_bit_accuracy=true" : ""}`
+const OutputHeader = React.memo( ({project, commit, output, warning, type, dispatch }) => {
+    const input_over_time_url = `/${project}/time-travel/${commit.branch}?filter=${output.test_input_path}${type==='bit_accuracy' ? "&show_bit_accuracy=true" : ""}`
     const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
     const has_label = has_metadata && !!output.test_input_metadata.label
     return <>
       <h5 className={Classes.HEADING} style={output_header_style} >
         <Tooltip hoverCloseDelay={500} disabled={!has_metadata}>
-          <span><a style={{color: 'inherit'}} href={input_over_time_url}>{has_label ? output.test_input_metadata.label : output.test_input_path}</a> <OutputTags output={output} warning={warning}/></span>
+          <span>
+            <Link
+              to={input_over_time_url}
+              onClick={() => dispatch(updateSelected(project, {branch: commit.branch}))}
+              style={{color: 'inherit'}}
+            >
+              {has_label ? output.test_input_metadata.label : output.test_input_path}
+            </Link>
+            <OutputTags output={output} warning={warning}/>
+          </span>
           <div>
             {has_metadata && <>
                 {has_label && <>
@@ -257,8 +269,8 @@ class OutputCard extends React.Component {
     const { is_loaded, error } = this.state;
     const { output_new, output_ref, warning } = this.props;
 
-
-    if (output_new === undefined  || output_new === null || output_new.is_pending)
+    const has_output_new = output_new !== undefined && output_new !== null
+    if (!has_output_new && output_new.is_pending)
       return <span/>
 
     const qatools_config = (((this.props.project_data || {}).data || {}) || {}).qatools_config;
@@ -269,7 +281,7 @@ class OutputCard extends React.Component {
 
 
     var content;
-    if (!is_loaded) {
+    if (!is_loaded && !has_output_new) {
       content = <span/>;
     } else {
       const { main_metrics, available_metrics } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
@@ -295,7 +307,7 @@ class OutputCard extends React.Component {
 	          paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, {path: view.path}))
 	        }
 	      } else {
-          let necessary_files_exist = view.path===undefined || !!this.state.manifests.new[view.path] || view.path === 'pointcloud.pcd';
+          let necessary_files_exist = view.path===undefined || (!!this.state.manifests.new && !!this.state.manifests.new[view.path]) || view.path === 'pointcloud.pcd';
 	        paths = necessary_files_exist ? [view.path] : []
 	      }
 	      // console.log(view.display, paths)
@@ -359,7 +371,7 @@ class OutputCard extends React.Component {
           {error.new && <Tooltip key="error-new"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{__html: !!error.new.response ? error.new.response.data : error.new}}/></Tooltip>}
           {error.reference && <Tooltip key="error-ref"><Tag style={{margin: '5px'}} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{__html: !!error.reference.response ? error.reference.response.data : error.reference}}/></Tooltip>}
 
-          {!this.props.no_header && <OutputHeader project={this.props.project} commit={this.props.commit} output={output_new} warning={warning} type={this.props.type}/>}
+          {!this.props.no_header && <OutputHeader project={this.props.project} commit={this.props.commit} output={output_new} warning={warning} type={this.props.type} dispatch={this.props.dispatch}/>}
 
           {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
           {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
@@ -384,7 +396,7 @@ class OutputCard extends React.Component {
         	{!this.state.viewable && <InView threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
     	      <span></span>
     	    </InView>}
-          {is_loaded && content}
+          {(is_loaded || has_output_new) && content}
       </SlimCard>
     </div>
   }
