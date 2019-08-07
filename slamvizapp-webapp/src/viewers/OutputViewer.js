@@ -10,7 +10,7 @@ const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "
 const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
 
-const OutputViewer = React.memo( props_ => {
+const OutputViewer = props_ => {
     const { type, output_ref, ...props } = props_;
     const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
     let viewer;
@@ -56,7 +56,7 @@ const OutputViewer = React.memo( props_ => {
       {viewer}
     </Suspense>
   );
-})
+}
 
 
 export { OutputViewer };
