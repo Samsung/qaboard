@@ -80,6 +80,7 @@ const applyStyle = node => {
 
     let color = Colors.GREY1;
     if (is_folder) {
+      // console.log(node.id, node, !match, missing_from_new, missing_from_reference)
       if (!match && missing_from_new && missing_from_reference) {
         color = Colors.SEPIA1;
       } else if (!match && missing_from_new) {
@@ -122,6 +123,7 @@ const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefi
 class BitAccuracyViewer extends React.Component {
   constructor(props) {
     super(props);
+    // console.log(props)
     var tree = {}
     if (!!this.props.manifests) {
       Object.entries(this.props.manifests).forEach( ([label, manifest]) => {
@@ -170,11 +172,14 @@ class BitAccuracyViewer extends React.Component {
 
     // make a deep copy
     var tree_compared = JSON.parse(JSON.stringify(tree_new))
+    // console.log(tree_compared)
     // find the nodes that are missing in the reference tree
     visitDepthFirst(tree_compared, updateMissingFrom(tree_ref, 'reference'))
 
     visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
     visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
+    // now need to update missing recursevely up!
+    visitDepthFirst(tree_compared, updateMissingFrom(tree_compared, 'new'))
 
     // find match / mismatches
     visitDepthFirst(tree_compared, updateMatch(tree_ref))
@@ -261,6 +266,7 @@ class BitAccuracyViewer extends React.Component {
       let updated_new = has_new_manifest && (!had_new_manifest || prevProps.manifests.new !== this.props.manifests.new);
       let updated_ref = has_ref_manifest && (!had_ref_manifest || prevProps.manifests.reference !== this.props.manifests.reference);
 
+      // console.log(updated_new, updated_ref)
       if (updated_new || updated_ref) {
         const tree_new = updated_new ? to_tree(this.props.manifests.new) : this.state.tree.new;
         const tree_reference = updated_ref ? to_tree(this.props.manifests.reference) : this.state.tree.reference;
