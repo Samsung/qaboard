@@ -101,7 +101,7 @@ def notify_qa_database(object_type='output', **kwargs):
       click.secho(r.text, fg='cyan', dim=True, err=True)
     r.raise_for_status()
     try:
-      data = r.json()
+      return r.json()
     except:
       print(f"WARNING: can't read the response!: {r.text}")
   except:
