@@ -97,6 +97,7 @@ class CiCommitList extends React.Component {
           project={project}
           project_data={project_data}
           commits={commits}
+          dispatch={this.props.dispatch}
           style={{ marginTop: "20px" }}
         />
       </Card>
