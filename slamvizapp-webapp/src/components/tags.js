@@ -21,7 +21,6 @@ const on_copy = text => {
 }
 
 
-
 class PlatformTag extends React.Component {
   render() {
     if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'lsf') return <span />
@@ -34,16 +33,29 @@ class ConfigurationsTags extends React.Component {
     const configurations = this.props.configurations || deserialize_config(this.props.configuration)
     const intent = this.props.intent || Intent.PRIMARY;
 
-    const tags = configurations.filter(c => !c.roi).map((c, idx) => <Tag
-      intent={intent}
-      round
-      minimal
-      interactive
-      key={idx}
-      style={{ marginRight: '5px', marginBottom: '3px' }}
-    >
-      {typeof (c) === 'string' ? c : JSON.stringify(c)}
-    </Tag>)
+    // Some configuration key names are used and shown by viewers
+    // we don't display them here...
+    const reserved_keys = ["roi", "auto_rois"]
+    const tags = configurations.map((c, idx) => {
+      const is_object = typeof (c) !== 'string';
+      if (is_object) {
+        reserved_keys.forEach(key => {
+          delete c[key];
+        })
+        if (Object.keys(c).length === 0)
+          return <span key={idx} />
+      }
+      return <Tag
+        intent={intent}
+        round
+        minimal={!this.props.inverted}
+        interactive
+        key={idx}
+        style={{ marginRight: '5px', marginBottom: '3px' }}
+      >
+        {!is_object ? c : JSON.stringify(c)}
+      </Tag>
+    })
 
     const pretty_json = this.props.configuration || JSON.stringify(this.props.configurations, null, 2);
     return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}>

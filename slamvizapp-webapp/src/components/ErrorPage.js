@@ -10,13 +10,13 @@ class ErrorPage extends React.Component {
 		let info = JSON.stringify(this.props.info)
 		let body = encodeURIComponent(`URL: ${document.URL}\nerror: ${error}\ninfo: ${info}`)
 		return <Container>
-		  <Callout intent={Intent.DANGER} title="Sorry, something went wrong!">
-            <p><b>Point of contact:</b> Arthur Flam <span className={Classes.TEXT_MUTED}>(058-706-2016)</span></p>
-            <p><a href={`mailto:arthur.flam@samsung.com?subject=${subject}&body=${body}`}><Button>Report the bug</Button></a></p>
-            <p><code>{error}</code></p>
-            <p><code>{info}</code></p>
-          </Callout>
-        </Container>
+			<Callout intent={Intent.DANGER} title="Sorry, something went wrong!">
+				<p><b>Point of contact:</b> Arthur Flam <span className={Classes.TEXT_MUTED}>(058-706-2016)</span></p>
+				<p><a href={`mailto:arthur.flam@samsung.com?subject=${subject}&body=${body}`}><Button>Report the bug</Button></a></p>
+				<p><code dangerouslySetInnerHTML={{ __html: error || "" }}></code></p>
+				<p><code dangerouslySetInnerHTML={{ __html: info || "" }}></code></p>
+			</Callout>
+		</Container>
 	}
 }
 
