@@ -7,7 +7,12 @@ import { MonacoDiffEditor } from 'react-monaco-editor';
 
 import { hash_color } from '../utils'
 
-
+// TODO: Implement a way to hide identical lines in the diff viewer
+// 1. We could use the diffNavigator
+// https://microsoft.github.io/monaco-editor/playground.html#creating-the-diffeditor-navigating-a-diff
+// https://github.com/react-monaco-editor/react-monaco-editor/issues/84
+// https://github.com/react-monaco-editor/react-monaco-editor#how-to-get-value-of-editor    
+// 2. Or try to the get the diff and remove everything bu those lines...
 
 const ansi_pattern = [
   '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\\u0007)',
@@ -17,16 +22,16 @@ const ansi_regexp = new RegExp(ansi_pattern, 'g');
 
 const language = filename => {    
   if (filename.endsWith('yaml') || filename.endsWith('yml'))
-    return 'yaml'
+    return 'yaml';
   if (filename.endsWith('json'))
-    return 'json'
+    return 'json';
   if (filename.endsWith('js'))
-    return 'javascript'
+    return 'javascript';
   if (filename.endsWith('py'))
-    return 'python'
+    return 'python';
   if (filename.endsWith('cde'))
-    return 'python'
-  return 'plaintext'
+    return 'python';
+  return 'plaintext';
 }
 
 
