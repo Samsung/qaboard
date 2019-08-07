@@ -76,10 +76,10 @@ const matching_output = ({ output, batch }) => {
 
   let warning = imperfect_match ? <div>
     <h3>Comparing to</h3> 
-    {((ref_match_score & 4) === 1) && <p><ConfigurationsTags configuration={output_ref.configuration}/></p>}
-    {((ref_match_score & 2) === 1) && <p><PlatformTag platform={output_ref.platform} /></p>}
+    {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configuration={output_ref.configuration}/></p>}
+    {((ref_match_score & 2) === 2) && <p><PlatformTag inverted platform={output_ref.platform} /></p>}
     {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0
-                                          ? <ExtraParametersTags parameters={output_ref.extra_parameters} />
+                                          ? <ExtraParametersTags inverted parameters={output_ref.extra_parameters} />
                                           : 'No tuning'}</p>}
   </div> : null
   return { output_ref, warning, imperfect_match };
@@ -111,29 +111,32 @@ const match_query = pattern => {
     .replace(/"/g, "")
     .replace(/=+/g, ":")
     .replace(/: /g, ":")
+    // CDE has pipes in register names, so we're willing to be accomodating!
+    .replace(/\.sim\|/g, ".sim.")
+    .replace(/\.def\|/g, ".def.")
+    .replace(/\.eco\|/g, ".eco.")
     .split(" ");
+  // console.log(tokens)
   const negative_tokens = tokens
     .filter(t => t[0] === "-" && t.length > 1)
     .map(t => t.substring(1));
   const positive_tokens = tokens.filter(t => t[0] !== "-");
-  const positive_regexp = new RegExp(`(${positive_tokens.join('|')})`)
+  const positive_regexps = positive_tokens.map(t => new RegExp(t))
   // console.log(positive_tokens, negative_tokens)
+  // console.log(positive_regexps)
   return query => {
     const searched = query.toLowerCase();
-    // console.log(searched)
     if (negative_tokens.some(token => searched.includes(token)))
       return false;
     if (positive_tokens.length === 0)
       return true;
-    return searched.match(positive_regexp)
+    return positive_regexps.every(r => searched.match(r))
   }
 }
 
 const filter_batch = (batch, filter_values) => {
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
   	return batch;
-  //if (typeof filter_values !== 'string' || !(filter_values instanceof String))
-  //  return batch;
 
   const matcher = match_query(filter_values)
 
