@@ -104,8 +104,8 @@ export const default_selected = () => {
 	ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
 
     // What batch of results should we show, with what filters?
-	selected_batch_new: params.get("batch") || params.get("batch_new") || "default",
-	selected_batch_ref: params.get("batch_ref") || params.get("batch") || "default",
+	selected_batch_new: params.get("batch"),
+	selected_batch_ref: params.get("batch_ref") || params.get("batch"),
 
 	filter_batch_new: params.get("filter") || "",
 	filter_batch_ref: params.get("filter_ref") || "",
