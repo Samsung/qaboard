@@ -3,6 +3,7 @@ import copy from 'copy-to-clipboard';
 
 import {
   AnchorButton,
+  Button,
   Intent,
   Icon,
   Tooltip,
@@ -32,12 +33,13 @@ class Crops extends React.PureComponent {
       const is_valid = isValidRoi(roi, viewer);
       let is_selected = true; // viewer.coordinates === roi.coordinates
       return <Tooltip
+        key={idx}
         disabled={is_valid && !!!roi.tooltip}
         intent={Intent.DANGER}
         content={`Invalid coordinates! ${JSON.stringify(roi)}`}
       >
         <AnchorButton
-          onClick={() => { this.fitTo(roi, viewer) }}
+          onClick={() => { fitTo(roi, viewer) }}
           intent={is_selected ? Intent.PRIMARY : null}
           disabled={!is_valid}
           large={false}
@@ -51,29 +53,29 @@ class Crops extends React.PureComponent {
     return <div>{tags}</div>;
   }
 
-  fitTo = (roi, viewer) => {
-    if (!isValidRoi(roi, viewer))
-      return;
-
-    let { x, y, width, height } = viewer.viewport.imageToViewportRectangle(
-      roi.x,
-      roi.y,
-      roi.w,
-      roi.h,
-    );
-    const center = {
-      x: x + width / 2,
-      y: y + height / 2,
-    };
-
-    // best fit algorithm
-    let { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
-    const zoom = (Math.abs(roi.w) > Math.abs(roi.h)) ? image_width / Math.abs(roi.w) : image_height / Math.abs(roi.h);
-
-    viewer.viewport.zoomTo(zoom);
-    viewer.viewport.panTo(center);
-  };
 }
+const fitTo = (roi, viewer) => {
+  if (!isValidRoi(roi, viewer))
+    return;
+
+  let { x, y, width, height } = viewer.viewport.imageToViewportRectangle(
+    roi.x,
+    roi.y,
+    roi.w,
+    roi.h,
+  );
+  const center = {
+    x: x + width / 2,
+    y: y + height / 2,
+  };
+
+  // best fit algorithm
+  let { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
+  const zoom = (Math.abs(roi.w) > Math.abs(roi.h)) ? image_width / Math.abs(roi.w) : image_height / Math.abs(roi.h);
+
+  viewer.viewport.zoomTo(zoom);
+  viewer.viewport.panTo(center);
+};
 
 
 const isValidRoi = (roi, viewer) => {
@@ -96,7 +98,6 @@ const isValidRoi = (roi, viewer) => {
 };
 
 
-
 const CropSelection = ({ imageCoords }) => {
   if (imageCoords) {
     // const image_coords = viewer.viewport.viewportToImageRectangle(selection.rect);
@@ -109,20 +110,24 @@ const CropSelection = ({ imageCoords }) => {
       `label: ""}`;
     return (
       <Tooltip hoverCloseDelay={1000}>
-        <Icon
-          icon="clipboard"
+        <Button
+          minimal="true"
+          style={{ marginRight: '5px', marginLeft: '5px' }}
           onClick={() => {
             copy(to_clipboard)
             toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });
           }}
-          intent={Intent.PRIMARY}
-          iconSize={Icon.SIZE_LARGE}
-          style={{ marginRight: '5px', marginLeft: '5px' }}
-        />
+        >
+          <Icon
+            icon="clipboard"
+            intent={Intent.PRIMARY}
+            iconSize={Icon.SIZE_LARGE}
+          />
+        </Button>
         <span>{to_clipboard}</span>
       </Tooltip>
     )
   }
 }
 
-export { Crops, CropSelection };
+export { Crops, fitTo, isValidRoi, CropSelection };
