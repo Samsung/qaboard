@@ -108,11 +108,12 @@ class OutputCard extends React.Component {
 
   fetchData(props, label) {
     const { output_new, output_ref } = props;
+    // console.log(output_new, output_ref)
     if (!output_new.output_dir_url) return;
     this.setState({is_loaded: false})
 
     let results = [];
-    const should_get_all = label === undefined || label === null;
+    const should_get_all = (label === undefined || label === null);
     if (should_get_all || label === 'new') {
       results.push(['new', `${output_new.output_dir_url}/manifest.outputs.json`])
     }
@@ -147,9 +148,6 @@ class OutputCard extends React.Component {
     // now we loaded and parsed all the data
     .then( () => {
       this.updateOptions()
-      // this.setState({
-      //   is_loaded: true,
-      // })
     })
   }
 
@@ -201,8 +199,12 @@ class OutputCard extends React.Component {
 
 
   updateOptions() {
-    if (this.state.manifests.new === undefined || this.state.manifests.new === null)
+    if (this.state.manifests.new === undefined || this.state.manifests.new === null) {
+      this.setState({
+        is_loaded: true,
+      })
       return;
+    }
 
     const outputs = (((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}
     const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
@@ -270,7 +272,7 @@ class OutputCard extends React.Component {
     const { output_new, output_ref, warning } = this.props;
 
     const has_output_new = output_new !== undefined && output_new !== null
-    if (!has_output_new && output_new.is_pending)
+    if (!has_output_new || output_new.is_pending)
       return <span/>
 
     const qatools_config = (((this.props.project_data || {}).data || {}) || {}).qatools_config;
