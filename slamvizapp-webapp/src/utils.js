@@ -22,12 +22,12 @@ const average = array => {
 };
 const median = array => {
   let array_filtered = array.filter(x => x !== undefined && x !== null)
-  return array_filtered.length>0 ? mathjs_median(array_filtered) : null;
+  return array_filtered.length > 0 ? mathjs_median(array_filtered) : null;
 };
 
 
 const groupBy = (array, prop) => {
-  return array.reduce(function(groups, item) {
+  return array.reduce(function (groups, item) {
     var val = item[prop];
     groups[val] = groups[val] || [];
     groups[val].push(item);
@@ -36,7 +36,7 @@ const groupBy = (array, prop) => {
 };
 
 const groupByObject = (array, prop) => {
-  return array.reduce(function(groups, item) {
+  return array.reduce(function (groups, item) {
     var val = JSON.stringify(item[prop]);
     groups[val] = groups[val] || [];
     groups[val].push(item);
@@ -57,9 +57,9 @@ const matching_output = ({ output, batch }) => {
     4 * ((o.configuration !== output.configuration) | 0) +
     2 * ((o.platform !== output.platform) | 0) +
     1 *
-      ((JSON.stringify(o.extra_parameters) !==
-        JSON.stringify(output.extra_parameters)) |
-        0);
+    ((JSON.stringify(o.extra_parameters) !==
+      JSON.stringify(output.extra_parameters)) |
+      0);
 
   // let soft_match = true;
   let matching_outputs = Object.values(batch.outputs || {})
@@ -75,12 +75,12 @@ const matching_output = ({ output, batch }) => {
   let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
 
   let warning = imperfect_match ? <div>
-    <h3>Comparing to</h3> 
-    {((ref_match_score & 4) === 1) && <p><ConfigurationsTags configuration={output_ref.configuration}/></p>}
-    {((ref_match_score & 2) === 1) && <p><PlatformTag platform={output_ref.platform} /></p>}
+    <h3>Comparing to</h3>
+    {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configuration={output_ref.configuration} /></p>}
+    {((ref_match_score & 2) === 2) && <p><PlatformTag inverted platform={output_ref.platform} /></p>}
     {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0
-                                          ? <ExtraParametersTags parameters={output_ref.extra_parameters} />
-                                          : 'No tuning'}</p>}
+      ? <ExtraParametersTags inverted parameters={output_ref.extra_parameters} />
+      : 'No tuning'}</p>}
   </div> : null
   return { output_ref, warning, imperfect_match };
 };
@@ -131,7 +131,7 @@ const match_query = pattern => {
 
 const filter_batch = (batch, filter_values) => {
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
-  	return batch;
+    return batch;
   //if (typeof filter_values !== 'string' || !(filter_values instanceof String))
   //  return batch;
 
@@ -168,16 +168,16 @@ const filter_batch = (batch, filter_values) => {
 };
 
 const plotly_palette_colors = [
-    '#1f77b4',  // muted blue
-    '#ff7f0e',  // safety orange
-    '#2ca02c',  // cooked asparagus green
-    '#d62728',  // brick red
-    '#9467bd',  // muted purple
-    '#8c564b',  // chestnut brown
-    '#e377c2',  // raspberry yogurt pink
-    '#7f7f7f',  // middle gray
-    '#bcbd22',  // curry yellow-green
-    '#17becf'   // blue-teal
+  '#1f77b4',  // muted blue
+  '#ff7f0e',  // safety orange
+  '#2ca02c',  // cooked asparagus green
+  '#d62728',  // brick red
+  '#9467bd',  // muted purple
+  '#8c564b',  // chestnut brown
+  '#e377c2',  // raspberry yogurt pink
+  '#7f7f7f',  // middle gray
+  '#bcbd22',  // curry yellow-green
+  '#17becf'   // blue-teal
 ]
 const plotly_palette = idx => plotly_palette_colors[idx % plotly_palette_colors.length]
 
@@ -196,19 +196,19 @@ const hash_color = str => {
 
 const deserialize_config = configuration => {
   if (configuration === undefined || configuration === null || configuration.length === 0) {
-  	return []
+    return []
   }
   let configurations = []
   let configuration_part = ''
   for (const token of configuration.split(':')) {
     if (configuration_part.length === 0 && !token.startsWith('{')) {
-      configurations.push(token)    	
+      configurations.push(token)
     } else {
       configuration_part = configuration_part ? `${configuration_part}:${token}` : token;
       try {
         configurations.push(JSON.parse(configuration_part))
         configuration_part = '';
-      } catch {}
+      } catch { }
     }
   }
   return configurations
@@ -218,11 +218,11 @@ const deserialize_config = configuration => {
 
 const linux_to_windows = path => {
   let windows_path = path
-                       .replace(/\/s\//, '/')
-                       .replace('//home', '//mars/raid/users')
-                       .replace('/home', '//mars/raid/users')
-                       .replace('//stage', '//netapp')
-                       .replace('/stage', '//netapp')
+    .replace(/\/s\//, '/')
+    .replace('//home', '//mars/raid/users')
+    .replace('/home', '//mars/raid/users')
+    .replace('//stage', '//netapp')
+    .replace('/stage', '//netapp')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
   //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
   return windows_path.replace(/\//g, '\\')

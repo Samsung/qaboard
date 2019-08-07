@@ -1,5 +1,6 @@
 data/
 .gdb_history
+.vscode/
 
 # Created by https://www.gitignore.io/api/node
 

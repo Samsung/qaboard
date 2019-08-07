@@ -13,7 +13,8 @@ import Plot from 'react-plotly.js';
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
-import { Crops, CropSelection } from "./crops";
+import { CropSelection } from "./crops";
+import MultiSelectTags from './MultiselectCrops'
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -422,8 +423,15 @@ class ImgViewer extends React.PureComponent {
 
     return <>
 
-
-      {this.state.ready && <Crops viewer={this.viewer_new} output_new={output_new} />}
+      {this.state.ready &&
+        <MultiSelectTags
+          output_new={output_new}
+          output_ref={output_ref}
+          viewer_new={this.viewer_new}
+          viewer_ref={this.viewer_ref}
+          path={path}
+          qatools_config={this.props.qatools_config}
+        />}
       <span>
         <Tooltip>
           <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
