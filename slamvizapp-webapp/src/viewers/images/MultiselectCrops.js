@@ -6,193 +6,158 @@ import { Crops } from "./crops";
 import AutoCrops from "./AutoCrops"
 
 
-const Categories = [
-  { title: "Pre-defined", intent: Intent.PRIMARY },
-  { title: "Automatic ROIs", intent: null },
-].map((m, index) => ({ ...m, index: index + 1 }));
-
 
 class MultiSelectTags extends React.PureComponent {
   constructor(props) {
     super(props);
     this.state = {
-      createdItems: [],
-      categories: [],
-      items: categorySelectProps.items,
+      ...this.defaultRoiGroups(props),
     };
   }
 
-  componentDidMount() {
-    const { output_new } = this.props;
-    let items = Categories;
-    let configs_with_regions_of_interest =
-      deserialize_config(output_new.configuration).filter(c => !!c.roi);
-    if (configs_with_regions_of_interest.length) {
-      this.setState({ categories: items.filter((c) => c.title === "Pre-defined") })
+  defaultRoiGroups = props => {
+    let available_roi_groups = []
+    let selected_roi_groups = []
+
+    const predefined_rois_group = {
+        title: "Pre-defined",
+        intent: Intent.PRIMARY,
     }
-    else {
-      items = items.filter((c) => c.title !== "Pre-defined")
+    const { output_new, output_ref } = props;
+    let has_predefined_regions_of_interest = deserialize_config(output_new.configuration).some(c => !!c.roi);
+    if (has_predefined_regions_of_interest) {
+      available_roi_groups.push(predefined_rois_group)
+      selected_roi_groups.push(predefined_rois_group)      
     }
 
-    if (!this.props.output_ref || this.props.output_ref.deleted) {
-      items = items.filter((c) => c.title !== "Automatic ROIs")
-    }
+    let has_available_new = !!output_new && !output_new.deleted
+    let has_available_ref = !!output_ref && !output_ref.deleted
+    if (has_available_new && has_available_ref)
+      available_roi_groups.push({
+        title: "Automatic ROIs",
+      })
 
-    this.setState({ items: items })
+    return {
+      available_roi_groups,
+      selected_roi_groups,
+    }
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    const { output_new, output_ref } = this.props;
+    const has_new = output_new !== undefined && output_new !== null;
+    const has_ref = output_ref !== undefined && output_ref !== null;
+    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new !== output_new);
+    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref !== output_ref);
+    if (updated_new || updated_ref) {
+      this.setState(this.defaultRoiGroups(this.props))
+    }
   }
 
 
   render() {
-    const { viewer_new, output_new, viewer_ref, output_ref, qatools_config } = this.props;
-    const { categories, hasInitialContent, tagMinimal, ...flags } = this.state;
-    const getTagProps = (_value, index) => ({
-      intent: Categories.filter((c) => c.title === _value)[0].intent,
-      minimal: true,
-    });
+    const { available_roi_groups, selected_roi_groups } = this.state;
+    console.log(available_roi_groups, selected_roi_groups)
+    const clearButton = selected_roi_groups.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : undefined;
+    const getTagProps = (_value, index) => {
+      const roi_group = selected_roi_groups.filter(c => c.title === _value)[0]
+      return {
+        intent: !!roi_group ? roi_group.intent : null,
+        minimal: true,
+      }
+    };
 
-    const clearButton =
-      categories.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : undefined;
-
-    const selected_auto_rois = this.state.categories.some(c => c.title === "Automatic ROIs");
-    const selected_predefined_rois = this.state.categories.some(c => c.title === "Pre-defined");
-
+    const selected_auto_rois = selected_roi_groups.some(c => c.title === "Automatic ROIs");
+    const selected_predefined_rois = selected_roi_groups.some(c => c.title === "Pre-defined");
     return (
       <>
         <MultiSelect
-          {...categorySelectProps}
-          {...flags}
-          itemRenderer={this.renderCategory}
-          items={this.state.items}
-          noResults={<MenuItem disabled={true} text="No results." />}
-          onItemSelect={this.handleCategorySelect}
+          items={available_roi_groups}
+          selectedItems={selected_roi_groups}
+          itemPredicate={(query, roi_group) => roi_group.title.toLowerCase().includes(query.toLowerCase())}
+          itemRenderer={this.renderRoiGroup}
+          tagRenderer={roi_group => roi_group.title}
+          tagInputProps={{
+            tagProps: getTagProps,
+            onRemove: this.handleTagRemove,
+            rightElement: clearButton
+          }}
+          placeholder="Select region of interest..."
+          noResults={<MenuItem disabled text="No ROIs." />}
+          onItemSelect={this.handleRoiGroupSelect}
           onItemsPaste={this.handleCategoriesPaste}
-          tagRenderer={this.renderTag}
-          tagInputProps={{ tagProps: getTagProps, onRemove: this.handleTagRemove, rightElement: clearButton }}
-          selectedItems={this.state.categories}
           resetOnSelect={true}
-          placeholder={"Select region of interest..."}
         />
         <p />
-        {selected_auto_rois && <AutoCrops viewer_new={viewer_new} output_new={output_new} viewer_ref={viewer_ref} output_ref={output_ref} path={this.props.path} qatools_config={qatools_config} />}
-        {selected_predefined_rois && <Crops viewer={viewer_new} output_new={output_new} />}
+        {selected_auto_rois && <AutoCrops {...this.props} />}
+        {selected_predefined_rois && <Crops viewer={this.props.viewer_new} output_new={this.props.output_new} />}
       </>
     );
   }
 
-
-  renderTag = (category) => category.title;
-
-  renderCategory = (category, { modifiers, handleClick }) => {
-    if (!modifiers.matchesPredicate) {
+  renderRoiGroup = (group, { modifiers, handleClick }) => {
+    if (!modifiers.matchesPredicate)
       return null;
-    }
     return (
       <MenuItem
         active={modifiers.active}
-        icon={this.isCategorySelected(category) ? "tick" : "blank"}
-        key={category.index}
+        icon={this.isRoiGroupSelected(group) ? "tick" : "blank"}
+        key={group.title}
         onClick={(handleClick)}
-        text={`${category.title}`}
+        text={group.title}
         shouldDismissPopover={false}
       />
     );
   };
 
   handleTagRemove = (_tag, index) => {
-    this.deselectCategory(index);
+    this.deselectRoiGroup(index);
   };
 
-  getSelectedCategoryIndex(category) {
-    return this.state.categories.indexOf(category);
+  getSelectedRoiGroupIndex(roi_group) {
+    return this.state.selected_roi_groups.indexOf(roi_group);
   }
 
-  isCategorySelected(category) {
-    return this.getSelectedCategoryIndex(category) !== -1;
+  isRoiGroupSelected(roi_group) {
+    return this.getSelectedRoiGroupIndex(roi_group) !== -1;
   }
 
-  selectCategory(category) {
-    this.selectCategories([category]);
+  selectRoiGroup(roi_group) {
+    this.selectRoiGroups([roi_group]);
   }
 
-  selectCategories(categoriesToSelect) {
-    const { categories, items } = this.state;
-
-    let nextCategories = categories.slice();
-    let nextItems = items.slice();
-
-    categoriesToSelect.forEach(category => {
-      nextCategories = [...nextCategories, category];
+  selectRoiGroups(groupsToSelect) {
+    const { selected_roi_groups, available_roi_groups } = this.state;
+    let next_selected_roi_groups = selected_roi_groups.slice();
+    let next_available_roi_groups = available_roi_groups.slice();
+    groupsToSelect.forEach(roi_group => {
+      next_selected_roi_groups = [...next_selected_roi_groups, roi_group];
     });
-
     this.setState({
-      categories: nextCategories,
-      items: nextItems,
+      selected_roi_groups: next_selected_roi_groups,
+      available_roi_groups: next_available_roi_groups,
     });
   }
 
-  deselectCategory(index) {
-    const { categories } = this.state;
+  deselectRoiGroup(index) {
     this.setState({
-      categories: categories.filter((_category, i) => i !== index),
+      selected_roi_groups: this.state.selected_roi_groups.filter((_roi_group, i) => i !== index),
     });
   }
 
-  handleCategorySelect = (category) => {
-    if (!this.isCategorySelected(category)) {
-      this.selectCategory(category);
-    } else {
-      this.deselectCategory(this.getSelectedCategoryIndex(category));
-    }
+  handleRoiGroupSelect = (roi_group) => {
+    if (!this.isRoiGroupSelected(roi_group))
+      this.selectRoiGroup(roi_group);
+    else
+      this.deselectRoiGroup(this.getSelectedRoiGroupIndex(roi_group));
   };
 
-  handleCategoriesPaste = (categories) => {
-    this.selectCategories(categories);
+  handleCategoriesPaste = (roi_groups) => {
+    this.selectRoiGroups(roi_groups);
   };
 
-  handleSwitchChange(prop) {
-    return (event) => {
-      const checked = event.currentTarget.checked;
-      this.setState(state => ({ ...state, [prop]: checked }));
-    };
-  }
-
-  handleClear = () => this.setState({ categories: [] });
+  handleClear = () => this.setState({ selected_roi_groups: [] });
 }
 
-//////////////////////////// FUNCTIONS /////////////////////////////////////////
-
-const renderCategory = (category, { handleClick, modifiers, query }) => {
-  if (!modifiers.matchesPredicate) {
-    return null;
-  }
-  const text = `${category.index}. ${category.title}`;
-  return (
-    <MenuItem
-      active={modifiers.active}
-      disabled={modifiers.disabled}
-      key={category.index}
-      onClick={handleClick}
-      text={
-        (text, query)}
-    />
-  );
-};
-
-const filterCategory = (query, category, _index, exactMatch) => {
-  const normalizedTitle = category.title.toLowerCase();
-  const normalizedQuery = query.toLowerCase();
-
-  if (exactMatch) {
-    return normalizedTitle === normalizedQuery;
-  } else {
-    return `${category.index}. ${normalizedTitle}`.indexOf(normalizedQuery) >= 0;
-  }
-};
-
-const categorySelectProps = {
-  itemPredicate: filterCategory,
-  itemRenderer: renderCategory,
-  items: Categories,
-};
 
 export default MultiSelectTags;

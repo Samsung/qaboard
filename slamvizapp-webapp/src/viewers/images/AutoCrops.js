@@ -15,6 +15,7 @@ import { fitTo } from "./crops";
 
 const toaster = Toaster.create();
 
+
 class AutoCrops extends React.Component {
   constructor(props) {
     super(props);
@@ -49,7 +50,7 @@ class AutoCrops extends React.Component {
         />
         <NumericInput
           value={this.state.threshold}
-          onValueChange={this.updateThreshold}
+          onValueChange={threshold => setState({threshold})}
           max={1}
           min={0}
           majorStepSize={0.1}
@@ -75,10 +76,6 @@ class AutoCrops extends React.Component {
         })}
       </div>
     </>
-  }
-
-  updateThreshold = threshold => {
-    this.setState({ threshold });
   }
 
 
