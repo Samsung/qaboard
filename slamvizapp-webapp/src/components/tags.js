@@ -25,7 +25,7 @@ const on_copy = text => {
 class PlatformTag extends React.Component {
   render() {
     if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'lsf') return <span />
-    return <Tag round minimal style={{ marginRight: '5px', marginLeft: '5px' }}>@{this.props.platform}</Tag>
+    return <Tag round minimal={!this.props.inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{this.props.platform}</Tag>
   }
 }
 
@@ -37,7 +37,7 @@ class ConfigurationsTags extends React.Component {
     const tags = configurations.filter(c => !c.roi).map((c, idx) => <Tag
       intent={intent}
       round
-      minimal
+      minimal={!this.props.inverted}
       interactive
       key={idx}
       style={{ marginRight: '5px', marginBottom: '3px' }}
@@ -61,7 +61,7 @@ class ExtraParametersTags extends React.Component {
 
     const intent = this.props.intent || Intent.PRIMARY;
     const tags = Object.entries(parameters).map(([k, v]) => (
-      <Tag key={k} intent={intent} minimal round interactive>
+      <Tag key={k} intent={intent} minimal={!this.props.inverted} round interactive>
         <strong>{k}: </strong> {JSON.stringify(v)}
       </Tag>
     ));
