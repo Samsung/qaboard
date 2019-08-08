@@ -281,9 +281,3 @@ def cased_path(path):
     if not res: #File not found
         return None
     return Path(res[0])
-
-import glob
-from pathlib import Path
-for p in Path('workspace').glob('*/*/build/Release/*/x64/*.dll'):
-  print(p)
-  print(cased_path(p))
