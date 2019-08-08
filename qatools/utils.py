@@ -265,3 +265,25 @@ def load_tuning_search(tuning_search, tuning_search_file):
     tuning_search_dict = json.loads(tuning_search) if tuning_search else None
     filetype = 'json' # we default to json
   return tuning_search_dict, filetype
+
+
+
+def cased_path(path):
+    # https://stackoverflow.com/questions/3692261/in-python-how-can-i-get-the-correctly-cased-path-for-a-file/14742779#14742779
+    if os.name != 'nt':
+      return path
+    dirs = str(path).split('\\')
+    # disk letter
+    test_name = [dirs[0].upper()]
+    for d in dirs[1:]:
+        test_name += ["%s[%s]" % (d[:-1], d[-1])]
+    res = glob.glob('\\'.join(test_name))
+    if not res: #File not found
+        return None
+    return Path(res[0])
+
+import glob
+from pathlib import Path
+for p in Path('workspace').glob('*/*/build/Release/*/x64/*.dll'):
+  print(p)
+  print(cased_path(p))

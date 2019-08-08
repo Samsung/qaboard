@@ -474,7 +474,7 @@ def save_artifacts(ctx):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import qatools_config_paths
-  from .utils import copy, file_info
+  from .utils import copy, file_info, cased_path
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
@@ -515,6 +515,7 @@ def save_artifacts(ctx):
     for g in globs:
       if not g: continue
       for path in Path('.').glob(g):
+        path = cased_path(path)
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
