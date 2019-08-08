@@ -272,6 +272,7 @@ def cased_path(path):
     # https://stackoverflow.com/questions/3692261/in-python-how-can-i-get-the-correctly-cased-path-for-a-file/14742779#14742779
     if os.name != 'nt':
       return path
+    import glob
     dirs = str(path).split('\\')
     # disk letter
     test_name = [dirs[0].upper()]
