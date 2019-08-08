@@ -142,7 +142,6 @@ class CommitNavbar extends React.Component {
 
 
   handleSubmitBatch = milestone => {
-    console.log(this.props.selected)
     const { project, dispatch } = this.props;
     dispatch(fetchCommit(project, milestone.commit, "ref_commit_id", null));
     dispatch(updateSelected(project, { ref_commit_id: milestone.commit, selected_batch_ref: milestone.batch }))
@@ -151,7 +150,6 @@ class CommitNavbar extends React.Component {
 }
 
 const MilestoneMenu = ({ milestone, selectMilestone }) => {
-  //console.log(milestone);
   return <Menu.Item
     text={milestone.label || milestone.commit || milestone}
     icon="star"
@@ -159,6 +157,17 @@ const MilestoneMenu = ({ milestone, selectMilestone }) => {
   />
 }
 ///////////////////////////// CommitMilestone //////////////////////////////////
+
+// edit the milestones ....
+// read all the milestones from [local, shared]
+// if one matches (project, commit, batch), then read (label, notes) from there
+// when editing, change that one, leave the rest untouched
+
+// // local:
+// let batch =  selected[`selected_batch_${label}`]
+// matching_milestone = project_data.milestone.find(m => (m.project === undefined || m.project === project) && (m.commit===commit.id) &&  (m.batch === undefined || m.batch === batch ))[0]
+// if (!!matching_milestone) // win: read
+// return .... .... 
 
 class CommitMilestone extends React.PureComponent {
   constructor(props) {
@@ -239,7 +248,7 @@ class CommitMilestone extends React.PureComponent {
     </>
   }
 
-  isMilestone = () => {
+  isMilestone = () => { // check local and shared
     const { commit, project_data, selected, label } = this.props;
 
     if (commit && project_data.milestones) {
@@ -248,11 +257,9 @@ class CommitMilestone extends React.PureComponent {
     }
 
     return false;
-
-
   }
 
-  updateData = () => {
+  updateData = () => { // check local and shared
     const { commit, project_data, selected, label } = this.props;
     let batch = selected[`selected_batch_${label}`];
     let matching_milestone = project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === batch));
@@ -265,22 +272,20 @@ class CommitMilestone extends React.PureComponent {
     }
   }
 
-
-
-  handleClick = () => {
-
+  handleClick = () => { // check local and shared
     if (this.isMilestone()) {
       // load info from local or shared
       this.updateData();
     }
     else {
-      // Add a default label
+      // load a default label
       const { commit, project, selected, label } = this.props;
       this.setState({ label: !!commit && (shortId(project, commit.id) + "/" + selected[`selected_batch_${label}`]), notes: '' })
     }
   }
 
-  handleConfirm = () => {
+  handleConfirm = () => { // check if shared button is on
+
     const { dispatch, commit, project, project_data, selected, label } = this.props;
     const milestones = project_data.milestones || []
 
@@ -298,16 +303,6 @@ class CommitMilestone extends React.PureComponent {
       batch: selected[`selected_batch_${label}`],
       date: new Date().toLocaleString(),
     })
-    // edit the milestones ....
-    // read all the milestones from [local, shared]
-    // if one matches (project, commit, batch), then read (label, notes) from there
-    // when editing, change that one, leave the rest untouched
-
-    // // local:
-    // let batch =  selected[`selected_batch_${label}`]
-    // matching_milestone = project_data.milestone.find(m => (m.project === undefined || m.project === project) && (m.commit===commit.id) &&  (m.batch === undefined || m.batch === batch ))[0]
-    // if (!!matching_milestone) // win: read
-    // return .... .... 
 
     dispatch(updateMilestones(project, milestones))
     this.setState(state => ({
@@ -326,36 +321,47 @@ class CommitMilestone extends React.PureComponent {
 
   handleRemoveConfirm = () => {
     if (this.isMilestone()) {
+      switch (this.state.type) {
+        case "local":
+          const { dispatch, commit, project, project_data, selected, label } = this.props;
+          const milestones = project_data.milestones || []
+          let batch = selected[`selected_batch_${label}`];
+          let idx = milestones.findIndex(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
+          milestones.splice(idx, 1);
 
-      const { dispatch, commit, project, project_data, selected, label } = this.props;
-      const milestones = project_data.milestones || []
-      let batch = selected[`selected_batch_${label}`];
-      let idx = milestones.findIndex(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
-      milestones.splice(idx, 1);
+          dispatch(updateMilestones(project, milestones))
 
-      dispatch(updateMilestones(project, milestones))
+          break;
+
+        case "shared":
+
+          break;
+
+        default:
+          break;
+      }
+
       toaster.show({
         message: <div><b>{this.state.label}</b> was removed</div>,
         intent: Intent.NONE,
         timeout: 3000
       });
-
-      this.setState({
-        type: 'none',
-        label: '',
-        notes: '',
-        alert_is_open: false,
-      });
     }
-  }
 
+    this.setState({
+      type: 'none',
+      label: '',
+      notes: '',
+      alert_is_open: false,
+    });
+  }
 
   update = name => event => {
     this.setState({ [name]: event.target.value });
   }
 
 
-  //////////////////////////////// shared ////////////////////////////////////////
+  //////////////////////////////// shared //////////////////////////////////////
   loadFromDB = () => {
     const data = {
       id: this.props.commit.id,
