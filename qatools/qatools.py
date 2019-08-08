@@ -458,7 +458,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, delay_before_status_check=delay_before_status_check, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
-    if jobs and is_ci and batch_label=='default':
+    if jobs and is_ci and (batch_label=='default' or 'QATOOLS_ALWAYS_UPDATE_GITLAB' in os.environ):
       update_gitlab_status(commit, 'failed' if is_failed else 'success')
 
     if is_failed:
