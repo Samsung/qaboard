@@ -20,14 +20,14 @@ class MultiSelectTags extends React.PureComponent {
     let selected_roi_groups = []
 
     const predefined_rois_group = {
-        title: "Pre-defined",
-        intent: Intent.PRIMARY,
+      title: "Pre-defined",
+      intent: Intent.PRIMARY,
     }
     const { output_new, output_ref } = props;
     let has_predefined_regions_of_interest = deserialize_config(output_new.configuration).some(c => !!c.roi);
     if (has_predefined_regions_of_interest) {
       available_roi_groups.push(predefined_rois_group)
-      selected_roi_groups.push(predefined_rois_group)      
+      selected_roi_groups.push(predefined_rois_group)
     }
 
     let has_available_new = !!output_new && !output_new.deleted
@@ -57,7 +57,7 @@ class MultiSelectTags extends React.PureComponent {
 
   render() {
     const { available_roi_groups, selected_roi_groups } = this.state;
-    console.log(available_roi_groups, selected_roi_groups)
+    //console.log(available_roi_groups, selected_roi_groups)
     const clearButton = selected_roi_groups.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : undefined;
     const getTagProps = (_value, index) => {
       const roi_group = selected_roi_groups.filter(c => c.title === _value)[0]
