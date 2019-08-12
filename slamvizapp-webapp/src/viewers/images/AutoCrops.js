@@ -50,7 +50,7 @@ class AutoCrops extends React.Component {
         />
         <NumericInput
           value={this.state.threshold}
-          onValueChange={threshold => setState({threshold})}
+          onValueChange={threshold => this.setState({threshold})}
           max={1}
           min={0}
           majorStepSize={0.1}
