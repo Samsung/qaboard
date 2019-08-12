@@ -45,6 +45,7 @@ const RowHeaderCell = ({ output, warning }) => {
           <span>{warning}</span>
         </Tooltip>
       )}
+      {output.is_failed && <Tag style={{marginLeft: '5px'}} intent={Intent.DANGER}>Failed</Tag>}
     </th>
   );
 };
@@ -105,7 +106,7 @@ const TableCompare = ({
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
   let outputs = Object.entries(new_batch.outputs)
-    .filter(([id, o]) => !o.is_pending && !o.is_failed)
+    .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
@@ -170,7 +171,7 @@ const TableKpi = ({
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Reference"];
   let outputs = Object.entries(new_batch.outputs)
-    .filter(([id, o]) => !o.is_pending && !o.is_failed)
+    .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
