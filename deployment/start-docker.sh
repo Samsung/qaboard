@@ -120,6 +120,6 @@ fi
 # -u=$UID
 # -u=$UID
 # --privileged=true
-command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG${CI_DEBUG} $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
+command="docker run --name qaboard-$CI_ENVIRONMENT_SLUG${CI_DEBUG} $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
 echo $command
 exec $command
