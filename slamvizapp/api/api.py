@@ -170,7 +170,7 @@ def get_ci_commit(commit_id=None):
     except:
       default_branch = 'develop'
     branch = request.args.get('branch', default_branch)
-    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch)
+    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch', 'default'))
     if not ci_commit:
       return jsonify({'error': f'Sorry, we cant find any commit with results for this project on {branch}.'}), 404
   else:
