@@ -11,7 +11,7 @@ from skimage.color import deltaE_cie76, rgb2lab
 # from skimage.viewer import ImageViewer  # for Debugging purpose
 from skimage.transform import rescale
 # probably only one of them is enough, or perhaps "amitay algo" or "TheCodingTrain algo"
-from skimage.feature import blob_dog, # blob_log, blob_doh
+from skimage.feature import blob_dog # blob_log, blob_doh
 #import matplotlib.pyplot as plt # for Debugging purpose
 
 from flask import request, jsonify
