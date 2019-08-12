@@ -341,7 +341,7 @@ class CiCommitResults extends Component {
                </Section>}
 
               {selected_views.includes('tuning') && <Section>
-                <h2 className={Classes.HEADING}>Run experiments</h2>
+                <h2 className={Classes.HEADING}>Tuning Experiments</h2>
                 <Card>
                   {!!(config_data.data || {}).qatools_config && <TuningForm
                     project={project}
