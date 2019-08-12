@@ -1,5 +1,5 @@
 import React from "react";
-import { post } from "axios";
+import { get, post } from "axios";
 import {
   Classes,
   Tag,
@@ -85,9 +85,10 @@ class CommitNavbar extends React.Component {
 
           <CommitMilestone commit={commit} project={project} project_data={project_data} selected={selected} dispatch={dispatch} label={label} />
 
-          <Popover position="auto" hoverCloseDelay={500} interactionKind={"hover"}>
+          <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
             <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
               <EditableText
+                style={{ marginTop: '4px' }}
                 onConfirm={this.handleSubmit}
                 minWidth={60}
                 placeholder='id'
@@ -99,9 +100,9 @@ class CommitNavbar extends React.Component {
               <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.handleSubmitBranch(reference_branch)} />
 
               <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
-              {qatools_milestones.map((m, idx) => <MilestoneMenu key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
+              {qatools_milestones.map((m, idx) => <MilestoneMenu icon="crown" key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
               {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
-              {(project_data.data.milestones || []).map((m, idx) => <MilestoneMenu key={`shared-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
+              {(project_data.data.milestones || []).map((m, idx) => <MilestoneMenu icon="crown" key={`shared-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
 
               {project_data.milestones && <>
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to local milestones</h6></li>
@@ -134,8 +135,6 @@ class CommitNavbar extends React.Component {
 
   handleSubmitBranch = branch => {
     const { project, dispatch } = this.props;
-    console.log(project);
-    console.log(branch);
 
     dispatch(fetchCommit(project, null, "ref_commit_id", branch));
     dispatch(updateSelected(project, { ref_commit_id: branch }))
@@ -150,25 +149,14 @@ class CommitNavbar extends React.Component {
 
 }
 
-const MilestoneMenu = ({ milestone, selectMilestone }) => {
+const MilestoneMenu = ({ milestone, selectMilestone, icon }) => {
   return <Menu.Item
     text={milestone.label || milestone.commit || milestone}
-    icon="star"
+    icon={icon || "star"}
     onClick={() => selectMilestone(milestone)}
   />
 }
 ///////////////////////////// CommitMilestone //////////////////////////////////
-
-// edit the milestones ....
-// read all the milestones from [local, shared]
-// if one matches (project, commit, batch), then read (label, notes) from there
-// when editing, change that one, leave the rest untouched
-
-// // local:
-// let batch =  selected[`selected_batch_${label}`]
-// matching_milestone = project_data.milestone.find(m => (m.project === undefined || m.project === project) && (m.commit===commit.id) &&  (m.batch === undefined || m.batch === batch ))[0]
-// if (!!matching_milestone) // win: read
-// return .... .... 
 
 class CommitMilestone extends React.PureComponent {
   constructor(props) {
@@ -177,12 +165,16 @@ class CommitMilestone extends React.PureComponent {
       current_label: '',
       previous_label: '',
       notes: '',
-
+      shared_button_is_on: false,
       // we ask for confirmation when users delete a milestone
       alert_is_open: false,
 
-      shared_button_is_on: false,
+      db_milestones: {},
     };
+  }
+
+  componentDidMount() {
+    this.getFromDB();
   }
 
   render() {
@@ -194,7 +186,7 @@ class CommitMilestone extends React.PureComponent {
     const popover_body = < div >
       <H5>Edit Milestone</H5>
       <Switch
-        label='shared'
+        label='Shared'
         checked={shared_button_is_on}
         autoFocus
         style={{ width: "200px" }}
@@ -262,32 +254,47 @@ class CommitMilestone extends React.PureComponent {
     this.setState(state => ({ shared_button_is_on: !state.shared_button_is_on }))
   }
 
-  // change to milstoneType returns 'none' 'local' 'shared'
-  MilestoneType = () => { // check local and shared
+  MilestoneType = () => {
     const { commit, project_data, selected, label } = this.props;
 
-    if (commit && project_data.milestones) {
+    if (commit) {
       let batch = selected[`selected_batch_${label}`];
-      let is_local = !!project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
-      if (is_local) return 'local';
 
-      // TODO: if in shared return 'share'
-      let is_shared = this.isInDB(commit, batch);
+      // check local
+      if (project_data.milestones) {
+        let is_local = !!project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
+        if (is_local) return 'local';
+      }
 
-      console.log(is_shared);
-      // if (is_shared) return 'shared';
-      return 'none';
+      // check shared
+      let key = `${commit.id}/${batch}`; // CONVENTION
+      let is_shared = key in this.state.db_milestones;
+      if (is_shared) return 'shared';
+
+      // TODO: search in qa yaml?
+
     }
+
+    return 'none'; // not a milestone
   }
 
   updateData = (type) => { // check local and shared
-    const { commit, project_data, selected, label } = this.props;
+
+    const { commit, project, project_data, selected, label } = this.props;
     let batch = selected[`selected_batch_${label}`];
+    let matching_milestone = {}
 
     switch (type) {
-      case 'local':
+      case 'none':
+        this.setState({
+          current_label: !!commit && (shortId(project, commit.id) + "/" + selected[`selected_batch_${label}`]),
+          notes: '',
+          shared_button_is_on: true,
+        })
+        break;
 
-        let matching_milestone = project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === batch));
+      case 'local':
+        matching_milestone = project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === batch));
         if (!!matching_milestone) { // this evaluation probably can be removed.
           this.setState({
             current_label: matching_milestone.label,
@@ -296,12 +303,21 @@ class CommitMilestone extends React.PureComponent {
             shared_button_is_on: false,
           })
         }
+        break;
 
-        break;
       case 'shared':
-        //TODO: if in shared
-        this.loadFromDB(commit, batch);
+        let key = `${commit.id}/${batch}`; // CONVENTION
+        matching_milestone = this.state.db_milestones[key];
+        if (!!matching_milestone) {
+          this.setState({
+            current_label: matching_milestone.label,
+            previous_label: matching_milestone.label,
+            notes: matching_milestone.notes,
+            shared_button_is_on: true,
+          })
+        }
         break;
+
       default:
         break;
     }
@@ -309,22 +325,11 @@ class CommitMilestone extends React.PureComponent {
 
   }
 
-  handleClick = () => { // check local and shared
+  handleClick = () => {
     let milestone_type = this.MilestoneType();
-    if (milestone_type !== 'none') {
-      // load info from local or shared
-      this.updateData(milestone_type);
-    }
 
-    else {
-      // load a default label
-      const { commit, project, selected, label } = this.props;
-      this.setState({
-        current_label: !!commit && (shortId(project, commit.id) + "/" + selected[`selected_batch_${label}`]),
-        notes: '',
-        shared_button_is_on: true,
-      })
-    }
+    // load info from local or shared or default label
+    this.updateData(milestone_type);
   }
 
   handleConfirm = () => {
@@ -344,37 +349,32 @@ class CommitMilestone extends React.PureComponent {
       date: new Date().toLocaleString(),
     }
 
-    if (shared_button_is_on) { // share
-      // TODO: save in shared storage
+    if (shared_button_is_on) { // save to share storage
       this.saveToDB(new_milestone);
     }
-    else { // save to local
+    else { // save to local storage
       const milestones = project_data.milestones || [];
-
       milestones.push(new_milestone);
-
       dispatch(updateMilestones(project, milestones));
 
-      toaster.show({
-        message: <div><b>{this.state.current_label}</b> was saved!</div>,
-        intent: Intent.SUCCESS,
-        timeout: 4500
-      });
     }
+
+    toaster.show({
+      message: <div><b>{this.state.current_label}</b> was saved!</div>,
+      intent: Intent.SUCCESS,
+      timeout: 4500
+    });
   }
 
-  handleRemoveOpen = () => this.setState({ alert_is_open: true });
-
-  handleRemoveCancel = () => this.setState({ alert_is_open: false });
 
   handleRemoveConfirm = () => {
+    const { dispatch, commit, project, project_data, selected, label } = this.props;
     let milestone_type = this.MilestoneType();
+    let batch = selected[`selected_batch_${label}`];
 
     switch (milestone_type) {
       case "local":
-        const { dispatch, commit, project, project_data, selected, label } = this.props;
         const milestones = project_data.milestones || []
-        let batch = selected[`selected_batch_${label}`];
         let idx = milestones.findIndex(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
         milestones.splice(idx, 1);
 
@@ -383,8 +383,7 @@ class CommitMilestone extends React.PureComponent {
         break;
 
       case "shared":
-        //TODO: if in is_shared
-        this.removeFromDB();
+        this.removeFromDB(commit, batch);
         break;
 
       default: // case 'none'
@@ -397,7 +396,6 @@ class CommitMilestone extends React.PureComponent {
       timeout: 4000
     });
 
-
     this.setState({
       current_label: '',
       previous_label: '',
@@ -406,24 +404,26 @@ class CommitMilestone extends React.PureComponent {
     });
   }
 
-  update = name => event => {
-    this.setState({ [name]: event.target.value });
-  }
+
+  handleRemoveOpen = () => this.setState({ alert_is_open: true });
+
+  handleRemoveCancel = () => this.setState({ alert_is_open: false });
+
+  update = name => event => { this.setState({ [name]: event.target.value }) }
 
 
   ////////////////////////////// shared ////////////////////////////////////////
-  isInDB = async (commit, batch) => {
-    const data = {
-      id: commit.id,
-      batch: batch,
-    };
-    return await post("http://planet31:9002/api/v1/project/milestones/is_exist", data) // for DEBUG
+
+  getFromDB = () => {
+    get("http://planet31:9002/api/v1/project/milestones/get",
+      { params: { project: this.props.project } }) // for DEBUG
       .then(res => {
-        console.log(res.data);
-        console.log(res.data[0]);
-        return res.data[0];
+        if (res.data !== "FAILED") {
+          this.setState({ db_milestones: res.data });
+        }
       })
   }
+
 
   saveToDB = (milestone) => {
     const data = {
@@ -432,36 +432,47 @@ class CommitMilestone extends React.PureComponent {
     };
     post("http://planet31:9002/api/v1/project/milestones/save", data) // for DEBUG
       .then(res => {
-        console.log(res.data);
-        console.log(res.data[0]);
+        this.setState({ db_milestones: res.data });
       })
   }
 
-  loadFromDB = (commit, batch) => {
+
+  removeFromDB = (commit, batch) => {
     const data = {
       project: this.props.project,
-      id: commit.id,
+      commit: commit.id,
       batch: batch,
-    };
-    post("http://planet31:9002/api/v1/project/milestones/load", data) // for DEBUG
-      .then(res => {
-        console.log(res.data);
-        console.log(res.data[0]);
-      })
-  }
-
-  removeFromDB = () => {
-    const data = {
-      project: this.props.project,
-      id: this.props.commit.id,
     };
     post("http://planet31:9002/api/v1/project/milestones/remove", data) // for DEBUG
       .then(res => {
-        console.log(res.data);
-        console.log(res.data[0]);
+        this.setState({ db_milestones: res.data });
       })
   }
 
+  /*
+  loadFromDB = (commit, batch) => {
+    const data = {
+      project: this.props.project,
+      commit: commit.id,
+      batch: batch,
+    };
+    post("http://planet31:9002/api/v1/project/milestones/load", data) // for DEBUG
+    .then(res => {
+      
+      })
+    }
+
+    isInDB = (commit, batch) => {
+      const data = {
+        commit: commit.id,
+        batch: batch,
+      };
+      post("http://planet31:9002/api/v1/project/milestones/is_exist", data) // for DEBUG
+        .then(res => {
+    
+        })
+    }
+    */
 }
 
 
