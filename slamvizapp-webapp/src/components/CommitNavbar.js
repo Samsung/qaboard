@@ -1,4 +1,6 @@
 import React from "react";
+import Moment from "react-moment";
+
 import { get, post } from "axios";
 import {
   Classes,
@@ -33,6 +35,7 @@ const toaster = Toaster.create();
 
 
 class CommitMessage extends React.PureComponent {
+
   render() {
     const { commit } = this.props;
     const style = { marginTop: "10px", whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...this.props.style }
@@ -61,6 +64,16 @@ class CommitBranchButton extends React.PureComponent {
 
 
 class CommitNavbar extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      db_milestones: {}, // instead of using project_data.data.milestones, which isn't triggers render when it is changes.
+    };
+
+    this.handleDbChange = this.handleDbChange.bind(this);
+
+  }
+
   render() {
     const { project, project_data, commit, selected, label, dispatch } = this.props;
     const qatools_config = (((project_data || {}).data || {}).qatools_config)
@@ -83,36 +96,36 @@ class CommitNavbar extends React.Component {
         </div>
         <div style={{ display: 'flex' }}>
 
-          <CommitMilestone commit={commit} project={project} project_data={project_data} selected={selected} dispatch={dispatch} label={label} />
+          <CommitMilestone commit={commit} project={project} project_data={project_data} db_milestones={this.state.db_milestones} update_db={this.handleDbChange} selected={selected} dispatch={dispatch} label={label} />
 
-          <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
-            <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
+          <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
+            <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
               <EditableText
-                style={{ marginTop: '4px' }}
                 onConfirm={this.handleSubmit}
                 minWidth={60}
                 placeholder='id'
                 key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
                 defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-              /></span>
-            <Menu>
-              <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
-              <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.handleSubmitBranch(reference_branch)} />
+              />
+              <Menu>
+                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
+                <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.handleSubmitBranch(reference_branch)} />
 
-              <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
-              {qatools_milestones.map((m, idx) => <MilestoneMenu icon="crown" key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
-              {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
-              {(project_data.data.milestones || []).map((m, idx) => <MilestoneMenu icon="crown" key={`shared-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
+                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
+                {qatools_milestones.map((m, idx) => <MilestoneMenu icon="crown" key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
+                {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
+                {(Object.keys(this.state.db_milestones) || []).map((key) => <MilestoneMenu icon="crown" key={`shared-${key}`} milestone={this.state.db_milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
 
-              {project_data.milestones && <>
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to local milestones</h6></li>
-                {project_data.milestones.map((m, idx) => <MilestoneMenu key={`local-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
-              </>}
+                {project_data.milestones && <>
+                  <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to local milestones</h6></li>
+                  {(Object.keys(project_data.milestones) || []).map((key) => <MilestoneMenu key={`local-${key}`} milestone={project_data.milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
+                </>}
 
-              <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
-              <Menu.Item text="Remove reference" icon="delete" onClick={() => this.handleSubmitBranch(null)} />
-            </Menu>
-          </Popover>
+                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
+                <Menu.Item text="Remove reference" icon="delete" onClick={() => this.handleSubmitBranch(null)} />
+              </Menu>
+            </Popover>
+          </span>
           <CommitBranchButton commit={commit} onClick={this.handleSubmitBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
           <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
@@ -147,14 +160,24 @@ class CommitNavbar extends React.Component {
     dispatch(updateSelected(project, { ref_commit_id: milestone.commit, selected_batch_ref: milestone.batch }))
   };
 
+  handleDbChange(value) {
+    this.setState({ db_milestones: value });
+  }
 }
 
+
 const MilestoneMenu = ({ milestone, selectMilestone, icon }) => {
+  const moment = <Moment fromNow date={milestone.date} />
+  const text = <Tooltip content={<>{moment} <p>{milestone.notes}</p></>} position={Position.RIGHT} boundary="window" >
+    {milestone.label || milestone.commit || milestone}
+  </Tooltip >
+
   return <Menu.Item
-    text={milestone.label || milestone.commit || milestone}
+    text={text}
     icon={icon || "star"}
     onClick={() => selectMilestone(milestone)}
   />
+
 }
 ///////////////////////////// CommitMilestone //////////////////////////////////
 
@@ -168,8 +191,6 @@ class CommitMilestone extends React.PureComponent {
       shared_button_is_on: false,
       // we ask for confirmation when users delete a milestone
       alert_is_open: false,
-
-      db_milestones: {},
     };
   }
 
@@ -255,20 +276,20 @@ class CommitMilestone extends React.PureComponent {
   }
 
   MilestoneType = () => {
-    const { commit, project_data, selected, label } = this.props;
+    const { commit, project, project_data, selected, label } = this.props;
 
     if (commit) {
       let batch = selected[`selected_batch_${label}`];
+      const key = `${project}/${commit.id}/${batch}`  // CONVENTION
 
       // check local
       if (project_data.milestones) {
-        let is_local = !!project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
+        let is_local = key in project_data.milestones;
         if (is_local) return 'local';
       }
 
       // check shared
-      let key = `${commit.id}/${batch}`; // CONVENTION
-      let is_shared = key in this.state.db_milestones;
+      let is_shared = key in this.props.db_milestones;
       if (is_shared) return 'shared';
 
       // TODO: search in qa yaml?
@@ -283,6 +304,7 @@ class CommitMilestone extends React.PureComponent {
     const { commit, project, project_data, selected, label } = this.props;
     let batch = selected[`selected_batch_${label}`];
     let matching_milestone = {}
+    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
 
     switch (type) {
       case 'none':
@@ -294,7 +316,7 @@ class CommitMilestone extends React.PureComponent {
         break;
 
       case 'local':
-        matching_milestone = project_data.milestones.find(m => m && (m.commit === commit.id) && (m.batch === batch));
+        matching_milestone = project_data.milestones[key]
         if (!!matching_milestone) { // this evaluation probably can be removed.
           this.setState({
             current_label: matching_milestone.label,
@@ -306,8 +328,7 @@ class CommitMilestone extends React.PureComponent {
         break;
 
       case 'shared':
-        let key = `${commit.id}/${batch}`; // CONVENTION
-        matching_milestone = this.state.db_milestones[key];
+        matching_milestone = project_data.data.milestones[key];
         if (!!matching_milestone) {
           this.setState({
             current_label: matching_milestone.label,
@@ -321,8 +342,6 @@ class CommitMilestone extends React.PureComponent {
       default:
         break;
     }
-
-
   }
 
   handleClick = () => {
@@ -341,6 +360,7 @@ class CommitMilestone extends React.PureComponent {
     // first remove if already exists
     this.handleRemoveConfirm();
 
+    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
     const new_milestone = {
       label: this.state.current_label,
       notes: this.state.notes,
@@ -350,11 +370,11 @@ class CommitMilestone extends React.PureComponent {
     }
 
     if (shared_button_is_on) { // save to share storage
-      this.saveToDB(new_milestone);
+      this.saveToDB(key, new_milestone);
     }
     else { // save to local storage
-      const milestones = project_data.milestones || [];
-      milestones.push(new_milestone);
+      const milestones = project_data.milestones || {};
+      milestones[key] = new_milestone;
       dispatch(updateMilestones(project, milestones));
 
     }
@@ -371,19 +391,17 @@ class CommitMilestone extends React.PureComponent {
     const { dispatch, commit, project, project_data, selected, label } = this.props;
     let milestone_type = this.MilestoneType();
     let batch = selected[`selected_batch_${label}`];
+    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
 
     switch (milestone_type) {
       case "local":
-        const milestones = project_data.milestones || []
-        let idx = milestones.findIndex(m => m && (m.commit === commit.id) && (m.batch === undefined || m.batch === batch));
-        milestones.splice(idx, 1);
-
+        const milestones = project_data.milestones || [];
+        delete milestones[key];
         dispatch(updateMilestones(project, milestones))
-
         break;
 
       case "shared":
-        this.removeFromDB(commit, batch);
+        this.removeFromDB(key);
         break;
 
       default: // case 'none'
@@ -412,67 +430,41 @@ class CommitMilestone extends React.PureComponent {
   update = name => event => { this.setState({ [name]: event.target.value }) }
 
 
-  ////////////////////////////// shared ////////////////////////////////////////
-
   getFromDB = () => {
     get("http://planet31:9002/api/v1/project/milestones/get",
       { params: { project: this.props.project } }) // for DEBUG
       .then(res => {
         if (res.data !== "FAILED") {
-          this.setState({ db_milestones: res.data });
+          this.props.update_db(res.data)
         }
       })
   }
 
 
-  saveToDB = (milestone) => {
+  saveToDB = (key, milestone) => {
     const data = {
       project: this.props.project,
+      key: key,
       ...milestone,
     };
     post("http://planet31:9002/api/v1/project/milestones/save", data) // for DEBUG
       .then(res => {
-        this.setState({ db_milestones: res.data });
+        this.props.update_db(res.data)
       })
   }
 
 
-  removeFromDB = (commit, batch) => {
+  removeFromDB = (key) => {
     const data = {
       project: this.props.project,
-      commit: commit.id,
-      batch: batch,
+      key: key,
     };
     post("http://planet31:9002/api/v1/project/milestones/remove", data) // for DEBUG
       .then(res => {
-        this.setState({ db_milestones: res.data });
+        this.props.update_db(res.data)
       })
   }
 
-  /*
-  loadFromDB = (commit, batch) => {
-    const data = {
-      project: this.props.project,
-      commit: commit.id,
-      batch: batch,
-    };
-    post("http://planet31:9002/api/v1/project/milestones/load", data) // for DEBUG
-    .then(res => {
-      
-      })
-    }
-
-    isInDB = (commit, batch) => {
-      const data = {
-        commit: commit.id,
-        batch: batch,
-      };
-      post("http://planet31:9002/api/v1/project/milestones/is_exist", data) // for DEBUG
-        .then(res => {
-    
-        })
-    }
-    */
 }
 
 
