@@ -28,14 +28,13 @@ import { DoneAtTag } from "./DoneAtTag";
 
 import { fetchCommit } from "../actions/commit";
 import { updateSelected } from "../actions/selected";
-import { updateMilestones } from "../actions/projects";
+import { updateMilestones, fetchProjects } from "../actions/projects";
 import { shortId } from "../utils";
 
 const toaster = Toaster.create();
 
 
 class CommitMessage extends React.PureComponent {
-
   render() {
     const { commit } = this.props;
     const style = { marginTop: "10px", whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...this.props.style }
@@ -56,7 +55,7 @@ class CommitBranchButton extends React.PureComponent {
     const has_branch = !!commit && !!commit.branch
     return <span style={style}>
       <Button minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
-        {has_branch ? commit.branch.replace('origin/', '') : 'master'}
+        {has_branch ? commit.branch : 'master'}
       </Button>
     </span>
   }
@@ -69,9 +68,6 @@ class CommitNavbar extends React.Component {
     this.state = {
       db_milestones: {}, // instead of using project_data.data.milestones, which isn't triggers render when it is changes.
     };
-
-    this.handleDbChange = this.handleDbChange.bind(this);
-
   }
 
   render() {
@@ -114,15 +110,17 @@ class CommitNavbar extends React.Component {
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
                 {qatools_milestones.map((m, idx) => <MilestoneMenu icon="crown" key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
                 {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
-                {(Object.keys(this.state.db_milestones)
-                  /*.sort((key1, key2) => { new Date(this.state.db_milestones[key2]['date'] - new Date(this.state.db_milestones[key1]['date'])) })*/ || [])
-                  .map((key) => <MilestoneMenu icon="crown" key={`shared-${key}`} milestone={this.state.db_milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
+                {this.state.db_milestones && <>
+                  {(Object.values(this.state.db_milestones)
+                    .sort((m0, m1) => new Date(m1.date) - new Date(m0.date)) || [])
+                    .map((m, idx) => <MilestoneMenu icon="crown" key={`shared-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
+                </>}
 
                 {project_data.milestones && <>
                   <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to local milestones</h6></li>
-                  {(Object.keys(project_data.milestones)
-                    /*.sort((key1, key2) => { new Date(project_data.milestones[key2]['date'] - new Date(project_data.milestones[key1]['date'])) })*/ || [])
-                    .map((key) => <MilestoneMenu key={`local-${key}`} milestone={project_data.milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
+                  {(Object.values(project_data.milestones)
+                    .sort((m0, m1) => new Date(m1.date) - new Date(m0.date)) || [])
+                    .map((m, idx) => <MilestoneMenu key={`local-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
                 </>}
 
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
@@ -164,18 +162,21 @@ class CommitNavbar extends React.Component {
     dispatch(updateSelected(project, { ref_commit_id: milestone.commit, selected_batch_ref: milestone.batch }))
   };
 
-  handleDbChange(value) {
+  handleDbChange = value => {
     this.setState({ db_milestones: value });
   }
 }
 
 
 const MilestoneMenu = ({ milestone, selectMilestone, icon }) => {
-  const moment = <Moment fromNow date={milestone.date} />
-  const text = <Tooltip content={<>{moment} <p>{milestone.notes}</p></>}
-    position={Position.RIGHT}
-  >
-    {milestone.label || milestone.commit || milestone}
+  const has_notes = !!milestone.notes && milestone.notes.length > 0;
+  const text = <Tooltip position={Position.RIGHT}>
+    <p style={{ minWidth: "200px" }}>{milestone.label || milestone.commit || milestone}</p>
+    <>
+      <h5><code>{!!milestone.commit && milestone.commit.slice(0, 8)}</code> {milestone.batch !== 'default' && `@${milestone.batch}`}</h5>
+      <b><Moment fromNow date={milestone.date} /></b>
+      {has_notes && <div style={{ maxWidth: '600px' }}><pre>{milestone.notes}</pre></div>}
+    </>
   </Tooltip >
 
   return <Menu.Item
@@ -281,8 +282,8 @@ class CommitMilestone extends React.PureComponent {
         className={Classes.POPOVER_DISMISS}
         canEscapeKeyCancel
         cancelButtonText="Cancel"
-        confirmButtonText="Overwrite"
-        icon="trash"
+        confirmButtonText="Confirm"
+        icon="warning-sign"
         intent={Intent.PRIMARY}
         isOpen={alert_overwrite}
         onCancel={this.handleOverwriteCancel}
@@ -330,8 +331,10 @@ class CommitMilestone extends React.PureComponent {
 
     switch (type) {
       case 'none':
+        const batch_label = batch !== 'default' ? `/${batch}` : ''
+        const current_label = !!commit && (shortId(project, commit.id) + batch_label)
         this.setState({
-          current_label: !!commit && (shortId(project, commit.id) + "/" + selected[`selected_batch_${label}`]),
+          current_label,
           notes: '',
           shared_button_is_on: true,
         })
@@ -415,7 +418,7 @@ class CommitMilestone extends React.PureComponent {
       toaster.show({
         message: <div><b>{this.state.current_label}</b> was saved!</div>,
         intent: Intent.SUCCESS,
-        timeout: 4500
+        timeout: 5000
       });
     }
   }

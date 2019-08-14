@@ -21,26 +21,25 @@ def crud_milestones():
 
 @app.route("/api/v1/project/milestones/get", methods=['GET'])
 def get_milestones():
+  project_id = request.args.get('project')
   try:
-    project_id = request.args.get('project')
-    project = (Project.query.filter(Project.id == project_id).one())
-
-    return project.data['milestones']
-
+    project = Project.query.filter(Project.id == project_id).one()
   except:
-    return 'FAILED'
+    return 'Not found', 404
+  if 'milestones' in project.data:
+    return project.data['milestones']
+  else:
+    return {}
 
 
 @app.route("/api/v1/project/milestones/save", methods=[ 'POST'])
 def save_milestone():
-
   data = request.get_json()
-  project_id = (data['project'])
-  project = (Project.query.filter(Project.id == project_id).one())
+  project = Project.query.filter(Project.id == data['project']).one()
 
   milestones = project.data['milestones']
   key = data['key']
-  data.pop('project','key') # removing items we don't need to save.
+  data.pop('project','key') # remove items we don't need to save.
   milestones[key] = data
   project.data.update({'milestones': milestones})
   #print("milestones: ", project.data['milestones'])
@@ -54,10 +53,8 @@ def save_milestone():
 
 @app.route("/api/v1/project/milestones/remove", methods=['POST'])
 def remove_milestone():
-
   data = request.get_json()
-  project_id = (data['project'])
-  project = (Project.query.filter(Project.id == project_id).one())
+  project = Project.query.filter(Project.id == data['project']).one()
 
   milestones = project.data['milestones']
 
