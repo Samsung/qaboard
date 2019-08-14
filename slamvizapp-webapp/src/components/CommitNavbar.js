@@ -114,11 +114,15 @@ class CommitNavbar extends React.Component {
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
                 {qatools_milestones.map((m, idx) => <MilestoneMenu icon="crown" key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
                 {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
-                {(Object.keys(this.state.db_milestones) || []).map((key) => <MilestoneMenu icon="crown" key={`shared-${key}`} milestone={this.state.db_milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
+                {(Object.keys(this.state.db_milestones)
+                  /*.sort((key1, key2) => { new Date(this.state.db_milestones[key2]['date'] - new Date(this.state.db_milestones[key1]['date'])) })*/ || [])
+                  .map((key) => <MilestoneMenu icon="crown" key={`shared-${key}`} milestone={this.state.db_milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
 
                 {project_data.milestones && <>
                   <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to local milestones</h6></li>
-                  {(Object.keys(project_data.milestones) || []).map((key) => <MilestoneMenu key={`local-${key}`} milestone={project_data.milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
+                  {(Object.keys(project_data.milestones)
+                    /*.sort((key1, key2) => { new Date(project_data.milestones[key2]['date'] - new Date(project_data.milestones[key1]['date'])) })*/ || [])
+                    .map((key) => <MilestoneMenu key={`local-${key}`} milestone={project_data.milestones[key]} selectMilestone={this.handleSubmitBatch} />)}
                 </>}
 
                 <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
@@ -168,7 +172,9 @@ class CommitNavbar extends React.Component {
 
 const MilestoneMenu = ({ milestone, selectMilestone, icon }) => {
   const moment = <Moment fromNow date={milestone.date} />
-  const text = <Tooltip content={<>{moment} <p>{milestone.notes}</p></>} position={Position.RIGHT} boundary="window" >
+  const text = <Tooltip content={<>{moment} <p>{milestone.notes}</p></>}
+    position={Position.RIGHT}
+  >
     {milestone.label || milestone.commit || milestone}
   </Tooltip >
 
@@ -187,10 +193,13 @@ class CommitMilestone extends React.PureComponent {
     this.state = {
       current_label: '',
       previous_label: '',
+      overwrite_shared_label: '',
       notes: '',
       shared_button_is_on: false,
-      // we ask for confirmation when users delete a milestone
-      alert_is_open: false,
+      // we ask for confirmation when users delete/overwrite a milestone
+      alert_remove: false,
+      alert_overwrite: false,
+
     };
   }
 
@@ -199,7 +208,7 @@ class CommitMilestone extends React.PureComponent {
   }
 
   render() {
-    const { current_label, previous_label, notes, alert_is_open, shared_button_is_on } = this.state;
+    const { current_label, previous_label, overwrite_shared_label, notes, alert_remove, alert_overwrite, shared_button_is_on } = this.state;
     const milestone_type = this.MilestoneType();
     const icon = milestone_type === 'none' ? 'star-empty' : (milestone_type === 'shared' ? 'crown' : 'star');
     const color = milestone_type === 'none' ? undefined : Colors.GOLD4;
@@ -245,7 +254,7 @@ class CommitMilestone extends React.PureComponent {
             confirmButtonText="Remove"
             icon="trash"
             intent={Intent.DANGER}
-            isOpen={alert_is_open}
+            isOpen={alert_remove}
             onCancel={this.handleRemoveCancel}
             onConfirm={this.handleRemoveConfirm}
           >
@@ -253,7 +262,7 @@ class CommitMilestone extends React.PureComponent {
           </Alert>
         </>}
         <Button className={Classes.POPOVER_DISMISS} text={"Cancel"} style={{ marginRight: 10 }} />
-        <Button className={Classes.POPOVER_DISMISS} text={"Done"} intent={Intent.PRIMARY} onClick={this.handleConfirm} />
+        <Button className={Classes.POPOVER_DISMISS} text={"Done"} intent={Intent.PRIMARY} onClick={this.handleOverwriteShared} />
       </div>
     </div >
 
@@ -268,6 +277,19 @@ class CommitMilestone extends React.PureComponent {
           </Button>
         </Tooltip>
       </Popover >
+      <Alert
+        className={Classes.POPOVER_DISMISS}
+        canEscapeKeyCancel
+        cancelButtonText="Cancel"
+        confirmButtonText="Overwrite"
+        icon="trash"
+        intent={Intent.PRIMARY}
+        isOpen={alert_overwrite}
+        onCancel={this.handleOverwriteCancel}
+        onConfirm={this.handleConfirm}
+      >
+        <p>Shared-Milestone already exist (<b>{overwrite_shared_label}</b>).</p><p>Would you like to replace it?</p>
+      </Alert>
     </>
   }
 
@@ -351,8 +373,22 @@ class CommitMilestone extends React.PureComponent {
     this.updateData(milestone_type);
   }
 
-  handleConfirm = () => {
+  handleOverwriteShared = () => {
+    const { commit, project, selected, label } = this.props;
 
+    const batch = selected[`selected_batch_${label}`];
+    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
+
+    // check shared
+    let is_shared = key in this.props.db_milestones;
+    if (is_shared) {
+      this.setState({ alert_overwrite: true, overwrite_shared_label: this.props.db_milestones[key].label });
+    }
+    else this.handleConfirm();
+  }
+
+
+  handleConfirm = () => {
     const { commit, dispatch, project, project_data, selected, label } = this.props;
     const { shared_button_is_on } = this.state
     const batch = selected[`selected_batch_${label}`];
@@ -376,14 +412,12 @@ class CommitMilestone extends React.PureComponent {
       const milestones = project_data.milestones || {};
       milestones[key] = new_milestone;
       dispatch(updateMilestones(project, milestones));
-
+      toaster.show({
+        message: <div><b>{this.state.current_label}</b> was saved!</div>,
+        intent: Intent.SUCCESS,
+        timeout: 4500
+      });
     }
-
-    toaster.show({
-      message: <div><b>{this.state.current_label}</b> was saved!</div>,
-      intent: Intent.SUCCESS,
-      timeout: 4500
-    });
   }
 
 
@@ -398,6 +432,12 @@ class CommitMilestone extends React.PureComponent {
         const milestones = project_data.milestones || [];
         delete milestones[key];
         dispatch(updateMilestones(project, milestones))
+
+        toaster.show({
+          message: <div><b>{this.state.previous_label}</b> was removed</div>,
+          intent: Intent.PRIMARY,
+          timeout: 4000
+        });
         break;
 
       case "shared":
@@ -408,25 +448,16 @@ class CommitMilestone extends React.PureComponent {
         return;
     }
 
-    toaster.show({
-      message: <div><b>{this.state.previous_label}</b> was removed</div>,
-      intent: Intent.PRIMARY,
-      timeout: 4000
-    });
-
     this.setState({
-      current_label: '',
-      previous_label: '',
-      notes: '',
-      alert_is_open: false,
+      alert_remove: false,
+      alert_overwrite: false,
     });
   }
 
 
-  handleRemoveOpen = () => this.setState({ alert_is_open: true });
-
-  handleRemoveCancel = () => this.setState({ alert_is_open: false });
-
+  handleRemoveOpen = () => this.setState({ alert_remove: true });
+  handleRemoveCancel = () => this.setState({ alert_remove: false });
+  handleOverwriteCancel = () => this.setState({ alert_overwrite: false });
   update = name => event => { this.setState({ [name]: event.target.value }) }
 
 
@@ -437,6 +468,9 @@ class CommitMilestone extends React.PureComponent {
         if (res.data !== "FAILED") {
           this.props.update_db(res.data)
         }
+      })
+      .catch(error => {
+        toaster.show({ message: `getFromDB ${error}`, intent: Intent.DANGER, timeout: 3000 });
       })
   }
 
@@ -449,7 +483,16 @@ class CommitMilestone extends React.PureComponent {
     };
     post("http://planet31:9002/api/v1/project/milestones/save", data) // for DEBUG
       .then(res => {
-        this.props.update_db(res.data)
+        this.props.update_db(res.data);
+
+        toaster.show({
+          message: <div><b>{this.state.current_label}</b> was saved!</div>,
+          intent: Intent.SUCCESS,
+          timeout: 4500
+        });
+      })
+      .catch(error => {
+        toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
       })
   }
 
@@ -461,7 +504,16 @@ class CommitMilestone extends React.PureComponent {
     };
     post("http://planet31:9002/api/v1/project/milestones/remove", data) // for DEBUG
       .then(res => {
-        this.props.update_db(res.data)
+        this.props.update_db(res.data);
+
+        toaster.show({
+          message: <div><b>{this.state.previous_label}</b> was removed</div>,
+          intent: Intent.PRIMARY,
+          timeout: 4000
+        });
+      })
+      .catch(error => {
+        toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
       })
   }
 
