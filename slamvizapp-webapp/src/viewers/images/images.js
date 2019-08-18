@@ -85,7 +85,7 @@ class ImgViewer extends React.PureComponent {
       diff_threshold: 0.1,
       color: {},
       hide_labels: false,
-      cancel_source:  CancelToken.source(),
+      cancel_source: CancelToken.source(),
     }
   }
 
@@ -135,7 +135,7 @@ class ImgViewer extends React.PureComponent {
       // console.log(`[Init] has_reference: ${has_reference}`)
       // console.log('[Init] path: output_ref', output_ref)
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, {cancelToken: this.state.cancel_source.image}).then(res => {
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image }).then(res => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
         // image dimensions
@@ -341,8 +341,8 @@ class ImgViewer extends React.PureComponent {
 
   InitFilters() {
     const { viewer_new, viewer_ref } = this;
-    viewer_new.imagefilters({});
-    viewer_ref.imagefilters({});
+    viewer_new.imagefilters({ viewer_ref: viewer_ref });
+    viewer_ref.imagefilters({ viewer_ref: viewer_new });
   }
 
   InitMouseTracker() {
