@@ -17,7 +17,7 @@ integrations:
     href: http://my-project/docs
 ```
 
-> You can link directly to build artifacts.  The link will be disabled if the link doesn't work.
+> You can link directly to build artifacts.  The link will be disabled if the link doesn't work. To show a link but run the check on something else, also provide `url`, `method`, etc.
 
 ## Using webhooks to trigger external tools
 Configure your project's *qatools.yaml*:
@@ -106,4 +106,17 @@ integrations:
       data:
         commit: "${commit.id}"
         cause: Triggered on the QA web app
+```
+
+Alternatively, you can also send users to the build page: 
+
+```yaml
+integrations:
+  - text: Build
+    label: With Parameters
+    icon: build
+    href: http://jensirc:8080/view/HW_ALG/job/HW_ALG-delivery/build?delay=0sec
+    # Jenkins behaves wtf and returns 405 errors...
+    # https://issues.jenkins-ci.org/browse/JENKINS-3121
+    ignore_failure: true
 ```
