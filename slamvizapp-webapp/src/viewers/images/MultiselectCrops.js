@@ -57,7 +57,7 @@ class MultiSelectTags extends React.PureComponent {
 
   render() {
     const { available_roi_groups, selected_roi_groups } = this.state;
-    console.log(available_roi_groups, selected_roi_groups)
+    // console.log(available_roi_groups, selected_roi_groups)
     const clearButton = selected_roi_groups.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : undefined;
     const getTagProps = (_value, index) => {
       const roi_group = selected_roi_groups.filter(c => c.title === _value)[0]
