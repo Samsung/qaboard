@@ -26,7 +26,7 @@ from .iterators import iter_inputs, iter_parameters
 from .config import config_has_error
 from .config import subproject, config, database, platform
 from .config import default_configuration, default_platform, default_groups_file, default_batch_label
-from .config import user, commit_id, commit, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
+from .config import user, commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import repo, is_ci, on_windows
 
@@ -342,7 +342,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     group = [group]
 
   batch_label = ctx.obj['batch_label']
-  commit_url = f"https://qa/{config['project']['name']}/commit/{commit.hexsha if commit else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
+  commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
 
 
   running_lsf_jobs = get_running_lsf_jobs()
@@ -487,6 +487,7 @@ def save_artifacts(ctx):
   config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
+  config['artifacts']['__envrc'] = {"glob": '**.envrc'}
   if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
   if not repo:
       click.secho(
@@ -616,7 +617,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
 
     if is_ci and commit_branch == reference:
       click.secho(f'We are on branch {reference}', fg='cyan', bold=True, err=True)
-      click.secho(f"Comparing bit-accuracy against this commit's ({commit.hexsha[:8]}) parents.", fg='cyan', bold=True, err=True)
+      click.secho(f"Comparing bit-accuracy against this commit's ({commit_id[:8]}) parents.", fg='cyan', bold=True, err=True)
       # It will work until we try to rebase merge requests.
       # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
       reference_commits = commit.parents
@@ -625,7 +626,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
       reference_commits = [latest_commit(repo, reference)]
 
     reference_shas = ','.join([r.hexsha[:8] for r in reference_commits])
-    click.secho(f"{commit.hexsha[:8]} versus {reference_shas}.", fg='cyan', err=True)
+    click.secho(f"{commit_id[:8]} versus {reference_shas}.", fg='cyan', err=True)
     
     # This where the new results are located
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
@@ -656,7 +657,7 @@ def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"https://qa/{config['project']['name']}/commit/{commit.hexsha}?reference={reference_commit.hexsha}&selected_views=bit-accuracy", fg='red')
+          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit-accuracy", fg='red')
       exit(1)
 
 @cli.command(context_settings=dict(
