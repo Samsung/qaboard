@@ -62,14 +62,15 @@ class CommitNavbar extends React.Component {
     const local_milestones = project_data.milestones || {}
 
     const milestones_menu = <Menu>
-      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
+      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Select the reference branch</h6></li>
       <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
-      <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Compare to milestones from qatools.yaml" type="qatools" />
+      <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qatools.yaml" type="qatools" />
       {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
       <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} type="shared" />
-      <MilestonesMenu milestones={local_milestones} onSelect={this.selectMilestone} type="local" title="Compare to local milestones" />
-      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
-      <Menu.Item text="Remove reference" icon="delete" onClick={() => this.selectBranch(null)} />
+      <MilestonesMenu milestones={local_milestones} onSelect={this.selectMilestone} type="local" title="Select a local milestone" />
+      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Selection</h6></li>
+      <Menu.Item text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
+      <Menu.Item text="Remove" icon="delete" onClick={() => this.selectBranch(null)} />
     </Menu>
 
     return (
@@ -131,15 +132,27 @@ class CommitNavbar extends React.Component {
 
 
   selectBranch = branch => {
-    const { project, dispatch } = this.props;
-    dispatch(fetchCommit(project, null, "ref_commit_id", branch));
-    dispatch(updateSelected(project, { ref_commit_id: branch }))
+    const { project, type, dispatch } = this.props;
+    dispatch(fetchCommit(project, null, [`${type}_commit_id`], branch, /*update_selected=*/!!branch));
+    dispatch(updateSelected(project, { [`${type}_commit_id`]: branch }))
   };
   selectMilestone = milestone => {
-    const { project, dispatch } = this.props;
-    dispatch(fetchCommit(project, milestone.commit, "ref_commit_id", null)); // which branch?
-    dispatch(updateSelected(project, { ref_commit_id: milestone.commit, selected_batch_ref: milestone.batch }))
+    const { project, type, dispatch } = this.props;
+    dispatch(fetchCommit(project, milestone.commit, `${type}_commit_id`, null)); // which branch?
+    dispatch(updateSelected(project, { [`${type}_commit_id`]: milestone.commit, [`selected_batch_${type}`]: milestone.batch }))
   };
+  switchSelection = () => {
+    const { project, selected, type, dispatch } = this.props;
+    dispatch(updateSelected(project, {
+      new_commit_id: selected.ref_commit_id,
+      ref_commit_id: selected.new_commit_id,
+      selected_batch_new: selected.selected_batch_ref,
+      selected_batch_ref: selected.selected_batch_new,
+      filter_batch_new: selected.filter_batch_ref,
+      filter_batch_ref: selected.filter_batch_new,
+    }))
+
+  }
 
 }
 

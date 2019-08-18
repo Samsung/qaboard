@@ -24,7 +24,7 @@ def crud_milestones():
   data = request.get_json()
   # The body for HTTP DELETE requests can be dropped by proxies (eg uwsgi, nginx...)
   # so it's simpler to reuse the POST method...
-  if method=='DELETE' or data['delete']:
+  if method=='DELETE' or data.get('delete')=='true':
     milestones[data['key']] = data['milestone']
   else:
     milestones = project.data['milestones']
