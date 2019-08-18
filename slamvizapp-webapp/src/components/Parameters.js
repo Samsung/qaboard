@@ -23,8 +23,8 @@ class CommitParameters extends React.Component {
     this.state = {
       artifact: params.get("params_artifact") || 'configurations',
       manifests: {},
-      error: {},
       is_loaded: false,
+      error: {},
       cancel_source: {
         new: CancelToken.source(),
         reference: CancelToken.source(),
@@ -44,6 +44,7 @@ class CommitParameters extends React.Component {
 
   fetchData(props, label) {
     const { new_commit, ref_commit } = props;
+    // console.log(label, new_commit, ref_commit)
     if (new_commit === undefined || new_commit === null || new_commit.commit_dir_url === undefined || new_commit.commit_dir_url === null)
     	return;
 
@@ -70,7 +71,7 @@ class CommitParameters extends React.Component {
       }))
     }
     all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: this.state.cancel_source.token})
+      return () =>  get(url, {cancelToken: this.state.cancel_source[label].token})
                     .then(load_data(label))
                     .catch(response => {
                      load_data(label)(
