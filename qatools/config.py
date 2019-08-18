@@ -219,7 +219,10 @@ if is_ci:
         'CIRCLE_SHA1', # CircleCI
         'TRAVIS_COMMIT', # TravisCI
     )
-    commit_id = getenvs(commit_sha_variables, Path().resolve().name)
+    commit_id = getenvs(commit_sha_variables)
+    if repo and commit and commit_id:
+      commit = repo.commit(commit_id)
+
     branch_env_variables = (
         'CI_COMMIT_TAG', # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
@@ -227,18 +230,19 @@ if is_ci:
         'CIRCLE_BRANCH', # CircleCI
         'TRAVIS_BRANCH', # TravisCI
     )
-    commit_branch = getenvs(branch_env_variables, '').replace('origin/', '')
-    if repo and commit:
-      commit = repo.commit(commit_id)
+    commit_branch = getenvs(branch_env_variables)
+    if commit_branch:
+      commit_branch = commit_branch.replace('origin/', '')
 else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
     commit_type = 'local'
     commit_id = commit.hexsha if commit else f'<local:{user}>'
-    try:
-      commit_branch = repo.head.reference.name if repo else f'<local:{user}>'
-    except:
-      commit_branch = f'<local:{user}>'
+    if commit_branch:
+      try:
+        commit_branch = repo.head.reference.name if repo else f'<local:{user}>'
+      except:
+        commit_branch = f'<local:{user}>'
 try:
     branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
 except:
