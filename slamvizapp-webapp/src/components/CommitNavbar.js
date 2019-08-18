@@ -1,37 +1,24 @@
 import React from "react";
-import Moment from "react-moment";
 
-import { get, post } from "axios";
 import {
   Classes,
   Tag,
   Button,
   Intent,
   EditableText,
-  TextArea,
   Tooltip,
   Popover,
   FormGroup,
-  InputGroup,
   Menu,
-  Icon,
-  Colors,
-  Position,
-  H5,
-  Alert,
-  Toaster,
-  Switch,
 } from "@blueprintjs/core";
 
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
+import { MilestonesMenu, CommitMilestoneEditor } from "./milestones"
+import { shortId } from "../utils";
 
 import { fetchCommit } from "../actions/commit";
 import { updateSelected } from "../actions/selected";
-import { updateMilestones, fetchProjects } from "../actions/projects";
-import { shortId } from "../utils";
-
-const toaster = Toaster.create();
 
 
 class CommitMessage extends React.PureComponent {
@@ -63,24 +50,33 @@ class CommitBranchButton extends React.PureComponent {
 
 
 class CommitNavbar extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      db_milestones: {}, // instead of using project_data.data.milestones, which isn't triggers render when it is changes.
-    };
-  }
-
   render() {
-    const { project, project_data, commit, selected, label, dispatch } = this.props;
+    const { project, project_data, commit, selected, type, dispatch } = this.props;
     const qatools_config = (((project_data || {}).data || {}).qatools_config)
-    const qatools_milestones = (((qatools_config || {}).project || {}).milestones || [])
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
+
+    // in qatools.yaml users specify milestones as arrays, but here we handle them as a mapping...
+    const qatools_milestones_array = (((qatools_config || {}).project || {}).milestones || [])
+    const qatools_milestones = Object.fromEntries(qatools_milestones_array.entries())
+    const shared_milestones = ((project_data || {}).data || {}).milestones || {}
+    const local_milestones = project_data.milestones || {}
+
+    const milestones_menu = <Menu>
+      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
+      <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
+      <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Compare to milestones from qatools.yaml" type="qatools" />
+      {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
+      <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} type="shared" />
+      <MilestonesMenu milestones={local_milestones} onSelect={this.selectMilestone} type="local" title="Compare to local milestones" />
+      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
+      <Menu.Item text="Remove reference" icon="delete" onClick={() => this.selectBranch(null)} />
+    </Menu>
 
     return (
       <FormGroup style={{ marginTop: '45px' }}>
         <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
           <span style={{ display: 'flex' }}>
-            <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{label}</Tag>
+            <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{type}</Tag>
             <CommitAvatar size='20px' commit={commit} style={{ marginRight: '5px' }} />
             <CommitMessage
               project={project}
@@ -92,43 +88,28 @@ class CommitNavbar extends React.Component {
         </div>
         <div style={{ display: 'flex' }}>
 
-          <CommitMilestone commit={commit} project={project} project_data={project_data} db_milestones={this.state.db_milestones} update_db={this.handleDbChange} selected={selected} dispatch={dispatch} label={label} />
+          <CommitMilestoneEditor
+            project={project}
+            project_data={project_data}
+            commit={commit}
+            selected={selected}
+            type={type}
+            dispatch={dispatch}
+          />
 
           <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
             <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
               <EditableText
-                onConfirm={this.handleSubmit}
+                onConfirm={this.selectCommit}
                 minWidth={60}
                 placeholder='id'
                 key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
                 defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
               />
-              <Menu>
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to the reference branch</h6></li>
-                <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.handleSubmitBranch(reference_branch)} />
-
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to milestones</h6></li>
-                {qatools_milestones.map((m, idx) => <MilestoneMenu icon="crown" key={`qatools-${idx}`} milestone={m} selectMilestone={this.handleSubmitBranch} />)}
-                {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
-                {this.state.db_milestones && <>
-                  {(Object.values(this.state.db_milestones)
-                    .sort((m0, m1) => new Date(m1.date) - new Date(m0.date)) || [])
-                    .map((m, idx) => <MilestoneMenu icon="crown" key={`shared-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
-                </>}
-
-                {project_data.milestones && <>
-                  <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Compare to local milestones</h6></li>
-                  {(Object.values(project_data.milestones)
-                    .sort((m0, m1) => new Date(m1.date) - new Date(m0.date)) || [])
-                    .map((m, idx) => <MilestoneMenu key={`local-${idx}`} milestone={m} selectMilestone={this.handleSubmitBatch} />)}
-                </>}
-
-                <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Actions</h6></li>
-                <Menu.Item text="Remove reference" icon="delete" onClick={() => this.handleSubmitBranch(null)} />
-              </Menu>
+              {milestones_menu}
             </Popover>
           </span>
-          <CommitBranchButton commit={commit} onClick={this.handleSubmitBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
+          <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
           <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
           {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag><span>{commit.error}</span></Tooltip>}
@@ -138,9 +119,9 @@ class CommitNavbar extends React.Component {
   }
 
 
-  handleSubmit = id => {
-    const { project, label, selected, dispatch } = this.props;
-    const attribute = `${label}_commit_id`
+  selectCommit = id => {
+    const { project, type, selected, dispatch } = this.props;
+    const attribute = `${type}_commit_id`
     const commit_id = selected[attribute]
     if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id)) {
       dispatch(fetchCommit(project, id, attribute));
@@ -148,377 +129,17 @@ class CommitNavbar extends React.Component {
     }
   };
 
-  handleSubmitBranch = branch => {
-    const { project, dispatch } = this.props;
 
+  selectBranch = branch => {
+    const { project, dispatch } = this.props;
     dispatch(fetchCommit(project, null, "ref_commit_id", branch));
     dispatch(updateSelected(project, { ref_commit_id: branch }))
   };
-
-
-  handleSubmitBatch = milestone => {
+  selectMilestone = milestone => {
     const { project, dispatch } = this.props;
     dispatch(fetchCommit(project, milestone.commit, "ref_commit_id", null)); // which branch?
     dispatch(updateSelected(project, { ref_commit_id: milestone.commit, selected_batch_ref: milestone.batch }))
   };
-
-  handleDbChange = value => {
-    this.setState({ db_milestones: value });
-  }
-}
-
-
-const MilestoneMenu = ({ milestone, selectMilestone, icon }) => {
-  const has_notes = !!milestone.notes && milestone.notes.length > 0;
-  const text = <Tooltip position={Position.RIGHT}>
-    <p style={{ minWidth: "200px" }}>{milestone.label || milestone.commit || milestone}</p>
-    <>
-      <h5><code>{!!milestone.commit && milestone.commit.slice(0, 8)}</code> {milestone.batch !== 'default' && `@${milestone.batch}`}</h5>
-      <b><Moment fromNow date={milestone.date} /></b>
-      {has_notes && <div style={{ maxWidth: '600px' }}><pre>{milestone.notes}</pre></div>}
-    </>
-  </Tooltip >
-
-  return <Menu.Item
-    text={text}
-    icon={icon || "star"}
-    onClick={() => selectMilestone(milestone)}
-  />
-
-}
-///////////////////////////// CommitMilestone //////////////////////////////////
-
-class CommitMilestone extends React.PureComponent {
-  constructor(props) {
-    super(props);
-    this.state = {
-      current_label: '',
-      previous_label: '',
-      overwrite_shared_label: '',
-      notes: '',
-      shared_button_is_on: false,
-      // we ask for confirmation when users delete/overwrite a milestone
-      alert_remove: false,
-      alert_overwrite: false,
-
-    };
-  }
-
-  componentDidMount() {
-    this.getFromDB();
-  }
-
-  render() {
-    const { current_label, previous_label, overwrite_shared_label, notes, alert_remove, alert_overwrite, shared_button_is_on } = this.state;
-    const milestone_type = this.MilestoneType();
-    const icon = milestone_type === 'none' ? 'star-empty' : (milestone_type === 'shared' ? 'crown' : 'star');
-    const color = milestone_type === 'none' ? undefined : Colors.GOLD4;
-
-    const popover_body = < div >
-      <H5>Edit Milestone</H5>
-      <Switch
-        label='Shared'
-        checked={shared_button_is_on}
-        autoFocus
-        style={{ width: "200px" }}
-        onChange={this.toggleSharedButton}
-      />
-      <FormGroup inline label="Label" labelFor="text-input">
-        <InputGroup
-          id="text-input"
-          value={current_label}
-          autoFocus
-          style={{ width: "200px" }}
-          onChange={this.update('current_label')}
-          onFocus={(event) => event.target.select()}
-        />
-      </FormGroup>
-      <FormGroup
-        inline
-        label="Notes"
-        labelFor="text-input"
-      >
-        <TextArea onChange={this.update('notes')} value={notes} style={{ width: "200px" }} />
-      </FormGroup>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
-        {(milestone_type !== 'none') && <>
-          <Button
-            text="Remove"
-            onClick={this.handleRemoveOpen}
-            intent={Intent.DANGER}
-            style={{ marginRight: 50 }}
-          />
-          <Alert
-            Button className={Classes.POPOVER_DISMISS}
-            canEscapeKeyCancel
-            cancelButtonText="Cancel"
-            confirmButtonText="Remove"
-            icon="trash"
-            intent={Intent.DANGER}
-            isOpen={alert_remove}
-            onCancel={this.handleRemoveCancel}
-            onConfirm={this.handleRemoveConfirm}
-          >
-            <p>Are you sure you want to remove <b>{previous_label}</b>?</p>
-          </Alert>
-        </>}
-        <Button className={Classes.POPOVER_DISMISS} text={"Cancel"} style={{ marginRight: 10 }} />
-        <Button className={Classes.POPOVER_DISMISS} text={"Done"} intent={Intent.PRIMARY} onClick={this.handleOverwriteShared} />
-      </div>
-    </div >
-
-    return <>
-      <Popover
-        content={popover_body}
-        position={Position.RIGHT}
-        popoverClassName={Classes.POPOVER_CONTENT_SIZING} >
-        <Tooltip content={`${milestone_type !== 'none' ? "Edit" : "Create"} batch milestone`} position={Position.BOTTOM} intent={Intent.PRIMARY}>
-          <Button minimal style={{ marginRight: '5px' }} onClick={this.handleClick}>
-            <Icon icon={icon} color={color} />
-          </Button>
-        </Tooltip>
-      </Popover >
-      <Alert
-        className={Classes.POPOVER_DISMISS}
-        canEscapeKeyCancel
-        cancelButtonText="Cancel"
-        confirmButtonText="Confirm"
-        icon="warning-sign"
-        intent={Intent.PRIMARY}
-        isOpen={alert_overwrite}
-        onCancel={this.handleOverwriteCancel}
-        onConfirm={this.handleConfirm}
-      >
-        <p>Shared-Milestone already exist (<b>{overwrite_shared_label}</b>).</p><p>Would you like to replace it?</p>
-      </Alert>
-    </>
-  }
-
-  toggleSharedButton = () => {
-    this.setState(state => ({ shared_button_is_on: !state.shared_button_is_on }))
-  }
-
-  MilestoneType = () => {
-    const { commit, project, project_data, selected, label } = this.props;
-
-    if (commit) {
-      let batch = selected[`selected_batch_${label}`];
-      const key = `${project}/${commit.id}/${batch}`  // CONVENTION
-
-      // check local
-      if (project_data.milestones) {
-        let is_local = key in project_data.milestones;
-        if (is_local) return 'local';
-      }
-
-      // check shared
-      let is_shared = key in this.props.db_milestones;
-      if (is_shared) return 'shared';
-
-      // TODO: search in qa yaml?
-
-    }
-
-    return 'none'; // not a milestone
-  }
-
-  updateData = (type) => { // check local and shared
-
-    const { commit, project, project_data, selected, label } = this.props;
-    let batch = selected[`selected_batch_${label}`];
-    let matching_milestone = {}
-    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
-
-    switch (type) {
-      case 'none':
-        const batch_label = batch !== 'default' ? `/${batch}` : ''
-        const current_label = !!commit && (shortId(project, commit.id) + batch_label)
-        this.setState({
-          current_label,
-          notes: '',
-          shared_button_is_on: true,
-        })
-        break;
-
-      case 'local':
-        matching_milestone = project_data.milestones[key]
-        if (!!matching_milestone) { // this evaluation probably can be removed.
-          this.setState({
-            current_label: matching_milestone.label,
-            previous_label: matching_milestone.label,
-            notes: matching_milestone.notes,
-            shared_button_is_on: false,
-          })
-        }
-        break;
-
-      case 'shared':
-        matching_milestone = project_data.data.milestones[key];
-        if (!!matching_milestone) {
-          this.setState({
-            current_label: matching_milestone.label,
-            previous_label: matching_milestone.label,
-            notes: matching_milestone.notes,
-            shared_button_is_on: true,
-          })
-        }
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  handleClick = () => {
-    let milestone_type = this.MilestoneType();
-
-    // load info from local or shared or default label
-    this.updateData(milestone_type);
-  }
-
-  handleOverwriteShared = () => {
-    const { commit, project, selected, label } = this.props;
-
-    const batch = selected[`selected_batch_${label}`];
-    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
-
-    // check shared
-    let is_shared = key in this.props.db_milestones;
-    if (is_shared) {
-      this.setState({ alert_overwrite: true, overwrite_shared_label: this.props.db_milestones[key].label });
-    }
-    else this.handleConfirm();
-  }
-
-
-  handleConfirm = () => {
-    const { commit, dispatch, project, project_data, selected, label } = this.props;
-    const { shared_button_is_on } = this.state
-    const batch = selected[`selected_batch_${label}`];
-
-    // first remove if already exists
-    this.handleRemoveConfirm();
-
-    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
-    const new_milestone = {
-      label: this.state.current_label,
-      notes: this.state.notes,
-      commit: commit.id,
-      batch: batch,
-      date: new Date().toLocaleString(),
-    }
-
-    if (shared_button_is_on) { // save to share storage
-      this.saveToDB(key, new_milestone);
-    }
-    else { // save to local storage
-      const milestones = project_data.milestones || {};
-      milestones[key] = new_milestone;
-      dispatch(updateMilestones(project, milestones));
-      toaster.show({
-        message: <div><b>{this.state.current_label}</b> was saved!</div>,
-        intent: Intent.SUCCESS,
-        timeout: 5000
-      });
-    }
-  }
-
-
-  handleRemoveConfirm = () => {
-    const { dispatch, commit, project, project_data, selected, label } = this.props;
-    let milestone_type = this.MilestoneType();
-    let batch = selected[`selected_batch_${label}`];
-    const key = `${project}/${commit.id}/${batch}`  // CONVENTION
-
-    switch (milestone_type) {
-      case "local":
-        const milestones = project_data.milestones || [];
-        delete milestones[key];
-        dispatch(updateMilestones(project, milestones))
-
-        toaster.show({
-          message: <div><b>{this.state.previous_label}</b> was removed</div>,
-          intent: Intent.PRIMARY,
-          timeout: 4000
-        });
-        break;
-
-      case "shared":
-        this.removeFromDB(key);
-        break;
-
-      default: // case 'none'
-        return;
-    }
-
-    this.setState({
-      alert_remove: false,
-      alert_overwrite: false,
-    });
-  }
-
-
-  handleRemoveOpen = () => this.setState({ alert_remove: true });
-  handleRemoveCancel = () => this.setState({ alert_remove: false });
-  handleOverwriteCancel = () => this.setState({ alert_overwrite: false });
-  update = name => event => { this.setState({ [name]: event.target.value }) }
-
-
-  getFromDB = () => {
-    get("http://planet31:9002/api/v1/project/milestones/get",
-      { params: { project: this.props.project } }) // for DEBUG
-      .then(res => {
-        if (res.data !== "FAILED") {
-          this.props.update_db(res.data)
-        }
-      })
-      .catch(error => {
-        toaster.show({ message: `getFromDB ${error}`, intent: Intent.DANGER, timeout: 3000 });
-      })
-  }
-
-
-  saveToDB = (key, milestone) => {
-    const data = {
-      project: this.props.project,
-      key: key,
-      ...milestone,
-    };
-    post("http://planet31:9002/api/v1/project/milestones/save", data) // for DEBUG
-      .then(res => {
-        this.props.update_db(res.data);
-
-        toaster.show({
-          message: <div><b>{this.state.current_label}</b> was saved!</div>,
-          intent: Intent.SUCCESS,
-          timeout: 4500
-        });
-      })
-      .catch(error => {
-        toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
-      })
-  }
-
-
-  removeFromDB = (key) => {
-    const data = {
-      project: this.props.project,
-      key: key,
-    };
-    post("http://planet31:9002/api/v1/project/milestones/remove", data) // for DEBUG
-      .then(res => {
-        this.props.update_db(res.data);
-
-        toaster.show({
-          message: <div><b>{this.state.previous_label}</b> was removed</div>,
-          intent: Intent.PRIMARY,
-          timeout: 4000
-        });
-      })
-      .catch(error => {
-        toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
-      })
-  }
 
 }
 
