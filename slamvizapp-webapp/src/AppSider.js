@@ -218,8 +218,8 @@ class ProjectSideResults extends React.Component {
          }
        });
        let url = integration.href.startsWith('/') ? `https://qa${integration.href}`: integration.href
-       console.log(url)
-       axios.post('/api/v1/webhook/proxy/', {method: 'HEAD', url})
+       const { label, icon, text, href, style, ignore_failure, ...request } = integration;
+       axios.post('/api/v1/webhook/proxy/', {method: 'HEAD', url, ...request})
         .then(response => {
             // console.log(response)
             this.setState({
@@ -234,7 +234,12 @@ class ProjectSideResults extends React.Component {
             this.setState({
               integrations: {
                 ...this.state.integrations,
-                [integration.text]: {is_loaded: true, loading: false, error, statusText: error.response.statusText},
+                [integration.text]: {
+                  is_loaded: true,
+                  loading: false,
+                  error: !!ignore_failure ? null : error,
+                  statusText: error.response.statusText
+                },
               }
             });
           });
@@ -263,6 +268,7 @@ class ProjectSideResults extends React.Component {
     const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
     // const qatools_integrations = default_integrations;
     const qatools_integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+    // console.log(qatools_integrations)
 
     const qatools_config = commit_qatools_config || project_qatools_config || {};
     const disable_tuning = !!qatools_config.inputs && !!qatools_config.inputs.database && !!qatools_config.inputs.database.linux &&
@@ -294,6 +300,7 @@ class ProjectSideResults extends React.Component {
           qatools_integrations.map( (integration, idx) => {
             try {
             integration = recursively_apply(integration, s => fill_template(s, context))
+            // console.log(integration)
             } catch {
               // problem can happen when the project/commit data is not loaded yet... 
               // we should wait for everything to be loaded
