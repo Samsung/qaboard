@@ -238,11 +238,10 @@ else:
     # with git we could check if the repo is dirty though
     commit_type = 'local'
     commit_id = commit.hexsha if commit else f'<local:{user}>'
-    if commit_branch:
-      try:
-        commit_branch = repo.head.reference.name if repo else f'<local:{user}>'
-      except:
-        commit_branch = f'<local:{user}>'
+    try:
+      commit_branch = repo.head.reference.name if repo else f'<local:{user}>'
+    except:
+      commit_branch = f'<local:{user}>'
 try:
     branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
 except:
