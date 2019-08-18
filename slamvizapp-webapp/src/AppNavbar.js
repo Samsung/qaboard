@@ -180,7 +180,7 @@ class AppNavbar extends Component {
       return <>
         <StyledNavbarNew>
           <NavbarGroup style={{marginLeft: '20px'}}>
-            <CommitNavbar dispatch={dispatch} commit={new_commit} batch={new_batch_filtered} project={project} project_data={project_data} selected={selected} label="new"/>
+            <CommitNavbar dispatch={dispatch} commit={new_commit} batch={new_batch_filtered} project={project} project_data={project_data} selected={selected} type="new"/>
           </NavbarGroup>
 
           <NavbarGroup align="right">
@@ -222,7 +222,7 @@ class AppNavbar extends Component {
 
         {show_ref_navbar && <StyledNavbarRef>
           <NavbarGroup style={{marginLeft: '20px'}}>
-            <CommitNavbar dispatch={dispatch} commit={ref_commit} batch={ref_batch_filtered} project={project} project_data={project_data} selected={selected} label="ref"/>
+            <CommitNavbar dispatch={dispatch} commit={ref_commit} batch={ref_batch_filtered} project={project} project_data={project_data} selected={selected} type="ref"/>
           </NavbarGroup>
           <NavbarGroup align="right">
             <FormGroup
