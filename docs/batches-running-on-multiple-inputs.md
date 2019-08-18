@@ -48,17 +48,17 @@ To run on all the inputs found under `$database / $PATH` you can also use `qa ba
 basic-list-of-inputs
   # Those inputs will run with the project's default configuration,
   # or the one specified on the CLI with --configuration
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # configurations => ["the default config defined in qatools.yaml"]
 
 
 you-can-override-the-default-database:
-  database: 
+  database:
     linux: /net/f2/algo_archive/DVS_SLAM_Database
     windows: '\\\\netapp\\algo_archive\\DVS_SLAM_Database'
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 ```
@@ -77,7 +77,7 @@ You have **lots of options** to specify what configuration each input should run
 ```yaml
 you-can-override-the-default-configuration:
   configuration: base
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # configurations => ["input"]
@@ -87,7 +87,7 @@ configurations-can-be-arrays:
   configuration:
     - base
     - low-light
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # configurations => ["base", "low-light"]
@@ -101,7 +101,7 @@ configurations-can-be-arrays-of-objects:
       - "-w 9920"
       - "-h 2448"
       - "-it BAYER10"
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 # configurations => ["base", "low-light", {"cde": ["-DD"]}]
@@ -110,7 +110,7 @@ configurations-can-be-arrays-of-objects:
 each-input-can-have-its-own-configuration:
   configuration:
     - base
-  inputs
+  inputs:
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
     # configurations => ["base"]
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_3a:
@@ -161,7 +161,7 @@ you-can-also-give-an-LSF-configuration:
     threads: 1000
   configuration:
     - base
-  inputs
+  inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
 
@@ -171,7 +171,7 @@ you-can-also-give-an-LSF-configuration-per-input:
     memory: 1000
   configuration:
     - base
-  inputs
+  inputs:
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
     DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin:
       lsf:
@@ -218,7 +218,7 @@ hdr:
   configuration:
     - *base
     - hdr
-  inputs
+  inputs:
     - A
     - B
     - C
@@ -231,12 +231,12 @@ Sometimes you want to mix and match reusabe definitions of configs and inputs. Y
 ```yaml
 # You want to reuse those lists of inputs across all HDR inputs
 .inputs_hdr: &inputs_hdr
-  inputs
+  inputs:
     - A
     - B
 
 .lots_of_inputs_hdr: &lots_inputs_hdr
-  inputs
+  inputs:
     - A
     - B
     - C
