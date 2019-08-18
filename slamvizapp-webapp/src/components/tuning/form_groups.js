@@ -91,7 +91,7 @@ class AddRecordingsForm extends Component {
         this.setState({ submitted: false, dirty: true });
         toaster.show({
           message: `Something wrong happened ${JSON.stringify(error.response)}`,
-          intent: Intent.DANGER
+          intent: Intent.DANGER,
         });
       });
   };
