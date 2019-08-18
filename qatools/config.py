@@ -6,10 +6,9 @@ import sys
 from pathlib import Path, PurePosixPath
 
 import yaml
-import git
 import click
 
-from .utils import getenvs
+from .utils import getenvs, _Commit, _Repo
 from .conventions import slugify, get_commit_ci_dir
 
 # In case the qatools.yaml configuration has errors, we don't want to exit directly.
@@ -185,16 +184,9 @@ except KeyError:
 ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
 
 
-# Make the git metadata easily accessible
-try:
-    repo = git.Repo(os.environ.get('QATOOLS_REPO', str(root_qatools)))
-    commit = repo.head.commit
-except:
-    repo = None
-    commit = None
 
-
-
+repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
+is_in_git_repo = (repo_root / '.git').is_dir()
 
 # This flag identifies runs that happen within the CI or tuning experiments
 ci_env_variables = (
@@ -220,8 +212,6 @@ if is_ci:
         'TRAVIS_COMMIT', # TravisCI
     )
     commit_id = getenvs(commit_sha_variables)
-    if repo and commit and commit_id:
-      commit = repo.commit(commit_id)
 
     branch_env_variables = (
         'CI_COMMIT_TAG', # GitlabCI, only when building tags
@@ -237,11 +227,22 @@ else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
     commit_type = 'local'
-    commit_id = commit.hexsha if commit else f'<local:{user}>'
-    try:
-      commit_branch = repo.head.reference.name if repo else f'<local:{user}>'
-    except:
+    # using gitpython is very slow, so we read the git data directly
+    if not is_in_git_repo:
       commit_branch = f'<local:{user}>'
+    else:
+      with (repo_root / '.git' / 'HEAD').open() as f:
+        head_data = f.read().strip()
+        if head_data.startswith('ref: refs/heads/'):
+          commit_branch = head_data[16:]
+        else:
+          commit_branch = head_data
+        refs_head_path = repo_root / '.git' / 'refs' / 'heads' / commit_branch
+        if not refs_head_path.exists():
+          commit_id = commit_branch
+        else:
+          with refs_head_path.open() as f:
+            commit_id = f.read()
 try:
     branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
 except:
@@ -250,12 +251,9 @@ except:
 
 
 # This is where results should be saved
-if repo and commit:
-    commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit)
-    commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit_rootproject_ci_dir
-else:
-    commit_rootproject_ci_dir = Path()
-    commit_ci_dir = Path()
+commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit_id)
+commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit_rootproject_ci_dir
+
 # When running qatools from a folder in which we saved a commit's artifacts,
 # we don't have any information about the git commit we're looking at.
 # Because of this, the web application that starts tuning runs will tell qatools what to

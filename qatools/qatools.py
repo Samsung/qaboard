@@ -28,7 +28,7 @@ from .config import subproject, config, database, platform
 from .config import default_configuration, default_platform, default_groups_file, default_batch_label
 from .config import user, commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
 
-from .config import repo, is_ci, on_windows
+from .config import is_ci, on_windows
 
 
 
@@ -459,7 +459,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
     from .gitlab import update_gitlab_status
     if jobs and is_ci and (batch_label=='default' or 'QATOOLS_ALWAYS_UPDATE_GITLAB' in os.environ):
-      update_gitlab_status(commit, 'failed' if is_failed else 'success')
+      update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
     if is_failed:
       if is_ci:
@@ -473,7 +473,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 def save_artifacts(ctx):
   """Save the results at a standard location"""
   import filecmp
-  from qatools.config import qatools_config_paths
+  from qatools.config import is_in_git_repo, qatools_config_paths
   from .utils import copy, file_info, cased_path
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
@@ -489,7 +489,7 @@ def save_artifacts(ctx):
   config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
   config['artifacts']['__envrc'] = {"glob": '**.envrc'}
   if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
-  if not repo:
+  if not is_in_git_repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
           fg='yellow', dim=True)
@@ -605,12 +605,12 @@ def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    from .config import commit, commit_branch, repo, is_ci, ci_dir
+    from .config import is_in_git_repo, commit, commit_branch, repo, is_ci, ci_dir
     from .bit_accuracy import is_bit_accurate, lastest_successful_ci_commit
     from .conventions import get_commit_ci_dir
     from .utils import latest_commit
 
-    if not repo:
+    if not is_in_git_repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
       exit(1)
 

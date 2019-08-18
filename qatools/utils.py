@@ -208,10 +208,61 @@ def file_info(path, normalize_eof=True, config=None):
       md5.update(data)
   stats = os.stat(path)
   return {
-    # "st_mtime_ns": stats.st_mtime_ns,
     "st_size": stats.st_size,
     "md5": md5.hexdigest(),
   }
+
+
+
+
+class _Repo(object):
+  """Lazily wraps gitpython's Repo to avoid high import times and stay backward-compatible"""
+  def __init__(self, repo_root):
+    self.repo = None
+    self.repo_root = repo_root
+  def init(self):
+    import git
+    try:
+      self.repo = git.Repo(str(self.repo_root))
+    except:
+      self.repo = None
+  def __getattribute__(self, name):
+    if name in ['repo_root']:
+      return object.__getattribute__(self, name)
+    if not object.__getattribute__(self, 'repo'):
+      object.__getattribute__(self, 'init')()
+    repo = object.__getattribute__(self, 'repo')
+    if not repo:
+      raise ValueError(f"ERROR: Not a git rep {object.repo_root}")
+    return repo.__getattribute__(name)
+
+
+class _Commit(object):
+  """Lazily wraps gitpython's Commit to avoid high import times and stay backward-compatible"""
+  def __init__(self, repo, commit_id):
+    self.repo = repo
+    self.commit_id = commit_id
+    self.commit = None
+
+  def init(self):
+    if not self.commit_id:
+      self.commit = self.repo.commit(commit_id)
+    else:
+      self.commit =self.repo.head.commit
+
+  def __getattribute__(self, name):
+    if name in ['commit_id', 'repo']:
+      return object.__getattribute__(self, name)
+    if not object.__getattribute__(self, 'commit'):
+      object.__getattribute__(self, 'init')()
+    commit = object.__getattribute__(self, 'commit')
+    if not commit:
+      raise ValueError(f"ERROR: Could not init a GitPython Commit: {object.commit_id}")
+    return commit.__getattribute__(name)
+
+
+
+
 
 
 def latest_commit(repo, reference):

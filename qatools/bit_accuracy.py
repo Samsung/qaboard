@@ -201,7 +201,7 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
 
   wait_time = 15 # seconds
   while True:
-    statuses = ci_commit_statuses(commit, ref=commit_branch, name=failed_ci_job_name)
+    statuses = ci_commit_statuses(commit.hexsha, ref=commit_branch, name=failed_ci_job_name)
     # print(statuses)
 
     if statuses is None:

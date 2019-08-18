@@ -2,14 +2,31 @@
 The naming conventions about where qatools saves results.
 """
 import re
-from pathlib import Path
-import hashlib
-import yaml
 import json
+import hashlib
+import subprocess
+from pathlib import Path
+
+import yaml
+
 
 
 def get_commit_ci_dir(ci_dir, commit):
-  dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
+  # commit is either a gipython commit, or a commit hexsha
+  if isinstance(commit, str):
+    try:
+      p = subprocess.run(
+        ["git", "show", "-s", "--format='%at|%an|%H'"],
+        encoding='utf8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+      )
+      authored_date, author_name, commit_id = p.stdout.split('|')
+      dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
+    except:
+      return Path()    
+  else:
+    dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
   return ci_dir / 'commits' / dir_name
 
 

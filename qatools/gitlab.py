@@ -11,25 +11,25 @@ gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')
 
 
 
-def ci_commit_data(commit):
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit.hexsha}"
+def ci_commit_data(commit_id):
+  url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}"
   r = requests.get(url, headers=gitlab_headers)
   return r.json()
 
-def ci_commit_statuses(commit, **kwargs):
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit.hexsha}/statuses"
+def ci_commit_statuses(commit_id, **kwargs):
+  url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}/statuses"
   r = requests.get(url, headers=gitlab_headers, params=kwargs)
   return r.json()
 
 
 
-def update_gitlab_status(commit, state='success'):
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit.hexsha}"
+def update_gitlab_status(commit_id, state='success'):
+  url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
   name = f"QA {subproject.name}" if subproject else 'QA'
   params = {
     "state": state,
     "name": name,
-    "target_url": f"https://qa/{config['project']['name']}/commit/{commit.hexsha}",
+    "target_url": f"https://qa/{config['project']['name']}/commit/{commit_id}",
     "description": "CI results",
     # "ref": commit_branch,
   }
