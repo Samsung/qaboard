@@ -238,6 +238,7 @@ if not commit_id or not commit_branch:
         commit_branch = f'<local:{user}>'
       if not commit_id:
         commit_id = f'<local:{user}>'
+
     else:
       with (repo_root / '.git' / 'HEAD').open() as f:
         head_data = f.read().strip()
@@ -276,7 +277,12 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
 # Lazy-evaluated gitpython objects for convenience
 repo = _Repo(repo_root)
 commit = _Commit(repo, commit_id)
+# print(repo)
+# print(list(repo.iter_commits(rev='refs/remotes/origin/master')))
 
+# print(commit)
+# print(commit.committer.email)
+# print(commit.authored_datetime)
 
 from .conventions import serialize_config
 default_batch_label = 'default'
