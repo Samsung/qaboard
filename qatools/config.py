@@ -264,6 +264,12 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
 
 
 
+# gitpython objects for convenience
+repo = _Repo(repo_root)
+commit = _Commit(repo, commit_id)
+
+
+
 from .conventions import serialize_config
 default_batch_label = 'default'
 default_platform = platform
