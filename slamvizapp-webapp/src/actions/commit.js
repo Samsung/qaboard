@@ -24,7 +24,7 @@ export const fetchCommit = (project, id, used_for, branch, update_selected=true)
     })
 		// the API defaults to the latest commit on the reference branch, it is useful
     let use_default_reference_commit = !id
-    get(`/api/v1/commit${use_default_reference_commit ? "" : `/${id}`}`, { params: { project, branch } })
+    get(`/api/v1/commit${use_default_reference_commit ? "" : `/${id}`}`, { params: { project, branch, batch } })
       .then(response => {
         dispatch(updateCommit(project, response.data))
         // when we ask for the default reference commit we dont know the id yet
@@ -46,9 +46,16 @@ export const fetchCommit = (project, id, used_for, branch, update_selected=true)
             reference: id_,
           })
           let url = `${window.location.pathname}?${querystring}`;
-          // console.log(url)
           window.history.pushState({}, "", url)
         }
+         if (used_for === "new_commit_id" && window.location.pathname.includes('commit')) {
+          let pathname_parts = window.location.pathname.split('/')
+          pathname_parts[pathname_parts.length-1] = id_;
+          let pathname = pathname_parts.join('/')
+          window.history.pushState({}, "", `${pathname}${window.location.search}`)
+        }
+
+
 
       })
       .catch(error => {

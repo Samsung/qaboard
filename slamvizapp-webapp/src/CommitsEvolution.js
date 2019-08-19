@@ -331,7 +331,6 @@ class CommitsEvolutionPerTest extends React.Component {
                 (Object.values(c.batches[label].outputs || {})
                   .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
                   .filter(output_filter_)
-                  .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
                   .map(o => o.metrics[metric.key])
                   .filter(m => !(isNaN(m) || m === null || m === undefined))
                   .length > 0)
@@ -347,12 +346,13 @@ class CommitsEvolutionPerTest extends React.Component {
               )
               .filter(outputs => outputs.length > 0)
               .map(outputs => outputs[0].metrics)
-              .map(metrics =>
-                Math.min(
-                  100 * metric.target * metric.scale,
-                  metrics[metric.key] * metric.scale
-                )
-              );
+              .map(metrics => metrics[metric.key] * metric.scale)
+              // if target>0...
+              //  Math.min(
+              //    100 * metric.target * metric.scale,
+              //    metrics[metric.key] * metric.scale
+              //  )
+              //);
             // console.log(test_input_path, '@', configuration, values)
             const y0 = values[values.length - 1];
             const y = (relative && !!y0) ? values.map(v => 100 * v / y0) : values;
@@ -602,8 +602,8 @@ class CommitsEvolutionPerTest extends React.Component {
     } else {
       legend =  <p>
           {!!aggregation && <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-                      Results are to clamped to >20x KPIs. The performance for each commit
-                      may not be evaluated on the same tests.
+                      {/*Results are to clamped to >20x KPIs.*/}
+                      The performance for each commit may not be evaluated on the same tests.
           </span>}
           {!!!aggregation && <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
                       Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit. Click on a commit to freeze it as a reference.

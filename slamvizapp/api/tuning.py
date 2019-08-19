@@ -2,12 +2,13 @@
 APIs related to parameter tuning
 """
 import os
-import subprocess
-import json
 import sys
+import json
 import datetime
+import subprocess
 from pathlib import Path
 
+import yaml
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -28,7 +29,7 @@ def get_groups_path(project_id):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
-            f.write("""# Lots of examples here:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
+            f.write("""# Docs:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
     return path
 
 
@@ -41,10 +42,14 @@ def groups():
           It could be saved as test as project.data.test_groups
           We would *just* need to write the migration, and it would save 30 lines of code.
     """
-    project_id = request.args.get("project", "dvs/psp_swip")
+    project_id = request.args["project"]
     groups_path = get_groups_path(project_id)
     if request.method == "POST":
         data = request.get_json()
+        try:
+          yaml.load(data["groups"])
+        except Exception as e:
+          return jsonify(str(e)), 400        
         with groups_path.open("w") as f:
             f.write(data["groups"])
         return jsonify("OK")

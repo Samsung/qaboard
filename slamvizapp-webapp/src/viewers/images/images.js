@@ -1,5 +1,5 @@
 import React from "react";
-import { get } from "axios"
+import { get, CancelToken } from "axios"
 import {
   Colors,
   Tag,
@@ -85,6 +85,7 @@ class ImgViewer extends React.PureComponent {
       diff_threshold: 0.1,
       color: {},
       hide_labels: false,
+      cancel_source:  CancelToken.source(),
     }
   }
 
@@ -111,6 +112,8 @@ class ImgViewer extends React.PureComponent {
   }
 
   componentWillUnmount() {
+    if (!!this.state.cancel_source.token)
+      this.state.cancel_source.cancel();
     if (!!this.viewer_new) {
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
@@ -125,12 +128,14 @@ class ImgViewer extends React.PureComponent {
   }
 
 
-  Init() {
+  Init = () => {
     return new Promise((resolve, reject) => {
       const { path, output_new, output_ref } = this.props;
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
+      // console.log(`[Init] has_reference: ${has_reference}`)
+      // console.log('[Init] path: output_ref', output_ref)
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, {cancelToken: this.state.cancel_source.image}).then(res => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
         // image dimensions
@@ -169,6 +174,7 @@ class ImgViewer extends React.PureComponent {
         })
 
         if (has_reference) {
+          // console.log('[Init] loading meta for ref')
           viewer_ref.addTiledImage({
             tileSource: { ...source_config, "@id": iiif_url(output_ref.output_dir_url, path) },
             success: () => { },
@@ -182,17 +188,17 @@ class ImgViewer extends React.PureComponent {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    let updated_new =
-      prevProps.output_new !== undefined && prevProps.output_new !== null &&
-      (this.props.output_new === null || this.props.output_new === undefined ||
-        prevProps.output_new.id !== this.props.output_new.id);
-    let updated_ref =
-      prevProps.output_ref !== undefined && prevProps.output_ref !== null &&
-      (this.props.output_ref === null || this.props.output_ref === undefined ||
-        prevProps.output_ref.id !== this.props.output_ref.id);
+    const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
+    const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
+    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
+
     const has_path = this.props.path !== undefined && this.props.path !== null;
     let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
+
+    // console.log('updated_new', updated_new, 'updated_ref', updated_ref)
     if (updated_new || updated_ref || updated_path) {
+      // console.log('-> Init()')
       if (this.props.id === undefined)
         console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
       this.Init();
@@ -370,7 +376,7 @@ class ImgViewer extends React.PureComponent {
     const { output_new, output_ref, diff, label, path, id } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
-    let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
+    const has_reference = !!output_ref && !!output_ref.output_dir_url;
     if (!!error && Object.keys(error).length > 0)
       return <span />;
 
@@ -385,18 +391,18 @@ class ImgViewer extends React.PureComponent {
     const switch_label = <Tag rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     let images = [
       <div style={flex} key="new">
-        <Tooltip>
+        {has_reference && <Tooltip>
           {!hide_labels ? <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag> : switch_label}
           <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-        </Tooltip>
+        </Tooltip>}
         <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
       </div>,
       <div style={flex} key="ref">
-        <Tooltip>
+        {has_reference && <Tooltip>
           {!hide_labels ? <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag> : switch_label}
           <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-        </Tooltip>
-        <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={no_reference} />
+        </Tooltip>}
+        <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={!has_reference} />
       </div>
     ]
 
@@ -423,7 +429,7 @@ class ImgViewer extends React.PureComponent {
 
     return <>
 
-      {this.state.ready &&
+      {this.state.ready && has_reference &&
         <MultiSelectTags
           output_new={output_new}
           output_ref={output_ref}
@@ -451,7 +457,7 @@ class ImgViewer extends React.PureComponent {
 
         {images}
 
-        {single_image_height > 0 && <div hidden={!diff || no_reference} style={flex}>
+        {single_image_height > 0 && <div hidden={!diff || !has_reference} style={flex}>
           <Slider
             style={{ width: single_image_size.width }}
             min={0} max={1}
@@ -464,7 +470,7 @@ class ImgViewer extends React.PureComponent {
               this.setState({ diff_threshold }, () => this.update_diff())
             }}
           />
-          <canvas hidden={!diff || no_reference} ref={this.canvas_diff} {...single_image_size} />
+          <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} {...single_image_size} />
           <br />
           <Tooltip hoverCloseDelay={500}>
             <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>

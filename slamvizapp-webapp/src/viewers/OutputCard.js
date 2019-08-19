@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { InView } from 'react-intersection-observer'
-import { get, all, CancelToken } from "axios";
+import { get, all, CancelToken, isCancel } from "axios";
 import { matchPath } from 'react-router'
 import pathToRegexp from 'path-to-regexp'
 
@@ -123,7 +123,7 @@ class OutputCard extends React.Component {
         results.push(['reference', `${output_ref.output_dir_url}/manifest.outputs.json`])
     }
 
-    const load_data = label => (response, error) => {
+    const load_data = label => (response, thrown) => {
       this.setState((previous_state, props) => ({
         manifests: {
           ...previous_state.manifests,
@@ -131,19 +131,20 @@ class OutputCard extends React.Component {
         },
         error: {
           ...previous_state.error,
-          [label]: error,
+          [label]: thrown,
         }
       }))
     }
 
     all(results.map(([label, url]) => {
-      return () => get(url, { cancelToken: this.state.cancel_source.token })
+      return () => get(url, { cancelToken: this.state.cancel_source[label].token })
         .then(load_data(label))
-        .catch(response => {
-          load_data(label)(
-            { load_data: {} },
-            response,
-          )
+        .catch(thrown => {
+          if(!isCancel(thrown))
+            load_data(label)(
+              { load_data: {} },
+              thrown,
+            )
         });
     }).map(f => f()))
       // now we loaded and parsed all the data
@@ -173,14 +174,20 @@ class OutputCard extends React.Component {
     let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
     let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
     if (updated_new) {
-      if (!!this.state.cancel_source.new)
-        this.state.cancel_source.new.cancel();
+      if (!!this.state.cancel_source.new.token)
+        this.state.cancel_source.new.cancel("Changed new output");
       this.fetchData(this.props, 'new');
     }
     if (updated_ref) {
-      if (!!this.state.cancel_source.reference)
-        this.state.cancel_source.reference.cancel();
-      this.fetchData(this.props, 'reference');
+      if (!!this.state.cancel_source.reference.token) {
+        this.state.cancel_source.reference.cancel("Changed reference output");
+        this.setState({
+          cancel_source: {
+            ...this.state.cancel_source,
+           reference: CancelToken.source()
+          }
+        }, () => this.fetchData(this.props, 'reference'))
+      }
     }
   }
 
