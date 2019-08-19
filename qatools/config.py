@@ -234,8 +234,10 @@ else:
 if not commit_id or not commit_branch:
     # using gitpython is very slow, so we read the git data directly
     if not is_in_git_repo:
-      commit_branch = f'<local:{user}>'
-      commit_id = f'<local:{user}>'
+      if not commit_branch:
+        commit_branch = f'<local:{user}>'
+      if not commit_id:
+        commit_id = f'<local:{user}>'
     else:
       with (repo_root / '.git' / 'HEAD').open() as f:
         head_data = f.read().strip()
@@ -249,6 +251,7 @@ if not commit_id or not commit_branch:
         else:
           with refs_head_path.open() as f:
             commit_id = f.read()
+
 try:
     branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
 except:

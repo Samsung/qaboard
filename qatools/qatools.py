@@ -26,7 +26,7 @@ from .iterators import iter_inputs, iter_parameters
 from .config import config_has_error
 from .config import subproject, config, database, platform
 from .config import default_configuration, default_platform, default_groups_file, default_batch_label
-from .config import user, commit_id, commit_ci_dir, branch_ci_dir, root_qatools, commit_rootproject_ci_dir
+from .config import user, commit_id, commit_ci_dir, root_qatools, commit_rootproject_ci_dir
 
 from .config import is_ci, on_windows
 
