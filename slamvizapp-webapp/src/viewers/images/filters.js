@@ -1,6 +1,6 @@
 /* eslint-disable */
 // https://github.com/picturae/OpenSeadragonImageFilters/blob/master/src/imagefilters.js
-import {debounce} from "lodash"
+import { debounce } from "lodash"
 var OpenSeadragon = require('openseadragon')
 
 require('./filtering')
@@ -14,6 +14,7 @@ OpenSeadragon.Viewer.prototype.imagefilters = function (options) {
     if (!this.imageFilterInstance || options) {
         options = options || {};
         options.viewer = this;
+
         this.imageFilterInstance = new OpenSeadragon.ImagefilterTools(options);
     }
     return this.imageFilterInstance;
@@ -29,6 +30,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
     OpenSeadragon.extend(true, this, {
         // internal state properties
         viewer: null,
+        viewer_ref: null,
         buttonActiveImg: false,
 
         // options
@@ -228,7 +230,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             //add functionality to reset button
             resetButton.addEventListener('click', function () {
                 this.resetFilters();
-            }.bind(this), {passive: true});
+            }.bind(this), { passive: true });
             popup.appendChild(resetButton);
         }
     },
@@ -239,9 +241,9 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
     openTools: function () {
         var popup = OpenSeadragon.getElement('osd-imagetools');
         if (!popup) {
-          this.createPopupDiv();
-          this.updateFilters();            
-          popup = OpenSeadragon.getElement('osd-imagetools');
+            this.createPopupDiv();
+            this.updateFilters();
+            popup = OpenSeadragon.getElement('osd-imagetools');
         }
         toggleVisablity(popup);
     },
@@ -272,13 +274,13 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
         rangeInputElmt.addEventListener('input', function () {
             inputEvtHasNeverFired = false;
             this.updateFilters();
-        }.bind(this), {passive: true});
+        }.bind(this), { passive: true });
         //needed for older IE should we support it?
         rangeInputElmt.addEventListener('change', function () {
             if (inputEvtHasNeverFired) {
                 this.updateFilters();
             }
-        }.bind(this), {passive: true});
+        }.bind(this), { passive: true });
     }
 });
 
@@ -320,6 +322,12 @@ function updateFilters() {
     });
 
     this.viewer.setFilterOptions({
+        filters: {
+            processors: filters
+        },
+        loadMode: sync ? 'sync' : 'async'
+    });
+    this.viewer_ref.setFilterOptions({
         filters: {
             processors: filters
         },
