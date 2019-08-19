@@ -15,7 +15,7 @@ export const updateCommit = (project, commit, error) => ({
   error,
 })
 
-export const fetchCommit = (project, id, used_for, branch, batch) => {
+export const fetchCommit = (project, id, used_for, branch, update_selected=true) => {
   return dispatch => {
     dispatch({
       type: FETCH_COMMIT,
@@ -28,8 +28,9 @@ export const fetchCommit = (project, id, used_for, branch, batch) => {
       .then(response => {
         dispatch(updateCommit(project, response.data))
         // when we ask for the default reference commit we dont know the id yet
-        let id_ = response.data.id 
-        dispatch(updateSelected(project, { [used_for]: id_}) )
+        let id_ = response.data.id
+        if (update_selected)
+          dispatch(updateSelected(project, { [used_for]: id_}) )
         // we want to keep updated
         // we could use setInterval and update the reference but it makes the logic more complicated...
         // FIXME: don't update for old commits...

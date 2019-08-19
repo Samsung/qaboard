@@ -33,6 +33,7 @@ import slamvizapp.api.webhooks
 import slamvizapp.api.tuning
 import slamvizapp.api.export_to_folder
 import slamvizapp.api.auto_rois
+import slamvizapp.api.milestones
 import slamvizapp.admin
 
 # Enable cross-origin requests to avoid development headcaches  
