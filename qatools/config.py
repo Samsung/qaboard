@@ -184,9 +184,9 @@ except KeyError:
 ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
 
 
-
 repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
 is_in_git_repo = (repo_root / '.git').is_dir()
+
 
 # This flag identifies runs that happen within the CI or tuning experiments
 ci_env_variables = (
@@ -230,6 +230,7 @@ else:
     # using gitpython is very slow, so we read the git data directly
     if not is_in_git_repo:
       commit_branch = f'<local:{user}>'
+      commit_id = f'<local:{user}>'
     else:
       with (repo_root / '.git' / 'HEAD').open() as f:
         head_data = f.read().strip()
@@ -264,10 +265,9 @@ if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
 
 
 
-# gitpython objects for convenience
+# Lazy-evaluated gitpython objects for convenience
 repo = _Repo(repo_root)
 commit = _Commit(repo, commit_id)
-
 
 
 from .conventions import serialize_config
