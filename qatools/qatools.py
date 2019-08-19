@@ -487,7 +487,7 @@ def save_artifacts(ctx):
   config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
   config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
-  config['artifacts']['__envrc'] = {"glob": '**.envrc'}
+  config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
   if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
   if not is_in_git_repo:
       click.secho(
