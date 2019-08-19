@@ -206,7 +206,6 @@ if is_ci:
     # what commit and branch we're running on
     commit_sha_variables = (
         'CI_COMMIT_SHA', # GitlabCI
-        'gitlabBranch', # Jenkins gitlab plugin 
         'GIT_COMMIT', # Jenkins, git plugin
         'CIRCLE_SHA1', # CircleCI
         'TRAVIS_COMMIT', # TravisCI
@@ -217,6 +216,7 @@ if is_ci:
         'CI_COMMIT_TAG', # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
         'GIT_BRANCH', # Jenkins
+        'gitlabBranch', # Jenkins gitlab plugin 
         'CIRCLE_BRANCH', # CircleCI
         'TRAVIS_BRANCH', # TravisCI
     )
@@ -227,6 +227,11 @@ else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
     commit_type = 'local'
+    commit_branch = None
+    commit_id = None
+
+
+if not commit_id or not commit_branch:
     # using gitpython is very slow, so we read the git data directly
     if not is_in_git_repo:
       commit_branch = f'<local:{user}>'
