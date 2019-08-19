@@ -24,7 +24,7 @@ import { updateSelected } from "../actions/selected";
 class CommitMessage extends React.PureComponent {
   render() {
     const { commit } = this.props;
-    const style = { marginTop: "10px", whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...this.props.style }
+    const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...this.props.style }
     if (commit === undefined || commit === null || commit.message === undefined || commit.message === null || commit.message === '') {
       return <span className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`} style={style}>This is a placeholder for the commit message. Yep.</span>
     }
@@ -62,13 +62,13 @@ class CommitNavbar extends React.Component {
     const local_milestones = project_data.milestones || {}
 
     const milestones_menu = <Menu>
-      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Select the reference branch</h6></li>
+      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Select</h6></li>
       <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
       <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qatools.yaml" type="qatools" />
       {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
       <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} type="shared" />
       <MilestonesMenu milestones={local_milestones} onSelect={this.selectMilestone} type="local" title="Select a local milestone" />
-      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Selection</h6></li>
+      <Menu.Divider/>
       <Menu.Item text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
       <Menu.Item text="Remove" icon="delete" onClick={() => this.selectBranch(null)} />
     </Menu>
@@ -82,7 +82,7 @@ class CommitNavbar extends React.Component {
             <CommitMessage
               project={project}
               commit={commit}
-              style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto', alignSelf: 'center' }}
+              style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto' }}
               is_loaded={!!commit && commit.id && !this.props.commit.is_loaded}
             />
           </span>
@@ -142,7 +142,7 @@ class CommitNavbar extends React.Component {
     dispatch(updateSelected(project, { [`${type}_commit_id`]: milestone.commit, [`selected_batch_${type}`]: milestone.batch }))
   };
   switchSelection = () => {
-    const { project, selected, type, dispatch } = this.props;
+    const { project, selected, dispatch } = this.props;
     dispatch(updateSelected(project, {
       new_commit_id: selected.ref_commit_id,
       ref_commit_id: selected.new_commit_id,
