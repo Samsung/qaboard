@@ -18,7 +18,7 @@ def get_commit_ci_dir(ci_dir, commit):
   if isinstance(commit, str):
     try:
       p = subprocess.run(
-        ["git", "show", "-s", "--format='%at|%an|%H"],
+        ["git", "show", "-s", "--format=%at|%an|%H"],
         encoding='utf8',
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
