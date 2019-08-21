@@ -108,6 +108,8 @@ export const default_selected = () => {
 		filter_batch_new: params.get("filter") || "",
 		filter_batch_ref: params.get("filter_ref") || "",
 
+        // filter the list of commits / batches
+        search: params.get("search") || "",
 		// sort_order: params.get("sort_order") || "",
 		// sort_by: params.get("sort_by") || "",
 	}

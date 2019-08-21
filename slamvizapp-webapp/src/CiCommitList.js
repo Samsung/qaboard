@@ -17,7 +17,7 @@ import {
 import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
 import CommitsEvolution from "./CommitsEvolution";
-import { groupBy, calendarStrings } from "./utils";
+import { groupBy, calendarStrings, match_query } from "./utils";
 
 import { fetchCommits } from './actions/projects'
 import { default_date_range } from './defaults'
@@ -26,6 +26,7 @@ import {
 	projectDataSelector,
 	commitsDataSelector,
 	commitsSelector,
+  selectedSelector,
 } from './selectors/projects'
 
 
@@ -149,6 +150,11 @@ class CiCommitList extends React.Component {
 
 
 
+const commit_search = c => {
+  const batches = Object.keys(c.batches).join('|')
+  return `${c.committer_name} ${c.message} ${c.branch} ${batches}`
+}
+
 
 const mapStateToProps = (state, ownProps) => {
     let project = projectSelector(state)
@@ -163,12 +169,17 @@ const mapStateToProps = (state, ownProps) => {
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
 
+    let { search } = selectedSelector(state)
+    let matcher = match_query(search)
+    let commits_filtered = commits.filter(c => matcher(commit_search(c)))
+
     return {
       project,
       project_data,
+      search,
       aggregated_metrics,
       date_range: commits_data.date_range,
-      commits,
+      commits: commits_filtered,
       error: commits_data.error,
       is_loaded: commits_data.is_loaded,
       is_loading: commits_data.is_loading,
