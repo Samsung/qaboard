@@ -254,7 +254,7 @@ def add_batch(hexsha):
         [
             "#!/bin/bash\n",
             "set -xe\n\n",
-            'mkdir -p "{batch.output_dir}"\n',
+            f'mkdir -p "{batch.output_dir}"\n',
             f'bsub_su "{user}" -q "{queue}" ',
             '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
             f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
