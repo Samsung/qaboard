@@ -23,7 +23,7 @@ def get_commit_ci_dir(ci_dir, commit):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
       )
-      authored_date, author_name, commit_id = p.stdout.split('|')
+      authored_date, author_name, commit_id = p.stdout.strip().split('|')
       dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
     except:
       return Path()    
