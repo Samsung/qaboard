@@ -42,8 +42,9 @@ export const commitsSelector = createSelector([commitsDataSelector, state => sta
 
 export const commitSelector = createSelector([selectedSelector, state => state.commits, commitsDataSelector], (selected, commits, commits_data) => {
   return {
-  	new_commit: commits[selected.new_commit_id || commits_data.ids[0]],
-    ref_commit: commits[selected.ref_commit_id || commits_data.ids[1]],
+    // we use '' as a special nothing-should-be-selected value
+  	new_commit: selected.new_commit_id !== '' && commits[selected.new_commit_id || commits_data.ids[0]],
+    ref_commit: selected.ref_commit_id !== '' && commits[selected.ref_commit_id || commits_data.ids[1]],
   }
 })
 

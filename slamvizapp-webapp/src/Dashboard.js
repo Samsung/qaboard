@@ -63,12 +63,8 @@ class Dashboard extends React.Component {
     const extra_params = {
       only_ci_batches: true,
       with_outputs: true,
-    } 
+    }
     dispatch(fetchCommits(project, {...match.params}, default_date_range, aggregation_metrics, extra_params))
-    // if (params.get("commit_id"))
-    //   dispatch(fetchCommit(project, params.get("commit_id"), "new_commit_id"));
-    // if (params.get("ref_commit"))
-    //   dispatch(fetchCommit(project, params.get("ref_commit"), "ref_commit_id"));
   }
 
 

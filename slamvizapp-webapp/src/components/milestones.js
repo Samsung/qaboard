@@ -45,34 +45,33 @@ const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
 
 
 const MilestoneMenu = ({ milestone, onSelect, icon }) => {
-  const { commit: commit_id, batch, label, notes, date } = milestone;
+  const { commit: commit_id, batch, filter, label, notes, date } = milestone;
+  const has_filter = !!filter && filter.length > 0;
   const has_label = !!label && label.length > 0;
   const has_notes = !!notes && notes.length > 0;
   const has_batch = !!batch && milestone.batch !== 'default';
   return <Menu.Item
     text={<>
       {has_label && <>{label}<br/></>}
-      <Tooltip>
-        <span className={Classes.TEXT_MUTED}>set <Moment fromNow date={date} /></span>
-        <span>{date}</span>
-      </Tooltip>
+      {!!date && <span className={Classes.TEXT_MUTED} title={date}>set <Moment fromNow date={date} /></span>}      
     </>}
     icon={<Icon icon={icon || "star"} style={{color: Colors.GOLD4}} />}
     label={<>
-      {has_batch && <Tag minimal icon="layout-skew-grid">{!!milestone.batch && milestone.batch}</Tag>}
-      <Tag minimal icon="git-branch" style={{marginLeft: '5px'}}>{!!milestone.branch && milestone.branch}</Tag>
-      <Tag minimal icon="git-commit" style={{marginLeft: '5px'}}>{!!commit_id && commit_id.slice(0, 8)}</Tag>
-      {has_notes && <Tooltip>
+      {has_batch && <Tag minimal icon="layout-skew-grid">{batch}</Tag>}
+      {has_filter && <Tag minimal style={{marginLeft: '5px'}} icon="filter">{filter}</Tag>}
+      {!!milestone.branch && <Tag minimal icon="git-branch" style={{marginLeft: '5px'}}>{milestone.branch}</Tag>}
+      {!!commit_id && <Tag minimal icon="git-commit" style={{marginLeft: '5px'}}>{commit_id.slice(0, 8)}</Tag>}
+      {has_notes && <Tooltip position="right">
         <Tag icon="more" style={{marginLeft: '5px'}}/>
-        <span>{notes}</span>
+        <pre>{notes}</pre>
       </Tooltip>}
     </>}
-    onClick={() => onSelect(milestone)}
+    onClick={() => !!onSelect && onSelect(milestone)}
   />
 }
 
 
-const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${batch}`
+const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${(!!batch && batch.label) || 'default'}`
 
 
 
@@ -81,13 +80,14 @@ class CommitMilestoneEditor extends React.Component {
     super(props);
     this.state = {
       is_shared: false,
-      notes: '',
+      previous_milestone: {},
+      overwrite_milestone: {},
       // TODO: how exactly do we use current/previous?
       // FIXME: we should keep proper "milesone" objects for the current milestone
       //        do we even need the previous milestone?
-      current_label: '',
-      previous_label: '',
-      overwrite_shared_label: '',
+      date: new Date().toLocaleString(),
+      notes: '',
+      label: '',
       // we ask for confirmation when users delete/overwrite a milestone
       show_alert_remove: false,
       show_alert_overwrite: false,
@@ -97,10 +97,10 @@ class CommitMilestoneEditor extends React.Component {
   render() {
     const {
     	is_shared,
-    	current_label,
-    	previous_label,
+    	label,
+    	previous_milestone,
     	notes,
-    	overwrite_shared_label,
+    	overwrite_milestone,
     	show_alert_remove,
     	show_alert_overwrite,
     } = this.state;
@@ -113,21 +113,18 @@ class CommitMilestoneEditor extends React.Component {
       <Switch
         label='Shared'
         checked={is_shared}
-        autoFocus
         style={{ width: "200px" }}
         onChange={this.toggleSharedButton}
       />
-      <FormGroup inline label="Label" labelInfo="(optionnal)" labelFor="text-input">
+      <FormGroup inline label="Label" labelInfo="(optional)" labelFor="text-input">
         <InputGroup
           id="text-input"
-          value={current_label}
-          autoFocus
+          value={label}
           style={{ width: "200px" }}
           onChange={this.update('current_label')}
-          onFocus={event => event.target.select()}
         />
       </FormGroup>
-      <FormGroup inline label="Notes" labelFor="text-input" labelInfo="(optionnal)">
+      <FormGroup inline label="Notes" labelFor="text-input" labelInfo="(optional)">
         <TextArea onChange={this.update('notes')} value={notes} style={{ width: "200px" }} />
       </FormGroup>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
@@ -148,8 +145,9 @@ class CommitMilestoneEditor extends React.Component {
             isOpen={show_alert_remove}
             onCancel={() => this.setState({ show_alert_remove: false })}
             onConfirm={this.deleteMilestone}
+            style={{width: '1200px'}}
           >
-            <p>Are you sure you want to delete <b>{previous_label}</b>?</p>
+            <p>Are you sure you want to delete <Menu><MilestoneMenu milestone={previous_milestone}/></Menu> ?</p>
           </Alert>
         </>}
         <Button className={Classes.POPOVER_DISMISS} text="Save" intent={Intent.PRIMARY} onClick={this.saveMilestoneMaybeAskForConfirmation} />
@@ -179,26 +177,27 @@ class CommitMilestoneEditor extends React.Component {
         isOpen={show_alert_overwrite}
         onCancel={() => this.setState({ show_alert_overwrite: false })}
         onConfirm={this.saveMilestone}
+        style={{width: null, }}
       >
-        <p>A similar shared milestone already exist (<b>{overwrite_shared_label}</b>).</p><p>Would you like to overwrite it?</p>
+        <p>A similar shared milestone already exist: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</p>
+        <p>Would you like to overwrite it?</p>
       </Alert>
     </>
   }
 
 
   getMilestoneType = () => {
-    const { commit, project, project_data, selected, type } = this.props;
+    const { commit, project, project_data, batch } = this.props;
     if (commit === undefined || commit === null ||
     	  project=== undefined || project=== null  )
         return 'none'
-    let batch = selected[`selected_batch_${type}`];
     const key = milestone_key(project, commit, batch)
-    const local_milestones = project_data.milestones || {}
-    if (key in local_milestones)
-    	return 'local';
     const shared_milestones = ((project_data || {}).data || {}).milestones || {}
     if (key in shared_milestones)
-    	return 'shared';
+      return 'shared';
+    const private_milestones = project_data.milestones || {}
+    if (key in private_milestones)
+    	return 'private';
     return 'none';
   }
 
@@ -206,28 +205,29 @@ class CommitMilestoneEditor extends React.Component {
   // TODO: We really could do all that in ComponentDidMount/ComponentDidUpdate
   // it would allow us some fine handling of the label/notes, we should keep them without needing to save
   updateData = () => {
-    const { commit, project, project_data, selected, type } = this.props;
-    let batch = selected[`selected_batch_${type}`];
+    const { commit, project, project_data, batch } = this.props;
     const key = milestone_key(project, commit, batch)
 
     const milestone_type = this.getMilestoneType()
     if (milestone_type === 'none') {
       this.setState({
-        current_label: '',
+        date: new Date().toLocaleString(),
+        label: '',
         notes: '',
         is_shared: true,
       })      
     }
-    else if (milestone_type === 'local' || milestone_type === 'shared') {
-        const matching_milestone = project_data.milestones[key]
-        if (!!matching_milestone) { // likely safe even without this check
-          this.setState({
-            current_label: matching_milestone.label,
-            previous_label: matching_milestone.label,
-            notes: matching_milestone.notes,
-            is_shared: milestone_type === 'shared',
-          })
-        }
+    else if (milestone_type === 'private' || milestone_type === 'shared') {
+        const private_milestones = project_data.milestones || {};
+        const shared_milestones = ((project_data || {}).data || {}).milestones || {}
+        const milestones = milestone_type === 'private' ? private_milestones : shared_milestones
+        const matching_milestone = milestones[key]
+        this.setState({
+          previous_milestone: {...matching_milestone},
+          label: matching_milestone.label,
+          notes: matching_milestone.notes,
+          is_shared: milestone_type === 'shared',
+        })
     }
   }
 
@@ -236,17 +236,16 @@ class CommitMilestoneEditor extends React.Component {
       project: this.props.project,
       key,
       milestone,
-      "delete": should_delete,
+      "delete": should_delete ? 'true' : 'false',
     };
-    post("/api/v1/project/milestones", data)
+    post("/api/v1/project/milestones/", data)
       .then(res => {
-        this.props.update_db(res.data);
         toaster.show({
           message: !!should_delete ? 'Deleted' : 'Saved.',
           intent: Intent.PRIMARY,
           timeout: 4500,
         });
-        // Ccauses the projects data to update, and the new milestone to be visible
+        // Causes the projects data to update, and the new milestone to be visible
         this.props.dispatch(fetchProjects())
       })
       .catch(error => {
@@ -255,32 +254,33 @@ class CommitMilestoneEditor extends React.Component {
   }
 
   saveMilestone = () => {
-    // FIXME: can we avoid this? It really should happen only if a milestone switches between shared<=>local
+    // FIXME: can we avoid this? It really should happen only if a milestone switches between shared<=>private
     //        otherwise we can just update
-    // first remove if the milestone already exists
+
+    // TODO: we should first update then remove, or update in place...
+    // Remove if the milestone already exists
     this.deleteMilestone();
 
-    const { commit, dispatch, project, project_data, selected, type } = this.props;
-    const { current_label, label, notes, is_shared } = this.state
+    const { commit, dispatch, project, project_data, batch, filter } = this.props;
+    const { date, label, notes, is_shared } = this.state
 
-    const batch = selected[`selected_batch_${type}`];
     const milestone = {
-      label: current_label,
-      notes: notes,
+      label,
+      notes,
       commit: commit.id,
       branch: commit.branch,
-      batch,
-      // FIXME: we shouldn't update the date if it already exists.
-      date: new Date().toLocaleString(),
+      batch: batch.label,
+      filter,
+      date,
     }
 
     const key = milestone_key(project, commit, batch)
     if (is_shared)
       this.updateShared({key, milestone});
     else {
-      const local_milestones = project_data.milestones || {};
-      local_milestones[key] = milestone;
-      dispatch(updateMilestones(project, local_milestones));
+      const private_milestones = project_data.milestones || {};
+      private_milestones[key] = milestone;
+      dispatch(updateMilestones(project, private_milestones));
       toaster.show({
         message: "Saved",
         intent: Intent.SUCCESS,
@@ -290,22 +290,23 @@ class CommitMilestoneEditor extends React.Component {
   }
 
   saveMilestoneMaybeAskForConfirmation = () => {
-    const { commit, project, project_data, selected, label } = this.props;
-    const batch = selected[`selected_batch_${label}`];
+    const { commit, project, project_data, batch } = this.props;
     const key = milestone_key(project, commit, batch)
     const shared_milestones = ((project_data || {}).data || {}).milestones || {}
     if (key in shared_milestones)
-      this.setState({ show_alert_overwrite: true, overwrite_shared_label: shared_milestones[key].label });
+      this.setState({
+        show_alert_overwrite: true,
+        overwrite_milestone: shared_milestones[key],
+      });
     else
       this.saveMilestone();
   }
 
   deleteMilestone = () => {
-    const { dispatch, commit, project, project_data, selected, label } = this.props;
-    let batch = selected[`selected_batch_${label}`];
+    const { dispatch, commit, project, project_data, batch } = this.props;
     const key = milestone_key(project, commit, batch)
     switch (this.getMilestoneType()) {
-      case "local":
+      case "private":
         const milestones = project_data.milestones || [];
         delete milestones[key];
         dispatch(updateMilestones(project, milestones))

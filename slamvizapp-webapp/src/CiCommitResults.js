@@ -135,7 +135,8 @@ class CiCommitResults extends Component {
   }
 
   componentDidMount() {
-    document.title = this.props.new_commit_id.slice(0, 4);
+    if (!!this.props.new_commit_id)
+      document.title = this.props.new_commit_id.slice(0, 4);
     this.fetchCommits();
   }
 

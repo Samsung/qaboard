@@ -15,7 +15,7 @@ export const updateCommit = (project, commit, error) => ({
   error,
 })
 
-export const fetchCommit = (project, id, used_for, branch, update_selected=true) => {
+export const fetchCommit = (project, id, used_for, branch, batch, update_selected=true) => {
   return dispatch => {
     dispatch({
       type: FETCH_COMMIT,
@@ -33,10 +33,10 @@ export const fetchCommit = (project, id, used_for, branch, update_selected=true)
           dispatch(updateSelected(project, { [used_for]: id_}) )
         // we want to keep updated
         // we could use setInterval and update the reference but it makes the logic more complicated...
-        // FIXME: don't update for old commits...
-        // if (used_for === "new_commit_id")
+        // TODO: if not the one selected, stop updating...
+        // if (used_for === "new_commit_id") // why not both?
         //   setTimeout(
-        //     x => dispatch(fetchCommit(project, id_, used_for)),
+        //     x => dispatch(fetchCommit(project, id_, used_for, branch, batch, update_selected=false)),
         //     60 * 1000
         //   );
          if (used_for === "ref_commit_id") {
@@ -54,9 +54,6 @@ export const fetchCommit = (project, id, used_for, branch, update_selected=true)
           let pathname = pathname_parts.join('/')
           window.history.pushState({}, "", `${pathname}${window.location.search}`)
         }
-
-
-
       })
       .catch(error => {
       	if (error.response)
