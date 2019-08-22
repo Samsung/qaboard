@@ -54,6 +54,7 @@ const empty_output = { metrics: undefined, extra_parameters: {} };
 const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
+    8 * ((o.test_input_path !== output.test_input_path) | 0) +
     4 * ((o.configuration !== output.configuration) | 0) +
     2 * ((o.platform !== output.platform) | 0) +
     1 *
@@ -61,21 +62,19 @@ const matching_output = ({ output, batch }) => {
       JSON.stringify(output.extra_parameters)) |
       0);
 
-  // let soft_match = true;
   let matching_outputs = Object.values(batch.outputs || {})
     .filter(o => !o.is_pending)
-    .filter(o => o.test_input_path === output.test_input_path)
-    // .filter(o => o.platform===output.platform || soft_match)
-    // .filter(o => o.configuration===output.configuration || soft_match)
+    .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .sort((a, b) => match_score(a) - match_score(b));
-  // if (matching_outputs) console.log(matching_outputs)
+
   let output_ref = matching_outputs[0] || empty_output;
   let ref_match_score = match_score(output_ref);
   let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
 
   let warning = imperfect_match ? <div>
     <h3>Comparing to</h3>
+    {((ref_match_score & 8) === 8) && <p>{output_ref.test_input_path}</p>}
     {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configuration={output_ref.configuration} /></p>}
     {((ref_match_score & 2) === 2) && <p><PlatformTag inverted platform={output_ref.platform} /></p>}
     {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0

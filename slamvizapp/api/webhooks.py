@@ -152,7 +152,7 @@ def new_output_webhook():
   if not batch.data:
     batch.data = {}
   batch.data.update({"type": data['job_type']})
-  if 'input_metadata' in data:
+  if data.get('input_metadata'):
     test_input.data['metadata'] = data['input_metadata']
     flag_modified(test_input, "data")
 
