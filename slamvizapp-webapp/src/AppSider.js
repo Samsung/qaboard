@@ -102,7 +102,7 @@ class ProjectSideCommitList extends React.Component {
     const build_icon = <img alt="build status" src={`http://gitlab-srv/${project_repo}/badges/${tag}/build.svg`}/>;
     const coverage_icon = <img alt="coverage report" src={`http://gitlab-srv/${project_repo}/badges/${tag}/coverage.svg`} />
     // https://github.com/palantir/blueprint/blob/0c09726bdbbd4be4892c97e67363dc0e8caefb71/packages/core/src/components/menu/menuItem.tsx
-    // const dashboard = <Link to={`/${project}/dashboard/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
+    // const dashboard = <Link to={`/${project}/time-travel/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
     // <Menu.Item icon="series-search" text={dashboard}/>
 
     let subproject = project.slice(project_repo.length + 1);
