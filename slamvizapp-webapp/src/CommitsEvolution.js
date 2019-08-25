@@ -660,7 +660,7 @@ class CommitsEvolution extends Component {
   update = (attribute, attribute_url) => e => {
     const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     let query = qs.parse(window.location.search.substring(1));
-    this.setState({[attribute_url || attribute]: value,})
+    this.setState({[attribute]: value,})
     this.props.history.push({
       pathname: window.location.pathname,
       search: qs.stringify({

@@ -3,7 +3,6 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
-import qs from "qs";
 import axios from "axios";
 
 import {
@@ -156,14 +155,6 @@ class ProjectSideResults extends React.Component {
 
   set = (attribute, value) => e => {
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [attribute]: value,
-      })
-    });
   } 
 
   trigger = integration => e => {

@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import qs from "qs";
 import styled from "styled-components";
 import copy from 'copy-to-clipboard';
 
@@ -134,14 +133,6 @@ class AppNavbar extends Component {
   update = (attribute, attribute_url) => e => {
     const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [attribute_url || attribute]: value,
-      })
-    });
   }
 
   maybeFetchBranches = ({force_fetch}) => {
@@ -212,15 +203,16 @@ class AppNavbar extends Component {
               <InputGroup
                 value={filter_batch_new}
                 placeholder="filter new outputs"
-                onChange={this.update('filter_batch_new', 'filter')}
+                onChange={this.update('filter_batch_new')}
                 type="search"
                 leftIcon="filter"
+                
               />
             </FormGroup>
             <SelectBatchesNav
               commit={new_commit}
               selected={selected_batch_new}
-              onChange={this.update('selected_batch_new', 'batch')}
+              onChange={this.update('selected_batch_new')}
               prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
               hide_helper_text
               hide_counts
@@ -246,7 +238,7 @@ class AppNavbar extends Component {
               <InputGroup
                 value={filter_batch_ref}
                 placeholder="filter reference outputs"
-                onChange={this.update('filter_batch_ref', 'filter_ref')}
+                onChange={this.update('filter_batch_ref')}
                 type="search"
                 leftIcon="filter"
               />
@@ -254,7 +246,7 @@ class AppNavbar extends Component {
             <SelectBatchesNav
               commit={ref_commit}
               selected={selected_batch_ref}
-              onChange={this.update('selected_batch_ref', 'batch_ref')}
+              onChange={this.update('selected_batch_ref')}
               prefix={<Tag intent={Intent.WARNING}>Ref commit</Tag>}
               hide_helper_text
               hide_counts
@@ -359,7 +351,7 @@ class AppNavbar extends Component {
           <InputGroup
             value={this.props.filter_batch_new}
             placeholder="Path, configuration, platform, tag, tuning parameters (key:value)..."
-            onChange={this.update('filter_batch_new', 'filter')}
+            onChange={this.update('filter_batch_new')}
             type="search"
             leftIcon="filter"
             style={{width: '450px'}}

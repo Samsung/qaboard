@@ -1,5 +1,4 @@
 import { get } from "axios";
-import qs from "qs";
 
 import {
   UPDATE_COMMIT,
@@ -39,21 +38,6 @@ export const fetchCommit = (project, id, used_for, branch, batch, update_selecte
         //     x => dispatch(fetchCommit(project, id_, used_for, branch, batch, update_selected=false)),
         //     60 * 1000
         //   );
-         if (used_for === "ref_commit_id") {
-          let query = qs.parse(window.location.search.substring(1));
-          let querystring = qs.stringify({
-            ...query,
-            reference: id_,
-          })
-          let url = `${window.location.pathname}?${querystring}`;
-          window.history.pushState({}, "", url)
-        }
-         if (used_for === "new_commit_id" && window.location.pathname.includes('commit')) {
-          let pathname_parts = window.location.pathname.split('/')
-          pathname_parts[pathname_parts.length-1] = id_;
-          let pathname = pathname_parts.join('/')
-          window.history.pushState({}, "", `${pathname}${window.location.search}`)
-        }
       })
       .catch(error => {
       	if (error.response)
