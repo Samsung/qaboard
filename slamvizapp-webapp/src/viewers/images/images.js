@@ -341,8 +341,8 @@ class ImgViewer extends React.PureComponent {
 
   InitFilters() {
     const { viewer_new, viewer_ref } = this;
-    viewer_new.imagefilters({ viewer_ref: viewer_ref });
-    viewer_ref.imagefilters({ viewer_ref: viewer_new });
+    viewer_new.imagefilters({ viewer_synced: viewer_ref });
+    viewer_ref.imagefilters({ viewer_synced: viewer_new });
   }
 
   InitMouseTracker() {

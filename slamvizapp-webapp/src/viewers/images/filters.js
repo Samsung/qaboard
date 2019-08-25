@@ -30,7 +30,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
     OpenSeadragon.extend(true, this, {
         // internal state properties
         viewer: null,
-        viewer_ref: null,
+        viewer_synced: null,
         buttonActiveImg: false,
 
         // options
@@ -57,7 +57,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
                 max: 255,
                 callback: null,
                 processor: function () {
-                    var setTo = getElementValueAsFloat('osd-filter-brightness');
+                    var setTo = getElementValueAsFloat(`osd-filter-brightness-${options.viewer.id}`);
                     if (this.callback !== null) {
                         this.callback(setTo);
                     }
@@ -73,7 +73,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
                 step: 0.1,
                 callback: null,
                 processor: function () {
-                    var setTo = getElementValueAsFloat('osd-filter-contrast');
+                    var setTo = getElementValueAsFloat(`osd-filter-contrast-${options.viewer.id}`);
                     if (this.callback !== null) {
                         this.callback(setTo);
                     }
@@ -88,7 +88,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
             //     max: 100,
             //     sync: false,
             //     processor: function() {
-            //         var setTo = getElementValueAsFloat('osd-filter-saturation');
+            //         var setTo = getElementValueAsFloat(`osd-filter-saturation-${this.viewer.id}`);
             //         this.current = setTo;
             //         return function (context, callback) {
             //             caman(context.canvas, function () {
@@ -166,7 +166,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
      */
     createPopupDiv: function () {
         //check if tools popup exists and if not create based on filters
-        var popup = OpenSeadragon.getElement('osd-imagetools');
+        var popup = OpenSeadragon.getElement(`osd-imagetools-${this.viewer.id}`);
         if (!popup) {
 
             //alway render toolpopup center LEFT if nothing is provided
@@ -180,7 +180,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             var popupLeft = this.toolsLeft || 10;
 
             popup = document.createElement('div');
-            popup.id = 'osd-imagetools';
+            popup.id = `osd-imagetools-${this.viewer.id}`;
             if (this.popUpClass) {
                 popup.class = this.popUpClass;
             } else {
@@ -207,7 +207,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 filterElement.max = filter.max;
                 filterElement.step = filter.step || 1;
                 filterElement.value = filter.value || 0;
-                filterElement.id = 'osd-filter-' + filter.filterName;
+                filterElement.id = `osd-filter-${filter.filterName}-${this.viewer.id}`;
 
                 //add event to slider
                 this.onRangeChange(filterElement);
@@ -239,11 +239,11 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
      * Open the tools popup
      */
     openTools: function () {
-        var popup = OpenSeadragon.getElement('osd-imagetools');
+        var popup = OpenSeadragon.getElement(`osd-imagetools-${this.viewer.id}`);
         if (!popup) {
             this.createPopupDiv();
             this.updateFilters();
-            popup = OpenSeadragon.getElement('osd-imagetools');
+            popup = OpenSeadragon.getElement(`osd-imagetools-${this.viewer.id}`);
         }
         toggleVisablity(popup);
     },
@@ -258,7 +258,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
      */
     resetFilters: function () {
         this.filters.map(function (filter) {
-            var filterInput = OpenSeadragon.getElement('osd-filter-' + filter.filterName);
+            var filterInput = OpenSeadragon.getElement(`osd-filter-${filter.filterName}-${this.viewer.id}`);
             filterInput.value = filter.defaultValue || 0;
         });
         this.updateFilters();
@@ -327,7 +327,7 @@ function updateFilters() {
         },
         loadMode: sync ? 'sync' : 'async'
     });
-    this.viewer_ref.setFilterOptions({
+    this.viewer_synced.setFilterOptions({
         filters: {
             processors: filters
         },
