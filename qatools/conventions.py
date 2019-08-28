@@ -66,7 +66,13 @@ def deserialize_config(configuration):
         configurations.append(json.loads(configuration_part))
         configuration_part = ''
       except:
-        pass
+        # it's not perfect, we should deal with quoting...
+        # for now let's say using "{" or "}" is discouraged as part of config strings
+        if configuration_part.count('{') == configuration_part.count('}'):
+          configurations.append(configuration_part)
+          configuration_part = ''
+        else:
+          pass
   # print("[deserialize] after: ", configurations)
   return configurations
 
