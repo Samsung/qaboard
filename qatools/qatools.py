@@ -226,7 +226,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       manifest_input = Path(manifest_input)
       if manifest_input.is_dir():
         input_files.update({path.as_posix(): file_info(path) for path in manifest_input.rglob('*') if path.is_file()})
-      else:
+      elif manifest_input.is_file():
         input_files.update({manifest_input.as_posix(): file_info(manifest_input)})
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
