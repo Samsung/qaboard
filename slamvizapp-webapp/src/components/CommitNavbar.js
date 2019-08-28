@@ -143,13 +143,17 @@ class CommitNavbar extends React.Component {
   selectMilestone = milestone => {
     const { project, type, dispatch, batch } = this.props;
     dispatch(fetchCommit(project, milestone.commit, `${type}_commit_id`)); // which branch?
-    dispatch(updateSelected(project, { [`${type}_commit_id`]: milestone.commit, [`selected_batch_${type}`]: milestone.batch }))
+    dispatch(updateSelected(project, {
+      [`${type}_commit_id`]: milestone.commit,
+      [`selected_batch_${type}`]: milestone.batch
+      [`filter_batch_${type}`]: milestone.filter,
+    }))
   };
 
 
   copyToOtherType = () => {
     const { project, selected, type, dispatch } = this.props;
-    const other_type = type === 'new' ? 'reference' : 'new';
+    const other_type = type === 'new' ? 'ref' : 'new';
     dispatch(updateSelected(project, {    
       [`${other_type}_commit_id`]: selected[`${type}_commit_id`],
       [`selected_batch_${other_type}`]: selected[`selected_batch_${type}`],
