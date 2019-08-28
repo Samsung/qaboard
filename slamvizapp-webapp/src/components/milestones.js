@@ -121,7 +121,7 @@ class CommitMilestoneEditor extends React.Component {
           id="text-input"
           value={label}
           style={{ width: "200px" }}
-          onChange={this.update('current_label')}
+          onChange={this.update('label')}
         />
       </FormGroup>
       <FormGroup inline label="Notes" labelFor="text-input" labelInfo="(optional)">
