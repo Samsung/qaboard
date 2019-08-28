@@ -16,27 +16,31 @@ const attribute_mappings = {
 }
 
 export const updateSelected = (project, selected) => {
-  // Update the URL path and query
-  var pathname = window.location.pathname; 
-  if (!!selected.new_commit_id && selected.new_commit_id !== '' && window.location.pathname.includes('commit')) {
-    let pathname_parts = window.location.pathname.split('/')
-    pathname_parts[pathname_parts.length-1] = selected.new_commit_id;
-    pathname = pathname_parts.join('/')
-  }
+  if (!!selected) {
+    // Update the URL path and query
+    var pathname = window.location.pathname; 
+    if (!!selected && !!selected.new_commit_id && selected.new_commit_id !== '' && window.location.pathname.includes('commit')) {
+      let pathname_parts = window.location.pathname.split('/')
+      pathname_parts[pathname_parts.length-1] = selected.new_commit_id;
+      pathname = pathname_parts.join('/')
+    }
 
-  let selected_in_url = {};
-  Object.entries(selected).forEach( ([key, value]) => {
-      selected_in_url[attribute_mappings[key] || key] = value
-  })
-  let search = qs.parse(window.location.search.substring(1));
-  history.push({
-    pathname,
-    search: qs.stringify({
-      ...search,
-      ...selected_in_url, 
+    let selected_in_url = {};
+    Object.entries(selected).forEach( ([key, value]) => {
+        selected_in_url[attribute_mappings[key] || key] = value
     })
-  })
+    // if set, already part of the URL path
+    selected_in_url.new_commit_id = undefined;
 
+    let search = qs.parse(window.location.search.substring(1));
+    history.push({
+      pathname,
+      search: qs.stringify({
+        ...search,
+        ...selected_in_url, 
+      })
+    })
+  }
   return {
     type: UPDATE_SELECTED,
     project,
