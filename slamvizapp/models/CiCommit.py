@@ -93,8 +93,8 @@ class CiCommit(Base):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override
-      return f'/s/{relative_path}' 
-    return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
+      return f'/s{relative_path}' 
+    return f"/s{self.commit_dir}".replace("/home/arthurf/ci", "")
 
 
   @property
@@ -102,8 +102,8 @@ class CiCommit(Base):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override
-      return f'/s/{relative_path}' 
-    return f"/s/{self.repo_commit_dir}"
+      return f'/s{relative_path}' 
+    return f"/s{self.repo_commit_dir}"
 
 
 
