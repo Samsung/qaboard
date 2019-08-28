@@ -12,7 +12,7 @@ import yaml
 
 
 def get_commit_ci_dir(ci_dir, commit):
-  if not commit:
+  if not commit or not ci_dir:
     return Path()
   # commit is either a gipython commit, or a commit hexsha
   if isinstance(commit, str):
