@@ -41,7 +41,7 @@ def check_for_updates():
 
   qatools_config_dir = config_home / 'qatools'
   if not qatools_config_dir.exists():
-    qatools_config_dir.mkdir(parents=True)
+    qatools_config_dir.mkdir(parents=True, exist_ok=True)
 
   # We cache the latest version found 
   qatools_latest_update = qatools_config_dir / 'latest-version'
