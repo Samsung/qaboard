@@ -98,6 +98,9 @@ class Job:
     queue = self.lsf_config.queue if not interactive else self.lsf_config.fast_queue
     q_command = " ".join(
       [
+        # When running without a TTY (usually under su/sudo)
+        # LSF fails to write to stdout and sends mails instead...
+        "LSB_JOB_REPORT_MAIL=N" if interactive else "",
         "bsub",
         # only necessary if we send the job through ssh
         # f'-cwd "{os.getcwd()}"',
