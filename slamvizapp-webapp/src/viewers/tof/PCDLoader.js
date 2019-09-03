@@ -320,12 +320,10 @@ PCDLoader.prototype = {
 			this.mesh_output = false;
 		}
 		
-//		console.log(w); console.log(h);
 		if (this.mesh_output){
 			var DATA_STRIDE = 3;
 			var i = 0;
 			for (var y = 0; y < h-1 ; y++){
-//				i += DATA_STRIDE;
 				for ( var x = 0; x < w-1; x++, i += DATA_STRIDE ){
 				var rightIndex = i + DATA_STRIDE;
 				var downIndex = i + w * DATA_STRIDE;
@@ -350,17 +348,16 @@ PCDLoader.prototype = {
 					}
 					
 				}
+				i += DATA_STRIDE;
 			}
-			//console.log(position)
-			//console.log(indices)
-			//console.log(color);
+			
 			if ( indices.length > 0 ) {
 				geometry.setIndex( indices );
 			}
 			geometry.computeVertexNormals();
 			// build material
 
-			var material = new THREE.MeshStandardMaterial( { color: 0xffffff, flatShading: true } );
+			var material = new THREE.MeshStandardMaterial( { color: 0xffffff, flatShading: false } );
 			//var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
 
 			if ( color.length > 0 ) {
