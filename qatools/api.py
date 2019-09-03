@@ -103,7 +103,7 @@ def notify_qa_database(object_type='output', **kwargs):
     try:
       return r.json()
     except:
-      print(f"WARNING: can't read the response!: {r.text}")
+      click.secho(f"WARNING: can't understand the server response: {r.text}", fg='yellow', err=True)
   except:
     click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
     click.secho(url, fg='yellow', err=True)
