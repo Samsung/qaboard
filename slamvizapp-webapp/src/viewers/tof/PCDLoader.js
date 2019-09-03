@@ -26,6 +26,8 @@ PCDLoader.prototype = {
 	
 	use_intensity: false,
 	flip_xy: true,
+	mesh_output: false,
+	triangle_thresh: 5.0, // maximum distance to connect points
 
 	load: function ( url, onLoad, onProgress, onError ) {
 
@@ -163,6 +165,7 @@ PCDLoader.prototype = {
 		var position = [];
 		var normal = [];
 		var color = [];
+		var indices = [];
 
 		// ascii
 
@@ -295,26 +298,105 @@ PCDLoader.prototype = {
 		if ( position.length > 0 ) geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( position, 3 ) );
 		if ( normal.length > 0 ) geometry.addAttribute( 'normal', new THREE.Float32BufferAttribute( normal, 3 ) );
 		if ( color.length > 0 ) geometry.addAttribute( 'color', new THREE.Float32BufferAttribute( color, 3 ) );
-
+		
 		geometry.computeBoundingSphere();
 
-		// build material
+		var w = PCDheader.width;
+		var h = PCDheader.height;
+		if ( h == null && w == null){
+			if (PCDheader.points === 307200){
+				h = 480;
+				w = 640;
+			}
+			else if (PCDheader.points === 311696){
+				h = 484;
+				w = 644;
+			}
+			else {
+				this.mesh_output = false;
+			}
+		}
+		if (h*w != PCDheader.points){
+			this.mesh_output = false;
+		}
+		
+		if (this.mesh_output){
+			var DATA_STRIDE = 3;
+			var i = 0;
+			for (var y = 0; y < h-1 ; y++){
+				for ( var x = 0; x < w-1; x++, i += DATA_STRIDE ){
+				var rightIndex = i + DATA_STRIDE;
+				var downIndex = i + w * DATA_STRIDE;
+				var downRightIndex = i + DATA_STRIDE + w * DATA_STRIDE;
+				var currZ      = position[i + 2];
+				var rightZ     = position[rightIndex + 2];
+				var downZ      = position[downIndex + 2];
+				var downRightZ = position[downRightIndex + 2];
 
-		var material = new THREE.PointsMaterial( { size: 1 } );
 
-		if ( color.length > 0 ) {
+				var upperLeftValid = ((Math.abs(currZ - rightZ) <= this.triangle_thresh) &&
+									  (Math.abs(rightZ - downZ) <= this.triangle_thresh) &&
+									  (Math.abs(downZ - currZ) <= this.triangle_thresh));
+				if (upperLeftValid){
+						indices.push( downIndex / DATA_STRIDE, rightIndex / DATA_STRIDE, i / DATA_STRIDE  );
+					}
+					var bottomRightValid = ((Math.abs(downZ - rightZ) <= this.triangle_thresh) &&
+											(Math.abs(rightZ - downRightZ) <= this.triangle_thresh) &&
+											(Math.abs(downRightZ - downZ) <= this.triangle_thresh));
+					if (bottomRightValid){
+						indices.push( downIndex / DATA_STRIDE, downRightIndex / DATA_STRIDE , rightIndex / DATA_STRIDE );
+					}
+					
+				}
+				i += DATA_STRIDE;
+			}
+			
+			if ( indices.length > 0 ) {
+				geometry.setIndex( indices );
+			}
+			geometry.computeVertexNormals();
+			// build material
 
-			material.vertexColors = true;
+			var material = new THREE.MeshStandardMaterial( { color: 0xffffff, flatShading: false } );
+			//var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
 
-		} else {
+			if ( color.length > 0 ) {
 
-			material.color.setHex( Math.random() * 0xffffff );
+				material.vertexColors = true;
 
+			} else {
+
+				material.color.setHex( Math.random() * 0xffffff );
+
+			}
+
+			// build mesh
+
+			var mesh = new THREE.Mesh( geometry, material );
+			mesh.castShadow = false;
+			mesh.receiveShadow = false;
+		}
+		else {
+			// build material
+
+			var material = new THREE.PointsMaterial( { size: 1 } );
+
+			if ( color.length > 0 ) {
+
+				material.vertexColors = true;
+
+			} else {
+
+				material.color.setHex( Math.random() * 0xffffff );
+
+			}
+
+			// build mesh
+
+			var mesh = new THREE.Points( geometry, material );
 		}
 
-		// build mesh
-
-		var mesh = new THREE.Points( geometry, material );
+		
 		var name = url.split( '' ).reverse().join( '' );
 		name = /([^\/]*)/.exec( name );
 		name = name[ 1 ].split( '' ).reverse().join( '' );

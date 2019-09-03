@@ -125,6 +125,10 @@ class TofOutputCard extends Component {
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
       custom_output_filename: "[custom filename].hex",
+      mesh_output: true,
+      mesh_thresh: "5.0",
+      use_intensity: false,
+      pcd_flip_xy: true,
       depth : default_heatmap, // make a deep copy...
       z     : JSON.parse(JSON.stringify(default_heatmap)),
       intensity     : JSON.parse(JSON.stringify(default_heatmap)),
@@ -174,7 +178,7 @@ class TofOutputCard extends Component {
     let outputs_changed = prevProps.output_new !== this.props.output_new || prevProps.output_ref !== this.props.output_ref;
     if (outputs_changed)
         this.updateFrames(this.props, /*keep_selected_frame=*/prevProps.output_new.test_input_path === this.props.output_new.test_input_path)
-    const { selected_output_type } = this.state;
+    const { selected_output_type, selected_frame } = this.state;
     const heatmaps = this.state[selected_output_type] || {}
     const heatmap = heatmaps[this.state.selected_frame] || {is_loading: false, is_loaded: false};
     let should_load_heatmap = !heatmap.is_loaded && !heatmap.is_loading;
@@ -183,6 +187,21 @@ class TofOutputCard extends Component {
         if (selected_output_type === 'customMap')
             should_load_heatmap = true;
         this.setState({customMap: JSON.parse(JSON.stringify(default_heatmap)) } );
+    }
+    if (this.state.show_pointcloud){
+      if ( prevState.mesh_output !== this.state.mesh_output)
+      {
+        //this.closePointCloud(); // this unsets show_pointcloud so don't do that
+        this.renderer.forceContextLoss(); // needed for switch from PCD to Mesh
+        this.startPointCloud();
+        this.updatePointCloud(selected_frame);
+      }
+      else if (this.state.mesh_output && prevState.mesh_thresh !== this.state.mesh_thresh
+        || this.state.use_intensity != prevState.use_intensity
+        || this.state.pcd_flip_xy != prevState.pcd_flip_xy){
+        this.updatePointCloud(selected_frame);
+      } 
+      
     }
     if (this.state.show_heatmap && (should_load_heatmap || outputs_changed) )
         this.getHeatmapData(this.props);
@@ -277,9 +296,15 @@ class TofOutputCard extends Component {
     });
   }
   
-  getPointcloud(frame_id, label, use_intensity) {
+  getPointcloud(frame_id, label) {
     var loader = new PCDLoader();
-	loader.use_intensity = use_intensity;
+    let { mesh_thresh, use_intensity, mesh_output, pcd_flip_xy } = this.state;
+    console.log('use_intensity: '); console.log(use_intensity);
+    loader.use_intensity = use_intensity;
+    loader.mesh_output   = mesh_output;
+    loader.flip_xy       = pcd_flip_xy;
+    loader.triangle_thresh = parseFloat(mesh_thresh);
+
     if (label === "new") {
       var pointcloud_dir = this.props.output_new.output_dir_url;
     } else if (label === "reference") {
@@ -365,9 +390,41 @@ class TofOutputCard extends Component {
     }
   } 
 
+  addShadowedLight( x, y, z, color, intensity ) {
+
+    var directionalLight = new THREE.DirectionalLight( color, intensity );
+    directionalLight.position.set( x, y, z );
+    this.scene.add( directionalLight );
+
+    directionalLight.castShadow = true;
+
+    var d = 1;
+    directionalLight.shadow.camera.left = - d;
+    directionalLight.shadow.camera.right = d;
+    directionalLight.shadow.camera.top = d;
+    directionalLight.shadow.camera.bottom = - d;
+
+    directionalLight.shadow.camera.near = 1;
+    directionalLight.shadow.camera.far = 4;
+
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+
+    directionalLight.shadow.bias = - 0.001;
+
+  }
+
   startPointCloud() {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, aspect_ratio, 0.1, 1000);
+    let {mesh_output} = this.state;
+    if (mesh_output){
+      //this.scene.add( new THREE.HemisphereLight( 0x443333, 0x111122 ) );
+      this.scene.add( new THREE.HemisphereLight( 0xffffff, 0xffffff, 2.5 ) );
+      this.addShadowedLight( 1, -250, -200, 0xffffff, 0.25 );
+      this.addShadowedLight( 0.5, 100,  -400, 0xffffff, 0.25 );
+    }
+
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true
@@ -388,21 +445,21 @@ class TofOutputCard extends Component {
     if (!this.frameId) this.frameId = requestAnimationFrame(this.animate);
   }
 
-  updatePointCloud(selected_frame, use_intensity) {
+  updatePointCloud(selected_frame) {
     if (!this.state.show_pointcloud) {
-      this.setState({show_pointcloud: true})
-      this.startPointCloud()
+      this.setState({show_pointcloud: true});
+      this.startPointCloud();
     }
-    this.getPointcloud(selected_frame, "new", use_intensity);
-    this.getPointcloud(selected_frame, "reference", use_intensity);
-    this.getPointcloud(selected_frame, "groundtruth", use_intensity);
+    this.getPointcloud(selected_frame, "new");
+    this.getPointcloud(selected_frame, "reference");
+    this.getPointcloud(selected_frame, "groundtruth");
     this.setState({selected_frame});
   }
   
   closePointCloud() {
     console.log("killing context");
     // this.renderer.dispose();
-	this.renderer.forceContextLoss();
+	  this.renderer.forceContextLoss();
     this.setState({show_pointcloud: false});
   }
 
@@ -448,7 +505,7 @@ class TofOutputCard extends Component {
 
   render() {
     const { output_new, output_ref } = this.props;
-    const { selected_frame, frames, first_frame_id, last_frame_id, custom_output_filename } = this.state;
+    const { selected_frame, frames, first_frame_id, last_frame_id, custom_output_filename, mesh_output, mesh_thresh, use_intensity, pcd_flip_xy } = this.state;
     const { show_pointcloud, pointclouds, selected_output_type } = this.state;
     let is_loaded = !!pointclouds[selected_frame] && !!pointclouds[selected_frame].is_loaded;
 
@@ -587,20 +644,16 @@ class TofOutputCard extends Component {
           <div>
             <Button onClick={e => {
               if (!show_pointcloud)
-                this.updatePointCloud(selected_frame, false)
+                this.updatePointCloud(selected_frame)
               else
-                this.closePointCloud() //this.setState({show_pointcloud: false})                
+                this.closePointCloud()
             }}>
               {!show_pointcloud ? "Show Point Cloud"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
             </Button>
-			<Button onClick={e => {
-              if (!show_pointcloud)
-                this.updatePointCloud(selected_frame, true)
-              else
-                this.closePointCloud() //this.setState({show_pointcloud: false})                
-            }}>
-              {!show_pointcloud ? "Show Point Cloud (Intensity)"  : (!is_loaded ? "loading..." : "Hide point Cloud")}
-            </Button>
+            &nbsp; <input type="checkbox" id="use_intensity" checked={use_intensity} onChange={e=> { this.setState({use_intensity: e.target.checked}) }}></input> Use Intensity
+            &nbsp; <input type="checkbox" id="mesh_output" checked={mesh_output} onChange={e=> { this.setState({mesh_output: e.target.checked}) }}></input> Mesh
+            &nbsp; <input type="text" id="mesh_thresh" value={`${mesh_thresh}`} onChange={e=> { this.setState({mesh_thresh: e.target.value})  } }></input> Mesh Thresh
+            &nbsp; <input type="checkbox" id="flip_xy" checked={pcd_flip_xy} onChange={e=> { this.setState({pcd_flip_xy: e.target.checked}) }}></input> Flip XY
           </div>
         </div>
       </>
