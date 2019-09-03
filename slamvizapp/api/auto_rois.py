@@ -41,7 +41,8 @@ def get_images():
   
   # print(blobs)
   # print(len(blobs))
-  blobs = list(reversed(blobs))
+  # blobs = list(reversed(blobs))
+  blobs.sort(key=lambda y, x, r: r, reverse=True)
 
   return jsonify(blobs)
 
