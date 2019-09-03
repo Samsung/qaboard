@@ -125,7 +125,7 @@ class TofOutputCard extends Component {
       // the heatmap can display different sorts of data
       selected_output_type: "depth",
       custom_output_filename: "[custom filename].hex",
-      mesh_output: false,
+      mesh_output: true,
       mesh_thresh: "5.0",
       use_intensity: false,
       pcd_flip_xy: true,
@@ -420,9 +420,9 @@ class TofOutputCard extends Component {
     let {mesh_output} = this.state;
     if (mesh_output){
       //this.scene.add( new THREE.HemisphereLight( 0x443333, 0x111122 ) );
-      this.scene.add( new THREE.HemisphereLight( 0xffffff, 0xffffff ) );
-      this.addShadowedLight( 1, -250, -200, 0xffffff, 1.35 );
-      this.addShadowedLight( 0.5, 100,  -400, 0xffffff, 1.5 );
+      this.scene.add( new THREE.HemisphereLight( 0xffffff, 0xffffff, 2.5 ) );
+      this.addShadowedLight( 1, -250, -200, 0xffffff, 0.25 );
+      this.addShadowedLight( 0.5, 100,  -400, 0xffffff, 0.25 );
     }
 
     this.renderer = new THREE.WebGLRenderer({
