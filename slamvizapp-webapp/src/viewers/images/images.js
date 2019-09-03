@@ -1,22 +1,21 @@
 import React from "react";
-import { get } from "axios"
+import { get, CancelToken } from "axios"
 import {
   Colors,
+  Intent,
   Tag,
-  Slider,
   Icon,
   Tooltip,
-  Divider,
-  Button,
-  Intent
+  MultiSlider,
 } from "@blueprintjs/core";
-import pixelmatch from 'pixelmatch';
+import pixelmatch from './pixelmatch';
 import Plot from 'react-plotly.js';
 
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
-import { Crops, CropSelection } from "./crops";
+import { CropSelection } from "./crops";
+import MultiSelectTags from './MultiselectCrops'
 
 var OpenSeadragon = require('openseadragon')
 require('./rgb')
@@ -54,6 +53,7 @@ const openseadragon_config = {
   crossOriginPolicy: 'Anonymous',
   ajaxWithCredentials: false,
 
+  // debugMode: true,
   // constrainDuringPan: false,
 }
 
@@ -77,16 +77,17 @@ const iiif_url = (output_dir_url, path) => {
 class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
-    this.show_selection_tools = false;
+    this.show_histogram = false;
     this.canvas_diff = React.createRef();
     this.state = {
       ready: false,
       first_image: "new",
       width: parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, '')),
       height: 217, // default 4/3 ratio
-      diff_threshold: 0.1,
+      diff_threshold: 0.05,
       color: {},
       hide_labels: false,
+      cancel_source: CancelToken.source(),
     }
   }
 
@@ -113,6 +114,8 @@ class ImgViewer extends React.PureComponent {
   }
 
   componentWillUnmount() {
+    if (!!this.state.cancel_source.token)
+      this.state.cancel_source.cancel();
     if (!!this.viewer_new) {
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
@@ -127,12 +130,14 @@ class ImgViewer extends React.PureComponent {
   }
 
 
-  Init() {
+  Init = () => {
     return new Promise((resolve, reject) => {
       const { path, output_new, output_ref } = this.props;
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
+      // console.log(`[Init] has_reference: ${has_reference}`)
+      // console.log('[Init] path: output_ref', output_ref)
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`).then(res => {
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image }).then(res => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
         // image dimensions
@@ -171,6 +176,7 @@ class ImgViewer extends React.PureComponent {
         })
 
         if (has_reference) {
+          // console.log('[Init] loading meta for ref')
           viewer_ref.addTiledImage({
             tileSource: { ...source_config, "@id": iiif_url(output_ref.output_dir_url, path) },
             success: () => { },
@@ -184,17 +190,17 @@ class ImgViewer extends React.PureComponent {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    let updated_new =
-      prevProps.output_new !== undefined && prevProps.output_new !== null &&
-      (this.props.output_new === null || this.props.output_new === undefined ||
-        prevProps.output_new.id !== this.props.output_new.id);
-    let updated_ref =
-      prevProps.output_ref !== undefined && prevProps.output_ref !== null &&
-      (this.props.output_ref === null || this.props.output_ref === undefined ||
-        prevProps.output_ref.id !== this.props.output_ref.id);
+    const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
+    const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
+    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
+
     const has_path = this.props.path !== undefined && this.props.path !== null;
     let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
+
+    // console.log('updated_new', updated_new, 'updated_ref', updated_ref)
     if (updated_new || updated_ref || updated_path) {
+      // console.log('-> Init()')
       if (this.props.id === undefined)
         console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
       this.Init();
@@ -208,14 +214,40 @@ class ImgViewer extends React.PureComponent {
 
   update_diff = () => {
     const { viewer_new, viewer_ref } = this;
-    let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-    let data_new = viewer_new.drawer.context.getImageData(0, 0, size.x, size.y);
-    let data_ref = viewer_ref.drawer.context.getImageData(0, 0, size.x, size.y);
+
+    let { width=1, height=1 } = viewer_new.drawer.canvas;
+    // let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, 1+width/2, 1+height/2);
+    let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
+    let data_ref = viewer_ref.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
+
+    // console.log("width-height:", width, height)
+    // let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
+    // console.log("size:", size.x, size.y)
+    // console.log(viewer_new)
+    // let data_new = viewer_new.drawer.context.getImageData(0, 0, size.x, size.y);
+    // let data_ref = viewer_ref.drawer.context.getImageData(0, 0, size.x, size.y);
+    // console.log(data_new)
+
     var canvas_diff_element = this.canvas_diff.current;
     if (!!canvas_diff_element) {
-      var diff_data = canvas_diff_element.getContext("2d").createImageData(size.x, size.y);
-      pixelmatch(data_new.data, data_ref.data, diff_data.data, size.x, size.y, { threshold: this.state.diff_threshold, includeAA: true });
+      canvas_diff_element.style.cssText = viewer_new.drawer.canvas.style.cssText
+      canvas_diff_element.width = width
+      canvas_diff_element.height = height
+
+      let div_diff = canvas_diff_element.parentNode
+      div_diff.style.cssText = viewer_new.drawer.canvas.parentNode.style.cssText
+
+      let div2_diff = div_diff.parentNode
+      div2_diff.style.cssText = viewer_new.drawer.canvas.parentNode.parentNode.style.cssText
+
+      var diff_data = canvas_diff_element.getContext("2d").createImageData(width, height);
+      pixelmatch(data_new.data, data_ref.data, diff_data.data, width, height, {
+        colorScale: true,
+        threshold: this.state.diff_threshold,
+        includeAA: true,
+      });
       canvas_diff_element.getContext("2d").putImageData(diff_data, 0, 0);
+      // canvas_diff_element.getContext("2d").putImageData(data_new, 0, 0);
     }
   }
 
@@ -225,6 +257,33 @@ class ImgViewer extends React.PureComponent {
     const { viewer_new, viewer_ref } = this;
     const { diff } = this.props;
     if (diff) {
+      const redirectEvent = eventType => {
+        this.canvas_diff.current.addEventListener(eventType, function (event) {
+          viewer_new.drawer.canvas.dispatchEvent(new event.constructor(event.type, event));
+          event.preventDefault();
+          event.stopPropagation();
+        });
+      }
+      redirectEvent('click');
+      redirectEvent('dblclick');
+      redirectEvent('keyup');
+      redirectEvent('keydown');
+      redirectEvent('keypress');
+
+      redirectEvent('mousedown');
+      redirectEvent('mouseup');
+
+      redirectEvent('focus');
+      redirectEvent('blur');
+      redirectEvent('wheel');
+
+      redirectEvent('pointercancel');
+      redirectEvent('pointerdown');
+      redirectEvent('pointermove');
+      redirectEvent('pointerover');
+      redirectEvent('pointerout');
+      redirectEvent('pointerup');
+
       viewer_new.addOnceHandler('update-viewport', this.update_diff, {}, 3);
       viewer_ref.addOnceHandler('update-viewport', this.update_diff, {}, 3);
       viewer_new.addHandler('animation-finish', this.update_diff);
@@ -234,7 +293,7 @@ class ImgViewer extends React.PureComponent {
 
 
   update_histogram = () => {
-    if (!this.show_selection_tools)
+    if (!this.show_histogram)
       return
     this.histo_new = histogram_traces(this.viewer_new, this.canvasCoords, 'new')
     let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
@@ -250,7 +309,7 @@ class ImgViewer extends React.PureComponent {
       onSelection: rect => { console.log(rect) },
 
       onSelectionChange: ({ canvasCoords, imageCoords }) => {
-        this.show_selection_tools = true;
+        this.show_histogram = true;
         this.canvasCoords = canvasCoords;
         this.imageCoords = imageCoords;
         this.update_histogram();
@@ -262,8 +321,8 @@ class ImgViewer extends React.PureComponent {
 
     this.selection = viewer_new.selection(selection_options);
     viewer_new.addHandler('update-viewport', this.update_histogram);
-    viewer_new.addHandler('selection_cancel', () => { this.show_selection_tools = false; });
-    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_selection_tools = enabled; this.update_histogram(); });
+    viewer_new.addHandler('selection_cancel', () => { this.show_histogram = false; });
+    viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_histogram = enabled; this.update_histogram(); });
   }
 
 
@@ -337,8 +396,8 @@ class ImgViewer extends React.PureComponent {
 
   InitFilters() {
     const { viewer_new, viewer_ref } = this;
-    viewer_new.imagefilters({});
-    viewer_ref.imagefilters({});
+    viewer_new.imagefilters({ viewer_synced: viewer_ref });
+    viewer_ref.imagefilters({ viewer_synced: viewer_new });
   }
 
   InitMouseTracker() {
@@ -372,7 +431,7 @@ class ImgViewer extends React.PureComponent {
     const { output_new, output_ref, diff, label, path, id } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
-    let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
+    const has_reference = !!output_ref && !!output_ref.output_dir_url;
     if (!!error && Object.keys(error).length > 0)
       return <span />;
 
@@ -383,38 +442,41 @@ class ImgViewer extends React.PureComponent {
       width: `${single_image_width}px`,
       height: `${single_image_height}px`,
     }
-
-    const switch_label = <Tag rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
-    let images = [
-      <div style={flex} key="new">
-        <Tooltip>
-          {!hide_labels ? <Tag interactive intent="warning" rightIcon="exchange" onClick={this.switch_images}>new</Tag> : switch_label}
-          <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-        </Tooltip>
-        <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
-      </div>,
-      <div style={flex} key="ref">
-        <Tooltip>
-          {!hide_labels ? <Tag interactive intent="primary" rightIcon="exchange" onClick={this.switch_images}>reference</Tag> : switch_label}
-          <span>Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <code>h</code></span>
-        </Tooltip>
-        <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={no_reference} />
-      </div>
-    ]
-
-    let colors = [
-      <ColorTooltip color={this.state.color_new} key="new" />,
-      <ColorTooltip color={this.state.color_ref} key="reference" />,
-    ]
-
-    if (first_image === 'reference') {
-      images = images.reverse();
-      colors = colors.reverse();
+    const single_image_size_tight = {
+      width: `${single_image_width * 0.9}px`,
+      height: `${single_image_height * 0.9}px`,
     }
 
+    const switch_label = <Tag interactive rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
+    const switch_help_label = <span>Switch New/Reference with the keyboard shortcut <kbd>t</kbd>. Hide labels with <kbd>h</kbd></span>
+    const image_new =  <div style={flex} key="new">
+      {has_reference && <div style={{minHeight: (diff ? '40px' : undefined)}}>
+        {!hide_labels ? <Tooltip><Tag
+                          interactive
+                          intent="warning"
+                          rightIcon="exchange"
+                          onClick={this.switch_images}
+                        >new</Tag>{switch_help_label}</Tooltip> : switch_label}
+      </div>}
+      <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
+    </div>
+    const image_ref = <div style={flex} key="ref">
+      {has_reference && <div style={{minHeight: (diff ? '40px' : undefined)}}>
+        {!hide_labels ? <Tooltip><Tag
+                          interactive
+                          intent="primary"
+                          rightIcon="exchange"
+                          title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
+                          onClick={this.switch_images}
+                        >reference</Tag>{switch_help_label}</Tooltip> : switch_label}
+      </div>}
+      <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={!has_reference} />
+    </div>
+
+
     const histo_layout = {
-      width: single_image_width,
-      height: single_image_height,
+      width: single_image_width * 0.9,
+      height: single_image_height * 0.9,
       autosize: false,
       traceorder: 'reversed+grouped',
       barmode: 'overlay',
@@ -422,11 +484,58 @@ class ImgViewer extends React.PureComponent {
         tickformat: '.1%',
       }
     }
+    const hist_info = this.show_histogram ? <div style={flex}>
+          <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size_tight} />
+    </div> : <></>
+
+    const diff_info = single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
+          <div style={{minHeight:'40px'}}>
+            <MultiSlider
+              defaultTrackIntent={Intent.WARNING}
+              labelPrecision={2}
+              labelRenderer={label => `${(100*label).toFixed(0)}%`}
+              labelStepSize={0.1}
+              min={0}
+              max={0.3}
+              onChange={([diff_threshold]) => {
+                this.setState({ diff_threshold }, () => this.update_diff())
+              }}
+              stepSize={0.01}
+              showTrackFill
+              style={{ width: single_image_size.width }}            
+            >
+                <MultiSlider.Handle value={this.state.diff_threshold} intentAfter={Intent.NONE} />
+            </MultiSlider>
+          </div>
+          <div style={single_image_size}>
+            <div><div>
+              <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
+            </div></div>
+          </div>
+          <br />
+          <Tooltip hoverCloseDelay={500}>
+            <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
+            <ul>
+              <li>The color difference is computed according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>
+              <li>The colorscale shows the color difference ~linearly until selected saturation threshold.</li>
+              <li>Until 5% of the threshold, a greyed-out source image is shown</li>
+              <li>Anti-aliased pixels are shown as yellow at most.</li>
+            </ul>
+          </Tooltip>
+    </div> : <></>
+
+    const empty_image = <canvas key="empty-image" {...single_image_size} />
 
     return <>
-
-
-      {this.state.ready && <Crops viewer={this.viewer_new} output_new={output_new} />}
+      {this.state.ready && has_reference &&
+        <MultiSelectTags
+          output_new={output_new}
+          output_ref={output_ref}
+          viewer_new={this.viewer_new}
+          viewer_ref={this.viewer_ref}
+          path={path}
+          qatools_config={this.props.qatools_config}
+        />}
       <span>
         <Tooltip>
           <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
@@ -436,53 +545,37 @@ class ImgViewer extends React.PureComponent {
           </ul>
         </Tooltip>
         <CoordTooltip color={this.state.color_new} />
-        {this.show_selection_tools && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
-        {colors}
+        {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
+        <ColorTooltip color={first_image === 'new' ? this.state.color_new : this.state.color_ref} />
+        <ColorTooltip color={first_image === 'new' ? this.state.color_ref : this.state.color_new} />
         {label && (label || path)}
       </span>
 
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
-
-        {images}
-
-        {single_image_height > 0 && <div hidden={!diff || no_reference} style={flex}>
-          <Slider
-            style={{ width: single_image_size.width }}
-            min={0} max={1}
-            labelStepSize={0.1}
-            stepSize={0.01}
-            initialValue={this.state.diff_threshold}
-            value={this.state.diff_threshold}
-            showTrackFill
-            onChange={diff_threshold => {
-              this.setState({ diff_threshold }, () => this.update_diff())
-            }}
-          />
-          <canvas hidden={!diff || no_reference} ref={this.canvas_diff} {...single_image_size} />
-          <br />
-          <Tooltip hoverCloseDelay={500}>
-            <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
-            <ul>
-              <li>Color difference according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>
-              <li>Maximum squared difference = 35215 * threshold^2.</li>
-              <li>Anti-aliased pixels are shown as yellow at most.</li>
-              <li><a href="https://github.com/mapbox/pixelmatch/blob/master/index.js">Read the code</a> for more.</li>
-            </ul>
-          </Tooltip>
-        </div>}
-
-        {this.show_selection_tools && <div style={flex}>
-          <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size} />
-        </div>}
-
+        {first_image === 'new' ? image_new : image_ref}
+        {(diff ^ this.show_histogram) ? empty_image : <></>}
+        {hist_info}
+        {diff_info}
+        {first_image === 'new' ? image_ref : image_new}
       </div>
     </>
   }
 
-  switch_images = () => {
+  switch_images = e => {
     let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
-    this.setState({ first_image })
+    // For some reason the scroll jumps arounds when react re-renders
+    const x = window.scrollX
+    const y = window.scrollY
+    // The tentatives below don't help :|
+    // if(!!e) {
+    //   e.stopPropagation() 
+    //   e.preventDefault() 
+    // }
+    // if (!!e && !!e.target)
+    //   e.target.blur() 
+    // document.activeElement.blur();
+    this.setState({ first_image }, () => window.scrollTo(x, y))
   }
 
   keyboard = ev => {

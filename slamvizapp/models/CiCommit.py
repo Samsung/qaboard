@@ -93,8 +93,8 @@ class CiCommit(Base):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override
-      return f'/s/{relative_path}' 
-    return f"/s/{self.commit_dir}".replace("/home/arthurf/ci", "")
+      return f'/s{relative_path}' 
+    return f"/s{self.commit_dir}".replace("/home/arthurf/ci", "")
 
 
   @property
@@ -102,8 +102,8 @@ class CiCommit(Base):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override
-      return f'/s/{relative_path}' 
-    return f"/s/{self.repo_commit_dir}"
+      return f'/s{relative_path}' 
+    return f"/s{self.repo_commit_dir}"
 
 
 
@@ -252,7 +252,7 @@ class CiCommit(Base):
 
 
 
-def latest_successful_commit(session, project_id, branch, within_last=20):
+def latest_successful_commit(session, project_id, branch, batch_label=None, within_last=20):
   """
   Returns the latest commit on a given branch where we got outputs.
   Only the latest within_last commits are checked...
@@ -269,13 +269,16 @@ def latest_successful_commit(session, project_id, branch, within_last=20):
                 .limit(within_last)
                )
   for ci_commit in ci_commits:
-    valid_outputs = [o for o in ci_commit.ci_batch.outputs
-                     if not o.is_failed and not o.is_pending]
+    valid_outputs = [o for o in ci_commit.ci_batch.outputs if not o.is_failed and not o.is_pending]
     if valid_outputs:
       return ci_commit
+    if batch_label: # maybe having results on any batch is better...
+      valid_outputs = [o for o in ci_commit.get_or_create_batch(batch_label).outputs if not o.is_failed and not o.is_pending]
+      if valid_outputs:
+        return ci_commit
 
 
-def parent_successful_commit(ci_commit):
+def parent_successful_commit(ci_commit, batch_label=None):
   """Returns a commit's latest successful parent."""
   # if we don't have a git repo,
   # we try to find the previous commit on the same "branch"...
@@ -287,7 +290,7 @@ def parent_successful_commit(ci_commit):
                         CiCommit.branch == self.branch,
                       )
       for ci_commit in query:
-        if len(ci_commit.ci_batch.outputs) > 10:
+        if len(ci_commit.ci_batch.outputs) or (batch_label and len(ci_commit.get_or_create_batch(batch_label).outputs)):
           return ci_commit
     except:
       return None
@@ -303,7 +306,7 @@ def parent_successful_commit(ci_commit):
                                  .one()
     except:
       return None
-    if len(parent_ci_commit.ci_batch.outputs) > 10:
+    if len(ci_commit.ci_batch.outputs) or (batch_label and len(ci_commit.get_or_create_batch(batch_label).outputs)):
       return parent_ci_commit
     parent_hexsha = parent_ci_commit.gitcommit.parents[0]
 

@@ -2,17 +2,17 @@ import React, { Fragment } from "react";
 import styled from "styled-components";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
 import {
-  HTMLTable,
   Classes,
-  Colors,
-  Icon,
   Intent,
-  Popover
+  Colors,
+  Tag,
+  HTMLTable,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
-import { matching_output, sortOutputs } from "../utils";
+import { sortOutputs } from "../utils";
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -40,11 +40,12 @@ const RowHeaderCell = ({ output, warning }) => {
       <PlatformTag platform={output.platform}/>
       <ConfigurationsTags configuration={output.configuration}/>      
       {warning && (
-        <Popover interactionKind="hover">
-          <Icon intent={Intent.WARNING} icon="warning-sign" />
+        <Tooltip>
+          <Tag intent={Intent.WARNING} icon="not-equal-to">ref</Tag>
           <span>{warning}</span>
-        </Popover>
+        </Tooltip>
       )}
+      {output.is_failed && <Tag style={{marginLeft: '5px'}} intent={Intent.DANGER}>Failed</Tag>}
     </th>
   );
 };
@@ -105,7 +106,7 @@ const TableCompare = ({
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
   let outputs = Object.entries(new_batch.outputs)
-    .filter(([id, o]) => !o.is_pending && !o.is_failed)
+    .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
@@ -136,13 +137,11 @@ const TableCompare = ({
         </thead>
         <tbody>
           {outputs.map(([id, output]) => {
-            let { output_ref, warning } = matching_output({
-              output: output,
-              batch: ref_batch
-            });
+            let { reference_id, reference_warning } = output;
+            let output_ref = ref_batch.outputs[reference_id] || {}
             return (
               <Row key={id}>
-                <RowHeaderCell output={output} warning={warning} />
+                <RowHeaderCell output={output} warning={reference_warning} />
                 {metrics.map(m => (
                   <ColumnsMetricImprovement
                     key={m.key}
@@ -161,7 +160,7 @@ const TableCompare = ({
 };
 
 const TableKpi = ({
-  new_batch,
+  new_batch,  
   ref_batch,
   sort_order,
   sort_by,
@@ -172,7 +171,7 @@ const TableKpi = ({
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Reference"];
   let outputs = Object.entries(new_batch.outputs)
-    .filter(([id, o]) => !o.is_pending && !o.is_failed)
+    .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
   return (
@@ -205,14 +204,11 @@ const TableKpi = ({
         </thead>
         <tbody>
           {outputs.map(([id, output]) => {
-            let { output_ref, warning } = matching_output({
-              output: output,
-              batch: ref_batch,
-              soft_match: false
-            });
+            let { reference_id, reference_warning } = output;
+            let output_ref = ref_batch.outputs[reference_id] || {}
             return (
               <Row key={id}>
-                <RowHeaderCell output={output} warning={warning} />
+                <RowHeaderCell output={output} warning={reference_warning} />
                 {metrics.map(m => (
                   <Fragment key={m.key}>
                     <QualityCell metric={m} metrics={output.metrics} />

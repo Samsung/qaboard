@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import qs from "qs";
 import styled from "styled-components";
 import copy from 'copy-to-clipboard';
 
@@ -81,6 +80,7 @@ const renderBranch = (item, { handleClick, modifiers, query }) => {
   return (
     <MenuItem
       className={!modifiers.active ? Classes.ACTIVE : Classes.INTENT_PRIMARY}
+      icon="git-branch"
       key={item}
       onClick={handleClick}
       text={item}
@@ -110,6 +110,7 @@ const StyledNavbar = styled(Navbar)`
    position: fixed !important;
    top: 0;
    padding-left: 151px !important;
+   /*overflow-y: auto !important;*/
 `
 
 const StyledNavbarNew = styled(Navbar)`
@@ -132,14 +133,6 @@ class AppNavbar extends Component {
   update = (attribute, attribute_url) => e => {
     const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [attribute_url || attribute]: value,
-      })
-    });
   }
 
   maybeFetchBranches = ({force_fetch}) => {
@@ -165,21 +158,33 @@ class AppNavbar extends Component {
   }
 
   render() {
-    const { branches, commits, project, project_data, date_range, selected, dispatch, selected_views } = this.props;
-    const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered, filter_batch_new, filter_batch_ref, selected_batch_new, selected_batch_ref } = this.props;
-    // const reference_branch = project_data.data.qatools_config.project.reference_branch;
+    const {
+      selected_views,
+      project,
+      project_data,
+      date_range,
+      branches,
+      commits,
+      selected,
+      new_commit,
+      ref_commit,
+      new_batch_filtered,
+      ref_batch_filtered,
+      filter_batch_new,
+      filter_batch_ref,
+      selected_batch_new,
+      selected_batch_ref,
+      dispatch,
+    } = this.props;
 
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
 
     const is_commit = this.props.match.path.startsWith('/:project_id+/commit/');
     if (is_commit) {
-      // const nb_good = batch => (Object.values(batch.outputs).filter(o => !o.is_failed && !o.is_pending) || []).length;
-      // const nb_outputs_new = nb_good(new_batch);
-      // const nb_outputs_ref = nb_good(ref_batch);
       return <>
         <StyledNavbarNew>
           <NavbarGroup style={{marginLeft: '20px'}}>
-            <CommitNavbar dispatch={dispatch} commit={new_commit} batch={new_batch_filtered} project={project} project_data={project_data} selected={selected} label="new"/>
+            <CommitNavbar dispatch={dispatch} commit={new_commit} batch={new_batch_filtered} project={project} project_data={project_data} selected={selected} type="new"/>
           </NavbarGroup>
 
           <NavbarGroup align="right">
@@ -188,21 +193,26 @@ class AppNavbar extends Component {
               labelFor="filter-new-input"
               helperText={<Tooltip>
                 <><BatchTags batch={new_batch_filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
-                <div><span>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</span></div>
+                <ul>
+                  <li>You can use negative filters: <code>-2X5</code></li>
+                  <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
+                  <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
+                </ul>
               </Tooltip>}
             >
               <InputGroup
                 value={filter_batch_new}
                 placeholder="filter new outputs"
-                onChange={this.update('filter_batch_new', 'filter')}
+                onChange={this.update('filter_batch_new')}
                 type="search"
                 leftIcon="filter"
+                
               />
             </FormGroup>
             <SelectBatchesNav
               commit={new_commit}
               selected={selected_batch_new}
-              onChange={this.update('selected_batch_new', 'batch')}
+              onChange={this.update('selected_batch_new')}
               prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
               hide_helper_text
               hide_counts
@@ -217,7 +227,7 @@ class AppNavbar extends Component {
 
         {show_ref_navbar && <StyledNavbarRef>
           <NavbarGroup style={{marginLeft: '20px'}}>
-            <CommitNavbar dispatch={dispatch} commit={ref_commit} batch={ref_batch_filtered} project={project} project_data={project_data} selected={selected} label="ref"/>
+            <CommitNavbar dispatch={dispatch} commit={ref_commit} batch={ref_batch_filtered} project={project} project_data={project_data} selected={selected} type="ref"/>
           </NavbarGroup>
           <NavbarGroup align="right">
             <FormGroup
@@ -228,7 +238,7 @@ class AppNavbar extends Component {
               <InputGroup
                 value={filter_batch_ref}
                 placeholder="filter reference outputs"
-                onChange={this.update('filter_batch_ref', 'filter_ref')}
+                onChange={this.update('filter_batch_ref')}
                 type="search"
                 leftIcon="filter"
               />
@@ -236,7 +246,7 @@ class AppNavbar extends Component {
             <SelectBatchesNav
               commit={ref_commit}
               selected={selected_batch_ref}
-              onChange={this.update('selected_batch_ref', 'batch_ref')}
+              onChange={this.update('selected_batch_ref')}
               prefix={<Tag intent={Intent.WARNING}>Ref commit</Tag>}
               hide_helper_text
               hide_counts
@@ -255,7 +265,7 @@ class AppNavbar extends Component {
 
     const is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     const is_project_branch_home = this.props.match.path === "/:project_id+/commits/:name+"
-    const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard/');
+    const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel/');
 
     // let is_committer = !!match.params.committer;
     // let is_branch = !!match.params.name;
@@ -288,7 +298,7 @@ class AppNavbar extends Component {
             parseDate={str => new Date(Date.parse(str))}
             onChange={new_date_range => {
               const { project, aggregated_metrics, dispatch } = this.props;
-              const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard');
+              const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
               const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
               dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))
             }}
@@ -303,7 +313,7 @@ class AppNavbar extends Component {
                           let extended_date_range = [date_range[0], date_range[1]]
                           extended_date_range[0].setHours(0,0,0,0);
                           extended_date_range[1].setHours(23,59,59,999);
-                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/dashboard');
+                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
                           const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
                           dispatch(fetchCommits(project, {...this.props.match.params}, extended_date_range, aggregated_metrics, options))
                         }
@@ -316,18 +326,24 @@ class AppNavbar extends Component {
 
           {(is_project_home || is_project_branch_home) &&
               <Suggest
+                query={selected.search}
                 itemPredicate={filterBranch}
-                createNewItemFromQuery={query => ({commit: query})}
+                createNewItemFromQuery={query => ({commit: query.trim()})}
                 createNewItemRenderer={renderNewItem}
                 items={branches}
                 itemRenderer={renderBranch}
                 inputValueRenderer={this.renderInputValue}
                 noResults={<MenuItem disabled={true} text="No results." />}
                 onItemSelect={this.handleBranchChange}
-                popoverProps={Classes.MINIMAL}
-                inputProps={{leftIcon: 'git-branch'}}
-                placeholder="View branch..."
-                onQueryChange={this.maybeFetchBranches}
+                inputProps={{
+                  leftIcon: 'filter',
+                  intent: (!!selected.search && selected.search.length > 0) ? Intent.PRIMARY : null,
+                }}
+                placeholder="Filter..."
+                onQueryChange={query => {
+                  this.maybeFetchBranches({});
+                  this.update('search')(query)
+                }}
               />
           }
 
@@ -335,7 +351,7 @@ class AppNavbar extends Component {
           <InputGroup
             value={this.props.filter_batch_new}
             placeholder="Path, configuration, platform, tag, tuning parameters (key:value)..."
-            onChange={this.update('filter_batch_new', 'filter')}
+            onChange={this.update('filter_batch_new')}
             type="search"
             leftIcon="filter"
             style={{width: '450px'}}
@@ -372,7 +388,6 @@ const mapStateToProps = (state, ownProps) => {
 
   let selected_views = selected.selected_views || ( (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'summary')
 
-  // console.log(project)
   return {
     is_home,
     project,

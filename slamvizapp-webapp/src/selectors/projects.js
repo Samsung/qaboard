@@ -40,10 +40,11 @@ export const commitsSelector = createSelector([commitsDataSelector, state => sta
 
 
 
-export const commitSelector = createSelector([selectedSelector, state => state.commits], (selected, commits) => {
+export const commitSelector = createSelector([selectedSelector, state => state.commits, commitsDataSelector], (selected, commits, commits_data) => {
   return {
-  	new_commit: commits[selected.new_commit_id],
-  	ref_commit: selected.ref_commit_id && commits[selected.ref_commit_id],
+    // we use '' as a special nothing-should-be-selected value
+  	new_commit: selected.new_commit_id !== '' && commits[selected.new_commit_id || commits_data.ids[0]],
+    ref_commit: selected.ref_commit_id !== '' && commits[selected.ref_commit_id || commits_data.ids[1]],
   }
 })
 
@@ -51,7 +52,7 @@ export const commitSelector = createSelector([selectedSelector, state => state.c
 const available_batch = (commit, default_batch) => {
   if (!!!commit || !!!commit.batches) return default_batch;
   const batches = Object.keys(commit.batches);
-  if (batches.length===1 || !!!commit.batches[default_batch]) return batches[0];
+  if (batches.length===1 || !!!commit.batches[default_batch]) return (!!batches.default && Object.keys(batches.default).length > 0) ? batches.default : batches[0];
   return default_batch
 }
 
@@ -69,7 +70,7 @@ export const batchSelector = createSelector([selectedSelector, commitSelector], 
 
     // we find the matching outputs once
     Object.values(new_batch_filtered.outputs).forEach(output => {
-    	const { output_ref, warning } = matching_output({output, batch: ref_batch});
+    	const { output_ref, warning } = matching_output({output, batch: ref_batch_filtered});
         output.reference_id = output_ref.id
         output.reference_warning = warning
     })

@@ -18,7 +18,7 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.sql import label
 
 from slamvizapp import app, db_session
-from ..models import Project, CiCommit, Batch
+from ..models import Project, CiCommit, Batch, Output
 from ..models.LocalMocks import LocalCommit
 from ..models import latest_successful_commit
 
@@ -147,6 +147,14 @@ def get_project():
   return jsonify(project.data)
 
 
+@app.route("/api/v1/output/<output_id>")
+@app.route("/api/v1/output/<output_id>/")
+def get_output(output_id):
+  output = Output.query.filter(Output.id==output_id).one()
+  return jsonify(output.to_dict())
+
+
+
 @app.route("/api/v1/commit")
 @app.route("/api/v1/commit/")
 @app.route("/api/v1/commit/<path:commit_id>")
@@ -162,7 +170,7 @@ def get_ci_commit(commit_id=None):
     except:
       default_branch = 'develop'
     branch = request.args.get('branch', default_branch)
-    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch)
+    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch', 'default'))
     if not ci_commit:
       return jsonify({'error': f'Sorry, we cant find any commit with results for this project on {branch}.'}), 404
   else:

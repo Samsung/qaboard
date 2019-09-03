@@ -3,7 +3,7 @@
 FROM openjdk:8u181-alpine
 
 ENV VERSION 4.0.2
-EXPOSE 8182
+# EXPOSE 8183
 
 WORKDIR /tmp
 
@@ -91,6 +91,7 @@ RUN  mkdir -p /var/log/cantaloupe \
   && chown arthurf /etc/delegates.rb \
   && chown arthurf /etc/config.json
 
+RUN apk add sudo
 USER arthurf
 ENV GEM_HOME /tmp/gems
 

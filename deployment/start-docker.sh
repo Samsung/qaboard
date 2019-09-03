@@ -3,18 +3,21 @@
 # TODO: define everything in a `docker-compose` file
 set -ex
 DOCKER_IMAGE=gitlab-srv.transchip.com:4567/dvs/slamvizapp
+: "${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}"
+DOCKER_IMAGE=$DOCKER_IMAGE:$DOCKER_TAG
+echo "===== $DOCKER_IMAGE ====="
 
 DOCKER_ENV=""
 
 DOCKER_VOLUMES=""
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
 HOME_DOCKER=/opt/dockermounts$HOME
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa" # helps avoid mount errors...
+# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa" # helps avoid mount errors...
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage/algo_data:/stage/algo_data"
 # DOCKER_VOLUMES+=" --volume=/stage/algo_archive:/stage/algo_archive"
-# DOCKER_VOLUMES+=" --volume=/stage/qa_data:/stage/qa_data"
+DOCKER_VOLUMES+=" --volume=/stage/qa_data:/stage/qa_data"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive:/stage/algo_archive"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database"
@@ -24,10 +27,11 @@ DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/PTAM_Results:/net/f2/algo_archiv
 # --volume=/home/arthurf/ci/dvs:/home/arthurf/ci/dvs
 
 
+  # DOCKER_VOLUMES+="--volume:/opt/dockermounts/stage/algo_data/qatools_data:/var/slamvizapp"
+
 if [ -z ${CI_ENVIRONMENT_SLUG+x} ]; then
   echo "[Error] \$CI_ENVIRONMENT_SLUG is not defined."; exit
 else
-	DOCKER_IMAGE=$DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
 	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
 		#                 frontend           debug api            database     https-frontend
 		PORTS="-p0.0.0.0:5001:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:443:443"
@@ -71,9 +75,9 @@ DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/l
 DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
 
 # Custom configuration
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zshrc:/root/.zshrc"
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.oh-my-zsh:/root/.oh-my-zsh"
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zsh_history:/root/.zsh_history"
+# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zshrc:/root/.zshrc"
+# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.oh-my-zsh:/root/.oh-my-zsh"
+# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zsh_history:/root/.zsh_history"
 
 if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   echo 'production !'
@@ -116,6 +120,6 @@ fi
 # -u=$UID
 # -u=$UID
 # --privileged=true
-command="docker run --name slamvizapp-$CI_ENVIRONMENT_SLUG${CI_DEBUG} $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
+command="docker run --name qaboard-$CI_ENVIRONMENT_SLUG${CI_DEBUG} $POLICY $DOCKER_VOLUMES $DOCKER_ENV $PORTS $DOCKER_IMAGE ${@}"
 echo $command
 exec $command

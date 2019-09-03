@@ -77,7 +77,7 @@ class CommitResults extends React.Component {
         <Link
           style={{ marginLeft: "10px" }}
           to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
-          onClick={() => dispatch(updateSelected(project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
+          onClick={() => dispatch(updateSelected(project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
         >
           <Button intent={Intent.DANGER} minimal>
             No results
@@ -124,7 +124,7 @@ class CommitResults extends React.Component {
           <Link
             style={{ marginLeft: "10px" }}
             to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
-            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
           >
             <Button intent={Intent.DANGER} minimal>
               {ci_batch.failed_outputs} crashed
@@ -138,9 +138,7 @@ class CommitResults extends React.Component {
               minimal
               style={{ marginRight: "4px" }}
             >
-              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 1
-                ? "es"
-                : ""}
+              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 1 ? "es" : ""}
             </Tag>
             <div>
               {tuning_batches_labels.map(label => {
@@ -150,7 +148,7 @@ class CommitResults extends React.Component {
                   return <Link
                           key={label}
                           to={`/${project}/commit/${commit.id}?batch=${label}`}
-                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: 'default'}))}
+                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: label}))}
                          >
                     <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
                   </Link>
@@ -179,7 +177,7 @@ class CommitResults extends React.Component {
         {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
           to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
-          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
+          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
         >
           <Button intent={Intent.DANGER} minimal>
             No results
@@ -229,7 +227,7 @@ class CommitResults extends React.Component {
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
           <Link
-            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: 'default'}))}
+            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
             style={{ marginLeft: "10px" }}
             to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
           >
@@ -300,10 +298,10 @@ class CommitRow extends React.Component {
               <Icon icon="git-branch" />
               <Link
                 style={{ color: "rgba(0,0,0,0.85)", marginRight: '5px' }}
-                to={`/${project}/commits/${(commit.branch || '').replace('origin/', '')}`}
-                onClick={() => dispatch(updateSelected(project, {branch: commit.branch.replace('origin/', ''), committer: null}))}
+                to={`/${project}/commits/${(commit.branch || '')}`}
+                onClick={() => dispatch(updateSelected(project, {branch: commit.branch, committer: null}))}
               >
-                {(commit.branch || '').replace('origin/', '')}
+                {(commit.branch || '')}
               </Link>
               <DoneAtTag project={project} commit={commit} dispatch={dispatch} />
             </div>

@@ -65,7 +65,7 @@ def update_commit():
     commit.deleted = False
   db_session.add(commit)
   db_session.commit()
-  return "OK"
+  return jsonify({"status": "OK"})
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -108,7 +108,7 @@ def update_batch():
 
   db_session.add(batch)
   db_session.commit()
-  return "OK"
+  return jsonify({"status": "OK"})
 
 
 
@@ -128,10 +128,7 @@ def new_output_webhook():
       project_id=data['project'],
     )
   except:
-    if is_ci:
-      return f"404 ERROR:\n Could not find your commit ({data['git_commit_sha']}).", 404
-    else: # for now let's not break anything...
-      return f"OK"
+    return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']})."}), 404
 
   ci_commit.project.latest_output_datetime = datetime.datetime.utcnow()
   ci_commit.latest_output_datetime = datetime.datetime.utcnow()
@@ -145,14 +142,13 @@ def new_output_webhook():
     path=test_input_path,
     database=data.get('database', ci_commit.project.database),
   )
-  if not test_input: return "KO", 404
 
   # We save the basic information about our result
   batch = ci_commit.get_or_create_batch(data['batch_label'])
   if not batch.data:
     batch.data = {}
   batch.data.update({"type": data['job_type']})
-  if 'input_metadata' in data:
+  if data.get('input_metadata'):
     test_input.data['metadata'] = data['input_metadata']
     flag_modified(test_input, "data")
 
@@ -193,7 +189,7 @@ def new_output_webhook():
 
   db_session.add(output)
   db_session.commit()
-  return "OK"
+  return jsonify(output.to_dict())
 
 
 

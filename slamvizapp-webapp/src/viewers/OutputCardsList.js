@@ -14,12 +14,6 @@ import { sortOutputs } from "../utils";
 import { OutputCard } from "./OutputCard";
 
 
-
-// https://github.com/bvaughn/react-virtualized/blob/master/docs/WindowScroller.md
-// Example
-// https://codesandbox.io/s/xvl23p7okp
-// http://bvaughn.github.io/react-virtualized/#/components/WindowScroller
-
 class OutputCardsList extends React.Component {
   constructor(props) {
     super(props);
@@ -121,6 +115,7 @@ class OutputCardsList extends React.Component {
                   output_new={output}
                   output_ref={ref_batch.outputs[output.reference_id]}
                   warning={output.reference_warning}
+                  dispatch={this.props.dispatch}
                   {...misc_output_props}
                 />
               );
@@ -160,31 +155,5 @@ class OutputCardsList extends React.Component {
 }
 
 
-/*
-          <List
-            height={800}
-            itemCount={outputs.length}
-            itemSize={index => 75}
-            itemData={{outputs, misc_output_props, ref_batch}}
-            width={1240}
-          >
-            {OutputCartWindowed}
-          </List>
-
-
-const OutputCartWindowed = React.memo(({data, index, style}) => {
-  const { outputs, ref_batch, misc_output_props } = data;
-  const [id, output] = outputs[index];
-  return <OutputCard
-    style={style}
-    key={id}
-    output_type={output.output_type}
-    output_new={output}
-    output_ref={ref_batch.outputs[output.reference_id]}
-    warning={output.reference_warning}
-    {...misc_output_props}
-  />
-})
-*/
 
 export { OutputCardsList }

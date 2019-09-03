@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import qs from "qs";
 
 import {
   HTMLSelect,
@@ -135,7 +134,8 @@ class CiCommitResults extends Component {
   }
 
   componentDidMount() {
-    document.title = this.props.new_commit_id.slice(0, 4);
+    if (!!this.props.new_commit_id)
+      document.title = this.props.new_commit_id.slice(0, 4);
     this.fetchCommits();
   }
 
@@ -163,14 +163,6 @@ class CiCommitResults extends Component {
   update = (attribute, attribute_url) => e => {
   	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [attribute_url || attribute]: value,
-      })
-    });
   } 
 
   render() {
@@ -341,7 +333,7 @@ class CiCommitResults extends Component {
                </Section>}
 
               {selected_views.includes('tuning') && <Section>
-                <h2 className={Classes.HEADING}>Run experiments</h2>
+                <h2 className={Classes.HEADING}>Tuning Experiments</h2>
                 <Card>
                   {!!(config_data.data || {}).qatools_config && <TuningForm
                     project={project}
@@ -415,6 +407,7 @@ class CiCommitResults extends Component {
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
                     history={this.props.history}
+                    dispatch={this.props.dispatch}
                     sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}
@@ -433,6 +426,7 @@ class CiCommitResults extends Component {
                     ref_batch={ref_batch_filtered}
                     controls={this.state.controls}
                     history={this.props.history}
+                    dispatch={this.props.dispatch}
                     sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
                </Section>}

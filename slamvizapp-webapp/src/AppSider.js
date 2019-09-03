@@ -3,7 +3,6 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
-import qs from "qs";
 import axios from "axios";
 
 import {
@@ -102,7 +101,7 @@ class ProjectSideCommitList extends React.Component {
     const build_icon = <img alt="build status" src={`http://gitlab-srv/${project_repo}/badges/${tag}/build.svg`}/>;
     const coverage_icon = <img alt="coverage report" src={`http://gitlab-srv/${project_repo}/badges/${tag}/coverage.svg`} />
     // https://github.com/palantir/blueprint/blob/0c09726bdbbd4be4892c97e67363dc0e8caefb71/packages/core/src/components/menu/menuItem.tsx
-    // const dashboard = <Link to={`/${project}/dashboard/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
+    // const dashboard = <Link to={`/${project}/time-travel/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
     // <Menu.Item icon="series-search" text={dashboard}/>
 
     let subproject = project.slice(project_repo.length + 1);
@@ -114,7 +113,7 @@ class ProjectSideCommitList extends React.Component {
   		  }
   		  <Menu.Item href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
   		  <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-        <Menu.Item href={`/${project}/dashboard/${reference_branch}`} icon="series-search" text="Evolution"/>
+        <Menu.Item href={`/${project}/time-travel/${reference_branch}`} icon="series-search" text="Time Travel"/>
 
 
         <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
@@ -156,14 +155,6 @@ class ProjectSideResults extends React.Component {
 
   set = (attribute, value) => e => {
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-    let query = qs.parse(window.location.search.substring(1));
-    this.props.history.push({
-      pathname: window.location.pathname,
-      search: qs.stringify({
-        ...query,
-        [attribute]: value,
-      })
-    });
   } 
 
   trigger = integration => e => {
@@ -218,8 +209,8 @@ class ProjectSideResults extends React.Component {
          }
        });
        let url = integration.href.startsWith('/') ? `https://qa${integration.href}`: integration.href
-       console.log(url)
-       axios.post('/api/v1/webhook/proxy/', {method: 'HEAD', url})
+       const { label, icon, text, href, style, ignore_failure, ...request } = integration;
+       axios.post('/api/v1/webhook/proxy/', {method: 'HEAD', url, ...request})
         .then(response => {
             // console.log(response)
             this.setState({
@@ -234,7 +225,12 @@ class ProjectSideResults extends React.Component {
             this.setState({
               integrations: {
                 ...this.state.integrations,
-                [integration.text]: {is_loaded: true, loading: false, error, statusText: error.response.statusText},
+                [integration.text]: {
+                  is_loaded: true,
+                  loading: false,
+                  error: !!ignore_failure ? null : error,
+                  statusText: error.response.statusText
+                },
               }
             });
           });
@@ -263,6 +259,7 @@ class ProjectSideResults extends React.Component {
     const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
     // const qatools_integrations = default_integrations;
     const qatools_integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+    // console.log(qatools_integrations)
 
     const qatools_config = commit_qatools_config || project_qatools_config || {};
     const disable_tuning = !!qatools_config.inputs && !!qatools_config.inputs.database && !!qatools_config.inputs.database.linux &&
@@ -294,6 +291,7 @@ class ProjectSideResults extends React.Component {
           qatools_integrations.map( (integration, idx) => {
             try {
             integration = recursively_apply(integration, s => fill_template(s, context))
+            // console.log(integration)
             } catch {
               // problem can happen when the project/commit data is not loaded yet... 
               // we should wait for everything to be loaded
@@ -332,7 +330,7 @@ class AppSider extends React.Component {
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
-        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/dashboard/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
+        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/time-travel/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
         {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.new_batch_filtered} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
       </ul>
     </Sider>

@@ -87,8 +87,8 @@ const updateMissingFrom = (tree, label) => node => {
       node.nodeData[missing] = node.childNodes.some(child => child.nodeData[missing]);
       return;
     }
-    let missing_reference_tree = tree === undefined || tree === null;
-    node.nodeData[missing] = missing_reference_tree || (getNodeById(tree, node.id) === undefined)
+    let missing_reference_tree = (tree === undefined || tree === null);
+    node.nodeData[missing] = missing_reference_tree || (getNodeById(tree, node.id) === undefined) || node.nodeData[missing]
 }
 
 
@@ -138,7 +138,7 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
       node_from_parent = node_from.childNodes
       node_to_parent = node_to.childNodes
     }
-    node.nodeData[key] = node_from.nodeData
+    node.nodeData[key] = node_from.nodeData[key]
 }
 
 

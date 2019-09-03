@@ -2,12 +2,13 @@
 APIs related to parameter tuning
 """
 import os
-import subprocess
-import json
 import sys
+import json
 import datetime
+import subprocess
 from pathlib import Path
 
+import yaml
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -28,7 +29,7 @@ def get_groups_path(project_id):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
-            f.write("""# Lots of examples here:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
+            f.write("""# Docs:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
     return path
 
 
@@ -41,10 +42,14 @@ def groups():
           It could be saved as test as project.data.test_groups
           We would *just* need to write the migration, and it would save 30 lines of code.
     """
-    project_id = request.args.get("project", "dvs/psp_swip")
+    project_id = request.args["project"]
     groups_path = get_groups_path(project_id)
     if request.method == "POST":
         data = request.get_json()
+        try:
+          yaml.load(data["groups"])
+        except Exception as e:
+          return jsonify(str(e)), 400        
         with groups_path.open("w") as f:
             f.write(data["groups"])
         return jsonify("OK")
@@ -67,7 +72,7 @@ def get_commit_groups_paths(project, commit_id):
     ci_commit = CiCommit.query.filter(
         CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
     ).one()
-    commit_group_files = project.data['qatools_config'].get('inputs', {}).get('groups', [])
+    commit_group_files = ci_commit.data['qatools_config'].get('inputs', {}).get('groups', [])
     if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
       commit_group_files = [commit_group_files]
 
@@ -249,7 +254,7 @@ def add_batch(hexsha):
         [
             "#!/bin/bash\n",
             "set -xe\n\n",
-            'mkdir -p "{batch.output_dir}"\n',
+            f'mkdir -p "{batch.output_dir}"\n',
             f'bsub_su "{user}" -q "{queue}" ',
             '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
             f'-o "{batch.output_dir}/log.txt" << "EOF"\n',

@@ -18,32 +18,49 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
 
 `database.py` manages how we access our database, and connect to the git repository via `gitpython`.
 
+## Backups
+```bash
+# Take a look at:
+# deployment/create-backup.sh
+
+# Manually, you can just do...
+# https://www.postgresql.org/docs/9.1/backup-dump.html
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+# from a computer with the  same postgresql major version, run something like...
+pg_dump --dbname=slamvizapp --username=ci --password -h localhost  > backup.07-01-2019.sql
+
+```
+
+# Recovery
+```bash
+> docker exec -it qaboard-production bash
+export LC_ALL=C.UTF-8 LANG=C.UTF-8
+ps -aux | grep '\(flask run\|sudo .*uwsgi\)' | grep -v grep | awk '{print $2}' | xargs -I{} sudo kill {}
+auth='--username=ci --password -h localhost'
+PGPASS=$HOME/.pgpass
+auth='--username=ci --no-password -h localhost'
+
+dropdb $auth  slamvizapp
+# Password:
+createdb -T template0 $auth slamvizapp
+Password:
+$ pg_restore $auth --dbname slamvizapp /home/ispq/qaboard/database_backups/2019-03-21.dump
+Password:
+$ exit
+> docker restart qaboard-production
+```
+
+
 ## Changing the database schemas
 - when you add/rename/delete tables or fields to the database, you should define a migration
   * we use [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html) to manage migrations
   * you'll find [many examples here](alembic/versions)
 
+
 ## Monitoring
 ```
 https://hub.docker.com/r/fenglc/pgadmin4/
-```
-
-## Backups
-```
-# https://www.postgresql.org/docs/9.1/backup-dump.html
-export LC_ALL=C.UTF-8
-export LANG=C.UTF-8
-pg_dump --dbname=slamvizapp --username=ci --password -h localhost  > /var/slamvizapp/backup.07-01-2019.sql
-
-# recovery
-```
-$ auth=--username=ci --password -h localhost
-$ dropdb $auth  slamvizapp
-Password:
-$ createdb -T template0 $auth slamvizapp
-Password:
-$ pg_restore $auth --dbname slamvizapp /home/arthurf/dvs/slamvizapp/data/backups/2019-03-21.dump
-Password:
 ```
 
 ## Application performance

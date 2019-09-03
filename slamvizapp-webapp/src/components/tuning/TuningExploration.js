@@ -281,7 +281,7 @@ const ParallelTuningPlot = React.memo(({
   // console.log(traces)
   let layout = {
     // width: 80*metrics_with_different_values.length + 80*parameters_with_different_values.length,
-    width: 10 * metrics_with_different_values.map(m=>(m.short_label || m.label || m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0),
+    width: Math.max(10 * metrics_with_different_values.map(m=>(m.short_label || m.label || m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0), 1200),
     autosize: false,
   }
   return <Plot layout={layout} data={traces} config={config} />;

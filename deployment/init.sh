@@ -19,7 +19,7 @@ DISPLAY= setsid ssh-add $HOME/.ssh/id_rsa
 
 # TODO: Maybe this can be removed once the old volumes
 # are owned by arthurf and not root 
-sudo chown -R arthurf:uucp /var/slamvizapp
+# sudo chown -R arthurf:uucp /var/slamvizapp
 
 
 sudo nginx &

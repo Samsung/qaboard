@@ -1,6 +1,10 @@
+import React from "react";
+
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 import { median as mathjs_median } from "mathjs";
+
+import { ExtraParametersTags, ConfigurationsTags, PlatformTag } from './components/tags'
 
 // import math from '@mathjs';
 
@@ -18,12 +22,12 @@ const average = array => {
 };
 const median = array => {
   let array_filtered = array.filter(x => x !== undefined && x !== null)
-  return array_filtered.length>0 ? mathjs_median(array_filtered) : null;
+  return array_filtered.length > 0 ? mathjs_median(array_filtered) : null;
 };
 
 
 const groupBy = (array, prop) => {
-  return array.reduce(function(groups, item) {
+  return array.reduce(function (groups, item) {
     var val = item[prop];
     groups[val] = groups[val] || [];
     groups[val].push(item);
@@ -32,7 +36,7 @@ const groupBy = (array, prop) => {
 };
 
 const groupByObject = (array, prop) => {
-  return array.reduce(function(groups, item) {
+  return array.reduce(function (groups, item) {
     var val = JSON.stringify(item[prop]);
     groups[val] = groups[val] || [];
     groups[val].push(item);
@@ -50,30 +54,33 @@ const empty_output = { metrics: undefined, extra_parameters: {} };
 const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
-    5 * ((o.configuration !== output.configuration) | 0) +
-    3 * ((o.platform !== output.platform) | 0) +
+    8 * ((o.test_input_path !== output.test_input_path) | 0) +
+    4 * ((o.configuration !== output.configuration) | 0) +
+    2 * ((o.platform !== output.platform) | 0) +
     1 *
-      ((JSON.stringify(o.extra_parameters) !==
-        JSON.stringify(output.extra_parameters)) |
-        0);
+    ((JSON.stringify(o.extra_parameters) !==
+      JSON.stringify(output.extra_parameters)) |
+      0);
 
-  // let soft_match = true;
   let matching_outputs = Object.values(batch.outputs || {})
     .filter(o => !o.is_pending)
-    .filter(o => o.test_input_path === output.test_input_path)
-    // .filter(o => o.platform===output.platform || soft_match)
-    // .filter(o => o.configuration===output.configuration || soft_match)
+    .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .sort((a, b) => match_score(a) - match_score(b));
-  // if (matching_outputs) console.log(matching_outputs)
+
   let output_ref = matching_outputs[0] || empty_output;
-  let imperfect_match = match_score(output_ref) > 0;
-  let warning =
-    imperfect_match && matching_outputs.length > 0
-      ? `vs ${output_ref.configuration} @${
-          output_ref.platform
-        }  with ${JSON.stringify(output_ref.extra_parameters)}`
-      : null;
+  let ref_match_score = match_score(output_ref);
+  let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
+
+  let warning = imperfect_match ? <div>
+    <h3>Comparing to</h3>
+    {((ref_match_score & 8) === 8) && <p>{output_ref.test_input_path}</p>}
+    {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configuration={output_ref.configuration} /></p>}
+    {((ref_match_score & 2) === 2) && <p><PlatformTag inverted platform={output_ref.platform} /></p>}
+    {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0
+      ? <ExtraParametersTags inverted parameters={output_ref.extra_parameters} />
+      : 'No tuning'}</p>}
+  </div> : null
   return { output_ref, warning, imperfect_match };
 };
 
@@ -96,20 +103,41 @@ const sortOutputs = (sort_by, order) => {
 
 
 
-const filter_batch = (batch, filter_values) => {
-  // console.log(filter_values)
-  if (filter_values === undefined || filter_values === null || filter_values.length === 0)
-  	return batch;
-  //if (typeof filter_values !== 'string' || !(filter_values instanceof String))
-  //  return batch;
-
-  // console.log(filter_values)
-  let filter_tokens = filter_values
+const match_query = pattern => {
+  const tokens = pattern
+    .trim()
     .toLowerCase()
     .replace(/"/g, "")
     .replace(/=+/g, ":")
     .replace(/: /g, ":")
+    // CDE has pipes in register names, so we're willing to be accomodating!
+    .replace(/\.sim\|/g, ".sim.")
+    .replace(/\.def\|/g, ".def.")
+    .replace(/\.eco\|/g, ".eco.")
     .split(" ");
+  // console.log(tokens)
+  const negative_tokens = tokens
+    .filter(t => t[0] === "-" && t.length > 1)
+    .map(t => t.substring(1));
+  const positive_tokens = tokens.filter(t => t[0] !== "-");
+  const positive_regexps = positive_tokens.map(t => new RegExp(t))
+  // console.log(positive_tokens, negative_tokens)
+  // console.log(positive_regexps)
+  return query => {
+    const searched = query.toLowerCase();
+    if (negative_tokens.some(token => searched.includes(token)))
+      return false;
+    if (positive_tokens.length === 0)
+      return true;
+    return positive_regexps.every(r => searched.match(r))
+  }
+}
+
+const filter_batch = (batch, filter_values) => {
+  if (filter_values === undefined || filter_values === null || filter_values.length === 0)
+    return batch;
+
+  const matcher = match_query(filter_values)
 
   let batch_filtered = Object.create(batch); // copy
   batch_filtered.outputs = {};
@@ -119,19 +147,8 @@ const filter_batch = (batch, filter_values) => {
     let metadata_s = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
     let extra_parameters = extra_parameters_s.replace(/"/g, "");
     let metadata = metadata_s.replace(/"/g, "");
-    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters}`.toLowerCase();
-
-    let negative_filter_tokens = filter_tokens
-      .filter(t => t[0] === "-")
-      .map(t => t.substring(1));
-    if (negative_filter_tokens.some(token => !!token && searched.includes(token)))
-      return;
-
-    let positive_filter_tokens = filter_tokens.filter(t => t[0] !== "-");
-    let found = positive_filter_tokens.every(token =>
-      searched.includes(token)
-    );
-    if (positive_filter_tokens.length === 0 || found)
+    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters}`;
+    if (matcher(searched))
       batch_filtered.outputs[id] = output;
   });
   // we update the summary metrics
@@ -153,16 +170,16 @@ const filter_batch = (batch, filter_values) => {
 };
 
 const plotly_palette_colors = [
-    '#1f77b4',  // muted blue
-    '#ff7f0e',  // safety orange
-    '#2ca02c',  // cooked asparagus green
-    '#d62728',  // brick red
-    '#9467bd',  // muted purple
-    '#8c564b',  // chestnut brown
-    '#e377c2',  // raspberry yogurt pink
-    '#7f7f7f',  // middle gray
-    '#bcbd22',  // curry yellow-green
-    '#17becf'   // blue-teal
+  '#1f77b4',  // muted blue
+  '#ff7f0e',  // safety orange
+  '#2ca02c',  // cooked asparagus green
+  '#d62728',  // brick red
+  '#9467bd',  // muted purple
+  '#8c564b',  // chestnut brown
+  '#e377c2',  // raspberry yogurt pink
+  '#7f7f7f',  // middle gray
+  '#bcbd22',  // curry yellow-green
+  '#17becf'   // blue-teal
 ]
 const plotly_palette = idx => plotly_palette_colors[idx % plotly_palette_colors.length]
 
@@ -181,19 +198,19 @@ const hash_color = str => {
 
 const deserialize_config = configuration => {
   if (configuration === undefined || configuration === null || configuration.length === 0) {
-  	return []
+    return []
   }
   let configurations = []
   let configuration_part = ''
   for (const token of configuration.split(':')) {
     if (configuration_part.length === 0 && !token.startsWith('{')) {
-      configurations.push(token)    	
+      configurations.push(token)
     } else {
       configuration_part = configuration_part ? `${configuration_part}:${token}` : token;
       try {
         configurations.push(JSON.parse(configuration_part))
         configuration_part = '';
-      } catch {}
+      } catch { }
     }
   }
   return configurations
@@ -203,11 +220,11 @@ const deserialize_config = configuration => {
 
 const linux_to_windows = path => {
   let windows_path = path
-                       .replace(/\/s\//, '/')
-                       .replace('//home', '//mars/raid/users')
-                       .replace('/home', '//mars/raid/users')
-                       .replace('//stage', '//netapp')
-                       .replace('/stage', '//netapp')
+    .replace(/\/s\//, '/')
+    .replace('//home', '//mars/raid/users')
+    .replace('/home', '//mars/raid/users')
+    .replace('//stage', '//netapp')
+    .replace('/stage', '//netapp')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
   //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
   return windows_path.replace(/\//g, '\\')
@@ -224,6 +241,7 @@ export {
   shortId,
   sortOutputs,
   filter_batch,
+  match_query,
   hash_color,
   plotly_palette,
   deserialize_config,

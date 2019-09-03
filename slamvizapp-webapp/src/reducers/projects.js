@@ -6,11 +6,12 @@ import {
   FETCH_COMMITS,
   UPDATE_COMMITS,
   UPDATE_FAVORITE,
+  UPDATE_MILESTONES,
 } from '../actions/constants'
 import { default_project_id, default_project } from "../defaults"
 
 
-function update_project(state=default_project, data) {
+function update_project(state = default_project, data) {
   // for backward compatibility, the API returned .data before
   if (!!data.information) {
     data.data = data.information
@@ -46,14 +47,14 @@ function update_project(state=default_project, data) {
     ...state,
     ...data,
     // for some reason we get null for projects that are not configured with qatools
-    data: {...state.data, ...data.data},
-  } 
+    data: { ...state.data, ...data.data },
+  }
 }
 
 
 export const branch_key = branch => {
   if (branch === undefined || branch === null)
-    return 'latests'; 
+    return 'latests';
   return branch.name || branch.committer || 'latests';
 }
 export function projects(state = {
@@ -62,7 +63,9 @@ export function projects(state = {
   },
   is_loaded: false,
   is_loading: false,
-  error: null
+  error: null,
+  is_favorite: false,
+  milestones: [],
 }, action) {
   var new_state;
   switch (action.type) {
@@ -76,9 +79,14 @@ export function projects(state = {
         ...state,
         is_loaded: true,
         error: action.error,
+        data: {
+          ...state.data,
+        }
       };
-      if (!action.projects) return new_state
-      Object.entries(action.projects).forEach( ([project, data]) => {
+      if (!action.projects)
+        return new_state;
+
+      Object.entries(action.projects).forEach(([project, data]) => {
         new_state.data[project] = update_project(state.data[project], data)
       })
       return new_state;
@@ -107,7 +115,7 @@ export function projects(state = {
         }
       }
       if (action.commits.length > 0)
-        new_state.data[action.project].commits[branch].date_range =  [
+        new_state.data[action.project].commits[branch].date_range = [
           new Date(action.commits[action.commits.length - 1].authored_datetime),
           new Date(action.commits[0].authored_datetime)
         ]
@@ -120,11 +128,24 @@ export function projects(state = {
         data: {
           ...state.data,
           [action.project]: {
-              ...state.data[action.project],
-              is_favorite: action.is_favorite,
-            }
+            ...state.data[action.project],
+            is_favorite: action.is_favorite,
           }
         }
+      }
+
+    case UPDATE_MILESTONES:
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          [action.project]: {
+            ...state.data[action.project],
+            milestones: {...action.milestones},
+          }
+        }
+      }
+
 
     case FETCH_COMMITS:
       branch = branch_key(action.branch);
@@ -135,7 +156,7 @@ export function projects(state = {
           [action.project]: {
             ...state.data[action.project],
             commits: {
-              ...state.data[action.project].commits,            	
+              ...state.data[action.project].commits,
               [branch]: {
                 ...state.data[action.project].commits[branch],
                 ids: (state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids) || [],
@@ -156,7 +177,7 @@ export function projects(state = {
           [action.project]: update_project(state.data[action.project], {
             branches: action.branches,
             branches_loading: false,
-          }), 
+          }),
         }
       }
 
@@ -165,7 +186,7 @@ export function projects(state = {
         ...state,
         data: {
           ...state.data,
-          [action.project]: update_project(state.data[action.project], {branches_loading: true}), 
+          [action.project]: update_project(state.data[action.project], { branches_loading: true }),
         }
       }
 

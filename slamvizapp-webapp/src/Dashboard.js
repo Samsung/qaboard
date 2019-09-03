@@ -1,7 +1,6 @@
 import React from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
-import { Link } from "react-router-dom";
 
 import {
   Classes,
@@ -12,7 +11,6 @@ import {
   Tab,
   Button,
   MenuItem,
-  Colors,
   HTMLSelect,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
@@ -23,16 +21,16 @@ import { noMetrics } from "./components/metricSelect";
 import { MetricsSummary } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
 
-import { fetchCommit } from "./actions/commit";
 import { fetchCommits } from "./actions/projects";
 
-import { shortId, filter_batch } from "./utils";
 import { empty_batch, default_date_range } from "./defaults";
 import {
   projectSelector,
   projectDataSelector,
   commitsDataSelector,
   commitsSelector,
+  commitSelector,
+  batchSelector,
   selectedSelector,
 } from './selectors/projects'
 
@@ -51,32 +49,22 @@ class Dashboard extends React.Component {
 
 
   componentDidMount() {
-    document.title = `Dashboard - ${this.props.project}`;
+    document.title = `TimeTravel - ${this.props.project}`;
     this.fetchCommits();
   }
 
   componentDidUpdate(prevProps) {
-    if (
-      this.props.match.url !== prevProps.match.url ||
-      this.props.branch.name !== prevProps.branch.name
-      // this.props.project_data !== prevProps.project_data
-      // this.props.aggregation_metrics !== prevProps.aggregation_metrics
-      ) {
+    if (this.props.match.url !== prevProps.match.url)
       this.fetchCommits();
-    }
   }
 
   fetchCommits() {
-    const { params, project, dispatch, branch, aggregation_metrics } = this.props;
+    const { match, project, dispatch, aggregation_metrics } = this.props;
     const extra_params = {
       only_ci_batches: true,
       with_outputs: true,
-    } 
-    dispatch(fetchCommits(project, branch, default_date_range, aggregation_metrics, extra_params))
-    if (params.get("commit_id"))
-      dispatch(fetchCommit(project, params.get("commit_id"), "new_commit_id"));
-    if (params.get("commit_android_id"))
-      dispatch(fetchCommit(project, params.get("commit_android_id"), "ref_commit_id"));
+    }
+    dispatch(fetchCommits(project, {...match.params}, default_date_range, aggregation_metrics, extra_params))
   }
 
 
@@ -137,17 +125,14 @@ class Dashboard extends React.Component {
   };
 
   render() {
-    const { params, project_data, project, commits, available_metrics, output_filter } = this.props;
+    const { project_data, project, commits, available_metrics, output_filter } = this.props;
     const { is_loaded, is_loading, error  } = this.props;
-    const {
-      selected_metrics,
-      evolution_metrics,
-    } = this.state;
+    const { selected_metrics, evolution_metrics } = this.state;
 
     if (is_loading)
       return (
         <Container style={{paddingTop: '50px'}}>
-          <NonIdealState title={`Loading @${this.props.branch.name}`} icon={<Spinner />} />
+          <NonIdealState title={`Loading ${!!this.props.match.name ? this.props.match.name : ''}`} icon={<Spinner />} />
         </Container>
       );
     if (commits.length===0) return <Container style={{paddingTop: '50px'}}>
@@ -157,38 +142,11 @@ class Dashboard extends React.Component {
       <NonIdealState title="Error" icon='error' text={JSON.stringify(error)}/>
     </Container>
 
-    // Find the latest commit with android results [Specific to dvs/psp_swip]
-    const has_outputs_in_batch = label => commit => !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
-    let latest_commits_android = commits.filter(c => has_outputs_in_batch("ci-android-rt")(c) || has_outputs_in_batch("manual-android-rt")(c));
-    let latest_commit_android_id = latest_commits_android.length > 0 ? latest_commits_android[0].id : (commits.length > 0 ? commits[0].id : null);
 
-    let commit_id = params.get("commit_id") || latest_commit_android_id;
-    let commit_android_id = params.get("commit_android_id") || latest_commit_android_id;
-    let commit = commits.find(c => c.id === commit_id);
-    let commit_android = commits.find(c => c.id === commit_android_id);
+    const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered } = this.props;
+    const has_reference = !!ref_batch_filtered && !!ref_batch_filtered.outputs && Object.keys(ref_batch_filtered.outputs).length > 0
 
-    let linux_batch = commit.batches.default || empty_batch;
-    let android_batch = commit_android.batches["manual-android-rt"] || commit_android.batches["ci-android-rt"] || empty_batch;
-    let has_android = Object.keys(android_batch.outputs).length > 0;
-
-    // console.log('before filter')
-    // console.log("linux_batch", linux_batch)
-    // console.log("android_batch", android_batch)
-
-    // console.log(linux_batch)
-    // console.log(android_batch)
-    // console.log(output_filter)
-    linux_batch = filter_batch(linux_batch, output_filter);
-    android_batch = filter_batch(android_batch, output_filter);
-
-    // console.log("linux_batch", linux_batch)
-    // console.log("android_batch", android_batch)
-    // console.log(has_android)
-
-    let clearButton =
-      selected_metrics.length > 0 ? (
-        <Button icon="cross" minimal={true} onClick={this.handleClear} />
-      ) : null;
+    let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = (
       <MultiSelect
         items={Object.values(available_metrics)}
@@ -206,12 +164,8 @@ class Dashboard extends React.Component {
       />
     );
 
-    let pretty_commit_android_id =
-      commit_android.type === "git"
-        ? shortId(project, commit_android_id)
-        : commit_android_id.replace("/f2/algo_archive/PTAM_Results/", "");
-    let pretty_commit_id = shortId(project, commit_id);
-
+    let outputs_nb = Object.keys(new_batch_filtered.outputs).length
+    let count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} output{outputs_nb > 1 ? 's' : ''}</p> : <span/>
     return (
       <Container style={{paddingTop: '50px'}}>
         <Section>
@@ -222,8 +176,10 @@ class Dashboard extends React.Component {
               project={project}
               project_data={project_data}              
               commits={commits}
+              new_commit={new_commit}
+              ref_commit={ref_commit}
               select_metrics={evolution_metrics}
-              output_filter={this.props.output_filter}
+              output_filter={output_filter}
               per_output_granularity
               default_breakdown_per_test={this.props.breakdown_per_test}
               style={{ marginTop: "20px" }}
@@ -234,38 +190,17 @@ class Dashboard extends React.Component {
 
 
 
-        {has_android && (
+        {has_reference && (
           <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
             <Card elevation={0}>
-              <h2 className={Classes.HEADING}>
-                Metrics on Android{" "}
-                <span style={{ color: Colors.BLUE2 }}>vs LSF</span>
-              </h2>
-              <ul className={Classes.LIST}>
-                <li>
-                  <strong>Android:</strong>{" "}
-                  {Object.keys(android_batch.outputs).length} results from{" "}
-                  <Link to={`/commit/${commit_android_id}?project=${project}`}>
-                    <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
-                      {pretty_commit_android_id}
-                    </code>
-                  </Link>
-                </li>
-                <li>
-                  <strong>LSF:</strong>{" "}
-                  {Object.keys(linux_batch.outputs).length} results from{" "}
-                  <Link to={`/commit/${commit_id}?project=${project}`}>
-                    <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>{pretty_commit_id}</code>
-                  </Link>
-                </li>
-              </ul>
+              <h2 className={Classes.HEADING}>Metrics distribution</h2>
+              {count}
               <MetricsSummary
                 selected_metrics={selected_metrics}
                 project={project}
                 project_data={project_data}
-                new_batch={android_batch}
-                ref_batch={linux_batch}
-                xaxis_labels={["Android", "LSF"]}
+                new_batch={new_batch_filtered}
+                ref_batch={ref_batch_filtered}
               />
             </Card>
           </Section>
@@ -275,19 +210,13 @@ class Dashboard extends React.Component {
         {project==='dvs/psp_swip' && <Section>
           <Card elevation={1}>
             <h2 className={Classes.HEADING}>Algorithmic bottlenecks</h2>
-            <p className={Classes.TEXT_MUTED}>{Object.keys(linux_batch.outputs).length} offline results{" "}
-            <Link to={`/commit/${commit_id}`}>
-              <code className={`${Classes.TEXT_MUTED} ${Classes.CODE}`}>
-                {pretty_commit_id}
-              </code>
-            </Link>
-            </p>
+            {count}
             <MetricsSummary
               breakdown_by_tag
               selected_metrics={selected_metrics}
               project={project}
               project_data={project_data}
-              new_batch={linux_batch}
+              new_batch={new_batch_filtered}
               ref_batch={empty_batch}
             />
           </Card>
@@ -295,8 +224,7 @@ class Dashboard extends React.Component {
 
         <Section>
           <Card>
-            <h2 className={Classes.HEADING}>Latest results</h2>
-
+            <h2 className={Classes.HEADING}>Metrics per-test</h2>
             <Tabs
               renderActiveTabPanelOnly
               id="tabs-outputs"
@@ -312,27 +240,22 @@ class Dashboard extends React.Component {
                   <TableKpi
                     sort_order={this.props.sort_order}
                     sort_by={this.props.sort_by}
-                    new_batch={has_android ? android_batch : linux_batch}
-                    ref_batch={has_android ? linux_batch : android_batch}
-                    labels={
-                      has_android ? ["Android", "LSF"] : ["LSF", "Android"]
-                    }
+                    new_batch={new_batch_filtered}
+                    ref_batch={ref_batch_filtered}
                     metrics={selected_metrics}
                     input={metricTableSelect}
                   />
                 }
               />
-              {has_android && (
+              {has_reference && (
                 <Tab
                   id="table-compare"
-                  title="Android vs LSF"
                   panel={
                     <TableCompare
                       sort_order={this.props.sort_order}
                       sort_by={this.props.sort_by}
-                      new_batch={android_batch}
-                      ref_batch={linux_batch}
-                      labels={["Android", "LSF"]}
+                      new_batch={new_batch_filtered}
+                      ref_batch={ref_batch_filtered}
                       metrics={selected_metrics}
                       input={metricTableSelect}
                     />
@@ -369,11 +292,21 @@ const mapStateToProps = (state, ownProps) => {
 
     let project = projectSelector(state)
     let project_data = projectDataSelector(state)
+
     let selected = selectedSelector(state)
+    let new_commit_id = selected.new_commit_id
+    let ref_commit_id = selected.ref_commit_id
+
+    let { new_commit, ref_commit } = commitSelector(state)
+
+    let {
+      new_batch_filtered,
+      ref_batch_filtered,
+    } = batchSelector(state)
+
 
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
-    let branch = {name: (ownProps.match.params.name || params.get("branch") || project_data.data.qatools_config.project.reference_branch || 'latests')}
 
     let project_metrics = (project_data.data || {}).qatools_metrics || {}    
     const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
@@ -386,13 +319,20 @@ const mapStateToProps = (state, ownProps) => {
       params,
       project,
       project_data,
-      branch,
       date_range: commits_data.date_range,
       commits: commits.filter(c => !!c),
+      // commits
+      new_commit_id,
+      ref_commit_id,
+      new_commit,
+      ref_commit,
       // state
       error: commits_data.error,
       is_loaded: commits_data.is_loaded,
       is_loading: commits_data.is_loading,
+      // outputs
+      new_batch_filtered,
+      ref_batch_filtered,
       // metrics
       aggregation_metrics,
       evolution_metrics: (dashboard_evolution_metrics || main_metrics || []),
@@ -402,10 +342,10 @@ const mapStateToProps = (state, ownProps) => {
       dashboard_metrics,
       dashboard_evolution_metrics,
 
+      breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || true,
       output_filter: selected.filter_batch_new,
       sort_by: params.get("sort_by") || selected.sort_by || project_metrics.default_metric || "input_test_path",
       sort_order: params.get("sort_order") || selected.sort_order || -1,
-      breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || false,
     }
 }
 

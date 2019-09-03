@@ -37,7 +37,7 @@ const SelectBatchesNav = ({ commit, prefix, onChange, selected, hide_counts }) =
         minimal
         disabled={!has_tuning_batches}
         id="batch-select-new"
-        defaultValue={selected}
+        value={selected}
         title={selected}
         onChange={onChange}
         style={{maxWidth: '360px', ...style}}

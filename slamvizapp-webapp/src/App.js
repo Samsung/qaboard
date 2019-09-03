@@ -1,6 +1,7 @@
 import React from "react";
 import { Provider } from 'react-redux'
-import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
+import history from "./history";
+import { Router, Route, Switch } from "react-router-dom";
 import { PersistGate } from 'redux-persist/integration/react'
 
 import { Classes } from "@blueprintjs/core";
@@ -45,7 +46,7 @@ class App extends React.Component {
     if (this.state.hasError)
       return <ErrorPage error={this.state.error} info={this.state.info}/>
 	  return <Provider store={this.props.store}><PersistGate loading={null} persistor={this.props.persistor}>
-	    <Router>
+	    <Router history={history}>
         <Switch>
           <Route exact path="/" component={ProjectsList} />
           <Route component={ProjectApp} />
