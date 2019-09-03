@@ -23,7 +23,6 @@ import {
 } from "@blueprintjs/core";
 
 import { updateMilestones, fetchProjects } from "../actions/projects";
-import { shortId } from "../utils";
 
 const toaster = Toaster.create();
 
