@@ -69,6 +69,33 @@ def match(value, value_filter):
 
 
 def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
+  if not path:
+    path = "*"
+
+  maybe_parent = lambda path: path.parent if use_parent_folder else path
+  input_paths = list(database.glob(path)) # to support wildcards
+  if not input_paths:
+    click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
+    return
+
+  for glob in globs:
+    for input_path in input_paths:
+      print(input_path, glob)
+      inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
+               # set([maybe_parent(f) for f in input_path.rglob(f'**/{glob}')])
+      if only:
+        inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
+      if exclude:
+        inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
+      yield from inputs
+      if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
+        metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
+        if only and not match(metadata, only): continue
+        if exclude and match(metadata, exclude): continue
+        yield input_path
+
+
+def _iter_inputs(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
     try:
@@ -82,26 +109,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
     return
-
-  maybe_parent = lambda path: path.parent if use_parent_folder else path
-  input_paths = list(database.glob(path)) # to support wildcards
-  if not input_paths:
-    click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
-    return
-
-  for glob in globs:
-    for input_path in input_paths:
-      inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
-               # set([maybe_parent(f) for f in input_path.rglob(f'**/{glob}')])
-      if only:
-        inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
-      if exclude:
-        inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
-      yield from inputs
-      if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-        if only and not match(input_metadata(input_path, database, input_path.relative_to(database), qatools_config), only): continue
-        if exclude and match(input_metadata(input_path, database, input_path.relative_to(database), qatools_config), exclude): continue
-        yield input_path
+  yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)
 
 
 
@@ -138,7 +146,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
   groups = list(alias_groups(groups, group_aliases))
 
   if not groups:
-    click.secho(f'WARNING: No group. Maybe you forgot --group ?', fg='yellow', err=True)
+    click.secho(f'WARNING: No group chosen.', fg='yellow', err=True)
 
   for group in groups:
     if debug: click.secho(f'group: {group}', dim=True)
@@ -148,7 +156,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     if group not in available_batches:
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(group), bold=True, fg='cyan', err=True)
-      inputs_iter = iter_inputs_at_path(group, database, globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config)
+      inputs_iter = _iter_inputs(group, database, globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config)
       yield from ((i, default_configuration , default_lsf_configuration, database) for i in inputs_iter)
       return
 
@@ -169,8 +177,9 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
         continue
       else:
         # run all inputs matching only/exclude
-        inputs_iter = iter_inputs_at_path(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
-        yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
+        inputs_iter = _iter_inputs(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+        yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
+        return
 
     # We also allow each input to have its settings...
     if isinstance(locations, list):
@@ -182,6 +191,11 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           else:
             locations_as_dict.update(l)
       locations = locations_as_dict
+
+    if not locations: # return everything
+      inputs_iter = _iter_inputs(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
+      return
 
     for location, location_configuration in locations.items():
       if not location_configuration:
@@ -213,7 +227,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
-      inputs_iter = iter_inputs_at_path(location, location_database, location_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = _iter_inputs(location, location_database, location_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
       yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
 
 
