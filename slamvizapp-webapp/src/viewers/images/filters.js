@@ -1,6 +1,8 @@
 /* eslint-disable */
 // https://github.com/picturae/OpenSeadragonImageFilters/blob/master/src/imagefilters.js
 import { debounce } from "lodash"
+import { Classes } from "@blueprintjs/core";
+
 var OpenSeadragon = require('openseadragon')
 
 require('./filtering')
@@ -52,12 +54,12 @@ OpenSeadragon.ImagefilterTools = function (options) {
         },
         filters: [ //add filters here
             {
-                filterName: 'brightness',
+                filterName: 'Brightness',
                 min: -255,
                 max: 255,
                 callback: null,
                 processor: function () {
-                    var setTo = getElementValueAsFloat(`osd-filter-brightness-${options.viewer.id}`);
+                    var setTo = getElementValueAsFloat(`osd-filter-Brightness-${options.viewer.id}`);
                     if (this.callback !== null) {
                         this.callback(setTo);
                     }
@@ -65,7 +67,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
                 }
             },
             {
-                filterName: 'contrast',
+                filterName: 'Contrast',
                 min: 0,
                 max: 5,
                 value: 1,
@@ -73,7 +75,7 @@ OpenSeadragon.ImagefilterTools = function (options) {
                 step: 0.1,
                 callback: null,
                 processor: function () {
-                    var setTo = getElementValueAsFloat(`osd-filter-contrast-${options.viewer.id}`);
+                    var setTo = getElementValueAsFloat(`osd-filter-Contrast-${options.viewer.id}`);
                     if (this.callback !== null) {
                         this.callback(setTo);
                     }
@@ -182,7 +184,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             popup = document.createElement('div');
             popup.id = `osd-imagetools-${this.viewer.id}`;
             if (this.popUpClass) {
-                popup.class = this.popUpClass;
+                popup.className = `${this.popUpClass}`;
             } else {
                 popup.style.display = 'none';
                 popup.style.textAlign = 'center';
@@ -212,9 +214,9 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 //add event to slider
                 this.onRangeChange(filterElement);
                 //add to tools popup with label
-                var label = document.createElement('p');
-                label.style.margin = '0';
-                label.innerHTML = `Tool. ${filter.filterName}`;
+                var label = document.createElement('label');
+                label.innerHTML = filter.filterName;
+                // label.style.margin = '0';
 
                 popup.appendChild(label);
                 popup.appendChild(filterElement);
@@ -222,10 +224,10 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
 
             //add reset button
             var resetButton = document.createElement('button');
-            resetButton.innerHTML = 'reset';
-            resetButton.style.display = 'block';
-            resetButton.style.margin = '0 auto';
-            resetButton.style.padding = '2px';
+            resetButton.className = Classes.BUTTON;
+            resetButton.innerHTML = 'Reset';
+            // resetButton.style.display = 'block';
+            resetButton.style.margin = '5px';
 
             //add functionality to reset button
             resetButton.addEventListener('click', function () {
@@ -257,8 +259,9 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
      * Resets filters by setting range inputs to default value
      */
     resetFilters: function () {
-        this.filters.map(function (filter) {
+        this.filters.map(filter => {
             var filterInput = OpenSeadragon.getElement(`osd-filter-${filter.filterName}-${this.viewer.id}`);
+            console.log(filterInput)
             filterInput.value = filter.defaultValue || 0;
         });
         this.updateFilters();
