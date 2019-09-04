@@ -102,25 +102,35 @@ const sortOutputs = (sort_by, order) => {
 };
 
 
+const safe_regex = s => {
+  // creating regexes with user input can lead to invalid regexes...
+  console.log(s)
+  try {
+    return new RegExp(s);
+  } catch(e) {
+    const s_safe = s.replace(/[\W]/g, ".")
+    return new RegExp(s_safe)
+  }
+}
 
 const match_query = pattern => {
+  console.log(pattern)
   const tokens = pattern
     .trim()
     .toLowerCase()
     .replace(/"/g, "")
-    .replace(/=+/g, ":")
-    .replace(/: /g, ":")
+    .replace(/(=+|: )/g, ":")
     // CDE has pipes in register names, so we're willing to be accomodating!
     .replace(/\.sim\|/g, ".sim.")
     .replace(/\.def\|/g, ".def.")
     .replace(/\.eco\|/g, ".eco.")
     .split(" ");
-  // console.log(tokens)
+  console.log(tokens)
   const negative_tokens = tokens
     .filter(t => t[0] === "-" && t.length > 1)
     .map(t => t.substring(1));
   const positive_tokens = tokens.filter(t => t[0] !== "-");
-  const positive_regexps = positive_tokens.map(t => new RegExp(t))
+  const positive_regexps = positive_tokens.map(t => safe_regex(t))
   // console.log(positive_tokens, negative_tokens)
   // console.log(positive_regexps)
   return query => {
