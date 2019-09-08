@@ -347,7 +347,9 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs
 
-  running_lsf_jobs = get_running_lsf_jobs()
+  # it's debatable whether dryrun should list possibly running jobs
+  running_lsf_jobs = get_running_lsf_jobs() if not dryrun else set()
+
   default_lsf_config =  {
     "project": lsf_config.get('project', config.get("project", {}).get('name', 'qatools')),
     "max_threads": lsf_threads,
