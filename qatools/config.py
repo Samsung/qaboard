@@ -25,11 +25,15 @@ renamings = (
   ('--reference-branch', '--reference'),
   ('--batch-label', '--label'),
   ('--inputs-database', '--database'),
-  ('--save-manifests', '--save-manifests-in-database')
+  ('--save-manifests', '--save-manifests-in-database'),
+  ('--return-prefix-outputs-path', '--list-output-dirs'),
+  ('--ci', '--share'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
-    if arg == before: return after
+    if arg == before:
+      click.secho(f'Deprecation: {before} was replaced by {after} and will be removed in a future release.', fg='yellow')
+      return after
   return arg
 sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
 if '--lsf-sequential' in sys.argv:
@@ -198,7 +202,7 @@ ci_env_variables = (
 )
 is_ci = any([v in os.environ for v in ci_env_variables])
 
-user = getenvs(('USERNAME', 'USER'))
+user = getenvs(('USERNAME', 'USER', 'HOSTNAME', 'HOST'))
 
 if is_ci:
     commit_type = config.get('project', {}).get('type', 'git')
