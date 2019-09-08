@@ -221,8 +221,7 @@ def get_running_lsf_jobs():
       return set()
 
   user = getenvs(('USERNAME', 'USER', 'HOSTNAME', 'HOST'))
-
-  cmd = " ".join(["bjobs -u", os.environ["USER"], "-noheader -o 'job_name:100'"])
+  cmd = " ".join(["bjobs -u", user, "-noheader -o 'job_name:100'"])
   out = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, encoding="utf-8")
   if out.stdout:
       lines = out.stdout.split("\n")
