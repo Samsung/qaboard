@@ -74,11 +74,19 @@ def entrypoint_module(config):
   else:
     entrypoint = Path(entrypoint)
   try:
+      name = f'qatools-entrypoint'
       # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-      sys.path.append(str(entrypoint.parent)) # allow imports relative to the entrypoint's directory # FIXME: called multiple times...
-      spec = importlib.util.spec_from_file_location('entrypoint', entrypoint)
+      spec = importlib.util.spec_from_file_location(name, entrypoint)
+
       module = importlib.util.module_from_spec(spec)
+      sys.path.append(str(entrypoint.parent))
       spec.loader.exec_module(module)
+      # sys.path.pop()
+
+      # spec = importlib.util.spec_from_loader(name, importlib.machinery.SourceFileLoader(name, str(entrypoint)))
+      # spec.submodule_search_locations = [str(entrypoint.parent)]
+      # with cached versions of the entrypoint.... An option could be importlib.reload(module)
+      # FIXME: at some points I had issues with sys.path, but no more (?)
   except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
@@ -110,7 +118,6 @@ def input_metadata(absolute_input_path, database, input_path, config):
   elif hasattr(entrypoint_module_, 'iter_inputs'):
     try:
       inputs = list(entrypoint_module_.iter_inputs(input_path, database, only=None, exclude=None))
-      print(inputs)
       if len(inputs)==1:
         metadata = inputs[0].get('metadata', {})
       else:
