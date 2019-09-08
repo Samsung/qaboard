@@ -80,7 +80,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 
   for glob in globs:
     for input_path in input_paths:
-      print(input_path, glob)
+      # print(input_path, glob)
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
                # set([maybe_parent(f) for f in input_path.rglob(f'**/{glob}')])
       if only:
