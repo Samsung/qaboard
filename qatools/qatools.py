@@ -345,6 +345,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   batch_label = ctx.obj['batch_label']
   commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
 
+  dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs
 
   running_lsf_jobs = get_running_lsf_jobs()
   default_lsf_config =  {
@@ -358,7 +359,6 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
   lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
-  dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs
   should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
   if should_notify_qa_database:
     if is_ci or ctx.obj['ci']:

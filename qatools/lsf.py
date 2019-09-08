@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 import click
 
 from .api import get_output
+from .utils import getenvs
 
 # We avoid hosts that run on old processors lacking AVX instructions (pre-Sandy Bridge)
 # We could avoid those that lack AVX2, and someday we'll care about AVX512...
@@ -212,22 +213,24 @@ def kill_jobs_lsf(jobs, via_lsf=False):
 
 
 def get_running_lsf_jobs():
-    """
+  """
   Return the names of the running LSF jobs for the current user (as a set)
   From Windows we return an empty set, but if you really want to, you should be able to find a way to connect to LSF.
   """
-    if os.name=='nt':
-        return set()
+  if os.name=='nt':
+      return set()
 
-    cmd = " ".join(["bjobs -u", os.environ["USER"], "-noheader -o 'job_name:100'"])
-    out = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, encoding="utf-8")
-    if out.stdout:
-        lines = out.stdout.split("\n")
-        # the output begins with *
-        job_names = [l.strip()[1:] for l in lines]
-        return set(job_names)
-    else:
-        return set()
+  user = getenvs(('USERNAME', 'USER', 'HOSTNAME', 'HOST'))
+
+  cmd = " ".join(["bjobs -u", os.environ["USER"], "-noheader -o 'job_name:100'"])
+  out = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, encoding="utf-8")
+  if out.stdout:
+      lines = out.stdout.split("\n")
+      # the output begins with *
+      job_names = [l.strip()[1:] for l in lines]
+      return set(job_names)
+  else:
+      return set()
 
 
 def job_ran_once(output_directory):
