@@ -313,7 +313,7 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
-@click.option('--list-outputs-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
+@click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--runner', default=config.get('runners', {}).get('default', 'lsf' if os.name!='nt' else 'local'), help="Run runs locally or on LSF")
