@@ -403,8 +403,10 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if list_contexts:
         jobs_contexts.append({
           "absolute_input_path": str(input_path_abs),
+          "input_path": str(input_path),
+          "database": str(input_database),
           "configurations": input_configurations,
-          "input_database": str(input_database)
+          "input_database": str(input_database).
         })
         break
 
