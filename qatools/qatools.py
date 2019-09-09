@@ -313,8 +313,9 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
-@click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run an")
-@click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on")
+@click.option('--list', 'list_contexts', is_flag=True, help="Print as JSON details about each run we would do.")
+@click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
+@click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
 @click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--runner', default=config.get('runners', {}).get('default', 'lsf' if os.name!='nt' else 'local'), help="Run runs locally or on LSF")
 @click.option('--lsf-threads', default=lsf_config.get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
@@ -326,7 +327,7 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
+def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_contexts, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not groups_file:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
@@ -345,7 +346,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   batch_label = ctx.obj['batch_label']
   commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
 
-  dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs
+  dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
 
   # it's debatable whether dryrun should list possibly running jobs
   running_lsf_jobs = get_running_lsf_jobs() if not dryrun else set()
@@ -376,6 +377,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
 
   jobs = []
+  jobs_contexts = []
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
   inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
@@ -397,6 +399,13 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
         break
       if list_inputs:
         print(input_path_abs)        
+        break
+      if list_contexts:
+        jobs_contexts.append({
+          "absolute_input_path": str(input_path_abs),
+          "configurations": input_configurations,
+          "input_database": str(input_database)
+        })
         break
 
       # LSF job names are based on the output directory and transformed 
@@ -454,6 +463,8 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       jobs.append(job)
 
 
+  if list_contexts:
+    print(json.dumps(jobs_contexts, indent=2))
 
   if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
