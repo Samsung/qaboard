@@ -115,18 +115,20 @@ def input_metadata(absolute_input_path, database, input_path, config):
       click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       metadata = {}
-  elif hasattr(entrypoint_module_, 'iter_inputs'):
-    try:
-      inputs = list(entrypoint_module_.iter_inputs(input_path, database, only=None, exclude=None))
-      if len(inputs)==1:
-        metadata = inputs[0].get('metadata', {})
-      else:
-        metadata = {}
-    except Exception as e:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `iter_inputs` function in your raised an exception:', fg='red', bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      metadata = {}
+  # With what's below we run into loops easily if the user uses iter_at_path
+  # Let's ask users to be explicit
+  # elif hasattr(entrypoint_module_, 'iter_inputs'):
+  #   try:
+  #     inputs = list(entrypoint_module_.iter_inputs(input_path, database, only=None, exclude=None))
+  #     if len(inputs)==1:
+  #       metadata = inputs[0].get('metadata', {})
+  #     else:
+  #       metadata = {}
+  #   except Exception as e:
+  #     exc_type, exc_value, exc_traceback = sys.exc_info()
+  #     click.secho(f'[ERROR] The `iter_inputs` function in your raised an exception:', fg='red', bold=True)
+  #     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+  #     metadata = {}
   else:
     metadata = {}
   return metadata

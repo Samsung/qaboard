@@ -73,16 +73,14 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     path = "*"
 
   maybe_parent = lambda path: path.parent if use_parent_folder else path
-  input_paths = list(database.glob(path)) # to support wildcards
+  input_paths = list(database.glob(str(path))) # to support wildcards
   if not input_paths:
     click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
     return
 
   for glob in globs:
     for input_path in input_paths:
-      # print(input_path, glob)
-      inputs = set([maybe_parent(f) for f in input_path.rglob(glob)]) # | \
-               # set([maybe_parent(f) for f in input_path.rglob(f'**/{glob}')])
+      inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
       if only:
         inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
       if exclude:
@@ -172,14 +170,10 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     group_globs = available_batches[group].get('globs', globs)
     locations = available_batches[group].get('inputs', available_batches[group].get('tests'))
     if not locations:
-      if not group_only and not group_exclude:
-        click.secho(f"Warning: the selected group is empty ({group})", fg='yellow', err=True)
-        continue
-      else:
-        # run all inputs matching only/exclude
-        inputs_iter = _iter_inputs(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
-        yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
-        return
+      # run all inputs matching only/exclude
+      inputs_iter = _iter_inputs(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
+      return
 
     # We also allow each input to have its settings...
     if isinstance(locations, list):
