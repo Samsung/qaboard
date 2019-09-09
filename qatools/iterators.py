@@ -106,8 +106,8 @@ def _iter_inputs(path, database, globs, use_parent_folder, qatools_config, only=
       # we really could send a batch update to /our/ database here with all the metadata?
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True, err=True)
+      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
     return
   yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)
 
