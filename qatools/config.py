@@ -27,7 +27,7 @@ renamings = (
   ('--inputs-database', '--database'),
   ('--save-manifests', '--save-manifests-in-database'),
   ('--return-prefix-outputs-path', '--list-output-dirs'),
-  ('--ci', '--share'),
+  ('--ci', '--shared'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
@@ -58,7 +58,7 @@ def find_qatools_configs(path):
             qatools_configs.append(qatools_config)
             qatools_config_paths.append(qatools_config_path)
             if qatools_config.get('root'): break
-    qatools_configs.reverse() 
+    qatools_configs.reverse()
     qatools_config_paths.reverse()
     return qatools_configs, qatools_config_paths
 

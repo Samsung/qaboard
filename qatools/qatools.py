@@ -431,7 +431,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
       args = [
           f"qa",
-          f'--ci' if ctx.obj["ci"] else None,
+          f'--shared' if ctx.obj["ci"] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
           f'--database "{input_database.as_posix()}"' if input_database != database else None,
