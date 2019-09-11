@@ -41,7 +41,7 @@ from .config import is_ci, on_windows
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--ci', is_flag=True, help="Save outputs at the CI's centralized location, and show them in the UI.")
+@click.option('--shared', is_flag=True, help="Save outputs at the CI's centralized location, and show them in the UI.")
 @click.option('--database', 'inputs_database', default=database, type=PathType(), help="Test database location")
 @click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
@@ -379,11 +379,14 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   jobs = []
   jobs_contexts = []
 
+  # print("BEFORE ITER", file=sys.stderr)
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
   inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
+  # print("AFTER ITER", file=sys.stderr)
   for input_path_abs, input_configurations, lsf_configuration, input_database in inputs_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(input_database)
+    print(input_path, file=sys.stderr)
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
@@ -467,6 +470,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   if list_contexts:
     print(json.dumps(jobs_contexts, indent=2))
+    return
 
   if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
