@@ -45,7 +45,7 @@ from .config import is_ci, on_windows
 @click.option('--database', 'inputs_database', default=database, type=PathType(), help="Test database location")
 @click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, ci, inputs_database, inputs_glob, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, shared, inputs_database, inputs_glob, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
@@ -72,14 +72,14 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['database'] = inputs_database
   ctx.obj['inputs_globs'] = inputs_glob
   ctx.obj['dryrun'] = dryrun
-  ctx.obj['ci'] = ci
+  ctx.obj['ci'] = shared
   ctx.obj['user'] = user
   ctx.obj['project'] = config['project']['name']
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['raw_batch_label'] = batch_label
-  ctx.obj['batch_label'] = batch_label if not ci else f"@{user}| {batch_label}"
+  ctx.obj['batch_label'] = batch_label if not shared else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
   ctx.obj['configuration'] = configuration
   ctx.obj['configurations'] = deserialize_config(configuration)
@@ -98,13 +98,13 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, ci)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, shared)
 
   # we manage stripping ansi color codes ourselfs since we redirect std streams
   # to both the original stream and a log file
   ctx.color = True
   # colors in log files colors will be interpreted in the UIs
-  ctx.obj['color'] = is_ci or ci
+  ctx.obj['color'] = is_ci or shared
 
 
 @cli.command()
