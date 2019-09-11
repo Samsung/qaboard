@@ -379,14 +379,11 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   jobs = []
   jobs_contexts = []
 
-  # print("BEFORE ITER", file=sys.stderr)
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
   inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
-  # print("AFTER ITER", file=sys.stderr)
   for input_path_abs, input_configurations, lsf_configuration, input_database in inputs_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(input_database)
-    print(input_path, file=sys.stderr)
 
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:

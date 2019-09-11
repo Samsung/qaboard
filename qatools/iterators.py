@@ -229,9 +229,6 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
 
 def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   extra_params = extra_parameters if extra_parameters else {}
-  # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
-  from sklearn.model_selection import ParameterGrid, ParameterSampler
-
   if not tuning_search:
     tuning_search = {
       'parameter_search': {},
@@ -243,22 +240,30 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
       yield from iter_parameters(tuning_search={**tuning_search, 'parameter_search': param_search}, filetype=filetype, extra_parameters=extra_parameters)
     return
 
-  for parameter, values in tuning_search['parameter_search'].items():
-    if isinstance(values, dict):
-      if not 'function' in values or not 'arguments' in values:
-        raise ValueError
-      if values['function'] == 'range':
-        args = values['arguments']
-        if 'start' not in args: args['start']=0
-        if 'stop' not in args: args['stop']=0
-        if 'step' not in args: args['step']=1
-        tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
+  parameter_search = tuning_search['parameter_search']
+
+  ## Support for functions/ranges was removed - no one ever used them.
+  # for parameter, values in parameter_search.items():
+  #   if isinstance(values, dict):
+  #     if not 'function' in values or not 'arguments' in values:
+  #       raise ValueError
+  #     if values['function'] == 'range':
+  #       args = values['arguments']
+  #       if 'start' not in args: args['start']=0
+  #       if 'stop' not in args: args['stop']=0
+  #       if 'step' not in args: args['step']=1
+  #       tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
   n_iter = tuning_search.get('search_options', {}).get('n_iter')
-  if tuning_search['search_type'] == 'grid':
-    params_iterator = ParameterGrid(tuning_search['parameter_search'])
+  if not parameter_search:
+    params_iterator = [{}]
+  elif tuning_search['search_type'] == 'grid':
+    # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
+    from sklearn.model_selection import ParameterGrid
+    params_iterator = ParameterGrid(parameter_search)
   elif tuning_search['search_type'] == 'sampler':
-    params_iterator = ParameterSampler(tuning_search['parameter_search'], n_iter=n_iter)
+    from sklearn.model_selection import ParameterSampler
+    params_iterator = ParameterSampler(parameter_search, n_iter=n_iter)
   else:
     raise ValueError
 
@@ -274,16 +279,17 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
 
     working_directory = Path('.') # can we do something smarter?
     params_file = working_directory / 'configurations' / 'tuning' / make_pretty_tuning_filename(params_s, filetype)
-    params_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with params_file.open('w') as f:
-      if filetype == 'json':
-        f.write(params_s)
-      elif filetype == 'yaml':
-        yaml.dump(params, f)
-      elif filetype == 'cde':
-        from cde import Config
-        config = Config()
-        config.load_fromdict(config_dict)
-        yaml.dump(params, f)
+    if params:
+      params_file.parent.mkdir(parents=True, exist_ok=True)
+      with params_file.open('w') as f:
+        if filetype == 'json':
+          f.write(params_s)
+        elif filetype == 'yaml':
+          yaml.dump(params, f)
+        elif filetype == 'cde':
+          from cde import Config
+          config = Config()
+          config.load_fromdict(config_dict)
+          yaml.dump(params, f)
     yield params_file, params_hash, params
