@@ -73,7 +73,7 @@ def notify_qa_database(object_type='output', **kwargs):
   """
   import requests
   from .config import is_ci, commit_id, config, ci_root
-  
+
   # we only update the output database if we're in a CI run, or if the user used `qa --ci`
   if not is_ci and not kwargs['ci']:
     return
@@ -92,7 +92,7 @@ def notify_qa_database(object_type='output', **kwargs):
   if 'QATOOLS_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)
-  
+
   try:
     # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)

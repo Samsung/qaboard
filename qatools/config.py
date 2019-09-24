@@ -27,7 +27,7 @@ renamings = (
   ('--inputs-database', '--database'),
   ('--save-manifests', '--save-manifests-in-database'),
   ('--return-prefix-outputs-path', '--list-output-dirs'),
-  ('--ci', '--shared'),
+  ('--ci', '--share'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
@@ -255,7 +255,7 @@ if not commit_id or not commit_branch:
           commit_id = commit_branch
         else:
           with refs_head_path.open() as f:
-            commit_id = f.read()
+            commit_id = f.read().strip()
 
 try:
     branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
