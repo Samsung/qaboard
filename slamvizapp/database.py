@@ -10,14 +10,14 @@ from sqlalchemy_utils import database_exists, create_database
 # http://docs.sqlalchemy.org/en/latest/dialects/mysql.html
 # http://docs.sqlalchemy.org/en/latest/core/engines.html
 # https://github.com/PyMySQL/mysqlclient-python
-db_type = os.getenv('SLAMVIZAPP_DB_TYPE', 'postgresql')
+db_type = os.getenv('QABOARD_DB_TYPE', 'postgresql')
 
-db_user = os.getenv('SLAMVIZAPP_DB_USER', 'ci')
-db_password = os.getenv('SLAMVIZAPP_DB_PASSWORD', 'dvsdvs')
-db_host = os.getenv('SLAMVIZAPP_DB_HOST', 'localhost')
-db_port = os.getenv('SLAMVIZAPP_DB_PORT', 5432)
-db_name = os.getenv('SLAMVIZAPP_DB_NAME', 'slamvizapp')
-db_echo = bool(os.getenv('SLAMVIZAPP_DB_ECHO', False))
+db_user = os.getenv('QABOARD_DB_USER', 'ci')
+db_password = os.getenv('QABOARD_DB_PASSWORD', 'dvsdvs')
+db_host = os.getenv('QABOARD_DB_HOST', 'localhost')
+db_port = os.getenv('QABOARD_DB_PORT', 5432)
+db_name = os.getenv('QABOARD_DB_NAME', 'slamvizapp')
+db_echo = bool(os.getenv('QABOARD_DB_ECHO', False))
 
 
 import ujson

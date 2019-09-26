@@ -2,14 +2,15 @@ import os
 from pathlib import Path
 
 # we clone our repositories locally here to access commit metadata
-git_server = os.getenv('SLAMVIZAPP_GIT_SERVER', 'gitlab-srv')
-app_data_directory = Path(os.getenv('SLAMVIZAPP_DATA', '/var/slamvizapp')).resolve()
+git_server = os.getenv('QABOARD_GIT_SERVER', 'gitlab-srv')
+app_data_directory = Path(os.getenv('QABOARD_DATA', '/var/slamvizapp')).resolve()
 
-# shared network location where we save logs, and which recordings constitute which group...
+# shared network location where we save custom per-project groups
+# FIXME: save in the database!
 shared_data_directory = Path('/home/arthurf/dvs/slamvizapp/data/')
 
 # unix config
-default_ci_directory = Path('/home/arthurf/ci')
+default_ci_directory = Path('/stage/algo_data/ci')
 
 # windows config
 is_windows = os.name == 'nt'

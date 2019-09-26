@@ -225,7 +225,7 @@ def gitlab_webhook():
     flag_modified(project, "data")
     db_session.add(project)
     db_session.commit()
-    print(project)
+    # print(project)
 
     try:
       ci_commit = CiCommit.get_or_create(
@@ -249,13 +249,11 @@ def gitlab_webhook():
         return False
     config_paths = [p for p in projects_config_paths if is_relative_to(subproject_config_path.parent, p.parent)]
     config_paths.sort()
-    print(config_paths)
     try:
       configs_contents = [repo.git.show(f'{ci_commit.hexsha}:{p}') for p in config_paths]
       configs = [yaml.load(c) for c in configs_contents]
       qatools_config = qatools.merge(configs)
       qatools_config['project']['name'] = project_id
-      print('qatools_config :', qatools_config)
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
@@ -273,7 +271,6 @@ def gitlab_webhook():
     reference_branch = qatools_config['project'].get('reference_branch', 'master')
     is_reference = branch == reference_branch
     if is_initialization or is_reference:
-      print('updating project-level qatools_config')
       project.data.update({'qatools_config': qatools_config,})
       flag_modified(project, "data")
 

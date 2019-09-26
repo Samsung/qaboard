@@ -73,7 +73,7 @@ cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/
 
 # export LC_ALL=C.UTF-8
 # export LANG=C.UTF-8
-cd /slamvizapp && SLAMVIZAPP_DB_ECHO=True FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
+cd /slamvizapp && QABOARD_DB_ECHO=True FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
 
 # command
 # status=$?

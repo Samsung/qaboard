@@ -10,12 +10,15 @@ echo "===== $DOCKER_IMAGE ====="
 DOCKER_ENV=""
 
 DOCKER_VOLUMES=""
+DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
+DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
+
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
+DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/raid/users"
 HOME_DOCKER=/opt/dockermounts$HOME
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa" # helps avoid mount errors...
-DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
-DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage/algo_data:/stage/algo_data"
+DOCKER_VOLUMES+=" --volume=/data/asp_algorithms_data:/data/asp_algorithms_data"
 # DOCKER_VOLUMES+=" --volume=/stage/algo_archive:/stage/algo_archive"
 DOCKER_VOLUMES+=" --volume=/stage/qa_data:/stage/qa_data"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive:/stage/algo_archive"
@@ -39,8 +42,8 @@ else
 		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
       #                 frontend           debug api            database     https-frontend
 		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9433:5432 -p0.0.0.0:9001:443"
-      # DOCKER_ENV+=" --env SLAMVIZAPP_DB_HOST=dvs"    
-      # DOCKER_ENV+=" --env SLAMVIZAPP_DB_PORT=5432"    
+      # DOCKER_ENV+=" --env QABOARD_DB_HOST=dvs"    
+      # DOCKER_ENV+=" --env QABOARD_DB_PORT=5432"    
 		else
             PORTS="-p0.0.0.0:10000:5000 -p0.0.0.0:10002:5002 -p0.0.0.0:10001:443"
  			# PORTS=""
@@ -84,7 +87,7 @@ if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
   DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 else
-  if [ -z ${SLAMVIZAPP_DEBUG_WITH_MOUNTS+x} ]; then
+  if [ -z ${QABOARD_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'
   else
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx:/etc/nginx"
@@ -94,6 +97,12 @@ else
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson:/opt/anaconda3/lib/python3.6/site-packages/simplejson"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson-3.16.0.dist-info:/opt/anaconda3/lib/python3.6/site-packages/simplejson-3.16.0.dist-info"
   fi
+fi
+
+if [ -z ${QABOARD_DB_HOST+x} ]; then
+    echo 'Using container database'
+else
+    DOCKER_ENV="--env QABOARD_DB_HOST=qa"
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
