@@ -15,7 +15,7 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 
 import { noMetrics } from "./metricSelect";
-import { median, plotly_palette } from "../utils";
+import { median, plotly_palette, match_query } from "../utils";
 
 
 
@@ -60,7 +60,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       ? Intent.DANGER
       : Intent.SUCCESS;
   let metric_tag = (
-    <Tag minimal intent={intent}>
+    <Tag minimal intent={!!metric_info.target ? intent : null}>
       {formatted_valued}
     </Tag>
   );
@@ -176,48 +176,50 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   all_values = all_values.filter(
     x => x !== null && x !== undefined && !isNaN(x)
   );
-  let min_y = Math.min(...all_values) * metric.scale;
-  let max_y = Math.max(...all_values) * metric.scale;
-  let threshold = metric.target * metric.scale;
-  let all_success = metric.smaller_is_better
-    ? max_y <= threshold
-    : min_y <= threshold;
-  let all_failed = metric.smaller_is_better
-    ? min_y >= threshold
-    : max_y >= threshold;
 
-  if (!all_success)
-    layout_.shapes.push({
-      type: "rect",
-      layer: "below",
-      xref: "paper",
-      x0: 0,
-      x1: 1,
-      yref: "y",
-      y0: metric.smaller_is_better ? max_y : threshold,
-      y1: metric.smaller_is_better ? threshold : min_y,
-      opacity: 0.2,
-      fillcolor: Colors.RED5,
-      line: {
-        color: Colors.RED5
-      }
-    });
-  if (!all_failed)
-    layout_.shapes.push({
-      type: "rect",
-      layer: "below",
-      xref: "paper",
-      x0: 0,
-      x1: 1,
-      yref: "y",
-      y0: metric.smaller_is_better ? min_y : threshold,
-      y1: metric.smaller_is_better ? threshold : max_y,
-      opacity: 0.15,
-      fillcolor: Colors.GREEN2,
-      line: {
-        color: Colors.GREEN2
-      }
-    });
+  if (!!metric.target) {
+    let min_y = Math.min(...all_values) * metric.scale;
+    let max_y = Math.max(...all_values) * metric.scale;
+    let threshold = metric.target * metric.scale;
+    let all_success = metric.smaller_is_better
+      ? max_y <= threshold
+      : min_y <= threshold;
+    let all_failed = metric.smaller_is_better
+      ? min_y >= threshold
+      : max_y >= threshold;
+    if (!all_success)
+      layout_.shapes.push({
+        type: "rect",
+        layer: "below",
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        yref: "y",
+        y0: metric.smaller_is_better ? max_y : threshold,
+        y1: metric.smaller_is_better ? threshold : min_y,
+        opacity: 0.2,
+        fillcolor: Colors.RED5,
+        line: {
+          color: Colors.RED5
+        }
+      });
+    if (!all_failed)
+      layout_.shapes.push({
+        type: "rect",
+        layer: "below",
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        yref: "y",
+        y0: metric.smaller_is_better ? min_y : threshold,
+        y1: metric.smaller_is_better ? threshold : max_y,
+        opacity: 0.15,
+        fillcolor: Colors.GREEN2,
+        line: {
+          color: Colors.GREEN2
+        }
+      });    
+  }
 
   var ydata = series.map(values => values.map(x => metric.scale * x));
 
@@ -267,9 +269,13 @@ const run_type = output =>
   `${output.test_input_path}-${output.platform}-${output.configuration}`;
 
 const pc_under_threshold = (array, threshold) => {
+  if (threshold === null || threshold === undefined)
+    return 0
   return array.filter(x => x <= threshold).length / array.length;
 };
 const pc_over_threshold = (array, threshold) => {
+  if (threshold === null || threshold === undefined)
+    return 0
   return array.filter(x => x >= threshold).length / array.length;
 };
 
@@ -400,11 +406,7 @@ class MetricsSummary extends Component {
     );
   };
   filterMetric = (query, metric) => {
-    let searched = `${metric.key} ${metric.label} ${
-      metric.short_label
-    }`.toLowerCase();
-    let search = query.toLowerCase();
-    return searched.indexOf(search) >= 0;
+    return match_query(`${metric.key} ${metric.label} ${metric.short_label}`)(query)
   };
   handleClearMetrics = () => this.setState({ selected_metrics: [] });
   handleRemoveMetric = (_tag, index) => {

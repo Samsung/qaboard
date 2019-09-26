@@ -20,6 +20,7 @@ import { Container, Section } from "./components/layout";
 import { noMetrics } from "./components/metricSelect";
 import { MetricsSummary } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
+import { match_query } from "./utils";
 
 import { fetchCommits } from "./actions/projects";
 
@@ -85,11 +86,7 @@ class Dashboard extends React.Component {
     );
   };
   filterMetric = (query, metric) => {
-    let searched = `${metric.key} ${metric.label} ${
-      metric.short_label
-    }`.toLowerCase();
-    let search = query.toLowerCase();
-    return searched.indexOf(search) >= 0;
+    return match_query(`${metric.key} ${metric.label} ${metric.short_label}`)(query)
   };
   handleClear = () => this.setState({ selected_metrics: [] });
   handleTagRemove = (_tag, index) => {
@@ -308,8 +305,10 @@ const mapStateToProps = (state, ownProps) => {
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
 
-    let project_metrics = (project_data.data || {}).qatools_metrics || {}    
-    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
+    const commit_qatools_metrics  = ((new_commit   || {}).data || {}).qatools_metrics;
+    const project_qatools_metrics = ((project_data || {}).data || {}).qatools_metrics;
+    const metrics = commit_qatools_metrics || project_qatools_metrics
+    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = metrics
     let aggregation_metrics = {};
     (dashboard_metrics || main_metrics || []).forEach(m => {
       aggregation_metrics[m] = available_metrics[m].target;
@@ -344,7 +343,7 @@ const mapStateToProps = (state, ownProps) => {
 
       breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || true,
       output_filter: selected.filter_batch_new,
-      sort_by: params.get("sort_by") || selected.sort_by || project_metrics.default_metric || "input_test_path",
+      sort_by: params.get("sort_by") || selected.sort_by || metrics.default_metric || "input_test_path",
       sort_order: params.get("sort_order") || selected.sort_order || -1,
     }
 }

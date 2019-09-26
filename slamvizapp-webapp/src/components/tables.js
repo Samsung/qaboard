@@ -84,7 +84,7 @@ const QualityCell = ({ metric, metrics }) => {
   )
     return <td></td>;
   let value = metrics[metric.key];
-  const delta_relative = (metric.target - value) / (metric.target + 0.000001);
+  const delta_relative = !!metric.target ? (metric.target - value) / (metric.target + 0.000001) : 0;
   let quality = metric.smaller_is_better ? (0.5 + delta_relative/2) : (0.5 - delta_relative/2);
   quality = Math.max(Math.min(quality, 0.9), 0.08)
   return (
@@ -118,7 +118,7 @@ const TableCompare = ({
             <th />
             {metrics.map(m => (
               <th key={m.key}>
-                {m.label} {m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix}]</span>}
+                {m.short_label} {m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix}]</span>}
               </th>
             ))}
           </tr>
@@ -174,6 +174,7 @@ const TableKpi = ({
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
+  const metrics_ = metrics.filter(m => outputs.values(o => o.metrics[m] !== null || o.metrics[m] !== undefined))
   return (
     <Section>
       {input}
@@ -181,9 +182,9 @@ const TableKpi = ({
         <thead>
           <tr>
             <th />
-            {metrics.map(m => (
+            {metrics_.map(m => (
               <th colSpan={2} key={m.key}>
-                {m.label} [{metric_formatter.format(m.target * m.scale)}
+                {m.short_label} [{!!m.target ? metric_formatter.format(m.target * m.scale) : ''}
                 {m.suffix}]
               </th>
             ))}
@@ -194,7 +195,7 @@ const TableKpi = ({
                 {Object.keys(outputs).length} tests
               </span>
             </th>
-            {metrics.map(m => (
+            {metrics_.map(m => (
               <Fragment key={m.key}>
                 <th scope="col">{label_new}</th>
                 <th scope="col">{label_ref}</th>
@@ -209,7 +210,7 @@ const TableKpi = ({
             return (
               <Row key={id}>
                 <RowHeaderCell output={output} warning={reference_warning} />
-                {metrics.map(m => (
+                {metrics_.map(m => (
                   <Fragment key={m.key}>
                     <QualityCell metric={m} metrics={output.metrics} />
                     <QualityCell metric={m} metrics={output_ref.metrics} />

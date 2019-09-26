@@ -258,9 +258,7 @@ class CommitsEvolutionPerTest extends React.Component {
           y = y.map(x =>
                     x === undefined || x === null || isNaN(x)
                       ? null
-                      : x < 20 * metric.target
-                        ? x * metric.scale
-                        : 20 * metric.target * metric.scale
+                      : (!!metric.target && x < 20 * metric.target) ? x * metric.scale : 20 * metric.target * metric.scale
           )
           let trace = {
             name: `${name[label]} ${
