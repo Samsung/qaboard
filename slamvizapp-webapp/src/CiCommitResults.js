@@ -31,6 +31,7 @@ import { AddRecordingsForm } from "./components/tuning/form_groups";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
+import { match_query } from "./utils";
 
 import {
 	projectSelector,
@@ -92,11 +93,7 @@ class CiCommitResults extends Component {
     );
   };
   filterMetric = (query, metric) => {
-    let searched = `${metric.key} ${metric.label} ${
-      metric.short_label
-    }`.toLowerCase();
-    let search = query.toLowerCase();
-    return searched.indexOf(search) >= 0;
+    return match_query(`${metric.key} ${metric.label} ${metric.short_label}`)(query)
   };
 
 
@@ -377,8 +374,12 @@ class CiCommitResults extends Component {
                   {all_controls}
                   <h2 className={Classes.HEADING}>Output logs</h2>
                   <BatchLogs
+                    project={project}
+                    project_data={config_data}
+                    commit={new_commit}
                     batch={new_batch_filtered}
                     batch_label={new_batch_filtered.label}
+                    dispatch={this.props.dispatch}
                   />
                </Section>}
 
@@ -477,9 +478,11 @@ const mapStateToProps = (state, ownProps) => {
     } = batchSelector(state)
 
     // metrics
-    let project_metrics = (project_data.data || {}).qatools_metrics || {}
-    let available_metrics = project_metrics.available_metrics || {}
-    let selected_metrics = selected.selected_metrics || (project_metrics.main_metrics || []).map(k => available_metrics[k])
+    const commit_qatools_metrics  = ((new_commit   || {}).data || {}).qatools_metrics;
+    const project_qatools_metrics = ((project_data || {}).data || {}).qatools_metrics;
+    const metrics = commit_qatools_metrics || project_qatools_metrics
+    let available_metrics = metrics.available_metrics || {}
+    let selected_metrics = selected.selected_metrics || (metrics.main_metrics || []).map(k => available_metrics[k])
 
     // tuned_parameters holds all tuning values used for each parameter
     let extra_parameters = {};
@@ -525,7 +528,7 @@ const mapStateToProps = (state, ownProps) => {
       // getFilteredBatch() ...
       selected_views,
 
-      sort_by: params.get("sort_by") || (state.selected[project] && state.selected[project].sort_by) || project_metrics.default_metric || "input_test_path",
+      sort_by: params.get("sort_by") || (state.selected[project] && state.selected[project].sort_by) || metrics.default_metric || "input_test_path",
       sort_order: params.get("sort_order") || (state.selected[project] && state.selected[project].sort_order) || -1,
     }
 }
