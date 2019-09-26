@@ -179,7 +179,7 @@ class CiCommit(Base):
                          )
                          .one())
     except MultipleResultsFound:
-      print(f'!!!!!!!!!!!!! multiple results for commit {hexsha} @{project_id}')
+      print(f'!!!!!!!!!!!!! Multiple results for commit {hexsha} @{project_id}')
       ci_commit =(session.query(CiCommit)
                          .filter(
                            CiCommit.project_id==project_id,
@@ -202,10 +202,6 @@ class CiCommit(Base):
         session.commit()
       except ValueError:
         error = f'[ERROR] ValueError: could not create a commit for {hexsha}'
-        print(error)
-        raise (ValueError, error)
-      if ci_commit is None:
-        error = f'[ERROR] something is wrong, maybe an error opening param.json for {hexsha}'
         print(error)
         raise (ValueError, error)
     if not ci_commit.data:
