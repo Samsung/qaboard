@@ -10,7 +10,7 @@ import { updateSelected } from "../actions/selected";
 import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { shortId } from "../utils";
+import { shortId, pretty_label } from "../utils";
 
 const CommitDetails = styled.div`
   display: flex;
@@ -38,8 +38,13 @@ const CommitRowWrapper = styled.li`
   margin: 0;
 `;
 
-const has_outputs_in_batch = label => commit =>
-  !!commit.batches[label] && commit.batches[label].valid_outputs > 0;
+const has_outputs_in_batch = label => commit => {
+  if (commit.batches[label] === undefined || commit.batches[label] === null)
+    return false;
+  const { valid_outputs=0, pending_outputs=0, running_outputs=0, failed_outputs=0 } = commit.batches[label];
+  let total_outputs = valid_outputs + pending_outputs + running_outputs + failed_outputs;
+  return total_outputs > 0;
+}
 
 
 class CommitResults extends React.Component {
@@ -91,12 +96,7 @@ class CommitResults extends React.Component {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
-    let tuning_batches_labels = Object.keys(commit.batches).filter(
-      label =>
-        label !== "default" &&
-        !label.startsWith("ci") &&
-        !label.startsWith("manual")
-    );
+    let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
 
     let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(commit);
     let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
@@ -138,7 +138,7 @@ class CommitResults extends React.Component {
               minimal
               style={{ marginRight: "4px" }}
             >
-              {tuning_batches_labels.length} tuning batch{tuning_batches_labels.length > 1 ? "es" : ""}
+              {tuning_batches_labels.length} other batch{tuning_batches_labels.length > 1 ? "es" : ""}
             </Tag>
             <div>
               {tuning_batches_labels.map(label => {
@@ -150,7 +150,7 @@ class CommitResults extends React.Component {
                           to={`/${project}/commit/${commit.id}?batch=${label}`}
                           onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: label}))}
                          >
-                    <Button style={{margin: '5px'}}>{label} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
+                    <Button style={{margin: '5px'}}>{pretty_label(batch)} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
                   </Link>
               })}
             </div>
@@ -233,7 +233,7 @@ class CommitResults extends React.Component {
           >
             <Button
               intent={Intent.SUCCESS}
-              text={`${ci_batch.valid_outputs} results`}
+              text={`${ci_batch.valid_outputs} ${pretty_label(ci_batch)} result${ci_batch.valid_outputs > 1 ? 's' : ''}`}
             />
           </Link>
         )}

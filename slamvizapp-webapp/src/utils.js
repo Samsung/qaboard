@@ -48,6 +48,15 @@ const shortId = (project, id) => {
   return id.substring(0, 8);
 };
 
+const pretty_label = batch => {
+  if (batch.data.type === 'local' || !!batch.label.match(/^@.+\| .+/)) {
+    var [user, label] = batch.label.replace('@', '').split('| ');
+    return `🏠 ${user} 🚧 ${label !== 'default' ? label : ''}`;
+  } else {
+    return batch.label === "default" ? "CI" : batch.label;
+  }
+}
+
 const empty_output = { metrics: undefined, extra_parameters: {} };
 
 // Finds the most matching output from a batch
@@ -104,7 +113,6 @@ const sortOutputs = (sort_by, order) => {
 
 const safe_regex = s => {
   // creating regexes with user input can lead to invalid regexes...
-  console.log(s)
   try {
     return new RegExp(s);
   } catch(e) {
@@ -114,7 +122,6 @@ const safe_regex = s => {
 }
 
 const match_query = pattern => {
-  console.log(pattern)
   const tokens = pattern
     .trim()
     .toLowerCase()
@@ -125,7 +132,6 @@ const match_query = pattern => {
     .replace(/\.def\|/g, ".def.")
     .replace(/\.eco\|/g, ".eco.")
     .split(" ");
-  console.log(tokens)
   const negative_tokens = tokens
     .filter(t => t[0] === "-" && t.length > 1)
     .map(t => t.substring(1));
@@ -229,6 +235,8 @@ const deserialize_config = configuration => {
 
 
 const linux_to_windows = path => {
+  if (path === undefined || path === null)
+    return path
   let windows_path = path
     .replace(/\/s\//, '/')
     .replace('//home', '//mars/raid/users')
@@ -249,6 +257,7 @@ export {
   matching_output,
   calendarStrings,
   shortId,
+  pretty_label,
   sortOutputs,
   filter_batch,
   match_query,
