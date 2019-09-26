@@ -90,7 +90,7 @@ const renderBranch = (item, { handleClick, modifiers, query }) => {
 const renderNewItem = (query, active, handleClick)  => {
   return <MenuItem
       icon="git-commit"
-      text={<span><strong>Commit:</strong> {query}</span>}
+      text={<span><strong>Go to commit:</strong> {query}</span>}
       active={active}
       onClick={handleClick}
       shouldDismissPopover={false}
@@ -170,10 +170,10 @@ class AppNavbar extends Component {
       ref_commit,
       new_batch_filtered,
       ref_batch_filtered,
+      new_batch,
+      ref_batch,
       filter_batch_new,
       filter_batch_ref,
-      selected_batch_new,
-      selected_batch_ref,
       dispatch,
     } = this.props;
 
@@ -211,7 +211,7 @@ class AppNavbar extends Component {
             </FormGroup>
             <SelectBatchesNav
               commit={new_commit}
-              selected={selected_batch_new}
+              batch={new_batch}
               onChange={this.update('selected_batch_new')}
               prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
               hide_helper_text
@@ -245,7 +245,7 @@ class AppNavbar extends Component {
             </FormGroup>
             <SelectBatchesNav
               commit={ref_commit}
-              selected={selected_batch_ref}
+              batch={ref_batch}
               onChange={this.update('selected_batch_ref')}
               prefix={<Tag intent={Intent.WARNING}>Ref commit</Tag>}
               hide_helper_text
@@ -378,8 +378,6 @@ const mapStateToProps = (state, ownProps) => {
 
   let { new_commit, ref_commit } = commitSelector(state)
   let {
-    selected_batch_new,
-    selected_batch_ref,
     new_batch,
     ref_batch,
     new_batch_filtered,
@@ -400,8 +398,6 @@ const mapStateToProps = (state, ownProps) => {
 
     new_commit,
     ref_commit,
-    selected_batch_new,
-    selected_batch_ref,
     new_batch,
     ref_batch,
     new_batch_filtered,
