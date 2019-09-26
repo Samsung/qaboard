@@ -50,7 +50,11 @@ def get_users_per_name(search_filter):
     for u in users_on_page:
       # need gitlab admin rights
       if 'email' in u:
-        users_db['email'] = u
+        users_db[u['email']] = u
+        email_base = u['email'].split('@')[0]
+        users_db[email_base] = u
+        users_db[email_base.lower()] = u
+        users_db[email_base.lower().replace('.', '')] = u
       if 'username' in u:
         users_db['username'] = u
       users_db[u['name'].lower()] = u
