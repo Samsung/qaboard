@@ -14,19 +14,32 @@ import {
   Slider,
   HTMLSelect,
   Tooltip,
+  Popover,
+  Menu,
   Toaster,
+  PopoverInteractionKind,
 } from "@blueprintjs/core";
+import copy from 'copy-to-clipboard'
 
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
 import { OutputTags, ExtraParametersTags } from '../components/tags'
 
 import { updateSelected } from "../actions/selected";
+import { linux_to_windows } from '../utils'
 
 export const toaster = Toaster.create();
 
 // ES2018.....
 Object.fromEntries = arr => Object.assign({}, ...Array.from(arr, ([k, v]) => ({ [k]: v })));
+
+const on_copy = e => {
+  const text = e.target.textContent
+  copy(text)
+  toaster.show({
+    message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
+  });
+}
 
 
 const SlimCard = styled(Card)`
@@ -36,20 +49,20 @@ const SlimCard = styled(Card)`
 
 
 
-const output_header_style = {
-  fontSize: ".7rem",
-  fontWeight: 500,
-  lineHeight: 1.6,
-  letterSpacing: "-1px",
-};
-
-const OutputHeader = React.memo(({ project, commit, output, warning, type, dispatch }) => {
-  const input_over_time_url = `/${project}/time-travel/${commit.branch}?filter=${output.test_input_path}${type === 'bit_accuracy' ? "&show_bit_accuracy=true" : ""}`
+const OutputHeader = React.memo(({ project, commit, output, type, dispatch, style, prefix, tags_first=false }) => {
+  const input_over_time_url = `/${project}/time-travel/${!!commit ? commit.branch : ''}?filter=${output.test_input_path}${type === 'bit_accuracy' ? "&show_bit_accuracy=true" : ""}`
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
+  const tags = <OutputTags
+    output={output}
+    warning={output.reference_warning}
+    style={{marginLeft: '5px', marginRight: '5px'}}
+  />
   return <>
-    <h5 className={Classes.HEADING} style={output_header_style} >
-      <Tooltip hoverCloseDelay={500} disabled={!has_metadata}>
+    <h5 className={Classes.HEADING} style={style} >
+      {prefix}   
+      {tags_first && tags}
+      <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER}>
         <span>
           <Link
             to={input_over_time_url}
@@ -58,25 +71,50 @@ const OutputHeader = React.memo(({ project, commit, output, warning, type, dispa
           >
             {has_label ? output.test_input_metadata.label : output.test_input_path}
           </Link>
-          <OutputTags output={output} warning={warning} />
         </span>
-        <div>
+        <Menu>
+          <Menu.Divider title="Properties" />
+          {has_metadata && has_label && <Menu.Item text={output.test_input_path} icon="document" />}
+          {!!output.test_input_database && <>
+            <Menu.Item text={output.test_input_database} icon="database" onClick={on_copy} />
+            <Menu.Item text={linux_to_windows(output.test_input_database)} icon="database" onClick={on_copy} />
+          </>}
           {has_metadata && <>
-            {has_label && <>
-              <h4 className={Classes.HEADING}>Path</h4>
-              <p>{output.test_input_path}</p>
-            </>}
-            <h4 className={Classes.HEADING}>Metadata</h4>
-            <p>{JSON.stringify(output.test_input_metadata, null, 2)}</p>
+            <Menu.Item text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
+              <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
+            </Menu.Item>
           </>
           }
-        </div>
-      </Tooltip>
+        </Menu>
+      </Popover>
+      {!tags_first && tags}
     </h5>
     <p><ExtraParametersTags parameters={output.extra_parameters} />
     </p>
   </>
 })
+
+/*
+class MetadataMenu extends React.Component {
+  render() {
+    const { metadata_key, metadata_value } = this.props;
+    if (metadata is string)
+      return <Menu.Item text={this.props.metadata}>
+    if (metadata is array)
+      return metadata.map(m => <Menu./>)
+    return this.props.metadata
+  }
+}
+*/
+
+
+
+const condensed_header_style = {
+  fontSize: ".7rem",
+  fontWeight: 500,
+  lineHeight: 1.6,
+  letterSpacing: "-1px",
+};
 
 
 class OutputCard extends React.Component {
@@ -277,7 +315,7 @@ class OutputCard extends React.Component {
 
   render() {
     const { is_loaded, error } = this.state;
-    const { output_new, output_ref, warning } = this.props;
+    const { output_new, output_ref } = this.props;
 
     const has_output_new = output_new !== undefined && output_new !== null
     if (!has_output_new || output_new.is_pending)
@@ -382,7 +420,14 @@ class OutputCard extends React.Component {
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
 
-        {!this.props.no_header && <OutputHeader project={this.props.project} commit={this.props.commit} output={output_new} warning={warning} type={this.props.type} dispatch={this.props.dispatch} />}
+        {!this.props.no_header && <OutputHeader
+          project={this.props.project}
+          commit={this.props.commit}
+          output={output_new}
+          type={this.props.type}
+          dispatch={this.props.dispatch}
+          style={condensed_header_style}
+        />}
 
         {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
         {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
@@ -431,4 +476,4 @@ function compilePath(path) {
 }
 
 
-export { OutputCard };
+export { OutputCard, OutputHeader };

@@ -122,6 +122,7 @@ export const default_selected = () => {
 
 
 export const empty_batch = {
+    label: '',
 	valid_outputs: 0,
 	running_outputs: 0,
 	pending_outputs: 0,

@@ -3,6 +3,7 @@ import React from "react";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Classes,
+  Colors,
   Icon,
   Tag,
   Intent,
@@ -92,17 +93,17 @@ class OutputTags extends React.PureComponent {
     const { platform, configuration, output_dir_url } = this.props.output;
     const { warning } = this.props;
     let windows_path = linux_to_windows(output_dir_url);
-    return <span>
+    return <span style={this.props.style}>
       <PlatformTag platform={platform} />
       <ConfigurationsTags configuration={configuration} />
       <Tooltip>
         <a
-          style={{ marginLeft: "4px" }}
+          style={{ marginLeft: "5px", color: Colors.GRAY1 }}
           target="_blank"
           rel="noopener noreferrer"
           href={output_dir_url}
         >
-          <Icon icon="folder-shared-open" style={{ verticalAlign: 'baseline' }} />
+          <Icon icon="folder-shared-open" />
         </a>
         <span>Open the output directory</span>
       </Tooltip>
@@ -116,13 +117,13 @@ class OutputTags extends React.PureComponent {
             });
           }}
         >
-          <Icon
-            title="copy to clipboard"
-            intent={Intent.PRIMARY}
-            iconSize={Icon.SIZE_SMALL}
-            icon="duplicate"
-            style={{ marginLeft: "4px" }}
-          />
+          <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
+            <Icon
+             title="copy to clipboard"
+             iconSize={Icon.SIZE_SMALL}
+             icon="duplicate"
+            />
+          </span>
         </CopyToClipboard>
         <span>Copy to the clipboard the Windows directory </span>
       </Tooltip>
