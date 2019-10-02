@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { connect } from 'react-redux'
 
 import styled from "styled-components";
+import { format } from "mathjs/number";
 import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
 
 import { updateSelected } from "../actions/selected";
@@ -91,11 +92,7 @@ class CommitResults extends React.Component {
         </div>
       );
 
-    let formatter = new Intl.NumberFormat("en-US", {
-      style: "decimal",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    const formatter = v => format(v, {precision: 3})
     let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
 
     let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(commit);
@@ -187,7 +184,7 @@ class CommitResults extends React.Component {
             <Fragment>
               <Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
-                  {formatter.format(
+                  {formatter(
                     default_metric_info.scale *
                       ci_batch.aggregated_metrics[
                         `${default_metric_info.key}_median`
@@ -199,7 +196,7 @@ class CommitResults extends React.Component {
               </Tag>
               <Tag style={{ marginRight: "4px" }} minimal>
                 <strong>
-                  {formatter.format(
+                  {formatter(
                     default_metric_info.scale *
                       ci_batch.aggregated_metrics[
                         `${default_metric_info.key}_average`
@@ -214,7 +211,7 @@ class CommitResults extends React.Component {
                 <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
                     <li key={k}>
-                      <strong>{k}:</strong> {formatter.format(v)}
+                      <strong>{k}:</strong> {formatter(v)}
                     </li>
                   ))}
                 </ul>

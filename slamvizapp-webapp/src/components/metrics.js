@@ -1,6 +1,7 @@
 import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
 import styled from "styled-components";
+import { format } from "mathjs/number";
 
 import {
   Classes,
@@ -10,7 +11,8 @@ import {
   Intent,
   Callout,
   MenuItem,
-  Colors
+  Colors,
+  Tooltip,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 
@@ -28,11 +30,7 @@ const color_a = "rgba(255, 157, 0, .4)";
 const color_ref_a = "rgba(55, 126, 184, .4)";
 const colors_a = [color_a, color_ref_a];
 
-const metric_formatter = new Intl.NumberFormat("en-US", {
-  style: "decimal",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-});
+const metric_formatter = v => format(v, {precision: 3})
 const percent_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
   minimumFractionDigits: 0,
@@ -43,11 +41,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
   let formatted_valued = (
     <span>
       {metric_info.short_label}:{" "}
-      <strong>
-        {metric_formatter.format(
-          metric_info.scale * metrics_new[metric_info.key]
-        )}
-        {metric_info.suffix}
+      <strong>{metric_formatter(metric_info.scale * metrics_new[metric_info.key])}{metric_info.suffix}
       </strong>
     </span>
   );
@@ -59,11 +53,12 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
-  let metric_tag = (
+  let metric_tag = <Tooltip>
     <Tag minimal intent={!!metric_info.target ? intent : null}>
       {formatted_valued}
     </Tag>
-  );
+    <span>{metric_info.scale * metrics_new[metric_info.key]}{metric_info.suffix}</span>
+  </Tooltip>;
 
   if (metric_info.key === 'is_failed' && !metrics_new.is_failed) {
     metric_tag = <span/>
@@ -79,11 +74,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -0.01)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    var compare_tag = (
-      <Tag minimal intent={intent_compare}>
-        {percent_formatter.format(100 * delta_relative)}%
-      </Tag>
-    );
+    var compare_tag = <Tag minimal intent={intent_compare}>{percent_formatter.format(100 * delta_relative)}%</Tag>;
   } else {
     compare_tag = <Fragment />;
   }
@@ -406,7 +397,7 @@ class MetricsSummary extends Component {
     );
   };
   filterMetric = (query, metric) => {
-    return match_query(`${metric.key} ${metric.label} ${metric.short_label}`)(query)
+    return match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`)
   };
   handleClearMetrics = () => this.setState({ selected_metrics: [] });
   handleRemoveMetric = (_tag, index) => {
@@ -526,8 +517,7 @@ class MetricsSummary extends Component {
             .filter(x => x !== undefined)
             .map(o => 1 * o);
           if (new_values.length === 0) return <Fragment key={m.key} />;
-          let ref_values = outputs_ref
-            .map(o => o.metrics[m.key]);
+          let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null);
           let new_med = median(new_values);
           let ref_med = median(ref_values);
           let new_pc_good = m.smaller_is_better
@@ -561,37 +551,48 @@ class MetricsSummary extends Component {
           return (
             <MetricRow key={m.key}>
               <MetricTile>
-                <h3 className={Classes.HEADING}>
-                  {metric_formatter.format(m.scale * new_med)}
-                  {m.suffix}
-                  <span style={{ color: "#ccc" }}> median</span>
-                </h3>
-                <h5 className={Classes.HEADING}>{m.label}</h5>
-                <SuccessBar success_frac={new_pc_good} />
+                <Tooltip>
+                  <h3 className={Classes.HEADING}>
+                    {metric_formatter(m.scale * new_med)}{m.suffix}
+                    <span style={{ color: "#ccc" }}> median</span>
+                  </h3>
+                    <span>{m.scale * new_med}{m.suffix}</span>
+                </Tooltip>
+                <br/>
+                <Tooltip>
+                  <h5 className={Classes.HEADING}>{m.short_label}</h5>
+                  <span>{m.label}</span>
+                </Tooltip>
+                <br/>
+                {m.target !== undefined && <SuccessBar success_frac={new_pc_good} />}
               </MetricTile>
 
               {!breakdown_by_tag && (
-                <Fragment>
-                  <MetricTile>
-                    <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                      <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter.format(m.scale * ref_med)}
-                      {m.suffix}
-                    </h3>
+                <>
+                  {ref_values.length > 0 && <MetricTile>
+                    <Tooltip>
+                      <h3 className={Classes.HEADING} style={{ color: color_ref }}>
+                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter(m.scale * ref_med)}{m.suffix}
+                      </h3>
+                      <span>{m.scale * ref_med}{m.suffix}</span>
+                    </Tooltip>
                     <h5 className={Classes.HEADING}>
+                      <Tooltip>
                       <Tag intent={intent}>
                         {delta_relative > 0 ? "+" : ""}
                         {percent_formatter.format(100 * delta_relative)}%
                       </Tag>
+                      <span>{100 * delta_relative}</span>
+                      </Tooltip>
                     </h5>
-                    {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good} />}
-                  </MetricTile>
-
-                  <HistogramComparaison
-                    series={[new_values, ref_values]}
+                    {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} />}
+                  </MetricTile>}
+                  {new_values.length > 1 && <HistogramComparaison
+                    series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
                     metric={m}
                     xaxis_labels={xaxis_labels}
-                  />
-                </Fragment>
+                  />}
+                </>
               )}
               {breakdown_by_tag && (
                 <Fragment>

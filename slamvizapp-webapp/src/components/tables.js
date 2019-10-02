@@ -1,6 +1,7 @@
 import React, { Fragment } from "react";
 import styled from "styled-components";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
+import { format } from "mathjs/number";
 import {
   Classes,
   Intent,
@@ -14,11 +15,7 @@ import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
 import { sortOutputs } from "../utils";
 
-const metric_formatter = new Intl.NumberFormat("en-US", {
-  style: "decimal",
-  minimumFractionDigits: 3,
-  maximumFractionDigits: 3
-});
+const metric_formatter = v => format(v, {precision: 3})
 const percent_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
   minimumFractionDigits: 0,
@@ -69,9 +66,13 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   quality = Math.max(Math.min(quality, 0.9), 0.08)
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
-      {metric_formatter.format(delta)} ({percent_formatter.format(
-        100 * delta_relative
-      )}%)
+      <Tooltip>
+        <span>{metric_formatter(delta)} ({percent_formatter.format(100 * delta_relative)}%)</span>
+        <ul>
+          <li><strong>New:</strong> {metrics_new[metric.key] * metric.scale}{metric.suffix}</li>
+          <li><strong>Reference:</strong> {metrics_ref[metric.key] * metric.scale}{metric.suffix}</li>
+        </ul>
+      </Tooltip>
     </td>
   );
 };
@@ -89,7 +90,10 @@ const QualityCell = ({ metric, metrics }) => {
   quality = Math.max(Math.min(quality, 0.9), 0.08)
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
-      {metric_formatter.format(value * metric.scale)}
+      <Tooltip>
+       <span>{metric_formatter(value * metric.scale)}</span>
+       <span>{value * metric.scale}{metric.suffix}</span>
+      </Tooltip>
     </td>
   );
 };
@@ -109,6 +113,7 @@ const TableCompare = ({
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
+  const metrics_ = metrics.filter(m => outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
       {input}
@@ -116,19 +121,19 @@ const TableCompare = ({
         <thead>
           <tr>
             <th />
-            {metrics.map(m => (
-              <th key={m.key}>
-                {m.short_label} {m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix}]</span>}
+            {metrics_.map(m => (
+              <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 rgba(16, 22, 26, 0.15);"}}>
+                {m.short_label} {m.suffix.length > 0 && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
               </th>
             ))}
           </tr>
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {Object.keys(outputs).length} tests
+                {outputs.length} tests
               </span>
             </th>
-            {metrics.map(m => (
+            {metrics_.map(m => (
               <th scope="col" key={m.key}>
                 {label_new} − {label_ref}
               </th>
@@ -142,7 +147,7 @@ const TableCompare = ({
             return (
               <Row key={id}>
                 <RowHeaderCell output={output} warning={reference_warning} />
-                {metrics.map(m => (
+                {metrics_.map(m => (
                   <ColumnsMetricImprovement
                     key={m.key}
                     metric={m}
@@ -169,12 +174,12 @@ const TableKpi = ({
   labels
 }) => {
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
-  const [label_new, label_ref] = labels || ["New", "Reference"];
+  const [label_new, label_ref] = labels || ["New", "Ref"];
   let outputs = Object.entries(new_batch.outputs)
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration")
     .sort(sortOutputs(sort_by, sort_order));
-  const metrics_ = metrics.filter(m => outputs.values(o => o.metrics[m] !== null || o.metrics[m] !== undefined))
+  const metrics_ = metrics.filter(m => outputs.some(([id, o])  => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
       {input}
@@ -184,15 +189,14 @@ const TableKpi = ({
             <th />
             {metrics_.map(m => (
               <th colSpan={2} key={m.key}>
-                {m.short_label} [{!!m.target ? metric_formatter.format(m.target * m.scale) : ''}
-                {m.suffix}]
+                <Tooltip><span>{m.short_label}</span><span>{m.label}</span></Tooltip> {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>[{!!m.target ? metric_formatter(m.target * m.scale) : ''}{m.suffix}]</span>}
               </th>
             ))}
           </tr>
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {Object.keys(outputs).length} tests
+                {outputs.length} tests
               </span>
             </th>
             {metrics_.map(m => (

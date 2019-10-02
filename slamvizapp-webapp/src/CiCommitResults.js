@@ -93,7 +93,7 @@ class CiCommitResults extends Component {
     );
   };
   filterMetric = (query, metric) => {
-    return match_query(`${metric.key} ${metric.label} ${metric.short_label}`)(query)
+    return match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`)
   };
 
 

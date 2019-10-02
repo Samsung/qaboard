@@ -2,7 +2,7 @@ import React from "react";
 
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
-import { median as mathjs_median } from "mathjs";
+import { median as mathjs_median } from "mathjs/number";
 
 import { ExtraParametersTags, ConfigurationsTags, PlatformTag } from './components/tags'
 
@@ -138,8 +138,9 @@ const match_query = pattern => {
   const positive_tokens = tokens.filter(t => t[0] !== "-");
   const positive_regexps = positive_tokens.map(t => safe_regex(t))
   // console.log(positive_tokens, negative_tokens)
-  // console.log(positive_regexps)
+  // console.log(pattern, positive_regexps)
   return query => {
+    // console.log(query)
     const searched = query.toLowerCase();
     if (negative_tokens.some(token => searched.includes(token)))
       return false;
