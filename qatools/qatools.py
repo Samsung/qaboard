@@ -82,7 +82,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
 
   ctx.obj['inputs_type'] = inputs_type
   ctx.obj['inputs_settings'] = get_settings(inputs_type, config)
-  ctx.obj['database'] = get_default_database(ctx.obj['inputs_settings'])
+  ctx.obj['database'] = inputs_database if inputs_database else get_default_database(ctx.obj['inputs_settings'])
   ctx.obj['configuration'] = configuration if configuration else get_default_configuration(ctx.obj['inputs_settings'])
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
