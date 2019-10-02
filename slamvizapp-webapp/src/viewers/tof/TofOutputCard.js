@@ -196,9 +196,9 @@ class TofOutputCard extends Component {
         this.startPointCloud();
         this.updatePointCloud(selected_frame);
       }
-      else if (this.state.mesh_output && prevState.mesh_thresh !== this.state.mesh_thresh
-        || this.state.use_intensity != prevState.use_intensity
-        || this.state.pcd_flip_xy != prevState.pcd_flip_xy){
+      else if (this.state.mesh_output && (prevState.mesh_thresh !== this.state.mesh_thresh)
+        || (this.state.use_intensity != prevState.use_intensity)
+        || (this.state.pcd_flip_xy != prevState.pcd_flip_xy)){
         this.updatePointCloud(selected_frame);
       } 
       
