@@ -1,14 +1,12 @@
 import React, { Component } from "react";
 import { get } from "axios";
 
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import Moment from "react-moment";
 import "moment-timezone";
 // import sanitizeHtml from 'sanitize-html';
 
 import {
   Classes,
-  Colors,
   Collapse,
   Callout,
   Button,
@@ -17,18 +15,14 @@ import {
   NonIdealState,
   Spinner,
   Tooltip,
-  Toaster,
-  Icon
 } from "@blueprintjs/core";
 
-import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
-import { linux_to_windows } from '../utils'
+import { OutputHeader } from '../viewers/OutputCard'
+import { pretty_label } from '../utils'
 
 var Convert = require('ansi-to-html');
 var convert = new Convert();
 
-
-const toaster = Toaster.create();
 
 
 class OutputLog extends Component {
@@ -105,42 +99,6 @@ class OutputLog extends Component {
       ? Intent.DANGER
       : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
 
-    const tag_config = <ConfigurationsTags configuration={output.configuration}/>
-    const tag_platform = <PlatformTag platform={output.platform} />
-    const extra_parameters_tags = !!output.extra_parameters ? <ExtraParametersTags parameters={output.extra_parameters} /> : <span/>
-    const download_link = <a
-        title="Show output files"
-        target="_blank"
-        rel="noopener noreferrer"
-        href={output.output_dir_url}
-        style={{color: Colors.GRAY1, marginRight: '5px'}}
-      >
-        <Icon icon="folder-shared" />
-    </a>;
-
-    const windows_path = linux_to_windows(output.output_dir_url);
-    const copy_to_clipboard = <Tooltip>
-        <CopyToClipboard
-          text={windows_path}
-          onCopy={() => {
-            toaster.show({
-              message: "Copied the output directory's windows-path to clipboard!",
-              intent: Intent.PRIMARY
-            });
-          }}
-        >
-          <Icon
-            title="copy to clipboard"
-            intent={Intent.PRIMARY}
-            iconSize={Icon.SIZE_SMALL}
-            icon="duplicate"
-            style={{ marginLeft: "4px", marginRight: "4px", color: Colors.GRAY1}}
-          />
-        </CopyToClipboard>
-        <span>Copy to the clipboard the Windows directory </span>
-    </Tooltip>
-
-
     // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
     // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
     // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
@@ -163,23 +121,29 @@ class OutputLog extends Component {
     //   }
     // });
     // pre: style={{background: '#000'}} 
-
+    const header_prefix = <>{show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>}</>
     return (
       <div>
-        <h6 className={Classes.HEADING}>
-          {show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>} {tag_platform} {tag_config}{" "}{copy_to_clipboard}{" "}{download_link}{" "}
-          {output.test_input_path} {extra_parameters_tags}
-        </h6>
-          <Collapse isOpen={is_open}>
-            {error ? 
-              <NonIdealState
-                title="No logs (yet?)"
-                description={
-                  error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
-                }
-              />
-            : <><pre className={Classes.CODE_BLOCK} dangerouslySetInnerHTML={{__html: safe_formatted_logs || ""}} />{output.is_pending && <Spinner small/>}</>}
-          </Collapse>
+        <OutputHeader
+          project={this.props.project}
+          project_data={this.props.project_data}
+          commit={this.props.commit}
+          output={output}
+          warning={output.reference_warning}
+          dispatch={this.props.dispatch}
+          prefix={header_prefix}
+          tags_first
+        />
+        <Collapse isOpen={is_open}>
+          {error ? 
+            <NonIdealState
+              title="No logs."
+              description={
+                error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
+              }
+            />
+          : <><pre className={Classes.CODE_BLOCK} dangerouslySetInnerHTML={{__html: safe_formatted_logs || ""}} />{output.is_pending && <Spinner small/>}</>}
+        </Collapse>
       </div>
     );
   }
@@ -205,26 +169,37 @@ class BatchLogs extends Component {
       is_failed: false,
       is_pending: false,
       is_running: false,
+      extra_parameters: {},
       output_type: "batch",
       output_dir_url: batch.output_dir_url,
+      test_input_metadata: batch.data,
       configuration: '',
     }
 
     let commands = (batch.data || {}).commands || {};
 
-    if ((batch.data || {}).type !== 'local') {
-      var title = batch.label === "default" ? "CI" : batch.label;
-    } else {
-      var [user, _label] = batch.label.replace('@', '').split('|');
-      title = `🏠 ${user} 🚧 ${_label}`;
-    }
+    const title = pretty_label(batch)
 
     return <>
       {Object.values(batch.outputs)
             .filter( output => output.output_type !== "optim_iteration")
-            .map(output => <OutputLog key={output.id} output={output} />)}
+            .map(output => <OutputLog
+              key={output.id}
+              project={this.props.project}
+              project_data={this.props.project_data}
+              commit={this.props.commit}
+              output={output}
+              dispatch={this.props.dispatch}
+            />)}
       <h2 style={{marginTop: '25px'}} className={Classes.HEADING}>Batch logs: {title}</h2>
-      <OutputLog key={batch.output_dir_url} output={batch_mock_output} />
+      <OutputLog
+        key={batch.output_dir_url}
+        project={this.props.project}
+        project_data={this.props.project_data}
+        commit={this.props.commit}
+        output={batch_mock_output}
+        dispatch={this.props.dispatch}
+      />
       <div>{Object.entries(commands).map( ([id, command]) => {
         return <Callout style={{marginBottom: '5px'}} key={id} title={
           <>
