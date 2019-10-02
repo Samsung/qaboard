@@ -567,7 +567,7 @@ def save_artifacts(ctx):
 @cli.command()
 @click.pass_context
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
-@click.option('--batches-file', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 def check_bit_accuracy_manifest(ctx, batches, batches_files):
     """
   Checks the bit accuracy of the results in the current ouput directory
@@ -620,7 +620,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
     help="Branch, tag or commit used as reference."
 )
 @click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
-@click.option('--batches-file', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--reference-platform', help="Compare against a difference platform.")
 def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platform):
     """
@@ -686,7 +686,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
     ignore_unknown_options=True,
 ))
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
-@click.option('--batches-file', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
