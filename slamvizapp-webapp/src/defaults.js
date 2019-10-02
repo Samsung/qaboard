@@ -73,7 +73,7 @@ export const default_qatools_config = {
 
 export const default_project = {
 	// what is stored as json metadata in the database, with default values
-	information: {
+	data: {
 		qatools_metrics: default_metrics,
 		qatools_config: default_qatools_config
 	},
