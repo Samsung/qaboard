@@ -8,12 +8,12 @@ from setuptools import setup, find_packages
 
 setup(
   name='qatools',
-  version="0.7.0", # __version__ needs to be updated in qatools/__init__.py as well
-  packages=find_packages(), 
+  version="0.8.0", # __version__ needs to be updated in qatools/__init__.py as well
+  packages=find_packages(),
 
   author="Arthur Flam",
   author_email="arthur.flam@samsung.com",
-  description="The QA tools help you organize and visualize your results.",
+  description="QA-Tools helps organize and visualize your results.",
   license="Samsung SIRC - all rights reserved",
 
   python_requires='>=3.6',
