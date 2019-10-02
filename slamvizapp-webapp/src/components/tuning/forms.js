@@ -135,7 +135,7 @@ class TuningForm extends Component {
 
       selected_group: this.props.selected_group || "",
       selected_group_info: {
-        number_of_tests: 0
+        tests: [],
       },
       selected_group_info_loading: false,
 
@@ -178,7 +178,7 @@ class TuningForm extends Component {
       .catch(error => {
         this.setState({
           selected_group_info_loading: false,
-          selected_group_info: { number_of_tests: 0, tests: [] }
+          selected_group_info: { tests: [] }
         });
       });
   }
@@ -297,9 +297,9 @@ class TuningForm extends Component {
     const { search_type, search_options } = this.state;
     const { experiment_name, selected_group, selected_group_info } = this.state;
     const { user, platform, android_device } = this.state;
-    const { number_of_tests, tests } = selected_group_info;
+    const { tests } = selected_group_info;
     const { combinations, language } = this.state
-    let total_runs = combinations * number_of_tests;
+    let total_runs = combinations * tests.length;
     let time_intent =
       (combinations === "invalid" || total_runs===0)
         ? Intent.DANGER
@@ -383,6 +383,8 @@ class TuningForm extends Component {
       />
     </>
 
+    const available_platforms = ((qatools_config.inputs || {}).platforms || [])
+
     return <>
       <FormGroup
         helperText={<span>Re-using a name adds more results. The <code className={Classes.CODE}>default</code> batch corresponds to the CI results</span>}
@@ -407,11 +409,11 @@ class TuningForm extends Component {
         label="Tests and configurations:"
         intent={Intent.PRIMARY}
         helperText={<>
-          {number_of_tests > 0 ? <Tooltip>
-            <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{number_of_tests} tests. </span>
+          {tests.length > 0 ? <Tooltip style={{maxWidth: "400px", maxHeight: "400px", overflow: "scroll"}} position="right">
+            <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
             <ul>{tests.map(t => <li key={t.test}>
-            	<span style={{marginRight: '5px'}}>{t.test}</span>
-            	{t.configuration.map(c =>
+            	<span style={{marginRight: '5px'}}>{t.input_path}</span>
+            	{t.configurations.map(c =>
                   <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px'}}>
                   	{typeof(c) === 'string' ? c : JSON.stringify(c)}
                   </Tag>
@@ -437,16 +439,22 @@ class TuningForm extends Component {
         />
       </FormGroup>
 
-      {(project==='dvs/psp_swip' || project==='tof/swip_tof' ) && 
-      <RadioGroup
-        onChange={this.update('platform')}
-        selectedValue={platform}
-      >
+      {(project==='dvs/psp_swip' || project==='tof/swip_tof' || available_platforms.length > 0) && 
+      <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
+        {available_platforms.map(p => <Radio
+          labelElement={<span>{p.label || p.name || 'undefined name/label!'}</span>}
+          value={p.name}
+          large
+        />)}
+      </RadioGroup>}
+
+      {(project==='dvs/psp_swip' || project==='tof/swip_tof' || available_platforms.length === 0) && 
+      <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
         <Radio labelElement={<span>Linux</span>} value="lsf" large />
         <Radio label={<span>Android</span>} value="s8" large/>
       </RadioGroup>}
 
-      {platform === "s8" && (
+      {platform.startsWith("s8") && (
         <FormGroup
           label="Android device"
           helperText="Choose a device from the openstf farm, or your own (host:port)"
