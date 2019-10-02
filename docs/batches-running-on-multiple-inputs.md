@@ -9,26 +9,26 @@ Are you using the old `XLS+json` way of defining batches? ? There is a [conversi
 :::
 
 ## How do I run multiple inputs at once?
-If you defined a group of inputs called *my-group*, you all of them with:
+If you defined a batch of inputs called *my-group*, you all of them with:
 ```bash
-qa batch my-group
-qa batch --group my-first-group --group my-second-group
+qa batch my-batch
+qa batch --batch my-first-batch --batch my-second-batch
 qa batch --help
 ```
 
 ## Where are those batches defined?
-You can define groups of inputs in file(s) whose paths are given by  `inputs.groups` in your [qatools.yaml](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L25) configuration.
+You can define batch of inputs in file(s) whose paths are given by  `inputs.batches` in your [qatools.yaml](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L25) configuration.
 
 ```yaml
 # qatools/batches.yaml (default)
-my-group:
+my-batch:
  inputs:
    - A.jpg
    - B.jpg
 ```
 
 ```bash
-qa batch my-group
+qa batch my-batch
 #=> qa run --input A.jpg
 #=> qa run --input B.jpg
 ```
@@ -64,7 +64,7 @@ you-can-override-the-default-database:
 ```
 
 ::: note
-You can also override *qatools.yaml*'s` inputs.globs` with `globs`: it can be useful if you have multiple types of inputs.
+If you have multiple types of inputs, you can define their properties in *qatools.yaml*'s` inputs.types`. Then do `qa --type movie batch X`.
 :::
 
 ## How do I specify my inputs' configurations?

@@ -53,7 +53,7 @@ qa batch inputs-filtered-using-metadata
 Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with qatools, implement in  your <span style="border-bottom: 1px dotted #000; text-decoration: none;" title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that iterates over inputs given a query:
 
 ```python
-def iter_inputs(path, database, only, exclude):
+def iter_inputs(path, database, only, exclude, inputs_settings):
   # TODO: connect to an SQL database
   #       use sqlalchemy to execute something like
   #       f"SELECT test, metadata from tests where path LIKE {path} and database={database}"
@@ -63,6 +63,7 @@ def iter_inputs(path, database, only, exclude):
   return ({"absolute_input_path": database / p.path, "metadata": p.metadata} for p in inputs)
 
 # Note: path=None should match all inputs in the database
+# Note: inputs_settings is a dict with information on how inputs should be found: file globs, use_parent, or anything else you put in qatools.yaml's inputs.
 ```
 
 :::note
