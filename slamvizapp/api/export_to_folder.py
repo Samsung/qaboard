@@ -68,18 +68,27 @@ def filter_outputs(query, outputs):
   outputs = [o for o in outputs if match(o)]
   return outputs
 
+
+def compatible(o1, o2):
+  if o1.test_input.path == o2.test_input.path:
+    return True
+  if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
+    return False
+
 # Note: already defined in qatools.tuning, but raises instead of returning None
 def matching_output(output_reference, outputs):
   """
   Return the output from from a given batch that looks most similar to a given output.
   This helps us compare an output to historical results.
   """
-  possible_matching_outputs = [o for o in outputs if o.test_input.path == output_reference.test_input.path]
+  possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending and not o.is_failed]
   if not valid_outputs: return None
 
   def match_key(output):
+    has_meta_id = output.test_input.data and output_reference.test_input.data and output.test_input.data.get('id')
     return (
+      4 if has_meta_id and output.test_input.data.get('id') == output_reference.test_input.data.get('id') else 0 +
       4 if output.configuration == output_reference.configuration else 0 +
       2 if output.platform == output_reference.platform else 0 +
       1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
