@@ -104,8 +104,9 @@ def merge(src, dest):
     return dest
 
 
-config = qatools_configs[0]
-for c in qatools_configs[1:]:
+# take care not to mutate the root config, as its project.name is the git repo name
+config = {}
+for c in qatools_configs:
   config = merge(c, config)
 
 # The top-most qatools.yaml is the root project
