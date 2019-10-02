@@ -75,7 +75,7 @@ def notify_qa_database(object_type='output', **kwargs):
   from .config import is_ci, commit_id, config, ci_root
 
   # we only update the output database if we're in a CI run, or if the user used `qa --ci`
-  if not is_ci and not kwargs['ci']:
+  if not is_ci and not kwargs['share']:
     return
 
   # some light custom serialization for Path objects

@@ -63,9 +63,9 @@ def init_optimization(optim_config_file, ctx):
       f'--configuration "{ctx.obj["configuration"]}"',
       f"--tuning '{json.dumps(params, sort_keys=True, cls=NumpyEncoder)}'",
       'batch',
-      f'--groups-file {ctx.obj["groups_file"]}',
-      ' '.join([f'--group {g}' for g in ctx.obj["group"]]),
-      # we notably forward --group
+      f'--batches-file {ctx.obj["batches_file"]}',
+      ' '.join([f'--batch {b}' for b in ctx.obj["batches"]]),
+      # we notably forward --batch
       ' '.join(ctx.obj["forwarded_args"]),
     ])
     click.secho(command, fg="blue")

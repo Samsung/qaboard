@@ -11,6 +11,18 @@ from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 from qatools.config import is_ci
 
 
+# def iter_inputs(path, database, only, exclude):
+#   # TODO: connect to an SQL database
+#   #       use sqlalchemy to execute something like
+#   #       f"SELECT test, metadata from tests where path LIKE {path} and database={database}"
+#   # OPTIONALLY: return filtered inputs using only/exclude
+#   #             even if you don't do it, qatools will always re-filter
+#   #             but doing it yourself in SQL can be much more efficient
+#   metadata = {"hello": "world"}
+#   inputs = ['1', '2', '3']
+#   inputs = ['1']
+#   return ({"absolute_input_path": database / i, "metadata": metadata} for i in inputs)
+
 
 
 # To access the CLI arguments from the user, use the context object passed to run() and postprocess().

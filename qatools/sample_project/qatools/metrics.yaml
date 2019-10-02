@@ -1,7 +1,6 @@
 # you must define metadata about all your objective figures of merits
 available_metrics:
   is_failed:
-    key: is_failed
     label: Crashed
     short_label: Crashed
     scale: 100
@@ -12,7 +11,6 @@ available_metrics:
     plot_scale: linear
 
   rmse_mean:
-    key: rmse_mean
     label: Average RMSE
     short_label: RMSE avg
     smaller_is_better: true

@@ -3,6 +3,7 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
+from itertools import chain
 from pathlib import Path, PurePosixPath
 
 import yaml
@@ -25,9 +26,12 @@ renamings = (
   ('--reference-branch', '--reference'),
   ('--batch-label', '--label'),
   ('--inputs-database', '--database'),
+  ('--inputs-globs', 'REMOVED: Use "inputs.types" in qatools.yaml'),
   ('--save-manifests', '--save-manifests-in-database'),
   ('--return-prefix-outputs-path', '--list-output-dirs'),
   ('--ci', '--share'),
+  ('--group', '--batch'),
+  ('--groups-file', '--batches-file'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
@@ -86,20 +90,23 @@ if not qatools_configs:
   no_config_warning = True
 
 
-def merge(configs):
-    """Merge qatools configurations 2-level deep"""
-    config = {}
-    for c in configs:
-        for key, value in c.items():
-          if isinstance(value, dict):
-              node = config.setdefault(key, {})
-              node.update(value)
-          elif value is not None:
-              config[key] = value
-    return config
+def merge(src, dest):
+    # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
+    for key, value in src.items():
+      if isinstance(value, dict):
+        node = dest.setdefault(key, {})
+        merge(value, node)
+      elif value:
+        # "super" is a reserved keyword
+        if isinstance(value, list) and "super" in value:
+          value = list(chain.from_iterable([[e] if e != "super" else dest[key] for e in value]))
+        dest[key] = value
+    return dest
 
 
-config = merge(qatools_configs)
+config = qatools_configs[0]
+for c in qatools_configs[1:]:
+  config = merge(c, config)
 
 # The top-most qatools.yaml is the root project
 # The current subproject corresponds to the lowest qatools.yaml
@@ -157,18 +164,6 @@ if on_windows:
 else:
     # it could be "linux", but we stick to lsf for backward compatibility
     platform = 'lsf'
-
-# All recordings used should be stored at the same location
-# We will refer to them by their relative path related to the "database"
-database = config.get('inputs', {}).get('database', {}).get(mount_flavor)
-if not database:
-  database = "."
-  if not no_config_warning:
-    click.secho(f'WARNING: Could not find the database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
-    click.secho(f'Consider adding to qatools.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
-    no_config_warning = True
-database = Path(database)
-
 
 
 
@@ -283,22 +278,47 @@ repo = _Repo(repo_root)
 commit = _Commit(repo, commit_id)
 # print(repo)
 # print(list(repo.iter_commits(rev='refs/remotes/origin/master')))
-
 # print(commit)
 # print(commit.committer.email)
 # print(commit.authored_datetime)
 
 from .conventions import serialize_config
-default_batch_label = 'default'
 default_platform = platform
-default_groups_file = config.get('inputs', {}).get('groups')
-if not default_groups_file:
-  default_groups_file = []
-if not (isinstance(default_groups_file, list) or isinstance(default_groups_file, tuple)):
-  default_groups_file = [default_groups_file]
-default_configuration = config.get('inputs', {}).get('configuration', "default")
-if isinstance(default_configuration, list):
-  default_configuration = serialize_config(default_configuration)
+default_batch_label = 'default'
+
+config_inputs = config.get('inputs', {})
+
+# "batches" is prefered, but we want to stay backward compatible
+default_batches_files = config_inputs.get('groups', config_inputs.get('batches'))
+if not default_batches_files:
+  default_batches_files = []
+if not (isinstance(default_batches_files, list) or isinstance(default_batches_files, tuple)):
+  default_batches_files = [default_batches_files]
+
+
+config_inputs_types = config_inputs.get('types', {})
+default_inputs_type = config_inputs_types.get('default', 'default')
+
+
+def get_default_configuration(input_settings):
+  default_configuration = input_settings.get('configurations', input_settings.get('configuration', "default"))
+  if isinstance(default_configuration, list):
+    default_configuration = serialize_config(default_configuration)
+  return default_configuration
+
+def get_default_database(input_settings):
+  # All recordings used should be stored at the same location
+  # We will refer to them by their relative path related to the "database"
+  global no_config_warning
+  database = input_settings.get('database', {}).get(mount_flavor)
+  if not database:
+    database = "."
+    if not no_config_warning:
+      click.secho(f'WARNING: Could not find the database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
+      click.secho(f'Consider adding to qatools.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
+      no_config_warning = True
+  return Path(database)
+
 
 
 

@@ -8,6 +8,24 @@ import subprocess
 from pathlib import Path
 
 import yaml
+import click
+
+
+def get_settings(inputs_type, config):
+  config_inputs = config.get('inputs', {})  
+  config_inputs_types = config_inputs.get('types', {})
+  if inputs_type != 'default' and inputs_type not in config_inputs_types:
+    error = f'Error: Unknown input type <{inputs_type}>. It is not defined in your qatools.yaml'
+    click.secho(error, fg='red', err=True, bold=True)
+    raise ValueError(error)
+  settings = {
+    **config_inputs,
+    **config_inputs_types.get(inputs_type, {}),
+    "type": inputs_type,
+  }
+  if 'globs' not in settings:
+    settings['globs'] = settings.get('glob', [])
+  return settings
 
 
 

@@ -17,31 +17,33 @@ from .lsf import get_running_lsf_jobs, job_is_failed, job_ran_once, run_jobs
 from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
-from .conventions import serialize_config, deserialize_config
+from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search, redirect_std_streams
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
 # it helps avoiding try/catch on the import and providing lots of NA values
 from .config import config_has_error
-from .config import subproject, config, database, platform
-from .config import default_configuration, default_platform, default_groups_file, default_batch_label
+from .config import subproject, config, get_default_database
+from .config import default_batches_files, default_batch_label, default_platform
+from .config import get_default_configuration, config_inputs_types, default_inputs_type
 from .config import user, commit_id, commit_ci_dir, root_qatools, commit_rootproject_ci_dir
 from .config import is_ci, on_windows
 
+
 @click.group()
 @click.pass_context
-@click.option('--platform', default=platform)
-@click.option('--configuration', '-c', default=default_configuration, help="Will be passed to the run function")
+@click.option('--platform', default=default_platform)
+@click.option('--configuration', '-c', help="Will be passed to the run function")
 @click.option('--label', '-l', 'batch_label', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--share', is_flag=True, help="Save outputs at the CI's centralized location, and show them in the UI.")
-@click.option('--database', 'inputs_database', default=database, type=PathType(), help="Test database location")
-@click.option('--inputs-glob', default=None, multiple=True, help="How we define inputs")
+@click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
+@click.option('--database', 'inputs_database', type=PathType(), help="Test database location")
+@click.option('--type', 'inputs_type', default=default_inputs_type, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, inputs_database, inputs_glob, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, inputs_database, inputs_type, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
@@ -64,22 +66,25 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   # it makes collaboration among mutliple users / automated tools so much easier...
   os.umask(0)
 
-  ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
-  ctx.obj['database'] = inputs_database
-  ctx.obj['inputs_globs'] = inputs_glob
-  ctx.obj['dryrun'] = dryrun
-  ctx.obj['ci'] = share
-  ctx.obj['user'] = user
   ctx.obj['project'] = config['project']['name']
+  ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
+  ctx.obj['user'] = user
+  ctx.obj['dryrun'] = dryrun
+  ctx.obj['share'] = share
+  ctx.obj['no_qa_database'] = no_qa_database
+
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['raw_batch_label'] = batch_label
   ctx.obj['batch_label'] = batch_label if not share else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
-  ctx.obj['configuration'] = configuration
-  ctx.obj['configurations'] = deserialize_config(configuration)
-  ctx.obj['no_qa_database'] = no_qa_database
+
+  ctx.obj['inputs_type'] = inputs_type
+  ctx.obj['inputs_settings'] = get_settings(inputs_type, config)
+  ctx.obj['database'] = get_default_database(ctx.obj['inputs_settings'])
+  ctx.obj['configuration'] = configuration if configuration else get_default_configuration(ctx.obj['inputs_settings'])
+  ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
   if tuning:
     ctx.obj['extra_parameters'] = json.loads(tuning)
@@ -94,7 +99,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, configuration, ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
 
   # we manage stripping ansi color codes ourselfs since we redirect std streams
   # to both the original stream and a log file
@@ -179,7 +184,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
       click.secho(str(metrics), fg='red', bold=True)
       exit(1)
     else:
-      click.secho(str(metrics), fg='green')      
+      click.secho(str(metrics), fg='green')
 
 
 def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_database=False):
@@ -303,8 +308,8 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
-@click.option('--group', '-g', multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
+@click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
+@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
 @click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
@@ -323,21 +328,21 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_contexts, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
+def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_contexts, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
-  if not groups_file:
+  if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
-    click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  groups: batches.yaml\n```', fg='red', err=True)
+    click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
     click.secho(f'Where batches.yaml is formatted like in http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools/input_groups.yaml', fg='red', err=True)
     return
 
-  if not group:
+  if not batches:
     if not len(forwarded_args):
-        click.secho(f'ERROR: you must provide a group of inputs', fg='red', err=True, bold=True)
-        click.secho(f'Use either `qa batch GROUP`, or `qa batch --group GROUP_2 --group GROUP_2`', fg='red', err=True)
+        click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
+        click.secho(f'Use either `qa batch BATCH`, or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
         exit(1)
-    group, *forwarded_args = forwarded_args
-    group = [group]
+    batches, *forwarded_args = forwarded_args
+    batches = [batches]
 
   batch_label = ctx.obj['batch_label']
   commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
@@ -355,12 +360,12 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     "fast_queue": lsf_fast_queue,
     'resources': lsf_resources
   }
-  batch_hash = make_hash([group, tuning_search, str(tuning_search_file)])
+  batch_hash = make_hash([batches, tuning_search, str(tuning_search_file)])
   lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
   should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
   if should_notify_qa_database:
-    if is_ci or ctx.obj['ci']:
+    if is_ci or ctx.obj['share']:
       click.echo(click.style("Results at: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
     import uuid
     import datetime
@@ -376,7 +381,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
   jobs_contexts = []
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
-  inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, globs=ctx.obj['inputs_globs'])
+  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, ctx.obj['inputs_settings'])
   for input_path_abs, input_configurations, lsf_configuration, input_database in inputs_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(input_database)
@@ -384,7 +389,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
     tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
     for tuning_file, tuning_hash, tuning_params in tuning_iterator:
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj["batch_label"], ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None, ctx.obj['ci'])
+          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj["batch_label"], ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None, ctx.obj['share'])
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
@@ -413,7 +418,7 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
       if not should_run and action_on_existing=='skip':
         continue
 
-      if input_configuration == default_configuration:
+      if input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
         if not on_windows:
@@ -424,10 +429,11 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
       args = [
           f"qa",
-          f'--share' if ctx.obj["ci"] else None,
+          f'--share' if ctx.obj["share"] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
-          f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != platform else None,
-          f'--database "{input_database.as_posix()}"' if input_database != database else None,
+          f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != default_platform else None,
+          f'--type "{ctx.obj["inputs_type"]}"' if ctx.obj["inputs_type"] != default_inputs_type else None,
+          f'--database "{input_database.as_posix()}"' if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
@@ -467,10 +473,10 @@ def batch(ctx, group, groups_file, tuning_search, tuning_search_file, no_wait, p
 
   if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
-    waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(group)}-wait"
+    waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(batches)}-wait"
     # Our share storage takes a while to sync. It should be solved, and this sleep removed
     # But for local runs, no need to wait
-    delay_before_status_check = 0 if is_ci or ctx.obj['ci'] else 0 #seconds
+    delay_before_status_check = 0 if is_ci or ctx.obj['share'] else 0 #seconds
     is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, delay_before_status_check=delay_before_status_check, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
@@ -502,7 +508,7 @@ def save_artifacts(ctx):
   # we also allow sub-qatools-projects
   config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
   config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
-  config['artifacts']['__groups.yaml'] = {"glob": default_groups_file}
+  config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
   config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
   if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
   if not is_in_git_repo:
@@ -560,9 +566,9 @@ def save_artifacts(ctx):
 
 @cli.command()
 @click.pass_context
-@click.option('--group', '-g', required=True, multiple=True, help="Only check bit-accuracy for those groups of tests.")
-@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
-def check_bit_accuracy_manifest(ctx, group, groups_file):
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
+@click.option('--batches-file', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+def check_bit_accuracy_manifest(ctx, batches, batches_files):
     """
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
@@ -572,7 +578,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
 
     commit_dir = commit_ci_dir if is_ci else Path()
     all_bit_accurate = True
-    inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
+    inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
     for input_path_abs, input_configurations, _, input_database in inputs_iter:
       if input_path_abs.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
@@ -582,7 +588,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
         # # reference_output_directory = input_path_abs if input_path_abs.is_folder() else input_path_abs.parent
         exit(1)
 
-      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
+      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
       # print(prefix_output_dir)
       input_path = input_path_abs.relative_to(input_database)
       # print(commit_dir / prefix_output_dir, input_database, [input_path])
@@ -600,7 +606,7 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
         # click.secho("$ git commit     # now retry your CI", fg='red')
       else:
         click.secho("To update the manifests for all tests, run:", fg='red')
-        click.secho("$ qa batch --save-manifests --group *", fg='red')
+        click.secho("$ qa batch --save-manifests --batch *", fg='red')
       exit(1)
 
 
@@ -613,10 +619,10 @@ def check_bit_accuracy_manifest(ctx, group, groups_file):
     default=config.get('project', {}).get('reference_branch', 'master'),
     help="Branch, tag or commit used as reference."
 )
-@click.option('--group', '-g', multiple=True, help="Only check bit-accuracy for those groups of tests.")
-@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
+@click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
+@click.option('--batches-file', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--reference-platform', help="Compare against a difference platform.")
-def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
+def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platform):
     """
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
@@ -647,13 +653,13 @@ def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
     # This where the new results are located
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
 
-    if not group:
+    if not batches:
       output_directories = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
     else:
       output_directories = []
-      inputs_iter = iter_inputs(group, groups_file, ctx.obj['database'], ctx.obj['configurations'], {}, config, globs=ctx.obj['inputs_globs'])
+      inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
       for input_path_abs, input_configurations, _, input_database in inputs_iter:
-        prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['ci'])
+        prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
         input_path = input_path_abs.relative_to(input_database)
         output_directory = prefix_output_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
@@ -679,15 +685,15 @@ def check_bit_accuracy(ctx, reference, group, groups_file, reference_platform):
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
-@click.option('--group', '-g', required=True, multiple=True, help="We run over all recordings in those groups")
-@click.option('--groups-file', default=default_groups_file, multiple=True, help="YAML file listing groups of recordings selected from the database.")
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
+@click.option('--batches-file', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def optimize(ctx, group, groups_file, config_file, forwarded_args):
+def optimize(ctx, batches, batches_files, config_file, forwarded_args):
   ctx.obj['prefix_output_dir'].mkdir(parents=True, exist_ok=True)
-  ctx.obj['group'] = group
-  ctx.obj['groups_file'] = groups_file
+  ctx.obj['batches'] = batches
+  ctx.obj['batches_files'] = batches_files
   ctx.obj['forwarded_args'] = forwarded_args
 
   from shutil import rmtree
@@ -713,7 +719,7 @@ def optimize(ctx, group, groups_file, config_file, forwarded_args):
           # TODO: we really should to tuning/platform in make_prefix_outputs_path
           #       1. make change, 2. rename existing folders)
           "output_directory": iteration_batch_dir,
-          'input_path': '|'.join(group),
+          'input_path': '|'.join(batches),
           # we want to show in the summary tab the best results for the tuning experiment
           # but in the exploration see the results per iteration....
           "output_type": 'optim_iteration', # or... single ? don't show them in the UI

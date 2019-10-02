@@ -1,8 +1,8 @@
 ---
-# Inputs that you want to run together are organized in groups.
-# To run the inputs in a group:
-#   $ qa batch my-group
-#   $ qa batch --group my-first-group --group my-second-group
+# Inputs that you want to run together are organized in batches.
+# To run the inputs in a batch:
+#   $ qa batch my-batch
+#   $ qa batch --batch my-first-batch --batch my-second-batch
 #   $ qa batch --help
 #
 #
@@ -14,9 +14,8 @@
 # the configuration for each input is available via:
 #     ```
 #     context.obj['configurations'] : list of strings/objects
-#     context.obj['configuration']  : *deprecated* serialized string representation.
 #     ```
-# Your code does whatever it wants with it :)
+# Your code can do whatever it wants with it :)
 #
 
 basic-list-of-inputs:
@@ -110,7 +109,7 @@ you-can-also-give-an-LSF-configuration-per-input:
 
 
 ## Groups of groups ###########################################################
-# For convenience you can define aliases for groups you often run together:
+# For convenience you can define aliases for groups of batches you often run together:
 groups:
   ci:
     - basic-list-of-inputs

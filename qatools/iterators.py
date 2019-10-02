@@ -14,7 +14,7 @@ import json
 import yaml
 import click
 
-from .conventions import make_hash, make_pretty_tuning_filename
+from .conventions import make_hash, make_pretty_tuning_filename, get_settings
 from .utils import input_metadata, entrypoint_module
 
 
@@ -39,6 +39,7 @@ def alias_groups(group, group_aliases):
     yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
 # list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
 # list(alias_groups(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']}))
+# FIXME: infinite loop if "groups.x: x"
 
 
 
@@ -93,11 +94,11 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
         yield input_path
 
 
-def _iter_inputs(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
+def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
     try:
-      iter_inputs = entrypoint_module_.iter_inputs(path, database, only, exclude)
+      iter_inputs = entrypoint_module_.iter_inputs(path, database, only, exclude, inputs_settings)
       # we filter twice just in case
       iter_inputs_filtered = (i for i in iter_inputs if (not only or match(i["metadata"], only)) and (not exclude or not match(i["metadata"], exclude)))
       yield from (i["absolute_input_path"] for i in iter_inputs_filtered)
@@ -107,26 +108,25 @@ def _iter_inputs(path, database, globs, use_parent_folder, qatools_config, only=
       click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True, err=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
     return
+
+  globs = inputs_settings.get('globs', inputs_settings.get('glob', []))
+  if not globs:
+    click.secho(f'WARNING: Could not find how to identify inputs.', fg='yellow', err=True)
+    click.secho(f'Consider adding to qatools.yaml something like:\n```\ninputs:\n  globs: *.hex\n```', fg='yellow', err=True, dim=True)
+  if not isinstance(globs, tuple) and not isinstance(globs, list):
+    globs = [globs]
+  use_parent_folder = inputs_settings.get('use_parent_folder', False)
   yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)
 
 
 
-def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, globs=None, debug=os.environ.get('QATOOLS_DEBUG', False)):
+def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QATOOLS_DEBUG', False)):
   """Returns an iterator over the (input_path, configurations, lsf-configuration) from the selected groups
   params:
   - groups: array of group names or paths whose inputs you want to iterate
   - groups_file: path to a yaml file, or an array of paths
   - config: is none is specified
   """
-  if not globs:
-    globs = qatools_config.get('inputs', {}).get('glob', [])
-    if not globs:
-      click.secho(f'WARNING: Could not find how to identify inputs.', fg='yellow', err=True)
-      click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  glob: *.hex\n```', fg='yellow', err=True, dim=True)
-
-  if not isinstance(globs, tuple) and not isinstance(globs, list):
-    globs = [globs]
-
   if not (isinstance(groups_file, list) or isinstance(groups_file, tuple)):
     groups_file = [groups_file]
   available_batches = {}
@@ -137,6 +137,9 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       new_groups = new_batches.get('groups', {})
       available_batches.update(new_batches)
       available_batches['groups'] = {**old_groups, **new_groups}
+
+  if not inputs_settings:
+    inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
 
   if debug: click.secho(str(available_batches), dim=True)
   # for convenience, users can define "groups of groups"
@@ -154,7 +157,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     if group not in available_batches:
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(group), bold=True, fg='cyan', err=True)
-      inputs_iter = _iter_inputs(group, database, globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config)
+      inputs_iter = _iter_inputs(group, database, inputs_settings, qatools_config)
       yield from ((i, default_configuration , default_lsf_configuration, database) for i in inputs_iter)
       return
 
@@ -167,11 +170,15 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     group_configuration = available_batches[group].get('configurations', available_batches[group].get('configuration', default_configuration))
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
-    group_globs = available_batches[group].get('globs', globs)
+    if 'type' in available_batches[group]:
+      group_type = available_batches[group].get('type', inputs_settings['type'])
+      group_inputs_settings = get_settings(group_type, qatools_config)
+    else:
+      group_inputs_settings = inputs_settings
     locations = available_batches[group].get('inputs', available_batches[group].get('tests'))
     if not locations:
       # run all inputs matching only/exclude
-      inputs_iter = _iter_inputs(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = _iter_inputs(None, group_database, group_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
       yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
       return
 
@@ -187,7 +194,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       locations = locations_as_dict
 
     if not locations: # return everything
-      inputs_iter = _iter_inputs(None, group_database, group_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = _iter_inputs(None, group_database, inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
       yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
       return
 
@@ -195,33 +202,38 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       if not location_configuration:
         location_configuration = group_configuration
         location_database = group_database
-        location_globs = group_globs
         location_lsf_configuration = group_lsf_configuration
+        location_inputs_settings = group_inputs_settings
       else:
         if isinstance(location_configuration, dict):
           location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
           location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', group_database))
-          location_globs = location_configuration.get('globs', group_globs)
-          for k in ['lsf', 'globs', 'database']:
+          if 'type' in location_configuration:
+            location_type = location_configuration['type']
+            location_inputs_settings = get_settings(location_type, qatools_config)
+          else:
+            location_inputs_settings = group_inputs_settings
+          for k in ['type', 'database', 'lsf']:
             if k in location_configuration:
               del location_configuration[k]
-          if 'configuration' not in location_configuration:
+          if 'configurations' not in location_configuration and 'configurations' not in location_configuration:
             location_configuration = [*group_configuration, location_configuration]
           else:
-            location_configuration = [*group_configuration, *location_configuration.get('configuration', [])]
+            patch_config = location_configuration.get('configurations', location_configuration.get('configuration', []))
+            location_configuration = [*group_configuration, *patch_config]
         elif isinstance(location_configuration, list):
           location_configuration = list(flatten(location_configuration))
           location_configuration = [*group_configuration, *location_configuration]
-          location_globs = group_globs
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
+          location_inputs_settings = group_inputs_settings
         else:
           location_configuration =  [*group_configuration, location_configuration]
-          location_globs = group_globs
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
+          location_inputs_settings = group_inputs_settings
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
-      inputs_iter = _iter_inputs(location, location_database, location_globs, qatools_config['inputs'].get('use_parent_folder', False), qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = _iter_inputs(location, location_database, inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
       yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
 
 

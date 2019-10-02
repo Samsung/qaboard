@@ -21,6 +21,8 @@ class PathType(click.ParamType):
   """Wrapper for pathlib's Path type, for use with the Click CLI package."""
   name = 'path'
   def convert(self, value, param, ctx):
+    if value is None:
+      return None
     return Path(value)
 
 
@@ -79,9 +81,9 @@ def entrypoint_module(config):
       spec = importlib.util.spec_from_file_location(name, entrypoint)
 
       module = importlib.util.module_from_spec(spec)
-      sys.path.append(str(entrypoint.parent))
+      sys.path.insert(0, str(entrypoint.parent))
       spec.loader.exec_module(module)
-      # sys.path.pop()
+      # sys.path.pop(0)
 
       # spec = importlib.util.spec_from_loader(name, importlib.machinery.SourceFileLoader(name, str(entrypoint)))
       # spec.submodule_search_locations = [str(entrypoint.parent)]

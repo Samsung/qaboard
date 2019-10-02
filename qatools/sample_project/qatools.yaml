@@ -24,15 +24,26 @@ inputs:
     linux: /net/f2/algo_archive/DVS_SLAM_Database
     windows: F:/DVS_SLAM_Database
 
-  # You can define groups of tests in this file(s)
-  groups: qatools/batches.yaml
+  # You can define batches of tests in this file(s)
+  batches: qatools/batches.yaml
 
   # if you want to run all recordings under $database/sub_folder
   # you need a way to identify test inputs
   # either your inputs are files/directories, matching a globbing expression
-  glob: '*.bin'
+  globs: '*.raw'
   # maybe your tests are actually the folder containing the match (eg movies with Frame0, Frame1...)
   # use_parent_folder: false
+
+  # For complex projects, you want to distinguish different types of inputs (eg images, movies...)
+  # types:
+  #   # FIXME: deep merge?
+  #   default: image
+  #   image:
+  #     globs: '*.raw'
+  #     use_parent_folder: false
+  #   movie:
+  #     globs: '*_000.raw'
+  #     use_parent_folder: true
 
 
 outputs:
@@ -107,9 +118,6 @@ bit_accuracy:
   # binary:
   #   - '*.raw'
   # If you provide both plaintext and binary patterns, you'll get an error.
-
-
-
   patterns:
     - output.csv
     - '*.hex'
