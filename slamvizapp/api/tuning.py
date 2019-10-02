@@ -1,10 +1,12 @@
 """
 APIs related to parameter tuning
 """
+import re
 import os
 import sys
 import json
 import datetime
+import itertools
 import subprocess
 from pathlib import Path
 
@@ -97,7 +99,7 @@ def get_group():
       try:
           ci_commit = CiCommit.query.filter(
               CiCommit.project_id == project_id,
-              CiCommit.hexsha.startswith(commit_id)
+              CiCommit.hexsha.startswith(commit_id),
           ).one()
       except NoResultFound:
           return jsonify("Sorry, the commit id was not found"), 404
@@ -105,13 +107,50 @@ def get_group():
     else:
       qatools_config = project.data["qatools_config"]
 
-    default_configuration = project.data["qatools_config"].get('inputs', {}).get('configuration', "default")
+    default_configuration = qatools_config.get('inputs', {}).get('configuration', "default")
     if not (isinstance(default_configuration, list) or isinstance(default_configuration, tuple)):
       default_configuration = deserialize_config(default_configuration)
-    print('group', request.args["name"])
-    print("groups_paths", groups_paths)
-    print("config", qatools_config)
+    # print('group', request.args["name"], groups_paths)
+
+ 
+    has_custom_iter_inputs = False
+    # TODO: make it more robust in case of "from iters import *"
     qatools_config['project']['entrypoint'] = ci_commit.repo_commit_dir / qatools_config['project']['entrypoint']
+    if qatools_config['project']['entrypoint'].exists():
+        with qatools_config['project']['entrypoint'].open() as f:
+            entrypoint_source = f.read()
+        has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
+    # prpject fallback?
+    if has_custom_iter_inputs:
+        cwd = ci_commit.commit_dir
+        parent_including_cwd = [*list(reversed(list(cwd.parents))), cwd]
+        envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
+        cmd = ' '.join([
+            'qa',
+            'batch',
+            *list(itertools.chain.from_iterable((('--batches-file', f'"{f}"') for f in groups_paths))),
+            '--list',
+            request.args["name"],
+        ])
+        cmd = '\n'.join([*envrcs, cmd])
+        print(cmd)
+        try:
+            process = subprocess.run(
+                ['bash', '-c', cmd],
+                cwd=cwd,
+                encoding="utf-8",
+                capture_output=True,
+            )
+            # print(cmd)
+            # print(process.stdout)
+            print(process.stderr)
+            process.check_returncode()
+        except:
+            return jsonify({"error": str(process.stdout), "cmd": str(cmd)}), 500
+        return jsonify({"tests": json.loads(process.stdout)})
+
+    # We don't need to seperate the two cases, but
+    # doing so might let us avoid a fork and qa startup...
     try:
         tests = list(
             iter_inputs(
@@ -124,17 +163,15 @@ def get_group():
             )
         )
         return jsonify({
-            "number_of_tests": len(tests),
-            "tests": [{"test": str(test.relative_to(database)), "configuration": configuration} for test, configuration, _, database in tests],
+            "tests": [{"input_path": str(test.relative_to(database)), "configurations": configuration} for test, configuration, _, database in tests],
         })
     except Exception as e:
         print(f'Error: {e}')
-        # print(groups_paths)
-        return jsonify({"number_of_tests": 0, "tests": []})
+        return jsonify({"tests": [], "error": str(e)})
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
-def add_batch(hexsha):
+def start_tuning(hexsha):
     """
     Request that we run extra tests for a given project.
     """
@@ -195,7 +232,7 @@ def add_batch(hexsha):
         [
             "qa",
             f"--platform '{data['platform']}'" if "platform" in data else "",
-            f"--batch-label '{data['batch_label']}'",
+            f"--label '{data['batch_label']}'",
             "optimize" if do_optimize else "batch",
             ' '.join([f'--groups-file "{p}"' for p in groups_paths]),
             f"--group '{data['selected_group']}'",
