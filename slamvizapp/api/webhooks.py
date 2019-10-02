@@ -252,7 +252,9 @@ def gitlab_webhook():
     try:
       configs_contents = [repo.git.show(f'{ci_commit.hexsha}:{p}') for p in config_paths]
       configs = [yaml.load(c) for c in configs_contents]
-      qatools_config = qatools.merge(configs)
+      qatools_config = {}
+      for c in configs:
+        qatools_config = qatools.merge(c, qatools_config)
       qatools_config['project']['name'] = project_id
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
