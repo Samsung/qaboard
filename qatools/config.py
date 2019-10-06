@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 import yaml
 import click
 
-from .utils import getenvs, _Commit, _Repo
+from .utils import getenvs, git_head, _Commit, _Repo
 from .conventions import slugify, get_commit_ci_dir
 
 # In case the qatools.yaml configuration has errors, we don't want to exit directly.
@@ -233,25 +233,13 @@ else:
 
 if not commit_id or not commit_branch:
     # using gitpython is very slow, so we read the git data directly
-    if not is_in_git_repo:
+    if is_in_git_repo:
+      commit_branch, commit_id = git_head(repo_root)
+    else:
       if not commit_branch:
         commit_branch = f'<local:{user}>'
       if not commit_id:
         commit_id = f'<local:{user}>'
-
-    else:
-      with (repo_root / '.git' / 'HEAD').open() as f:
-        head_data = f.read().strip()
-        if head_data.startswith('ref: refs/heads/'):
-          commit_branch = head_data[16:]
-        else:
-          commit_branch = head_data
-        refs_head_path = repo_root / '.git' / 'refs' / 'heads' / commit_branch
-        if not refs_head_path.exists():
-          commit_id = commit_branch
-        else:
-          with refs_head_path.open() as f:
-            commit_id = f.read().strip()
 
 try:
     branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)

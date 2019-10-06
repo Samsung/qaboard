@@ -284,7 +284,32 @@ class _Commit(object):
 
 
 
+def git_head(repo_root : Path) -> (str, str):
+  """Return the git ref and sha for the HEAD""" 
+  with (repo_root / '.git' / 'HEAD').open() as f:
+    head_data = f.read().strip()
+    if head_data.startswith('ref: refs/heads/'):
+      commit_branch = head_data[16:]
+    else:
+      commit_branch = head_data
 
+  # Maybe we should just call "git rev-parse HEAD" from repo_root,
+  # there cant be that much overhead and it won't be as fragile...
+  refs_head_path = repo_root / '.git' / 'refs' / 'heads' / commit_branch
+  if refs_head_path.exists():
+    with refs_head_path.open() as f:
+      return commit_branch, f.read().strip()
+
+  packed_refs_path = repo_root / '.git' / 'packed-refs'
+  if packed_refs_path.exists():
+    with packed_refs_path.open() as f:
+      for line in f.readlines():
+        if line.startswith('#'):
+          continue
+        hexsha, ref = line.strip().split(maxsplit=1)
+        if ref == f"refs/heads/{commit_branch}":
+          return commit_branch, hexsha 
+  return commit_branch, commit_branch
 
 
 def latest_commit(repo, reference):
