@@ -171,8 +171,9 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
     if 'type' in available_batches[group]:
-      group_type = available_batches[group].get('type', inputs_settings['type'])
+      group_type = available_batches[group]['type']
       group_inputs_settings = get_settings(group_type, qatools_config)
+      group_inputs_settings.update(available_batches[group])
     else:
       group_inputs_settings = inputs_settings
     locations = available_batches[group].get('inputs', available_batches[group].get('tests'))
@@ -194,7 +195,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       locations = locations_as_dict
 
     if not locations: # return everything
-      inputs_iter = _iter_inputs(None, group_database, inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = _iter_inputs(None, group_database, group_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
       yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
       return
 
@@ -211,6 +212,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           if 'type' in location_configuration:
             location_type = location_configuration['type']
             location_inputs_settings = get_settings(location_type, qatools_config)
+            location_inputs_settings.update(location_configuration)
           else:
             location_inputs_settings = group_inputs_settings
           for k in ['type', 'database', 'lsf']:
@@ -233,7 +235,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           location_lsf_configuration = group_lsf_configuration
           location_inputs_settings = group_inputs_settings
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
-      inputs_iter = _iter_inputs(location, location_database, inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
+      inputs_iter = _iter_inputs(location, location_database, location_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
       yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
 
 
