@@ -99,7 +99,7 @@ def merge(src, dest):
       elif value:
         # "super" is a reserved keyword
         if isinstance(value, list) and "super" in value:
-          value = list(chain.from_iterable([[e] if e != "super" else dest[key] for e in value]))
+          value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
         dest[key] = value
     return dest
 
