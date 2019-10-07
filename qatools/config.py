@@ -92,15 +92,16 @@ if not qatools_configs:
 
 def merge(src, dest):
     # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
-    for key, value in src.items():
-      if isinstance(value, dict):
-        node = dest.setdefault(key, {})
-        merge(value, node)
-      elif value:
-        # "super" is a reserved keyword
-        if isinstance(value, list) and "super" in value:
-          value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
-        dest[key] = value
+    if src:
+      for key, value in src.items():
+        if isinstance(value, dict):
+          node = dest.setdefault(key, {})
+          merge(value, node)
+        elif value:
+          # "super" is a reserved keyword
+          if isinstance(value, list) and "super" in value:
+            value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
+          dest[key] = value
     return dest
 
 
