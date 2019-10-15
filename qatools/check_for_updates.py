@@ -46,8 +46,15 @@ def check_for_updates():
   # We cache the latest version found 
   qatools_latest_update = qatools_config_dir / 'latest-version'
   if qatools_latest_update.exists():
-    with qatools_latest_update.open('r') as f:
-      latest = json.load(f)
+    try:
+      with qatools_latest_update.open() as f:
+        latest = json.load(f)
+    except: # eg CI starts multiple `qa` runs, and corruption from concurrent writes on an NFS drive...
+      try:
+        qatools_latest_update.unlink()
+      except:
+        pass
+      latest = None
   else:
     latest = None
 
