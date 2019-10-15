@@ -312,13 +312,20 @@ def get_default_database(input_settings):
 
 
 
+_metrics = {}
+available_metrics = {}
+main_metrics = []
+
 metrics_file = config.get('outputs', {}).get('metrics')
-if not metrics_file:
-  _metrics = {}
-  available_metrics = {}
-  main_metrics = []
-else:
-    with Path(root_qatools / metrics_file).open('r') as f:
-        _metrics = yaml.load(f, Loader=yaml.SafeLoader)
-        available_metrics = _metrics['available_metrics']
-        main_metrics = _metrics['main_metrics']
+if metrics_file:
+  metrics_file_path = Path(root_qatools / metrics_file)
+  if not metrics_file_path.exists():
+    if not no_config_warning:
+      click.secho(f'WARNING: Could not find file containing metrics ({metrics_file})', fg='yellow', err=True)
+      click.secho(f'         It is defined in qatools.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
+      no_config_warning = True
+  else:
+    with metrics_file_path.open() as f:
+      _metrics = yaml.load(f, Loader=yaml.SafeLoader)
+      available_metrics = _metrics['available_metrics']
+      main_metrics = _metrics['main_metrics']
