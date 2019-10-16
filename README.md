@@ -3,6 +3,7 @@ A web application integrated with [`qatools`](http://gitlab-srv/common-infrastru
 - Show, debug and compare algorithm results.
 - Tune parameters.
 
+> **WIP:** admin guides are being written, and the deployment/dev story for qaboard being improved...
 
 ## Repository organization
 - [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
