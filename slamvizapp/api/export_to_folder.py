@@ -140,9 +140,9 @@ def export_to_folder():
   ref_outputs = filter_outputs(filter_ref, ref_outputs)
 
   # We save the links in a unique folder
-  query_string = f"{new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
+  query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
   m = hashlib.md5(query_string.encode('utf-8')).hexdigest()
-  export_dir = new_commit.commit_dir / 'exports' / m[:8]
+  export_dir = new_commit.repo_commit_dir / 'share' / m[:8]
   export_dir.mkdir(parents=True, exist_ok=True)
 
   output_refs = {}
@@ -210,6 +210,8 @@ def export_to_folder():
           c_suffix = serialize_config(common_data.get("configuration_suffix", 'placeholder-placeholder'))
           return c.replace(c_prefix, '').replace(c_suffix, '')
         stripped_config = slugify_config(strip_config(output.configuration))
+        # list of common SIRC-specific names
+        stripped_config = stripped_config.replace('workspace-configurations-', '')
         if stripped_config:
           labels.append(stripped_config)
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
