@@ -24,14 +24,8 @@ require('./selection')
 
 const slugify = s => s.replace(/[^a-zA-Z0-9]/g, '-')
 
-// TODO:
-// add plugings
-// - https://github.com/picturae/Openseadragonrgb/blob/master/src/rgb.js
-// - http://Openseadragon.github.io/docs/Openseadragon.html#.Options
-// - http://Openseadragon.github.io/docs/Openseadragon.Viewer.html
-// - http://Openseadragon.github.io/docs/Openseadragon.Viewport.html
-// - https://github.com/cuberis/openseadragon-curtain-sync/
-// - http://Openseadragon.github.io/#examples-and-features
+
+
 const openseadragon_config = {
   visibilityRatio: 1,
   preserveViewport: true,
@@ -74,6 +68,32 @@ const iiif_url = (output_dir_url, path) => {
 }
 
 
+// We sync the viewer viewport of all viewers of the same size for a given output
+var synced_viewers = {}
+
+
+
+function maintain_zoom() {
+  // console.log("[maintain_zoom]")
+  Object.values(synced_viewers).forEach( sync_group => {
+    if (Object.values(sync_group.viewers).some(v => v===null || v===undefined) )
+      return;
+    sync_group.leading = "resize";
+    try { // we should try to find how to identify when an image is not loaed...
+      sync_group.viewers.forEach(v => {
+        const size = new OpenSeadragon.Point(v.container.clientWidth || 1, v.container.clientHeight || 1);
+        v.viewport.resize(size, true);
+        v.viewport.zoomTo(sync_group.zoom, null, true);
+        v.viewport.panTo(sync_group.center, true);
+      })
+      sync_group.leading = null; 
+      sync_group.viewers.forEach(v => v.forceRedraw())
+    } catch {}
+  })
+}
+window.addEventListener('resize', maintain_zoom, { passive: true });
+
+
 class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
@@ -113,9 +133,75 @@ class ImgViewer extends React.PureComponent {
     })
   }
 
+
+
+  InitZoomSync() {
+    // console.log("[InitZoomSync]")
+    // Implemement synced zoom
+    // https://codepen.io/iangilman/pen/BWKKxQ
+    const { viewer_new, viewer_ref } = this;
+    const { image_width, image_height } = this.state;
+    // TODO: use output_new.test_input_path as key, to sync everything?
+    const sync_key = `${this.props.output_new.output_dir_url}-${image_height}x${image_width}`;
+    // console.log("sync_key", sync_key)
+
+    if (synced_viewers[sync_key] === undefined) {
+      // console.log("init synced viewers", sync_key)
+      synced_viewers[sync_key] = {
+        viewers: [viewer_new, viewer_ref],
+        // all the viewers are syncronized to
+        zoom: null,
+        center: null,
+        // When the user moves a viewer, it leads the others
+        // whose pan/zoom events we ignore.
+        // Values: the id of a viewer, null, or "all"
+        leading: null,
+      }
+    } else {
+      // console.log("push synced viewers", sync_key)
+      synced_viewers[sync_key].viewers.push(viewer_new, viewer_ref)
+    }
+
+
+    var lead_viewer_sync = (sync_key, viewer) => () => {
+      // console.log("[lead_viewer_sync]")
+      let { leading } = synced_viewers[sync_key];
+      if (!!leading && (leading !== viewer.id && leading !== 'resize'))
+        return;
+      synced_viewers[sync_key].zoom = viewer.viewport.getZoom();
+      synced_viewers[sync_key].center = viewer.viewport.getCenter();
+      // console.log(`leading with ${viewer.id} to ${zoom} / ${center}`)      
+      if (synced_viewers[sync_key].center === undefined || synced_viewers[sync_key].center === null)
+        return
+      synced_viewers[sync_key].leading = viewer.id;
+      synced_viewers[sync_key].viewers.filter(v => v.id !== viewer.id).forEach(v => {
+        // console.log(`  follow for ${v.id}`)
+        v.viewport.zoomTo(synced_viewers[sync_key].zoom);
+        v.viewport.panTo(synced_viewers[sync_key].center);
+      })
+      synced_viewers[sync_key].leading = null;
+    };
+
+    viewer_new.addHandler('zoom', lead_viewer_sync(sync_key, viewer_new));
+    viewer_ref.addHandler('zoom', lead_viewer_sync(sync_key, viewer_ref));
+    viewer_new.addHandler('pan',  lead_viewer_sync(sync_key, viewer_new));
+    viewer_ref.addHandler('pan',  lead_viewer_sync(sync_key, viewer_ref));
+
+  }
+
+
   componentWillUnmount() {
     if (!!this.state.cancel_source.token)
       this.state.cancel_source.cancel();
+
+    const { image_width, image_height } = this.state;
+    const sync_key = `${this.props.output_new.output_dir_url}-${image_height}x${image_width}`;
+    if (synced_viewers[sync_key] !== undefined) {
+      synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(v =>
+        v.id !== (this.viewer_new || {}).id &&
+        v.id !== (this.viewer_new || {}).id
+      )
+    }
     if (!!this.viewer_new) {
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
@@ -126,6 +212,7 @@ class ImgViewer extends React.PureComponent {
       // this.viewer_ref.destroy();
       // this.viewer_ref = null;
     }
+    // remove viewers from output_viewers
     window.removeEventListener('keypress', this.keypress);
   }
 
@@ -157,6 +244,7 @@ class ImgViewer extends React.PureComponent {
         }, () => resolve())
 
         const { viewer_new, viewer_ref } = this;
+
         // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
@@ -302,7 +390,6 @@ class ImgViewer extends React.PureComponent {
   }
 
 
-
   InitSelectionTool(props) {
     const { viewer_new } = this;
     const selection_options = {
@@ -323,75 +410,6 @@ class ImgViewer extends React.PureComponent {
     viewer_new.addHandler('update-viewport', this.update_histogram);
     viewer_new.addHandler('selection_cancel', () => { this.show_histogram = false; });
     viewer_new.addHandler('selection_toggle', ({ enabled }) => { this.show_histogram = enabled; this.update_histogram(); });
-  }
-
-
-  InitZoomSync() {
-    // Implemement synced zoom
-    // https://codepen.io/iangilman/pen/BWKKxQ
-    const { viewer_new, viewer_ref } = this;
-    var masterZoom;
-    var masterCenter;
-    var viewer_newLeading = false;
-    var viewer_refLeading = false;
-    var viewer_newHandler = function () {
-      if (viewer_refLeading)
-        return;
-      masterZoom = viewer_new.viewport.getZoom();
-      masterCenter = viewer_new.viewport.getCenter();
-      if (masterCenter === undefined || masterCenter === null) return
-
-      viewer_newLeading = true;
-      viewer_ref.viewport.zoomTo(masterZoom);
-      viewer_ref.viewport.panTo(masterCenter);
-      viewer_newLeading = false;
-    };
-
-    var viewer_refHandler = function () {
-      if (viewer_newLeading)
-        return;
-      masterZoom = viewer_ref.viewport.getZoom();
-      masterCenter = viewer_ref.viewport.getCenter();
-      if (masterCenter === undefined || masterCenter === null) return
-
-      viewer_refLeading = true;
-      viewer_new.viewport.zoomTo(masterZoom);
-      viewer_new.viewport.panTo(masterCenter);
-      viewer_refLeading = false;
-    };
-    viewer_new.addHandler('zoom', viewer_newHandler);
-    viewer_ref.addHandler('zoom', viewer_refHandler);
-    viewer_new.addHandler('pan', viewer_newHandler);
-    viewer_ref.addHandler('pan', viewer_refHandler);
-
-    function maintainZoom() {
-      if (viewer_new === null || viewer_new === undefined || viewer_ref === null || viewer_ref === undefined)
-        return;
-      var size1 = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
-      var size2 = new OpenSeadragon.Point(viewer_ref.container.clientWidth || 1, viewer_ref.container.clientHeight || 1);
-      viewer_newLeading = true;
-      viewer_refLeading = true;
-      try { // we should try to find how to identify when an image is not loaed...
-        viewer_new.viewport.resize(size1, true);
-        viewer_ref.viewport.resize(size2, true);
-
-        viewer_ref.viewport.zoomTo(masterZoom, null, true);
-        viewer_ref.viewport.panTo(masterCenter, true);
-
-        viewer_new.viewport.zoomTo(masterZoom, null, true);
-        viewer_new.viewport.panTo(masterCenter, true);
-
-        viewer_newLeading = false;
-        viewer_refLeading = false;
-
-        viewer_new.forceRedraw();
-        viewer_ref.forceRedraw();
-      } catch {
-
-      }
-    }
-    window.addEventListener('resize', maintainZoom, { passive: true });
-    this.setState({ maintainZoom });
   }
 
   InitFilters() {

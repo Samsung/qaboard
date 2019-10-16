@@ -23,7 +23,7 @@ class CoordTooltip extends React.PureComponent {
 	render() {
 		if (this.props.color === undefined || this.props.color === null)
 			return <span/>
-		const { x, y } = this.props.color.imageCoordinates;
+		const { x, y } = (this.props.color || {}).imageCoordinates || {};
 
         return <span style={margin}>
             <code>x: {coordFormat(x)}, y: {coordFormat(y)}</code>
