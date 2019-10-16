@@ -283,10 +283,12 @@ def start_tuning(hexsha):
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    default_user = ci_commit.project.data["qatools_config"]["lsf"].get('user', 'arthurf')
+    qatools_config = ci_commit.project.data["qatools_config"]
+    lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
+    default_user = lsf_config.get('user', 'arthurf')
     user = data.get('user', default_user)
 
-    queue = ci_commit.project.data["qatools_config"]["lsf"]["fast_queue"]
+    queue = lsf_config.get("fast_queue", lsf_config['queue'])
     start_script = "".join(
         [
             "#!/bin/bash\n",
