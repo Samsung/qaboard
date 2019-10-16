@@ -7,7 +7,7 @@ import { Colors } from "@blueprintjs/core";
 const colors = {
   groundtruth: `${Colors.GREEN2}dd`,
   new: `${Colors.ORANGE2}dd`,
-  reference: `${Colors.BLUE2}dd`
+  ref: `${Colors.BLUE2}dd`
 };
 
 
@@ -19,23 +19,29 @@ const adapt = (trace, label, side_by_side) => {
 
   let width = (trace.line && trace.line.width) || 2;
   let size = (trace.marker && trace.marker.size) || 3;
-  if (label === "reference") {
+  if (label === "ref") {
     width += 1;
     size += 1;
   }
+  const trace_has_colors = !!(trace.line || {}).color || !!(trace.marker || {}).color
+  // console.log(trace)
   return {
     ...trace,
-    name: label,
-    legendgroup: label,
+    opacity: (trace_has_colors && label === "ref") ? (!!trace.opacity ? trace.opacity / 2 : 0.4) : undefined,
+    name: !!trace.name ? `${label} | ${trace.name}` : label,
+    legendgroup: !!trace.legendgroup ? `${label} | ${trace.legendgroup}` : undefined,
     line: {
       ...trace.line,
-      color: colors[label],
-      // the reference is wider to highlight unchanged results
+      // FIXME: if already color, use dotted line, or more alpha.. ?
+      color: !!trace.line.color ? trace.line.color : colors[label],
+      dash: (!!trace.line.color && !!!trace.dash && label === "ref") ? 'dashdot' : trace.dash,
+      // the ref is wider to highlight unchanged results
       width,
     },
     marker: {
       ...trace.marker,
-      color: colors[label],
+      opacity: (!!trace_has_colors && label === "ref") ? (!!(trace.marker || {}).opacity ? trace.marker.opacity / 2 : 0.4) : (trace.marker || {}).opacity,
+      color: !!(trace.marker || {}).color ? trace.marker.color : colors[label],
       size,
     },
     // TODO: do we need other ajustments for other plot types?
@@ -70,9 +76,9 @@ class PlotlyViewer extends PureComponent {
     if (should_get_all || label === 'new') {
       results.push(['new', `${output_new.output_dir_url}/${path}`])
     }
-    if (should_get_all || label === 'reference') {
+    if (should_get_all || label === 'ref') {
       if (!!output_ref && !!output_ref.output_dir_url)
-        results.push(['reference', `${output_ref.output_dir_url}/${path}`])
+        results.push(['ref', `${output_ref.output_dir_url}/${path}`])
       if (!!path_groundtruth)
         results.push( ['groundtruth', `${output_new.output_dir_url}/${path_groundtruth}`] )
     }
@@ -94,7 +100,7 @@ class PlotlyViewer extends PureComponent {
       return () =>  get(url, {cancelToken: cancel_source.token})
                     .then(load_data(label))
                     .catch(response => {
-                      // we don't really care about errors for reference / groundtruth outputs
+                      // we don't really care about errors for ref / groundtruth outputs
                       if (label==='new' && !!response)
                         this.setState({error: response.data})
                     });
@@ -121,7 +127,7 @@ class PlotlyViewer extends PureComponent {
         this.getData(this.props, 'new');
       }
       if (updated_ref || updated_path) {
-        this.getData(this.props, 'reference');
+        this.getData(this.props, 'ref');
       }
   }
 
@@ -136,14 +142,20 @@ class PlotlyViewer extends PureComponent {
 
     if (!side_by_side) {
       let layout_ = {
+        xaxis: {},
+        yaxis: {},
+        legend: {},
         width: parseFloat(width.substring(0, width.length-2)),
         // height: parseFloat(style.heigth),
         ...layouts['new'],
         ...this.props.layout,
       };
+      layout_.xaxis.automargin = true;
+      layout_.yaxis.automargin = true;
+      layout_.legend.traceorder = 'reversed';
       let traces = [
         ...( data.groundtruth || []),
-        ...( data.reference || [] ),
+        ...( data.ref || [] ),
         ...( data.new || []),
       ]
       if (traces.length===0)
@@ -154,13 +166,13 @@ class PlotlyViewer extends PureComponent {
     if (side_by_side) {
       let width_full = parseFloat(width.substring(0, width.length-2))
       let layout_ = {
-        width:  !!data.reference ? width_full / 2 : width_full,
+        width:  !!data.ref ? width_full / 2 : width_full,
         ...layouts['new'],
         ...this.props.layout,
       };
       return <>
-        <Plot key="new" data={data.new} layout={layout_}/>;
-        {!!data.reference && <Plot key="reference" data={data.reference} layout={layout_}/>};
+        <Plot key="new" data={data.new} layout={layout_}/>
+        {!!data.ref && <Plot key="ref" data={data.ref} layout={layout_}/>}
       </>      
     }
   }
