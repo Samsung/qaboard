@@ -263,6 +263,7 @@ class OutputCard extends React.Component {
       // let path_regex = view.path.replace(/[^\.]\*/g, '(.*)')
       let view_options = pathToRegexp.parse(view.path)
       view_options.forEach(token => {
+        // console.log(token)
         if (token.name === undefined) // static part
           return
         if (Number.isInteger(token.name)) {
@@ -271,22 +272,28 @@ class OutputCard extends React.Component {
           token.name = `${idx}-${token.name}`
         }
         if (options[token.name] === undefined)
-          options[token.name] = { views: [] }
+          options[token.name] = { views: [], paths: [] }
         options[token.name] = { ...options[token.name], ...token }
+        // if (!!token.path)
+        //   options[token.name] = { ...options[token.name], ...token }
         options[token.name].views.push(view.name)
-        options[token.name].path = view.path
+        options[token.name].paths.push(view.path)
       })
     })
 
     const paths = Object.keys(this.state.manifests.new)
     Object.entries(options).forEach(([name, option]) => {
+      // console.log(name, option)
       option.values = new Set()
       paths.forEach(path => {
         // const match = option.match.exec(p);
-        const match = matchPath(path, { path: option.path }) // they do their own caching
-        if (match === null || match === undefined) return;
-        let name_ = option.unnamed_group !== undefined ? option.unnamed_group : name;
-        option.values.add(match.params[name_])
+        option.paths.forEach(option_path => {
+          const match = matchPath(path, { path: option_path }) // they do their own caching
+          // console.log('>', path, match)
+          if (match === null || match === undefined) return;
+          let name_ = option.unnamed_group !== undefined ? option.unnamed_group : name;
+          option.values.add(match.params[name_])          
+        })
       })
       option.values = Array.from(option.values.values())
       const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(parseFloat(v)))
@@ -401,6 +408,20 @@ class OutputCard extends React.Component {
             metrics_new={output_new.metrics ? output_new.metrics : {}}
             metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
           />}
+          {is_loaded && this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map(([name, option]) => { // FIXME: need to filter, only care about shown viewers...
+            const option_label = isNaN(option.name) ? option.name : option.pattern
+            if (option.views.every(name => views.find(v => v.name === name).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
+              return <span key={option.name} />
+            if (option.type === 'slider') {
+              // let labelStepSize = (option.max - option.min) / 10
+              let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
+              return <div key={option_label} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
+                <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
+              </div>
+            } else {
+              return <div key={option_label} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
+            }
+          })}
           {viewers}
         </>
       }
@@ -434,20 +455,6 @@ class OutputCard extends React.Component {
         {output_new.deleted && <Tag intent={Intent.DANGER}>Deleted</Tag>}
         {output_ref && output_ref.deleted && <Tag intent={Intent.WARNING}>Reference deleted</Tag>}
 
-        {is_loaded && this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map(([name, option]) => { // FIXME: need to filter, only care about shown viewers...
-          const option_label = isNaN(option.name) ? option.name : option.pattern
-          if (option.views.every(name => views.find(v => v.name === name).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
-            return <span key={option.name} />
-          if (option.type === 'slider') {
-            // let labelStepSize = (option.max - option.min) / 10
-            let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
-            return <div key={option_label} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
-              <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
-            </div>
-          } else {
-            return <div key={option_label} title={option_label}>{option.values.length > 0 && <HTMLSelect options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
-          }
-        })}
 
         {!this.state.viewable && <InView threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
           <span></span>
