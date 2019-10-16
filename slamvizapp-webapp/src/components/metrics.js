@@ -54,7 +54,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       ? Intent.DANGER
       : Intent.SUCCESS;
   let metric_tag = <Tooltip>
-    <Tag minimal intent={!!metric_info.target ? intent : null}>
+    <Tag style={{margin: '3px'}} minimal intent={!!metric_info.target ? intent : null}>
       {formatted_valued}
     </Tag>
     <span>{metric_info.scale * metrics_new[metric_info.key]}{metric_info.suffix}</span>
@@ -74,15 +74,15 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -0.01)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    var compare_tag = <Tag minimal intent={intent_compare}>{percent_formatter.format(100 * delta_relative)}%</Tag>;
+    var compare_tag = <Tag style={{margin: '3px'}} minimal intent={intent_compare}>{percent_formatter.format(100 * delta_relative)}%</Tag>;
   } else {
-    compare_tag = <Fragment />;
+    compare_tag = <span/>;
   }
   return (
-    <Fragment>
+    <>
       {metric_tag}
       {compare_tag}
-    </Fragment>
+    </>
   );
 };
 
@@ -93,15 +93,13 @@ class MetricsTags extends React.PureComponent {
     const { available_metrics={}, selected_metrics=[] } = this.props;
     return selected_metrics
       .filter(key => metrics_new[key] !== undefined)
-      .map(key => (
-        <p key={key}>
-          <MetricTag
+      .map(key =>
+          <MetricTag key={key}
             metrics_new={metrics_new}
             metrics_ref={metrics_ref}
             metric_info={available_metrics[key]}
           />
-        </p>
-      ))
+      )
   }
 }
 
