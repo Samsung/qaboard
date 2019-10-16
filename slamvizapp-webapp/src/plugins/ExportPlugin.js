@@ -18,13 +18,11 @@ import { Toaster } from "@blueprintjs/core";
 export const toaster = Toaster.create();
 
 
-const default_path = '*.bmp'
-
 class ExportPlugin extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      path: this.props.path || default_path,
+      path: this.props.path || '*.bmp',
       is_loading: false,
     }
   }
@@ -32,8 +30,8 @@ class ExportPlugin extends React.Component {
   componentDidUpdate(prevProps) {
     if (prevProps.project_data !== this.props.project_data) {
       let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
-      let settings = ((qatools_config.outputs || {}).plugins) || {}
-      this.setState({path: (settings.path || default_path)})
+      let visualizations = ((qatools_config.outputs || {}).visualizations) || [{path: '*.bmp'}]
+      this.setState({path: visualizations[0].path})
     }
   }
 
@@ -74,8 +72,6 @@ class ExportPlugin extends React.Component {
   }
 
   render() {
-    // let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
-    // let settings = ((qatools_config.outputs || {}).plugins) || {};
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup
         labelFor="pluging-copy"
