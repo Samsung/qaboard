@@ -1,3 +1,7 @@
+import 'react-app-polyfill/ie11';
+import 'react-app-polyfill/stable';
+import './polyfills'; // other polyfills
+
 import React from "react";
 import { render } from "react-dom";
 
@@ -16,8 +20,12 @@ const renderApp = () => render(
 );
 
 
-// https://redux.js.org/recipes/configuringyourstore
 if (process.env.NODE_ENV !== 'production' && module.hot) {
+  // https://www.npmjs.com/package/why-did-you-update
+  // const { whyDidYouUpdate } = require('why-did-you-update');
+  // whyDidYouUpdate(React);
+ 
+ // https://redux.js.org/recipes/configuringyourstore
   module.hot.accept('./App', () => {
     renderApp()
   })
