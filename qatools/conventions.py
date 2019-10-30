@@ -1,6 +1,7 @@
 """
 The naming conventions about where qatools saves results.
 """
+import os
 import re
 import json
 import hashlib
@@ -75,8 +76,22 @@ def deserialize_config(configuration):
   # print("[deserialize] before : ", configuration)
   configurations = []
   configuration_part = ''
+
+  is_windows = os.name == 'nt'
   for token in configuration.split(':'):
-    if not configuration_part and not token.startswith('{'):
+    # FIXME: For users that work locally on Windows,
+    #        we take care of the special case "base:C://Users:delta"
+    #        Ideally we should provide configs via `qa -c config1 -c C://file` and avoid this issue...
+    if is_windows and not configuration_part and token[0] in ['\\', '/']:
+      maybe_absolute_path = configurations[-1] + token
+      if os.path.exists(maybe_absolute_path):
+        configurations[-1] = maybe_absolute_path
+        continue
+
+    # FIXME: Same issue here: we started with ":"-separated arrays of configs
+    #        Of course, hell breaks loose when we try to use json...
+    maybe_start_of_json = token.startswith('{')
+    if not configuration_part and not maybe_start_of_json:
       configurations.append(token)
     else:
       configuration_part = f"{configuration_part}:{token}" if configuration_part else token
@@ -84,13 +99,16 @@ def deserialize_config(configuration):
         configurations.append(json.loads(configuration_part))
         configuration_part = ''
       except:
-        # it's not perfect, we should deal with quoting...
-        # for now let's say using "{" or "}" is discouraged as part of config strings
+        # It's not perfect: we should deal with quoting...
+        # For now let's say using "{" or "}" is discouraged as part of config strings
+        # Again, the better fix is not to do this ":"-separated serialization in the first place
         if configuration_part.count('{') == configuration_part.count('}'):
           configurations.append(configuration_part)
           configuration_part = ''
         else:
           pass
+  if configuration_part:
+      configurations.append(configuration_part)
   # print("[deserialize] after: ", configurations)
   return configurations
 
