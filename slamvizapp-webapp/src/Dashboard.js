@@ -60,9 +60,9 @@ class Dashboard extends React.Component {
   }
 
   fetchCommits() {
-    const { match, project, dispatch, aggregation_metrics } = this.props;
+    const { match, project, selected_batch_new, dispatch, aggregation_metrics } = this.props;
     const extra_params = {
-      only_ci_batches: true,
+      only_ci_batches: selected_batch_new === 'default',
       with_outputs: true,
     }
     dispatch(fetchCommits(project, {...match.params}, default_date_range, aggregation_metrics, extra_params))
@@ -173,6 +173,7 @@ class Dashboard extends React.Component {
               project={project}
               project_data={project_data}              
               commits={commits}
+              shown_batches={[this.props.selected_batch_new]}
               new_commit={new_commit}
               ref_commit={ref_commit}
               select_metrics={evolution_metrics}
@@ -297,6 +298,7 @@ const mapStateToProps = (state, ownProps) => {
     let { new_commit, ref_commit } = commitSelector(state)
 
     let {
+      selected_batch_new,
       new_batch_filtered,
       ref_batch_filtered,
     } = batchSelector(state)
@@ -330,6 +332,7 @@ const mapStateToProps = (state, ownProps) => {
       is_loaded: commits_data.is_loaded,
       is_loading: commits_data.is_loading,
       // outputs
+      selected_batch_new,
       new_batch_filtered,
       ref_batch_filtered,
       // metrics

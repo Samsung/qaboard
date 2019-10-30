@@ -195,7 +195,6 @@ class CommitsEvolutionPerTest extends React.Component {
   updateTracesPerBatch(props) {
     const { commits, metrics, aggregation, available_metrics, per_output_granularity, output_filter } = props;
     let shown_metrics = metrics;
-    let shown_batches = ["default", "ci-android-rt", "manual-android-rt"];
     let shown_aggregation = aggregation || "median";
 
     let valid_commits // fixme remove this shit
@@ -229,7 +228,7 @@ class CommitsEvolutionPerTest extends React.Component {
     };
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
-      shown_batches.forEach(label => {
+      this.props.shown_batches.forEach(label => {
         let commits_with_batch = valid_commits.filter(
           c => c.batches[label] !== undefined
         );
@@ -305,14 +304,13 @@ class CommitsEvolutionPerTest extends React.Component {
     } = props;
     const output_filter_ = make_output_filter(output_filter);
     let shown_metrics = metrics;
-    let shown_batches = ["default"];
     let traces = [];
     let traces_metadata = [];
 
     // console.log("shown_metrics", shown_metrics)
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
-      shown_batches.forEach(label => {
+      this.props.shown_batches.forEach(label => {
         let commits_with_batch = commits.filter(c => !!c.batches[label]);
         if (commits_with_batch.length > 0) {
           let input_configuration_set = new Set();
@@ -322,6 +320,7 @@ class CommitsEvolutionPerTest extends React.Component {
               .forEach(o => input_configuration_set.add(JSON.stringify([o.test_input_path, o.configuration])));
           });
           // console.log("commits_with_batch", commits_with_batch)
+          // console.log(input_configuration_set)
           input_configuration_set.forEach( input_config_json => {
             const [test_input_path, configuration] = JSON.parse(input_config_json)
             let commits_with_output = commits_with_batch.filter(
@@ -755,6 +754,7 @@ class CommitsEvolution extends Component {
             commits={commits}
             new_commit={new_commit}
             ref_commit={ref_commit}
+            shown_batches={this.props.shown_batches || ['default']}
             metrics={[selected_metric]}
             output_filter={output_filter}
             aggregation={breakdown_per_test ? null : selected_aggregation}

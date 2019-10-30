@@ -50,7 +50,6 @@ const SlimCard = styled(Card)`
 
 
 const OutputHeader = React.memo(({ project, commit, output, type, dispatch, style, prefix, tags_first=false }) => {
-  const input_over_time_url = `/${project}/time-travel/${!!commit ? commit.branch : ''}?filter=${output.test_input_path}${type === 'bit_accuracy' ? "&show_bit_accuracy=true" : ""}`
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const tags = <OutputTags
@@ -58,6 +57,8 @@ const OutputHeader = React.memo(({ project, commit, output, type, dispatch, styl
     warning={output.reference_warning}
     style={{marginLeft: '5px', marginRight: '5px'}}
   />
+
+  const input_over_time_url = `/${project}/time-travel/${!!commit ? commit.branch : ''}${window.location.search}`
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}   
@@ -66,7 +67,17 @@ const OutputHeader = React.memo(({ project, commit, output, type, dispatch, styl
         <span>
           <Link
             to={input_over_time_url}
-            onClick={() => dispatch(updateSelected(project, { branch: commit.branch }))}
+            onClick={() => {
+                  // https://stackoverflow.com/a/6969486
+                  const filter = output.test_input_path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  dispatch(updateSelected(project, {
+                    branch: commit.branch,
+                    filter_batch_new: filter,
+                    filter_batch_ref: filter,
+                  }, {
+                    show_bit_accuracy: type === 'bit_accuracy',
+                  }))
+            }}
             style={{ color: 'inherit' }}
           >
             {has_label ? output.test_input_metadata.label : output.test_input_path}
@@ -296,7 +307,9 @@ class OutputCard extends React.Component {
         })
       })
       option.values = Array.from(option.values.values())
-      const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(parseFloat(v)))
+      const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(Number(v)))
+      const all_numbers = option.values.length > 0 && option.values.every(v => !isNaN(parseFloat(v)))
+      // console.log(all_numbers)
       if (all_is_integer) {
         option.type = 'slider'
         option.to_raw = {}
@@ -310,7 +323,7 @@ class OutputCard extends React.Component {
         })
         option.selected = [option.max]
       } else {
-        option.selected = [option.values[0]]
+        option.selected = [option.values[all_numbers ? option.values.length-1 : 0]]
       }
     })
     this.setState({
@@ -345,6 +358,9 @@ class OutputCard extends React.Component {
       // layout should be plotly-like. You could also pass down a props named style.
       var views = [...((qatools_config.outputs || {}).visualizations || []), ...((qatools_config.outputs || {}).detailed_views || [])]; // we allow both for some leeway with half updated projects
 
+      // we display the input for each option before the first visualization that uses it
+      let already_shown_options = {}
+
       let viewers = views.map((view, idx) => {
         let hidden = view.default_hidden === true && !(!!controls.show && controls.show[view.name] === true)
         if (hidden)
@@ -353,6 +369,23 @@ class OutputCard extends React.Component {
         const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
         if (view_options.some(o => o.selected[0] === undefined || o.selected[0] === null))
           return <span key={idx} />
+
+        const new_options = view_options.filter(({name}) => already_shown_options[name] === undefined)
+        new_options.forEach(option => already_shown_options[option.name] = option)
+        const options = new_options.map(option => {
+          const option_label = isNaN(option.name) ? option.name : option.pattern
+          if (option.views.every(name => views.find(v => v.name === name).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
+            return <span key={option.name} />
+          if (option.type === 'slider') {
+            // let labelStepSize = (option.max - option.min) / 10
+            let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
+            return <div key={option_label} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
+              <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
+            </div>
+          } else {
+            return <div key={option_label} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
+          }
+        })
 
         if (!(view.display === 'viewer') && view_options.length > 0) {
           if (view.display === undefined || view.display === 'single') {
@@ -366,8 +399,7 @@ class OutputCard extends React.Component {
           paths = necessary_files_exist ? [view.path] : []
         }
         // console.log(view.display, paths)
-
-        return paths.map(
+        const viewers = paths.map(
           (path, path_idx) => <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
             {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
             <OutputViewer
@@ -384,6 +416,10 @@ class OutputCard extends React.Component {
             />
           </div>
         )
+        return <>
+          {options}
+          {viewers}
+        </>
       })
 
       if (this.props.type === 'bit_accuracy') {
@@ -408,20 +444,6 @@ class OutputCard extends React.Component {
             metrics_new={output_new.metrics ? output_new.metrics : {}}
             metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
           />}
-          {is_loaded && this.props.type !== 'bit_accuracy' && !!this.state.options && Object.entries(this.state.options).map(([name, option]) => { // FIXME: need to filter, only care about shown viewers...
-            const option_label = isNaN(option.name) ? option.name : option.pattern
-            if (option.views.every(name => views.find(v => v.name === name).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
-              return <span key={option.name} />
-            if (option.type === 'slider') {
-              // let labelStepSize = (option.max - option.min) / 10
-              let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
-              return <div key={option_label} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
-                <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
-              </div>
-            } else {
-              return <div key={option_label} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
-            }
-          })}
           {viewers}
         </>
       }
