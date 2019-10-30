@@ -33,8 +33,8 @@ const adapt = (trace, label, side_by_side) => {
     line: {
       ...trace.line,
       // FIXME: if already color, use dotted line, or more alpha.. ?
-      color: !!trace.line.color ? trace.line.color : colors[label],
-      dash: (!!trace.line.color && !!!trace.dash && label === "ref") ? 'dashdot' : trace.dash,
+      color: !!(trace.line || {}).color ? trace.line.color : colors[label],
+      dash: (!!(trace.line || {}).color && !!!trace.dash && label === "ref") ? 'dashdot' : trace.dash,
       // the ref is wider to highlight unchanged results
       width,
     },
