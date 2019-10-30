@@ -61,9 +61,9 @@ export const fetchCommits = (project, branch, date_range, aggregation_metrics, e
     dispatch({ type: FETCH_COMMITS, project, branch, date_range })
     var url
     if (branch.committer)
-      url = `/api/v1/commits?committer=${branch.committer}`;
+      url = `/api/v1/commits/?committer=${branch.committer}`;
     else {
-      let branch_ = "";
+      let branch_ = "/";
       if (branch.name) branch_ = `/${branch.name}`;
       url = `/api/v1/commits${branch_}`;
     }
