@@ -1,24 +1,35 @@
 import React from "react";
+import copy from 'copy-to-clipboard';
+import axios from "axios";
 
 import {
   Classes,
-  Tag,
-  Button,
+  Colors,
   Intent,
+  Menu,
+  Tag,
+  Icon,
+  Button,
   EditableText,
+  FormGroup,
+  InputGroup,
+  NavbarGroup,
   Tooltip,
   Popover,
-  FormGroup,
-  Menu,
+  Toaster,
 } from "@blueprintjs/core";
+
 
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
+import { SelectBatchesNav } from "./tuning/SelectBatches";
 import { MilestonesMenu, CommitMilestoneEditor } from "./milestones"
-import { shortId } from "../utils";
 
+import { shortId, linux_to_windows } from "../utils";
 import { fetchCommit } from "../actions/commit";
 import { updateSelected } from "../actions/selected";
+
+export const toaster = Toaster.create();
 
 
 class CommitMessage extends React.PureComponent {
@@ -48,10 +59,50 @@ class CommitBranchButton extends React.PureComponent {
   }
 }
 
+class BatchTags extends React.PureComponent {
+  render() {
+    if (this.props.batch === undefined || this.props.batch === null)
+      return <span/>
+    const { valid_outputs, running_outputs, pending_outputs, failed_outputs } = this.props.batch;
+    return <>
+      {valid_outputs > 0 && (
+        <Tag intent={Intent.SUCCESS} minimal round>
+          {valid_outputs} outputs
+        </Tag>
+      )}{" "}
+      {running_outputs > 0 && (
+        <Tag intent={Intent.SUCCESS} minimal round>
+          {running_outputs} running
+        </Tag>
+      )}{" "}
+      {pending_outputs - running_outputs > 0 && (
+        <Tag minimal round>
+          {pending_outputs - running_outputs}{" "}
+          pending
+        </Tag>
+      )}{" "}
+      {failed_outputs > 0 && (
+        <Tag intent={Intent.DANGER} minimal round>
+          {failed_outputs} crashed
+        </Tag>
+      )}
+    </>
+  }
+}
+
+
+
 
 class CommitNavbar extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      waiting: false,
+    };
+  }
+
   render() {
-    const { project, project_data, commit, batch, selected, type, dispatch } = this.props;
+    const { project, project_data, commits, commit, batch, selected, type, dispatch, update } = this.props;
     const qatools_config = (((project_data || {}).data || {}).qatools_config)
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
 
@@ -74,50 +125,129 @@ class CommitNavbar extends React.Component {
       <Menu.Item text="Remove" icon="delete" onClick={() => this.removeSelection()} />
     </Menu>
 
-    return (
-      <FormGroup style={{ marginTop: '45px' }}>
-        <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
-          <span style={{ display: 'flex' }}>
-            <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{type}</Tag>
-            <CommitAvatar size='20px' commit={commit} style={{ marginRight: '5px' }} />
-            <CommitMessage
-              project={project}
-              commit={commit}
-              style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto' }}
-              is_loaded={!!commit && commit.id && !this.props.commit.is_loaded}
-            />
-          </span>
-        </div>
-        <div style={{ display: 'flex' }}>
-
-          <CommitMilestoneEditor
-            project={project}
-            project_data={project_data}
-            commit={commit}
-            batch={batch}
-            filter={selected[`filter_batch_${type}`]}
-            dispatch={dispatch}
-          />
-
-          <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
-            <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
-              <EditableText
-                onConfirm={this.selectCommit}
-                minWidth={60}
-                placeholder='id'
-                key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-                defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+    let has_selected_batch = !!commit && !!commit.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
+    return <>
+      <NavbarGroup style={{marginLeft: '20px'}}>
+        <FormGroup style={{ marginTop: '45px' }}>
+          <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
+            <span style={{ display: 'flex' }}>
+              <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{type}</Tag>
+              <CommitAvatar size='20px' commit={commit} style={{ marginRight: '5px' }} />
+              <CommitMessage
+                project={project}
+                commit={commit}
+                style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto' }}
+                is_loaded={!!commit && commit.id && !this.props.commit.is_loaded}
               />
-              {milestones_menu}
-            </Popover>
-          </span>
-          <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
+            </span>
+          </div>
+          <div style={{ display: 'flex' }}>
 
-          <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
-          {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag><span>{commit.error}</span></Tooltip>}
-        </div>
-      </FormGroup>
-    );
+            <CommitMilestoneEditor
+              project={project}
+              project_data={project_data}
+              commit={commit}
+              batch={batch}
+              filter={selected[`filter_batch_${type}`]}
+              dispatch={dispatch}
+            />
+
+            <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
+              <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
+                <EditableText
+                  onConfirm={this.selectCommit}
+                  minWidth={60}
+                  placeholder='id'
+                  key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+                  defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+                />
+                {milestones_menu}
+              </Popover>
+            </span>
+            <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
+
+            <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
+            {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag><span>{commit.error}</span></Tooltip>}
+          </div>
+        </FormGroup>
+      </NavbarGroup>
+      <NavbarGroup align="right">
+        <FormGroup
+          style={{marginTop: '36px'}}
+          labelFor={`filter-${type}-input`}
+          helperText={type === 'new' ? <Tooltip>
+            <><BatchTags batch={batch}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
+            <ul>
+              <li>You can use negative filters: <code>-2X5</code></li>
+              <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
+              <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
+            </ul>
+          </Tooltip> : <BatchTags batch={batch}/>}
+        >
+          <InputGroup
+            value={this.props.filter}
+            placeholder={`filter ${type} outputs`}
+            onChange={update(`filter_batch_${type}`)}
+            type="search"
+            leftIcon="filter"
+          />
+        </FormGroup>
+        <SelectBatchesNav
+          commit={commit}
+          batch={batch}
+          onChange={update(`selected_batch_${type}`)}
+          hide_counts
+        />
+        {!!commit && !!commits[commit.id] && <>
+          <Button
+            className={Classes.TEXT_MUTED} minimal
+            icon="refresh"
+            disabled={!!commit && commit.id && !commits[commit.id].is_loaded}
+            onClick={this.refresh}
+          />
+          <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
+            <Icon icon="cog" className={Classes.TEXT_MUTED}/>
+            <Menu>
+              <Menu.Divider title="Commit"/>
+              <Menu.Item text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
+              <Menu.Item text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(commit.commit_dir_url.slice(2))}} />
+              <Menu.Item text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+              {has_selected_batch && <>
+              <Menu.Divider title="Batch"/>
+              <Menu.Item
+                icon="trash"
+                text="Delete"
+                intent={Intent.DANGER}
+                minimal
+                disabled={this.state.waiting || batch.label === 'default'}
+                onClick={() => {
+                  this.setState({waiting: true})
+                  toaster.show({message: "Delete requested."});
+                  axios.delete(`/api/v1/batch/${batch.id}/`)
+                    .then(response => {
+                      this.setState({waiting: false})
+                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
+                      this.refresh()
+                      update(`selected_batch_${type}`)('default')
+                    })
+                    .catch(error => {
+                      this.setState({waiting: false });
+                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                      this.refresh()
+                    });
+                }}
+              /></>}
+            </Menu>
+          </Popover>
+        </>}
+      </NavbarGroup>
+
+    </>;
+  }
+
+  refresh = () => {
+    const { project, commit, type, dispatch } = this.props;
+    dispatch(fetchCommit(project, commit.id, `${type}_commit_id`))
   }
 
   selectCommit = id => {

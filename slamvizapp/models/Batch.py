@@ -5,6 +5,7 @@ It might by a CI job, or tuning experiments.
 import re
 import datetime
 import json
+import subprocess
 from pathlib import Path
 from functools import lru_cache
 
@@ -98,8 +99,39 @@ class Batch(Base):
             f"outputs={len(self.outputs)} />")
 
 
+  def stop(self):
+    stdouts = []
+    kill_commands = []
+    for _, command in self.data.get('commands', {}).items():
+      ssh = "LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi"
+      bsub = f"bsub_su {command['user']} -I"
+      kill_command = f"{ssh} {bsub} bkill -J '{command['lsf_jobs_prefix']}/*'"
+      kill_commands.append(kill_command)
+      print(kill_command)
+      out = subprocess.run(kill_command, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+      try:
+        out.check_returncode()
+        print(out.stdout)
+        stdouts.append(str(out.stdout))
+      except:
+        return {"error": str(out.stdout), "cmd": str(kill_command)}
+    # TODO: check it's enough to mark all outputs as is_pending:false !
+    return {"cmd": '\n'.join(kill_commands), "stdout": '\n\n'.join(stdouts)}
 
-# this should be refactored into SQL
+
+  def delete(self, session):
+    """
+    Hard delete the batch and all related outputs.
+    Note: You should call .stop() before
+    """
+    for output in self.outputs:
+      output.delete(soft=False)
+      session.delete(output)
+    session.delete(self)
+    session.commit()
+
+
+# TODO: refactored with proper SQL
 def aggregated_metrics(outputs, metrics_to_aggregate):
   valid_outputs = [o for o in outputs if not o.is_failed and not o.is_pending]
   aggregated = {}
@@ -112,7 +144,7 @@ def aggregated_metrics(outputs, metrics_to_aggregate):
     aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
     aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
     # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
-    # we also don't use qatools so we don't know if smaller_is_better
+    # TODO: Use qatools to know if smaller_is_better
     # aggregated[f'{metric}_threshold_bad'] = treshold
-  # remove NaN values
+  # Remove NaN values
   return {k: v for k, v in aggregated.items() if v == v}

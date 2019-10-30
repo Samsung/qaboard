@@ -2,33 +2,23 @@ import React, { Component } from "react";
 import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import styled from "styled-components";
-import copy from 'copy-to-clipboard';
 
 import { Suggest } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 import {
   Classes,
-  Colors,
   Intent,
   Navbar,
   NavbarGroup,
-  FormGroup,
   InputGroup,
   MenuItem,
   Button,
-  Icon,
-  Tag,
-  Tooltip,
   Spinner,
 } from "@blueprintjs/core";
-import { Toaster } from "@blueprintjs/core";
 
 import { updateSelected } from "./actions/selected";
 import { fetchBranches, fetchCommits } from './actions/projects'
-import { fetchCommit } from './actions/commit'
-import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { CommitNavbar } from "./components/CommitNavbar";
-import { linux_to_windows } from "./utils";
 
 import {
 	projectSelector,
@@ -40,40 +30,9 @@ import {
   batchSelector,
 } from './selectors/projects'
 
+import { sider_width } from './AppSider'
 
-export const toaster = Toaster.create();
 
-
-class BatchTags extends React.PureComponent {
-  render() {
-    if (this.props.batch === undefined || this.props.batch === null)
-      return <span/>
-    const { valid_outputs, running_outputs, pending_outputs, failed_outputs } = this.props.batch;
-    return <>
-      {valid_outputs > 0 && (
-        <Tag intent={Intent.SUCCESS} minimal round>
-          {valid_outputs} outputs
-        </Tag>
-      )}{" "}
-      {running_outputs > 0 && (
-        <Tag intent={Intent.SUCCESS} minimal round>
-          {running_outputs} running
-        </Tag>
-      )}{" "}
-      {pending_outputs - running_outputs > 0 && (
-        <Tag minimal round>
-          {pending_outputs - running_outputs}{" "}
-          pending
-        </Tag>
-      )}{" "}
-      {failed_outputs > 0 && (
-        <Tag intent={Intent.DANGER} minimal round>
-          {failed_outputs} crashed
-        </Tag>
-      )}
-    </>
-  }
-}
 
 
 const renderBranch = (item, { handleClick, modifiers, query }) => {
@@ -109,19 +68,19 @@ function filterBranch(query, branch) {
 const StyledNavbar = styled(Navbar)`
    position: fixed !important;
    top: 0;
-   padding-left: 151px !important;
+   padding-left: ${sider_width} !important;
    /*overflow-y: auto !important;*/
 `
 
 const StyledNavbarNew = styled(Navbar)`
    position: fixed !important;
-   padding-left: 151px !important;
+   padding-left: ${sider_width} !important;
    height: 75px !important;
    top: 0 !important;
 `
 const StyledNavbarRef = styled(Navbar)`
    position: fixed !important;
-   padding-left: 151px !important;
+   padding-left: ${sider_width} !important;
    height: 75px !important;
    top: 75px !important;
 `
@@ -170,8 +129,6 @@ class AppNavbar extends Component {
       ref_commit,
       new_batch_filtered,
       ref_batch_filtered,
-      new_batch,
-      ref_batch,
       filter_batch_new,
       filter_batch_ref,
       dispatch,
@@ -183,80 +140,32 @@ class AppNavbar extends Component {
     if (is_commit) {
       return <>
         <StyledNavbarNew>
-          <NavbarGroup style={{marginLeft: '20px'}}>
-            <CommitNavbar dispatch={dispatch} commit={new_commit} batch={new_batch_filtered} project={project} project_data={project_data} selected={selected} type="new"/>
-          </NavbarGroup>
-
-          <NavbarGroup align="right">
-            <FormGroup
-              style={{marginTop: '36px'}}
-              labelFor="filter-new-input"
-              helperText={<Tooltip>
-                <><BatchTags batch={new_batch_filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
-                <ul>
-                  <li>You can use negative filters: <code>-2X5</code></li>
-                  <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
-                  <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
-                </ul>
-              </Tooltip>}
-            >
-              <InputGroup
-                value={filter_batch_new}
-                placeholder="filter new outputs"
-                onChange={this.update('filter_batch_new')}
-                type="search"
-                leftIcon="filter"
-                
-              />
-            </FormGroup>
-            <SelectBatchesNav
-              commit={new_commit}
-              batch={new_batch}
-              onChange={this.update('selected_batch_new')}
-              prefix={<Tag intent={Intent.WARNING}>New commit</Tag>}
-              hide_helper_text
-              hide_counts
-            />
-            {!!new_commit && !!commits[new_commit.id] && <>
-              <Button className={Classes.TEXT_MUTED} minimal icon="refresh" disabled={!!new_commit && new_commit.id && !this.props.commits[new_commit.id].is_loaded} onClick={() => this.props.dispatch(fetchCommit(project, new_commit.id, `new_commit_id`))} ></Button>
-              <Button className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(new_commit.commit_dir_url))}} ></Button>
-              <a rel="noopener noreferrer" target="_blank" href={new_commit.commit_dir_url}><Button className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"></Button></a>
-            </>}
-          </NavbarGroup>
+          <CommitNavbar
+            dispatch={dispatch}
+            update={this.update}
+            commits={commits}
+            commit={new_commit}
+            batch={new_batch_filtered}
+            filter={filter_batch_new}
+            project={project}
+            project_data={project_data}
+            selected={selected}
+            type="new"
+          />
         </StyledNavbarNew>
-
         {show_ref_navbar && <StyledNavbarRef>
-          <NavbarGroup style={{marginLeft: '20px'}}>
-            <CommitNavbar dispatch={dispatch} commit={ref_commit} batch={ref_batch_filtered} project={project} project_data={project_data} selected={selected} type="ref"/>
-          </NavbarGroup>
-          <NavbarGroup align="right">
-            <FormGroup
-              style={{marginTop: '36px'}}
-              labelFor="filter-ref-input"
-              helperText={<BatchTags batch={ref_batch_filtered}/>}
-            >
-              <InputGroup
-                value={filter_batch_ref}
-                placeholder="filter reference outputs"
-                onChange={this.update('filter_batch_ref')}
-                type="search"
-                leftIcon="filter"
-              />
-            </FormGroup>
-            <SelectBatchesNav
-              commit={ref_commit}
-              batch={ref_batch}
-              onChange={this.update('selected_batch_ref')}
-              prefix={<Tag intent={Intent.WARNING}>Ref commit</Tag>}
-              hide_helper_text
-              hide_counts
-            />
-            {!!ref_commit && !!commits[ref_commit.id] && <>
-              <Button className={Classes.TEXT_MUTED} minimal icon="refresh" disabled={!!ref_commit && ref_commit.id && !commits[ref_commit.id].is_loaded} onClick={() => this.props.dispatch(fetchCommit(project, ref_commit.id, `ref_commit_id`))} ></Button>
-              <Button className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(ref_commit.commit_dir_url))}} ></Button>
-              <a rel="noopener noreferrer" target="_blank" href={ref_commit.commit_dir_url}><Button className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"></Button></a>
-            </>}
-          </NavbarGroup>
+          <CommitNavbar
+            dispatch={dispatch}
+            update={this.update}
+            commit={ref_commit}
+            commits={commits}
+            batch={ref_batch_filtered}
+            filter={filter_batch_ref}
+            project={project}
+            project_data={project_data}
+            selected={selected}
+            type="ref"
+          />
         </StyledNavbarRef>}
       </>
     }

@@ -208,24 +208,33 @@ class Output(Base):
       return output
 
 
-  def delete(self, ignore=None, dryrun=False):
+  def delete(self, soft=True, ignore=None, dryrun=False):
+    """
+    Delete the output's output files.
+    It's soft by default, in that we still keep the metadata.
+    For a full hard delete, you'll also want to `session.delete(output)`
+    """
     output_dir = self.output_dir
     if output_dir.exists():
-      # FIXME: If a run crashes, or in case of network issues, the manifests may not be updated...
-      manifest_path = output_dir / 'manifest.outputs.json'
-      if manifest_path.exists():
-        with manifest_path.open() as f:
-          files = json.load(f)
-        for file in files.keys():
-          if file in ['manifest.outputs.json', 'manifest.inputs.json']:
-            continue
-          if ignore:
-            if any([fnmatch.fnmatch(file, i) for i in ignore]):
+      if not soft:
+        from shutil import rmtree
+        rmtree(output_dir)
+      else:
+        # FIXME: If a run crashes, or in case of network issues, the manifests may not be updated...
+        manifest_path = output_dir / 'manifest.outputs.json'
+        if manifest_path.exists():
+          with manifest_path.open() as f:
+            files = json.load(f)
+          for file in files.keys():
+            if file in ['manifest.outputs.json', 'manifest.inputs.json']:
               continue
-          print(f'{output_dir / file}')
-          if not dryrun:
-            try:
-              (output_dir / file).unlink()
-            except: # already deleted?
-              print(f"WARNING: Could not remove: {output_dir / file}")
+            if ignore:
+              if any([fnmatch.fnmatch(file, i) for i in ignore]):
+                continue
+            print(f'{output_dir / file}')
+            if not dryrun:
+              try:
+                (output_dir / file).unlink()
+              except: # already deleted?
+                print(f"WARNING: Could not remove: {output_dir / file}")
       self.deleted = True

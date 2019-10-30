@@ -59,20 +59,26 @@ def clean(project_id, dryrun, verbose):
         if project.id == 'LSC/Calibration':
             continue # ask Rivka later when the policies are more flexible
 
+        secho(project.id, bold=True)
+
+        gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
+        old_treshold = now - parse_time(gc_config.get('after', '1month'))
+        secho(f"deleting data older than {old_treshold}", dim=True)
+
+        # protect milestones defined via qatools.yaml
         project_config = project.data.get("qatools_config", {}).get("project", {})
         protected_refs = [
             project_config.get("reference_branch", "master"),
             *project_config.get("milestones", []),
         ]
-        gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
-        old_treshold = now - parse_time(gc_config.get('after', '1month'))
-
-        secho(project.id, bold=True)
-        secho(f"deleting data older than {old_treshold}", dim=True)
-        secho(f"protected: {protected_refs}", dim=True)
-        # continue
-
         protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
+        secho(f"protected: {protected_refs}", dim=True)
+
+        # protect milestones defined via the web application
+        # project_commit_milestones = [m['commit'] for m in project.data.get("milestones", {}).values()]
+        # secho(f"protected: {project_commit_milestones}", dim=True)
+
+        # .filter(CiCommit.id.notin_(project_commit_milestones))
         commits = (
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)

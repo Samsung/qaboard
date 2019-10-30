@@ -143,6 +143,11 @@ class CiCommit(Base):
 
 
   def delete(self, ignore=None, dryrun=False):
+    """
+    Delete the commit's artifacts, and mark it as delete.
+    NOTE: We don't touch batches/outputs, you have to deal with them yourself.
+          See hard_delete() in api/webhooks.py and clean.py
+    """
     manifest_dir = self.commit_dir / 'manifests'
     if self.commit_dir.exists():
       if not manifest_dir.exists():
