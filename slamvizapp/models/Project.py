@@ -140,10 +140,10 @@ def update_project(data, db_session):
       if not content:
         return None
       if str(path).endswith('yaml'):
-          return yaml.load(content)        
+          return yaml.load(content, Loader=yaml.SafeLoader)        
       elif str(path).endswith('json'):
         return json.loads(content)
-      return yaml.load(content)
+      return yaml.load(content, Loader=yaml.SafeLoader)
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
@@ -174,7 +174,7 @@ def update_project(data, db_session):
     # To update the (sub)project configuration stored in the database,
     # we first need to read relevant qatools.yaml files from this commit.
     config_paths = [p for p in projects_config_paths if is_relative_to(subproject_config_path.parent, p.parent)]
-    config_paths.sort()
+    config_paths.sort(key=lambda p: len(str(p)))
 
     qatools_config = {}
     for config_path in config_paths:
