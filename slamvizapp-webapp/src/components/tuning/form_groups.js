@@ -108,13 +108,14 @@ class AddRecordingsForm extends Component {
       );
 
     const qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
-    let commit_groups_files = (((qatools_config.inputs || {}) || {}).groups || []);
+    let qatools_inputs = qatools_config.inputs || {}
+    let commit_groups_files = qatools_inputs.batches || qatools_inputs.groups || [];
+    if (!Array.isArray(commit_groups_files))
+      commit_groups_files = [commit_groups_files]
 
     let project_repo = (((this.props.project_data || {}).data || {}).git || {}).path_with_namespace;
     const gitlab_commit_url = `http://gitlab-srv/${project_repo}/tree/${this.props.commit.id}`;
 
-    if (!Array.isArray(commit_groups_files))
-      commit_groups_files = [commit_groups_files]
     return (
       <form onSubmit={this.onSubmit}>
         <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>
