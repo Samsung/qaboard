@@ -49,9 +49,9 @@ def groups():
     if request.method == "POST":
         data = request.get_json()
         try:
-          yaml.load(data["groups"])
+          yaml.load(data["groups"], Loader=yaml.SafeLoader)
         except Exception as e:
-          return jsonify(str(e)), 400        
+          return jsonify(str(e)), 400
         with groups_path.open("w") as f:
             f.write(data["groups"])
         return jsonify("OK")
