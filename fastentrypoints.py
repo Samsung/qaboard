@@ -26,13 +26,10 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
 Monkey patch setuptools to write faster console_scripts with this format:
-
     import sys
     from mymodule import entry_function
     sys.exit(entry_function())
-
 This is better.
-
 (c) 2016, Aaron Christianson
 http://github.com/ninjaaron/fast-entry_points
 '''
@@ -44,12 +41,11 @@ TEMPLATE = r'''
 __requires__ = '{3}'
 import re
 import sys
-
 from {0} import {1}
-
 if __name__ == '__main__':
     sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
-    sys.exit({2}())'''.lstrip()
+    sys.exit({2}())
+'''.lstrip()
 
 
 @classmethod
@@ -110,4 +106,3 @@ def main():
                 setup.seek(0)
                 setup.truncate()
                 setup.write('import fastentrypoints\n' + setup_content)
-
