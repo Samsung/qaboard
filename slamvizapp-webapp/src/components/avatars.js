@@ -19,10 +19,12 @@ const AvatarImg = styled.img`
   border-radius: 50%;
   border: 1px solid rgba(0,0,0,0.1);
   float: left;
-  transition: border-color 100ms linear
+  transition: border-color 100ms linear;
 
   vertical-align: middle;
   align-self: center;
+
+  filter: ${props => props.filter || null};
 `;
 
 const AvatarPlaceholder = styled.div`
@@ -48,14 +50,14 @@ const AvatarPlaceholder = styled.div`
 
 class Avatar extends React.PureComponent {
   render() {
-    const { src, href, alt, size } = this.props;
-    const no_image = src === null || src === undefined || src === false
-    const avatar = no_image ? <AvatarPlaceholder size={size} style={this.props.style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
-                            : <AvatarImg size={size} style={this.props.style} alt={alt||''} src={src||''} />;
+    const { src, href, alt, size, style={}, img_style={} } = this.props;
+    const no_image = src === null || src === undefined || src === false;
+    const avatar = no_image ? <AvatarPlaceholder size={size} style={style}>{(!!alt && alt[0].toUpperCase()) || ''}</AvatarPlaceholder>
+                            : <AvatarImg size={size} style={{...style, ...img_style}} alt={alt||''} src={src||''} />;
     if (href !== undefined && href !== null)
-      return <AvatarCell size={size} style={this.props.style}><Link to={href || '#'}>{avatar}</Link></AvatarCell>;
+      return <AvatarCell size={size} style={style}><Link to={href || '#'}>{avatar}</Link></AvatarCell>;
     else 
-      return <AvatarCell size={size} style={this.props.style}>{avatar}</AvatarCell>;
+      return <AvatarCell size={size} style={style}>{avatar}</AvatarCell>;
 
   }
 }
