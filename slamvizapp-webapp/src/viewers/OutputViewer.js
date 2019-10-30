@@ -47,6 +47,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('plotly.json')) {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (path.endsWith('html')) {
+        viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       }

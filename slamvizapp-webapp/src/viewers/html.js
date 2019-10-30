@@ -49,7 +49,7 @@ class HtmlViewer extends PureComponent {
 
     let results = []
     results.push(['new', `${output_new.output_dir_url}/${path}`])
-    const has_reference = !!output_new && !!output_new.output_dir_url;
+    const has_reference = !!output_ref && !!output_ref.output_dir_url;
     if (has_reference)
       results.push(['reference', `${output_ref.output_dir_url}/${path}`])
 
@@ -85,10 +85,14 @@ class HtmlViewer extends PureComponent {
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const width = (!!style && style.width) || '400px';
-    let no_reference = !!!output_ref || !!!output_ref.output_dir_url;
+    let has_reference = !!output_ref && !!output_ref.output_dir_url;
     return <>
+      {has_reference && <h3>New</h3>}
       <div style={{width}} dangerouslySetInnerHTML={{__html: data.new || ""}} /> 
-      {!no_reference && <div style={{width}} dangerouslySetInnerHTML={{__html: data.ref || ""}} />} 
+      {has_reference && <>
+        <h3>Reference</h3>
+        <div style={{width}} dangerouslySetInnerHTML={{__html: data.reference || ""}} />
+      </>} 
     </>
   }
 
