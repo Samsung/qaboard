@@ -137,8 +137,8 @@ def input_metadata(absolute_input_path, database, input_path, config):
 
 def input_data(database, input_path, config):
     if input_path.is_absolute():
-    click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
-    click.secho(f'We except you to split "{input_path}" into a "database" and a relative path.', fg='red')
+      click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
+      click.secho(f'We except you to split "{input_path}" into a "database" and a relative path.', fg='red')
       exit(1)
     absolute_input_path = (database / input_path).resolve()
     if not absolute_input_path.exists():
