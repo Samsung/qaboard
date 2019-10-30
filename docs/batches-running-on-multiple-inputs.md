@@ -9,7 +9,7 @@ Are you using the old `XLS+json` way of defining batches? ? There is a [conversi
 :::
 
 ## How do I run multiple inputs at once?
-If you defined a batch of inputs called *my-group*, you all of them with:
+If you defined a batch of inputs called *my-batch*, you run on all its inputs with:
 ```bash
 qa batch my-batch
 qa batch --batch my-first-batch --batch my-second-batch
