@@ -30,8 +30,8 @@ class ExportPlugin extends React.Component {
   componentDidUpdate(prevProps) {
     if (prevProps.project_data !== this.props.project_data) {
       let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
-      let visualizations = ((qatools_config.outputs || {}).visualizations) || [{path: '*.bmp'}]
-      this.setState({path: visualizations[0].path})
+      let visualizations = (qatools_config.outputs || {}).visualizations || []
+      this.setState({path: (visualizations[0] || {}).path || '*.bmp'})
     }
   }
 
