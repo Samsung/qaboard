@@ -41,7 +41,16 @@ function update_project(state = default_project, data) {
       m.short_label = m.short_label || m.label || key
       m.scale = m.scale  || 1.0
       m.suffix = m.suffix || ''
-      m.smaller_is_better = m.smaller_is_better || true
+      if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
+        m.smaller_is_better = true;
+      } else {
+        if (typeof m.smaller_is_better === "string") {
+          m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
+        }
+      }
+      if (key.startsWith('.')) {
+        delete available_metrics[key]
+      }
       if (key.startsWith('.')) {
         delete available_metrics[key]
       }

@@ -95,7 +95,15 @@ function commits(state = {}, action) {
             path: ':frame/(.*.txt)',
             // path: '(.*.txt)',
             default_hidden: false,
+          },
+          {
+            name: 'Debug',
+            type: 'image/bmp',
+            path: '(.*.bmp|.*.hex|.*.raw)',
+            // path: '(.*.txt)',
+            default_hidden: false,
           }
+
       ]
       console.log(action)
       action.data.data.qatools_config.outputs.visualizations = debug_views;
@@ -109,7 +117,13 @@ function commits(state = {}, action) {
           m.short_label = m.short_label || m.label || key
           m.scale = m.scale  || 1.0
           m.suffix = m.suffix || ''
-          m.smaller_is_better = m.smaller_is_better || true
+          if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
+            m.smaller_is_better = true;
+          } else {
+            if (typeof m.smaller_is_better === "string") {
+              m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
+            }
+          }
           if (key.startsWith('.')) {
             delete available_metrics[key]
           }
