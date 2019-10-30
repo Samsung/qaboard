@@ -22,6 +22,7 @@ import { Avatar } from "./components/avatars";
 
 import { fetchProjects, updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
+import { project_avatar_style } from "./utils"
 
 
 class LastCommitAt extends Component {
@@ -85,6 +86,13 @@ class ProjectsList extends Component {
 
             const avatar_url = qatools_config_project.avatar_url || 
                                !!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null
+
+            const is_subproject = git.path_with_namespace !== project_id;
+            const has_custom_avatar = !!((data.qatools_config || {}).project || {}).avatar_url
+            const should_tweak_image = is_subproject && !has_custom_avatar;
+            const avatar_style = should_tweak_image ? project_avatar_style(project_id) : null;
+            // console.log(project_id, `is_subproject:${is_subproject}`, `has_custom_avatar:${has_custom_avatar}`, `should_tweak_image:${should_tweak_image}`)
+
             return (
               <Card
                 key={project_id}
@@ -94,6 +102,7 @@ class ProjectsList extends Component {
                 <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
                   <Avatar
                     src={avatar_url}
+                    img_style={avatar_style}
                     href={`/${project_id}`}
                     alt={git.name || project_id}
                     onClick={() => this.props.dispatch(updateSelected(project_id))}

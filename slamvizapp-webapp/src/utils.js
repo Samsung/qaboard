@@ -200,17 +200,32 @@ const plotly_palette_colors = [
 ]
 const plotly_palette = idx => plotly_palette_colors[idx % plotly_palette_colors.length]
 
-const hash_color = str => {
-  let hash = md5.array(str);
-  let hash_numeric = hash.reduce(
+
+const hash_numeric = str => {
+  const md5_array = md5.array(str);
+  const md5_value = md5_array.reduce(
     (accumulator, current, current_idx, array) =>
       accumulator + (current >> 7) / Math.pow(2, current_idx + 1),
     0
   );
-  let correction = 1 + Math.pow(2, -16);
-  let color = interpolateRainbow(hash_numeric * correction);
-  return color;
+  const correction = 1 + Math.pow(2, -16);
+  return md5_value * correction
+}
+
+const hash_color = str => {
+  return interpolateRainbow(hash_numeric(str));
 };
+
+
+const project_avatar_style = project_id => {
+  const hue_rotate = hash_numeric(project_id) * 360;
+  const saturate = hash_numeric(`saturate-${project_id}`);
+  // const invert = hash_numeric(`invert-${project_id}`);
+  return {
+    filter: `hue-rotate(${hue_rotate}deg) saturate(${1-Math.log(saturate)})`,
+  }
+};
+
 
 
 const deserialize_config = configuration => {
@@ -219,6 +234,8 @@ const deserialize_config = configuration => {
   }
   let configurations = []
   let configuration_part = ''
+  // eslint thinks `path` is not used (?) 
+  // eslint-disable-next-line
   for (const token of configuration.split(':')) {
     if (configuration_part.length === 0 && !token.startsWith('{')) {
       configurations.push(token)
@@ -262,6 +279,8 @@ export {
   sortOutputs,
   filter_batch,
   match_query,
+  hash_numeric,
+  project_avatar_style,
   hash_color,
   plotly_palette,
   deserialize_config,
