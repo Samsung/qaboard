@@ -12,6 +12,7 @@ import {
   Menu,
   Navbar,
   Icon,
+  Tooltip,
   Toaster,
 } from "@blueprintjs/core";
 
@@ -25,10 +26,11 @@ import {
   batchSelector,
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
+import { project_avatar_style } from "./utils"
 
 export const toaster = Toaster.create();
 
-const sider_width = '151px'
+export const sider_width = '166px';
 
 const Sider = styled.div`
     flex: 0 0 ${sider_width};
@@ -64,14 +66,31 @@ class ProjectSideAvatar extends React.Component {
   }
 
 	render() {
-    const { project, project_data } = this.props;
-    let git = ((project_data || {}).data || {}).git || {};
+    const { project, project_data={} } = this.props;
+    let git = (project_data.data || {}).git || {};
     let name = project.split('/').slice(-1)[0];
-    return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: '151px', marginBottom: '25px'}}>
-    <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}><><Avatar
-          src={!!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null}
-	      alt={name}
-	     />{name}</>
+
+    const is_subproject = git.path_with_namespace !== project;
+    const has_custom_avatar = !!(((project_data.data || {}).qatools_config || {}).project || {}).avatar_url
+    const should_tweak_image = is_subproject && !has_custom_avatar;
+    const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
+    const avatar_url = !!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null
+    // console.log("is_subproject", is_subproject)
+    // console.log("has_custom_avatar", has_custom_avatar)
+    // console.log("should_tweak_image", should_tweak_image)
+    // console.log("avatar_style", avatar_style)
+    
+
+    return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: sider_width, marginBottom: '25px'}}>
+    <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}>
+      <>
+        <Avatar
+          src={avatar_url}
+	        alt={name}
+          img_style={avatar_style}
+	      />
+        {name}
+      </>
     </Link></span>
 
 	}
@@ -98,11 +117,13 @@ class ProjectSideCommitList extends React.Component {
       var tag = match.params.name || match.params.committer;
     else tag = reference_branch;
 
+
     const build_icon = <img alt="build status" src={`http://gitlab-srv/${project_repo}/badges/${tag}/build.svg`}/>;
     const coverage_icon = <img alt="coverage report" src={`http://gitlab-srv/${project_repo}/badges/${tag}/coverage.svg`} />
     // https://github.com/palantir/blueprint/blob/0c09726bdbbd4be4892c97e67363dc0e8caefb71/packages/core/src/components/menu/menuItem.tsx
     // const dashboard = <Link to={`/${project}/time-travel/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
     // <Menu.Item icon="series-search" text={dashboard}/>
+ 
 
     let subproject = project.slice(project_repo.length + 1);
     let code_url = subproject.length > 0 ? `http://gitlab-srv/${project_repo}/tree/${reference_branch}/${subproject}` : `http://gitlab-srv/${project_repo}`
@@ -276,16 +297,16 @@ class ProjectSideResults extends React.Component {
       <Menu.Item icon="console" intent={(!!this.props.batch && this.props.batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="settings" text="Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
+      <Menu.Item icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
       <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="layout-group-by" active={active('groups')} text="Tests" onClick={this.set('selected_views', 'groups')} />
-      <Menu.Item intent={Intent.PRIMARY} disabled={disable_tuning} icon="add" text="Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
+      <Menu.Item icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
+      <Menu.Item intent={Intent.PRIMARY} disabled={disable_tuning} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="predictive-analysis" text="Optimization" onClick={this.set('selected_views', 'optimization')}/>
-      <Menu.Item icon="take-action" text="Trigger / CI" popoverProps={{usePortal: true, hoverCloseDelay: 1000, transitionDuration: 1000, onOpening: this.updateIntegrationStatuses}}>
+      <Menu.Item icon="predictive-analysis" text="Tuning Analysis" onClick={this.set('selected_views', 'optimization')}/>
+      <Menu.Item icon="take-action" text="Integrations" popoverProps={{usePortal: true, hoverCloseDelay: 1000, transitionDuration: 1000, onOpening: this.updateIntegrationStatuses}}>
         {(qatools_integrations.length > 0)
         ? 
           qatools_integrations.map( (integration, idx) => {
@@ -325,7 +346,7 @@ class AppSider extends React.Component {
       		<Link style={{ color: "#fff" }}  to="/">
               <b>QA-board</b>
           </Link>
-          <a href="http://qa-docs/" rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a>
+          <Tooltip><a href="http://qa-docs/" rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Go to the docs!</span></Tooltip>
       	</Navbar.Heading>
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
