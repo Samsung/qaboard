@@ -6,7 +6,7 @@ import {
 
 import { pretty_label } from '../../utils'
 
-const SelectBatchesNav = ({ commit, prefix, onChange, batch, hide_counts }) => {
+const SelectBatchesNav = ({ commit, onChange, batch, hide_counts }) => {
   if (!commit || !commit.batches)
     return <span/>
 
