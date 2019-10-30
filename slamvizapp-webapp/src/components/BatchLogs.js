@@ -1,9 +1,9 @@
-import React, { Component } from "react";
+import React from "react";
 import { get } from "axios";
 
 import Moment from "react-moment";
 import "moment-timezone";
-// import sanitizeHtml from 'sanitize-html';
+import sanitizeHtml from 'sanitize-html';
 
 import {
   Classes,
@@ -13,7 +13,6 @@ import {
   Tag,
   Intent,
   NonIdealState,
-  Spinner,
   Tooltip,
 } from "@blueprintjs/core";
 
@@ -24,22 +23,34 @@ var Convert = require('ansi-to-html');
 var convert = new Convert();
 
 
+const style_skeleton = {
+  borderColor: 'rgba(206, 217, 224, 0.2) !important',
+  borderRadius: '2px',
+  boxShadow: 'none !important',
+  background: 'rgba(206, 217, 224, 0.2)',
+  backgroundClip: 'padding-box !important',
+  animation: '1000ms linear infinite alternate skeleton-glow',
+}
 
-class OutputLog extends Component {
+
+
+class OutputLog extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
       is_loaded: false,
       is_open: false,
       error: null,
-      logs: null
+      logs: null,
+      logs_html: null,
     };
   }
 
   componentDidUpdate(prevProps) {
-    if (!!!this.props.output || !!!this.props.output_dir_url)
-      return
-    if (!!!prevProps.output || !!!prevProps.output.output_dir_url)
+    const has_logs = !!this.props.output && !!this.props.output_dir_url
+    if (!has_logs) return
+    const had_logs = !!prevProps.output && !!prevProps.output_dir_url
+    if (had_logs && this.props.output_dir_url !==prevProps.output.output_dir_url)
       this.getLog()
   }
 
@@ -57,7 +68,8 @@ class OutputLog extends Component {
 
     if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
     if (!!this.props.output && this.props.output.is_pending) {
-      this.refreshLogInterval = setInterval(this.refreshLog, 2000);
+      // console.log(this.props.output)
+      this.refreshLogInterval = setInterval(this.refreshLog, 2500);
     }
   };
 
@@ -69,12 +81,36 @@ class OutputLog extends Component {
     const { output } = this.props;
     if (!!!output || !!!output.output_dir_url) return
     this.setState({is_loaded: false});
+    // console.log(`[logs] fetch ${output.test_input_path}`)
 
     get(`${output.output_dir_url}/log.txt`)
       .then(response => {
+        const logs = response.data;
+        // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
+        // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
+        // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
+        const sanitizeHtml_options = {
+          // allowedTags: ['b', 'i', 'em', 'strong', 'a'],
+          // allowedAttributes: {
+          //   a: ['href', 'target']
+          // }
+        }
+        let logs_safe = sanitizeHtml(logs, sanitizeHtml_options);
+        let ansi_to_html_options =  {
+          //fg: '#fff',
+          // bg: '#000',
+          // colors: {
+          //   0: '#fff',
+          //   30: '#fff',
+          //   232: '#fff',
+          // },
+          // pre: style={{background: '#000'}} 
+        }
+        let logs_html_safe = !!logs && convert.toHtml(logs_safe, ansi_to_html_options);
         this.setState({
           is_loaded: true,
-          logs: response.data,
+          // logs,
+          logs_html_safe,
           error: null,
         });
       })
@@ -85,10 +121,11 @@ class OutputLog extends Component {
 
   render() {
     const { output } = this.props;
-    const { is_open, is_loaded, error, logs } = this.state;
-    const button_text = is_open ? "Hide" : is_loaded ? "Loading" : "Show";
-    const tag_text = output.is_failed ? "❌" : output.is_pending ? "⏳" : "✅";
+    const { is_open, is_loaded, error, logs_html_safe } = this.state;
+    // console.log(`[logs] render ${output.test_input_path}`)
+    // console.log(sanitizeHtml("<Config>test</Config>"));
 
+    const button_text = is_open ? "Hide" : is_loaded ? "Loading" : "Show";
     const show_button = (
       <Button title={button_text} onClick={this.handleClick}>
         {button_text} logs
@@ -99,28 +136,7 @@ class OutputLog extends Component {
       ? Intent.DANGER
       : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
 
-    // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
-    // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
-    // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
-    let ansi_to_html_options =  {
-      //fg: '#fff',
-      // bg: '#000',
-      // colors: {
-      //   0: '#fff',
-      //   30: '#fff',
-      //   232: '#fff',
-      // },
-    }
-    let formatted_logs = !!logs && convert.toHtml(logs, ansi_to_html_options);
-    let safe_formatted_logs = formatted_logs;
-    // TODO
-    // let safe_formatted_logs = sanitizeHtml(formatted_logs, {
-    //   allowedTags: ['b', 'i', 'em', 'strong', 'a'],
-    //   allowedAttributes: {
-    //     a: ['href', 'target']
-    //   }
-    // });
-    // pre: style={{background: '#000'}} 
+    const tag_text = output.is_failed ? "❌" : output.is_pending ? "⏳" : "✅";
     const header_prefix = <>{show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>}</>
     return (
       <div>
@@ -142,7 +158,20 @@ class OutputLog extends Component {
                 error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
               }
             />
-          : <><pre className={Classes.CODE_BLOCK} dangerouslySetInnerHTML={{__html: safe_formatted_logs || ""}} />{output.is_pending && <Spinner small/>}</>}
+          : <div>
+              <pre
+                className={Classes.CODE_BLOCK}
+                dangerouslySetInnerHTML={{
+                  __html: logs_html_safe || ""
+                }}
+                style={{
+                  maxHeight: '500px',
+                  overflow: 'scroll',
+                  ...(output.is_pending ? style_skeleton : {}),
+                }}
+              />
+            </div>
+          }
         </Collapse>
       </div>
     );
@@ -152,14 +181,7 @@ class OutputLog extends Component {
 
 
 
-class BatchLogs extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-    };
-  }
-
-
+class BatchLogs extends React.PureComponent {
   render() {
     const { batch } = this.props;
     if (batch === null || batch === undefined  || batch.output_dir_url === undefined)
