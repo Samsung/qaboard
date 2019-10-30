@@ -15,7 +15,7 @@ const attribute_mappings = {
   filter_batch_ref: 'filter_ref',
 }
 
-export const updateSelected = (project, selected) => {
+export const updateSelected = (project, selected, url_search) => {
   if (!!selected) {
     // Update the URL path and query
     var pathname = window.location.pathname; 
@@ -24,6 +24,7 @@ export const updateSelected = (project, selected) => {
       pathname_parts[pathname_parts.length-1] = selected.new_commit_id;
       pathname = pathname_parts.join('/')
     }
+    // FIXME: when we update the branch, we should also update the URL correctly if it's for dashboard/commit list
 
     let selected_in_url = {};
     Object.entries(selected).forEach( ([key, value]) => {
@@ -37,7 +38,8 @@ export const updateSelected = (project, selected) => {
       pathname,
       search: qs.stringify({
         ...search,
-        ...selected_in_url, 
+        ...selected_in_url,
+        ...(url_search || {})
       })
     })
   }
