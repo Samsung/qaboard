@@ -84,13 +84,12 @@ DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/l
 
 if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   echo 'production !'
-  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
-  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 else
   if [ -z ${QABOARD_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'
   else
-      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx:/etc/nginx"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/conf.d:/etc/nginx/conf.d"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/common-infrastructure/qatools/qatools:/opt/anaconda3/lib/python3.6/site-packages/qatools"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
@@ -98,6 +97,8 @@ else
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson-3.16.0.dist-info:/opt/anaconda3/lib/python3.6/site-packages/simplejson-3.16.0.dist-info"
   fi
 fi
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 
 if [ -z ${QABOARD_DB_HOST+x} ]; then
     echo 'Using container database'
