@@ -321,11 +321,17 @@ if metrics_file:
   metrics_file_path = Path(root_qatools / metrics_file)
   if not metrics_file_path.exists():
     if not no_config_warning:
-      click.secho(f'WARNING: Could not find file containing metrics ({metrics_file})', fg='yellow', err=True)
+      click.secho(f'WARNING: Could not find the file containing metrics ({metrics_file})', fg='yellow', err=True)
       click.secho(f'         It is defined in qatools.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
       no_config_warning = True
   else:
     with metrics_file_path.open() as f:
-      _metrics = yaml.load(f, Loader=yaml.SafeLoader)
-      available_metrics = _metrics['available_metrics']
-      main_metrics = _metrics['main_metrics']
+      try:
+        _metrics = yaml.load(f, Loader=yaml.SafeLoader)
+      except:
+        config_has_error = True
+        if not no_config_warning:
+          click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
+          no_config_warning = True
+      available_metrics = _metrics.get('available_metrics', {})
+      main_metrics = _metrics.get('main_metrics', [])
