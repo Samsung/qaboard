@@ -95,6 +95,10 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
+  if Path(path).is_absolute():
+    click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
+    click.secho(f'We except you to split "{path}" into a "database" and a relative path.', fg='red')
+    raise ValueError
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
     try:
