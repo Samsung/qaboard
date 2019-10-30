@@ -74,7 +74,7 @@ def get_commits(branch=None):
   if committer_name:
     ci_commits = ci_commits.filter_by(committer_name=committer_name)
   if branch:
-      ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
+    ci_commits = ci_commits.filter(or_(CiCommit.branch == branch, CiCommit.branch == f'origin/{branch}'))
 
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
@@ -111,7 +111,6 @@ def get_branches():
 
 @app.route("/api/v1/projects")
 def get_projects():
-  # projects = db_session.query(Project).all()
   projects = (db_session
               .query(
                 Project.id,
@@ -125,19 +124,22 @@ def get_projects():
               .order_by(asc(func.lower(Project.id)))
               .all()
              )
-  return jsonify({
+  projects = {
     project_id: {
+      # TODO: drop qatools_metrics from each project
       # TODO: drop qatools_config
-      # TODO: drop qatools_metrics
       'data': data,
       'latest_output_datetime': latest_output_datetime.isoformat() if latest_output_datetime else None, # isoformat not necessary?
       'latest_commit_datetime': latest_commit_datetime.isoformat(),
       'total_commits': total_commits,
-    } for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects })
+    } for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects }
+  response = make_response(ujson.dumps(projects))
+  response.headers['Content-Type'] = 'application/json'
+  return response
 
 @app.route("/api/v1/project")
 def get_project():
-  project_id = request.args.get('project', 'dvs/psp_swip')
+  project_id = request.args['project']
   project = (Project
                .query.filter(
                  Project.id==project_id,
@@ -188,7 +190,7 @@ def get_ci_commit(commit_id=None):
                    .one()
                   )
     except MultipleResultsFound:
-      print(f'!!!!!!!!!!!!! multiple results for commit {commit_id} @{project_id}')
+      print(f'!!!!!!!!!!!!! Multiple results for commit {commit_id} @{project_id}')
       ci_commit = (db_session
                    .query(CiCommit)
                    .options(

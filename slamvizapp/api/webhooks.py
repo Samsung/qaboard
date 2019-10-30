@@ -8,36 +8,11 @@ import datetime
 
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.attributes import flag_modified
 
 from slamvizapp import app, repos, db_session
 from ..models import Project, CiCommit, Batch, Output, TestInput
 from ..models.Project import update_project
-from ..utils import profiled
-
-@app.route('/api/v1/batch/stop', methods=['POST'])
-@app.route('/api/v1/batch/stop/', methods=['POST'])
-def stop_batch():
-  data = request.get_json()
-  try:
-    batch = Batch.query.filter(Batch.id == data['id']).one()
-  except:
-    return f"404 ERROR:\n Not found", 404
-  if not batch.data and 'commands' in batch.data:
-    return f"404 ERROR:\n Not commands found", 404
-  stdouts = []
-  kill_commands = []
-  for _, command in batch.data['commands'].items():
-    kill_command = f"LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {command['user']} -I bkill -J '{command['lsf_jobs_prefix']}/*'"
-    kill_commands.append(kill_command)
-    print(kill_command)
-    out = subprocess.run(kill_command, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    try:
-      out.check_returncode()
-      print(out.stdout)
-      stdouts.append(str(out.stdout))
-    except:
-      return jsonify({"error": str(out.stdout), "cmd": str(kill_command)}), 500
-  return jsonify({"cmd": '\n'.join(kill_commands), "stdout": '\n\n'.join(stdouts)})
 
 
 @app.route('/api/v1/commit', methods=['POST'])
@@ -106,6 +81,32 @@ def update_batch():
   db_session.commit()
   return jsonify({"status": "OK"})
 
+
+
+@app.route('/api/v1/batch/stop', methods=['POST'])
+@app.route('/api/v1/batch/stop/', methods=['POST'])
+def stop_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  status = batch.stop()
+  return jsonify(status), 200 if not "error" in status else 500
+
+
+@app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
+@app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
+def delete_batch(batch_id):
+  try:
+    batch = Batch.query.filter(Batch.id == batch_id).one()
+  except:
+    return f"404 ERROR:\nNot found", 404
+  stop_status = batch.stop()
+  if "error" in stop_status:
+    return jsonify(stop_status), 500
+  batch.delete(session=db_session)
+  return {"status": "OK"}
 
 
 @app.route('/api/v1/output', methods=['POST'])
@@ -195,8 +196,7 @@ def gitlab_webhook():
   # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
   print(data, file=sys.stderr)
-  with profiled():
-    update_project(data, db_session)
+  update_project(data, db_session)
   return "{status:'OK'}"
 
 
