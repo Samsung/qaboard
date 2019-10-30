@@ -3,13 +3,14 @@ import { get, all, CancelToken } from "axios";
 import qs from "qs";
 
 import {
-    Button,
-    Intent,
-    Callout,
-    FormGroup,
-    Switch,
-    NonIdealState,
-    InputGroup,
+  Classes,
+  Button,
+  Intent,
+  Callout,
+  FormGroup,
+  Switch,
+  NonIdealState,
+  InputGroup,
 } from "@blueprintjs/core";
 
 import { bit_accuracy_help } from "../viewers/bit_accuracy/utils";
@@ -125,9 +126,9 @@ class CommitParameters extends React.Component {
 
     const help_text = <>
       <p>
-        Configurations are defined in your <strong>qatools.yaml</strong> as <code>artifacts.configurations</code>.
+        Configurations are defined in your <strong>qatools.yaml</strong>, eg as <code>artifacts.configurations</code>.
         <br/>
-        You can also explore your other artifacts:  {artifacts.map((artifact, idx) => 
+        You can explore all your artifacts:  {artifacts.map((artifact, idx) => 
             <Button
                 key={idx}
                 onClick={e => this.setState({artifact}, () => {this.update('artifact', 'params_artifact')(artifact); this.fetchData(this.props)})}
@@ -200,7 +201,14 @@ class CommitParameters extends React.Component {
     return <div>
       {help_text}
       {forms}
-      {!!error.new ? <NonIdealState title="An error occurred" description={JSON.stringify(error.new.response)} />
+      {!!error.new ? <NonIdealState
+                        title={`Could not find the ${this.state.artifact}`}
+                        icon="folder-open"
+                        description={<>
+                          <p>To solve the issue, go to your commit's workspace and call<br/><code>qa save-artifacts</code>.</p>
+                          <p className={Classes.TEXT_MUTED}><code>{JSON.stringify(error.new.response)}</code></p>
+                        </>}
+                      />
                    : viewer}
     </div>
 
