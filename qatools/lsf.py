@@ -79,6 +79,9 @@ class Job:
   def run_local(self, cwd):
     with subprocess.Popen(self.command, shell=True,
                           encoding='utf-8',
+                          # Avoid issues with code outputing malformed unicode
+                          # https://docs.python.org/3/library/codecs.html#error-handlers
+                          errors='surrogateescape',
                           cwd=cwd,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
       for line in iter(process.stdout.readline, ''):
