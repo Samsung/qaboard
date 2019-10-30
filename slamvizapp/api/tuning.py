@@ -92,10 +92,14 @@ def get_group():
     project_id = request.args["project"]
     project = Project.get_or_create(session=db_session, id=project_id)
 
+    message = None
     groups_paths = [get_groups_path(project_id)]
     commit_id = request.args.get("commit")
     if commit_id:
-      groups_paths = [*get_commit_groups_paths(project, commit_id), *groups_paths]
+      commit_groups_paths = get_commit_groups_paths(project, commit_id)
+      if not commit_groups_paths:
+        message = "<p>Could not load the <code>inputs.batches</code> files defined in <em>qatools.yaml</em>.</p><p>For tuning to work, <code>qa save-artifacts</code> needs to be called.</p>"
+      groups_paths = [*commit_groups_paths, *groups_paths]
       try:
           ci_commit = CiCommit.query.filter(
               CiCommit.project_id == project_id,
@@ -112,7 +116,7 @@ def get_group():
       default_configuration = deserialize_config(default_configuration)
     # print('group', request.args["name"], groups_paths)
 
- 
+
     has_custom_iter_inputs = False
     # TODO: make it more robust in case of "from iters import *"
     qatools_config['project']['entrypoint'] = ci_commit.repo_commit_dir / qatools_config['project']['entrypoint']
@@ -147,7 +151,7 @@ def get_group():
             process.check_returncode()
         except:
             return jsonify({"error": str(process.stdout), "cmd": str(cmd)}), 500
-        return jsonify({"tests": json.loads(process.stdout)})
+        return jsonify({"tests": json.loads(process.stdout), "message": message})
 
     # We don't need to seperate the two cases, but
     # doing so might let us avoid a fork and qa startup...
@@ -164,6 +168,7 @@ def get_group():
         )
         return jsonify({
             "tests": [{"input_path": str(test.relative_to(database)), "configurations": configuration} for test, configuration, _, database in tests],
+            "message": message,
         })
     except Exception as e:
         print(f'Error: {e}')

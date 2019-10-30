@@ -297,7 +297,7 @@ class TuningForm extends Component {
     const { search_type, search_options } = this.state;
     const { experiment_name, selected_group, selected_group_info } = this.state;
     const { user, platform, android_device } = this.state;
-    const { tests } = selected_group_info;
+    const { tests, message } = selected_group_info;
     const { combinations, language } = this.state
     let total_runs = combinations * tests.length;
     let time_intent =
@@ -411,16 +411,21 @@ class TuningForm extends Component {
         helperText={<>
           {tests.length > 0 ? <Tooltip style={{maxWidth: "400px", maxHeight: "400px", overflow: "scroll"}} position="right">
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
-            <ul>{tests.map(t => <li key={t.test}>
-            	<span style={{marginRight: '5px'}}>{t.input_path}</span>
-            	{t.configurations.map(c =>
+            <ul>
+              {tests.map(t => <li key={t.test}>
+            	  <span style={{marginRight: '5px'}}>{t.input_path}</span>
+            	  {t.configurations.map(c =>
                   <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px'}}>
                   	{typeof(c) === 'string' ? c : JSON.stringify(c)}
                   </Tag>
-              )}
-            </li>)}</ul>
+                )}
+            </li>)}
+            </ul>
           </Tooltip>
-          : <span>To know your options, go to the "Tests" tab. </span>
+          : <span>
+              {message && <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>}
+              To know your options, go to the "Tests" tab.
+            </span>
           }
           {this.state.selected_group_info_loading && <Icon icon="time"/>}
         </>}
@@ -439,7 +444,7 @@ class TuningForm extends Component {
         />
       </FormGroup>
 
-      {(project==='dvs/psp_swip' || project==='tof/swip_tof' || available_platforms.length > 0) && 
+      {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
       <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
         {available_platforms.map(p => <Radio
           labelElement={<span>{p.label || p.name || 'undefined name/label!'}</span>}
@@ -448,7 +453,7 @@ class TuningForm extends Component {
         />)}
       </RadioGroup>}
 
-      {(project==='dvs/psp_swip' || project==='tof/swip_tof' || available_platforms.length === 0) && 
+      {((project==='dvs/psp_swip' || project==='tof/swip_tof' )&& available_platforms.length === 0) &&
       <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
         <Radio labelElement={<span>Linux</span>} value="lsf" large />
         <Radio label={<span>Android</span>} value="s8" large/>
