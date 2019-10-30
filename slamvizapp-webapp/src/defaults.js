@@ -15,6 +15,8 @@ const route_paths = [
 ];
 
 const default_from_url = (attribute) => {
+    // eslint thinks `path` is not used (?) 
+    // eslint-disable-next-line
 	for (const path of route_paths) {
 		const match = matchPath(window.location.pathname, { path })
 		if (!!match && !!match.params[attribute]) {
