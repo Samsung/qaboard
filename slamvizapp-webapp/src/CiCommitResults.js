@@ -307,7 +307,7 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('parameters') && <Section>
                 <Card>
-                  <h2 className={Classes.HEADING}>Algorithm configuration</h2>
+                  <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
                   <CommitParameters
                     project={project}
                     project_data={config_data}
