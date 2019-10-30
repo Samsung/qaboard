@@ -30,7 +30,9 @@ RUN apt-get update && \
     # Essential utilities
     apt-get install -y wget curl sudo \
                        software-properties-common build-essential \
-                       libgl1-mesa-glx libc6-dev python-dev && \
+                       libc6-dev \
+                       python-dev && \
+                       # libgl1-mesa-glx \
     # Useful utilities when debugging the container
     apt-get install -y zsh htop tree less nano
 
@@ -50,8 +52,10 @@ RUN echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/
 
 
 # Python environment
-RUN wget --no-check-certificate https://repo.continuum.io/archive/Anaconda3-5.3.1-Linux-x86_64.sh && \
-    bash Anaconda3-5.3.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
+# RUN wget --no-check-certificate https://repo.continuum.io/archive/Anaconda3-5.3.1-Linux-x86_64.sh && \
+#     bash Anaconda3-5.3.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
+RUN wget --no-check-certificate https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3-latest-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
 # ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
 #RUN wget --no-check-certificate https://projects.unbit.it/downloads/uwsgi-2.0.18.tar.gz && \
@@ -64,17 +68,40 @@ ENV PATH /opt/anaconda3/bin:${PATH}
 #    https://projects.unbit.it/downloads/uwsgi-lts.tar.gz
 # RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
 #     pandas
-RUN conda install -k -c conda-forge/label/gcc7 uwsgi
 RUN conda install -k -c conda-forge libiconv
+RUN conda install -k -c conda-forge uwsgi
+# RUN conda install -k -c conda-forge/label/gcc7 uwsgi
 RUN conda install -k pandas
 # RUN conda update -n base -c defaults conda
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
                 pip pipenv \
-                gitpython click flask flask_cors sqlalchemy alembic psycopg2-binary sqlalchemy_utils flask-admin ujson sklearn scikit-learn click && \
+                gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-learn click && \
     pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/arthurf/scikit-optimize'
+
+# Some projects need this (TODO: a cleaner way to request specific packages...)
+# https://github.com/PyMySQL/mysqlclient-python
+# https://github.com/ContinuumIO/anaconda-issues/issues/10646
+RUN apt-get -y install libssl-dev default-libmysqlclient-dev && \
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org mysqlclient
+# We still run into issues with missing libs.. this is python only
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org PyMySQL[rsa]
+
+
+# nginx as reverse proxy
+RUN echo 'deb http://nginx.org/packages/ubuntu/ bionic nginx'     >  /etc/apt/sources.list.d/nginx.list && \
+    echo 'deb-src http://nginx.org/packages/ubuntu/ bionic nginx' >> /etc/apt/sources.list.d/nginx.list && \
+    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy=$PROXY --recv-keys ABF5BD827BD9BF62 && \
+    # nginx-extra instead of just -full or smaller for WebDav and DAV Ext
+    apt-get update && apt-get install -y nginx-extras && \
+    rm /etc/nginx/sites-enabled/default
+COPY deployment/nginx/mime.types deployment/nginx/nginx.conf /etc/nginx/
+COPY deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
+EXPOSE 5000 80 443
 
 
 # PostgreSQL database
+# TODO: compare to the official dockerfile, even replace with it...
+#       https://github.com/docker-library/postgres/blob/f19a74ec301fe755b70a822f905c8f537f67bc9a/11/Dockerfile
 RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
     wget --quiet --no-check-certificate -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
     apt-get update; apt-get install -y postgresql-10 postgresql-contrib-10
@@ -93,14 +120,10 @@ RUN groupadd -g 107 postgresold
 #   group­mod -g 107 postgres
 
 
-
-# nginx as reverse proxy
-RUN echo 'deb http://nginx.org/packages/ubuntu/ bionic nginx'     >  /etc/apt/sources.list.d/nginx.list && \
-    echo 'deb-src http://nginx.org/packages/ubuntu/ bionic nginx' >> /etc/apt/sources.list.d/nginx.list && \
-    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy=$PROXY --recv-keys ABF5BD827BD9BF62 && \
-    apt-get update && apt-get install -y nginx
-COPY deployment/nginx /etc/nginx
-EXPOSE 5000 80 443
+RUN apt-get install -y libpq-dev && \
+    pg_config --version && \
+    conda install -k -c conda-forge psycopg2
+    # pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --no-binary :all: psycopg2
 
 
 # nodejs
@@ -136,6 +159,7 @@ ENV LC_ALL 'C.UTF-8'
 WORKDIR /slamvizapp
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/common-infrastructure/qatools' && \
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/cde/cde-python' && \
     echo cache-busting-000
 
 
