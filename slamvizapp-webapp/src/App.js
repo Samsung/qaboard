@@ -9,6 +9,7 @@ import { Classes } from "@blueprintjs/core";
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
+import IeDeprecationWarning from './components/IeDeprecationWarning'
 
 import { fetchProjects } from './actions/projects'
 
@@ -19,6 +20,7 @@ import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
 import { routes } from './routes'
+import { sider_width } from './AppSider'
 
 
 class App extends React.Component {
@@ -46,6 +48,7 @@ class App extends React.Component {
     if (this.state.hasError)
       return <ErrorPage error={this.state.error} info={this.state.info}/>
 	  return <Provider store={this.props.store}><PersistGate loading={null} persistor={this.props.persistor}>
+      <IeDeprecationWarning/>
 	    <Router history={history}>
         <Switch>
           <Route exact path="/" component={ProjectsList} />
@@ -55,6 +58,8 @@ class App extends React.Component {
 	  </PersistGate></Provider>
   }
 }
+
+
 
 
 
@@ -80,7 +85,7 @@ class ProjectApp extends React.Component {
           />
         ))}
         </Switch>
-        <div style={{paddingLeft: '151px'}}>
+        <div style={{paddingLeft: sider_width}}>
           <Switch>
             {routes.map((route, index) => (
               <Route
