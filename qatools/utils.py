@@ -47,7 +47,11 @@ class RedirectStream():
     self.file.flush()
   def __del__(self):
     setattr(sys, self.stream_name, getattr(sys, f"__{self.stream_name}__"))
-    self.file.close()
+    try:
+      self.file.close()
+    except Exception as e:
+      click.secho(f'WARNING: Error when closing {file}', fg='yellow', bold=True)
+      click.secho(str(e), fg='yellow')
   def flush(self):
     self.file.flush()
     self.stream.flush()
