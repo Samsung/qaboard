@@ -52,10 +52,6 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     click.secho(f'Aborting: please first fix the configuration errrors in qatools.yaml', fg='red', err=True, bold=True)
     exit(1)
 
-  # help reproduce qa runs
-  if is_ci:
-    click.secho(' '.join(['qa', *sys.argv[1:]]), fg='cyan', bold=True)
-
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
@@ -162,6 +158,10 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     # this redirect is not 100% perfect, we don't get stdout from C calls
     # if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
     with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
+      # Help reproduce qa runs
+      if is_ci:
+        click.secho(' '.join(['qa', *sys.argv[1:]]), fg='cyan', bold=True)
+
       ctx.obj['output_directory'] = output_directory.resolve()
       ctx.obj['forwarded_args'] = forwarded_args
       if not ctx.obj['no_qa_database']:
