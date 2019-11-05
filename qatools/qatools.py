@@ -51,6 +51,10 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     click.secho(f'Aborting: please first fix the configuration errrors in qatools.yaml', fg='red', err=True, bold=True)
     exit(1)
 
+  # help reproduce qa runs
+  if is_ci:
+    click.secho(' '.join(['qa', *sys.argv[1:]]), fg='cyan', bold=True)
+
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   ctx.obj = {}
