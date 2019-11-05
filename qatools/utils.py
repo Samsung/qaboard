@@ -50,7 +50,7 @@ class RedirectStream():
     try:
       self.file.close()
     except Exception as e:
-      click.secho(f'WARNING: Error when closing {file}', fg='yellow', bold=True)
+      click.secho(f'WARNING: Error when closing log file', fg='yellow', bold=True)
       click.secho(str(e), fg='yellow')
   def flush(self):
     self.file.flush()
