@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import traceback
 import json
+from contextlib import contextmanager
 
 import yaml
 import click
@@ -24,7 +25,6 @@ class PathType(click.ParamType):
     if value is None:
       return None
     return Path(value)
-
 
 class RedirectStream():
   def __init__(self, stream_name, file, color):
@@ -57,9 +57,15 @@ class RedirectStream():
     self.stream.flush()
 
 
+@contextmanager
 def redirect_std_streams(file, color=None):
-  RedirectStream('stdout', file, color)
-  RedirectStream('stderr', file, color)
+  stdout = RedirectStream('stdout', file, color)
+  stderr = RedirectStream('stderr', file, color)
+  try:
+    yield stdout, stderr
+  finally:
+    del stdout
+    del stderr
 
 
 class FailingEntrypoint:
@@ -311,9 +317,12 @@ def git_head(repo_root : Path) -> (str, str):
       for line in f.readlines():
         if line.startswith('#'):
           continue
-        hexsha, ref = line.strip().split(maxsplit=1)
-        if ref == f"refs/heads/{commit_branch}":
-          return commit_branch, hexsha 
+        try:
+          hexsha, ref = line.strip().split(maxsplit=1)
+          if ref == f"refs/heads/{commit_branch}":
+            return commit_branch, hexsha
+        except:
+            pass
   return commit_branch, commit_branch
 
 

@@ -18,7 +18,8 @@ from .api import notify_qa_database
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
-from .utils import PathType, entrypoint_module, input_data, load_tuning_search, redirect_std_streams
+from .utils import PathType, entrypoint_module, input_data, load_tuning_search
+from .utils import redirect_std_streams
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
@@ -136,6 +137,7 @@ def get(ctx, input_path, output_path, variable):
 
 @cli.command(context_settings=dict(
     ignore_unknown_options=True,
+    allow_interspersed_args=False,
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
@@ -151,44 +153,43 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     absolute_input_path = ctx.obj['prefix_output_dir']
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
-    import shutil
     if not 'QATOOLS_RUN_KEEP' in os.environ:
+      import shutil
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
     # without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
     # if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
-    redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color'])
+    with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
+      ctx.obj['output_directory'] = output_directory.resolve()
+      ctx.obj['forwarded_args'] = forwarded_args
+      if not ctx.obj['no_qa_database']:
+          notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
-    ctx.obj['output_directory'] = output_directory.resolve()
-    ctx.obj['forwarded_args'] = forwarded_args
-    if not ctx.obj['no_qa_database']:
-        notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
+      start = time.time()
+      try:
+        runtime_metrics = entrypoint_module(config).run(ctx)
+        if not runtime_metrics:
+          runtime_metrics = {}
+        runtime_metrics['compute_time'] = time.time() - start
 
-    start = time.time()
-    try:
-      runtime_metrics = entrypoint_module(config).run(ctx)
-      if not runtime_metrics:
-        runtime_metrics = {}
-      runtime_metrics['compute_time'] = time.time() - start
+      except Exception as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        click.secho(f'[ERROR] Your `run` function raised an exception:', fg='red', bold=True)
+        click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+        runtime_metrics = {'is_failed': True}
 
-    except Exception as e:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] Your `run` function raised an exception:', fg='red', bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      runtime_metrics = {'is_failed': True}
+      metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
+      if not metrics:
+        metrics = runtime_metrics
 
-    metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
-    if not metrics:
-      metrics = runtime_metrics
-
-    if metrics['is_failed']:
-      click.secho('[ERROR] The run has failed.', fg='red', err=True)
-      click.secho(str(metrics), fg='red', bold=True)
-      exit(1)
-    else:
-      click.secho(str(metrics), fg='green')
+      if metrics['is_failed']:
+        click.secho('[ERROR] The run has failed.', fg='red', err=True)
+        click.secho(str(metrics), fg='red', bold=True)
+        exit(1)
+      else:
+        click.secho(str(metrics), fg='green')
 
 
 def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_database=False):
