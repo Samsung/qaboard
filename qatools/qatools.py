@@ -188,8 +188,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
 
       except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
-        click.secho(f'[ERROR] Your `run` function raised an exception:', fg='red', bold=True)
-        click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+        click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
         runtime_metrics = {'is_failed': True}
 
       metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
