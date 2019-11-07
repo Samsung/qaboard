@@ -102,6 +102,16 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   # batch runs will override this since batches may have different configurations
   ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
 
+  # For convenience, we allow users to change environment variables using {ENV: {VAR: value}}
+  # in configurations or tuning parameters
+  environment_variables = {}
+  for c in ctx.obj['configurations']:
+    if not isinstance(c, dict): continue
+    if 'ENV' in c: environment_variables.update(c['ENV'])
+  if 'ENV' in ctx.obj['extra_parameters']:
+    environment_variables.update(ctx.obj['extra_parameters']['ENV'])
+  os.environ.update(environment_variables)
+
   # we manage stripping ansi color codes ourselfs since we redirect std streams
   # to both the original stream and a log file
   ctx.color = True
