@@ -110,6 +110,8 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     if 'ENV' in c: environment_variables.update(c['ENV'])
   if 'ENV' in ctx.obj['extra_parameters']:
     environment_variables.update(ctx.obj['extra_parameters']['ENV'])
+    # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
+    del ctx.obj['extra_parameters']['ENV']
   os.environ.update(environment_variables)
 
   # we manage stripping ansi color codes ourselfs since we redirect std streams
