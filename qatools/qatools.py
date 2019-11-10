@@ -192,6 +192,11 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
       except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
+        try:
+          exc_type, exc_value, exc_traceback = sys.exc_info()
+          click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+        except Exception as e: # debug strange stale file errors, ideally remove this...
+          print(f"ERROR: {e}")
         runtime_metrics = {'is_failed': True}
 
       # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
