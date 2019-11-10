@@ -110,8 +110,6 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
     if 'ENV' in c: environment_variables.update(c['ENV'])
   if 'ENV' in ctx.obj['extra_parameters']:
     environment_variables.update(ctx.obj['extra_parameters']['ENV'])
-    # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
-    del ctx.obj['extra_parameters']['ENV']
   os.environ.update(environment_variables)
 
   # we manage stripping ansi color codes ourselfs since we redirect std streams
@@ -181,6 +179,11 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
 
       start = time.time()
       try:
+        # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
+        if 'ENV' in ctx.obj['extra_parameters']:
+          ctx.obj['ENV'] = ctx.obj['extra_parameters']
+          del ctx.obj['extra_parameters']
+
         runtime_metrics = entrypoint_module(config).run(ctx)
         if not runtime_metrics:
           runtime_metrics = {}
@@ -190,6 +193,11 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
         exc_type, exc_value, exc_traceback = sys.exc_info()
         click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
         runtime_metrics = {'is_failed': True}
+
+      # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
+      if 'ENV' in ctx.obj:
+        ctx.obj['extra_parameters'].update(ctx.obj['ENV'])
+        del ctx.obj['ENV']
 
       metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
       if not metrics:
