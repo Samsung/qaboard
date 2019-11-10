@@ -325,7 +325,7 @@ if metrics_file:
       click.secho(f'         It is defined in qatools.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
       no_config_warning = True
   else:
-    with metrics_file_path.open() as f:
+    with metrics_file_path.open(errors="surrogateescape") as f:
       try:
         _metrics = yaml.load(f, Loader=yaml.SafeLoader)
       except:
