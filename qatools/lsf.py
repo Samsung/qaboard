@@ -59,7 +59,7 @@ class Job:
   def is_failed(self):
     if self.id:
       output_db = get_output(self.id)
-      failed = output_db["is_failed"]
+      failed = not output_db or output_db["is_failed"]
       if failed:
         click.secho(f'ERROR: At least a run crashed... {self.output_directory}', fg='red', err=True)
       return failed
@@ -136,7 +136,7 @@ class Job:
     # https://www.ibm.com/support/knowledgecenter/en/SSWRJV_10.1.0/lsf_config_ref/lsf.conf.lsb_stdout_direct.5.html
     os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
-
+    # print(q_command)
     out = subprocess.run(
       q_command,
       shell=True,
@@ -144,6 +144,7 @@ class Job:
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
     )
+    # print(out)
     # click.secho(out.stdout)
     return out
 
