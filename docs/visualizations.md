@@ -86,7 +86,7 @@ outputs:
 ```
 
 
-You can also use regular expressions to match which output files you want to view:
+You can also use regular expressions (inside parentheses!) to match which output files you want to view:
 
 ```yaml
 outputs:
