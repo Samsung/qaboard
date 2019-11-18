@@ -42,10 +42,10 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
           is_same = filecmp.cmp(str(file_1), str(file_2))
           if not is_same:
             mismatch.append(rel_path)
+          else:
+            match.append(rel_path)
         except:
           errors.append(rel_path)
-        else:
-          match.append(rel_path)
       else:
         only_in_1.append(rel_path)
 
