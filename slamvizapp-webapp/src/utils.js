@@ -122,6 +122,8 @@ const safe_regex = s => {
 }
 
 const match_query = pattern => {
+  if (pattern === undefined || pattern === null)
+    return () => true
   const tokens = pattern
     .trim()
     .toLowerCase()
@@ -164,7 +166,7 @@ const filter_batch = (batch, filter_values) => {
     let metadata_s = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
     let extra_parameters = extra_parameters_s.replace(/"/g, "");
     let metadata = metadata_s.replace(/"/g, "");
-    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters}`;
+    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters} ${output.is_failed ? 'fail crash' : ''} ${output.is_pending ? 'pending running' : ''}`;
     if (matcher(searched))
       batch_filtered.outputs[id] = output;
   });
