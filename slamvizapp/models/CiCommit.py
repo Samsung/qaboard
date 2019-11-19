@@ -269,13 +269,13 @@ def latest_successful_commit(session, project_id, branch, batch_label=None, with
                 .order_by(CiCommit.authored_datetime.desc())
                 .limit(within_last)
                )
+  valid_outputs = lambda b: [o for o in b.outputs if not (o.is_failed or o.is_pending)]
   for ci_commit in ci_commits:
-    valid_outputs = [o for o in ci_commit.ci_batch.outputs if not o.is_failed and not o.is_pending]
-    if valid_outputs:
-      return ci_commit
-    if batch_label: # maybe having results on any batch is better...
-      valid_outputs = [o for o in ci_commit.get_or_create_batch(batch_label).outputs if not o.is_failed and not o.is_pending]
-      if valid_outputs:
+    if not batch_label:
+      if any([valid_outputs(b) for b in ci_commit.batches]):
+        return ci_commit        
+    if batch_label:
+      if valid_outputs(ci_commit.get_or_create_batch(batch_label)):
         return ci_commit
 
 
