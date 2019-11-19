@@ -45,10 +45,13 @@ let default_layout = {
 };
 
 
-const has_all_metrics = (commit, metrics, aggregation) => {
+const has_all_metrics = (commit, batch_label, metrics, aggregation) => {
+  if (commit.batches[batch_label] === undefined)
+    return false
   for (var index in metrics) {
     let metric = metrics[index];
-    if (!commit.batches.default.aggregated_metrics[`${metric}_${aggregation}`])
+    let metric_value = commit.batches[batch_label].aggregated_metrics[`${metric}_${aggregation}`];
+    if (metric_value === undefined && metric_value === null)
       return false;
   }
   return true;
@@ -197,20 +200,6 @@ class CommitsEvolutionPerTest extends React.Component {
     let shown_metrics = metrics;
     let shown_aggregation = aggregation || "median";
 
-    let valid_commits // fixme remove this shit
-    if (!per_output_granularity) {
-      valid_commits = commits
-        .filter(c => !!c.batches.default)
-        .filter(c => has_all_metrics(c, metrics, shown_aggregation));      
-    } else {
-      valid_commits = commits;
-    }
-    const output_filter_ = per_output_granularity ? make_output_filter(output_filter) : null;
-
-    // TODO: remove outliers
-    let traces = [];
-    let traces_metadata = [];
-
     let color_line = {
       default: Colors.BLUE3,
       "ci-android-rt": Colors.ORANGE3,
@@ -226,12 +215,18 @@ class CommitsEvolutionPerTest extends React.Component {
       "ci-android-rt": "Real-time (Android, CI)",
       "manual-android-rt": "Real-time (Android, manual tests)"
     };
+
+    // TODO: remove outliers
+    let traces = [];
+    let traces_metadata = [];
+
+    const output_filter_ = per_output_granularity ? make_output_filter(output_filter) : null;
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
       this.props.shown_batches.forEach(label => {
-        let commits_with_batch = valid_commits.filter(
-          c => c.batches[label] !== undefined
-        );
+        const commits_with_batch  = per_output_granularity
+          ? commits.filter(c => !!c.batches[label])
+          : commits.filter(c => has_all_metrics(c, label, metrics, shown_aggregation));
         if (commits_with_batch.length > 0) {
           let y;
           if (!per_output_granularity) {
@@ -267,7 +262,7 @@ class CommitsEvolutionPerTest extends React.Component {
             mode: "lines+markers",
             x: commits_with_batch.map(c => c.authored_datetime),
             y: y,
-            text: valid_commits.map(c => c.message),
+            text: commits_with_batch.map(c => c.message),
             marker: {
               size: 10,
               color: color_marker[label]
@@ -555,57 +550,43 @@ class CommitsEvolutionPerTest extends React.Component {
         })}
       </>
 
-      var legend = (
-        <div
-          style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}
-        >
-          {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
-              {hovered_test_input_path} @{hovered_test_configuration}
-          </Tag>}
-          {(!!hovered_label && hovered_label !== "default") && <Tag style={{ marginLeft: "15px" }}>{hovered_label}</Tag>}
-          <CommitRow
-            commit={hovered_commit}
-            project={this.props.project}
-            project_data={project_data}
-            toaster={toaster}
-            tag={<Tag style={{marginRight: '8px'}} intent={Intent.WARNING}>New</Tag>}
-          />
-          {!!hovered_commit_ref && <div><CommitRow
-                      commit={hovered_commit_ref}
-                      project={this.props.project}
-                      project_data={project_data}
-                      toaster={toaster}
-                      tag={<Tag style={{marginRight: '8px'}} intent={Intent.PRIMARY}>Reference</Tag>}
-          /></div>}
-          <div style={{display: 'flex', flex: '0 0 auto'}}>{controls}</div>
-          {!!hovered_output && <OutputCard
-                      project={project}
-                      project_data={project_data}
-                      commit={hovered_commit}
-                      output_new={hovered_output}
-                      output_ref={output_ref}
-                      warning={reference_warning}
-                      style={{ width: '1180px', height: '300px' }}
-                      no_header={true}
-                      dispatch={this.props.dispatch}
-                      type={show_bit_accuracy ? 'bit_accuracy' : undefined}
-                      show_all_files={this.props.show_all_files}
-                      expand_all={this.props.expand_all}
-                      files_filter={this.props.files_filter}
-                      controls={this.state.controls}
-          />}
-        </div>
-      );
-    } else {
-      legend =  <p>
-          {!!aggregation && <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-                      {/*Results are to clamped to >20x KPIs.*/}
-                      The performance for each commit may not be evaluated on the same tests.
-          </span>}
-          {!!!aggregation && <span className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-                      Hover over a run to see {show_bit_accuracy ? `the files it created` : `a visualization of its outputs`} compared to the previous commit. Click on a commit to freeze it as a reference.
-          </span>}
-        </p>
+      var legend = <div style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}>
+        {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
+            {hovered_test_input_path} @{hovered_test_configuration}
+        </Tag>}
+        {(!!hovered_label && hovered_label !== "default") && <Tag style={{ marginLeft: "15px" }}>{hovered_label}</Tag>}
+        <CommitRow
+          commit={hovered_commit}
+          project={this.props.project}
+          project_data={project_data}
+          toaster={toaster}
+          tag={<Tag style={{marginRight: '8px'}} intent={Intent.WARNING}>New</Tag>}
+        />
+        {!!hovered_commit_ref && <div><CommitRow
+                    commit={hovered_commit_ref}
+                    project={this.props.project}
+                    project_data={project_data}
+                    toaster={toaster}
+                    tag={<Tag style={{marginRight: '8px'}} intent={Intent.PRIMARY}>Reference</Tag>}
+        /></div>}
+        <div style={{display: 'flex', flex: '0 0 auto'}}>{controls}</div>
+        {!!hovered_output && <OutputCard
+                    project={project}
+                    project_data={project_data}
+                    commit={hovered_commit}
+                    output_new={hovered_output}
+                    output_ref={output_ref}
+                    warning={reference_warning}
+                    style={{ width: '1180px', height: '300px' }}
+                    no_header={true}
+                    dispatch={this.props.dispatch}
+                    type={show_bit_accuracy ? 'bit_accuracy' : undefined}
+                    show_all_files={this.props.show_all_files}
+                    expand_all={this.props.expand_all}
+                    files_filter={this.props.files_filter}
+                    controls={this.state.controls}
+        />}
+      </div>;
     }
 
     // console.log(traces)
@@ -624,6 +605,15 @@ class CommitsEvolutionPerTest extends React.Component {
             onUpdate={({layout}) => this.setState(layout)} 
           />
         )}
+        <p className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
+          {!!aggregation 
+            ? <span>The performance for each commit may not be evaluated on the same tests</span>
+            : <span>Hover over a run to see {show_bit_accuracy
+                                             ? `the files it created `
+                                             : `a visualization of its outputs `}
+                  compared to the previous commit. Click on a commit to freeze it as a reference.</span>
+          }
+        </p>
         {legend}
       </div>
     );
