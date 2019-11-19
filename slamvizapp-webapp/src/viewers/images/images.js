@@ -1,11 +1,13 @@
 import React from "react";
 import { get, CancelToken } from "axios"
 import {
+  Classes,
   Colors,
   Intent,
   Tag,
   Icon,
   Tooltip,
+  Popover,
   MultiSlider,
 } from "@blueprintjs/core";
 import pixelmatch from './pixelmatch';
@@ -21,8 +23,6 @@ var OpenSeadragon = require('openseadragon')
 require('./rgb')
 require('./filters')
 require('./selection')
-
-const slugify = s => s.replace(/[^a-zA-Z0-9]/g, '-')
 
 
 
@@ -60,7 +60,10 @@ const iiif_url = (output_dir_url, path) => {
   identifier = `${identifier}/${path}`;
   // IIIF specs require encoding the slashes inside the identifier
   let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
-  let endpoint = is_cde_file ? `${window.location.protocol}//${window.location.hostname}:8186/fcgi-bin/iipsrv.fcgi?IIIF=`
+  let endpoint = is_cde_file
+    // ? `/fcgi-bin/iipsrv.fcgi?IIIF=`
+    // : `/iiif/2/`
+    ? `${window.location.protocol}//${window.location.hostname}:8186/fcgi-bin/iipsrv.fcgi?IIIF=`
     : `${window.location.protocol}//${window.location.hostname}:8183/iiif/2/`
   identifier = encodeURIComponent(identifier)
   let url = `${endpoint}${identifier}`
@@ -71,6 +74,16 @@ const iiif_url = (output_dir_url, path) => {
 // We sync the viewer viewport of all viewers of the same size for a given output
 var synced_viewers = {}
 
+
+
+// we create unique ids to identify openseadragon viewers as outputs change
+// it's handy for smooth transitions, eg with videos, or when the list of viewers is updated/filtered
+// https://stackoverflow.com/questions/29420835/how-to-generate-unique-ids-for-form-labels-in-react
+let last_viewer_id = 0;
+const make_viewer_id = () => {
+  last_viewer_id += 1;
+  return `image-viewer-${last_viewer_id}`;
+}
 
 
 function maintain_zoom() {
@@ -97,6 +110,10 @@ window.addEventListener('resize', maintain_zoom, { passive: true });
 class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
+    // avoid issues in the first render
+    this.viewer_new = {id: make_viewer_id()}
+    this.viewer_ref = {id: make_viewer_id()}
+
     this.show_histogram = false;
     this.canvas_diff = React.createRef();
     this.state = {
@@ -112,16 +129,14 @@ class ImgViewer extends React.PureComponent {
   }
 
   componentDidMount() {
-    const { output_new, id, path } = this.props;
     this.viewer_new = OpenSeadragon({
       ...openseadragon_config,
-      id: `osd-new-${slugify(output_new.output_dir_url)}-${id || path}`,
+      ...this.viewer_new, // todo: use react refs instead
     });
     this.viewer_ref = OpenSeadragon({
       ...openseadragon_config,
-      id: `osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`,
-    });
-
+      ...this.viewer_ref,
+    });    
     this.Init().then(() => {
       this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
       this.InitMouseTracker(this.props);
@@ -130,19 +145,21 @@ class ImgViewer extends React.PureComponent {
       this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
-    })
+    }).catch(error => {})
   }
 
 
 
   InitZoomSync() {
+    if (!!this.UnregisterZoomSync)
+      this.UnregisterZoomSync()
+
     // console.log("[InitZoomSync]")
     // Implemement synced zoom
     // https://codepen.io/iangilman/pen/BWKKxQ
     const { viewer_new, viewer_ref } = this;
     const { image_width, image_height } = this.state;
-    // TODO: use output_new.test_input_path as key, to sync everything?
-    const sync_key = `${this.props.output_new.output_dir_url}-${image_height}x${image_width}`;
+    const sync_key = `${this.props.output_new.test_input_path}-${image_height}x${image_width}`;
     // console.log("sync_key", sync_key)
 
     if (synced_viewers[sync_key] === undefined) {
@@ -158,8 +175,10 @@ class ImgViewer extends React.PureComponent {
         leading: null,
       }
     } else {
-      // console.log("push synced viewers", sync_key)
-      synced_viewers[sync_key].viewers.push(viewer_new, viewer_ref)
+      if (synced_viewers[sync_key].viewers.every(v => v.id !== viewer_new.id))
+        synced_viewers[sync_key].viewers.push(viewer_new)
+      if (synced_viewers[sync_key].viewers.every(v => v.id !== viewer_ref.id))
+        synced_viewers[sync_key].viewers.push(viewer_ref)
     }
 
 
@@ -187,21 +206,28 @@ class ImgViewer extends React.PureComponent {
     viewer_new.addHandler('pan',  lead_viewer_sync(sync_key, viewer_new));
     viewer_ref.addHandler('pan',  lead_viewer_sync(sync_key, viewer_ref));
 
+    this.UnregisterZoomSync = () => {
+      viewer_new.removeHandler('zoom', lead_viewer_sync(sync_key, viewer_new));
+      viewer_ref.removeHandler('zoom', lead_viewer_sync(sync_key, viewer_ref));
+      viewer_new.removeHandler('pan',  lead_viewer_sync(sync_key, viewer_new));
+      viewer_ref.removeHandler('pan',  lead_viewer_sync(sync_key, viewer_ref));
+      if (synced_viewers[sync_key] !== undefined) {
+        synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(
+          v => v.id !== viewer_new.id && v.id !== viewer_ref.id
+        )
+      }
+      this.UnregisterZoomSync = null;
+    }
+
   }
 
 
   componentWillUnmount() {
     if (!!this.state.cancel_source.token)
       this.state.cancel_source.cancel();
+    if (!!this.UnregisterZoomSync)
+      this.UnregisterZoomSync()
 
-    const { image_width, image_height } = this.state;
-    const sync_key = `${this.props.output_new.output_dir_url}-${image_height}x${image_width}`;
-    if (synced_viewers[sync_key] !== undefined) {
-      synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(v =>
-        v.id !== (this.viewer_new || {}).id &&
-        v.id !== (this.viewer_new || {}).id
-      )
-    }
     if (!!this.viewer_new) {
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
@@ -219,12 +245,13 @@ class ImgViewer extends React.PureComponent {
 
   Init = () => {
     return new Promise((resolve, reject) => {
+      const { viewer_new, viewer_ref } = this;
       const { path, output_new, output_ref } = this.props;
-      const has_reference = !!output_ref && !!output_ref.output_dir_url;
-      // console.log(`[Init] has_reference: ${has_reference}`)
-      // console.log('[Init] path: output_ref', output_ref)
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image }).then(res => {
+      const has_reference = !!output_ref && !!output_ref.output_dir_url;
+
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image })
+      .then(res => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
         // image dimensions
@@ -238,12 +265,22 @@ class ImgViewer extends React.PureComponent {
           height,
           width,
         }
+
+        // As explained below, we stack images on top of the other instead of calling `viewer.open`
+        // So if the viewer receives images of varying sizes, old images risk overflowing....
+        const changed_image_dimension = (!!this.state.image_width && !!this.state.image_height) && (this.state.image_width !== width || this.state.image_height !== height)
+        if (changed_image_dimension) {
+          if (viewer_new.world.getItemCount() > 0) // todo: in a while-loop?
+            viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
+          if (viewer_ref.world.getItemCount() > 0)
+            viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))          
+        }
+
         this.setState({
           image_width: width,
           image_height: height,
         }, () => resolve())
 
-        const { viewer_new, viewer_ref } = this;
 
         // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
         // https://github.com/openseadragon/openseadragon/issues/1428
@@ -270,7 +307,9 @@ class ImgViewer extends React.PureComponent {
             success: () => { },
           })
         }
-      }).catch(error => {
+      })
+    .catch(error => {
+        console.log(error)
         this.setState({ error })
         reject({ error })
       });
@@ -291,7 +330,10 @@ class ImgViewer extends React.PureComponent {
       // console.log('-> Init()')
       if (this.props.id === undefined)
         console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
-      this.Init();
+      this.Init().then(() => {
+        this.InitDiff();
+        this.InitZoomSync();
+      }).catch(error => {});
     }
 
     let updated_diff = prevProps.diff !== this.props.diff;
@@ -446,14 +488,24 @@ class ImgViewer extends React.PureComponent {
   }
 
   render() {
-    const { output_new, output_ref, diff, label, path, id } = this.props;
+    const { output_new, output_ref, diff, label, path } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
     const has_reference = !!output_ref && !!output_ref.output_dir_url;
-    if (!!error && Object.keys(error).length > 0)
-      return <span />;
+    if (!!error && Object.keys(error).length > 0) {
+      console.log(error)
+      return <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
+        <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
+        <div style={{padding: '5px'}}>
+          {!!error.message &&  <p>{JSON.stringify(error.message)}</p>}
+          {!!error.request &&  <p>You may <a href={error.config.url}>find why here</a>.</p>}
+          {!!error.response && <p>response: {JSON.stringify(error.response)}</p>}
+          {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
+        </div>
+      </Popover>;      
+    }
 
-    const single_image_width = (width - 10) / 2
+    const single_image_width = (width - 10) / 2; //(diff ? 3 : 2)
     const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
     const flex = { flex: '0 0 auto' }
     const single_image_size = {
@@ -476,7 +528,7 @@ class ImgViewer extends React.PureComponent {
                           onClick={this.switch_images}
                         >new</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
-      <div style={single_image_size} id={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-new-${slugify(output_new.output_dir_url)}-${id || path}`} />
+      <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
     const image_ref = <div style={flex} key="ref">
       {has_reference && <div style={{minHeight: (diff ? '40px' : undefined)}}>
@@ -488,7 +540,7 @@ class ImgViewer extends React.PureComponent {
                           onClick={this.switch_images}
                         >reference</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
-      <div style={single_image_size} id={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} key={`osd-ref-${slugify(output_new.output_dir_url)}-${id || path}`} hidden={!has_reference} />
+      <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference} />
     </div>
 
 
