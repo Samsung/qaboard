@@ -6,16 +6,16 @@ import { Container } from "./layout";
 class ErrorPage extends React.Component {
 	render() {
 		let subject = encodeURIComponent("[qa] bug report");
-		let error = JSON.stringify(this.props.error)
-		let info = JSON.stringify(this.props.info)
-		let body = encodeURIComponent(`URL: ${document.URL}\nerror: ${error}\ninfo: ${info}`)
+		let error = this.props.error.toString()
+		let componentStack = JSON.stringify((this.props.info || {}).componentStack)
+		let body = encodeURIComponent(`URL: ${document.URL}\nerror: ${error}\ncomponentStack: ${componentStack}`)
 		return <Container>
 			<Callout intent={Intent.DANGER} title="Sorry, something went wrong!">
 				<p>Try refreshing the page.</p>
 				<p><b>Point of contact:</b> Arthur Flam <span className={Classes.TEXT_MUTED}>(+972-(0)58-706-2016) WhatsApp/Phone </span></p>
 				<p><a href={`mailto:arthur.flam@samsung.com?subject=${subject}&body=${body}`}><Button>Report the bug</Button></a></p>
 				<p><code dangerouslySetInnerHTML={{ __html: error || "" }}></code></p>
-				<p><code dangerouslySetInnerHTML={{ __html: info || "" }}></code></p>
+				<p><code dangerouslySetInnerHTML={{ __html: componentStack || "" }}></code></p>
 			</Callout>
 		</Container>
 	}
