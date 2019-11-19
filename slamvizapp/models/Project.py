@@ -123,6 +123,8 @@ def update_project(data, db_session):
   # TODO: refactor, call the logic in Commit.get_or_create
   branch = data['ref'][11:] # data['ref'] => 'refs/heads/feature/Imu_preintegration'
   commit_id = data['checkout_sha']
+  if not commit_id:
+    return
 
   # Update the root project - all subprojects depend on it
   root_project_id = data['project']['path_with_namespace'] # eg => dvs/psp_swip
