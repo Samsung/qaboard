@@ -170,9 +170,9 @@ def get_ci_commit(commit_id=None):
       project = Project.query.filter(Project.id==project_id).one()
       default_branch = project.data['qatools_config']['project']['reference_branch']
     except:
-      default_branch = 'develop'
+      default_branch = 'master'
     branch = request.args.get('branch', default_branch)
-    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch', 'default'))
+    ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch'))
     if not ci_commit:
       return jsonify({'error': f'Sorry, we cant find any commit with results for this project on {branch}.'}), 404
   else:
