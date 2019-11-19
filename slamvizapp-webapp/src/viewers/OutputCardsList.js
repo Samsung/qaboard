@@ -107,7 +107,7 @@ class OutputCardsList extends React.Component {
             flexFlow: "row wrap",
           }}
         >
-          {outputs.map(([id, output]) => {
+          {outputs.map( ([id, output]) => {
               return (
                 <OutputCard
                   key={id}
