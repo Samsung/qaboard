@@ -198,6 +198,12 @@ def export_to_folder():
     if not output_ref:
       output_ref = output
 
+    # we save a mapping label => full into
+    label_mappings = {
+      'extra_parameters': {},
+      'configurations': {},
+    }
+
     def get_labels(output):
       labels = []
       if output.batch.ci_commit.hexsha != common_data.get("commit"):
@@ -214,6 +220,7 @@ def export_to_folder():
         stripped_config = stripped_config.replace('workspace-configurations-', '')
         if stripped_config:
           labels.append(stripped_config)
+        label_mappings['configurations'][stripped_config] = output.extra_parameters
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
         p = tame(output.extra_parameters) - tame(common_extra_parameters)
@@ -222,7 +229,9 @@ def export_to_folder():
         # print('output.extra_parameters', output.extra_parameters)
         # print('tame(output.extra_parameters)', tame(output.extra_parameters))
         # print('p_new', p_new)
-        if p: labels.append(slugify_config(str(p)))
+        extra_parameters_label = slugify_config(str(p))
+        label_mappings['extra_parameters'][extra_parameters_label] = output.extra_parameters
+        if p: labels.append(extra_parameters_label)
       stitch = lambda l: f"@{'@'.join(l)}" if l else ''
       label = stitch(labels)
       # print('label', label)
@@ -231,7 +240,11 @@ def export_to_folder():
 
     label_new = get_labels(output)
     label_ref = get_labels(output_ref)
-  
+
+    if label_mappings['configurations'] or label_mappings['extra_parameters']:
+      with (export_dir / '0.mappings.json').open('w') as f:
+        json.dump(label_mappings, f, indent=4, sort_keys=True)
+
     for output_path in output.output_dir.glob(glob):
       output_path_rel = output_path.relative_to(output.output_dir)
       copied_to_rel = copy_path_rel(output, output_path, label=label_new)
