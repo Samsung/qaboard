@@ -3,6 +3,7 @@ import { connect } from 'react-redux'
 import { get, post } from "axios";
 
 import { updateTuningForm } from "../../actions/tuning";
+import { fetchCommit } from "../../actions/commit";
 
 import MonacoEditor from 'react-monaco-editor';
 
@@ -19,6 +20,7 @@ import {
   Tag,
   Toaster,
   Tooltip,
+  Popover,
   Icon,
   Tab,
   Tabs,
@@ -43,15 +45,10 @@ const wrap_values_in_array = object => {
 };
 
 const wrap_in_array = x => {
-  if (Array.isArray(x)) return x;
-  // the python backend expects *iterables*
-  // so numeric values won't work, strings will be split, etc.
-  // here we fix this unexpected behaviour
-  // note: arrays are objects.
-  if (typeof x !== "object") return [x];
-  // note: the backend supports {type: "range", options: {from:0, to:100, step:1} }
-  // for now we just ignore this
-  return [];
+  if (Array.isArray(x))
+    return x;
+  else
+    return [x];
 };
 
 const eval_function = text => {
@@ -244,6 +241,7 @@ class TuningForm extends Component {
   };
 
   onSubmit = () => {
+    const { project, commit, dispatch } = this.props;
     const {
       experiment_name,
       platform,
@@ -256,11 +254,11 @@ class TuningForm extends Component {
     const { parameter_search, parameter_search_auto, search_type, search_options } = this.state;
     this.setState({ submitted: true });
     toaster.show({
-      message: "The tuning experiment was sent!",
+      message: "Sent!",
       intent: Intent.PRIMARY
     });
-    post(`/api/v1/commit/${this.props.commit.id}/batch?project=${this.props.project}`, {
-      project: this.props.project,
+    post(`/api/v1/commit/${commit.id}/batch?project=${project}`, {
+      project,
       batch_label: experiment_name,
       platform,
       configuration: 'xxxxxxxxx',
@@ -278,9 +276,15 @@ class TuningForm extends Component {
       .then(response => {
         this.setState({ submitted: false });
         toaster.show({
-          message: "...Acknowledged!",
+          message: "Acknowledged! You can select the batch here ➡️",
           intent: Intent.SUCCESS
         });
+        const refresh = () => {
+          dispatch(fetchCommit({project, id: commit.id}))
+        }
+        setTimeout(refresh,  1*1000)
+        setTimeout(refresh,  5*1000)
+        setTimeout(refresh, 10*1000)
       })
       .catch(error => {
         this.setState({ submitted: false });
@@ -409,19 +413,21 @@ class TuningForm extends Component {
         label="Tests and configurations:"
         intent={Intent.PRIMARY}
         helperText={<>
-          {tests.length > 0 ? <Tooltip style={{maxWidth: "400px", maxHeight: "400px", overflow: "scroll"}} position="right">
+          {tests.length > 0 ? <Popover inheritDarkTheme portalClassName={Classes.DARK} position="right" hoverCloseDelay={300} interactionKind={"hover"}>
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
-            <ul>
-              {tests.map(t => <li key={t.test}>
-            	  <span style={{marginRight: '5px'}}>{t.input_path}</span>
-            	  {t.configurations.map(c =>
-                  <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px'}}>
-                  	{typeof(c) === 'string' ? c : JSON.stringify(c)}
-                  </Tag>
-                )}
-            </li>)}
-            </ul>
-          </Tooltip>
+            <div style={{padding: '10px'}}>
+              <ul style={{maxWidth: "1200px", maxHeight: "800px", overflow: "auto"}} >
+                {tests.map((t, idx) => <li key={idx} style={{marginBottom: '5px'}}>
+              	  <span style={{marginRight: '5px'}}>{t.input_path}</span>
+              	  {t.configurations.map(c =>
+                    <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px', marginBottom: '5px'}}>
+                    	{typeof(c) === 'string' ? c : JSON.stringify(c)}
+                    </Tag>
+                  )}
+              </li>)}
+              </ul>
+            </div>
+          </Popover>
           : <span>
               {message && <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>}
               To know your options, go to the "Tests" tab.
