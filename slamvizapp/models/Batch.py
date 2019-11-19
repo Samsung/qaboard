@@ -114,7 +114,9 @@ class Batch(Base):
         print(out.stdout)
         stdouts.append(str(out.stdout))
       except:
-        return {"error": str(out.stdout), "cmd": str(kill_command)}
+        # If LSF can't find the jobs, they are done already
+        if 'No match' not in str(out.stdout):
+          return {"error": str(out.stdout), "cmd": str(kill_command)}
     # TODO: check it's enough to mark all outputs as is_pending:false !
     return {"cmd": '\n'.join(kill_commands), "stdout": '\n\n'.join(stdouts)}
 
