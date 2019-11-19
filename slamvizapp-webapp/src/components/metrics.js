@@ -509,12 +509,12 @@ class MetricsSummary extends Component {
               {count} @{tag}
             </Tag>
           })}
-        {selected_metrics.map(m => {
+        {selected_metrics.map((m, idx) => {
           let new_values = outputs_new
             .map(o => o.metrics[m.key])
             .filter(x => x !== undefined)
             .map(o => 1 * o);
-          if (new_values.length === 0) return <Fragment key={m.key} />;
+          if (new_values.length === 0) return <Fragment key={idx} />;
           let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null);
           let new_med = median(new_values);
           let ref_med = median(ref_values);
@@ -547,7 +547,7 @@ class MetricsSummary extends Component {
             );
           }
           return (
-            <MetricRow key={m.key}>
+            <MetricRow key={idx}>
               <MetricTile>
                 <Tooltip>
                   <h3 className={Classes.HEADING}>
