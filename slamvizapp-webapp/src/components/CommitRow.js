@@ -269,9 +269,12 @@ class CommitRow extends React.Component {
             {tag}
             <Message className={maybe_skeletton}>{commit.message || 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
             <div>
-              <CommitShortId project={project} href={commit_url}>
-                {shortId(project, commit.id)}
-              </CommitShortId>
+              <Tooltip>
+                <CommitShortId project={project} href={commit_url}>
+                  {shortId(project, commit.id)}
+                </CommitShortId>
+                <span>View Commit Diff</span>
+              </Tooltip>
               <Tooltip>
                 <CopyToClipboard
                   text={commit.id}

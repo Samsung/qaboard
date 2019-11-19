@@ -119,7 +119,7 @@ class AddRecordingsForm extends Component {
     return (
       <form onSubmit={this.onSubmit}>
         <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>
-          <p>Tuning experiments can use the custom groups <a href="#custom-groups">below</a>, or the defaults from:</p>
+          <p>Tuning runs can use the custom groups below, <em>shared with all the project users</em>, or the defaults from:</p>
           <ul className={Classes.LIST}>
            {commit_groups_files.map(file => <React.Fragment key={file}>
              <li><a href={`${gitlab_commit_url}/${file}`}>{file}</a></li>
@@ -127,7 +127,7 @@ class AddRecordingsForm extends Component {
           </ul>
           <p><b>Tip:</b> The <a href="http://gitlab-srv/common-infrastructure/qatools/wikis/defining-groups-of-tests">wiki</a> provides many examples to help get the syntax right.</p>
           <p>
-            <em>All filepaths are relative to <code>{(((qatools_config.inputs || {}) || {}).database || {}).windows}</code></em>
+            <em>Paths are relative to <code>{(((qatools_config.inputs || {}) || {}).database || {}).windows}</code> by default.</em>
             <CopyToClipboard
               text={((qatools_config.inputs || {}).database || {}).windows}
               style={{margin: '5px'}}
@@ -151,7 +151,7 @@ class AddRecordingsForm extends Component {
           </Button>
         </div>
 
-        <div id="custom-groups" className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
+        <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
         <MonacoEditor
           height={400}
           language='yaml'
