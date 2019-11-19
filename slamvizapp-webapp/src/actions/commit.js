@@ -7,6 +7,9 @@ import {
 import { updateSelected } from './selected';
 
 
+const refresh_interval = 15 * 1000 // seconds
+
+
 export const updateCommit = (project, commit, error) => ({
   type: UPDATE_COMMIT,
   id: commit.id,
@@ -14,34 +17,33 @@ export const updateCommit = (project, commit, error) => ({
   error,
 })
 
-export const fetchCommit = (project, id, used_for, branch, batch, update_selected=true) => {
+
+export const fetchCommit = ({project, id, branch, update_selected, batch}) => {
   return dispatch => {
     dispatch({
       type: FETCH_COMMIT,
       project,
       id,
     })
-		// the API defaults to the latest commit on the reference branch, it is useful
-    let use_default_reference_commit = !id
-    get(`/api/v1/commit${use_default_reference_commit ? "/" : `/${id}`}`, { params: { project, branch, batch } })
+    // the API defaults to the latest commit on the reference branch, it is useful
+    get(`/api/v1/commit${!!!id ? "/" : `/${id}`}`, { params: { project, branch, batch } })
       .then(response => {
         dispatch(updateCommit(project, response.data))
-        // when we ask for the default reference commit we dont know the id yet
+
+        // when page load and look for, say, the latest commit on master, we don't know it's commit hash until we fetch it
+        // hence we have to expose a way to updated the "selected" commit to the now-known commit
         let id_ = response.data.id
         if (update_selected)
-          dispatch(updateSelected(project, { [used_for]: id_}) )
+          dispatch(updateSelected(project, { [update_selected]: id_}) )
+
         // we want to keep updated
-        // we could use setInterval and update the reference but it makes the logic more complicated...
-        // TODO: if not the one selected, stop updating...
-        // if (used_for === "new_commit_id") // why not both?
-        //   setTimeout(
-        //     x => dispatch(fetchCommit(project, id_, used_for, branch, batch, update_selected=false)),
-        //     60 * 1000
-        //   );
+        const batches = response.data.batches || {}
+        if (batches.some(b => b.pending_outputs > 0))
+          setTimeout(x => dispatch(fetchCommit({project, id: id_, batch})), refresh_interval);
       })
       .catch(error => {
-      	if (error.response)
-        	dispatch(updateCommit(project, {id}, error.response.data.error))
+        if (error.response)
+          dispatch(updateCommit(project, {id}, error.response.data.error))
       });
   }
 }

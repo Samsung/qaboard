@@ -52,9 +52,12 @@ class CommitBranchButton extends React.PureComponent {
     const { commit, onClick, style } = this.props;
     const has_branch = !!commit && !!commit.branch
     return <span style={style}>
-      <Button minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
-        {has_branch ? commit.branch : 'master'}
-      </Button>
+      <Tooltip>
+        <Button minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
+          {has_branch ? commit.branch : 'master'}
+        </Button>
+        <span>Select the latest commit from {has_branch ? commit.branch : 'the branch'}</span>
+      </Tooltip>
     </span>
   }
 }
@@ -121,7 +124,7 @@ class CommitNavbar extends React.Component {
       <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
       <Menu.Divider/>
       <Menu.Item text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
-      <Menu.Item text={`Copy ${type === 'ref' ? 'above in new' : 'below in reference'}`} icon="duplicate" onClick={this.copyToOtherType} />
+      <Menu.Item text={`Select the same ${type === 'ref' ? 'above in new' : 'below in reference'}`} icon="duplicate" onClick={this.copyToOtherType} />
       <Menu.Item text="Remove" icon="delete" onClick={() => this.removeSelection()} />
     </Menu>
 
@@ -206,7 +209,7 @@ class CommitNavbar extends React.Component {
             onClick={this.refresh}
           />
           <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
-            <Icon icon="cog" className={Classes.TEXT_MUTED}/>
+            <Icon icon="menu" className={Classes.TEXT_MUTED}/>
             <Menu>
               <Menu.Divider title="Commit"/>
               <Menu.Item text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
@@ -247,7 +250,7 @@ class CommitNavbar extends React.Component {
 
   refresh = () => {
     const { project, commit, type, dispatch } = this.props;
-    dispatch(fetchCommit(project, commit.id, `${type}_commit_id`))
+    dispatch(fetchCommit({project, id: commit.id}))
   }
 
   selectCommit = id => {
@@ -267,12 +270,12 @@ class CommitNavbar extends React.Component {
 
   selectBranch = branch => {
     const { project, type, dispatch } = this.props;
-    dispatch(fetchCommit(project, null, [`${type}_commit_id`], branch, null, /*update_selected=*/!!branch));
-    dispatch(updateSelected(project, { [`${type}_commit_id`]: branch }))
+    console.log(project, branch, `${type}_commit_id`)
+    dispatch(fetchCommit({project, branch, update_selected: `${type}_commit_id`}));
   };
   selectMilestone = milestone => {
     const { project, type, dispatch } = this.props;
-    dispatch(fetchCommit(project, milestone.commit, `${type}_commit_id`)); // which branch?
+    dispatch(fetchCommit({project, id: milestone.commit}));
     dispatch(updateSelected(project, {
       [`${type}_commit_id`]: milestone.commit,
       [`selected_batch_${type}`]: milestone.batch,

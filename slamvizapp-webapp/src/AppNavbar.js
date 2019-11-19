@@ -127,6 +127,7 @@ class AppNavbar extends Component {
       selected,
       new_commit,
       ref_commit,
+      selected_batch_new,
       new_batch_filtered,
       ref_batch_filtered,
       filter_batch_new,
@@ -208,7 +209,7 @@ class AppNavbar extends Component {
             onChange={new_date_range => {
               const { project, aggregated_metrics, dispatch } = this.props;
               const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
-              const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
+              const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
               dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))
             }}
             shortcuts
@@ -223,7 +224,7 @@ class AppNavbar extends Component {
                           extended_date_range[0].setHours(0,0,0,0);
                           extended_date_range[1].setHours(23,59,59,999);
                           const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
-                          const options = is_dashboard ? {only_ci_batches: true, with_outputs: true} : {};
+                          const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
                           dispatch(fetchCommits(project, {...this.props.match.params}, extended_date_range, aggregated_metrics, options))
                         }
                       }
@@ -287,6 +288,7 @@ const mapStateToProps = (state, ownProps) => {
 
   let { new_commit, ref_commit } = commitSelector(state)
   let {
+    selected_batch_new,
     new_batch,
     ref_batch,
     new_batch_filtered,
@@ -307,6 +309,7 @@ const mapStateToProps = (state, ownProps) => {
 
     new_commit,
     ref_commit,
+    selected_batch_new,
     new_batch,
     ref_batch,
     new_batch_filtered,
