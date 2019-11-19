@@ -88,7 +88,7 @@ class ExtraParametersTags extends React.Component {
 }
 
 
-class OutputTags extends React.PureComponent {
+class OutputTags extends React.Component {
   render() {
     const { platform, configuration, output_dir_url } = this.props.output;
     const { warning } = this.props;
