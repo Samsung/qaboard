@@ -50,7 +50,8 @@ class Dashboard extends React.Component {
 
 
   componentDidMount() {
-    document.title = `TimeTravel - ${this.props.project}`;
+    let name = this.props.project.split('/').slice(-1)[0];
+    document.title = `TimeTravel - ${name}`;
     this.fetchCommits();
   }
 

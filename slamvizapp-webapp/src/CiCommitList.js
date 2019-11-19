@@ -75,7 +75,8 @@ class CiCommitList extends React.Component {
 
   componentDidMount() {
     const { project, match } = this.props;
-    document.title = match.params.name || match.params.committer || project;
+    let name = this.props.project.split('/').slice(-1)[0];
+    document.title = `${match.params.name || match.params.committer || project} - ${name}`;
 
     this.getData({...this.props, date_range: default_date_range});
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
@@ -98,6 +99,7 @@ class CiCommitList extends React.Component {
           project={project}
           project_data={project_data}
           commits={commits}
+          per_output_granularity={false}
           dispatch={this.props.dispatch}
           style={{ marginTop: "20px" }}
         />

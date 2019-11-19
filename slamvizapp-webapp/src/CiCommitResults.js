@@ -126,13 +126,15 @@ class CiCommitResults extends Component {
 
   fetchCommits() {
     const { project, new_commit_id, ref_commit_id, dispatch } = this.props;    
-    dispatch(fetchCommit(project, new_commit_id, "new_commit_id"));
-    dispatch(fetchCommit(project, ref_commit_id, "ref_commit_id"));
+    dispatch(fetchCommit({project, id: new_commit_id, update_selected: "new_commit_id"}));
+    dispatch(fetchCommit({project, id: ref_commit_id, update_selected: "ref_commit_id"}));
   }
 
   componentDidMount() {
+    let name = this.props.project.split('/').slice(-1)[0];
     if (!!this.props.new_commit_id)
-      document.title = this.props.new_commit_id.slice(0, 4);
+      document.title = `${this.props.new_commit_id.slice(0, 4)} - ${name}`;
+
     this.fetchCommits();
   }
 
@@ -277,7 +279,6 @@ class CiCommitResults extends Component {
     </Tabs>
 
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
-
     return (
       <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
 
@@ -416,6 +417,16 @@ class CiCommitResults extends Component {
               {selected_views.includes('bit-accuracy') && <Section>
                  {all_controls}
                   <h2 className={Classes.HEADING}>Files & bit-accuracy</h2>
+                  <ExportPlugin
+                    project={project}
+                    project_data={config_data}
+                    new_commit_id={this.props.new_commit_id}
+                    ref_commit_id={this.props.ref_commit_id}
+                    selected_batch_new={this.props.selected_batch_new}
+                    selected_batch_ref={this.props.selected_batch_ref}
+                    filter_batch_new={this.props.filter_batch_new}
+                    filter_batch_ref={this.props.filter_batch_ref}
+                  />
                   <OutputCardsList
                     type='bit_accuracy'
                     project={project}
@@ -498,7 +509,9 @@ const mapStateToProps = (state, ownProps) => {
       .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
       .map(([k, v]) => k);
 
-    let selected_views = (state.selected[project] && state.selected[project].selected_views) || [(((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || "summary"];
+    let selected_views = (state.selected[project] && state.selected[project].selected_views) || (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || "summary";
+    if (!Array.isArray(selected_views))
+      selected_views = [selected_views] 
     return {
       params,
       project,
