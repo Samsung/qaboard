@@ -193,8 +193,11 @@ default_plaintext = set(['.txt', '.cde', '.hex', '.iir', '.dvs'])
 def is_plaintext(path, config=None):
   if not config:
     config = {}
-  binary_patterns = config.get('bit-accuracy', {}).get('binary')
-  plaintext_patterns = config.get('bit-accuracy', {}).get('plaintext')
+  binary_patterns = config.get('bit_accuracy', {}).get('binary')
+  #print("binary: ", binary_patterns)
+  plaintext_patterns = config.get('bit_accuracy', {}).get('plaintext')
+  #print("plaintext: ", plaintext_patterns)
+
   if not plaintext_patterns and not binary_patterns:
     return path.suffix in default_plaintext
   if plaintext_patterns and not binary_patterns:
@@ -211,7 +214,7 @@ def file_info(path, normalize_eof=True, config=None):
 
   # For bit-accuracy checks to work on text files between UNIX/windows,
   # we need to convert end-of-lines on Windows
-  if os.name == 'nt' and is_plaintext(path, config):
+  if os.name == 'nt' and is_plaintext(path, config=config) and normalize_eof:
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
       normalized_file_name = normalized_file.name
@@ -221,6 +224,7 @@ def file_info(path, normalize_eof=True, config=None):
         # normalized_file.flush()
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
+    print("normalize:")
     return normalized_file_info
 
   md5 = hashlib.md5()
