@@ -204,7 +204,7 @@ def is_plaintext(path, config=None):
     return any(fnmatch.fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
     return not any(fnmatch.fnmatch(path.name, p) for p in binary_patterns)
-  click.secho('ERROR: Cannot define both bit-accuracy.binary and bit-accuracy.plaintext in qatools.yaml', fg='red')
+  click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qatools.yaml', fg='red')
   exit(1)
 
 
@@ -224,7 +224,7 @@ def file_info(path, normalize_eof=True, config=None):
         # normalized_file.flush()
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
-    print("normalize:")
+    print("Normalize:", path)
     return normalized_file_info
 
   md5 = hashlib.md5()

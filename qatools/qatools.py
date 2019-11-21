@@ -708,7 +708,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit-accuracy", fg='red')
+          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit_accuracy", fg='red')
       exit(1)
 
 @cli.command(context_settings=dict(
