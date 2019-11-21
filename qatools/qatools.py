@@ -608,7 +608,9 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
     commit_dir = commit_ci_dir if is_ci else Path()
     all_bit_accurate = True
     inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
+    nb_compared = 0
     for input_path_abs, input_configurations, _, input_database in inputs_iter:
+      nb_compared += 1
       if input_path_abs.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
         # otherwise the manifest is at
@@ -636,6 +638,10 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
       else:
         click.secho("To update the manifests for all tests, run:", fg='red')
         click.secho("$ qa batch --save-manifests --batch *", fg='red')
+      exit(1)
+
+    if not nb_compared:
+      click.secho("\nERROR: Nothing was compared! It's not likely to be what you expected...", fg='red', underline=True, bold=True)
       exit(1)
 
 

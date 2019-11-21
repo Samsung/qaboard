@@ -69,40 +69,58 @@ outputs:
 ![](https://qa/s/qatools/img/hidden_by_default_switches.png)
 
 ## Dynamic visualizations
-You can use regular expressions to create dynamic visualizations at display-time. Users choose what to display using sliders / select options.
+You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will we able to choose what to display using sliders / select options:
+
+![Viewing each frame of a movie](https://qa/s/qatools/img/dynamic-outputs.gif)
 
 ```yaml
 outputs:
     visualizations:
     - name: Movie Frames
-      # The syntax is regex with capture groups or named parameters. More info:
+      # you can use the `/user/:name` syntax to match part of filenames
+      path: ":frame/output.jpg"
+
+      # For more examples, the full syntax is available at:
       # https://github.com/pillarjs/path-to-regexp
-      path: ":frame/output.jpg" # prefered
-      # path: "(.*)/output.jpg" # works also. Note the "( )" !
-      type: image/jpg
+
 ```
 
-![Viewing each frame of a movie](https://qa/s/qatools/img/dynamic-outputs.gif)
+
+You can also use regular expressions (inside parentheses!) to match which output files you want to view:
 
 ```yaml
-    - name: All text files
-      # For "advanced" matches, you are forced to use unnamed capture groups:
-      # Warning: if you have multiple unnamed capture groups, and multiple views,
-      #          don't change the order of those groups.
-      path: ':frame/(.*.txt)'   # capture the whole filename, but match the extension
+outputs:
+    visualizations:
+      # A common use case is matching file extensions
+      path: "(.*\.jpg)"
+      # ... or parts of filenames
+      path: "(debug_.*\.jpg)"
+      # you can mix with the previous syntax
+      path: ":frame/(.*\.txt)"
+
+      # If you use regular expressions, we aware that:
+      # - You MUST use "( )" aka "capture groups" !
+      # - While you can often get away "(.*)/output.jpg", in many cases you'd want "([^/]*)/output.jpg"
+      # - Parts of paths matched via regular expressions are not synced with other outputs. Prefer the ":name" syntax
+      #   Eg if you ask also to visualize "(.*)/debug_output.jpg" and "(.*)/output.jpg"
+      #   you will get two select inputs for the frame.
 ```
+
+By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show:
 
 ![Everything is synced](https://qa/s/qatools/img/dynamic-outputs-select.gif)
 
+If you want, you can visualize all matching files:
+
 ```yaml
-   # By default, only one viewer/path is shown at a time:
-   # you get sliders/select to decide what to show
+   # :
+   # 
     - name: KPI reports
       path: "reports/:report"
       type: plotly/json
       display: single  # (default): will list views one after the other
              # all     # will render all matching paths/views
-             # viewer  # let the viewer decide what to do... (experimental)
+             # viewer  # let the viewer decide what to do... (EXPERIMENTAL)
 ```
 
 ## Creating custom visualizations
