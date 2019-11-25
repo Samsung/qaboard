@@ -249,7 +249,7 @@ class CommitNavbar extends React.Component {
   }
 
   refresh = () => {
-    const { project, commit, type, dispatch } = this.props;
+    const { project, commit, dispatch } = this.props;
     dispatch(fetchCommit({project, id: commit.id}))
   }
 
@@ -270,7 +270,6 @@ class CommitNavbar extends React.Component {
 
   selectBranch = branch => {
     const { project, type, dispatch } = this.props;
-    console.log(project, branch, `${type}_commit_id`)
     dispatch(fetchCommit({project, branch, update_selected: `${type}_commit_id`}));
   };
   selectMilestone = milestone => {
