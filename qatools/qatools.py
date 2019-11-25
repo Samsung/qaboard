@@ -641,9 +641,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
       exit(1)
 
     if not nb_compared:
-      click.secho("\nERROR: Nothing was compared! It's not likely to be what you expected...", fg='red', underline=True, bold=True)
-      exit(1)
-
+      click.secho("\nWARNING: Nothing was compared! It's not likely to be what you expected...", fg='yellow', underline=True, bold=True)
 
 
 
