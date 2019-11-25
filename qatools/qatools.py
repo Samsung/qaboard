@@ -255,9 +255,9 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     for manifest_input in manifest_inputs:
       manifest_input = Path(manifest_input)
       if manifest_input.is_dir():
-        input_files.update({path.as_posix(): file_info(path) for path in manifest_input.rglob('*') if path.is_file()})
+        input_files.update({path.as_posix(): file_info(path, config) for path in manifest_input.rglob('*') if path.is_file()})
       elif manifest_input.is_file():
-        input_files.update({manifest_input.as_posix(): file_info(manifest_input)})
+        input_files.update({manifest_input.as_posix(): file_info(manifest_input, config)})
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
@@ -265,7 +265,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     # avoid logs with timestamps and temporary NFS files
     return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
   # To help the UI application know what results we created, we save the complete list.
-  output_files = {path.relative_to(output_directory).as_posix(): file_info(path) for path in output_directory.rglob('*') if should_be_in_manifest(path)}
+  output_files = {path.relative_to(output_directory).as_posix(): file_info(path, config) for path in output_directory.rglob('*') if should_be_in_manifest(path)}
   with (output_directory / 'manifest.outputs.json').open('w') as f:
     json.dump(output_files, f, indent=2)
 
@@ -576,13 +576,13 @@ def save_artifacts(ctx):
           # when working on subprojects, the artifact might be copied already,
           # but manifests are saved per-subproject
           if path.as_posix() not in manifest:
-            manifest[path.as_posix()] = file_info(path)
+            manifest[path.as_posix()] = file_info(path, config)
           continue
         if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
         if not ctx.obj['dryrun']:
           copy(path, destination)
-          manifest[path.as_posix()] = file_info(path)
+          manifest[path.as_posix()] = file_info(path, config)
 
     if not ctx.obj['dryrun']:
       with manifest_path.open('w') as f:
@@ -714,7 +714,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit-accuracy", fg='red')
+          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit_accuracy", fg='red')
       exit(1)
 
 @cli.command(context_settings=dict(
