@@ -35,7 +35,7 @@ bit-accuracy-all:
   stage: bit-accuracy
   allowed_failure: true
   script:
-  - qa check-bit-accuracy --group all
+  - qa check-bit-accuracy --batch all
 ```
 
 ### What files are checked?
