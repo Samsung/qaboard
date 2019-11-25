@@ -261,6 +261,8 @@ const linux_to_windows = path => {
     .replace(/\/s\//, '/')
     .replace('//home', '//mars/raid/users')
     .replace('/home', '//mars/raid/users')
+    .replace('//stage/algo-datasets', '//f2/algo-datasets')
+    .replace('/stage/algo-datasets', '//f2/algo-datasets')
     .replace('//stage', '//netapp')
     .replace('/stage', '//netapp')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
