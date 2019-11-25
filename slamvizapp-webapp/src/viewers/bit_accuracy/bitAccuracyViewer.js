@@ -215,7 +215,7 @@ class BitAccuracyViewer extends React.Component {
   }
 
 
-  handleNodeClick = (node, _nodePath: number[], e: React.MouseEvent<HTMLElement>) => {
+  handleNodeClick = (node, _nodePath, e) => {
     const is_folder = node.childNodes !== undefined;
     if (is_folder) return;
 
