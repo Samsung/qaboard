@@ -65,11 +65,15 @@ const iiif_url = (output_dir_url, path) => {
     // : `/iiif/2/`
     ? `${window.location.protocol}//${window.location.hostname}:8186/fcgi-bin/iipsrv.fcgi?IIIF=`
     : `${window.location.protocol}//${window.location.hostname}:8183/iiif/2/`
+  if (process.env.NODE_ENV !== 'production') {
+    endpoint = is_cde_file
+      ? `/fcgi-bin/iipsrv.fcgi?IIIF=`
+      : `/iiif/2/`
+  }
   identifier = encodeURIComponent(identifier)
   let url = `${endpoint}${identifier}`
   return url
 }
-
 
 // We sync the viewer viewport of all viewers of the same size for a given output
 var synced_viewers = {}
@@ -88,8 +92,8 @@ const make_viewer_id = () => {
 
 function maintain_zoom() {
   // console.log("[maintain_zoom]")
-  Object.values(synced_viewers).forEach( sync_group => {
-    if (Object.values(sync_group.viewers).some(v => v===null || v===undefined) )
+  Object.values(synced_viewers).forEach(sync_group => {
+    if (Object.values(sync_group.viewers).some(v => v === null || v === undefined))
       return;
     sync_group.leading = "resize";
     try { // we should try to find how to identify when an image is not loaed...
@@ -99,9 +103,9 @@ function maintain_zoom() {
         v.viewport.zoomTo(sync_group.zoom, null, true);
         v.viewport.panTo(sync_group.center, true);
       })
-      sync_group.leading = null; 
+      sync_group.leading = null;
       sync_group.viewers.forEach(v => v.forceRedraw())
-    } catch {}
+    } catch { }
   })
 }
 window.addEventListener('resize', maintain_zoom, { passive: true });
@@ -111,8 +115,8 @@ class ImgViewer extends React.PureComponent {
   constructor(props) {
     super(props);
     // avoid issues in the first render
-    this.viewer_new = {id: make_viewer_id()}
-    this.viewer_ref = {id: make_viewer_id()}
+    this.viewer_new = { id: make_viewer_id() }
+    this.viewer_ref = { id: make_viewer_id() }
 
     this.show_histogram = false;
     this.canvas_diff = React.createRef();
@@ -136,7 +140,7 @@ class ImgViewer extends React.PureComponent {
     this.viewer_ref = OpenSeadragon({
       ...openseadragon_config,
       ...this.viewer_ref,
-    });    
+    });
     this.Init().then(() => {
       this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
       this.InitMouseTracker(this.props);
@@ -145,7 +149,7 @@ class ImgViewer extends React.PureComponent {
       this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
-    }).catch(error => {})
+    }).catch(error => { })
   }
 
 
@@ -203,14 +207,14 @@ class ImgViewer extends React.PureComponent {
 
     viewer_new.addHandler('zoom', lead_viewer_sync(sync_key, viewer_new));
     viewer_ref.addHandler('zoom', lead_viewer_sync(sync_key, viewer_ref));
-    viewer_new.addHandler('pan',  lead_viewer_sync(sync_key, viewer_new));
-    viewer_ref.addHandler('pan',  lead_viewer_sync(sync_key, viewer_ref));
+    viewer_new.addHandler('pan', lead_viewer_sync(sync_key, viewer_new));
+    viewer_ref.addHandler('pan', lead_viewer_sync(sync_key, viewer_ref));
 
     this.UnregisterZoomSync = () => {
       viewer_new.removeHandler('zoom', lead_viewer_sync(sync_key, viewer_new));
       viewer_ref.removeHandler('zoom', lead_viewer_sync(sync_key, viewer_ref));
-      viewer_new.removeHandler('pan',  lead_viewer_sync(sync_key, viewer_new));
-      viewer_ref.removeHandler('pan',  lead_viewer_sync(sync_key, viewer_ref));
+      viewer_new.removeHandler('pan', lead_viewer_sync(sync_key, viewer_new));
+      viewer_ref.removeHandler('pan', lead_viewer_sync(sync_key, viewer_ref));
       if (synced_viewers[sync_key] !== undefined) {
         synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(
           v => v.id !== viewer_new.id && v.id !== viewer_ref.id
@@ -251,68 +255,68 @@ class ImgViewer extends React.PureComponent {
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
 
       get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image })
-      .then(res => {
-        this.setState({ loaded: true })
-        // https://Openseadragon.github.io/examples/tilesource-iiif/
-        // image dimensions
-        const { height, width } = res.data;
-        let source_config = {
-          "@context": "http://iiif.io/api/image/2/context.json",
-          protocol: "http://iiif.io/api/image",
-          profile: ["http://iiif.io/api/image/2/level2.json"],
-          // formats: ["png"],
-          fitBounds: true,
-          height,
-          width,
-        }
+        .then(res => {
+          this.setState({ loaded: true })
+          // https://Openseadragon.github.io/examples/tilesource-iiif/
+          // image dimensions
+          const { height, width } = res.data;
+          let source_config = {
+            "@context": "http://iiif.io/api/image/2/context.json",
+            protocol: "http://iiif.io/api/image",
+            profile: ["http://iiif.io/api/image/2/level2.json"],
+            // formats: ["png"],
+            fitBounds: true,
+            height,
+            width,
+          }
 
-        // As explained below, we stack images on top of the other instead of calling `viewer.open`
-        // So if the viewer receives images of varying sizes, old images risk overflowing....
-        const changed_image_dimension = (!!this.state.image_width && !!this.state.image_height) && (this.state.image_width !== width || this.state.image_height !== height)
-        if (changed_image_dimension) {
-          if (viewer_new.world.getItemCount() > 0) // todo: in a while-loop?
-            viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
-          if (viewer_ref.world.getItemCount() > 0)
-            viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))          
-        }
+          // As explained below, we stack images on top of the other instead of calling `viewer.open`
+          // So if the viewer receives images of varying sizes, old images risk overflowing....
+          const changed_image_dimension = (!!this.state.image_width && !!this.state.image_height) && (this.state.image_width !== width || this.state.image_height !== height)
+          if (changed_image_dimension) {
+            if (viewer_new.world.getItemCount() > 0) // todo: in a while-loop?
+              viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
+            if (viewer_ref.world.getItemCount() > 0)
+              viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))
+          }
 
-        this.setState({
-          image_width: width,
-          image_height: height,
-        }, () => resolve())
+          this.setState({
+            image_width: width,
+            image_height: height,
+          }, () => resolve())
 
 
-        // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
-        // https://github.com/openseadragon/openseadragon/issues/1428
-        // let viewer_new_is_open = viewer_new.isOpen()
-        viewer_new.addTiledImage({
-          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path) },
-          success: () => {
-            // To avoid leaking tile sources, we should remove the previous tile
-            // however, it causes a blink-to-white transition... so until we find a fix...
-            // We may also not want to remove old source, eg cache them. But it's a small gain, and
-            // we already have the browser's cache, the IIIF server's, so...
-            // if (viewer_new.world.getItemCount() > 1)
-            //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
-          },
-          // We would like to do this, there is still a white flicker... 
-          // index: viewer_new_is_open ? 0 : undefined,
-          // replace: viewer_new_is_open ? true : undefined,
-        })
-
-        if (has_reference) {
-          // console.log('[Init] loading meta for ref')
-          viewer_ref.addTiledImage({
-            tileSource: { ...source_config, "@id": iiif_url(output_ref.output_dir_url, path) },
-            success: () => { },
+          // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
+          // https://github.com/openseadragon/openseadragon/issues/1428
+          // let viewer_new_is_open = viewer_new.isOpen()
+          viewer_new.addTiledImage({
+            tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path) },
+            success: () => {
+              // To avoid leaking tile sources, we should remove the previous tile
+              // however, it causes a blink-to-white transition... so until we find a fix...
+              // We may also not want to remove old source, eg cache them. But it's a small gain, and
+              // we already have the browser's cache, the IIIF server's, so...
+              // if (viewer_new.world.getItemCount() > 1)
+              //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
+            },
+            // We would like to do this, there is still a white flicker... 
+            // index: viewer_new_is_open ? 0 : undefined,
+            // replace: viewer_new_is_open ? true : undefined,
           })
-        }
-      })
-    .catch(error => {
-        console.log(error)
-        this.setState({ error })
-        reject({ error })
-      });
+
+          if (has_reference) {
+            // console.log('[Init] loading meta for ref')
+            viewer_ref.addTiledImage({
+              tileSource: { ...source_config, "@id": iiif_url(output_ref.output_dir_url, path) },
+              success: () => { },
+            })
+          }
+        })
+        .catch(error => {
+          console.log(error)
+          this.setState({ error })
+          reject({ error })
+        });
     })
   }
 
@@ -333,7 +337,7 @@ class ImgViewer extends React.PureComponent {
       this.Init().then(() => {
         this.InitDiff();
         this.InitZoomSync();
-      }).catch(error => {});
+      }).catch(error => { });
     }
 
     let updated_diff = prevProps.diff !== this.props.diff;
@@ -345,7 +349,7 @@ class ImgViewer extends React.PureComponent {
   update_diff = () => {
     const { viewer_new, viewer_ref } = this;
 
-    let { width=1, height=1 } = viewer_new.drawer.canvas;
+    let { width = 1, height = 1 } = viewer_new.drawer.canvas;
     // let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, 1+width/2, 1+height/2);
     let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
     let data_ref = viewer_ref.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
@@ -496,57 +500,57 @@ class ImgViewer extends React.PureComponent {
       console.log(error)
       return <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
         <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
-        <div style={{padding: '5px'}}>
-          {!!error.message &&  <p>{JSON.stringify(error.message)}</p>}
-          {!!error.request &&  <p>You may <a href={error.config.url}>find why here</a>.</p>}
+        <div style={{ padding: '5px' }}>
+          {!!error.message && <p>{JSON.stringify(error.message)}</p>}
+          {!!error.request && <p>You may <a href={error.config.url}>find why here</a>.</p>}
           {!!error.response && <p>response: {JSON.stringify(error.response)}</p>}
           {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
         </div>
-      </Popover>;      
+      </Popover>;
     }
 
-    const single_image_width = (width - 10) / 2; //(diff ? 3 : 2)
+    const single_image_width = (width - 10) / (diff ? 3 : 2);
     const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
     const flex = { flex: '0 0 auto' }
     const single_image_size = {
       width: `${single_image_width}px`,
       height: `${single_image_height}px`,
     }
-    const single_image_size_tight = {
-      width: `${single_image_width * 0.9}px`,
-      height: `${single_image_height * 0.9}px`,
+    const histogram_size_tight = {
+      width: `${(width - 10) / 2 * 0.9}px`,
+      height: `${image_height / image_width * (width - 10) / 2}px`,
     }
 
     const switch_label = <Tag interactive rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     const switch_help_label = <span>Switch New/Reference with the keyboard shortcut <kbd>t</kbd>. Hide labels with <kbd>h</kbd></span>
-    const image_new =  <div style={flex} key="new">
-      {has_reference && <div style={{minHeight: (diff ? '40px' : undefined)}}>
+    const image_new = <div style={flex} key="new">
+      {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
         {!hide_labels ? <Tooltip><Tag
-                          interactive
-                          intent="warning"
-                          rightIcon="exchange"
-                          onClick={this.switch_images}
-                        >new</Tag>{switch_help_label}</Tooltip> : switch_label}
+          interactive
+          intent="warning"
+          rightIcon="exchange"
+          onClick={this.switch_images}
+        >new</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
     const image_ref = <div style={flex} key="ref">
-      {has_reference && <div style={{minHeight: (diff ? '40px' : undefined)}}>
+      {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
         {!hide_labels ? <Tooltip><Tag
-                          interactive
-                          intent="primary"
-                          rightIcon="exchange"
-                          title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
-                          onClick={this.switch_images}
-                        >reference</Tag>{switch_help_label}</Tooltip> : switch_label}
+          interactive
+          intent="primary"
+          rightIcon="exchange"
+          title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
+          onClick={this.switch_images}
+        >reference</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference} />
     </div>
 
 
     const histo_layout = {
-      width: single_image_width * 0.9,
-      height: single_image_height * 0.9,
+      width: (width - 10) / 2 * 0.9,
+      height: (image_height / image_width * (width - 10) / 2) * 0.9,
       autosize: false,
       traceorder: 'reversed+grouped',
       barmode: 'overlay',
@@ -555,43 +559,43 @@ class ImgViewer extends React.PureComponent {
       }
     }
     const hist_info = this.show_histogram ? <div style={flex}>
-          <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={single_image_size_tight} />
+      <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={histogram_size_tight} />
     </div> : <></>
 
     const diff_info = single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
-          <div style={{minHeight:'40px'}}>
-            <MultiSlider
-              defaultTrackIntent={Intent.WARNING}
-              labelPrecision={2}
-              labelRenderer={label => `${(100*label).toFixed(0)}%`}
-              labelStepSize={0.1}
-              min={0}
-              max={0.3}
-              onChange={([diff_threshold]) => {
-                this.setState({ diff_threshold }, () => this.update_diff())
-              }}
-              stepSize={0.01}
-              showTrackFill
-              style={{ width: single_image_size.width }}            
-            >
-                <MultiSlider.Handle value={this.state.diff_threshold} intentAfter={Intent.NONE} />
-            </MultiSlider>
-          </div>
-          <div style={single_image_size}>
-            <div><div>
-              <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
-            </div></div>
-          </div>
-          <br />
-          <Tooltip hoverCloseDelay={500}>
-            <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
-            <ul>
-              <li>The color difference is computed according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>
-              <li>The colorscale shows the color difference ~linearly until selected saturation threshold.</li>
-              <li>Until 5% of the threshold, a greyed-out source image is shown</li>
-              <li>Anti-aliased pixels are shown as yellow at most.</li>
-            </ul>
-          </Tooltip>
+      <div style={{ minHeight: '40px' }}>
+        <MultiSlider
+          defaultTrackIntent={Intent.WARNING}
+          labelPrecision={2}
+          labelRenderer={label => `${(100 * label).toFixed(0)}%`}
+          labelStepSize={0.1}
+          min={0}
+          max={0.3}
+          onChange={([diff_threshold]) => {
+            this.setState({ diff_threshold }, () => this.update_diff())
+          }}
+          stepSize={0.01}
+          showTrackFill
+          style={{ width: single_image_size.width }}
+        >
+          <MultiSlider.Handle value={this.state.diff_threshold} intentAfter={Intent.NONE} />
+        </MultiSlider>
+      </div>
+      <div style={single_image_size}>
+        <div><div>
+          <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
+        </div></div>
+      </div>
+      <br />
+      <Tooltip hoverCloseDelay={500}>
+        <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
+        <ul>
+          <li>The color difference is computed according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>
+          <li>The colorscale shows the color difference ~linearly until selected saturation threshold.</li>
+          <li>Until 5% of the threshold, a greyed-out source image is shown</li>
+          <li>Anti-aliased pixels are shown as yellow at most.</li>
+        </ul>
+      </Tooltip>
     </div> : <></>
 
     const empty_image = <canvas key="empty-image" {...single_image_size} />
@@ -624,10 +628,12 @@ class ImgViewer extends React.PureComponent {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
         {first_image === 'new' ? image_new : image_ref}
-        {(diff ^ this.show_histogram) ? empty_image : <></>}
-        {hist_info}
+        {/*(diff ^ this.show_histogram) ? empty_image : <></>*/}
         {diff_info}
         {first_image === 'new' ? image_ref : image_new}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+        {hist_info}
       </div>
     </>
   }
