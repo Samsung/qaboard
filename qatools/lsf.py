@@ -165,8 +165,10 @@ def cleanup_lsf(jobs):
   #       .. but it's not that bad, worse case the logs appear twice
   for job in jobs:
     try:
+      # ideally we should rename, but while in the CI it's OK, locally, LSF STDOUT logs are empty (?!)
       # job.lsf_log_file.rename(job.log_file)
-      ...
+      import shutil
+      shutil.copy(job.lsf_log_file, job.log_file)
     except Exception as e:
       click.secho(f"WARNING: Could not rename the LSF log file: {e}", fg='yellow')
 
