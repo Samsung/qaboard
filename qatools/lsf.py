@@ -46,9 +46,10 @@ class Job:
     self.name = str(name).replace(" ", "-").replace('"','')
     self.command = command
     self.output_directory = output_directory
-    # we have caching issues...
-    self.lsf_log_file = output_directory / "log.lsf.txt"
-    self.log_file = output_directory / "log.txt"
+    # We have caching issues, so we save STDOUT, to log.lsf.txt, real-time logs to log.txt
+    # and copy the full LSF logs in place of the real-time logs after the run
+    self.lsf_log_file = (output_directory / "log.lsf.txt").resolve()
+    self.log_file = (output_directory / "log.txt").resolve()
 
     self.lsf_config = LsfConfig()
     if lsf_config_dict:
@@ -120,6 +121,7 @@ class Job:
         f'-J "{self.name}"',
         # Since we log ourselves and LSF will want to print a other report, overwrite the log file
         f'-o "{self.lsf_log_file}"',
+        f'-Ep \'sleep 30 ; mv "{self.lsf_log_file}" "{self.log_file}"\'',
         f"-R \"affinity[thread({self.lsf_config.max_threads})]\"" if self.lsf_config.max_threads > 0 else "",
         f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
         f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
@@ -142,7 +144,6 @@ class Job:
     # https://www.ibm.com/support/knowledgecenter/en/SSWRJV_10.1.0/lsf_config_ref/lsf.conf.lsb_stdout_direct.5.html
     # os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
-    # print(q_command)
     out = subprocess.run(
       q_command,
       shell=True,
@@ -150,27 +151,11 @@ class Job:
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
     )
-    # print(out)
-    # click.secho(out.stdout)
+    if 'QATOOLS_BATCH_VERBOSE' in os.environ:
+      click.secho(out.stdout, dim=True)
     return out
 
 
-
-
-
-def cleanup_lsf(jobs):
-  # TODO: We do this even if we run with "no_wait"
-  #       It should be handled at the run_lsf level, but if we don't wait, when?
-  #       => Ideally we should schedule an job dependent on this one
-  #       .. but it's not that bad, worse case the logs appear twice
-  for job in jobs:
-    try:
-      # ideally we should rename, but while in the CI it's OK, locally, LSF STDOUT logs are empty (?!)
-      # job.lsf_log_file.rename(job.log_file)
-      import shutil
-      shutil.copy(job.lsf_log_file, job.log_file)
-    except Exception as e:
-      click.secho(f"WARNING: Could not rename the LSF log file: {e}", fg='yellow')
 
 def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None):
   for job in jobs:
@@ -192,7 +177,6 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
 
     wait = Job(waiting_job_name, 'echo "Done."', lsf_config_dict=lsf_config)
     wait.run_lsf(interactive=True, dependencies=waiting_job)
-    cleanup_lsf(jobs)
 
  
 
