@@ -28,7 +28,8 @@ class PathType(click.ParamType):
 
 class RedirectStream():
   def __init__(self, stream_name, file, color):
-    # print(f'Redirecting {stream_name}')
+    print(f'@ Redirecting {stream_name}')
+    print(f'> Redirecting {stream_name}', file=getattr(sys, stream_name))
     self.stream_name = stream_name
     self.stream = getattr(sys, stream_name)
     self.file = file.open('a')
@@ -61,6 +62,7 @@ class RedirectStream():
 
 @contextmanager
 def redirect_std_streams(file, color=None):
+  print(">> Redirecting STDX")
   stdout = RedirectStream('stdout', file, color)
   stderr = RedirectStream('stderr', file, color)
   try:

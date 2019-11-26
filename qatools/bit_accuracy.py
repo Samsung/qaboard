@@ -121,6 +121,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
     if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
       ignore = [ignore]
     ignore.append('log.txt')      # contains timestamps
+    ignore.append('log.lsf.txt')  # contains timestamps
     ignore.append('metrics.json') # contains measured run time
     ignore.append('.nfs000*')     # NFS temporary files
 

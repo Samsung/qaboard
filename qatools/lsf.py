@@ -46,6 +46,8 @@ class Job:
     self.name = str(name).replace(" ", "-").replace('"','')
     self.command = command
     self.output_directory = output_directory
+    # we have caching issues...
+    self.lsf_log_file = output_directory / "log.lsf.txt"
     self.log_file = output_directory / "log.txt"
 
     self.lsf_config = LsfConfig()
@@ -77,14 +79,15 @@ class Job:
 
  
   def run_local(self, cwd):
+    pipe = subprocess.PIPE
     with subprocess.Popen(self.command, shell=True,
                           encoding='utf-8',
                           # Avoid issues with code outputing malformed unicode
                           # https://docs.python.org/3/library/codecs.html#error-handlers
                           errors='surrogateescape',
                           cwd=cwd,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
-      for line in iter(process.stdout.readline, ''):
+                          stdout=pipe, stderr=pipe) as process:
+      for line in process.stdout:
         print(line, end='')
       process.wait()
       return process.returncode
@@ -116,7 +119,7 @@ class Job:
         f"-sp {self.lsf_config.priority}",
         f'-J "{self.name}"',
         # Since we log ourselves and LSF will want to print a other report, overwrite the log file
-        f'-oo "{self.log_file}"',
+        f'-o "{self.lsf_log_file}"',
         f"-R \"affinity[thread({self.lsf_config.max_threads})]\"" if self.lsf_config.max_threads > 0 else "",
         f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
         f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
@@ -133,8 +136,11 @@ class Job:
     if 'QATOOLS_BATCH_VERBOSE' in os.environ:
       click.secho(q_command, dim=True)
     os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
+
+    # This needs to be set at the cluster level
+    # Anyway it's easier to handle live logs ourselves
     # https://www.ibm.com/support/knowledgecenter/en/SSWRJV_10.1.0/lsf_config_ref/lsf.conf.lsb_stdout_direct.5.html
-    os.environ['LSB_STDOUT_DIRECT'] = 'Y'
+    # os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
     # print(q_command)
     out = subprocess.run(
@@ -150,6 +156,20 @@ class Job:
 
 
 
+
+
+def cleanup_lsf(jobs):
+  # TODO: We do this even if we run with "no_wait"
+  #       It should be handled at the run_lsf level, but if we don't wait, when?
+  #       => Ideally we should schedule an job dependent on this one
+  #       .. but it's not that bad, worse case the logs appear twice
+  for job in jobs:
+    try:
+      # job.lsf_log_file.rename(job.log_file)
+      ...
+    except Exception as e:
+      click.secho(f"WARNING: Could not rename the LSF log file: {e}", fg='yellow')
+
 def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None):
   for job in jobs:
     job.run_lsf()
@@ -160,6 +180,9 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
     import signal
     def sigterm_handler(_signo, _stackframe):
       print('Aborted.')
+      # the kill is async, so we can't easily rename the jobs logs...
+      # we should also create a rename_log_files jobs and send it
+      # All of this sucks. Let's make sure the frontend can display both files
       kill_jobs_lsf(waiting_job, via_lsf=True)
       exit(1)
     signal.signal(signal.SIGTERM, sigterm_handler)
@@ -167,6 +190,8 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
 
     wait = Job(waiting_job_name, 'echo "Done."', lsf_config_dict=lsf_config)
     wait.run_lsf(interactive=True, dependencies=waiting_job)
+    cleanup_lsf(jobs)
+
  
 
 def run_jobs_local(jobs, config, ctx):
@@ -202,7 +227,7 @@ def kill_jobs_lsf(jobs, via_lsf=False):
     command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
     if True:
         killer = Job(f"killer", f'"{command}"', lsf_config_dict={'priority': LsfPriority.HIGH})
-        killer.send()
+        killer.run_lsf()
     else:
         out = subprocess.run(
             command,

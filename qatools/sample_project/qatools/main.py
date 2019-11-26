@@ -63,11 +63,12 @@ def run(context):
   print(command)
   if context.obj['dryrun']: return
 
+  pipe = subprocess.PIPE
   with subprocess.Popen(command, shell=True,
                         cwd=output_directory,
                         encoding='utf-8',
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
-    for line in iter(process.stdout.readline, ''):
+                        stdout=pipe, stderr=pipe) as process:
+    for line in process.stdout:
       print(line)
     process.wait()
 
