@@ -168,9 +168,10 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     # this redirect is not 100% perfect, we don't get stdout from C calls
     # if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
     with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
-      # Help reproduce qa runs
+      # Help reproduce qa runs with something copy-pastable in the logs
       if is_ci:
-        click.secho(' '.join(['qa', *sys.argv[1:]]), fg='cyan', bold=True)
+        from shlex import quote
+        click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
 
       ctx.obj['output_directory'] = output_directory.resolve()
       ctx.obj['forwarded_args'] = forwarded_args
