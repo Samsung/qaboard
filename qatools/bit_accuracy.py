@@ -27,7 +27,7 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
 
   mismatch = []  # not the same
   match = []     # the same
-  only_in_1 = [] # exists in dir_1 but not in dir_1
+  only_in_1 = [] # exists in dir_1 but not in dir_2
   errors = []    # or errors accessing
 
   for pattern in patterns:
@@ -39,7 +39,7 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
       file_2 = dir_2 / rel_path
       if file_2.is_file():
         try:
-          is_same = filecmp.cmp(str(file_1), str(file_2))
+          is_same = filecmp.cmp(str(file_1), str(file_2), shallow=False)
           if not is_same:
             mismatch.append(rel_path)
           else:
