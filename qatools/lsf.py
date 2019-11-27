@@ -121,7 +121,7 @@ class Job:
         f'-J "{self.name}"',
         # Since we log ourselves and LSF will want to print a other report, overwrite the log file
         f'-o "{self.lsf_log_file}"',
-        f'-Ep \'sleep 30 ; mv "{self.lsf_log_file}" "{self.log_file}"\'',
+        # f'-Ep \'sleep 30 ; mv "{self.lsf_log_file}" "{self.log_file}"\'',
         f"-R \"affinity[thread({self.lsf_config.max_threads})]\"" if self.lsf_config.max_threads > 0 else "",
         f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
         f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
