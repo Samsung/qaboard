@@ -620,7 +620,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
         # # reference_output_directory = input_path_abs if input_path_abs.is_folder() else input_path_abs.parent
         exit(1)
 
-      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
+      prefix_output_dir = make_prefix_outputs_path(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
       # print(prefix_output_dir)
       input_path = input_path_abs.relative_to(input_database)
       # print(commit_dir / prefix_output_dir, input_database, [input_path])
@@ -693,7 +693,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       output_directories = []
       inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
       for input_path_abs, input_configurations, _, input_database in inputs_iter:
-        prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
+        prefix_output_dir = make_prefix_outputs_path(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
         input_path = input_path_abs.relative_to(input_database)
         output_directory = prefix_output_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
