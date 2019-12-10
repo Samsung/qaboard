@@ -68,8 +68,8 @@ OpenSeadragon.ImagefilterTools = function (options) {
             },
             {
                 filterName: 'Contrast',
-                min: 0,
-                max: 5,
+                min: 0.1,
+                max: 7,
                 value: 1,
                 defaultValue: 1,
                 step: 0.1,
@@ -81,7 +81,25 @@ OpenSeadragon.ImagefilterTools = function (options) {
                     }
                     return OpenSeadragon.Filters.CONTRAST(setTo);
                 }
+            },
+            {
+                filterName: 'Gamma',
+                min: 0.05,
+                max: 5,
+                value: 1,
+                defaultValue: 1,
+                step: 0.05,
+                callback: null,
+                processor: function () {
+                    var setTo = getElementValueAsFloat(`osd-filter-Gamma-${options.viewer.id}`);
+                    if (this.callback !== null) {
+                        this.callback(setTo);
+                    }
+                    return OpenSeadragon.Filters.GAMMA(setTo);
+                }
             }
+
+
             //Left below in code as example
             // saturation requires caman and caman requires reload of tiles. (see sync option)
             // {
