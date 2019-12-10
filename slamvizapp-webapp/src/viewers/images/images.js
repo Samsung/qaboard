@@ -10,8 +10,10 @@ import {
   Popover,
   MultiSlider,
 } from "@blueprintjs/core";
-import pixelmatch from './pixelmatch';
 import Plot from 'react-plotly.js';
+import pixelmatch from './pixelmatch';
+import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
+import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
 
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
@@ -61,8 +63,6 @@ const iiif_url = (output_dir_url, path) => {
   // IIIF specs require encoding the slashes inside the identifier
   let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
   let endpoint = is_cde_file
-    // ? `/fcgi-bin/iipsrv.fcgi?IIIF=`
-    // : `/iiif/2/`
     ? `${window.location.protocol}//${window.location.hostname}:8186/fcgi-bin/iipsrv.fcgi?IIIF=`
     : `${window.location.protocol}//${window.location.hostname}:8183/iiif/2/`
   if (process.env.NODE_ENV !== 'production') {
@@ -120,6 +120,7 @@ class ImgViewer extends React.PureComponent {
 
     this.show_histogram = false;
     this.canvas_diff = React.createRef();
+    this.canvas_diff_ssim = React.createRef();
     this.state = {
       ready: false,
       first_image: "new",
@@ -354,6 +355,8 @@ class ImgViewer extends React.PureComponent {
     let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
     let data_ref = viewer_ref.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
 
+    this.imageLayer.invalidate()
+
     // console.log("width-height:", width, height)
     // let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
     // console.log("size:", size.x, size.y)
@@ -388,6 +391,40 @@ class ImgViewer extends React.PureComponent {
 
   InitDiff(props) {
     // Implemement perceptual differences
+    let { width=1, height=1 } = viewer_new.drawer.canvas;
+    console.log(width, height)
+    var canvas_diff_ssim_element = this.canvas_diff_ssim.current;
+    const config_ssim = {
+      type: 'Difference',
+      imageA: {
+        type: 'CanvasImage',
+        // type: 'HdrImage',
+        width,
+        height,
+        nChannels: 3,
+        canvas: viewer_new.drawer.canvas,
+        // data: data_new.buffer,
+      },
+      imageB: {
+        type: 'CanvasImage',
+        // type: 'HdrImage',
+        width,
+        height,
+        nChannels: 3,
+        canvas: viewer_ref.drawer.canvas,
+        // data: data_ref.buffer,
+      },
+      width,
+      height,
+      nChannels: 3,
+      lossFunction: lossFunctionFromString('SSIM'),
+    }
+    if (!!canvas_diff_ssim_element) {
+      console.log("this.imageLayer = new ImageLayer(...)")
+      this.imageLayer = new ImageLayer(canvas_diff_ssim_element, config_ssim);
+    }
+
+
     const { viewer_new, viewer_ref } = this;
     const { diff } = this.props;
     if (diff) {
@@ -563,6 +600,7 @@ class ImgViewer extends React.PureComponent {
     </div> : <></>
 
     const diff_info = single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
+<<<<<<< Updated upstream
       <div style={{ minHeight: '40px' }}>
         <MultiSlider
           defaultTrackIntent={Intent.WARNING}
@@ -584,6 +622,7 @@ class ImgViewer extends React.PureComponent {
       <div style={single_image_size}>
         <div><div>
           <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
+          <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} />
         </div></div>
       </div>
       <br />

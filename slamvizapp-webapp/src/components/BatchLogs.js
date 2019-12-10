@@ -77,13 +77,13 @@ class OutputLog extends React.Component {
     if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
   }
 
-  getLog() {
+  getLog(log_file) {
     const { output } = this.props;
     if (!!!output || !!!output.output_dir_url) return
     this.setState({is_loaded: false});
     // console.log(`[logs] fetch ${output.test_input_path}`)
 
-    get(`${output.output_dir_url}/log.txt`)
+    get(`${output.output_dir_url}/${log_file || 'log.txt'}`)
       .then(response => {
         const logs = response.data;
         // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences

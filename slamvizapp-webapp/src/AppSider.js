@@ -293,7 +293,7 @@ class ProjectSideResults extends React.Component {
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <Menu.Item icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
-      <Menu.Item icon="saved" text="Output Files" active={active('bit-accuracy')} onClick={this.set('selected_views', 'bit-accuracy')} />
+      <Menu.Item icon="saved" text="Output Files" active={active('bit_accuracy')} onClick={this.set('selected_views', 'bit_accuracy')} />
       <Menu.Item icon="console" intent={(!!this.props.batch && this.props.batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>

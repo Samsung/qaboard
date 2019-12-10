@@ -49,7 +49,7 @@ const SlimCard = styled(Card)`
 
 
 
-const OutputHeader = React.memo(({ project, commit, output, type, dispatch, style, prefix, tags_first=false }) => {
+const OutputHeader = ({ project, commit, output, type, dispatch, style, prefix, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const tags = <OutputTags
@@ -87,11 +87,11 @@ const OutputHeader = React.memo(({ project, commit, output, type, dispatch, styl
           <Menu.Divider title="Properties" />
           {has_metadata && has_label && <Menu.Item text={output.test_input_path} icon="document" />}
           {!!output.test_input_database && <>
-            <Menu.Item text={output.test_input_database} icon="database" onClick={on_copy} />
-            <Menu.Item text={linux_to_windows(output.test_input_database)} icon="database" onClick={on_copy} />
+            <Menu.Item key="database-linux" text={output.test_input_database} icon="database" onClick={on_copy} />
+            <Menu.Item key="database-windows" text={linux_to_windows(output.test_input_database)} icon="database" onClick={on_copy} />
           </>}
           {has_metadata && <>
-            <Menu.Item text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
+            <Menu.Item key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
             </Menu.Item>
           </>
@@ -100,10 +100,11 @@ const OutputHeader = React.memo(({ project, commit, output, type, dispatch, styl
       </Popover>
       {!tags_first && tags}
     </h5>
-    <p><ExtraParametersTags parameters={output.extra_parameters} />
+    <p>
+      <ExtraParametersTags parameters={output.extra_parameters} />
     </p>
   </>
-})
+}
 
 /*
 class MetadataMenu extends React.Component {
@@ -372,18 +373,19 @@ class OutputCard extends React.Component {
 
         const new_options = view_options.filter(({name}) => already_shown_options[name] === undefined)
         new_options.forEach(option => already_shown_options[option.name] = option)
-        const options = new_options.map(option => {
+        const options = new_options.map( (option, idx) => {
+          let option_idx = `option-${idx}`;
           const option_label = isNaN(option.name) ? option.name : option.pattern
           if (option.views.every(name => views.find(v => v.name === name).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
-            return <span key={option.name} />
+            return <span key={option_idx} />
           if (option.type === 'slider') {
             // let labelStepSize = (option.max - option.min) / 10
             let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
-            return <div key={option_label} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
-              <Slider initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
+            return <div key={option_idx} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
+              <Slider key={option_idx} initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
             </div>
           } else {
-            return <div key={option_label} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
+            return <div key={option_idx} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
           }
         })
 
@@ -395,27 +397,31 @@ class OutputCard extends React.Component {
             paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
           }
         } else {
-          let necessary_files_exist = view.path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[view.path]) || view.path === 'pointcloud.pcd';
+          // some viewers are tightly coupled to a project and don't define a "path"
+          let necessary_files_exist = view.path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[view.path]);
           paths = necessary_files_exist ? [view.path] : []
         }
         // console.log(view.display, paths)
+
+        let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
         const viewers = paths.map(
-          (path, path_idx) => <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
-            {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
-            <OutputViewer
-              key={`${idx}-${path_idx}`}
-              id={`${idx}-${path_idx}`}
-              output_new={output_new}
-              output_ref={(controls.show_reference === undefined || controls.show_reference) ? output_ref : undefined}
-              manifests={this.state.manifests}
-              {...view}
-              path={path}
-              {...controls}
-              style={{ ...style, ...view.style }}
-              qatools_config={qatools_config}
-            />
-          </div>
-        )
+          (path, path_idx) => {
+            let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
+            return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
+              {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
+              <OutputViewer
+                key={`${idx}-${path_idx}`}
+                id={`${idx}-${path_idx}`}
+                output_new={output_new}
+                output_ref={(ref_available && show_ref_if_available) ? output_ref : undefined}
+                manifests={this.state.manifests}
+                {...view}
+                path={path}
+                {...controls}
+                style={{ ...style, ...view.style }}
+                qatools_config={qatools_config}
+              />
+          </div>})
         return <>
           {options}
           {viewers}
@@ -439,6 +445,7 @@ class OutputCard extends React.Component {
       } else {
         content = <>
           {!output_new.is_failed && <MetricsTags
+            key="content"
             selected_metrics={main_metrics}
             available_metrics={available_metrics}
             metrics_new={output_new.metrics ? output_new.metrics : {}}
@@ -458,6 +465,9 @@ class OutputCard extends React.Component {
       width: style.width || '400px',
       marginBottom: "20px"
     }
+    // console.log(content)
+    // console.log(this.state.manifests)
+
     return <div style={container_style}>
       <SlimCard className="output-card">
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
@@ -472,14 +482,13 @@ class OutputCard extends React.Component {
           style={condensed_header_style}
         />}
 
-        {output_new.is_failed && <Tag intent={Intent.DANGER}>Failed</Tag>}
-        {output_ref && output_ref.is_failed && <Tag intent={Intent.WARNING}>Reference Failed</Tag>}
-        {output_new.deleted && <Tag intent={Intent.DANGER}>Deleted</Tag>}
-        {output_ref && output_ref.deleted && <Tag intent={Intent.WARNING}>Reference deleted</Tag>}
+        {output_new.is_failed && <Tag key="new-failed" intent={Intent.DANGER}>Failed</Tag>}
+        {output_ref && output_ref.is_failed && <Tag key="ref-failed" intent={Intent.WARNING}>Reference Failed</Tag>}
+        {output_new.deleted && <Tag key="new-deleted" intent={Intent.DANGER}>Deleted</Tag>}
+        {output_ref && output_ref.deleted && <Tag key="ref-deleted" intent={Intent.WARNING}>Reference deleted</Tag>}
 
-
-        {!this.state.viewable && <InView threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
-          <span></span>
+        {!this.state.viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+          <span key="viewable"></span>
         </InView>}
         {(is_loaded || has_output_new) && content}
       </SlimCard>
