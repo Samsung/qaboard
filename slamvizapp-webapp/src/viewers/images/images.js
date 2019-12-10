@@ -12,8 +12,8 @@ import {
 } from "@blueprintjs/core";
 import Plot from 'react-plotly.js';
 import pixelmatch from './pixelmatch';
-import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
-import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
+// import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
+// import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
 
 import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
@@ -120,7 +120,7 @@ class ImgViewer extends React.PureComponent {
 
     this.show_histogram = false;
     this.canvas_diff = React.createRef();
-    this.canvas_diff_ssim = React.createRef();
+    // this.canvas_diff_ssim = React.createRef();
     this.state = {
       ready: false,
       first_image: "new",
@@ -392,7 +392,7 @@ class ImgViewer extends React.PureComponent {
   InitDiff(props) {
     // Implemement perceptual differences
     let { width=1, height=1 } = viewer_new.drawer.canvas;
-    console.log(width, height)
+    /*
     var canvas_diff_ssim_element = this.canvas_diff_ssim.current;
     const config_ssim = {
       type: 'Difference',
@@ -423,7 +423,7 @@ class ImgViewer extends React.PureComponent {
       console.log("this.imageLayer = new ImageLayer(...)")
       this.imageLayer = new ImageLayer(canvas_diff_ssim_element, config_ssim);
     }
-
+    */
 
     const { viewer_new, viewer_ref } = this;
     const { diff } = this.props;
@@ -600,7 +600,6 @@ class ImgViewer extends React.PureComponent {
     </div> : <></>
 
     const diff_info = single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
-<<<<<<< Updated upstream
       <div style={{ minHeight: '40px' }}>
         <MultiSlider
           defaultTrackIntent={Intent.WARNING}
@@ -622,7 +621,7 @@ class ImgViewer extends React.PureComponent {
       <div style={single_image_size}>
         <div><div>
           <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
-          <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} />
+          {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
         </div></div>
       </div>
       <br />
