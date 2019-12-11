@@ -21,6 +21,7 @@ class AutoCrops extends React.Component {
     super(props);
     this.state = {
       regions_of_interest: [],
+      roi: null,
       is_loading: false,
       error: null,
       // default configuration for auto-ROI
@@ -66,11 +67,11 @@ class AutoCrops extends React.Component {
 
       <div>
         {regions_of_interest.map((roi, idx) => {
-          // let is_selected = true; // viewer_new.coordinates === roi.coordinates
           return <AnchorButton
-            onClick={() => { fitTo(roi, viewer_new) }}
+            onClick={() => { this.setState({ roi: roi }); fitTo(roi, viewer_new); }}
             style={{ margin: "5px" }}
             key={idx}
+            intent={this.state.roi === roi ? Intent.PRIMARY : null}
           >
             {roi.label || roi.tag || idx}
           </AnchorButton>
@@ -92,8 +93,8 @@ class AutoCrops extends React.Component {
     };
 
     this.setState({ is_loading: true });
-    //post("http://planet31:9002/api/v1/output/diff/image", data) // for DEBUG
-    post("/api/v1/output/diff/image", data)
+    post("http://planet31:9002/api/v1/output/diff/image", data) // for DEBUG
+      //post("/api/v1/output/diff/image", data)
       .then(res => {
         //console.log(res.data);
         let regions_of_interest = res.data.map(blob => this.blobToRoi(blob))
