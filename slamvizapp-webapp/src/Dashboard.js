@@ -313,7 +313,8 @@ const mapStateToProps = (state, ownProps) => {
     const metrics = commit_qatools_metrics || project_qatools_metrics
     const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = metrics
     let aggregation_metrics = {};
-    (dashboard_metrics || main_metrics || []).forEach(m => {
+    (dashboard_metrics || main_metrics || []).filter(m => available_metrics[m] !== undefined)
+    .forEach(m => {
       aggregation_metrics[m] = available_metrics[m].target;
     });
 
