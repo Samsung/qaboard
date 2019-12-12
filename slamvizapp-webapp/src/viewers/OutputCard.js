@@ -16,6 +16,8 @@ import {
   Tooltip,
   Popover,
   Menu,
+  MenuItem,
+  MenuDivider,
   Toaster,
   PopoverInteractionKind,
 } from "@blueprintjs/core";
@@ -84,16 +86,16 @@ const OutputHeader = ({ project, commit, output, type, dispatch, style, prefix, 
           </Link>
         </span>
         <Menu>
-          <Menu.Divider title="Properties" />
-          {has_metadata && has_label && <Menu.Item text={output.test_input_path} icon="document" />}
+          <MenuDivider title="Properties" />
+          {has_metadata && has_label && <MenuItem text={output.test_input_path} icon="document" />}
           {!!output.test_input_database && <>
-            <Menu.Item key="database-linux" text={output.test_input_database} icon="database" onClick={on_copy} />
-            <Menu.Item key="database-windows" text={linux_to_windows(output.test_input_database)} icon="database" onClick={on_copy} />
+            <MenuItem key="database-linux" text={output.test_input_database} icon="database" onClick={on_copy} />
+            <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="database" onClick={on_copy} />
           </>}
           {has_metadata && <>
-            <Menu.Item key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
+            <MenuItem key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
-            </Menu.Item>
+            </MenuItem>
           </>
           }
         </Menu>
@@ -111,7 +113,7 @@ class MetadataMenu extends React.Component {
   render() {
     const { metadata_key, metadata_value } = this.props;
     if (metadata is string)
-      return <Menu.Item text={this.props.metadata}>
+      return <MenuItem text={this.props.metadata}>
     if (metadata is array)
       return metadata.map(m => <Menu./>)
     return this.props.metadata
