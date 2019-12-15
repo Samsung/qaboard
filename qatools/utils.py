@@ -388,14 +388,20 @@ def load_tuning_search(tuning_search, tuning_search_file):
 
 
 
+
 def cased_path(path):
     # https://stackoverflow.com/questions/3692261/in-python-how-can-i-get-the-correctly-cased-path-for-a-file/14742779#14742779
     if os.name != 'nt':
       return path
     import glob
+
     dirs = str(path).split('\\')
-    # disk letter
-    test_name = [dirs[0].upper()]
+    # For absolute paths with drive names, we must have the correct case at least at the beginning...
+    if not dirs[0] and not dirs[1]:
+      dirs = [f'\\\\{dirs[2]}\\{dirs[3]}', *dirs[4:]]
+      test_name = [dirs[0]]
+    else:
+      test_name = [dirs[0].upper()]
     for d in dirs[1:]:
         test_name += ["%s[%s]" % (d[:-1], d[-1])]
     res = glob.glob('\\'.join(test_name))
