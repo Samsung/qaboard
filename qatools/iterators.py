@@ -15,7 +15,7 @@ import yaml
 import click
 
 from .conventions import make_hash, make_pretty_tuning_filename, get_settings
-from .utils import input_metadata, entrypoint_module
+from .utils import input_metadata, entrypoint_module, cased_path
 
 
 
@@ -82,6 +82,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   for glob in globs:
     for input_path in input_paths:
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
+      inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if only:
         inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
       if exclude:
