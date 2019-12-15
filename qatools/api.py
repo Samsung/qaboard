@@ -52,6 +52,10 @@ def serialize_path(path):
       value = (Path('/stage/algo_db') / path.relative_to('\\\\netapp\\algo_db')).as_posix()
     except:
       pass
+    try:
+      value = (Path('/stage/algo-datasets') / path.relative_to('\\\\f2\\algo-datasets')).as_posix()
+    except:
+      pass
   else:
   	value = path
   return str(value)
