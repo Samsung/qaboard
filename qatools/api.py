@@ -37,25 +37,28 @@ class NumpyEncoder(simplejson.JSONEncoder):
 
 def serialize_path(path):
   from .config import on_windows
-  # The server expects to recieve file that are valid on linux
   if on_windows:
     value = path
+    # we support mount names that are different on windows and linux
     try:
-      value = (Path('/stage/algo_data') / path.relative_to('\\\\netapp\\algo_data')).as_posix()
+      value = (Path('/stage/algo_data') / path.relative_to('\\\\netapp\\algo_data'))
     except:
       pass
     try:
-      value = (Path('/stage/algo_archive') / path.relative_to('\\\\netapp\\algo_archive')).as_posix()
+      value = (Path('/stage/algo_archive') / path.relative_to('\\\\netapp\\algo_archive'))
     except:
       pass
     try:
-      value = (Path('/stage/algo_db') / path.relative_to('\\\\netapp\\algo_db')).as_posix()
+      value = (Path('/stage/algo_db') / path.relative_to('\\\\netapp\\algo_db'))
     except:
       pass
     try:
-      value = (Path('/stage/algo-datasets') / path.relative_to('\\\\f2\\algo-datasets')).as_posix()
+      value = (Path('/stage/algo-datasets') / path.relative_to('\\\\f2\\algo-datasets'))
     except:
       pass
+    # The server expects to receive paths that are linux-style
+    if issubclass(type(value), Path):
+      value = value.as_posix()
   else:
   	value = path
   return str(value)
