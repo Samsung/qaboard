@@ -226,7 +226,7 @@ def file_info(path, normalize_eof=True, config=None):
         # normalized_file.flush()
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
-    print("Normalize:", path)
+    #print("Normalize:", path)
     return normalized_file_info
 
   md5 = hashlib.md5()
