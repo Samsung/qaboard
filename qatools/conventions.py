@@ -83,7 +83,7 @@ def deserialize_config(configuration):
     #        we take care of the special case "base:C://Users:delta"
     #        Ideally we should provide configs via `qa -c config1 -c C://file` and avoid this issue...
     if is_windows and not configuration_part and token[0] in ['\\', '/']:
-      maybe_absolute_path = configurations[-1] + token
+      maybe_absolute_path = configurations[-1] + token if configurations else token
       if os.path.exists(maybe_absolute_path):
         configurations[-1] = maybe_absolute_path
         continue
