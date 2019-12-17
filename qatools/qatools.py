@@ -454,7 +454,8 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_serialized = input_configuration.replace('"', '\\"')
+          input_configuration_serialized = input_configuration.replace('\\', '\\\\')
+          input_configuration_serialized = input_configuration_serialized.replace('"', '\\"')
           configuration_cli =  f'--configuration "{input_configuration_serialized}"'
 
       args = [
