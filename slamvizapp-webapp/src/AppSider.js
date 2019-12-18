@@ -9,7 +9,6 @@ import {
   Classes,
   Divider,
   Intent,
-  Menu,
   MenuItem,
   MenuDivider,
   Navbar,
