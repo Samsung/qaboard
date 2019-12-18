@@ -53,6 +53,10 @@ def serialize_path(path):
     except:
       pass
     try:
+      value = (Path('/stage/qa_data') / path.relative_to('\\\\netapp\\QA-Data'))
+    except:
+      pass
+    try:
       value = (Path('/stage/algo-datasets') / path.relative_to('\\\\f2\\algo-datasets'))
     except:
       pass
