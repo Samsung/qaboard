@@ -10,6 +10,8 @@ import {
   Divider,
   Intent,
   Menu,
+  MenuItem,
+  MenuDivider,
   Navbar,
   Icon,
   Tooltip,
@@ -98,8 +100,9 @@ class ProjectSideAvatar extends React.Component {
 
 class ProjectSideCommitList extends React.Component {
   updateBranch = branch => {
-    this.props.history.push(`/${this.props.project}/commits/${branch}`);
-    this.props.dispatch(updateSelected(this.props.project, {branch, committer: null}))
+    const { project, history, dispatch } = this.props;
+    history.push(`/${project}/commits/${branch}`);
+    dispatch(updateSelected(project, {branch, committer: null}))
   }
 
 	render() {
@@ -122,27 +125,27 @@ class ProjectSideCommitList extends React.Component {
     const coverage_icon = <img alt="coverage report" src={`http://gitlab-srv/${project_repo}/badges/${tag}/coverage.svg`} />
     // https://github.com/palantir/blueprint/blob/0c09726bdbbd4be4892c97e67363dc0e8caefb71/packages/core/src/components/menu/menuItem.tsx
     // const dashboard = <Link to={`/${project}/time-travel/${reference_branch}`} style={{color: 'inherit'}}>Evolution</Link>;
-    // <Menu.Item icon="series-search" text={dashboard}/>
+    // <MenuItem icon="series-search" text={dashboard}/>
  
 
     let subproject = project.slice(project_repo.length + 1);
     let code_url = subproject.length > 0 ? `http://gitlab-srv/${project_repo}/tree/${reference_branch}/${subproject}` : `http://gitlab-srv/${project_repo}`
 		return <>
       {!is_committer && <>
-  		  {is_project_home ? <div><Menu.Item text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
-                         : <Menu.Item icon={is_branch ? "git-branch" : 'user'} text="Status"/>
+  		  {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
+                         : <MenuItem icon={is_branch ? "git-branch" : 'user'} text="Status"/>
   		  }
-  		  <Menu.Item href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
-  		  <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-        <Menu.Item href={`/${project}/time-travel/${reference_branch}`} icon="series-search" text="Time Travel"/>
+  		  <MenuItem href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
+  		  <MenuItem href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
+        <MenuItem href={`/${project}/time-travel/${reference_branch}`} icon="series-search" text="Time Travel"/>
 
 
-        <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+        <MenuItem href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
   		</>}
-  		{false && <Menu.Item icon="locate" text="Metrics"/>}
-  		{false && <Menu.Item icon="info-sign" text="Settings"/>}
+  		{false && <MenuItem icon="locate" text="Metrics"/>}
+  		{false && <MenuItem icon="info-sign" text="Settings"/>}
     </>
-  		// <Menu.Item href={`/s${ci_root}/${project}/branches/${reference_branch}/doxygen/index.html`} icon="manual" text="Docs"/>
+  		// <MenuItem href={`/s${ci_root}/${project}/branches/${reference_branch}/doxygen/index.html`} icon="manual" text="Docs"/>
 	}
 }
 
@@ -287,26 +290,26 @@ class ProjectSideResults extends React.Component {
                            !qatools_config.inputs.database.linux.startsWith('/');
     const active = view => this.props.selected_views.includes(view);
     return <>
-      <Menu.Item icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
-      <Menu.Item icon="locate" text="KPIs" active={active('table-kpi')} onClick={this.set('selected_views', 'table-kpi')} />
-      <Menu.Item icon="heat-grid" text="KPI diff" active={active('table-compare')} onClick={this.set('selected_views', 'table-compare')}/>
+      <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
+      <MenuItem icon="locate" text="KPIs" active={active('table-kpi')} onClick={this.set('selected_views', 'table-kpi')} />
+      <MenuItem icon="heat-grid" text="KPI diff" active={active('table-compare')} onClick={this.set('selected_views', 'table-compare')}/>
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
-      <Menu.Item icon="saved" text="Output Files" active={active('bit-accuracy')} onClick={this.set('selected_views', 'bit-accuracy')} />
-      <Menu.Item icon="console" intent={(!!this.props.batch && this.props.batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
+      <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
+      <MenuItem icon="saved" text="Output Files" active={active('bit_accuracy')} onClick={this.set('selected_views', 'bit_accuracy')} />
+      <MenuItem icon="console" intent={(!!this.props.batch && this.props.batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
-      <Menu.Item href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+      <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
+      <MenuItem href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
-      <Menu.Item intent={Intent.PRIMARY} disabled={disable_tuning} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
+      <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
+      <MenuItem intent={Intent.PRIMARY} disabled={disable_tuning} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <Menu.Item icon="predictive-analysis" text="Tuning Analysis" onClick={this.set('selected_views', 'optimization')}/>
-      <Menu.Item icon="take-action" text="Integrations" popoverProps={{usePortal: true, hoverCloseDelay: 1000, transitionDuration: 1000, onOpening: this.updateIntegrationStatuses}}>
+      <MenuItem icon="predictive-analysis" text="Tuning Analysis" onClick={this.set('selected_views', 'optimization')}/>
+      <MenuItem icon="take-action" text="Integrations" popoverProps={{usePortal: true, hoverCloseDelay: 1000, transitionDuration: 1000, onOpening: this.updateIntegrationStatuses}}>
         {(qatools_integrations.length > 0)
         ? 
           qatools_integrations.map( (integration, idx) => {
@@ -318,19 +321,19 @@ class ProjectSideResults extends React.Component {
               // we should wait for everything to be loaded
             }
             if (integration.divider)
-              return <Menu.Divider key={idx} {...integration}/>
+              return <MenuDivider key={idx} {...integration}/>
             let status = this.state.integrations[integration.text]
             let disabled = integration.disabled || (!!status && (status.loading || !!status.error));
             let show_status = !!status && !status.loading && !!status.statusText
             let right_label = show_status ? `${!!integration.label ? integration.label : ''} [${status.statusText}]`
                                           : integration.label;
             if (!!integration.href)
-              return <Menu.Item key={idx} disabled={disabled} {...integration} target="_blank" label={right_label}/>
-            return <Menu.Item key={idx} {...integration} disabled={disabled} label={right_label} onClick={this.trigger(integration)}/>
+              return <MenuItem key={idx} disabled={disabled} {...integration} target="_blank" label={right_label}/>
+            return <MenuItem key={idx} {...integration} disabled={disabled} label={right_label} onClick={this.trigger(integration)}/>
           })
-        : <Menu.Item icon="info-sign" target="_blank"  href="http://qa-docs/docs/triggering-third-party-tools" text="More info..."/>
+        : <MenuItem icon="info-sign" target="_blank"  href="http://qa-docs/docs/triggering-third-party-tools" text="More info..."/>
         }
-      </Menu.Item>
+      </MenuItem>
     </>
 	}
 }

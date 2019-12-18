@@ -117,7 +117,7 @@ class TuningForm extends Component {
   constructor(props) {
     super(props);
     let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {}
-    let default_user = this.props.user || (qatools_config.lsf || {}).user || 'arthurf';
+    let default_user = this.props.user || ((qatools_config.runners || qatools_config).lsf || {}).user || 'arthurf';
 
     let search_type = this.props.search_type || "grid"
     let parameter_search = this.props.parameter_search ? this.props.parameter_search : templates["default"];

@@ -139,9 +139,9 @@ class CiCommitResults extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (this.props.match.url !== prevProps.match.url) {
-      this.fetchCommits();
-    }
+    // if (this.props.match.url !== prevProps.match.url) {
+    //   this.fetchCommits();
+    // }
     const commit_qatools_config_curr  = ((this.props.new_commit   || {}).data || {}).qatools_config;
     const project_qatools_config_curr = ((this.props.project_data || {}).data || {}).qatools_config;
     const commit_qatools_config_prev  = ((prevProps.new_commit   || {}).data || {}).qatools_config;
@@ -223,7 +223,7 @@ class CiCommitResults extends Component {
         label={'Perceptual diff'}
     />
     let controls = <>
-      {!selected_views.includes('bit-accuracy') && visualizations.map( (view, idx) => {
+      {!selected_views.includes('bit_accuracy') && visualizations.map( (view, idx) => {
         if (!view.default_hidden ||
             this.state.controls.show === undefined || this.state.controls.show === null ||
             this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -246,7 +246,7 @@ class CiCommitResults extends Component {
       })}
     </>
 
-    let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
+    let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit_accuracy')
     const all_controls = <Tabs>
       <Tabs.Expander />
       {show_viewer_controls && controls}
@@ -414,9 +414,9 @@ class CiCommitResults extends Component {
                   />
                </Section>}
 
-              {selected_views.includes('bit-accuracy') && <Section>
+              {selected_views.includes('bit_accuracy') && <Section>
                  {all_controls}
-                  <h2 className={Classes.HEADING}>Files & bit-accuracy</h2>
+                  <h2 className={Classes.HEADING}>Files & Bit Accuracy</h2>
                   <ExportPlugin
                     project={project}
                     project_data={config_data}

@@ -46,7 +46,7 @@ RUN update-ca-certificates && \
     # add-apt-repository -y ppa:git-core/ppa
 RUN echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
     echo "deb-src http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
-    apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver keyserver.ubuntu.com --recv-keys A1715D88E1DF1F24 && \
+    apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A1715D88E1DF1F24 && \
     apt-get update && apt-get install -y git && \
     git config --global http.proxy $PROXY
 
@@ -75,7 +75,7 @@ RUN conda install -k pandas
 # RUN conda update -n base -c defaults conda
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
                 pip pipenv \
-                gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-learn click && \
+                gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-image scikit-learn click && \
     pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/arthurf/scikit-optimize'
 
 # Some projects need this (TODO: a cleaner way to request specific packages...)

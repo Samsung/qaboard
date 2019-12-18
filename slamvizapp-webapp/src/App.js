@@ -40,7 +40,7 @@ class App extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    this.setState({error: JSON.stringify(error), info})
+    this.setState({error, info})
     console.log(error, info);
   }
 
@@ -72,6 +72,7 @@ class ProjectApp extends React.Component {
             key={index}
             path={route.path}
             component={route.sider}
+            displayName={`sider-${route.path}`}
           />
         ))}
       </Switch>
@@ -82,6 +83,7 @@ class ProjectApp extends React.Component {
             key={index}
             path={route.path}
             component={route.navbar}
+            displayName={`navbar-${route.path}`}
           />
         ))}
         </Switch>
@@ -92,6 +94,7 @@ class ProjectApp extends React.Component {
                 key={index}
                 path={route.path}
                 component={route.main}
+                displayName={`main-${route.path}`}
               />
             ))}
           </Switch>

@@ -7,6 +7,8 @@ import {
   Colors,
   Intent,
   Menu,
+  MenuItem,
+  MenuDivider,
   Tag,
   Icon,
   Button,
@@ -117,15 +119,15 @@ class CommitNavbar extends React.Component {
 
     const milestones_menu = <Menu>
       <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Select</h6></li>
-      <Menu.Item text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
+      <MenuItem text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
       <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qatools.yaml" type="qatools" />
       {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
       <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
       <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
-      <Menu.Divider/>
-      <Menu.Item text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
-      <Menu.Item text={`Select the same ${type === 'ref' ? 'above in new' : 'below in reference'}`} icon="duplicate" onClick={this.copyToOtherType} />
-      <Menu.Item text="Remove" icon="delete" onClick={() => this.removeSelection()} />
+      <MenuDivider/>
+      <MenuItem text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
+      <MenuItem text={`Select the same ${type === 'ref' ? 'above in new' : 'below in reference'}`} icon="duplicate" onClick={this.copyToOtherType} />
+      <MenuItem text="Remove" icon="delete" onClick={() => this.removeSelection()} />
     </Menu>
 
     let has_selected_batch = !!commit && !!commit.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
@@ -156,7 +158,7 @@ class CommitNavbar extends React.Component {
             />
 
             <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
-              <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
+              <Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
                 <EditableText
                   onConfirm={this.selectCommit}
                   minWidth={60}
@@ -211,13 +213,13 @@ class CommitNavbar extends React.Component {
           <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
             <Icon icon="menu" className={Classes.TEXT_MUTED}/>
             <Menu>
-              <Menu.Divider title="Commit"/>
-              <Menu.Item text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
-              <Menu.Item text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(commit.commit_dir_url.slice(2))}} />
-              <Menu.Item text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+              <MenuDivider title="Commit"/>
+              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(commit.commit_dir_url.slice(2))}} />
+              <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               {has_selected_batch && <>
-              <Menu.Divider title="Batch"/>
-              <Menu.Item
+              <MenuDivider title="Batch"/>
+              <MenuItem
                 icon="trash"
                 text="Delete"
                 intent={Intent.DANGER}
@@ -258,7 +260,7 @@ class CommitNavbar extends React.Component {
     const attribute = `${type}_commit_id`
     const commit_id = selected[attribute]
     if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id)) {
-      dispatch(fetchCommit(project, id, attribute));
+      dispatch(fetchCommit({project, id, update_selected: attribute}));
       dispatch(updateSelected(project, { [attribute]: id }))
     }
   };

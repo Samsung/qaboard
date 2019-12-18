@@ -8,6 +8,11 @@
     "@blueprintjs/datetime": "^3.15.1",
     "@blueprintjs/icons": "^3.12.0",
     "@blueprintjs/select": "^3.11.2",
+    "@types/jest": "^24.0.23",
+    "@types/node": "^12.12.9",
+    "@types/react": "^16.9.11",
+    "@types/react-dom": "^16.9.4",
+    "@types/styled-components": "^4.4.0",
     "acorn": "^7.1.0",
     "ansi-to-html": "^0.6.13",
     "axios": "^0.19.0",
@@ -51,7 +56,8 @@
     "reselect": "^4.0.0",
     "sanitize-html": "^1.20.1",
     "styled-components": "^4.4.0",
-    "three": "^0.106.2"
+    "three": "^0.106.2",
+    "typescript": "^3.7.2"
   },
   "scripts": {
     "start": "react-app-rewired --max_old_space_size=4096 start",

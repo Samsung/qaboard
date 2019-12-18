@@ -10,6 +10,7 @@ import {
   Tag,
   Position,
   Menu,
+  MenuItem,
   H5,
   TextArea,
   Button,
@@ -49,7 +50,7 @@ const MilestoneMenu = ({ milestone, onSelect, icon }) => {
   const has_label = !!label && label.length > 0;
   const has_notes = !!notes && notes.length > 0;
   const has_batch = !!batch && milestone.batch !== 'default';
-  return <Menu.Item
+  return <MenuItem
     text={<>
       {has_label && <>{label}<br/></>}
       {!!date && <span className={Classes.TEXT_MUTED} title={date}>set <Moment fromNow date={date} /></span>}      
