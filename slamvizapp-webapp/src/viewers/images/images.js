@@ -21,10 +21,12 @@ import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
 import MultiSelectTags from './MultiselectCrops'
 
+import { unregister_filter_sync } from "./filters"
+
 var OpenSeadragon = require('openseadragon')
+require('./selection')
 require('./rgb')
 require('./filters')
-require('./selection')
 
 
 
@@ -232,13 +234,17 @@ class ImgViewer extends React.PureComponent {
       this.state.cancel_source.cancel();
     if (!!this.UnregisterZoomSync)
       this.UnregisterZoomSync()
+    if (!!this.UnregisterZoomSync)
+      this.UnregisterZoomSync()
 
     if (!!this.viewer_new) {
+      unregister_filter_sync(this.viewer_new)
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
       // this.viewer_new = null;
     }
-    if (!!this.viewer_new) {
+    if (!!this.viewer_ref) {
+      unregister_filter_sync(this.viewer_ref)
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_ref.destroy();
       // this.viewer_ref = null;
@@ -355,7 +361,7 @@ class ImgViewer extends React.PureComponent {
     let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
     let data_ref = viewer_ref.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
 
-    this.imageLayer.invalidate()
+    // this.imageLayer.invalidate()
 
     // console.log("width-height:", width, height)
     // let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
@@ -390,9 +396,10 @@ class ImgViewer extends React.PureComponent {
 
 
   InitDiff(props) {
+    const { viewer_new, viewer_ref } = this;
     // Implemement perceptual differences
-    let { width=1, height=1 } = viewer_new.drawer.canvas;
     /*
+    let { width=1, height=1 } = viewer_new.drawer.canvas;
     var canvas_diff_ssim_element = this.canvas_diff_ssim.current;
     const config_ssim = {
       type: 'Difference',
@@ -425,7 +432,6 @@ class ImgViewer extends React.PureComponent {
     }
     */
 
-    const { viewer_new, viewer_ref } = this;
     const { diff } = this.props;
     if (diff) {
       const redirectEvent = eventType => {
@@ -496,9 +502,10 @@ class ImgViewer extends React.PureComponent {
   }
 
   InitFilters() {
-    const { viewer_new, viewer_ref } = this;
-    viewer_new.imagefilters({ viewer_synced: viewer_ref });
-    viewer_ref.imagefilters({ viewer_synced: viewer_new });
+    const { viewer_new, viewer_ref} = this;
+    console.log('[InitFilters]')
+    viewer_new.imagefilters({ sync_key: this.props.path });
+    viewer_ref.imagefilters({ sync_key: this.props.path });
   }
 
   InitMouseTracker() {
@@ -621,7 +628,6 @@ class ImgViewer extends React.PureComponent {
       <div style={single_image_size}>
         <div><div>
           <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
-          {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
         </div></div>
       </div>
       <br />
@@ -635,8 +641,9 @@ class ImgViewer extends React.PureComponent {
         </ul>
       </Tooltip>
     </div> : <></>
+     //       {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
 
-    const empty_image = <canvas key="empty-image" {...single_image_size} />
+    // const empty_image = <canvas key="empty-image" {...single_image_size} />
 
     return <>
       {this.state.ready && has_reference &&
@@ -666,7 +673,6 @@ class ImgViewer extends React.PureComponent {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
         {first_image === 'new' ? image_new : image_ref}
-        {/*(diff ^ this.show_histogram) ? empty_image : <></>*/}
         {diff_info}
         {first_image === 'new' ? image_ref : image_new}
       </div>
@@ -678,6 +684,7 @@ class ImgViewer extends React.PureComponent {
 
   switch_images = e => {
     let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
+
     // For some reason the scroll jumps arounds when react re-renders
     const x = window.scrollX
     const y = window.scrollY

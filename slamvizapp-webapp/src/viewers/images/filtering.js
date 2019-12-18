@@ -266,8 +266,9 @@ OpenSeadragon.Filters = {
             precomputedBrightness[i] = i + adjustment;
         }
         return function(context, callback) {
-            var imgData = context.getImageData(
-                0, 0, context.canvas.width, context.canvas.height);
+            if (adjustment===0)
+                callback()
+            var imgData = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
             var pixels = imgData.data;
             for (var i = 0; i < pixels.length; i += 4) {
                 pixels[i] = precomputedBrightness[pixels[i]];
@@ -287,8 +288,9 @@ OpenSeadragon.Filters = {
             precomputedContrast[i] = i * adjustment;
         }
         return function(context, callback) {
-            var imgData = context.getImageData(
-                0, 0, context.canvas.width, context.canvas.height);
+            if (adjustment===1)
+                callback()
+            var imgData = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
             var pixels = imgData.data;
             for (var i = 0; i < pixels.length; i += 4) {
                 pixels[i] = precomputedContrast[pixels[i]];
@@ -308,6 +310,8 @@ OpenSeadragon.Filters = {
             precomputedGamma[i] = Math.pow(i / 255, adjustment) * 255;
         }
         return function(context, callback) {
+            if (adjustment===1)
+                callback()
             var imgData = context.getImageData(
                 0, 0, context.canvas.width, context.canvas.height);
             var pixels = imgData.data;
