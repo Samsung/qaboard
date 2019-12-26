@@ -196,6 +196,8 @@ def is_plaintext(path, config=None):
   if not config:
     config = {}
   binary_patterns = config.get('bit_accuracy', {}).get('binary')
+  if binary_patterns: # remove when everybody updates HW_ALG...
+    binary_patterns.append('.exe')
   #print("binary: ", binary_patterns)
   plaintext_patterns = config.get('bit_accuracy', {}).get('plaintext')
   #print("plaintext: ", plaintext_patterns)
