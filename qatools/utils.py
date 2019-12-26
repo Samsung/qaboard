@@ -220,10 +220,19 @@ def file_info(path, normalize_eof=True, config=None):
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
       normalized_file_name = normalized_file.name
-      with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
-        raw_lines = raw_file.readlines()
-        normalized_file.writelines(raw_lines)
-        # normalized_file.flush()
+      try:
+        with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
+          raw_lines = raw_file.readlines()
+      except:
+        print(f"WARNING: Error reading {path}")
+        try:
+          with path.open(newline=None, errors="surrogateescape") as raw_file:
+            raw_lines = raw_file.readlines()
+        except Exception as e:
+          print(f"ERROR: Error reading {path} even with surrogateescape")
+          raise e
+      normalized_file.writelines(raw_lines)
+      # normalized_file.flush()
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
     #print("Normalize:", path)
