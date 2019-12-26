@@ -199,16 +199,14 @@ def is_plaintext(path, config=None):
   if binary_patterns: # remove when everybody updates HW_ALG...
     binary_patterns.append('.exe')
     binary_patterns.append('.dll')
-    binary_patterns = ['*' + b if b.startswith('.') else b for b in binary_patterns]
-  #print("binary: ", binary_patterns)
   plaintext_patterns = config.get('bit_accuracy', {}).get('plaintext')
-  #print("plaintext: ", plaintext_patterns)
 
   if not plaintext_patterns and not binary_patterns:
     return path.suffix in default_plaintext
   if plaintext_patterns and not binary_patterns:
     return any(fnmatch.fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
+    #print(list((path.name, p, fnmatch.fnmatch(path.name, p)) for p in binary_patterns))
     return not any(fnmatch.fnmatch(path.name, p) for p in binary_patterns)
   click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qatools.yaml', fg='red')
   exit(1)
@@ -220,26 +218,25 @@ def file_info(path, normalize_eof=True, config=None):
 
   # For bit-accuracy checks to work on text files between UNIX/windows,
   # we need to convert end-of-lines on Windows
+  #print ("is plaintext:",is_plaintext(path, config=config), path)
   if os.name == 'nt' and is_plaintext(path, config=config) and normalize_eof:
-    from tempfile import NamedTemporaryFile
-    with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
-      normalized_file_name = normalized_file.name
+    try:
+      with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
+        text = raw_file.read()
+    except:
+      print(f"WARNING: Error reading {path}")
       try:
-        with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
-          raw_lines = raw_file.readlines()
-      except:
-        print(f"WARNING: Error reading {path}")
-        try:
-          with path.open(newline=None, errors="surrogateescape") as raw_file:
-            raw_lines = raw_file.readlines()
-        except Exception as e:
-          print(f"ERROR: Error reading {path} even with surrogateescape")
-          raise e
-      normalized_file.writelines(raw_lines)
-      # normalized_file.flush()
+        with path.open(newline=None, errors="surrogateescape") as raw_file:
+          text = raw_file.read()
+      except Exception as e:
+        print(f"ERROR: Error reading {path} even with surrogateescape")
+        raise e
+    from datetime import datetime
+    normalized_file_name = "%s_%s" % (str(path), re.sub('\W', '_', str(datetime.now())))
+    with open(normalized_file_name, 'w+', newline='\n') as normalized_file:
+      normalized_file.write(text)
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
-    #print("Normalize:", path)
     return normalized_file_info
 
   md5 = hashlib.md5()
