@@ -223,7 +223,7 @@ def file_info(path, normalize_eof=True, config=None):
   #print ("is plaintext:",is_plaintext(path, config=config), path)
   if os.name == 'nt' and is_plaintext(path, config=config) and normalize_eof:
     try:
-      with path.open(newline=None, encoding="utf-8") as raw_file: # will accept both \t\n and \n as line endings
+      with path.open(newline=None, encoding="utf-8", errors='ignore') as raw_file: # will accept both \t\n and \n as line endings
         text = raw_file.read()
     except:
       print(f"WARNING: Error reading {path}")
@@ -235,7 +235,7 @@ def file_info(path, normalize_eof=True, config=None):
         raise e
     from datetime import datetime
     normalized_file_name = "%s_%s" % (str(path), re.sub('\W', '_', str(datetime.now())))
-    with open(normalized_file_name, 'w+', newline='\n', encoding="utf-8") as normalized_file:
+    with open(normalized_file_name, 'w+', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
       normalized_file.write(text)
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
