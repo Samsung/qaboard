@@ -8,6 +8,8 @@ import {
   Toaster,
   ControlGroup,
   NumericInput,
+  Position,
+  Tooltip,
 } from "@blueprintjs/core";
 
 
@@ -26,7 +28,9 @@ class AutoCrops extends React.Component {
       error: null,
       // default configuration for auto-ROI
       diff_type: 'rgb',
-      threshold: 0.1,
+      threshold: 1,
+      roi_diameter: 0,
+      num_rois: 20,
       ...((props.auto_rois || [])[0] || {}),
     }
   }
@@ -41,6 +45,13 @@ class AutoCrops extends React.Component {
     return <>
       <ControlGroup>
         <Button
+          onClick={this.nextRoi}
+          intent={Intent.PRIMARY}
+          large={false}
+          text={"next"}
+          style={{ marginRight: "10px" }}
+        />
+        <Button
           onClick={this.generateAutoRois}
           intent={Intent.PRIMARY}
           loading={this.state.is_loading}
@@ -49,20 +60,52 @@ class AutoCrops extends React.Component {
           text={"Find Regions of Interest"}
           style={{ marginRight: "10px" }}
         />
-        <NumericInput
-          value={this.state.threshold}
-          onValueChange={threshold => this.setState({ threshold })}
-          max={1}
-          min={0}
-          majorStepSize={0.1}
-          minorStepSize={0.005}
-          stepSize={0.01}
-          clampValueOnBlur={true}
-          placeholder={"Enter a threshold..."}
-          style={{ width: "70px" }}
-          allowNumericCharactersOnly={false}
-
-        />
+        <Tooltip content="Threshold %" position={Position.TOP}>
+          <NumericInput
+            value={this.state.threshold}
+            onValueChange={threshold => this.setState({ threshold })}
+            max={100}
+            min={0}
+            minorStepSize={0.5}
+            stepSize={0.5}
+            majorStepSize={5}
+            clampValueOnBlur={true}
+            placeholder={"Threshold%"}
+            style={{ width: "95px" }}
+            allowNumericCharactersOnly={true}
+            onBlur={() => this.updateOnBlur("threshold", this.state.threshold, 1)}
+          />
+        </Tooltip>
+        <Tooltip content="diameter of roi" position={Position.TOP}>
+          <NumericInput
+            value={this.state.roi_diameter}
+            onValueChange={roi_diameter => this.setState({ roi_diameter })}
+            min={0}
+            minorStepSize={10}
+            stepSize={100}
+            majorStepSize={1000}
+            clampValueOnBlur={true}
+            placeholder={"diameter"}
+            style={{ width: "85px" }}
+            allowNumericCharactersOnly={true}
+            onBlur={() => this.updateOnBlur("roi_diameter", this.state.roi_diameter, 0)}
+          />
+        </Tooltip>
+        <Tooltip content="max numbers of rois" position={Position.TOP}>
+          <NumericInput
+            value={this.state.num_rois}
+            onValueChange={num_rois => this.setState({ num_rois })}
+            min={1}
+            minorStepSize={1}
+            stepSize={5}
+            majorStepSize={10}
+            clampValueOnBlur={true}
+            placeholder={"no. rois"}
+            style={{ width: "85px" }}
+            allowNumericCharactersOnly={true}
+            onBlur={() => this.updateOnBlur("num_rois", this.state.num_rois, 20)}
+          />
+        </Tooltip>
       </ControlGroup>
 
       <div>
@@ -80,7 +123,23 @@ class AutoCrops extends React.Component {
     </>
   }
 
+  updateOnBlur = (attr, value, default_value) => {
+    if (isNaN(value)) {
+      this.setState({ [attr]: default_value })
+    }
+  }
 
+  nextRoi = () => {
+    const { viewer_new } = this.props;
+    const { regions_of_interest } = this.state;
+
+    for (let i = 0; i < regions_of_interest.length; i++) {
+      if (this.state.regions_of_interest[i] == this.state.roi) {
+        this.setState({ roi: regions_of_interest[i + 1] })
+        fitTo(this.state.roi, viewer_new)
+      }
+    }
+  }
   generateAutoRois = () => {
     const data = {
       output_id_new: this.props.output_new.id,
@@ -89,7 +148,9 @@ class AutoCrops extends React.Component {
       output_dir_url_ref: this.props.output_ref.output_dir_url,
       path: this.props.path,
       diff_type: this.state.diff_type,
-      threshold: this.state.threshold
+      threshold: this.state.threshold,
+      diameter: this.state.roi_diameter,
+      count: this.state.num_rois,
     };
 
     this.setState({ is_loading: true });
@@ -98,7 +159,7 @@ class AutoCrops extends React.Component {
       .then(res => {
         //console.log(res.data);
         let regions_of_interest = res.data.map(blob => this.blobToRoi(blob))
-        //console.debug(regions_of_interest)
+        regions_of_interest.sort((a, b) => b.w * b.h - a.w * a.h)
 
         this.setState({
           regions_of_interest,
@@ -136,8 +197,18 @@ class AutoCrops extends React.Component {
     const { viewer_new } = this.props;
     let { x: image_width, y: image_height } = viewer_new.world.getItemAt(0).getContentSize();
 
-    roi.x = Math.min(Math.max(x, 0), image_width);
-    roi.y = Math.min(Math.max(y, 0), image_height);
+    // roi.x = Math.min(Math.max(x, 0), image_width);
+    // roi.y = Math.min(Math.max(y, 0), image_height);
+
+    if (roi.x < 0) {
+      roi.w = roi.w + x;
+      roi.x = 0;
+    }
+    if (roi.y < 0) {
+      roi.h = roi.h + y;
+      roi.y = 0;
+    }
+
     roi.w = (roi.x + roi.w < image_width) ? roi.w : image_width - roi.x;
     roi.h = (roi.y + roi.h < image_height) ? roi.h : image_height - roi.y;
 
