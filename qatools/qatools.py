@@ -578,13 +578,13 @@ def save_artifacts(ctx):
           # when working on subprojects, the artifact might be copied already,
           # but manifests are saved per-subproject
           if path.as_posix() not in manifest:
-            manifest[path.as_posix()] = file_info(path, config=config, normalize_eof=False)
+            manifest[path.as_posix()] = file_info(path, config=config)
           continue
         if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
         if not ctx.obj['dryrun']:
           copy(path, destination)
-          manifest[path.as_posix()] = file_info(path, config=config, normalize_eof=False)
+          manifest[path.as_posix()] = file_info(path, config=config)
 
     if not ctx.obj['dryrun']:
       with manifest_path.open('w') as f:
