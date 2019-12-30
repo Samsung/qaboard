@@ -116,7 +116,7 @@ def deserialize_config(configuration):
 
 
 def serialize_config(configurations):
-  print("[serialize] before: ", configurations)
+  # print("[serialize] before: ", configurations)
   if not configurations:
     return '-'
   if isinstance(configurations, str):

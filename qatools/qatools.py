@@ -448,7 +448,9 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       if not should_run and action_on_existing=='skip':
         continue
 
-      if input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
+      # print(input_configuration)
+      # print(get_default_configuration(ctx.obj['inputs_settings']))
+      if False and input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
         if not on_windows:
