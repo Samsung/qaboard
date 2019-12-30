@@ -11,6 +11,7 @@ import click
 
 from .utils import getenvs, git_head, _Commit, _Repo
 from .conventions import slugify, get_commit_ci_dir
+from .iterators import flatten
 
 # In case the qatools.yaml configuration has errors, we don't want to exit directly.
 # We want to show all the errors to fix, and still allow qatools.config to be imported.
@@ -291,10 +292,9 @@ default_input_type = config_inputs_types.get('default', 'default')
 
 
 def get_default_configuration(input_settings):
-  default_configuration = input_settings.get('configurations', input_settings.get('configuration', "default"))
-  if isinstance(default_configuration, list):
-    default_configuration = serialize_config(default_configuration)
-  return default_configuration
+  default_configuration = input_settings.get('configurations', input_settings.get('configuration', []))
+  default_configuration = list(flatten(default_configuration))
+  return serialize_config(default_configuration)
 
 def get_default_database(input_settings):
   # All recordings used should be stored at the same location
