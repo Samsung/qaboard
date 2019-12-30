@@ -27,7 +27,7 @@ from .iterators import iter_inputs, iter_parameters
 from .config import config_has_error
 from .config import subproject, config, get_default_database
 from .config import default_batches_files, default_batch_label, default_platform
-from .config import get_default_configuration, config_inputs_types, default_inputs_type
+from .config import get_default_configuration, default_input_type
 from .config import user, commit_id, commit_ci_dir, root_qatools, commit_rootproject_ci_dir
 from .config import is_ci, on_windows
 
@@ -41,10 +41,10 @@ from .config import is_ci, on_windows
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
-@click.option('--database', 'inputs_database', type=PathType(), help="Test database location")
-@click.option('--type', 'inputs_type', default=default_inputs_type, help="How we define inputs")
+@click.option('--database', 'input_database', type=PathType(), help="Test database location")
+@click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, inputs_database, inputs_type, no_qa_database):
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, input_database, input_type, no_qa_database):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
@@ -81,9 +81,9 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['batch_label'] = batch_label if not share else f"@{user}| {batch_label}"
   ctx.obj['platform'] = platform
 
-  ctx.obj['inputs_type'] = inputs_type
-  ctx.obj['inputs_settings'] = get_settings(inputs_type, config)
-  ctx.obj['database'] = inputs_database if inputs_database else get_default_database(ctx.obj['inputs_settings'])
+  ctx.obj['input_type'] = input_type
+  ctx.obj['inputs_settings'] = get_settings(input_type, config)
+  ctx.obj['database'] = input_database if input_database else get_default_database(ctx.obj['inputs_settings'])
   ctx.obj['configuration'] = configuration if configuration else get_default_configuration(ctx.obj['inputs_settings'])
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
@@ -412,7 +412,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
 
   tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
   inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, ctx.obj['inputs_settings'])
-  for input_path_abs, input_configurations, lsf_configuration, input_database in inputs_iter:
+  for input_path_abs, input_configurations, lsf_configuration, input_database, input_type in inputs_iter:
     input_configuration = serialize_config(input_configurations)
     input_path = input_path_abs.relative_to(input_database)
 
@@ -462,7 +462,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
           f'--share' if ctx.obj["share"] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != default_platform else None,
-          f'--type "{ctx.obj["inputs_type"]}"' if ctx.obj["inputs_type"] != default_inputs_type else None,
+          f'--type "{input_type}"' if input_type != default_input_type else None,
           f'--database "{input_database.as_posix()}"' if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
           configuration_cli,
@@ -486,6 +486,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
             "configuration": input_configuration,
             "output_directory": output_directory,
             "input_path": input_path,
+            "input_type": input_type,
             "database": input_database,
             "extra_parameters": tuning_params,
             "is_pending": True,
@@ -610,7 +611,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
     all_bit_accurate = True
     inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
     nb_compared = 0
-    for input_path_abs, input_configurations, _, input_database in inputs_iter:
+    for input_path_abs, input_configurations, _, input_database, _ in inputs_iter:
       nb_compared += 1
       if input_path_abs.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
@@ -692,7 +693,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
     else:
       output_directories = []
       inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
-      for input_path_abs, input_configurations, _, input_database in inputs_iter:
+      for input_path_abs, input_configurations, _, input_database, _ in inputs_iter:
         prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
         input_path = input_path_abs.relative_to(input_database)
         output_directory = prefix_output_dir / input_path.with_suffix('')

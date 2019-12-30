@@ -162,7 +162,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(group), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(group, database, inputs_settings, qatools_config)
-      yield from ((i, default_configuration , default_lsf_configuration, database) for i in inputs_iter)
+      yield from ((i, default_configuration , default_lsf_configuration, database, inputs_settings['type']) for i in inputs_iter)
       return
 
     # 2. Those defined in the groups_file
@@ -177,14 +177,14 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     if 'type' in available_batches[group]:
       group_type = available_batches[group]['type']
       group_inputs_settings = get_settings(group_type, qatools_config)
-      group_inputs_settings.update(available_batches[group])
     else:
       group_inputs_settings = inputs_settings
+    group_inputs_settings.update(available_batches[group])
     locations = available_batches[group].get('inputs', available_batches[group].get('tests'))
     if not locations:
       # run all inputs matching only/exclude
       inputs_iter = _iter_inputs(None, group_database, group_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
-      yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
+      yield from ((i, group_configuration, group_lsf_configuration, group_database, group_inputs_settings['type']) for i in inputs_iter)
       return
 
     # We also allow each input to have its settings...
@@ -197,11 +197,6 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           else:
             locations_as_dict.update(l)
       locations = locations_as_dict
-
-    if not locations: # return everything
-      inputs_iter = _iter_inputs(None, group_database, group_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
-      yield from ((i, group_configuration, group_lsf_configuration, group_database) for i in inputs_iter)
-      return
 
     for location, location_configuration in locations.items():
       if not location_configuration:
@@ -216,10 +211,10 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           if 'type' in location_configuration:
             location_type = location_configuration['type']
             location_inputs_settings = get_settings(location_type, qatools_config)
-            location_inputs_settings.update(location_configuration)
           else:
             location_inputs_settings = group_inputs_settings
-          for k in ['type', 'database', 'lsf']:
+          location_inputs_settings.update(location_configuration)
+          for k in ['type', 'database', 'lsf', 'glob', 'globs', use_parent_folder]:
             if k in location_configuration:
               del location_configuration[k]
           if 'configurations' not in location_configuration and 'configurations' not in location_configuration:
@@ -233,14 +228,14 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
           location_inputs_settings = group_inputs_settings
-        else:
+        else: # string?
           location_configuration =  [*group_configuration, location_configuration]
           location_database = group_database
           location_lsf_configuration = group_lsf_configuration
           location_inputs_settings = group_inputs_settings
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(location, location_database, location_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
-      yield from ((i, location_configuration, location_lsf_configuration, location_database) for i in inputs_iter)
+      yield from ((i, location_configuration, location_lsf_configuration, location_database, location_inputs_settings['type']) for i in inputs_iter)
 
 
 

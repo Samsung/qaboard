@@ -287,7 +287,7 @@ if not (isinstance(default_batches_files, list) or isinstance(default_batches_fi
 
 
 config_inputs_types = config_inputs.get('types', {})
-default_inputs_type = config_inputs_types.get('default', 'default')
+default_input_type = config_inputs_types.get('default', 'default')
 
 
 def get_default_configuration(input_settings):
