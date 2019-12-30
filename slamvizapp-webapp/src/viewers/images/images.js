@@ -150,7 +150,7 @@ class ImgViewer extends React.PureComponent {
       this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
-    }).catch(error => { })
+    }).catch(error => { console.log("Init Error:", error) })
   }
 
 
@@ -391,8 +391,8 @@ class ImgViewer extends React.PureComponent {
 
   InitDiff(props) {
     // Implemement perceptual differences
-    let { width = 1, height = 1 } = viewer_new.drawer.canvas;
     /*
+    let { width = 1, height = 1 } = viewer_new.drawer.canvas;
     var canvas_diff_ssim_element = this.canvas_diff_ssim.current;
     const config_ssim = {
       type: 'Difference',
