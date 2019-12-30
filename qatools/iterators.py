@@ -15,7 +15,7 @@ import yaml
 import click
 
 from .conventions import make_hash, make_pretty_tuning_filename, get_settings
-from .utils import input_metadata, entrypoint_module
+from .utils import input_metadata, entrypoint_module, cased_path
 
 
 
@@ -82,6 +82,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   for glob in globs:
     for input_path in input_paths:
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
+      inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if only:
         inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
       if exclude:
@@ -95,7 +96,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
-  if Path(path).is_absolute():
+  if path and Path(path).is_absolute():
     click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
     click.secho(f'We except you to split "{path}" into a "database" and a relative path.', fg='red')
     raise ValueError
@@ -214,7 +215,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           else:
             location_inputs_settings = group_inputs_settings
           location_inputs_settings.update(location_configuration)
-          for k in ['type', 'database', 'lsf', 'glob', 'globs', use_parent_folder]:
+          for k in ['type', 'database', 'lsf', 'glob', 'globs', 'use_parent_folder']:
             if k in location_configuration:
               del location_configuration[k]
           if 'configurations' not in location_configuration and 'configurations' not in location_configuration:

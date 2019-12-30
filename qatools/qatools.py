@@ -256,9 +256,9 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     for manifest_input in manifest_inputs:
       manifest_input = Path(manifest_input)
       if manifest_input.is_dir():
-        input_files.update({path.as_posix(): file_info(path, config) for path in manifest_input.rglob('*') if path.is_file()})
+        input_files.update({path.as_posix(): file_info(path, config=config) for path in manifest_input.rglob('*') if path.is_file()})
       elif manifest_input.is_file():
-        input_files.update({manifest_input.as_posix(): file_info(manifest_input, config)})
+        input_files.update({manifest_input.as_posix(): file_info(manifest_input, config=config)})
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
@@ -266,7 +266,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     # avoid logs with timestamps and temporary NFS files
     return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
   # To help the UI application know what results we created, we save the complete list.
-  output_files = {path.relative_to(output_directory).as_posix(): file_info(path, config) for path in output_directory.rglob('*') if should_be_in_manifest(path)}
+  output_files = {path.relative_to(output_directory).as_posix(): file_info(path, config=config) for path in output_directory.rglob('*') if should_be_in_manifest(path)}
   with (output_directory / 'manifest.outputs.json').open('w') as f:
     json.dump(output_files, f, indent=2)
 
@@ -454,7 +454,8 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_serialized = input_configuration.replace('"', '\\"')
+          input_configuration_serialized = input_configuration.replace('\\', '\\\\')
+          input_configuration_serialized = input_configuration_serialized.replace('"', '\\"')
           configuration_cli =  f'--configuration "{input_configuration_serialized}"'
 
       args = [
@@ -578,13 +579,13 @@ def save_artifacts(ctx):
           # when working on subprojects, the artifact might be copied already,
           # but manifests are saved per-subproject
           if path.as_posix() not in manifest:
-            manifest[path.as_posix()] = file_info(path, config)
+            manifest[path.as_posix()] = file_info(path, config=config)
           continue
         if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
         if not ctx.obj['dryrun']:
           copy(path, destination)
-          manifest[path.as_posix()] = file_info(path, config)
+          manifest[path.as_posix()] = file_info(path, config=config)
 
     if not ctx.obj['dryrun']:
       with manifest_path.open('w') as f:
@@ -694,7 +695,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       output_directories = []
       inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
       for input_path_abs, input_configurations, _, input_database, _ in inputs_iter:
-        prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
+        prefix_output_dir = make_prefix_outputs_path(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
         input_path = input_path_abs.relative_to(input_database)
         output_directory = prefix_output_dir / input_path.with_suffix('')
         output_directories.append(output_directory)

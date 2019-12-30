@@ -196,15 +196,19 @@ def is_plaintext(path, config=None):
   if not config:
     config = {}
   binary_patterns = config.get('bit_accuracy', {}).get('binary')
-  #print("binary: ", binary_patterns)
+  if binary_patterns: # remove when everybody updates HW_ALG...
+    binary_patterns.append('.exe')
+    binary_patterns.append('.dll')
+    binary_patterns = ['*' + b if b.startswith('.') else b for b in binary_patterns]
+
   plaintext_patterns = config.get('bit_accuracy', {}).get('plaintext')
-  #print("plaintext: ", plaintext_patterns)
 
   if not plaintext_patterns and not binary_patterns:
     return path.suffix in default_plaintext
   if plaintext_patterns and not binary_patterns:
     return any(fnmatch.fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
+    #print(list((path.name, p, fnmatch.fnmatch(path.name, p)) for p in binary_patterns))
     return not any(fnmatch.fnmatch(path.name, p) for p in binary_patterns)
   click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qatools.yaml', fg='red')
   exit(1)
@@ -216,17 +220,25 @@ def file_info(path, normalize_eof=True, config=None):
 
   # For bit-accuracy checks to work on text files between UNIX/windows,
   # we need to convert end-of-lines on Windows
+  #print ("is plaintext:",is_plaintext(path, config=config), path)
   if os.name == 'nt' and is_plaintext(path, config=config) and normalize_eof:
-    from tempfile import NamedTemporaryFile
-    with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
-      normalized_file_name = normalized_file.name
-      with path.open(newline=None) as raw_file: # will accept both \t\n and \n as line endings
-        raw_lines = raw_file.readlines()
-        normalized_file.writelines(raw_lines)
-        # normalized_file.flush()
+    try:
+      with path.open(newline=None, encoding="utf-8", errors='ignore') as raw_file: # will accept both \t\n and \n as line endings
+        text = raw_file.read()
+    except:
+      print(f"WARNING: Error reading {path}")
+      try:
+        with path.open(newline=None, errors="surrogateescape", encoding="utf-8") as raw_file:
+          text = raw_file.read()
+      except Exception as e:
+        print(f"ERROR: Error reading {path} even with surrogateescape")
+        raise e
+    from datetime import datetime
+    normalized_file_name = "%s_%s" % (str(path), re.sub('\W', '_', str(datetime.now())))
+    with open(normalized_file_name, 'w+', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
+      normalized_file.write(text)
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
-    print("Normalize:", path)
     return normalized_file_info
 
   md5 = hashlib.md5()
@@ -388,14 +400,23 @@ def load_tuning_search(tuning_search, tuning_search_file):
 
 
 
+
 def cased_path(path):
+    # Adapted from
     # https://stackoverflow.com/questions/3692261/in-python-how-can-i-get-the-correctly-cased-path-for-a-file/14742779#14742779
     if os.name != 'nt':
       return path
     import glob
     dirs = str(path).split('\\')
-    # disk letter
-    test_name = [dirs[0].upper()]
+    # For absolute paths with drive names ("\\host\volume\..."), we must have the correct case at least at the beginning...
+    if not dirs[0] and not dirs[1]:
+      dirs = [f'\\\\{dirs[2]}\\{dirs[3]}', *dirs[4:]]
+      test_name = [dirs[0]]
+    elif not dirs[0]: # absolute paths like "\c\Users\..."
+      dirs = [f'\\{dirs[1]}', *dirs[3:]]
+      test_name = [dirs[0]]      
+    else: # relative paths
+      test_name = [dirs[0].upper()]
     for d in dirs[1:]:
         test_name += ["%s[%s]" % (d[:-1], d[-1])]
     res = glob.glob('\\'.join(test_name))
