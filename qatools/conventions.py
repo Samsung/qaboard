@@ -74,6 +74,8 @@ def slugify_config(s : str, maxlength=64):
 
 def deserialize_config(configuration):
   # print("[deserialize] before : ", configuration)
+  if configuration == '-':
+    return []
   configurations = []
   configuration_part = ''
 
@@ -115,6 +117,8 @@ def deserialize_config(configuration):
 
 def serialize_config(configurations):
   # print("[serialize] before: ", configurations)
+  if not configurations:
+    return '-'
   if isinstance(configurations, str):
     return configurations
   configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
