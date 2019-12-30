@@ -45,7 +45,7 @@ class AutoCrops extends React.Component {
     return <>
       <ControlGroup>
         <Button
-          onClick={this.nextRoi}
+          onClick={() => { this.nextRoi() }}
           intent={Intent.PRIMARY}
           large={false}
           text={"next"}
@@ -111,7 +111,7 @@ class AutoCrops extends React.Component {
       <div>
         {regions_of_interest.map((roi, idx) => {
           return <AnchorButton
-            onClick={() => { this.setState({ roi: roi }); fitTo(roi, viewer_new); }}
+            onClick={() => { this.setState({ roi: roi }, () => fitTo(roi, viewer_new)) }}
             style={{ margin: "5px" }}
             key={idx}
             intent={this.state.roi === roi ? Intent.PRIMARY : null}
@@ -131,15 +131,19 @@ class AutoCrops extends React.Component {
 
   nextRoi = () => {
     const { viewer_new } = this.props;
-    const { regions_of_interest } = this.state;
+    const { regions_of_interest, roi } = this.state;
+
+    if (!roi) return
 
     for (let i = 0; i < regions_of_interest.length; i++) {
-      if (this.state.regions_of_interest[i] == this.state.roi) {
-        this.setState({ roi: regions_of_interest[i + 1] })
-        fitTo(this.state.roi, viewer_new)
+      if (regions_of_interest[i] === roi) {
+        this.setState({ roi: regions_of_interest[(i + 1) % regions_of_interest.length] },
+                      () => fitTo(this.state.roi, viewer_new))
+        break
       }
     }
   }
+
   generateAutoRois = () => {
     const data = {
       output_id_new: this.props.output_new.id,
@@ -191,7 +195,6 @@ class AutoCrops extends React.Component {
       y: y - r,
       w: 2 * r,
       h: 2 * r,
-      label: `${this.state.diff_type}(${x}, ${y})`
     }
 
     const { viewer_new } = this.props;
@@ -212,6 +215,7 @@ class AutoCrops extends React.Component {
     roi.w = (roi.x + roi.w < image_width) ? roi.w : image_width - roi.x;
     roi.h = (roi.y + roi.h < image_height) ? roi.h : image_height - roi.y;
 
+    roi.label = `${this.state.diff_type}(${roi.x}, ${roi.y})`
     return roi;
   }
 
