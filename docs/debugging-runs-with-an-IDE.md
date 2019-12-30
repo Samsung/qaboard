@@ -9,7 +9,7 @@ Edit your "debug configurations" like this:
 
 - **Module name:** qatools (not script name)
 - **Parameters:** CLI parameters for qa
-- **Working directory:** check it’s defined as your project's
+- **Working directory:** check it’s defined as your project's. (**If the working directory happens to have a subfolder named "qatools", use instead that "qatools" subfolder as working directory to avoid confusion)
 
 ![pyCharm setup](http://gitlab-srv/common-infrastructure/qatools/uploads/e799a84559ca42b5b8da0bb609245721/pycharm-debugg.png)
 
