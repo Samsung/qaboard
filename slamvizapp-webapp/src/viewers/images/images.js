@@ -355,7 +355,7 @@ class ImgViewer extends React.PureComponent {
     let data_new = viewer_new.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
     let data_ref = viewer_ref.drawer.canvas.getContext('2d').getImageData(0, 0, width, height);
 
-    this.imageLayer.invalidate()
+    // this.imageLayer.invalidate()
 
     // console.log("width-height:", width, height)
     // let size = new OpenSeadragon.Point(viewer_new.container.clientWidth || 1, viewer_new.container.clientHeight || 1);
@@ -391,7 +391,7 @@ class ImgViewer extends React.PureComponent {
 
   InitDiff(props) {
     // Implemement perceptual differences
-    let { width=1, height=1 } = viewer_new.drawer.canvas;
+    let { width = 1, height = 1 } = viewer_new.drawer.canvas;
     /*
     var canvas_diff_ssim_element = this.canvas_diff_ssim.current;
     const config_ssim = {
