@@ -525,8 +525,9 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
 
 
 @cli.command()
+@click.option('--file', '-f', 'files', multiple=True, help="Save spcific files instead of artifacts indicated by yaml file")
 @click.pass_context
-def save_artifacts(ctx):
+def save_artifacts(ctx, files):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import is_in_git_repo, qatools_config_paths
@@ -534,40 +535,43 @@ def save_artifacts(ctx):
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
-  # default artifacts
-  if 'artifacts' not in config:
-    config['artifacts'] = {}  
-  config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
-  config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
-  # we also allow sub-qatools-projects
-  config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
-  config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
-  config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
-  config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
-  if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
-  if not is_in_git_repo:
-      click.secho(
-          "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
-          fg='yellow', dim=True)
-      exit(1)
+  if files:
+    globs = files
+  else:
+    # default artifacts
+    if 'artifacts' not in config:
+      config['artifacts'] = {}  
+    config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
+    config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
+    # we also allow sub-qatools-projects
+    config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
+    config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
+    config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
+    config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
+    if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
+    if not is_in_git_repo:
+        click.secho(
+            "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
+            fg='yellow', dim=True)
+        exit(1)
 
-  for artifact_name, artifact_config in config['artifacts'].items():
-    click.secho(f'Saving artifacts: {artifact_name}', bold=True)
-    manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    if manifest_path.exists():
-      with manifest_path.open() as f:
-        try:
-          manifest = json.load(f)
-        except: 
-          manifest = {}
-    else:
-      manifest = {} 
+    for artifact_name, artifact_config in config['artifacts'].items():
+      click.secho(f'Saving artifacts: {artifact_name}', bold=True)
+      manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
+      manifest_path.parent.mkdir(parents=True, exist_ok=True)
+      if manifest_path.exists():
+        with manifest_path.open() as f:
+          try:
+            manifest = json.load(f)
+          except: 
+            manifest = {}
+      else:
+        manifest = {} 
 
-    nb_files = 0
-    globs = artifact_config.get('glob')
-    if not isinstance(globs, list):
-      globs = [globs]
+      nb_files = 0
+      globs = artifact_config.get('glob')
+      if not isinstance(globs, list):
+        globs = [globs]
 
     for g in globs:
       if not g: continue
