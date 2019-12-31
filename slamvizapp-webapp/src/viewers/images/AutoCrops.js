@@ -45,13 +45,6 @@ class AutoCrops extends React.Component {
     return <>
       <ControlGroup>
         <Button
-          onClick={() => { this.nextRoi() }}
-          intent={Intent.PRIMARY}
-          large={false}
-          text={"next"}
-          style={{ marginRight: "10px" }}
-        />
-        <Button
           onClick={this.generateAutoRois}
           intent={Intent.PRIMARY}
           loading={this.state.is_loading}
@@ -129,7 +122,22 @@ class AutoCrops extends React.Component {
     }
   }
 
-  nextRoi = () => {
+  keyboard = ev => {
+    if (ev.target.nodeName === 'INPUT')
+      return;
+    switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
+      case "n":
+        this.nextRoi(false)
+        break
+      case "b":
+        this.nextRoi(true)
+        break
+      default:
+        return;
+    }
+  }
+
+  nextRoi = (before) => {
     const { viewer_new } = this.props;
     const { regions_of_interest, roi } = this.state;
 
@@ -137,8 +145,13 @@ class AutoCrops extends React.Component {
 
     for (let i = 0; i < regions_of_interest.length; i++) {
       if (regions_of_interest[i] === roi) {
-        this.setState({ roi: regions_of_interest[(i + 1) % regions_of_interest.length] },
-                      () => fitTo(this.state.roi, viewer_new))
+        let new_idx = i + 1
+        if (before) {
+          new_idx = (i - 1) < 0 ? (regions_of_interest.length - 1) : (i - 1)
+
+        }
+        this.setState({ roi: regions_of_interest[new_idx % regions_of_interest.length] },
+          () => fitTo(this.state.roi, viewer_new))
         break
       }
     }
@@ -152,7 +165,7 @@ class AutoCrops extends React.Component {
       output_dir_url_ref: this.props.output_ref.output_dir_url,
       path: this.props.path,
       diff_type: this.state.diff_type,
-      threshold: this.state.threshold,
+      threshold: this.state.threshold / 100.0,  // # convert threshold from percentage to ratio.
       diameter: this.state.roi_diameter,
       count: this.state.num_rois,
     };
@@ -172,6 +185,7 @@ class AutoCrops extends React.Component {
         })
         if (regions_of_interest.length > 0) {
           toaster.show({ message: `${regions_of_interest.length} Regions of Interest`, intent: Intent.PRIMARY, timeout: 3000 });
+          window.addEventListener("keypress", this.keyboard, { passive: true });
         } else {
           toaster.show({ message: "No results. Try using a lower threshold?", intent: Intent.WARNING, timeout: 3000 });
         }
