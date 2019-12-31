@@ -448,9 +448,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       if not should_run and action_on_existing=='skip':
         continue
 
-      # print(input_configuration)
-      # print(get_default_configuration(ctx.obj['inputs_settings']))
-      if False and input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
+      if input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
         if not on_windows:
@@ -466,7 +464,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != default_platform else None,
           f'--type "{input_type}"' if input_type != default_input_type else None,
-          f'--database "{input_database.as_posix()}"', #if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
+          f'--database "{input_database.as_posix()}"' if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
           f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,

@@ -145,6 +145,9 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
 
   if not inputs_settings:
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
+  else:
+    from copy import copy
+    inputs_settings = copy(inputs_settings)
 
   if debug: click.secho(str(available_batches), dim=True)
   # for convenience, users can define "groups of groups"
