@@ -10,6 +10,7 @@ import {
   NumericInput,
   Position,
   Tooltip,
+  Checkbox,
 } from "@blueprintjs/core";
 
 
@@ -31,6 +32,7 @@ class AutoCrops extends React.Component {
       threshold: 1,
       roi_diameter: 0,
       num_rois: 20,
+      send_report: false,
       ...((props.auto_rois || [])[0] || {}),
     }
   }
@@ -41,7 +43,6 @@ class AutoCrops extends React.Component {
     if (!!!output_new || !!!viewer_new || !!!viewer_ref || !!!output_ref || output_ref.deleted) return <span />
 
     const { regions_of_interest } = this.state;
-
     return <>
       <ControlGroup>
         <Button
@@ -69,7 +70,7 @@ class AutoCrops extends React.Component {
             onBlur={() => this.updateOnBlur("threshold", this.state.threshold, 1)}
           />
         </Tooltip>
-        <Tooltip content="diameter of roi" position={Position.TOP}>
+        <Tooltip content="Diameter of roi" position={Position.TOP}>
           <NumericInput
             value={this.state.roi_diameter}
             onValueChange={roi_diameter => this.setState({ roi_diameter })}
@@ -78,13 +79,13 @@ class AutoCrops extends React.Component {
             stepSize={100}
             majorStepSize={1000}
             clampValueOnBlur={true}
-            placeholder={"diameter"}
+            placeholder={"Diameter"}
             style={{ width: "85px" }}
             allowNumericCharactersOnly={true}
             onBlur={() => this.updateOnBlur("roi_diameter", this.state.roi_diameter, 0)}
           />
         </Tooltip>
-        <Tooltip content="max numbers of rois" position={Position.TOP}>
+        <Tooltip content="Max number of rois" position={Position.TOP}>
           <NumericInput
             value={this.state.num_rois}
             onValueChange={num_rois => this.setState({ num_rois })}
@@ -93,12 +94,22 @@ class AutoCrops extends React.Component {
             stepSize={5}
             majorStepSize={10}
             clampValueOnBlur={true}
-            placeholder={"no. rois"}
+            placeholder={"No. of rois"}
             style={{ width: "85px" }}
             allowNumericCharactersOnly={true}
             onBlur={() => this.updateOnBlur("num_rois", this.state.num_rois, 20)}
           />
         </Tooltip>
+        <Tooltip content="Export report" position={Position.TOP}>
+          <Checkbox
+            checked={this.state.send_report}
+            onChange={() => this.update("send_report", !this.state.send_report)}
+            style={{ marginLeft: "10px" }}
+          >
+            <b>Report</b>
+          </Checkbox>
+        </Tooltip>
+
       </ControlGroup>
 
       <div>
@@ -115,6 +126,8 @@ class AutoCrops extends React.Component {
       </div>
     </>
   }
+
+  update = (attr, value) => { this.setState({ [attr]: value }) }
 
   updateOnBlur = (attr, value, default_value) => {
     if (isNaN(value)) {
@@ -194,12 +207,16 @@ class AutoCrops extends React.Component {
         this.setState({
           regions_of_interest: [],
           is_loading: false,
+          send_report: false,
           error,
         })
         toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
       })
-  }
 
+    if (this.state.send_report) {
+      this.generateReport()
+    }
+  }
 
   blobToRoi = blob => {
     let [y, x, r] = blob;
@@ -231,6 +248,30 @@ class AutoCrops extends React.Component {
 
     roi.label = `${this.state.diff_type}(${roi.x}, ${roi.y})`
     return roi;
+  }
+
+  generateReport = () => {
+    const data = {
+      output_id_new: this.props.output_new.id,
+      output_id_ref: this.props.output_ref.id,
+      output_dir_url_new: this.props.output_new.output_dir_url,
+      output_dir_url_ref: this.props.output_ref.output_dir_url,
+      path: this.props.path,
+      rois: this.state.regions_of_interest,
+    };
+
+    this.setState({ is_loading: true });
+    post("http://planet31:9002/api/v1/output/diff/report", data) // for DEBUG
+      //post("/api/v1/output/diff/report", data)
+      .then(res => {
+        console.log(res.data);
+        let report = res.data
+        this.setState({
+          is_loading: false,
+          error: null,
+        })
+
+      })
   }
 
 }
