@@ -197,9 +197,13 @@ class AutoCrops extends React.Component {
           error: null,
         })
         if (regions_of_interest.length > 0) {
+          if (this.state.send_report) {
+            this.generateReport();
+          }
           toaster.show({ message: `${regions_of_interest.length} Regions of Interest`, intent: Intent.PRIMARY, timeout: 3000 });
           window.addEventListener("keypress", this.keyboard, { passive: true });
-        } else {
+        }
+        else {
           toaster.show({ message: "No results. Try using a lower threshold?", intent: Intent.WARNING, timeout: 3000 });
         }
       })
@@ -207,15 +211,10 @@ class AutoCrops extends React.Component {
         this.setState({
           regions_of_interest: [],
           is_loading: false,
-          send_report: false,
           error,
         })
         toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
       })
-
-    if (this.state.send_report) {
-      this.generateReport()
-    }
   }
 
   blobToRoi = blob => {
@@ -270,6 +269,8 @@ class AutoCrops extends React.Component {
           is_loading: false,
           error: null,
         })
+
+        if (report) window.open(report, '_blank');
 
       })
   }

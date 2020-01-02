@@ -14,7 +14,7 @@ from skimage.transform import rescale
 from skimage.feature import blob_dog # blob_log, blob_doh
 from skimage.color import rgb2yiq
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+from matplotlib.backends.backend_pdf import PdfPages
 
 from flask import request, jsonify
 
@@ -52,7 +52,8 @@ def get_images():
 
 
 def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
-  scale = 0.5
+  scale = 1
+  #scale = 0.5
   blob_ratio = 0.1
   min_sigma = 5
   
@@ -86,7 +87,7 @@ def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
   end = time.time()                    # DEBUG
   print("pixelmatch time: {} sec".format(end-start))   # DEBUG
 
-  delta = rescale(delta, scale, mode='constant', multichannel=False, anti_aliasing=True)
+  #delta = rescale(delta, scale, mode='constant', multichannel=False, anti_aliasing=True)
   print("delta: ", delta)              # DEBUG
 
   width = image_1.shape[0]
@@ -167,7 +168,7 @@ def diff(image_1, image_2, diff_type):
 def pixelmatch(img1, img2) :
   yuv1 = rgb2yiq(img1)
   yuv2 = rgb2yiq(img2)
-  delta2 = np.square(yuv1 - yuv2)
+  delta2 = np.square(yuv1 - yuv2) # why square?
   return delta2 @ [0.5053, 0.299, 0.1957]
 
 ################################################################################
@@ -186,21 +187,25 @@ def get_rois():
   crop1 = crop_image(image_1, rois[0]['x'], rois[0]['y'] ,rois[0]['w'] ,rois[0]['h'])
   crop2 = crop_image(image_2, rois[0]['x'], rois[0]['y'] ,rois[0]['w'] ,rois[0]['h'])
 
-  report_url = "/stage/algo_data/qatools_dev/"
+  t = time.time()
+  report_url = f"/stage/algo_data/qatools_dev/{t}_crop1.pdf"
+  report_url_win = f"\\\\netapp\\algo_data\\qatools_dev\\{t}_crop1.pdf"
   figure, axes = plt.subplots(1, 2, figsize=(30, 15), sharex=True, sharey=True)
-  # gs1 = gridspec.GridSpec(1, 2)
-  # gs1.update(wspace=0.025) # set the spacing between axes. 
+
   ax = axes.ravel()
   ax[0].imshow(crop1)
   ax[1].imshow(crop2)
-  plt.subplots_adjust(bottom=0.15, wspace=0)
-  plt.savefig(f"{report_url}/{time.time()}_crop1.png")
+  plt.subplots_adjust(bottom=0.15, wspace=0.01)
+  pp = PdfPages(report_url)
+  pp.savefig(figure)
+  pp.close()
+  #  plt.savefig(f"{report_url}/{time.time()}_crop1.pdf")
   print("Report done.")
-  return jsonify(report_url)
+  return jsonify(report_url_win)
 
 def crop_image(img, cropx, cropy, cropw, croph):
 
-    return img[cropy:cropy+croph,cropx:cropx+cropw]
+  return img[cropy:cropy+croph, cropx:cropx+cropw]
 
 ################################################################################
 if __name__ == "__main__":
