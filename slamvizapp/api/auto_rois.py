@@ -181,27 +181,54 @@ def get_rois():
   rois = data['rois']
   print(data) # DEBUG
 
+  named_tuple = time.localtime() # get struct_time
+  time_string = time.strftime("%d%m%Y_%H%M%S", named_tuple)
+  report_path = f"/stage/algo_data/qatools_dev/{time_string}_report.pdf"
+  report_url = f"https://qa/s/stage/algo_data/qatools_dev/{time_string}_report.pdf"
+  
   image_1, meta_1 = read_image(Path(new_url))
   image_2, meta_2 = read_image(Path(ref_url))
+  
+  with PdfPages(report_path) as pdf:
 
-  crop1 = crop_image(image_1, rois[0]['x'], rois[0]['y'] ,rois[0]['w'] ,rois[0]['h'])
-  crop2 = crop_image(image_2, rois[0]['x'], rois[0]['y'] ,rois[0]['w'] ,rois[0]['h'])
+    for roi in rois:
+      crop1 = crop_image(image_1, roi['x'], roi['y'] ,roi['w'] ,roi['h'])
+      crop2 = crop_image(image_2, roi['x'], roi['y'] ,roi['w'] ,roi['h'])
+      #report_url = f"\\\\netapp\\algo_data\\qatools_dev\\{t}_crop1.pdf"
+      figure, axes = plt.subplots(1, 2, figsize=(10, 5), sharex=True, sharey=True)
+      plt.title(roi['label'])
 
-  t = time.time()
-  report_url = f"/stage/algo_data/qatools_dev/{t}_crop1.pdf"
-  report_url_win = f"\\\\netapp\\algo_data\\qatools_dev\\{t}_crop1.pdf"
-  figure, axes = plt.subplots(1, 2, figsize=(30, 15), sharex=True, sharey=True)
+      ax = axes.ravel()
+      ax[0].imshow(crop1)
+      ax[1].imshow(crop2)
 
-  ax = axes.ravel()
-  ax[0].imshow(crop1)
-  ax[1].imshow(crop2)
-  plt.subplots_adjust(bottom=0.15, wspace=0.01)
-  pp = PdfPages(report_url)
-  pp.savefig(figure)
-  pp.close()
-  #  plt.savefig(f"{report_url}/{time.time()}_crop1.pdf")
+      figure.canvas.draw()
+      xlabels = [item.get_text() for item in ax[0].get_xticklabels()]
+      ylabels = [item.get_text() for item in ax[0].get_yticklabels()]
+      for i, label in enumerate(xlabels):
+        try:                        # in the matplotlib xticklabels Text attribute, 
+                                    # The minus signs for negative numbers are encoded as a "minus" (Unicode 2212).
+          xlabels[i] = int(label) + roi['x']
+        except:
+          continue
+
+      for i, label in enumerate(ylabels):
+        try:
+          ylabels[i] = int(label) + roi['y']
+        except:
+          continue
+
+      ax[0].set_xticklabels(xlabels)
+      ax[0].set_yticklabels(ylabels)
+
+      plt.subplots_adjust(bottom=0.15, wspace=0.01)
+      pdf.savefig(figure)
+      plt.close()
+
+  #  plt.savefig(f"{report_path}/{time.time()}_crop1.pdf")
   print("Report done.")
-  return jsonify(report_url_win)
+  return jsonify(report_url)
+  #return jsonify("https://qa/s/stage/algo_data/ci/CDE-Users/HW_ALG/commits/1570090804__lenag__7214cc70/CIS/tests/products/HM1/tuning/desat-yuv-test-bnw/lsf/69d571e2-on-partial-workspace-configurations-v1-delta-input-bayer/7b/7b39197372324a92aba2dd5fba9fba51/Foveon_new/27_SDQuattroH_TE42_5000lx_5500K_1By160s_ISO100_F5.6_02_1Nona_Mirror_X_Y_GR_5184x3792/b_av.txt")
 
 def crop_image(img, cropx, cropy, cropw, croph):
 
