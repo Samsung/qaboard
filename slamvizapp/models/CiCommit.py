@@ -1,10 +1,11 @@
 """
 A version of the code on which we ran SLAM performance test.
 """
-from pathlib import Path
-from hashlib import md5
 import re
 import json
+import fnmatch
+from hashlib import md5
+from pathlib import Path
 
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy import or_, UniqueConstraint
@@ -322,7 +323,7 @@ def remove(path):
     try:
       path.unlink()
     except:
-      print(f"WARNING: Could not remove: {p}")
+      print(f"WARNING: Could not remove: {path}")
     return
   for p in path.iterdir():
     remove(p)
