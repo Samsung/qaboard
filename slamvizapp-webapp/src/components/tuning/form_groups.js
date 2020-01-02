@@ -121,7 +121,7 @@ class AddRecordingsForm extends Component {
           <p>Tuning runs can use the custom groups below, <em>shared with all the project users</em>, or the defaults from:</p>
           <ul className={Classes.LIST}>
            {commit_groups_files.map(file => <React.Fragment key={file}>
-             <li><a href={`${git.web_url}/tree/${this.props.commit.id}/${file}`}>{file}</a></li>
+             <li><a href={`${git.web_url}/tree/${commit.id}/${file}`}>{file}</a></li>
             </React.Fragment>)}
           </ul>
           <p><b>Tip:</b> The <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/defining-groups-of-tests`}>wiki</a> provides many examples to help get the syntax right.</p>
