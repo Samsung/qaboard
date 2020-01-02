@@ -547,7 +547,7 @@ class ImgViewer extends React.PureComponent {
         <div style={{ padding: '5px' }}>
           {!!error.message && <p>{JSON.stringify(error.message)}</p>}
           {!!error.request && <p>You may <a href={error.config.url}>find why here</a>.</p>}
-          {!!error.response && <p>response: {JSON.stringify(error.response)}</p>}
+          {!!error.response &&!!error.response.data && <p>response.data: {JSON.stringify(error.response.data)}</p>}
           {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
         </div>
       </Popover>;
