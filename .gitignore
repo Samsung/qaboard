@@ -1,7 +1,7 @@
 data/
 .gdb_history
 .vscode/
-build/
+*/build/
 deploy_build/
 
 *.cer
