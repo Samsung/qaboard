@@ -156,7 +156,7 @@ class ProjectSideResults extends React.Component {
 
 	render() {
     const { project, project_data={}, commit } = this.props;
-    const git = project_data.data && project_data.data.git || {};
+    const git = (project_data.data || {}).git || {};
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
     let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
