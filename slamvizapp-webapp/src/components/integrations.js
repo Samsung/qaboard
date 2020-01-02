@@ -146,6 +146,7 @@ class IntegrationsMenus extends React.Component {
       clearInterval(this.state.intervalId);
     }
     startUpdateIntegrationStatuses = () => {
+      this.stopUpdateIntegrationStatuses();
       this.setState({
         intervalId: setInterval(this.updateIntegrationStatuses, 3000),
       })
@@ -155,21 +156,16 @@ class IntegrationsMenus extends React.Component {
     }
    
     updateIntegrationStatuses = () => {
-        const { project_data={}, commit } = this.props;
-        const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
-        const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
+        const { project, project_data={}, commit, user } = this.props;
+        const eval_templates_recusively = make_eval_templates_recursively({project, project_data, commit, user})
         // const integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
         const integrations = default_integrations; // FIXME comment-out
         integrations.filter(i => i.href !== undefined || i.gitlabCI || i.jenkins).forEach(integration => {
+          integration = eval_templates_recusively(integration)
           const status = this.state.integrations[integration.text] || {};
           if (integration.jenkins && (status.job || {}).web_url === undefined)
             return
-          this.setState({
-             integrations: {
-               ...this.state.integrations,
-               [integration.text]: {loading: true},
-             }
-           });
+          // Note: For updates we don't want to be "loading" and disable the menuItem button
           //  console.log(integration.text, integration)
            const { label, icon, text, href, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
            if (gitlabCI) {
@@ -216,6 +212,7 @@ class IntegrationsMenus extends React.Component {
                   integrations: {
                     ...this.state.integrations,
                     [integration.text]: {
+                      ...this.state.integrations[integration.text],
                       is_loaded: true,
                       loading: false,
                       error: null,
@@ -244,8 +241,6 @@ class IntegrationsMenus extends React.Component {
 
     render() {
         const { project, project_data={}, commit={}, user } = this.props;
-        const commit_qatools_config = (commit.data || {}).qatools_config || {};
-        const project_qatools_config = (project_data.data || {}).qatools_config || {};
         const qatools_integrations = default_integrations; // FIXME comment-out
         // const qatools_integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
         // console.log(qatools_integrations)
@@ -271,7 +266,7 @@ class IntegrationsMenus extends React.Component {
             let status = this.state.integrations[integration.text];
             let was_triggered = !!status && (status.loading || !!status.error);
             let disabled = (integration.disabled || was_triggered) && (!!!status || !!!status.error);
-            console.log(integration.text, status, was_triggered)
+            // console.log(integration.text, status, was_triggered)
 
             if (integration.gitlabCI || integration.jenkins) {
               // console.log(status)
@@ -295,7 +290,7 @@ class IntegrationsMenus extends React.Component {
                />
             }
 
-            let show_status = !!status && !status.loading && !!status.statusText
+            let show_status = !!status && !!status.statusText
             let right_label = show_status ? `${!!integration.label ? integration.label : ''} [${status.statusText}]`
                                           : integration.label;
             if (!!integration.href)
