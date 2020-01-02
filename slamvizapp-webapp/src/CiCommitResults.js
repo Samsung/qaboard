@@ -223,7 +223,7 @@ class CiCommitResults extends Component {
         label={'Perceptual diff'}
     />
     let controls = <>
-      {!selected_views.includes('bit_accuracy') && visualizations.map( (view, idx) => {
+      {!selected_views.includes('bit-accuracy') && visualizations.map( (view, idx) => {
         if (!view.default_hidden ||
             this.state.controls.show === undefined || this.state.controls.show === null ||
             this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
@@ -246,7 +246,7 @@ class CiCommitResults extends Component {
       })}
     </>
 
-    let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit_accuracy')
+    let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
     const all_controls = <Tabs>
       <Tabs.Expander />
       {show_viewer_controls && controls}
@@ -414,7 +414,7 @@ class CiCommitResults extends Component {
                   />
                </Section>}
 
-              {selected_views.includes('bit_accuracy') && <Section>
+              {selected_views.includes('bit-accuracy') && <Section>
                  {all_controls}
                   <h2 className={Classes.HEADING}>Files & Bit Accuracy</h2>
                   <ExportPlugin
@@ -511,7 +511,9 @@ const mapStateToProps = (state, ownProps) => {
 
     let selected_views = (state.selected[project] && state.selected[project].selected_views) || (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || "summary";
     if (!Array.isArray(selected_views))
-      selected_views = [selected_views] 
+      selected_views = [selected_views]
+    // Avoid issues with output_list/output-list...
+    selected_views = selected_views.map(v => v.replace('_', '-'))
     return {
       params,
       project,
