@@ -22,6 +22,11 @@ import "./App.css";
 import { routes } from './routes'
 import { sider_width } from './AppSider'
 
+const Footer = () => {
+  return <div style={{margin: "10px", textAlign: "right"}}>
+     <span className={Classes.TEXT_MUTED}>Made with ❤️ at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span> 
+  </div>
+}
 
 class App extends React.Component {
   constructor(props) {
@@ -98,6 +103,7 @@ class ProjectApp extends React.Component {
               />
             ))}
           </Switch>
+          <Footer/>
         </div>
       </div>
     </Layout>
