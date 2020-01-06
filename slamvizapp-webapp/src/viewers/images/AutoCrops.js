@@ -33,6 +33,7 @@ class AutoCrops extends React.Component {
       roi_diameter: 0,
       num_rois: 20,
       send_report: false,
+      active: false,
       ...((props.auto_rois || [])[0] || {}),
     }
   }
@@ -45,6 +46,7 @@ class AutoCrops extends React.Component {
     const { regions_of_interest } = this.state;
     return <>
       <ControlGroup>
+
         <Button
           onClick={this.generateAutoRois}
           intent={Intent.PRIMARY}
@@ -54,20 +56,27 @@ class AutoCrops extends React.Component {
           text={"Find Regions of Interest"}
           style={{ marginRight: "10px" }}
         />
-        <Tooltip content="Threshold %" position={Position.TOP}>
+        <Tooltip content=
+          {<ul>
+            <li>Threshold %</li>
+            <li>hold 'alt' for minor step</li>
+            <li>hold 'shift' for major step</li>
+          </ul>}
+          position={Position.TOP}>
           <NumericInput
             value={this.state.threshold}
             onValueChange={threshold => this.setState({ threshold })}
             max={100}
             min={0}
-            minorStepSize={0.5}
-            stepSize={0.5}
+            minorStepSize={0.1}
+            stepSize={1}
             majorStepSize={5}
             clampValueOnBlur={true}
             placeholder={"Threshold%"}
             style={{ width: "95px" }}
             allowNumericCharactersOnly={true}
             onBlur={() => this.updateOnBlur("threshold", this.state.threshold, 1)}
+            disabled={this.state.is_loading}
           />
         </Tooltip>
         <Tooltip content="Diameter of roi" position={Position.TOP}>
@@ -83,6 +92,7 @@ class AutoCrops extends React.Component {
             style={{ width: "85px" }}
             allowNumericCharactersOnly={true}
             onBlur={() => this.updateOnBlur("roi_diameter", this.state.roi_diameter, 0)}
+            disabled={this.state.is_loading}
           />
         </Tooltip>
         <Tooltip content="Max number of rois" position={Position.TOP}>
@@ -98,30 +108,52 @@ class AutoCrops extends React.Component {
             style={{ width: "85px" }}
             allowNumericCharactersOnly={true}
             onBlur={() => this.updateOnBlur("num_rois", this.state.num_rois, 20)}
+            disabled={this.state.is_loading}
           />
         </Tooltip>
-        <Tooltip content="Export report" position={Position.TOP}>
+        {!regions_of_interest.length &&
           <Checkbox
+            label={<b>Export report</b>}
             checked={this.state.send_report}
             onChange={() => this.update("send_report", !this.state.send_report)}
             style={{ marginLeft: "10px" }}
-          >
-            <b>Report</b>
-          </Checkbox>
-        </Tooltip>
-
+          />
+        }
+        {!!regions_of_interest.length &&
+          <Button
+            onClick={this.generateReport}
+            intent={Intent.SUCCESS}
+            large={false}
+            icon="comparison"
+            text={"Export report"}
+            loading={this.state.is_loading}
+            style={{ marginLeft: "10px" }}
+          />
+        }
       </ControlGroup>
 
       <div>
         {regions_of_interest.map((roi, idx) => {
-          return <AnchorButton
-            onClick={() => { this.setState({ roi: roi }, () => fitTo(roi, viewer_new)) }}
-            style={{ margin: "5px" }}
-            key={idx}
-            intent={this.state.roi === roi ? Intent.PRIMARY : null}
-          >
-            {roi.label || roi.tag || idx}
-          </AnchorButton>
+          return (
+            <Tooltip content={(roi === this.state.roi) && "Select next/before roi with keyboard shortcut n/b"} position={Position.TOP}>
+              <AnchorButton
+                onClick={() => {
+                  this.setState({ roi: roi, active: true }, () => {
+                    //this.props.handle_active_image(this.props.viewer_new.id);
+                    //console.log(this.props); // DEBUG
+                    fitTo(roi, viewer_new);
+                  })
+                }
+                }
+                style={{ margin: "5px" }}
+                key={idx}
+                intent={this.state.roi === roi ? Intent.PRIMARY : null}
+                onBlur={() => this.setState({ active: false })}
+              >
+                {roi.label || roi.tag || idx}
+              </AnchorButton>
+            </Tooltip>
+          )
         })}
       </div>
     </>
@@ -136,7 +168,7 @@ class AutoCrops extends React.Component {
   }
 
   keyboard = ev => {
-    if (ev.target.nodeName === 'INPUT')
+    if (ev.target.nodeName === 'INPUT' || (!this.state.active))
       return;
     switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "n":
@@ -153,6 +185,8 @@ class AutoCrops extends React.Component {
   nextRoi = (before) => {
     const { viewer_new } = this.props;
     const { regions_of_interest, roi } = this.state;
+
+    console.log(this.props); // DEBUG
 
     if (!roi) return
 
@@ -180,10 +214,10 @@ class AutoCrops extends React.Component {
       diff_type: this.state.diff_type,
       threshold: this.state.threshold / 100.0,  // # convert threshold from percentage to ratio.
       diameter: this.state.roi_diameter,
-      count: this.state.num_rois,
+      count: this.state.num_rois || 20,
     };
 
-    this.setState({ is_loading: true });
+    this.setState({ is_loading: true, regions_of_interest: [], roi: null });
     post("http://planet31:9002/api/v1/output/diff/image", data) // for DEBUG
       //post("/api/v1/output/diff/image", data)
       .then(res => {
@@ -274,6 +308,7 @@ class AutoCrops extends React.Component {
 
       })
   }
+
 
 }
 
