@@ -129,11 +129,29 @@ export function projects(state = {
           }
         }
       }
-      if (action.commits.length > 0)
+      if (action.commits.length > 0) {
+        const first_commit = action.commits[action.commits.length - 1];
+        const last_commit = action.commits[0];
         new_state.data[action.project].commits[branch].date_range = [
-          new Date(action.commits[action.commits.length - 1].authored_datetime),
-          new Date(action.commits[0].authored_datetime)
+          new Date(first_commit.authored_datetime),
+          new Date(last_commit.authored_datetime),
         ]
+        // We keep track of the latest commit on each branch, hopping for no git tricks..
+        if (branch !== 'latests') {
+          var branch_last_commit = last_commit
+        } else {
+          const default_branch = ((state.data[action.project].data || {}).git || {}).default_branch ||
+                                 (((state.data[action.project].data || {}).qatools_config || {}).project || {}).reference_branch;
+          branch_last_commit = action.commits.filter(c => c.branch === default_branch )[0];
+        }
+        const last_commit_authored_datetime = new Date((branch_last_commit || {}).authored_datetime);
+        if (!!branch_last_commit && new_state.data[action.project].commits[branch].latest_commit === undefined || new_state.data[action.project].commits[branch].latest_commit < last_commit_authored_datetime) {
+          new_state.data[action.project].commits[branch].latest_commit = {
+            id: branch_last_commit.id,
+            authored_datetime: last_commit_authored_datetime,
+          }  
+        }
+      }
       return new_state;
 
 

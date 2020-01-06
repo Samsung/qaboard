@@ -293,11 +293,20 @@ const fill_template = (template_string, parameters) => {
   if (typeof template_string !== 'string') return template_string;
    // eslint-disable-next-line
   var func = new Function(...Object.keys(parameters),  "return `" + template_string + "`;")
-  return func(...Object.values(parameters));
+  const filled_templated = func(...Object.values(parameters));
+  // Many errors are git.web_url not being loaded/defined already,
+  // then it leads to 500 errors dow 
+  // We could be less aggressive and raise exception on .startsWith()...
+  if (filled_templated.includes('undefined')) {
+    const error = `[fill_template] A template parameter was not not found: ${filled_templated}`;
+    // console.log(error)
+    throw error; 
+  }
+  return filled_templated
 }
 
 
-const make_eval_templates_recursively = ({project, project_data, commit, user}) => {
+const make_eval_templates_recursively = ({project, project_data, ...rest }) => {
   let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
   let subproject = project.slice(project_repo.length + 1);
   let project_parts = project.split('/');
@@ -316,20 +325,22 @@ const make_eval_templates_recursively = ({project, project_data, commit, user}) 
       project_name_tolower,     // "subproject"
       project_parts_tolower,    // ["group", "project", "my", "subproject"]
       subproject_parts_tolower, // ["my", "subproject"]
-      commit,
-      user,
+      ...rest,
+      // branch,
+      // commit,
+      // user,
   }
   return integration => {
-    try {
+    // try {
       // console.log("[before]", integration)
       // console.log(context)
-      integration = recursively_apply(integration, s => fill_template(s, context));
-      // console.log("[after]", integration)
-    } catch {
+      const evaled_integration = recursively_apply(integration, s => fill_template(s, context));
+      // console.log("[after]", evaled_integration)
+    // } catch {
       // problem can happen when the project/commit data is not loaded yet... 
       // we should wait for everything to be loaded
-    }
-    return integration;
+    // }
+      return evaled_integration;
   }
 }
 

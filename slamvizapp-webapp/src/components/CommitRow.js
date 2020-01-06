@@ -296,7 +296,11 @@ class CommitRow extends React.Component {
               </Tooltip>
               <Icon icon="git-branch" />
               <Link
-                style={{ color: "rgba(0,0,0,0.85)", marginRight: '5px' }}
+                style={{
+                  color: "rgba(0,0,0,0.85)",
+                  marginRight: '5px',
+                  marginTop: !!commit.message && '4px',
+                }}
                 to={`/${project}/commits/${(commit.branch || '')}`}
                 onClick={() => dispatch(updateSelected(project, {branch: commit.branch, committer: null}))}
               >

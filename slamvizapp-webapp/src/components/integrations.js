@@ -2,6 +2,7 @@ import React from "react";
 import axios from "axios";
 
 import {
+    Icon,
     Intent,
     MenuItem,
     MenuDivider,
@@ -54,6 +55,7 @@ export const toaster = Toaster.create();
 //     => started/finished Xmin ago, est. Ymin left / duration: Zmin
 
 
+export const key = integration => (integration.id || integration.text || integration.name || integration.alt)
 
 class IntegrationsMenus extends React.Component {
     constructor(props) {
@@ -69,7 +71,10 @@ class IntegrationsMenus extends React.Component {
           this.setState({
             integrations: {
               ...this.state.integrations,
-              [integration.text]: {loading: true},
+              [key(integration)]: {
+                loading: true,
+                triggered: true,
+              },
             }
           });
           if (integration.webhook) {
@@ -82,7 +87,7 @@ class IntegrationsMenus extends React.Component {
               this.setState({
                 integrations: {
                   ...this.state.integrations,
-                  [integration.text]: {
+                  [key(integration)]: {
                     is_loaded: true, loading: false,
                     error: "Can't find gitlab host",
                     statusText: 'ERROR',
@@ -92,16 +97,14 @@ class IntegrationsMenus extends React.Component {
               return;
             }
             params = {
+              gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
               project_id: project,
               commit_id: commit.id,
-              gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
               ...integration.gitlabCI,
             }
           } else if (integration.jenkins) {
             url = '/api/v1/jenkins/build/trigger/';
             params = {
-              project_id: project,
-              commit_id: commit.id,
               ...integration.jenkins,
             }
     
@@ -116,7 +119,7 @@ class IntegrationsMenus extends React.Component {
                 this.setState({
                   integrations: {
                     ...this.state.integrations,
-                    [integration.text]: {
+                    [key(integration)]: {
                       is_loaded: true,
                       loading: false,
                       error: null,
@@ -135,7 +138,7 @@ class IntegrationsMenus extends React.Component {
                 this.setState({
                   integrations: {
                     ...this.state.integrations,
-                    [integration.text]: {is_loaded: true, loading: false, error, statusText: error.response.statusText},
+                    [key(integration)]: {is_loaded: true, loading: false, error, statusText: error.response.statusText},
                   }
                 });
               }); 
@@ -145,27 +148,55 @@ class IntegrationsMenus extends React.Component {
     stopUpdateIntegrationStatuses = () => {
       clearInterval(this.state.intervalId);
     }
-    startUpdateIntegrationStatuses = () => {
+    startUpdateIntegrationStatuses = interval => {
       this.stopUpdateIntegrationStatuses();
       this.setState({
-        intervalId: setInterval(this.updateIntegrationStatuses, 3000),
+        intervalId: setInterval(this.updateIntegrationStatuses, interval || 10*1000),
       })
+    }
+    componentDidMount = function() {
+      this.startUpdateIntegrationStatuses(60 * 1000)
     }
     componentWillUnmount = function() {
       this.stopUpdateIntegrationStatuses()
     }
-   
+
+    // componentDidUpdate(prevProps) {
+    // }
+ 
     updateIntegrationStatuses = () => {
-        const { project, project_data={}, commit, user } = this.props;
-        const eval_templates_recusively = make_eval_templates_recursively({project, project_data, commit, user})
-        // const integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
-        const integrations = default_integrations; // FIXME comment-out
-        integrations.filter(i => i.href !== undefined || i.gitlabCI || i.jenkins).forEach(integration => {
-          integration = eval_templates_recusively(integration)
-          const status = this.state.integrations[integration.text] || {};
+        const { project, project_data={}, commit={} } = this.props;
+        const commit_qatools_config = (commit.data || {}).qatools_config || {};
+        const project_qatools_config = (project_data.data || {}).qatools_config || {};
+        const eval_templates_recusively = make_eval_templates_recursively(this.props)
+        // let _integrations = debug_integrations; // FIXME comment-out
+        const _integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+        let integrations = [...default_gitlab_integrations, ..._integrations]
+        integrations = JSON.parse(JSON.stringify(integrations))
+        integrations.filter(i => (i.href !== undefined && i.src === undefined) || i.gitlabCI || i.jenkins)
+                    .forEach(integration => {
+          try {
+            integration = eval_templates_recusively(integration)
+          } catch {
+            return;
+          }
+          if (!integration) {
+            return;
+          }
+          const status = this.state.integrations[key(integration)] || {};
+          if (status.loading)
+            return
           if (integration.jenkins && (status.job || {}).web_url === undefined)
             return
-          // Note: For updates we don't want to be "loading" and disable the menuItem button
+          this.setState({
+            integrations: {
+              ...this.state.integrations,
+              [key(integration)]: {
+                ...this.state.integrations[key(integration)],
+                loading: true,
+              },
+            }
+          });
           //  console.log(integration.text, integration)
            const { label, icon, text, href, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
            if (gitlabCI) {
@@ -175,8 +206,9 @@ class IntegrationsMenus extends React.Component {
               this.setState({
                 integrations: {
                   ...this.state.integrations,
-                  [integration.text]: {
-                    is_loaded: true, loading: false,
+                  [key(integration)]: {
+                    is_loaded: true,
+                    loading: false,
                     error: "Can't find gitlab host",
                     statusText: 'ERROR',
                   },
@@ -185,8 +217,9 @@ class IntegrationsMenus extends React.Component {
               return;
             }
             var params = {
-              project_id: this.props.project,
               gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
+              project_id: this.props.project,
+              commit_id: commit.id,
               job_id: (status.job || {}).id,
               ...gitlabCI,
             }
@@ -195,7 +228,7 @@ class IntegrationsMenus extends React.Component {
             params = {
               web_url: ((status || {}).job || {}).web_url,
             }
-            // console.log(this.state.integrations[integration.text])
+            // console.log(this.state.integrations[key(integration)])
           } else { // webhook
             req_url = '/api/v1/webhook/proxy/';
             params = {
@@ -211,8 +244,8 @@ class IntegrationsMenus extends React.Component {
                 this.setState({
                   integrations: {
                     ...this.state.integrations,
-                    [integration.text]: {
-                      ...this.state.integrations[integration.text],
+                    [key(integration)]: {
+                      ...this.state.integrations[key(integration)],
                       is_loaded: true,
                       loading: false,
                       error: null,
@@ -226,8 +259,8 @@ class IntegrationsMenus extends React.Component {
                 this.setState({
                   integrations: {
                     ...this.state.integrations,
-                    [integration.text]: {
-                      ...this.state.integrations[integration.text],
+                    [key(integration)]: {
+                      ...this.state.integrations[key(integration)],
                       is_loaded: true,
                       loading: false,
                       error: !!ignore_failure ? null : error,
@@ -240,76 +273,130 @@ class IntegrationsMenus extends React.Component {
     }
 
     render() {
-        const { project, project_data={}, commit={}, user } = this.props;
-        const qatools_integrations = default_integrations; // FIXME comment-out
-        // const qatools_integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
-        // console.log(qatools_integrations)
-    
-        const eval_templates_recusively = make_eval_templates_recursively({project, project_data, commit, user})
-        return <MenuItem
-                icon="send-to"
-                text="Actions & Links"
-                popoverProps={{
-                  usePortal: true,
-                  hoverCloseDelay: 1000,
-                  transitionDuration: 1000,
-                  onOpening: this.startUpdateIntegrationStatuses,
-                  onClosed: this.stopUpdateIntegrationStatuses,
-                }}>
-        {(qatools_integrations.length > 0)
-        ? 
-          qatools_integrations.map( (integration, idx) => {
+        const { single_menu, project, project_data={}, commit={} } = this.props;
+        const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
+        const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
+        // let _integrations = debug_integrations; // FIXME comment-out
+        const _integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+        let integrations = [...default_gitlab_integrations, ..._integrations]
+        integrations = JSON.parse(JSON.stringify(integrations))
+        const uses_default_integrations = true
+        // console.log(this.props, _integrations)
+        const eval_templates_recusively = make_eval_templates_recursively(this.props)
+
+
+        const render_integration = (integration, idx) => {
+          try {
             integration = eval_templates_recusively(integration)
-            if (integration.divider) {
-              return <MenuDivider key={idx} {...integration}/>
-            }
-            let status = this.state.integrations[integration.text];
-            let was_triggered = !!status && (status.loading || !!status.error);
-            let disabled = (integration.disabled || was_triggered) && (!!!status || !!!status.error);
-            // console.log(integration.text, status, was_triggered)
+          } catch {
+            // console.log('error with integration', integration)
+            return <span/>;
+          }
+          if (!integration) {
+            // console.log('undef integration', integration)
+            return <span/>;
+          }
+          // console.log('good', integration)
+          if (integration.divider) {
+            return <MenuDivider key={idx} {...integration}/>
+          }
+          let status = this.state.integrations[key(integration)];
+          let first_loading = !!status && (status.loading && !status.is_loaded);
+          let trigger_loading = !!status && (status.loading && status.triggered);
+          let has_error = !!status && !!status.error
+          let disabled = !integration.src && ( integration.disabled || first_loading || has_error || trigger_loading);
+          // console.log(key(integration), integration, status, "first_loading", first_loading, "disabled", disabled, "trigger_loading", trigger_loading)
 
-            if (integration.gitlabCI || integration.jenkins) {
-              // console.log(status)
-              let has_error = !!status && !!status.error
-              let label = has_error ? <Tooltip>
-                                        <Tag round icon="cross" intent="danger"/>
-                                        <span>{JSON.stringify(status.error.message)}</span>
-                                      </Tooltip>
-                                    : <JobTag job={(status || {}).job}/>
-              return <MenuItem
-                key={idx}
-                tagName='div'
-                shouldDismissPopover={false}
-                icon={(was_triggered || !!((status || {}).job || {}).web_url ) ? 'repeat' : 'play'}
-                {...integration}
-                gitlabCI={undefined}
-                jenkins={undefined}
-                label={label}
-                onClick={this.trigger(integration)}
-                disabled={disabled}
-               />
-            }
-
-            let show_status = !!status && !!status.statusText
-            let right_label = show_status ? `${!!integration.label ? integration.label : ''} [${status.statusText}]`
-                                          : integration.label;
-            if (!!integration.href)
-              return <MenuItem key={idx} disabled={disabled} {...integration} target="_blank" label={right_label}/>
+          if (integration.gitlabCI || integration.jenkins) {
+            // console.log(status)
+            let label = has_error ? <Tooltip>
+                                      <Tag round icon="cross" intent="danger"/>
+                                      <span>{JSON.stringify(status.error.message)}</span>
+                                    </Tooltip>
+                                  : <JobTag job={(status || {}).job}/>
             return <MenuItem
               key={idx}
+              tagName='div'
               shouldDismissPopover={false}
+              icon={( !!((status || {}).job || {}).web_url && status.job.status !== 'manual') ? 'repeat' : 'play'}
               {...integration}
-              disabled={disabled}
-              label={right_label}
+              gitlabCI={undefined}
+              jenkins={undefined}
+              label={label}
               onClick={this.trigger(integration)}
-            />
-          })
-        : <MenuItem icon="info-sign" target="_blank"  href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/triggering-third-party-tools`} text="Click to learn how to link to docs/artifacts, or trigger webhooks and GitlabCI/jenkins jobs..."/>
+              disabled={disabled}
+              />
+          }
+
+          let show_status = !!status && !!status.statusText
+
+          const badge = integration.src && <img
+            alt={integration.alt || key(integration)}
+            src={integration.src}
+          />        
+          if (badge) {
+            var right_label = integration.icon && <Icon icon={integration.icon}/>
+          } else {
+            right_label = show_status ? `${!!integration.label ? integration.label : ''} [${status.statusText}]`
+                                      : integration.label;
+          }
+          if (!!integration.href)
+            return <MenuItem
+                    key={idx}
+                    disabled={disabled}
+                    {...integration}
+                    icon={badge || integration.icon}
+                    label={right_label}
+                    target="_blank"
+                    label={right_label}
+                  />
+          return <MenuItem
+            key={idx}
+            shouldDismissPopover={false}
+            {...integration}
+            icon={badge || integration.icon}
+            label={right_label}
+            disabled={disabled}
+            onClick={this.trigger(integration)}
+          />
         }
-      </MenuItem>
-    }
+
+        const badges = integrations.filter(i => i.src);
+        const integrations_in_menu = single_menu ? integrations.filter(i => !i.src) : integrations;
+        return <>
+          {single_menu && badges.map(render_integration)}
+          <MenuItem
+                  icon="send-to"
+                  text="Actions & Links"
+                  popoverProps={{
+                    usePortal: true,
+                    hoverCloseDelay: 1000,
+                    transitionDuration: 1000,
+                    onOpening: this.startUpdateIntegrationStatuses,
+                    onClosed: this.stopUpdateIntegrationStatuses,
+          }}>
+            {integrations_in_menu.map(render_integration)}
+            {uses_default_integrations && <>
+              {integrations_in_menu.length > 0 && <MenuDivider />}
+              <MenuItem
+                icon="info-sign"
+                target="_blank"
+                href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/triggering-third-party-tools`}
+                text="Click to learn how to link to docs/artifacts, or trigger webhooks and GitlabCI/jenkins jobs..."
+              />
+            </>}
+            </MenuItem>
+        </>;
+  }
 }
 
+
+
+/*
+    // TOOD: better defaults..
+    let is_gitlab = !!git.web_url; //FIXME..
+    if (badges.length === 0 && is_gitlab)
+*/
 
 
 // A status tag for job: {status, allow_failure} like jenkins or gitlabCI.
@@ -361,9 +448,23 @@ const JobTag = ({job}) => {
 
 export { IntegrationsMenus };
 
-
 // For debugging
-const default_integrations = [
+const default_gitlab_integrations = [
+    {
+      href: "${git.web_url}/commits/${branch}",
+      alt: "Build status",
+      src: "${git.web_url}/badges/${branch}/build.svg",
+      only: "${branch}" // won't be displayed in per-commit pages
+    },
+    {
+      href: "${git.web_url}/commits/${branch}",
+      alt: "Coverage",
+      src: "${git.web_url}/badges/${branch}/coverage.svg",
+      only: "${branch}" // won't be displayed in per-commit pages
+    }, 
+]
+
+const debug_integrations = [
     {
       divider: true,
       title: 'Build',
@@ -371,9 +472,11 @@ const default_integrations = [
     {
       text: 'Play Gitlab Manual Job',
       gitlabCI: {
-        job_name: "chart-report",
-        commit_id: "9ce4c8a6",
-        project_id: "tof/swip_tof",
+        job_name: "tuning",
+        project_id: "LSC/Calibration",
+        // job_name: "chart-report",
+        // commit_id: "9ce4c8a6",
+        // project_id: "tof/swip_tof",
       }
     },
     {
@@ -447,4 +550,4 @@ const default_integrations = [
     //   intent: 'warning',
     //   icon: 'upload',
     // },
-  ]
+]

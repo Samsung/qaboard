@@ -6,7 +6,8 @@ module.exports = function(app) {
   app.use(
     '/api',
     proxy({
-      target: 'http://qa:5001',
+      target: 'http://qa:5001', // prod
+      // target: 'http://qa:9002', // dev-staging
       changeOrigin: true,
     })
   );

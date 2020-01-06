@@ -39,6 +39,13 @@ export const commitsSelector = createSelector([commitsDataSelector, state => sta
 })
 
 
+export const latestCommitSelector = createSelector([commitsDataSelector, state => state.commits], (commits_data, commits) => {
+  if (commits_data.latest_commit === undefined)
+    return {id: undefined, batches: {}}
+  const latest_commit = commits[commits_data.latest_commit.id] || {id: commits_data.latest_commit.id, batches: {}};
+  return latest_commit
+})
+
 
 export const commitSelector = createSelector([selectedSelector, state => state.commits, commitsDataSelector], (selected, commits, commits_data) => {
   return {

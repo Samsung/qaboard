@@ -24,6 +24,7 @@ import {
   projectDataSelector,
   commitSelector,
   batchSelector,
+  latestCommitSelector,
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 import { project_avatar_style } from "./utils"
@@ -68,20 +69,12 @@ class ProjectSideAvatar extends React.Component {
     const { project, project_data={} } = this.props;
     const git = (project_data.data || {}).git || {};
     let project_name = project.split('/').slice(-1)[0];
-
     const is_subproject = git.path_with_namespace !== project;
     const has_custom_avatar = !!(((project_data.data || {}).qatools_config || {}).project || {}).avatar_url
     const should_tweak_image = is_subproject && !has_custom_avatar;
     const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-
     const gitlab_host = (git.web_url || 'https://gitlab.com/').split('/').slice(0,3).join('/')
     const avatar_url = !!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `${gitlab_host}${git.avatar_url}`) : null
-    // console.log("is_subproject", is_subproject)
-    // console.log("has_custom_avatar", has_custom_avatar)
-    // console.log("should_tweak_image", should_tweak_image)
-    // console.log("avatar_style", avatar_style)
-    
-
     return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: sider_width, marginBottom: '20px'}}>
     <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}>
       <>
@@ -105,48 +98,37 @@ class ProjectSideCommitList extends React.Component {
   }
 
 	render() {
-    const { project, project_data={}, match } = this.props;
-    let qatools_config = (project_data.data || {}).qatools_config || {}
+    const { project, project_data={}, commit={}, match } = this.props;
+    let qatools_config = (project_data.data || {}).qatools_config || {};
     let reference_branch = (qatools_config.project || {}).reference_branch;
-    let ci_root = ((qatools_config.ci_root || {}).linux || '').replace("/home/arthurf/ci", "")
+    const git = (project_data.data || {}).git || {};
 
-    let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
+    let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+";
     let is_committer = !!match.params.committer;
     let is_branch = !!match.params.name;
-    if (is_branch || is_committer)
+    if (is_branch || is_committer) {
       var tag = match.params.name || match.params.committer;
-    else tag = reference_branch;
-  		// <MenuItem href={`/s${ci_root}/${project}/branches/${reference_branch}/doxygen/index.html`} icon="manual" text="Docs"/>
-
-    // TODO: add support for  other badges!
-    //       qatools.yaml
-    //       badges:
-    //       - href: ...
-    //         alt:  ...
-    //         img:  ...
-    const git = (project_data.data || {}).git || {};
-    const build_icon = <img alt="build status" src={`${git.web_url}/badges/${tag}/build.svg`}/>;
-    const coverage_icon = <img alt="coverage report" src={`${git.web_url}/badges/${tag}/coverage.svg`} />
- 
-    let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
+    } else {
+      tag = reference_branch;
+    } 
+    let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
     let code_url = subproject.length > 0 ? `${git.web_url}/tree/${reference_branch}/${subproject}` : git.web_url;
 		return <>
       {!is_committer && <>
   		  {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
-                         : <MenuItem icon={is_branch ? "git-branch" : 'user'} text="Status"/>
+                         : <MenuItem icon={is_branch ? "git-branch" : 'user'} text={tag}/>
   		  }
-  		  <MenuItem href={`http://gitlab-srv/${project_repo}/pipelines`} icon={build_icon}/>
-  		  <MenuItem href={`/s${ci_root}/${project}/branches/${reference_branch}/coverage/index.html`} icon={coverage_icon} style={{marginBottom: '10px'}}/>
-
-        <MenuItem href={`/${project}/time-travel/${reference_branch}`} icon="series-search" text="History"/>
-        <MenuItem href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-  		</>}
-  		{false && <MenuItem icon="locate" text="Metrics"/>}
-  		{false && <MenuItem icon="info-sign" text="Settings"/>}
+        <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+        <MenuItem href={`/${project}/time-travel/${reference_branch}`} icon="history" text="History"/>
+        <MenuDivider />
+        <IntegrationsMenus single_menu project={project} project_data={project_data} branch={is_branch ? match.params.name : reference_branch} commit={commit} user={this.props.tuning_user} />
+        </>}
     </>
-	}
+	  }
 }
+        // {false && <MenuItem icon="locate" text="Metrics"/>}
+  		  // {false && <MenuItem icon="info-sign" text="Settings"/>}
 
 
 class ProjectSideResults extends React.Component {
@@ -213,7 +195,7 @@ class AppSider extends React.Component {
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
-        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/time-travel/') && <ProjectSideCommitList match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch}/>}
+        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/time-travel/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
         {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.new_batch_filtered} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
       </ul>
     </Sider>
@@ -234,6 +216,7 @@ const mapStateToProps = (state, ownProps) => {
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
   let { new_commit: commit } = commitSelector(state)
+  const latest_commit = latestCommitSelector(state);
   const qatools_config = (project_data.data || {}).qatools_config || {}
   let selected_views = selected.selected_views || [ ( qatools_config.outputs || {}).default_tab_details || 'summary']
 
@@ -245,7 +228,8 @@ const mapStateToProps = (state, ownProps) => {
       project_data,
       is_home: false,
       branches: [],
-      commit,
+      commit, // selected
+      latest_commit, // on branch
       selected_views,
       new_batch_filtered,
     };
@@ -256,6 +240,7 @@ const mapStateToProps = (state, ownProps) => {
     is_home,
     project,
     commit,
+    latest_commit,
     project_data,
     branches: state.projects.data[project].branches ||  [],
     is_loading: state.projects.data[project].branches_loading,
