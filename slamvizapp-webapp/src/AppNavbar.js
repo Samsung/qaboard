@@ -249,6 +249,7 @@ class AppNavbar extends Component {
                   leftIcon: 'filter',
                   intent: (!!selected.search && selected.search.length > 0) ? Intent.PRIMARY : null,
                 }}
+                intent={!!selected.search ? 'primary' : 'default'}
                 placeholder="Filter..."
                 onQueryChange={query => {
                   this.maybeFetchBranches({});

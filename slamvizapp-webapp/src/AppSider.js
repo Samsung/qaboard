@@ -113,14 +113,14 @@ class ProjectSideCommitList extends React.Component {
     } 
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
-    let code_url = subproject.length > 0 ? `${git.web_url}/tree/${reference_branch}/${subproject}` : git.web_url;
+    let code_url = subproject.length > 0 ? `${git.web_url}/tree/${is_branch ? match.params.name : reference_branch}/${subproject}` : git.web_url;
 		return <>
+      {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
+                        : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
+      }
       {!is_committer && <>
-  		  {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
-                         : <MenuItem icon={is_branch ? "git-branch" : 'user'} text={tag}/>
-  		  }
         <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-        <MenuItem href={`/${project}/time-travel/${reference_branch}`} icon="history" text="History"/>
+        <MenuItem href={`/${project}/time-travel/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
         <MenuDivider />
         <IntegrationsMenus single_menu project={project} project_data={project_data} branch={is_branch ? match.params.name : reference_branch} commit={commit} user={this.props.tuning_user} />
         </>}
