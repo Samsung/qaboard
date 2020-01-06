@@ -52,8 +52,10 @@ def proxy_webook():
   # but e.g. Jenkins returns important data in its headers
   resp = make_response(r.content, r.status_code)
   # this might not be the cleanest way to pass headers,
-  # e.g. what happens to Content-Length? 
+  # e.g. what happens to Content-Length?
   for k, v in r.headers.items():
+    if k.lower() == 'content-length':
+      continue
     resp.headers.set(k, v)
   return resp
 
