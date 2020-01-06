@@ -30,7 +30,7 @@ def get_images():
   # Directory URLs begin with /s/
   new_url = Path(data['output_dir_url_new'][2:]) / data["path"]
   ref_url = Path(data['output_dir_url_ref'][2:]) / data["path"]
-  print(data) # DEBUG
+  # print(data) # DEBUG
   blobs = createAutoRois(new_url, ref_url, data["diff_type"], data['threshold'], data['diameter'])
 
   blobs = (blobs.tolist())
@@ -43,18 +43,17 @@ def get_images():
     del blobs[index_min]
 
   # print(blobs)
-  print("len: ", len(blobs))
+  print("sorted len: ", len(blobs)) # DEBUG
   # blobs = list(reversed(blobs))
   #blobs.sort(key=lambda yxr: yxr[2], reverse=True)
-  print("sorted: ",blobs)
-  return jsonify(blobs)
+  # print("sorted: ",blobs)       # DEBUG
+  return jsonify(blobs) 
 
 
 
 def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
-  scale = 1
-  #scale = 0.5
-  blob_ratio = 0.1
+  scale = 0.5      # default rescaling for delta image
+  blob_ratio = 0.1 # represent default blob diameter
   min_sigma = 5
   
   image_1, meta_1 = read_image(Path(path1))
@@ -87,11 +86,19 @@ def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
   end = time.time()                    # DEBUG
   print("pixelmatch time: {} sec".format(end-start))   # DEBUG
 
-  #delta = rescale(delta, scale, mode='constant', multichannel=False, anti_aliasing=True)
-  print("delta: ", delta)              # DEBUG
-
   width = image_1.shape[0]
   height = image_1.shape[1]
+  if (width * height < 1000000):
+    scale = 1
+
+
+  print("scale: ", scale)     # DEBUG
+  delta = rescale(delta, scale, mode='reflect', multichannel=False, anti_aliasing=True)
+  width = image_1.shape[0]
+  height = image_1.shape[1]
+  # print("delta: ", delta)   # DEBUG
+
+
   '''
   output = np.empty([width, height])
   print("output type:", type(output))
@@ -106,10 +113,6 @@ def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
   np.savetxt("/home/itamarp/delta.txt", delta)
   viewer = ImageViewer((delta)) #, plugins=[])
   viewer.show()
-
-  blobs = blob_doh(delta,min_sigma=15, max_sigma=100,num_sigma=10, threshold=.01)
-  blobs = blob_log(delta,min_sigma=15, max_sigma=100, num_sigma=10, threshold=.1)
-  blobs[:, 2] = blobs[:, 2] * sqrt(2) # Compute radii in the 3rd column.
   '''
 
 
@@ -123,7 +126,7 @@ def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
     min_sigma = 1
 
   start = time.time()         # DEBUG
-  blobs = blob_dog(delta, min_sigma=min_sigma, max_sigma=int(max_sigma), threshold=threshold)
+  blobs = blob_dog(delta, min_sigma=min_sigma, max_sigma=int(max_sigma), threshold=(float(threshold) / 100))  # Divide treshold to increase sensetivity
   end = time.time()           # DEBUG
   print(f"blob_dog time: {end-start} sec")
 
@@ -179,7 +182,7 @@ def get_rois():
   new_url = Path(data['output_dir_url_new'][2:]) / data["path"]
   ref_url = Path(data['output_dir_url_ref'][2:]) / data["path"]
   rois = data['rois']
-  print(data) # DEBUG
+  # print(data) # DEBUG
 
   named_tuple = time.localtime() # get struct_time
   time_string = time.strftime("%d%m%Y_%H%M%S", named_tuple)
@@ -192,15 +195,19 @@ def get_rois():
   with PdfPages(report_path) as pdf:
 
     for roi in rois:
+      x, y, w, h = roi['x'], roi['y'] ,roi['w'] ,roi['h']
       crop1 = crop_image(image_1, roi['x'], roi['y'] ,roi['w'] ,roi['h'])
       crop2 = crop_image(image_2, roi['x'], roi['y'] ,roi['w'] ,roi['h'])
       #report_url = f"\\\\netapp\\algo_data\\qatools_dev\\{t}_crop1.pdf"
       figure, axes = plt.subplots(1, 2, figsize=(10, 5), sharex=True, sharey=True)
-      plt.title(roi['label'])
 
       ax = axes.ravel()
       ax[0].imshow(crop1)
       ax[1].imshow(crop2)
+      ax[0].set_title(f"new (x: {x}, y: {y}, w: {w}, h: {h})")
+      ax[1].set_title("ref")
+
+      #plt.title(roi['label'])
 
       figure.canvas.draw()
       xlabels = [item.get_text() for item in ax[0].get_xticklabels()]
