@@ -11,11 +11,15 @@ import {
   Position,
   Tooltip,
   Checkbox,
+  FocusStyleManager,
+  TextArea,
 } from "@blueprintjs/core";
 
 
+import { iiif_url } from "./utils";
 import { fitTo } from "./crops";
 
+FocusStyleManager.onlyShowFocusOnTabs();
 const toaster = Toaster.create();
 
 
@@ -27,13 +31,13 @@ class AutoCrops extends React.Component {
       roi: null,
       is_loading: false,
       error: null,
+      active: false,
       // default configuration for auto-ROI
       diff_type: 'rgb',
       threshold: 1,
       roi_diameter: 0,
       num_rois: 20,
       send_report: false,
-      active: false,
       ...((props.auto_rois || [])[0] || {}),
     }
   }
@@ -132,28 +136,32 @@ class AutoCrops extends React.Component {
         }
       </ControlGroup>
 
-      <div>
+      <div style={{ marginTop: "10px" }}>
         {regions_of_interest.map((roi, idx) => {
-          return (
-            <Tooltip content={(roi === this.state.roi) && "Select next/before roi with keyboard shortcut n/b"} position={Position.TOP}>
-              <AnchorButton
-                onClick={() => {
-                  this.setState({ roi: roi, active: true }, () => {
-                    //this.props.handle_active_image(this.props.viewer_new.id);
-                    //console.log(this.props); // DEBUG
-                    fitTo(roi, viewer_new);
-                  })
-                }
-                }
-                style={{ margin: "5px" }}
-                key={idx}
-                intent={this.state.roi === roi ? Intent.PRIMARY : null}
-                onBlur={() => this.setState({ active: false })}
-              >
-                {roi.label || roi.tag || idx}
-              </AnchorButton>
-            </Tooltip>
-          )
+          let height = 50;
+          let url_prefix = iiif_url(this.props.output_new.output_dir_url, this.props.path)
+          let src = `${url_prefix}/${roi.x},${roi.y},${roi.w},${roi.h}/,${height}/0/default.jpg`
+          let tooltip_text = <p align="center">
+            <dl>{roi.label || roi.tag || idx}</dl>
+            {(roi === this.state.roi) && <dl>Select next/before roi with keyboard shortcut n/b</dl>}
+          </p>
+          return <Tooltip content={tooltip_text} position={Position.TOP}>
+            <AnchorButton
+              onClick={() => {
+                this.setState({ roi: roi, active: true }, () => {
+                  //this.props.handle_active_image(this.props.viewer_new.id);
+                  //console.log(this.props); // DEBUG
+                  fitTo(roi, viewer_new);
+                })
+              }}
+              key={idx}
+              intent={this.state.roi === roi ? Intent.PRIMARY : null}
+              onBlur={() => this.setState({ active: false })}
+              minimal={this.state.roi !== roi}
+            >
+              <img src={src} height={height} />
+            </AnchorButton>
+          </Tooltip>
         })}
       </div>
     </>
@@ -233,7 +241,9 @@ class AutoCrops extends React.Component {
         if (regions_of_interest.length > 0) {
           if (this.state.send_report) {
             this.generateReport();
+            this.setState({ send_report: false })
           }
+
           toaster.show({ message: `${regions_of_interest.length} Regions of Interest`, intent: Intent.PRIMARY, timeout: 3000 });
           window.addEventListener("keypress", this.keyboard, { passive: true });
         }
@@ -245,6 +255,7 @@ class AutoCrops extends React.Component {
         this.setState({
           regions_of_interest: [],
           is_loading: false,
+          send_report: false,
           error,
         })
         toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
@@ -305,7 +316,6 @@ class AutoCrops extends React.Component {
         })
 
         if (report) window.open(report, '_blank');
-
       })
   }
 

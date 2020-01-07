@@ -19,6 +19,7 @@ import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
+import { iiif_url } from "./utils";
 import MultiSelectTags from './MultiselectCrops'
 
 var OpenSeadragon = require('openseadragon')
@@ -53,27 +54,6 @@ const openseadragon_config = {
   // constrainDuringPan: false,
 }
 
-
-const iiif_url = (output_dir_url, path) => {
-  // we only serve data from there
-  let identifier = output_dir_url.replace("/stage/algo_data", "")
-  // remove the URL' leading "/s"
-  identifier = identifier.replace(/\/*?s\//, "")
-  identifier = `${identifier}/${path}`;
-  // IIIF specs require encoding the slashes inside the identifier
-  let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
-  let endpoint = is_cde_file
-    ? `${window.location.protocol}//${window.location.hostname}:8186/fcgi-bin/iipsrv.fcgi?IIIF=`
-    : `${window.location.protocol}//${window.location.hostname}:8183/iiif/2/`
-  if (process.env.NODE_ENV !== 'production') {
-    endpoint = is_cde_file
-      ? `/fcgi-bin/iipsrv.fcgi?IIIF=`
-      : `/iiif/2/`
-  }
-  identifier = encodeURIComponent(identifier)
-  let url = `${endpoint}${identifier}`
-  return url
-}
 
 // We sync the viewer viewport of all viewers of the same size for a given output
 var synced_viewers = {}
@@ -121,6 +101,7 @@ class ImgViewer extends React.PureComponent {
     this.show_histogram = false;
     this.canvas_diff = React.createRef();
     // this.canvas_diff_ssim = React.createRef();
+
     this.state = {
       ready: false,
       first_image: "new",
@@ -130,6 +111,7 @@ class ImgViewer extends React.PureComponent {
       color: {},
       hide_labels: false,
       cancel_source: CancelToken.source(),
+      // active_image: null, // delete
     }
   }
 
@@ -707,6 +689,11 @@ class ImgViewer extends React.PureComponent {
     }
   }
 
+  // delete:
+  //handleActiveImage = active_image => { this.setState({ active_image })}
+
+  // delete:
+  //getActiveImage = () => { return this.state.active_image }
 }
 
 
