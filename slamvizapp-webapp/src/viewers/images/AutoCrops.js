@@ -12,7 +12,6 @@ import {
   Tooltip,
   Checkbox,
   FocusStyleManager,
-  TextArea,
 } from "@blueprintjs/core";
 
 
@@ -33,7 +32,7 @@ class AutoCrops extends React.Component {
       error: null,
       active: false,
       // default configuration for auto-ROI
-      diff_type: 'rgb',
+      diff_type: 'rgb', // for future development (SSIM)
       threshold: 1,
       roi_diameter: 0,
       num_rois: 20,
@@ -229,8 +228,8 @@ class AutoCrops extends React.Component {
     };
 
     this.setState({ is_loading: true, regions_of_interest: [], roi: null });
-    post("http://planet31:9002/api/v1/output/diff/image", data) // for DEBUG
-      //post("/api/v1/output/diff/image", data)
+    // post("http://planet31:9002/api/v1/output/diff/image", data) // for DEBUG
+    post("/api/v1/output/diff/image", data)
       .then(res => {
         //console.log(res.data);
         let regions_of_interest = res.data.map(blob => this.blobToRoi(blob))
@@ -308,8 +307,8 @@ class AutoCrops extends React.Component {
     };
 
     this.setState({ is_loading: true });
-    post("http://planet31:9002/api/v1/output/diff/report", data) // for DEBUG
-      //post("/api/v1/output/diff/report", data)
+    // post("http://planet31:9002/api/v1/output/diff/report", data) // for DEBUG
+    post("/api/v1/output/diff/report", data)
       .then(res => {
         // console.log(res.data); // DEBUG
         let report = res.data
@@ -321,7 +320,6 @@ class AutoCrops extends React.Component {
         if (report) window.open(report, '_blank');
       })
   }
-
 
 }
 
