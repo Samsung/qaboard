@@ -30,6 +30,7 @@ def shutdown_session(exception=None):
 
 import slamvizapp.api.api
 import slamvizapp.api.webhooks
+import slamvizapp.api.integrations
 import slamvizapp.api.tuning
 import slamvizapp.api.export_to_folder
 import slamvizapp.api.auto_rois

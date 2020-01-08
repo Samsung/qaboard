@@ -66,7 +66,7 @@ class Dashboard extends React.Component {
       only_ci_batches: selected_batch_new === 'default',
       with_outputs: true,
     }
-    dispatch(fetchCommits(project, {...match.params}, default_date_range, aggregation_metrics, extra_params))
+    dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params))
   }
 
 

@@ -65,13 +65,20 @@ fi
 if [ -z ${SSH_PASSPHRASE+x} ]; then
   echo "[Error] \$SSH_PASSPHRASE is not defined : the app won't be able to use git"; exit
 else
-  DOCKER_ENV="--env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
+  DOCKER_ENV+=" --env SSH_PASSPHRASE=${SSH_PASSPHRASE}"
 fi
 
 if [ -z ${GITLAB_ACCESS_TOKEN+x} ]; then
   echo "[Error] \$GITLAB_ACCESS_TOKEN is not defined: create one at http://gitlab-srv/profile/personal_access_tokens"; exit
 else
-  DOCKER_ENV="--env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
+  DOCKER_ENV+=" --env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
+fi
+if [ -z ${JENKINS_USER_NAME+x} ]; then
+  echo "[Error] \$JENKINS_USER_NAME is not defined: create one at http://http://qa-docs/docs/triggering-third-party-tools"; exit
+else
+  DOCKER_ENV+=" --env JENKINS_USER_NAME=${JENKINS_USER_NAME}"
+  DOCKER_ENV+=" --env JENKINS_USER_TOKEN=${JENKINS_USER_TOKEN}"
+  DOCKER_ENV+=" --env JENKINS_USER_CRUMB=${JENKINS_USER_CRUMB}"
 fi
 
 
@@ -108,7 +115,7 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/
 if [ -z ${QABOARD_DB_HOST+x} ]; then
     echo 'Using container database'
 else
-    DOCKER_ENV="--env QABOARD_DB_HOST=qa"
+    DOCKER_ENV+=" --env QABOARD_DB_HOST=qa"
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.

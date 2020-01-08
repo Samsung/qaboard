@@ -1,10 +1,15 @@
+"""
+Here is the "write" part of the API, to signal more data is ready.
+It includes the actual webhooks sent e.g. by Gitlab, as well as
+API calls to update batches and outputs.
+"""
 import sys
 import json
 import yaml
+import datetime
 import traceback
 import subprocess
 from pathlib import Path
-import datetime
 
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
@@ -18,7 +23,6 @@ from ..models.Project import update_project
 @app.route('/api/v1/commit', methods=['POST'])
 @app.route('/api/v1/commit/', methods=['POST'])
 def update_commit():
-  data = request.get_json()
   try:
     commit = CiCommit.get_or_create(
       session=db_session,
@@ -156,7 +160,7 @@ def new_output_webhook():
                                          extra_parameters=data['extra_parameters'],
                                          test_input=test_input,
                                         )
-  output.output_type = data.get('output_type', '')
+  output.output_type = data.get('input_type', '')
   output.data = data.get('data', {"ci": is_ci})
   if output.deleted:
     output.deleted = False
@@ -199,26 +203,3 @@ def gitlab_webhook():
   update_project(data, db_session)
   return "{status:'OK'}"
 
-
-@app.route("/api/v1/webhook/proxy", methods=['POST'])
-@app.route("/api/v1/webhook/proxy/", methods=['POST'])
-def proxy_webook():
-  """
-  Proxy users' webhook triggers to avoid CORS issues.
-  """
-  from requests import Request, Session
-  from requests.auth import HTTPBasicAuth
-
-  data = request.get_json()
-  data['method'] = data['method'].upper()
-  if 'auth' in data:
-    # we could easily support other types of authentification
-    # https://2.python-requests.org/en/master/user/authentication/
-    data['auth'] = HTTPBasicAuth(data['auth']['username'], data['auth']['password'])
-  session = Session()
-  r = Request(**data)
-  r_prepped = r.prepare()
-
-  response = session.send(r_prepped, verify=False)
-  print(response.headers)
-  return response.content, response.status_code

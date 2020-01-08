@@ -231,7 +231,7 @@ const project_avatar_style = project_id => {
 
 
 const deserialize_config = configuration => {
-  if (configuration === undefined || configuration === null || configuration.length === 0) {
+  if (configuration === undefined || configuration === null || configuration.length === 0 || configuration === '-') {
     return []
   }
   let configurations = []
@@ -253,7 +253,7 @@ const deserialize_config = configuration => {
 }
 
 
-
+// FIXME: make it part of a global user/project/instance configuration
 const linux_to_windows = path => {
   if (path === undefined || path === null)
     return path
@@ -263,13 +263,89 @@ const linux_to_windows = path => {
     .replace('/home', '//mars/raid/users')
     .replace('//stage/algo-datasets', '//f2/algo-datasets')
     .replace('/stage/algo-datasets', '//f2/algo-datasets')
+    .replace('//stage/algo_archive', '//mars/stage/algo_archive')
+    .replace('/stage/algo_archive', '//mars/stage/algo_archive')
     .replace('//stage', '//netapp')
     .replace('/stage', '//netapp')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
   //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
   return windows_path.replace(/\//g, '\\')
-
 }
+
+
+
+// Apply a function to all elements of a JS object (go into dict, array...)
+const recursively_apply = function(object, func) {
+  if (typeof object === 'object') {
+    Object.keys(object).forEach(k => {object[k] = recursively_apply(object[k], func)})
+    return object
+  } else {
+    object = func(object)
+    return object
+  }
+}
+
+// Evaluated JS-style templated strings using a dict of variables (like backticks).
+// ```
+// ( "${key}", {key: "value"} ) => "value"
+// ```
+const fill_template = (template_string, parameters) => {
+  if (typeof template_string !== 'string') return template_string;
+   // eslint-disable-next-line
+  var func = new Function(...Object.keys(parameters),  "return `" + template_string + "`;")
+  const filled_templated = func(...Object.values(parameters));
+  // Many errors are git.web_url not being loaded/defined already,
+  // then it leads to 500 errors dow 
+  // We could be less aggressive and raise exception on .startsWith()...
+  if (filled_templated.includes('undefined')) {
+    const error = `[fill_template] A template parameter was not not found: ${filled_templated}`;
+    // console.log(error)
+    throw error; 
+  }
+  return filled_templated
+}
+
+
+const make_eval_templates_recursively = ({project, project_data, ...rest }) => {
+  let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
+  let subproject = project.slice(project_repo.length + 1);
+  let project_parts = project.split('/');
+  let subproject_parts = subproject.split('/');
+  let project_parts_tolower = project.toLowerCase().split('/');
+  let subproject_parts_tolower = subproject.toLowerCase().split('/');
+  let project_name = project_parts[project_parts.length-1];
+  let project_name_tolower = project_name.toLowerCase();
+  let context = {
+      git: project_data && project_data.data && project_data.data.git,
+      project,                  // "group/project/my/Subproject"
+      subproject,               // "my/Subproject"
+      project_name,             // "Subproject"
+      project_parts,            // ["group", "project", "my", "Subproject"]
+      subproject_parts,         // ["my", "Subproject"]
+      project_name_tolower,     // "subproject"
+      project_parts_tolower,    // ["group", "project", "my", "subproject"]
+      subproject_parts_tolower, // ["my", "subproject"]
+      ...rest,
+      // branch,
+      // commit,
+      // user,
+  }
+  return integration => {
+    // try {
+      // console.log("[before]", integration)
+      // console.log(context)
+      const evaled_integration = recursively_apply(integration, s => fill_template(s, context));
+      // console.log("[after]", evaled_integration)
+    // } catch {
+      // problem can happen when the project/commit data is not loaded yet... 
+      // we should wait for everything to be loaded
+    // }
+      return evaled_integration;
+  }
+}
+
+
+
 
 export {
   average,
@@ -289,4 +365,5 @@ export {
   plotly_palette,
   deserialize_config,
   linux_to_windows,
+  make_eval_templates_recursively,
 };

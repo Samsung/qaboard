@@ -21,7 +21,11 @@ const controls_defaults = qatools_config => {
 
   let query = qs.parse(window.location.search.substring(1));
   if (!!query.controls) {
-    let query_controls = JSON.parse(query.controls)
+    try {
+      var query_controls = JSON.parse(query.controls)      
+    } catch {
+      query_controls = {}
+    }
     Object.entries(query_controls).forEach( ([key, value]) => {
       state_controls[key] = value;
     })

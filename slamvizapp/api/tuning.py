@@ -22,12 +22,12 @@ from ..models import CiCommit, Project
 from ..config import shared_data_directory
 
 
-def get_groups_path(project_id):
+def get_groups_path(project_id, name="extra-batches"):
     """
     Return the path of the file where we save the groups of tests we defined for a project.
     Creates it if it does not exist yet.
     """
-    path = shared_data_directory / project_id / "extra-batches.yml"
+    path = shared_data_directory / project_id / f"{name}.yml"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
@@ -172,7 +172,7 @@ def get_group():
             )
         )
         return jsonify({
-            "tests": [{"input_path": str(test.relative_to(database)), "configurations": configuration} for test, configuration, _, database in tests],
+            "tests": [{"input_path": str(test.relative_to(database)), "configurations": configuration} for test, configuration, _, database, _ in tests],
             "message": message,
         })
     except Exception as e:
@@ -219,7 +219,6 @@ def start_tuning(hexsha):
         batch.output_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
-    config = ci_commit.project.data["qatools_config"]
 
     working_directory = ci_commit.commit_dir
     print(working_directory)
@@ -244,8 +243,8 @@ def start_tuning(hexsha):
             f"--platform '{data['platform']}'" if "platform" in data else "",
             f"--label '{data['batch_label']}'",
             "optimize" if do_optimize else "batch",
-            ' '.join([f'--groups-file "{p}"' for p in groups_paths]),
-            f"--group '{data['selected_group']}'",
+            ' '.join([f'--batches-file "{p}"' for p in groups_paths]),
+            f"--batch '{data['selected_group']}'",
             config_option,
             f"{overwrite} --no-wait" if not do_optimize else '',
             "\n",
@@ -305,7 +304,9 @@ def start_tuning(hexsha):
             "set -xe\n\n",
             f'mkdir -p "{batch.output_dir}"\n',
             f'bsub_su "{user}" -q "{queue}" ',
-            '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
+            '-sp 4000 ', # highest priority for manual runs
+            ## LSF refuses to give us long-running jobs....
+            ## '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
             f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
             f'\tssh -o StrictHostKeyChecking=no -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',
             '\nEOF'

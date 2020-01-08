@@ -24,9 +24,9 @@ var convert = new Convert();
 
 
 const style_skeleton = {
-  borderColor: 'rgba(206, 217, 224, 0.2) !important',
   borderRadius: '2px',
   boxShadow: 'none !important',
+  borderColor: 'rgba(206, 217, 224, 0.2) !important',
   background: 'rgba(206, 217, 224, 0.2)',
   backgroundClip: 'padding-box !important',
   animation: '1000ms linear infinite alternate skeleton-glow',
@@ -82,6 +82,7 @@ class OutputLog extends React.Component {
     if (!!!output || !!!output.output_dir_url) return
     this.setState({is_loaded: false});
     // console.log(`[logs] fetch ${output.test_input_path}`)
+    // console.log(`       => ${output.output_dir_url}/${log_file || 'log.txt'}`)
 
     get(`${output.output_dir_url}/${log_file || 'log.txt'}`)
       .then(response => {
@@ -106,7 +107,12 @@ class OutputLog extends React.Component {
           // },
           // pre: style={{background: '#000'}} 
         }
-        let logs_html_safe = !!logs && convert.toHtml(logs_safe, ansi_to_html_options);
+        var logs_html_safe;
+        try {
+          logs_html_safe = !!logs && convert.toHtml(logs_safe, ansi_to_html_options);
+        } catch {
+          logs_html_safe = !!logs && logs_safe;
+        }
         this.setState({
           is_loaded: true,
           // logs,
@@ -115,6 +121,7 @@ class OutputLog extends React.Component {
         });
       })
       .catch(error => {
+        console.log(error)
         this.setState({ is_loaded: true, error });
       });
   }
@@ -136,8 +143,14 @@ class OutputLog extends React.Component {
       ? Intent.DANGER
       : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
 
-    const tag_text = output.is_failed ? "❌" : output.is_pending ? "⏳" : "✅";
-    const header_prefix = <>{show_button} {output.output_type !== "batch" && <Tag intent={intent}>{tag_text}</Tag>}</>
+    const tag_text = output.is_failed ? "" : output.is_pending ? (output.is_running ? "🏃" : "⏳") : "";
+    const header_prefix = <>
+      {show_button} {output.output_type !== "batch" && <Tag
+         icon={output.is_failed ? "cross" : (output.is_pending ? undefined : "tick")}
+         style={output.is_running ? style_skeleton : {}}
+         intent={intent}>{tag_text}
+      </Tag>}
+    </>
     return (
       <div>
         <OutputHeader

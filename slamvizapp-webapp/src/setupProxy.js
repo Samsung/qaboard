@@ -2,11 +2,12 @@
 // https://github.com/chimurai/http-proxy-middleware
 const proxy = require('http-proxy-middleware');
 
-module.exports = function (app) {
+module.exports = function(app) {
   app.use(
     '/api',
     proxy({
-      target: 'http://planet31:9002',
+      target: 'http://qa:5001', // prod
+      // target: 'http://qa:9002', // dev-staging
       changeOrigin: true,
     })
   );
@@ -29,7 +30,7 @@ module.exports = function (app) {
   );
 
 
-  app.use(
+ app.use(
     '/iiif/2',
     proxy({
       target: 'https://qa:8183',

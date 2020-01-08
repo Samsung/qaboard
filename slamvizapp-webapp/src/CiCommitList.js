@@ -78,7 +78,7 @@ class CiCommitList extends React.Component {
     let name = this.props.project.split('/').slice(-1)[0];
     document.title = `${match.params.name || match.params.committer || project} - ${name}`;
 
-    this.getData({...this.props, date_range: default_date_range});
+    this.getData({...this.props, date_range: default_date_range()});
     this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
   }
 
@@ -159,8 +159,8 @@ const commit_search = c => {
 
 
 const mapStateToProps = (state, ownProps) => {
-    let project = projectSelector(state)
-    let project_data = projectDataSelector(state)
+    const project = projectSelector(state)
+    const project_data = projectDataSelector(state)
 
     let project_metrics = (project_data.data || {}).qatools_metrics || {};
     let aggregated_metrics = {};
@@ -168,10 +168,10 @@ const mapStateToProps = (state, ownProps) => {
       m => (aggregated_metrics[m] = project_metrics.available_metrics[m].target)
     );
 
-    let commits_data = commitsDataSelector(state)
-    let commits = commitsSelector(state)
+    const commits_data = commitsDataSelector(state)
+    const commits = commitsSelector(state)
 
-    let { search } = selectedSelector(state)
+    const { search } = selectedSelector(state)
     let matcher = match_query(search)
     let commits_filtered = commits.filter(c => matcher(commit_search(c)))
 

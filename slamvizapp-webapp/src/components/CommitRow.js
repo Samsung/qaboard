@@ -50,15 +50,14 @@ const has_outputs_in_batch = label => commit => {
 
 class CommitResults extends React.Component {
   render() {
-    const { project, project_data, commit, dispatch } = this.props;
+    const { project, project_data={}, commit, dispatch } = this.props;
 
     let incomplete_data = commit.message === undefined || commit.message === null;
     if (incomplete_data)
       return <span></span>
 
-
-    let project_repo = project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace;
-    const gitlab_commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`;
+    const git = (project_data.data || {}).git || {};
+    const gitlab_commit_url = `${git.web_url}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label, batch]) => label )
@@ -251,9 +250,9 @@ const CommitShortId = styled.a`
 
 class CommitRow extends React.Component {
   render() {
-    const { commit, project, project_data, className, tag, toaster, dispatch } = this.props;
-    let project_repo = project_data.data.git.path_with_namespace;
-    const commit_url = `http://gitlab-srv/${project_repo}/commit/${commit.id}`
+    const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
+    const git = (project_data.data || {}).git || {};
+    const commit_url = `${git.web_url}/commit/${commit.id}`
     let maybe_skeletton = !!commit.message ? null : Classes.SKELETON;
     return (
       <CommitRowWrapper className={className}>
@@ -297,7 +296,11 @@ class CommitRow extends React.Component {
               </Tooltip>
               <Icon icon="git-branch" />
               <Link
-                style={{ color: "rgba(0,0,0,0.85)", marginRight: '5px' }}
+                style={{
+                  color: "rgba(0,0,0,0.85)",
+                  marginRight: '5px',
+                  marginTop: !!commit.message && '4px',
+                }}
                 to={`/${project}/commits/${(commit.branch || '')}`}
                 onClick={() => dispatch(updateSelected(project, {branch: commit.branch, committer: null}))}
               >

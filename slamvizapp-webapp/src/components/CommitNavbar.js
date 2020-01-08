@@ -191,6 +191,7 @@ class CommitNavbar extends React.Component {
         >
           <InputGroup
             value={this.props.filter}
+            intent={!!this.props.filter ? 'primary' : 'default'}
             placeholder={`filter ${type} outputs`}
             onChange={update(`filter_batch_${type}`)}
             type="search"

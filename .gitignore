@@ -1,6 +1,14 @@
 data/
 .gdb_history
 .vscode/
+*/build/
+deploy_build/
+
+*.cer
+*.csr
+*.rar
+*.pem
+*.key
 
 # Created by https://www.gitignore.io/api/node
 

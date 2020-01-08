@@ -84,8 +84,12 @@ class ProjectsList extends Component {
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
+            const gitlab_host = (git.web_url || 'https://gitlab.com/').split('/').slice(0,3).join('/')
             const avatar_url = qatools_config_project.avatar_url || 
-                               !!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `http://gitlab-srv${git.avatar_url}`) : null
+                               !!git.avatar_url ? (git.avatar_url.startsWith('http')
+                                                  ? git.avatar_url
+                                                  : `${gitlab_host}${git.avatar_url}`)
+                                                : null
 
             const is_subproject = git.path_with_namespace !== project_id;
             const has_custom_avatar = !!((data.qatools_config || {}).project || {}).avatar_url
@@ -115,7 +119,7 @@ class ProjectsList extends Component {
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>
                     <Tooltip><Icon icon={projects[project_id].is_favorite ? "star" : "star-empty"} onClick={() => this.props.dispatch(updateFavorite(project_id, !!!projects[project_id].is_favorite)) } style={{color: Colors.GOLD5}}/><span>Pin on top of the list.</span></Tooltip>
-                    <a href={git.homepage}><Button icon="code" minimal round text="code" style={{color: 'rgb(85, 85, 85)'}}/></a>
+                    <a href={git.homepage}><Button icon="git-repo" minimal round text="code" style={{color: 'rgb(85, 85, 85)'}}/></a>
                   </p>
                   <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
                   <p style={{marginBottom: '0px'}}><span style={{ color: "#555" }}>
@@ -133,7 +137,7 @@ class ProjectsList extends Component {
         <Callout intent={Intent.PRIMARY}>
           <h4 className={Classes.HEADING}>Get started with qatools</h4>
           <p>
-            Learn about <a href="http://qa-docs">qatools</a>!
+            Learn about <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction`}>qatools</a>!
           </p>
         </Callout>
         {warnings}
