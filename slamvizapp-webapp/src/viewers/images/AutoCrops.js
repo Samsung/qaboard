@@ -160,7 +160,7 @@ class AutoCrops extends React.Component {
               onBlur={() => this.setState({ active: false })}
               minimal={this.state.roi !== roi}
             >
-              <img src={src} height={height} />
+              <img src={src} alt={idx} height={height} />
             </AnchorButton>
           </Tooltip>
         })}
@@ -228,8 +228,8 @@ class AutoCrops extends React.Component {
     };
 
     this.setState({ is_loading: true, regions_of_interest: [], roi: null });
-    // post("http://planet31:9002/api/v1/output/diff/image", data) // for DEBUG
-    post("/api/v1/output/diff/image", data)
+    // post("http://planet31:9002/api/v1/output/diff/image", data) // for dev-staging
+    post("/api/v1/output/diff/image", data)                          // for prod
       .then(res => {
         //console.log(res.data);
         let regions_of_interest = res.data.map(blob => this.blobToRoi(blob))
@@ -277,9 +277,6 @@ class AutoCrops extends React.Component {
     const { viewer_new } = this.props;
     let { x: image_width, y: image_height } = viewer_new.world.getItemAt(0).getContentSize();
 
-    // roi.x = Math.min(Math.max(x, 0), image_width);
-    // roi.y = Math.min(Math.max(y, 0), image_height);
-
     if (roi.x < 0) {
       roi.w = roi.w + x;
       roi.x = 0;
@@ -307,8 +304,8 @@ class AutoCrops extends React.Component {
     };
 
     this.setState({ is_loading: true });
-    // post("http://planet31:9002/api/v1/output/diff/report", data) // for DEBUG
-    post("/api/v1/output/diff/report", data)
+    // post("http://planet31:9002/api/v1/output/diff/report", data) // for dev-staging
+    post("/api/v1/output/diff/report", data)                 // for prod
       .then(res => {
         // console.log(res.data); // DEBUG
         let report = res.data
