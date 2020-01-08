@@ -5,7 +5,6 @@ Create a pdf report of rois comparison.
 import time  # for Debugging purpose
 from pathlib import Path
 from math import sqrt, ceil
-
 import numpy as np
 from skimage.color import deltaE_cie76, rgb2lab, rgb2yiq
 from skimage.viewer import ImageViewer  # for Debugging purpose
@@ -46,10 +45,9 @@ def get_images():
 
 
 def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
-  scale = 0.1 #0.5      # default rescaling for delta image
-
+  scale = 0.5      # default rescaling for delta image
   blob_ratio = 0.1 # default ratio for blob diameter
-  min_sigma = 5
+  min_sigma = 5    # for blob_dog algorithm
 
   image_1, meta_1 = read_image(Path(path1))
   image_2, meta_2 = read_image(Path(path2))
