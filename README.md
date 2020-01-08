@@ -13,9 +13,15 @@ A web application integrated with [`qatools`](http://gitlab-srv/common-infrastru
 - [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, used to stream large images to the users.
 
 ## How to run (with Docker, recommended)
+Set the slamvizapp repository under *my-vdi/dvs/slamvizapp*.
+Run the command [`docker build -t qaboard-staging`].
+
 You need to set two environment variables:
 - *$GITLAB_ACCESS_TOKEN*: an access token from Gitlab ([get it here](http://gitlab-srv/profile/personal_access_tokens))
 - *$SSH_PASSPHRASE*: the passphrase to `arthurf`'s key in *deployment/ssh/id_rsa* (or provide your own key and use your own user) 
+
+Open */deployment/start-docker.sh* and uncomment the line: 
+*DOCKER_IMAGE="qaboard-${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}"*
 
 Then you're all set:
 ```bash
@@ -25,9 +31,12 @@ Then you're all set:
 # => now serving http://dvs:5000
 
 # For a interactive debugging...
-CI_DEBUG=ON CI_ENVIRONMENT_SLUG=staging ./deployment/start-docker.sh
+CI_DEBUG=ON CI_ENVIRONMENT_SLUG=staging QABOARD_DEBUG_WITH_MOUNTS=TRUE ./deployment/start-docker.sh
 # => now serving http://dvs:9000
 ```
+if it's failed with error: [`too many levels of symbolic links`]
+try again until success.
+
 
 ## SSL configuration
 ```bash

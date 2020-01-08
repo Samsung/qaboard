@@ -5,6 +5,10 @@ set -ex
 DOCKER_IMAGE=gitlab-srv.transchip.com:4567/dvs/slamvizapp
 : "${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}"
 DOCKER_IMAGE=$DOCKER_IMAGE:$DOCKER_TAG
+
+## uncomment when deploying debug server:
+# DOCKER_IMAGE="qaboard-${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}" 
+
 echo "===== $DOCKER_IMAGE ====="
 
 DOCKER_ENV=""

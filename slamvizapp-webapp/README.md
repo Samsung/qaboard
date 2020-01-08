@@ -16,8 +16,8 @@ npm start
 ``` 
 
 Also:
-- You can change in *package.json* which backend the application should talk to (default: dvs:5000). It is useful if you are developping on the backend.
-- It's best to install the react developper tools. 
+- You can change in *src/setupProxy.js* which backend the application should talk to (default: qa:5001). It is useful if you are developping on the backend (for example on: planet31:9002).
+- It's best to install the react developper tools.
 
 ## How does it work?
 - This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app). [Go to their README](https://github.com/facebookincubator/create-react-app/blob/master/packages/react-scripts/template/README.md) to learn a lot about the dev environment (package manager, testing, proxying, formatting, linting, compilation, javascript features...)
