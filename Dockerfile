@@ -1,90 +1,131 @@
+# syntax=docker/dockerfile:experimental
+#   
+# This dockefile uses private repositories. To build it you will need 
+#   # Opt-in support for secrets
+#   # References:
+#   # - https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information
+#   # - https://medium.com/@tonistiigi/build-secrets-and-ssh-forwarding-in-docker-18-09-ae8161d066
+#   export DOCKER_BUILDKIT=1
+#   # Use ssh-agent to forwarding your credentials
+#   # Consider always running it
+#   # References:
+#   # - https://developer.github.com/v3/guides/using-ssh-agent-forwarding/#setting-up-ssh-agent-forwarding
+#   # - https://help.github.com/en/github/authenticating-to-github/working-with-ssh-key-passphrases#auto-launching-ssh-agent-on-git-for-windows
+#   eval `ssh-agent`
+#   docker build --ssh default --tag qaboard .
+# 
+# TODO: Use a lighter base image like alpine-linux
+#       Possibly let's do it when we split the application
+#       with docker-compose into database+backend+frontend+image-servers
 FROM ubuntu:bionic
 LABEL maintainer="arthurf.flam@samsung.com"
 
-# SIRC proxy configuration
-# if you run into network issues, build the image somewhere else :_)
-ENV PROXY_HOST=dlp2-wcg01 \
-        PROXY_PORT=8080 \
-        PROXY_PROTOCOL=http
+
+# On corporate network like Samsung's, we need to provide a proxy configuration
+# Reference:
+# - https://vsupalov.com/docker-arg-env-variable-guide/
+ARG PROXY_HOST=dlp2-wcg01
+ARG PROXY_PORT=8080
+ARG PROXY_PROTOCOL=http
+ARG NO_PROXY=gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt
+
+ENV PROXY_HOST=$PROXY_HOST \
+    PROXY_PORT=$PROXY_PORT \
+    PROXY_PROTOCOL=$PROXY_PROTOCOL \
+    NO_PROXY=$NO_PROXY \
+    no_proxy=$NO_PROXY
 ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
 
 RUN \
+    # Use the proxy for apt
     echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
     echo "Acquire::https::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
     echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
     echo 'Acquire::http::Verify-Peer "false";' >> /etc/apt/apt.conf; \
+    # Use the proxy for git
     echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
 ENV HTTP_PROXY=$PROXY \
     http_proxy=$PROXY \
     HTTPS_PROXY=$PROXY \
     https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+    NO_PROXY=''
 
-COPY deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
-COPY deployment/sirc-ca.cer /usr/local/share/ca-certificates/samsung/sirc-ca.cer
 
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
     echo exit 0 > /usr/sbin/policy-rc.d && \
     # Essential utilities
-    apt-get install -y wget curl sudo \
+    # Using --no-install-recommends doesn't work out-of-the-box, e.g. apt-key misses dirmngr later 
+    apt-get install -y \
+                       sudo \
+                       wget curl sudo \
                        software-properties-common build-essential \
                        libc6-dev \
                        python-dev && \
-                       # libgl1-mesa-glx \
     # Useful utilities when debugging the container
-    apt-get install -y zsh htop tree less nano
+    apt-get install -y zsh htop tree less nano && \
+    # Remove the cache
+    rm -rf /var/lib/apt/lists/*
 
 
+# Trust various SSL certificates used by Samsung's IT
+COPY deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
+COPY deployment/sirc-ca.cer    /usr/local/share/ca-certificates/samsung/sirc-ca.cer
+COPY deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.crt
 RUN update-ca-certificates && \
     yes | dpkg-reconfigure ca-certificates --
 
-
-
-    # If we didn't have proxy issues we would just
-    # add-apt-repository -y ppa:git-core/ppa
+# Install git, up-to-date.
+# Since the application manages a cache of all projects' repos, it is preferable.
+# If we ran into scale issues, we could look into a service like Gitlab's gitaly.
+# Note: if we didn't have proxy issues we would just
+#       add-apt-repository -y ppa:git-core/ppa
 RUN echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
     echo "deb-src http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
     apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A1715D88E1DF1F24 && \
-    apt-get update && apt-get install -y git && \
+    apt-get update -qq && apt-get install -y git && \
     git config --global http.proxy $PROXY
 
 
-# Python environment
-# RUN wget --no-check-certificate https://repo.continuum.io/archive/Anaconda3-5.3.1-Linux-x86_64.sh && \
-#     bash Anaconda3-5.3.1-Linux-x86_64.sh -f -b -p /opt/anaconda3
+# Install a complete Python environment
 RUN wget --no-check-certificate https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3-latest-Linux-x86_64.sh -f -b -p /opt/anaconda3
 ENV PATH /opt/anaconda3/bin:${PATH}
-# ideally we should freeze dependencies using pip/pipenv, but to avoid spending time on this...
-#RUN wget --no-check-certificate https://projects.unbit.it/downloads/uwsgi-2.0.18.tar.gz && \
-#    tar xvf uwsgi-2.0.18.tar.gz
-#RUN cd uwsgi-2.0.18 && \
-#    export CFLAGS="$CFLAGS -fPIC" && \
-#    make PROFILE=nolang PYTHON=python3.7 && \
-#    python uwsgiconfig.py --build --verbose
-#RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host pypi.org projects.unbit.it \
-#    https://projects.unbit.it/downloads/uwsgi-lts.tar.gz
-# RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
-#     pandas
+# TODO:
+#   Ideally we should freeze dependencies, use requirement.txt/requirement.lock.txt, etc, but we there was no time to spend on this...
+#   To save build time dependencies are installed early in the dockerfile - now.
+#   We ran into issues with uwsgi segfaulting at runtime, issues with the pandas from pip...
+#   Some day we should clean this!
 RUN conda install -k -c conda-forge libiconv
 RUN conda install -k -c conda-forge uwsgi
-# RUN conda install -k -c conda-forge/label/gcc7 uwsgi
 RUN conda install -k pandas
-# RUN conda update -n base -c defaults conda
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
                 pip pipenv \
-                gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-image scikit-learn click && \
-    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/arthurf/scikit-optimize'
+                gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-image scikit-learn click
+RUN --mount=type=ssh \
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/arthurf/scikit-optimize'
 
-# Some projects need this (TODO: a cleaner way to request specific packages...)
-# https://github.com/PyMySQL/mysqlclient-python
-# https://github.com/ContinuumIO/anaconda-issues/issues/10646
-RUN apt-get -y install libssl-dev default-libmysqlclient-dev && \
-    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org mysqlclient
-# We still run into issues with missing libs.. this is python only
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org PyMySQL[rsa]
+
+# TODO:
+#   Projects can define their own iter_inputs() function to find inputs
+#   The use case it to connect to databases. However, at this stage the function is executed
+#   directly by the server. Not only is it unsecure (on our network let's say it's allright...),
+#   but it introduces a strong coupling between dependencies needed by projects and the server.
+#   Solutions could be:
+#   - [x] Short term, make those users call in a subprocess *their* python with dependencies, and read from STDOUT.
+#         we could read their projects's .envrc
+#   - [ ] Middle term, execute those functions in a docker container used by users to define their environment
+#   - [ ] The above makes things *slow* (?). What do we do? A sort of iter_input server?
+#         Limit the logic/connections available to users? 
+# For now, some projects need this to connect to MySQL:
+RUN apt-get update -qq && apt-get install --no-install-recommends -y libssl-dev default-libmysqlclient-dev && \
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
+    # https://github.com/PyMySQL/mysqlclient-python
+    # https://github.com/ContinuumIO/anaconda-issues/issues/10646
+    mysqlclient \
+    # We still ran into issues with missing libs.. this is python only
+    PyMySQL[rsa]
 
 
 # nginx as reverse proxy
@@ -92,19 +133,19 @@ RUN echo 'deb http://nginx.org/packages/ubuntu/ bionic nginx'     >  /etc/apt/so
     echo 'deb-src http://nginx.org/packages/ubuntu/ bionic nginx' >> /etc/apt/sources.list.d/nginx.list && \
     apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy=$PROXY --recv-keys ABF5BD827BD9BF62 && \
     # nginx-extra instead of just -full or smaller for WebDav and DAV Ext
-    apt-get update && apt-get install -y nginx-extras && \
+    apt-get update -qq && apt-get install -y --no-install-recommends nginx-extras && \
     rm /etc/nginx/sites-enabled/default
 COPY deployment/nginx/mime.types deployment/nginx/nginx.conf /etc/nginx/
 COPY deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
 EXPOSE 5000 80 443
 
 
-# PostgreSQL database
+# PostgreSQL Database
 # TODO: compare to the official dockerfile, even replace with it...
 #       https://github.com/docker-library/postgres/blob/f19a74ec301fe755b70a822f905c8f537f67bc9a/11/Dockerfile
 RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
     wget --quiet --no-check-certificate -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-    apt-get update; apt-get install -y postgresql-10 postgresql-contrib-10
+    apt-get update -qq && apt-get install -y --no-install-recommends postgresql-10 postgresql-contrib-10
     # Allow connections from the outside world - with passwords
 RUN echo "listen_addresses = '*'" >> /etc/postgresql/10/main/postgresql.conf && \
     echo "shared_preload_libraries = 'pg_stat_statements'" >> /etc/postgresql/10/main/postgresql.conf && \
@@ -115,15 +156,12 @@ RUN /etc/init.d/postgresql start && sleep 10 && psql --command "CREATE USER ci W
 USER root
 VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 EXPOSE 5432
-# solves issues using old backups
+# Solves issues when using old backups with an undefined uid. The postgres dockerfile fixes the uid in advance...
 RUN groupadd -g 107 postgresold
-#   group­mod -g 107 postgres
-
-
-RUN apt-get install -y libpq-dev && \
+# Python PostgreSQL driver
+RUN apt-get install -y --no-install-recommends libpq-dev && \
     pg_config --version && \
     conda install -k -c conda-forge psycopg2
-    # pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --no-binary :all: psycopg2
 
 
 # nodejs
@@ -141,16 +179,20 @@ RUN curl -ksL https://deb.nodesource.com/setup_10.x  | \
 # Frontend's dependencies
 WORKDIR /slamvizapp/slamvizapp-webapp
 COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/package-lock.json ./
-# ENV NODE_ENV production
 ## FIXME ####################################
-# At the  moment we don't build the app from the container (ulimit/network issues)
-# Before, you need to
-# $ cd slamvizapp-webapp; npm ci; npm build
-# RUN ulimit -n 2000 && npm install -ddd
-# RUN ulimit -n 2000 && npm ci -ddd
-COPY . /slamvizapp/
+# ENV NODE_ENV production
+# # At the  moment we don't build the app from the container because of frequent issues:
+# # - ulimit would kick in (solvable via ENV AFAIK)
+# # - network issues would cause always one of the 1000 dependencies to fail fetching
+# #   solvable via an internal pip proxy (e.g. artifactory)
+# # As a user, you are expected to build it yourself with: 
+# # $ cd slamvizapp-webapp; npm ci; npm build
+# # Then mount the build/ folder to /slamvizapp/slamvizapp-webapp/build
+# We used to have things like
+# RUN ulimit -n 2000 && npm ci -ddd      # install exactly as in the lock-file (prefered...)
+# RUN ulimit -n 2000 && npm install -ddd # install compatible dependencies
 # RUN npm run build
-##############################################
+COPY . /slamvizapp/
 
 
 # Backend API
@@ -158,18 +200,21 @@ ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 WORKDIR /slamvizapp
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/common-infrastructure/qatools' && \
-    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+http://gitlab-srv/cde/cde-python' && \
+
+RUN --mount=type=ssh \
+    # TODO: package qatools in the same repo as "qa-cli"
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/common-infrastructure/qatools' && \
+    # Needed for the auto-ROI feature, but for an open-source release we can remove it
+    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/cde/cde-python' && \
+    # when we *just* update qatools/cde-python, it's a nice way to identify changes and force a rebuild...
     echo cache-busting-000
-
-
+# Where we keep a cache of application data (e.g. git clones)
 VOLUME /var/slamvizapp
 
 
-# Some of our NFS mounts seem to use squash_root
-# eg /stage/algo_data
-# this forces us to acces them with a regular SIRC user
-# and dance around with sudo
+# Some of our NFS mounts seem to use squash_root, eg /stage/algo_data
+# It forces us to acces them with a regular SIRC user and dance around with sudo
+# FIXME: use a different user, e.g. sircdevops, possibly use ARG/.env to parametrize
 RUN useradd -u 11611 -g 10 arthurf --shell /bin/bash --no-create-home; \
     echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 USER arthurf
