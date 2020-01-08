@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 #   
-# This dockefile uses private repositories. To build it you will need 
+# This dockerfile uses private repositories. To build it you will need 
 #   # Opt-in support for secrets
 #   # References:
 #   # - https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information
@@ -13,7 +13,11 @@
 #   # - https://help.github.com/en/github/authenticating-to-github/working-with-ssh-key-passphrases#auto-launching-ssh-agent-on-git-for-windows
 #   eval `ssh-agent`
 #   docker build --ssh default --tag qaboard .
+#
+# When you edit this dockerfile, notice that command that require access to SSH credentials start with
+#   RUN --mount=type=ssh [command]
 # 
+#
 # TODO: Use a lighter base image like alpine-linux
 #       Possibly let's do it when we split the application
 #       with docker-compose into database+backend+frontend+image-servers
