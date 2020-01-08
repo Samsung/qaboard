@@ -111,7 +111,6 @@ class ImgViewer extends React.PureComponent {
       color: {},
       hide_labels: false,
       cancel_source: CancelToken.source(),
-      // active_image: null, // delete
     }
   }
 
@@ -507,7 +506,6 @@ class ImgViewer extends React.PureComponent {
         this.setState({ color_new, color_ref })
       }
     });
-
   }
 
   render() {
@@ -689,11 +687,6 @@ class ImgViewer extends React.PureComponent {
     }
   }
 
-  // delete:
-  //handleActiveImage = active_image => { this.setState({ active_image })}
-
-  // delete:
-  //getActiveImage = () => { return this.state.active_image }
 }
 
 

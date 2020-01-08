@@ -62,7 +62,7 @@ class AutoCrops extends React.Component {
         />
         <Tooltip content=
           {<ul>
-            <li>Threshold %</li>
+            <li>Threshold [%]</li>
             <li>hold 'alt' for minor step</li>
             <li>hold 'shift' for major step</li>
           </ul>}
@@ -76,14 +76,14 @@ class AutoCrops extends React.Component {
             stepSize={1}
             majorStepSize={5}
             clampValueOnBlur={true}
-            placeholder={"Threshold%"}
+            placeholder={"Threshold"}
             style={{ width: "95px" }}
             allowNumericCharactersOnly={true}
             onBlur={() => this.updateOnBlur("threshold", this.state.threshold, 1)}
             disabled={this.state.is_loading}
           />
         </Tooltip>
-        <Tooltip content="Diameter of roi" position={Position.TOP}>
+        <Tooltip content="Diameter of roi [px]" position={Position.TOP}>
           <NumericInput
             value={this.state.roi_diameter}
             onValueChange={roi_diameter => this.setState({ roi_diameter })}
@@ -99,7 +99,7 @@ class AutoCrops extends React.Component {
             disabled={this.state.is_loading}
           />
         </Tooltip>
-        <Tooltip content="Max number of rois" position={Position.TOP}>
+        <Tooltip content="Truncate to max number of rois" position={Position.TOP}>
           <NumericInput
             value={this.state.num_rois}
             onValueChange={num_rois => this.setState({ num_rois })}
@@ -115,25 +115,27 @@ class AutoCrops extends React.Component {
             disabled={this.state.is_loading}
           />
         </Tooltip>
-        {!regions_of_interest.length &&
-          <Checkbox
-            label={<b>Export report</b>}
-            checked={this.state.send_report}
-            onChange={() => this.update("send_report", !this.state.send_report)}
-            style={{ marginLeft: "10px" }}
-          />
-        }
-        {!!regions_of_interest.length &&
-          <Button
-            onClick={this.generateReport}
-            intent={Intent.SUCCESS}
-            large={false}
-            icon="comparison"
-            text={"Export report"}
-            loading={this.state.is_loading}
-            style={{ marginLeft: "10px" }}
-          />
-        }
+        <Tooltip content="Export the results to a document" position={Position.TOP}>
+          {!regions_of_interest.length &&
+            <Checkbox
+              label={<b>Export report</b>}
+              checked={this.state.send_report}
+              onChange={() => this.update("send_report", !this.state.send_report)}
+              style={{ marginLeft: "10px" }}
+            />
+          }
+          {!!regions_of_interest.length &&
+            <Button
+              onClick={this.generateReport}
+              intent={Intent.SUCCESS}
+              large={false}
+              icon="comparison"
+              text={"Export report"}
+              loading={this.state.is_loading}
+              style={{ marginLeft: "10px" }}
+            />
+          }
+        </Tooltip>
       </ControlGroup>
 
       <div style={{ marginTop: "10px" }}>
@@ -194,7 +196,7 @@ class AutoCrops extends React.Component {
     const { viewer_new } = this.props;
     const { regions_of_interest, roi } = this.state;
 
-    console.log(this.props); // DEBUG
+    // console.log(this.props); // DEBUG
 
     if (!roi) return
 
@@ -213,6 +215,7 @@ class AutoCrops extends React.Component {
   }
 
   generateAutoRois = () => {
+    // console.debug(this.props) // DEBUG
     const data = {
       output_id_new: this.props.output_new.id,
       output_id_ref: this.props.output_ref.id,
@@ -220,7 +223,7 @@ class AutoCrops extends React.Component {
       output_dir_url_ref: this.props.output_ref.output_dir_url,
       path: this.props.path,
       diff_type: this.state.diff_type,
-      threshold: this.state.threshold / 100.0,  // # convert threshold from percentage to ratio.
+      threshold: this.state.threshold / 100.0,  // convert threshold from percentage to ratio.
       diameter: this.state.roi_diameter,
       count: this.state.num_rois || 20,
     };
@@ -308,7 +311,7 @@ class AutoCrops extends React.Component {
     post("http://planet31:9002/api/v1/output/diff/report", data) // for DEBUG
       //post("/api/v1/output/diff/report", data)
       .then(res => {
-        console.log(res.data);
+        // console.log(res.data); // DEBUG
         let report = res.data
         this.setState({
           is_loading: false,
