@@ -167,7 +167,7 @@ class ProjectSideResults extends React.Component {
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
-      <MenuItem href={code_url} icon="code" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+      <MenuItem href={code_url} icon="git-commit" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
