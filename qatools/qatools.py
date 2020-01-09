@@ -43,8 +43,8 @@ from .config import is_ci, on_windows
 @click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
 @click.option('--database', 'input_database', type=PathType(), help="Test database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
-@click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, input_database, input_type, no_qa_database):
+@click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
+def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, input_database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
@@ -72,7 +72,7 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['user'] = user
   ctx.obj['dryrun'] = dryrun
   ctx.obj['share'] = share
-  ctx.obj['no_qa_database'] = no_qa_database
+  ctx.obj['offline'] = offline
 
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
@@ -175,7 +175,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
 
       ctx.obj['output_directory'] = output_directory.resolve()
       ctx.obj['forwarded_args'] = forwarded_args
-      if not ctx.obj['no_qa_database']:
+      if not ctx.obj['offline']:
           notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
       start = time.time()
@@ -278,7 +278,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       copy(output_directory / 'manifest.inputs.json', full_input_path / 'manifest.inputs.json')
       copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
 
-  if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
+  if not context.obj.get('offline') and not context.obj.get('dryrun'):
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
 
   return metrics
@@ -393,7 +393,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   batch_hash = make_hash([batches, tuning_search, str(tuning_search_file)])
   lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
-  should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
+  should_notify_qa_database = not dryrun and not ctx.obj['offline'] and not no_batch_qa_database
   if should_notify_qa_database:
     if is_ci or ctx.obj['share']:
       click.echo(click.style("Results at: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
@@ -461,11 +461,11 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       args = [
           f"qa",
           f'--share' if ctx.obj["share"] else None,
+          f'--offline' if ctx.obj['offline'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != default_platform else None,
           f'--type "{input_type}"' if input_type != default_input_type else None,
           f'--database "{input_database.as_posix()}"' if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
-          f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,

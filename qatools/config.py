@@ -33,6 +33,7 @@ renamings = (
   ('--ci', '--share'),
   ('--group', '--batch'),
   ('--groups-file', '--batches-file'),
+  ('--no-qa-database', '--offline'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
