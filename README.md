@@ -4,6 +4,7 @@ A web application integrated with [`qatools`](http://gitlab-srv/common-infrastru
 - Tune parameters.
 
 > **WIP:** Admin guides are being written!
+>
 > **WIP:** We'll use a configuration format like `docker-compose`'s to split the container into database/backend/..., define env/ports/mounts cleanly, and make dev/ops simpler.
 
 ## Repository organization
@@ -64,22 +65,21 @@ export QABOARD_DEBUG_WITH_MOUNTS=TRUE
 # Wraps `docker run`. Adapt the script to your needs...
 ./deployment/start-docker.sh
 # => now serving http://localhost:[9000/9001]
-# FYI, Using `CI_ENVIRONMENT_SLUG=staging` changes port mapping slightly...
+# FYI, using `CI_ENVIRONMENT_SLUG=staging` changes port mapping slightly...
 ```
 
-For development, you may want to restore a database backup. As a quick solution you can (DANGEROUS) connect to the SIRC application server:
+For development, you may want to restore a database backup. As a quick solution you can (DANGEROUS!) connect to the SIRC application server:
 ```bash
 QABOARD_DB_HOST=qa
 ```
 
-Troubleshooting:
+**Troubleshooting:**
 - If you have issues like `too many levels of symbolic links`, try again until success...
 - It's not sure the database is initialized correctly when starting from 0...
 
 ## Running the image servers
 Refer to the instructions under [cantaloupe/](cantaloupe/). To support CDE images, your will also need [CDEImage](http://gitlab-srv/swi/CDEImage)  
 
-## TODO
 
 ## SSL configuration
 ```bash
