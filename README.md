@@ -1,9 +1,13 @@
-# qatools-webapp
-A web application integrated with [`qatools`](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial) to:
-- Show, debug and compare algorithm results.
-- Tune parameters.
+# QA-Board
+Web application integrated with the [`qatools`](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial) CLI wrapper. The main features are:
+- **Organize, View, Compare, Tuning/Optimization**
+- **Web-based:** sharable URLs, no need to install
+- **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, embedded HTML...
+- **Integrations:** direct access from Git/CI, easily exportable results, API, links to the code…
 
-> **WIP:** admin guides are being written, and the deployment/dev story for qaboard being improved...
+> **WIP:** Admin guides are being written, before we release to [github.com/samsung/qaboard](https://github.com/samsung/qaboard)!
+>
+> **WIP:** We'll use a configuration format like `docker-compose`'s to split the container into database/backend/..., define env/ports/mounts cleanly, and make dev/ops simpler.
 
 ## Repository organization
 - [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
@@ -12,54 +16,68 @@ A web application integrated with [`qatools`](http://gitlab-srv/common-infrastru
   * and exposes it via a simple HTTP API.
 - [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, used to stream large images to the users.
 
-## How to run (with Docker, recommended)
-You need to set two environment variables:
-- *$GITLAB_ACCESS_TOKEN*: an access token from Gitlab ([get it here](http://gitlab-srv/profile/personal_access_tokens))
-- *$SSH_PASSPHRASE*: the passphrase to `arthurf`'s key in *deployment/ssh/id_rsa* (or provide your own key and use your own user) 
-
-Then you're all set:
+## How to build
+First get the code
 ```bash
-# This short script wraps `docker run`. By default it will enable "--restart always"
-# Adapt it to your needs.
+cd
+mkdir -p dvs/slamvizapp
+git clone git@gitlab-srv/dvs/slamvizapp.git
+cd slamvizapp
+```
+
+Then build with `docker>=18.06`:
+```bash
+# since we need to access private repositories
+export DOCKER_BUILDKIT=1
+eval `ssh-agent`
+ssh-add ~/.ssh/id_rsa
+
+export DOCKER_IMAGE=qaboard
+export CI_ENVIRONMENT_SLUG=staging
+docker build --ssh default --tag $DOCKER_IMAGE-$CI_ENVIRONMENT_SLUG .
+```
+
+As explained in the [Dockerfile](Dockerfile), you also have to build the frontend separately. [Follow the instructions](slamvizapp-webapp/). 
+
+## How to run the backend
+You must set a few environment variable:
+- *$GITLAB_ACCESS_TOKEN*: [get it here](http://gitlab-srv/profile/personal_access_tokens)
+- *$SSH_PASSPHRASE*: the passphrase a SIRC user key in in *deployment/ssh/id_rsa*. In the future we'll configure SSH agent forwarding from the host to make this simpler...
+
+> **FIXME**: you also need to provide SSL keys in *deployment/ssl/...*.
+> As-is, the nginx server tries to look for SSL keys and will fail. If you don't have such keys remove
+> `ssl_certificate_key_*` settings from *deployment/nginx/sites-available/slamvizapp*.
+> 
+> **TODO**: It really should handled by a reverse proxy, not by us...
+
+To connect to a Jenkins server, you can optionnally define *JENKINS_USER_NAME*, *JENKINS_USER_TOKEN*, *JENKINS_USER_CRUMB*.
+
+> In the future we plan to introduce a proper "secret" store, per-instance and per project.
+
+Then you're almost all set:
+```bash
+# By (bad, fixme) default the container is run with "--restart always" in the background.
+# For interactive debugging,
+export CI_DEBUG=ON
+
+# This mounts $HOME/dvs/slamvizapp where the container looks for its code,
+# and enables easier developmen
+export QABOARD_DEBUG_WITH_MOUNTS=TRUE
+
+# Wraps `docker run`. Adapt the script to your needs...
 ./deployment/start-docker.sh
-# => now serving http://dvs:5000
-
-# For a interactive debugging...
-CI_DEBUG=ON CI_ENVIRONMENT_SLUG=staging ./deployment/start-docker.sh
-# => now serving http://dvs:9000
+# => now serving http://localhost:[9000/9001]
+# FYI, using `CI_ENVIRONMENT_SLUG=staging` changes port mapping slightly...
 ```
 
-## SSL configuration
+For development, you may want to restore a database backup. As a quick solution you can (DANGEROUS!) connect to the SIRC application server:
 ```bash
-cd deployment/nginx/ssl/qa
-
-# 1. Generate a key `.key`.
-openssl genrsa -out qa.key 2048
-
-# 2. Generate a certificate request `.csr`.
-openssl req -new -sha256 -key qa.key -out qa.csr -config qa.csr.conf
-# Accept all the defaults:
-# - Country Name: IL
-# - State or Province Name: Israel
-# - Locality Name: Ramat Gan
-# - Organization Name: Samsung
-# - Organizational Unit Name: SIRC
-# - Common Name: *.qa
-# - Email: arthur.flam@samsung.com
-# - Password: (empty)
-# - Optionnal Company Name: (empty)
-
-# Check all is good.
-openssl req -noout -text -in qa.csr
-
-# 3. Send the CSR to IT.
-# 4. They will give you a `.cer` certificate. Convert it to `.pem` with 
-openssl x509 -in dvs.cer -inform der -outform pem -out qa.pem
-
-# 5. Now you can configure your server to use qa.key and qa.pem
+QABOARD_DB_HOST=qa
 ```
 
-References:
+**Troubleshooting:**
+- If you have issues like `too many levels of symbolic links`, try again until success...
+- It's not sure the database is initialized correctly when starting from 0...
 
-- [nginx configuration](http://nginx.org/en/docs/http/configuring_https_servers.html)
-- [multiname certificates](https://stackoverflow.com/questions/23523456/how-to-give-a-multiline-certificate-name-cn-for-a-certificate-generated-using)
+## Running the image servers
+Refer to the instructions under [cantaloupe/](cantaloupe/). To support CDE images, your will also need [CDEImage](http://gitlab-srv/swi/CDEImage)  
