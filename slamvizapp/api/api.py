@@ -149,11 +149,20 @@ def get_project():
   return jsonify(project.data)
 
 
-@app.route("/api/v1/output/<output_id>")
-@app.route("/api/v1/output/<output_id>/")
-def get_output(output_id):
+@app.route("/api/v1/output/<output_id>", methods=['GET', 'DELETE'])
+@app.route("/api/v1/output/<output_id>/", methods=['GET', 'DELETE'])
+def crud_output(output_id):
   output = Output.query.filter(Output.id==output_id).one()
-  return jsonify(output.to_dict())
+  if request.method == 'GET':
+    return jsonify(output.to_dict())
+  if request.method == 'DELETE':
+    if output.is_pending:
+      return {"error": "Please wait for the Output to finish running before deleting it"}, 500
+    output.delete(soft=False)
+    db_session.delete(output)
+    db_session.commit()
+    return {"status": "OK"}
+
 
 
 

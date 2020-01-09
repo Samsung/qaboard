@@ -97,7 +97,7 @@ class AddRecordingsForm extends Component {
   };
 
   render() {
-    const { project_data={}, commit } = this.state;
+    const { project_data={}, commit } = this.props;
     const { isLoaded, error, groups } = this.state;
     if (!isLoaded) return <Spinner />;
     if (error)

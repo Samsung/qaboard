@@ -51,12 +51,15 @@ const SlimCard = styled(Card)`
 
 
 
-const OutputHeader = ({ project, commit, output, type, dispatch, style, prefix, tags_first=false }) => {
+const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, style, prefix, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const tags = <OutputTags
     output={output}
+    output_ref={output_ref}
     warning={output.reference_warning}
+    dispatch={dispatch}
+    commit={commit}
     style={{marginLeft: '5px', marginRight: '5px'}}
   />
 
@@ -86,18 +89,18 @@ const OutputHeader = ({ project, commit, output, type, dispatch, style, prefix, 
           </Link>
         </span>
         <Menu>
-          <MenuDivider title="Properties" />
-          {has_metadata && has_label && <MenuItem text={output.test_input_path} icon="document" />}
           {!!output.test_input_database && <>
-            <MenuItem key="database-linux" text={output.test_input_database} icon="database" onClick={on_copy} />
-            <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="database" onClick={on_copy} />
+            <MenuDivider title="Database" />
+            <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
+            <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy} />
           </>}
           {has_metadata && <>
+            <MenuDivider title="Properties" />
+            { has_label && <MenuItem text={output.test_input_path} icon="document" />}
             <MenuItem key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
             </MenuItem>
-          </>
-          }
+          </>}
         </Menu>
       </Popover>
       {!tags_first && tags}
@@ -107,19 +110,6 @@ const OutputHeader = ({ project, commit, output, type, dispatch, style, prefix, 
     </p>
   </>
 }
-
-/*
-class MetadataMenu extends React.Component {
-  render() {
-    const { metadata_key, metadata_value } = this.props;
-    if (metadata is string)
-      return <MenuItem text={this.props.metadata}>
-    if (metadata is array)
-      return metadata.map(m => <Menu./>)
-    return this.props.metadata
-  }
-}
-*/
 
 
 
@@ -479,6 +469,7 @@ class OutputCard extends React.Component {
           project={this.props.project}
           commit={this.props.commit}
           output={output_new}
+          output_ref={output_ref}
           type={this.props.type}
           dispatch={this.props.dispatch}
           style={condensed_header_style}

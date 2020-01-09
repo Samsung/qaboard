@@ -1,16 +1,23 @@
 import React from "react";
+import axios from "axios";
 
+import copy from 'copy-to-clipboard';
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Classes,
   Colors,
   Icon,
   Tag,
+  Menu,
+  MenuItem,
+  MenuDivider,
+  Popover,
   Intent,
   Tooltip,
   Toaster,
 } from "@blueprintjs/core";
 
+import { fetchCommit } from "../actions/commit";
 import { deserialize_config, linux_to_windows } from '../utils'
 
 
@@ -89,13 +96,68 @@ class ExtraParametersTags extends React.Component {
 
 
 class OutputTags extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      waiting: false,
+    };
+  }
+
+  refresh = () => {
+    const { project, commit, dispatch } = this.props;
+    dispatch(fetchCommit({project, id: commit.id}))
+  }
+
+
   render() {
     const { platform, configuration, output_dir_url } = this.props.output;
     const { warning } = this.props;
-    let windows_path = linux_to_windows(output_dir_url);
     return <span style={this.props.style}>
       <PlatformTag platform={platform} />
       <ConfigurationsTags configuration={configuration} />
+
+      <Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
+        <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
+
+        <Menu>
+          <MenuItem
+            icon="trash"
+            text="Delete"
+            intent={Intent.DANGER}
+            minimal
+            disabled={this.state.waiting}
+            onClick={() => {
+              this.setState({waiting: true})
+              toaster.show({message: "Delete requested."});
+              axios.delete(`/api/v1/output/${this.props.output.id}/`)
+                .then(response => {
+                  this.setState({waiting: false})
+                  toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
+                  this.refresh()
+                })
+                .catch(error => {
+                  this.setState({waiting: false });
+                  toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                  this.refresh()
+                });
+            }}
+          />
+          {this.props.output_ref && <>
+            <MenuDivider title="Reference Output" />
+            <MenuItem icon="duplicate" text="Copy Windows path" onClick={()=>{
+              copy(linux_to_windows(this.props.output_ref.output_dir_url))
+              console.log(linux_to_windows(this.props.output_ref.output_dir_url))
+              toaster.show({
+                message: "Copied the output directory's path to the clipboard!",
+                intent: Intent.PRIMARY
+              });
+            }}/>
+            <MenuItem icon="folder-shared-open" href={this.props.output_ref.output_dir_url} text="View"/>
+          </>}
+        </Menu>
+      </Popover>
+
+
       <Tooltip>
         <a
           style={{ marginLeft: "5px", color: Colors.GRAY1 }}
@@ -105,27 +167,28 @@ class OutputTags extends React.Component {
         >
           <Icon icon="folder-shared-open" />
         </a>
-        <span>Open the output directory</span>
+        <span>View the output directory in the browser</span>
       </Tooltip>
+
       <Tooltip>
         <CopyToClipboard
-          text={windows_path}
+          text={linux_to_windows(output_dir_url)}
           onCopy={() => {
             toaster.show({
-              message: "Copied the output directory's windows-path to clipboard!",
+              message: "Copied the output directory's path to the clipboard!",
               intent: Intent.PRIMARY
             });
           }}
         >
           <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
             <Icon
-             title="copy to clipboard"
+             title="Copy-to-Clipboard"
              iconSize={Icon.SIZE_SMALL}
              icon="duplicate"
             />
           </span>
         </CopyToClipboard>
-        <span>Copy to the clipboard the Windows directory </span>
+        <span>Copy-to-Clipboard the Windows directory</span>
       </Tooltip>
 
       {warning && (

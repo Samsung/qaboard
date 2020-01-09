@@ -113,13 +113,12 @@ def delete_batch(batch_id):
   return {"status": "OK"}
 
 
+
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
-  # we can only trust CI outputs to run on the exact code from the commit
-  is_ci = data['job_type'] == 'ci'
 
   # We get a handle on the Commit object related to our new output
   try:
@@ -161,7 +160,9 @@ def new_output_webhook():
                                          test_input=test_input,
                                         )
   output.output_type = data.get('input_type', '')
-  output.data = data.get('data', {"ci": is_ci})
+
+  # we can only trust CI outputs to run on the exact code from the commit
+  output.data = data.get('data', {"ci": data['job_type'] == 'ci'})
   if output.deleted:
     output.deleted = False
 
