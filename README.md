@@ -3,7 +3,8 @@ A web application integrated with [`qatools`](http://gitlab-srv/common-infrastru
 - Show, debug and compare algorithm results.
 - Tune parameters.
 
-> **WIP:** admin guides are being written, and the deployment/dev story for qaboard being improved...
+> **WIP:** Admin guides are being written!
+> **WIP:** We'll use a configuration format like `docker-compose`'s to split the container into database/backend/..., define env/ports/mounts cleanly, and make dev/ops simpler.
 
 ## Repository organization
 - [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
@@ -12,32 +13,64 @@ A web application integrated with [`qatools`](http://gitlab-srv/common-infrastru
   * and exposes it via a simple HTTP API.
 - [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, used to stream large images to the users.
 
-## How to run (with Docker, recommended)
-Set the slamvizapp repository under *my-vdi/dvs/slamvizapp* \
-Run the command `docker build -t qaboard-staging`
-
-You need to set two environment variables:
-- *$GITLAB_ACCESS_TOKEN*: an access token from Gitlab ([get it here](http://gitlab-srv/profile/personal_access_tokens))
-- *$SSH_PASSPHRASE*: the passphrase to `arthurf`'s key in *deployment/ssh/id_rsa* (or provide your own key and use your own user) 
-
-Edit */deployment/start-docker.sh* by uncommenting the line: 
+## How to build
+First get the code
 ```bash
-DOCKER_IMAGE="qaboard-${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}
+cd
+mkdir -p dvs/slamvizapp
+git clone git@gitlab-srv/dvs/slamvizapp.git
+cd slamvizapp
 ```
+
+Then build with `docker>=18.06`:
+```bash
+# since we need to access private repositories
+export DOCKER_BUILDKIT=1
+eval `ssh-agent`
+ssh-add ~/.ssh/id_rsa
+
+export DOCKER_IMAGE=qaboard
+export CI_ENVIRONMENT_SLUG=staging
+docker build --ssh default --tag $DOCKER_IMAGE-$CI_ENVIRONMENT_SLUG .
+```
+
+## How to run
+You must set a few environment variable:
+- *$GITLAB_ACCESS_TOKEN*: [get it here](http://gitlab-srv/profile/personal_access_tokens)
+- *$SSH_PASSPHRASE*: the passphrase a SIRC user key in in *deployment/ssh/id_rsa*. In the future we'll configure SSH agent forwarding from the host to make this simpler...
+
+To connect to a Jenkins server, you can optionnally define *JENKINS_USER_NAME*, *JENKINS_USER_TOKEN*, *JENKINS_USER_CRUMB*.
+
+> In the future we plan to introduce a proper "secret" store, per-instance and per project.
 
 Then you're all set:
 ```bash
-# This short script wraps `docker run`. By default it will enable "--restart always"
-# Adapt it to your needs.
+# By (bad, fixme) default the container is run with "--restart always" in the background.
+# For interactive debugging,
+export CI_DEBUG=ON
+
+# This mounts $HOME/dvs/slamvizapp where the container looks for its code,
+# and enables easier developmen
+export QABOARD_DEBUG_WITH_MOUNTS=TRUE
+
+# Wraps `docker run`. Adapt the script to your needs...
 ./deployment/start-docker.sh
-# => now serving http://dvs:5000
+# => now serving http://localhost:9000
 
-# For a interactive debugging...
-CI_DEBUG=ON CI_ENVIRONMENT_SLUG=staging QABOARD_DEBUG_WITH_MOUNTS=TRUE ./deployment/start-docker.sh
-# => now serving http://dvs:9000
+
+# Using `CI_ENVIRONMENT_SLUG=staging` changes port mapping slightly...
+
+For development, you may want to restore a database backup. As a quick solution you can (DANGEROUS) connect to the SIRC application server:
+```bash
+QABOARD_DB_HOST=qa
 ```
-if it's failed with error: `too many levels of symbolic links`, try again until success.
 
+Troubleshooting:
+- If you have issues like `too many levels of symbolic links`, try again until success...
+
+## TODO
+- Check the database is initialized correctly from 0.
+- As-is, the nginx server tries to look for SSL keys and fails. It really should handled by a reverse proxy, not by us...
 
 ## SSL configuration
 ```bash
