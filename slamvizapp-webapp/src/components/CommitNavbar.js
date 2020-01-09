@@ -55,10 +55,10 @@ class CommitBranchButton extends React.PureComponent {
     const has_branch = !!commit && !!commit.branch
     return <span style={style}>
       <Tooltip>
-        <Button minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
+        <Tag style={{marginLeft: '10px', padding: '5px'}} interactive minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
           {has_branch ? commit.branch : 'master'}
-        </Button>
-        <span>Select the latest commit from {has_branch ? commit.branch : 'the branch'}</span>
+        </Tag>
+        <span>Select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>
       </Tooltip>
     </span>
   }
@@ -117,17 +117,17 @@ class CommitNavbar extends React.Component {
     const shared_milestones = ((project_data || {}).data || {}).milestones || {}
     const private_milestones = project_data.milestones || {}
 
-    const milestones_menu = <Menu>
-      <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>Select</h6></li>
+    const milestones_menu = <Menu style={{maxHeight: '500px', overflowY: 'scroll'}}>
+      <MenuDivider title="Quick Actions"/>
+      <MenuItem text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
+      <MenuItem text={`Also Select as ${type === 'ref' ? 'New' : 'Reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={this.copyToOtherType} />
+      <MenuItem text="Remove from comparaison" icon="cross" onClick={() => this.removeSelection()} />
+      <MenuDivider title="Select"/>
       <MenuItem text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
       <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qatools.yaml" type="qatools" />
       {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
       <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
       <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
-      <MenuDivider/>
-      <MenuItem text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
-      <MenuItem text={`Select the same ${type === 'ref' ? 'above in new' : 'below in reference'}`} icon="duplicate" onClick={this.copyToOtherType} />
-      <MenuItem text="Remove" icon="delete" onClick={() => this.removeSelection()} />
     </Menu>
 
     let has_selected_batch = !!commit && !!commit.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
@@ -165,6 +165,7 @@ class CommitNavbar extends React.Component {
                   placeholder='id'
                   key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
                   defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+                  style={{borderBottom: '1px dashed'}}
                 />
                 {milestones_menu}
               </Popover>
