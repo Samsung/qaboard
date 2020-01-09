@@ -5,8 +5,14 @@ import requests
 from requests.utils import quote
 from .config import config, root_qatools_config, subproject, commit_branch
 
-gitlab_api = "http://gitlab-srv/api/v4"
-gitlab_headers = {'Private-Token': os.environ.get('GITLAB_ACCESS_TOKEN', 'd5sbmEPvncmsgTcgZLoS')}
+# TODO: read root_qatools_config['project']['url']
+#       handle git@ and http:// schemes...
+# TODO: don't put credentials here...
+gitlab_host = os.getenv('GITLAB_HOST', 'http://gitlab-srv')
+gitlab_headers = {
+  'Private-Token': os.environ.get('GITLAB_ACCESS_TOKEN', 'd5sbmEPvncmsgTcgZLoS'),
+}
+gitlab_api = f"{gitlab_host}/api/v4"
 gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')
 
 
