@@ -4,44 +4,76 @@ title: Triggering CI and third-party tools via the web application
 sidebar_label: Triggering External Tools
 ---
 
-You often want to integrate various tools into your workflow. `qatools`'s web application can easily connect to third-party tools:
+You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). `QA-Board` lets you connect to those third-party tools on each commit's page and on commit index pages:
 
 ![Allowing triggered build](https://qa/s/qatools/img/ui-triggers.png)
 
-## Adding external links
-Configure your project's *qatools.yaml*:
+## Adding badges and external links
+Configure your project's *qatools.yaml* like so to display direct links to docs, build artifacts, coverage reports, etc:
 
 ```yaml
 integrations:
-  - name: Jenkins Triggered Build
-    href: http://my-project/docs
+- text: Docs
+  href: http://my-project/docs
+
+- src: https://gitlab.com/my/project/badges/develop/coverage.svg
+  href: http://my-project/docs
+  alt: Coverage Report
 ```
 
-> You can link directly to build artifacts.  The link will be disabled if the link doesn't work. To show a link but run the check on something else, also provide `url`, `method`, etc.
+:::tip
+If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages.
+:::
 
-## Using webhooks to trigger external tools
+:::tip
+The menu item will be disabled if the link doesn't work.
+To show a link but run the check on an other URL, you can provide `url`, `method` (POST..), etc. If you add `allow_failed: true` the link is always enabled.
+:::
+
+## Play GitlabCI manual jobs
 Configure your project's *qatools.yaml*:
+```yaml
+integrations:
+  - text: Gitlab Job
+    gitlabCI:
+      job_name: build-linux
+```
+![jenkins-and-gitlab-integrations](https://qa/s/qatools/img/gitlab-jenkins.gif)
+
+  ## Trigger Jenkins builds
+Configure your project's *qatools.yaml*:
+```yaml
+integrations:
+  - text: Jenkins Triggered Build
+    jenkins:
+      build_url: http://jensirc:8080/job/CDE_Project_Linux
+      parameters:
+        commit: "${commit.id}"
+```
+
+## Using webhooks
+You can use webhooks to trigger a variety of external tools:
 
 ```yaml
 integrations:
-  - name: Jenkins Triggered Build
+  - text: Jenkins Triggered Build
     webhook:
     - text: 'Windows',
       icon: build
       webhook:
       # all the options are send straight to the axios http library. For reference:
       # https://github.com/axios/axios#axios-api
-      -  url: "http://jensirc:8080/${project}"
-         method: post
+      -  url: "https://my-application/${project}"
+         method: POST
          data:
            branch: "${commit.branch}"
 ```
 
 ## Using variables
 You can use some special variables in your strings with some `${VARIABLE}` templating:
-- **Commit** data like `commit.id`, `commit.branch`..
-- **Project** data like `project` (full project name), `subproject` (project name relative to the root project), 
-- [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`, eg `git.default_branch`... 
+- **Commit**: `commit.id`, `commit.branch`... Also `branch`.
+- **Project**: `project` (full project name), `subproject` (project name relative to the root project), 
+- [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
 - **Artifacts** are saved under `commit.commit_dir_url = commit.repo_commit_dir_url / subproject`.
 - `user` is the one defined in the tuning tab or the project's default. 
 
@@ -49,7 +81,7 @@ You can use some special variables in your strings with some `${VARIABLE}` templ
 Optionnaly you can style each button
 ```yaml
 integrations:
-  - name: Styled Integration
+  - text: Styled Integration
     # https://blueprintjs.com/docs/#icons
     icon: build
     # For the full list of options refer to
@@ -68,10 +100,12 @@ integrations:
   # ...
 ```
 
-## Triggering GitlabCI jobs
-https://docs.gitlab.com/ee/ci/triggers/#triggering-a-pipeline-from-a-webhook
 
-## Triggering Jenkins jobs
+## Example: "manual" Jenkins integration
+:::caution
+The out-of-the-box jenkins integration shown earlier will also give you a link to the build page. Use it, what's below is just an example with webhooks!
+:::
+
 1. If you don't have one, [get an API token](https://stackoverflow.com/questions/45466090/how-to-get-the-api-token-for-jenkins) for your user
 
 ```bash
