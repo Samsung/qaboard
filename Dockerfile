@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:experimental
 #   
 # This dockerfile uses private repositories. To build it you will need 
+#   # Docker v18.06 (07/2018)
 #   # Opt-in support for secrets
 #   # References:
 #   # - https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information
@@ -12,6 +13,7 @@
 #   # - https://developer.github.com/v3/guides/using-ssh-agent-forwarding/#setting-up-ssh-agent-forwarding
 #   # - https://help.github.com/en/github/authenticating-to-github/working-with-ssh-key-passphrases#auto-launching-ssh-agent-on-git-for-windows
 #   eval `ssh-agent`
+#   ssh-add ~/.ssh/id_rsa
 #   docker build --ssh default --tag qaboard .
 #
 # When you edit this dockerfile, notice that command that require access to SSH credentials start with
@@ -80,6 +82,7 @@ COPY deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.
 RUN update-ca-certificates && \
     yes | dpkg-reconfigure ca-certificates --
 
+
 # Install git, up-to-date.
 # Since the application manages a cache of all projects' repos, it is preferable.
 # If we ran into scale issues, we could look into a service like Gitlab's gitaly.
@@ -91,6 +94,13 @@ RUN echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/
     apt-get update -qq && apt-get install -y git && \
     git config --global http.proxy $PROXY
 
+
+# We need to trust our gitlab-srv's keys 
+RUN --mount=type=ssh \
+    # Check we can connect (FYI ssh is installed by git earlier)
+    mkdir -p /root/.ssh && \
+    ssh-keyscan gitlab-srv >> /root/.ssh/known_hosts \
+    ssh -T git@gitlab-srv
 
 # Install a complete Python environment
 RUN wget --no-check-certificate https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
