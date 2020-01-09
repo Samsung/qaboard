@@ -45,7 +45,7 @@ To run on all the inputs found under `$database / $PATH` you can also use `qa ba
 
 ## How do I tell what inputs I want to run?
 ```yaml
-basic-list-of-inputs
+basic-list-of-inputs:
   # Those inputs will run with the project's default configuration,
   # or the one specified on the CLI with --configuration
   inputs:
@@ -76,7 +76,8 @@ You have **lots of options** to specify what configuration each input should run
 
 ```yaml
 you-can-override-the-default-configuration:
-  configuration: base
+  configurations:
+  - base
   inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
@@ -84,7 +85,7 @@ you-can-override-the-default-configuration:
 
 
 configurations-can-be-arrays:
-  configuration:
+  configurations:
     - base
     - low-light
   inputs:
@@ -94,7 +95,7 @@ configurations-can-be-arrays:
 
 
 configurations-can-be-arrays-of-objects:
-  configuration:
+  configurations:
     - base
     - low-light
     - cde:
@@ -108,7 +109,7 @@ configurations-can-be-arrays-of-objects:
 
 
 each-input-can-have-its-own-configuration:
-  configuration:
+  configurations:
     - base
   inputs:
     DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
@@ -159,7 +160,7 @@ you-can-also-give-an-LSF-configuration:
   lsf:
     memory: 1000
     threads: 1000
-  configuration:
+  configurations:
     - base
   inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
@@ -215,7 +216,7 @@ For convenience you can define aliases for common configurations
   - subchain
 
 hdr:
-  configuration:
+  configurations:
     - *base
     - hdr
   inputs:
@@ -245,7 +246,7 @@ Sometimes you want to mix and match reusabe definitions of configs and inputs. Y
     - F
 
 .HDR: &HDR
-  configuration:
+  configurations:
     - *base
     - hdr_base
     - hdr_motion
