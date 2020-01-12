@@ -72,6 +72,14 @@ If you have multiple types of inputs, you can define their properties in *qatool
 In the `run(context)` function, the current configuration is `context.obj['configurations']`.
 :::
 
+:::note
+You can use absolute paths, e.g.:
+```
+  configurations:
+  - /stage/algo_data/xxx/config_name
+```
+:::
+
 You have **lots of options** to specify what configuration each input should run with:
 
 ```yaml
