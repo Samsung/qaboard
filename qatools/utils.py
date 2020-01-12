@@ -409,6 +409,7 @@ def cased_path(path):
     import glob
     dirs = str(path).split('\\')
     # For absolute paths with drive names ("\\host\volume\..."), we must have the correct case at least at the beginning...
+    # Still, then, we could always call .upper() if the length of the first part is 1 (drive letter..)
     if not dirs[0] and not dirs[1]:
       dirs = [f'\\\\{dirs[2]}\\{dirs[3]}', *dirs[4:]]
       test_name = [dirs[0]]
@@ -416,10 +417,11 @@ def cased_path(path):
       dirs = [f'\\{dirs[1]}', *dirs[3:]]
       test_name = [dirs[0]]      
     else: # relative paths
-      test_name = [dirs[0].upper()]
+      test_name = ["%s[%s]" % (dirs[0][:-1], dirs[0][-1])]
     for d in dirs[1:]:
         test_name += ["%s[%s]" % (d[:-1], d[-1])]
     res = glob.glob('\\'.join(test_name))
     if not res: #File not found
         return None
     return Path(res[0])
+
