@@ -7,6 +7,7 @@ import fnmatch
 from hashlib import md5
 from pathlib import Path
 
+from requests.utils import quote
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.orm import relationship, reconstructor, joinedload
@@ -84,10 +85,10 @@ class CiCommit(Base):
   @property
   def repo_commit_dir(self):
     if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override)
+      return quote(Path(self.commit_dir_override))
     else:
       commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
-      return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
+      return quote(self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name)
 
   @property
   def commit_dir_url(self):

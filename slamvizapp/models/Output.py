@@ -15,6 +15,7 @@ import json
 import fnmatch
 from pathlib import Path
 
+from requests.utils import quote
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -125,8 +126,8 @@ class Output(Base):
   def output_dir_url(self):
     if self.output_dir_override is not None:
       relative_path = self.output_dir_override.replace("/home/arthurf/ci/", "")
-      return f'/s/{relative_path}' 
-    return self.batch.output_dir_url / self.output_folder
+      return quote(f'/s/{relative_path}') 
+    return quote(self.batch.output_dir_url / self.output_folder)
 
   def __repr__(self):
     return (f"<Output "
@@ -153,7 +154,7 @@ class Output(Base):
     as_dict = {c: getattr(self, c) for c in cols}
     return {
         **as_dict,
-        'output_dir_url': str(self.output_dir_url),
+        'output_dir_url': self.output_dir_url,
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),
         'test_input_metadata': self.test_input.data['metadata'] if (self.test_input.data and 'metadata' in self.test_input.data) else {},

@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from functools import lru_cache
 
+from requests.utils import quote
 import numpy as np
 from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import Column
@@ -58,7 +59,7 @@ class Batch(Base):
   @property
   @lru_cache()
   def output_dir_url(self):
-    return self.ci_commit.commit_dir_url / self.output_folder
+    return quote(self.ci_commit.commit_dir_url / self.output_folder)
 
   def metrics(self, metric, outputs=None):
     """Returns a list of results - for a chosen metric - over the commit's outputs.
@@ -83,7 +84,7 @@ class Batch(Base):
         'label': self.label,
         'created_date': self.created_date.isoformat(),
         'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
-        'output_dir_url': str(self.output_dir_url),
+        'output_dir_url': self.output_dir_url,
 
         'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
         'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),

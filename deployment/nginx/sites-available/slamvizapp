@@ -147,6 +147,27 @@ server {
   ssl_certificate_key /etc/nginx/ssl/dvs/dvs.key;
   ssl_certificate /etc/nginx/ssl/dvs/dvs.pem;
 
+  location ~* (service-worker\.js)$ {
+    add_header 'Cache-Control' 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
+    expires off;
+    proxy_no_cache 1;
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
+  }
+
+  location ~* \.(?:css|js)$ {
+    expires 1y;
+    access_log off;
+    add_header Cache-Control "public";
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
+  }
+
+  location / {
+    root /slamvizapp/slamvizapp-webapp/build;
+    try_files $uri $uri/index.html $uri.html /index.html;
+  }
+
   location ^~ /api {
       include uwsgi_params;
       uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
@@ -325,28 +346,5 @@ server {
   create_full_put_path    on;
   dav_access              group:rw  all:r;
  }
-
-
-  location ~* (service-worker\.js)$ {
-    add_header 'Cache-Control' 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
-    expires off;
-    proxy_no_cache 1;
-    root /slamvizapp/slamvizapp-webapp/build;
-    try_files $uri $uri/index.html $uri.html /index.html;
-  }
-
-  location ~* \.(?:css|js)$ {
-    expires 1y;
-    access_log off;
-    add_header Cache-Control "public";
-    root /slamvizapp/slamvizapp-webapp/build;
-    try_files $uri $uri/index.html $uri.html /index.html;
-  }
-
-  location / {
-    root /slamvizapp/slamvizapp-webapp/build;
-    try_files $uri $uri/index.html $uri.html /index.html;
-  }
-
 
 }
