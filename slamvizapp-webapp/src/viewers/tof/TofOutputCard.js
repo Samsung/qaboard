@@ -225,11 +225,17 @@ class TofOutputCard extends Component {
     this.setState({
       [selected_output_type]: {
         ...this.state[selected_output_type],
-        [selected_frame]: {is_loaded: false, is_loading: true}
+        [selected_frame]: {
+          is_loaded: false,
+          ...this.state[selected_output_type][selected_frame],
+          is_loading: true
+        }
       }
     })
-    let fileNameToGet = selected_output_type !== 'customMap' ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
-    
+
+    let fileNameToGet = selected_output_type !== 'customMap'
+                        ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`
+                        : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`;
     console.log(fileNameToGet)
     get(fileNameToGet)
     .then(response => {
@@ -246,6 +252,8 @@ class TofOutputCard extends Component {
           scaleMinMax: z_minmax,
   	      [selected_frame]: {
             ...this.state[selected_output_type][selected_frame],
+            is_loaded: true,
+            is_loading: false,
             newHexData,
           },
 	      }
@@ -265,8 +273,12 @@ class TofOutputCard extends Component {
       })
     });
     
-    let fileNameToGetRef = selected_output_type !== 'customMap' ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex` : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`
-    
+    if (output_ref === undefined || output_ref === null) {
+      return;
+    }
+    let fileNameToGetRef = selected_output_type !== 'customMap'
+                           ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`
+                           : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`;
     get(fileNameToGetRef)
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
