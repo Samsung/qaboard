@@ -23,6 +23,7 @@ from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
 from sqlalchemy import cast, type_coerce
 
 from qatools.conventions import slugify, slugify_config, make_hash
+from qatools.utils import save_outputs_manifest
 
 from slamvizapp.models import Base
 
@@ -68,25 +69,6 @@ class Output(Base):
   data = Column(JSON(), default={})
 
 
-  def update_metrics(self, filepath=None):
-    """Updates the metrics from a file"""
-    if not filepath:
-      filepath = self.output_dir / 'metrics.json'
-    try:
-      with filepath.open() as f:
-        metrics = json.load(f)
-        is_serializable = lambda v: not v != v  # avoid NaN values
-        metrics = {k:v for k, v in metrics.items() if is_serializable(v)}
-        setattr(self, 'metrics', metrics)
-        if 'is_failed' in metrics: setattr(self, 'is_failed', metrics['is_failed'])
-    except:
-      print(f'[WARNING] Output.update_metrics: failed to read {filepath}')
-      # we *could* return False then consider the run crashed if more than X time has passed...
-      # metrics = {'is_failed': True}
-      # metrics = {}
-    self.is_pending = False
-    self.is_running = False
-
   def copy(self):
     o = Output()
     o.batch_id = self.batch_id
@@ -126,8 +108,8 @@ class Output(Base):
   def output_dir_url(self):
     if self.output_dir_override is not None:
       relative_path = self.output_dir_override.replace("/home/arthurf/ci/", "")
-      return quote(f'/s/{relative_path}') 
-    return quote(self.batch.output_dir_url / self.output_folder)
+      return quote(str(f'/s/{relative_path}'))
+    return f"{self.batch.output_dir_url}/{quote(str(self.output_folder))}" 
 
   def __repr__(self):
     return (f"<Output "
@@ -239,3 +221,27 @@ class Output(Base):
               except: # already deleted?
                 print(f"WARNING: Could not remove: {output_dir / file}")
       self.deleted = True
+
+
+  def update_manifest(self):
+    qatools_config = self.batch.ci_commit.project.data.get('qatools_config', {})
+    return save_outputs_manifest(self.output_dir, config=qatools_config)
+
+  def update_metrics(self, filepath=None):
+    """Updates the metrics from a file"""
+    if not filepath:
+      filepath = self.output_dir / 'metrics.json'
+    try:
+      with filepath.open() as f:
+        metrics = json.load(f)
+        is_serializable = lambda v: not v != v  # avoid NaN values
+        metrics = {k:v for k, v in metrics.items() if is_serializable(v)}
+        setattr(self, 'metrics', metrics)
+        if 'is_failed' in metrics: setattr(self, 'is_failed', metrics['is_failed'])
+    except:
+      print(f'[WARNING] Output.update_metrics: failed to read {filepath}')
+      # we *could* return False then consider the run crashed if more than X time has passed...
+      # metrics = {'is_failed': True}
+      # metrics = {}
+    self.is_pending = False
+    self.is_running = False

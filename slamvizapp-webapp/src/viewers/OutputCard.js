@@ -25,7 +25,7 @@ import copy from 'copy-to-clipboard'
 
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
-import { OutputTags, ExtraParametersTags } from '../components/tags'
+import { OutputTags, ExtraParametersTags, StatusTag, style_skeleton } from '../components/tags'
 
 import { updateSelected } from "../actions/selected";
 import { linux_to_windows } from '../utils'
@@ -149,22 +149,31 @@ class OutputCard extends React.Component {
   }
 
 
-  fetchData(props, label) {
-    const { output_new, output_ref } = props;
+  fetchData(label) {
+    const { output_new, output_ref } = this.props;
     // console.log(output_new, output_ref)
+
     if (!output_new.output_dir_url) return;
     this.setState({ is_loaded: false })
 
     let results = [];
     const should_get_all = (label === undefined || label === null);
     if (should_get_all || label === 'new') {
-      results.push(['new', `${output_new.output_dir_url}/manifest.outputs.json`])
+      let url = !output_new.is_running ? `${output_new.output_dir_url}/manifest.outputs.json` : `/api/v1/output/${output_new.id}/manifest/`
+      results.push(['new', url])
+      if (output_new.is_running) {
+        setTimeout(() => this.fetchData('new') , 30*1000)
+      }
     }
     if (should_get_all || label === 'reference') {
-      if (!!output_ref && !!output_ref.output_dir_url)
-        results.push(['reference', `${output_ref.output_dir_url}/manifest.outputs.json`])
+      if (!!output_ref && !!output_ref.output_dir_url) {
+        let url = !output_new.is_running ? `${output_ref.output_dir_url}/manifest.outputs.json` : `/api/v1/output/${output_ref.id}/manifest/`
+        results.push(['reference', url])
+        if (output_new.is_running) {
+          setTimeout(() => this.fetchData('reference') , 30*1000)
+        }
+      }
     }
-
     const load_data = label => (response, thrown) => {
       this.setState((previous_state, props) => ({
         manifests: {
@@ -197,14 +206,10 @@ class OutputCard extends React.Component {
 
 
   becameViewable = inView => {
-    if (!inView)
-      return
-    this.setState(
-      {
-        viewable: true,
-      },
-      () => this.fetchData(this.props)
-    )
+    if (!inView) {
+      return;
+    }
+    this.setState({viewable: true}, this.fetchData);
   }
 
 
@@ -213,12 +218,12 @@ class OutputCard extends React.Component {
       return;
     const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
     const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
-    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
-    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
+    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id || prevProps.output_new.is_running !== this.props.output_new.is_running);
+    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id || prevProps.output_ref.is_running !== this.props.output_ref.is_running);
     if (updated_new) {
       if (!!this.state.cancel_source.new.token)
         this.state.cancel_source.new.cancel("Changed new output");
-      this.fetchData(this.props, 'new');
+      this.fetchData('new');
     }
     if (updated_ref) {
       if (!!this.state.cancel_source.reference.token) {
@@ -228,7 +233,7 @@ class OutputCard extends React.Component {
             ...this.state.cancel_source,
            reference: CancelToken.source()
           }
-        }, () => this.fetchData(this.props, 'reference'))
+        }, () => this.fetchData('reference'))
       }
     }
   }
@@ -331,7 +336,7 @@ class OutputCard extends React.Component {
     const { output_new, output_ref } = this.props;
 
     const has_output_new = output_new !== undefined && output_new !== null
-    if (!has_output_new || output_new.is_pending)
+    if (!has_output_new || (output_new.is_pending && !output_new.is_running))
       return <span />
 
     const qatools_config = (((this.props.project_data || {}).data || {}) || {}).qatools_config;
@@ -457,11 +462,12 @@ class OutputCard extends React.Component {
       width: style.width || '400px',
       marginBottom: "20px"
     }
+    const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};
     // console.log(content)
     // console.log(this.state.manifests)
 
     return <div style={container_style}>
-      <SlimCard className="output-card">
+      <SlimCard className="output-card" style={maybe_style_skeleton}>
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
 
@@ -473,8 +479,8 @@ class OutputCard extends React.Component {
           type={this.props.type}
           dispatch={this.props.dispatch}
           style={condensed_header_style}
+          prefix={output_new.is_running && <StatusTag output={output_new} style={{ marginRight: '5px' }}/>}
         />}
-
         {output_new.is_failed && <Tag key="new-failed" intent={Intent.DANGER}>Failed</Tag>}
         {output_ref && output_ref.is_failed && <Tag key="ref-failed" intent={Intent.WARNING}>Reference Failed</Tag>}
         {output_new.deleted && <Tag key="new-deleted" intent={Intent.DANGER}>Deleted</Tag>}

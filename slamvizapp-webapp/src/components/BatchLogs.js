@@ -16,21 +16,12 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
+import { StatusTag, style_skeleton } from './tags'
 import { OutputHeader } from '../viewers/OutputCard'
 import { pretty_label } from '../utils'
 
 var Convert = require('ansi-to-html');
 var convert = new Convert();
-
-
-const style_skeleton = {
-  borderRadius: '2px',
-  boxShadow: 'none !important',
-  borderColor: 'rgba(206, 217, 224, 0.2) !important',
-  background: 'rgba(206, 217, 224, 0.2)',
-  backgroundClip: 'padding-box !important',
-  animation: '1000ms linear infinite alternate skeleton-glow',
-}
 
 
 
@@ -139,17 +130,9 @@ class OutputLog extends React.Component {
       </Button>
     );
 
-    const intent = output.is_failed
-      ? Intent.DANGER
-      : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
 
-    const tag_text = output.is_failed ? "" : output.is_pending ? (output.is_running ? "🏃" : "⏳") : "";
     const header_prefix = <>
-      {show_button} {output.output_type !== "batch" && <Tag
-         icon={output.is_failed ? "cross" : (output.is_pending ? undefined : "tick")}
-         style={output.is_running ? style_skeleton : {}}
-         intent={intent}>{tag_text}
-      </Tag>}
+      {show_button} {output.output_type !== "batch" && <StatusTag output={output}/>}
     </>
     return (
       <div>

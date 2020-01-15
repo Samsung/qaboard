@@ -29,6 +29,32 @@ const on_copy = text => {
 }
 
 
+
+const style_skeleton = {
+  borderRadius: '2px',
+  boxShadow: 'none !important',
+  borderColor: 'rgba(206, 217, 224, 0.2) !important',
+  background: 'rgba(206, 217, 224, 0.2)',
+  backgroundClip: 'padding-box !important',
+  animation: '1000ms linear infinite alternate skeleton-glow',
+}
+
+
+const StatusTag = ({output, style}) => {
+  const intent = output.is_failed
+                 ? Intent.DANGER
+                 : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
+  const tag_text = output.is_failed ? "" : output.is_pending ? (output.is_running ? "🏃" : "⏳") : "";
+  const tag_title = output.is_failed ? "Failed" : output.is_pending ? (output.is_running ? "Running" : "Pending") : undefined;
+  return <Tag
+    title={tag_title}
+    icon={output.is_failed ? "cross" : (output.is_pending ? undefined : "tick")}
+    style={output.is_running ? {...style, ...style_skeleton} : style}
+    intent={intent}>{tag_text}
+  </Tag>
+
+}
+
 class PlatformTag extends React.Component {
   render() {
     if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'lsf') return <span />
@@ -202,4 +228,4 @@ class OutputTags extends React.Component {
 }
 
 
-export { PlatformTag, ConfigurationsTags, ExtraParametersTags, OutputTags };
+export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, OutputTags, style_skeleton };

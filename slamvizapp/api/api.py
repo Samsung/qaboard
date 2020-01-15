@@ -10,7 +10,7 @@ from pathlib import Path
 
 import ujson
 from gitdb.exc import BadName
-from flask import request, jsonify, make_response
+from flask import request, jsonify, make_response, redirect
 
 from sqlalchemy import func, and_, asc, or_
 from sqlalchemy.orm import joinedload
@@ -162,6 +162,18 @@ def crud_output(output_id):
     db_session.delete(output)
     db_session.commit()
     return {"status": "OK"}
+
+
+@app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])
+@app.route("/api/v1/output/<output_id>/manifest/", methods=['GET'])
+def get_output_manifest(output_id):
+  output = Output.query.filter(Output.id==output_id).one()
+  if output.is_running:
+    manifest = output.update_manifest()
+    return jsonify(manifest)
+  else:
+    return redirect(f"{output.output_dir_url}/manifest.outputs.json", code=302)
+    
 
 
 
