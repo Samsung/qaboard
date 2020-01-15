@@ -183,10 +183,7 @@ def new_output_webhook():
   # We save the output's metrics
   if not output.is_pending:
     metrics = data.get('metrics', {})
-    if not metrics: # we look for metrics.json in the output directory
-      output.update_metrics()
-    else:
-      output.metrics = metrics
+    output.metrics = metrics
     output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')
 
   db_session.add(output)
