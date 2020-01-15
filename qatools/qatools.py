@@ -19,6 +19,7 @@ from .api import notify_qa_database
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
+from .utils import save_outputs_manifest
 from .utils import redirect_std_streams
 from .iterators import iter_inputs, iter_parameters
 
@@ -262,13 +263,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
-  def should_be_in_manifest(path):
-    # avoid logs with timestamps and temporary NFS files
-    return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
-  # To help the UI application know what results we created, we save the complete list.
-  output_files = {path.relative_to(output_directory).as_posix(): file_info(path, config=config) for path in output_directory.rglob('*') if should_be_in_manifest(path)}
-  with (output_directory / 'manifest.outputs.json').open('w') as f:
-    json.dump(output_files, f, indent=2)
+  save_outputs_manifest(output_directory, config=config)
 
   if save_manifests_in_database:
     if full_input_path.is_file():
@@ -363,7 +358,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
     click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
-    click.secho(f'Where batches.yaml is formatted like in http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools/input_groups.yaml', fg='red', err=True)
+    click.secho(f'Where batches.yaml is formatted like in http://qa-docs/docs/batches-running-on-multiple-inputs', fg='red', err=True)
     return
 
   if not batches:
@@ -438,6 +433,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
           "database": str(input_database),
           "configurations": input_configurations,
           "input_database": str(input_database),
+          "output_directory": str(output_directory),
         })
         break
 

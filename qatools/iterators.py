@@ -277,9 +277,11 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   elif tuning_search['search_type'] == 'grid':
     # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
     from sklearn.model_selection import ParameterGrid
+    # from search import ParameterGrid
     params_iterator = ParameterGrid(parameter_search)
   elif tuning_search['search_type'] == 'sampler':
     from sklearn.model_selection import ParameterSampler
+    # from search import ParameterSampler
     params_iterator = ParameterSampler(parameter_search, n_iter=n_iter)
   else:
     raise ValueError

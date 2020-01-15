@@ -1,0 +1,188 @@
+---
+# Inputs that you want to run together are organized in batches.
+# To run the inputs in a batch:
+#   $ qa batch my-batch
+#   $ qa batch --batch my-first-batch --batch my-second-batch
+#   $ qa batch --help
+#
+#
+# You have lots of options to specify each batch's configuration.
+# The examples below describe all the ways you can do it.
+#
+#
+# Tip: From the `run(context)` function qatools requires you to implement,
+# the configuration for each input is available via:
+#     ```
+#     context.obj['configurations'] : list of strings/objects
+#     ```
+# Your code can do whatever it wants with it :)
+#
+
+basic-list-of-inputs:
+  # Those inputs will run with the project's default configuration,
+  # or the one specified on the CLI with --configuration
+  inputs:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["the default config defined in qatools.yaml"]
+
+
+you-can-override-the-default-configuration:
+  configuration: custom
+  inputs:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["custom"]
+
+
+you-can-override-the-default-database:
+  database:
+    linux: /net/f2/algo_archive/DVS_SLAM_Database
+    windows: '\\\\netapp\\algo_archive\\DVS_SLAM_Database'
+  inputs:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+
+configurations-can-be-arrays:
+  configuration:
+    - base
+    - low-light
+  inputs:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["base", "low-light"]
+
+
+configurations-can-be-arrays-of-objects:
+  configuration:
+    - base
+    - low-light
+    - cde:
+      - "--my-flag"
+      - "--my-other-flag"
+  inputs:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+# context.obj['configurations'] => ["base", "low-light", {"cde": ["-DD"]}]
+
+
+each-input-can-have-its-own-configuration:
+  configuration:
+    - base
+  inputs:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_8a:
+    # context.obj['configurations'] => ["base"]
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_3a:
+      - low-light
+    # context.obj['configurations'] => ["base", "low-light"]
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2/10-scene_7c:
+      - low-light
+      - extra-light
+      - cde:
+        - "-DD"
+    # context.obj['configurations'] => ["base", "low-light", "extra-low-light", {"cde": ["-DD"]}]
+
+
+## LSF configuration ##########################################################
+you-can-also-give-an-LSF-configuration:
+  lsf:
+    memory: 1000
+    threads: 1000
+  configuration:
+    - base
+  inputs:
+  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
+  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+
+
+you-can-also-give-an-LSF-configuration-per-input:
+  lsf:
+    memory: 1000
+  configuration:
+    - base
+  inputs:
+    DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2:
+    DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin:
+      lsf:
+        memory: 200
+
+
+## Groups of groups ###########################################################
+# For convenience you can define aliases for groups of batches you often run together:
+groups:
+  ci:
+    - basic-list-of-inputs
+    - you-can-override-the-default-configuration
+# => those 2 groups will run with `qa batch ci`
+
+
+
+## Configuration aliases ######################################################
+# For convenience you can define aliases for common configurations
+.base: &base
+  - base
+  - partial
+  - subchain
+
+hdr:
+  configuration:
+    - *base
+    - hdr
+  inputs:
+    - A
+    - B
+    - C
+# context.obj['configurations'] => ["base", "partial", "hdr"]
+
+
+## Reusable configurations/inputs ##############################################
+# Sometimes you want to mix and match reusabe definitions of configs and inputs
+# YAML anchors let you do it:
+
+# You want to reuse those lists of inputs across all HDR inputs
+.inputs_hdr: &inputs_hdr
+  inputs:
+    - A
+    - B
+
+.lots_of_inputs_hdr: &lots_inputs_hdr
+  inputs:
+    - A
+    - B
+    - C
+    - D
+    - E
+    - F
+
+.HDR: &HDR
+  configuration:
+    - *base
+    - hdr_base
+    - hdr_motion
+
+.HDR-disabled: &HDR-disabled
+  configuration:
+    - *base
+
+hdr:
+  <<: *HDR
+  <<: *inputs_hdr
+no-hdr:
+  <<: *HDR-disabled
+  <<: *inputs_hdr
+# qa --batch-label hdr    batch hdr
+# qa --batch-label no-hdr batch no-hdr
+
+# Maybe on nightly runs you want to run lots of inputs
+lots-of-hdr-inputs:
+  <<: *HDR
+  <<: *lots_inputs_hdr
+lots-of-no-hdr-inputs:
+  <<: *HDR-disabled
+  <<: *lots_inputs_hdr
+
+
+
+...
+

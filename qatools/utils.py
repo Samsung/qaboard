@@ -255,6 +255,20 @@ def file_info(path, normalize_eof=True, config=None):
   }
 
 
+def save_outputs_manifest(output_directory, config=None):
+  """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
+  def should_be_in_manifest(path):
+    # avoid logs with timestamps and temporary NFS files
+    return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
+  output_files = {
+    path.relative_to(output_directory).as_posix(): file_info(path, config=config)
+    for path in output_directory.rglob('*')
+    if should_be_in_manifest(path)
+  }
+  with (output_directory / 'manifest.outputs.json').open('w') as f:
+    json.dump(output_files, f, indent=2)
+  return output_files
+
 
 
 class _Repo(object):

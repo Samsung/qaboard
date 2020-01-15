@@ -17,6 +17,8 @@ api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
 api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
+
+
 class NumpyEncoder(simplejson.JSONEncoder):
     """ Special simplejson encoder for numpy types """
     def default(self, obj):
@@ -31,8 +33,6 @@ class NumpyEncoder(simplejson.JSONEncoder):
         elif isinstance(obj,(np.ndarray,)):
             return obj.tolist()
         return simplejson.JSONEncoder.default(self, obj)
-
-
 
 
 def serialize_path(path):
@@ -119,9 +119,9 @@ def notify_qa_database(object_type='output', **kwargs):
     try:
       return r.json()
     except:
-      click.secho(f"WARNING: can't understand the server response: {r.text}", fg='yellow', err=True)
+      click.secho(f"WARNING: Can't understand the server response: {r.text}", fg='yellow', err=True)
   except:
-    click.secho('WARNING: Failed to update the QA database.', fg='yellow', err=True)
+    click.secho('WARNING: Failed to update QA-Board.', fg='yellow', bold=True, err=True)
     click.secho(url, fg='yellow', err=True)
     click.secho(str(data), fg='yellow', err=True)
     try:
@@ -140,7 +140,7 @@ def get_output(output_id):
     r.raise_for_status()
     return r.json()
   except:
-    click.secho(f'WARNING: Failed to contact the QA database. (GET Output {output_id})', fg='yellow', err=True)
+    click.secho(f'WARNING: Failed to contact the QA-Board. (GET Output {output_id})', fg='yellow', bold=True, err=True)
     try:
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
     except:

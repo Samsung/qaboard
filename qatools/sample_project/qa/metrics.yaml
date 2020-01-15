@@ -1,0 +1,40 @@
+# you must define metadata about all your objective figures of merits
+available_metrics:
+  # loss:
+  #   label: My Loss Function  # defaults to the key
+  #   short_label: Loss        # defaults to the label
+  #   smaller_is_better: true  # default
+  #   target: 0.01             # optionnal
+  #   # used for display
+  #   scale: 1.0               # default
+  #   suffix: %                # default: ''
+
+  is_failed:
+    label: Crashed
+    short_label: Crashed
+    scale: 100
+    suffix: "%"
+    target: 0
+    smaller_is_better: true
+    plot_scale: linear # | default: log
+
+
+# Below we define which metrics the GUI should show
+default_metric: is_failed
+
+# will be shown in the summary histogramms
+summary_metrics:
+  - is_failed
+
+# will be shown in the results table and in the output cards
+main_metrics:
+  - is_failed
+
+# In the history/time-travel/dashboard, only those metrics will be available in the plot showing results over time
+# [OPTIONNAL]: defaults to the summary_metrics
+# dashboard_evolution_metrics:
+#   - is_failed
+# In the history/time-travel/dashboard views, only those metrics will be shown in the summary histograms
+# [OPTIONNAL]: defaults to the summary_metrics
+# dashboard_metrics:
+#   - is_failed
