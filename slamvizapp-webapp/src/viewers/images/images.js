@@ -485,7 +485,7 @@ class ImgViewer extends React.PureComponent {
 
   InitFilters() {
     const { viewer_new, viewer_ref } = this;
-    console.log('[InitFilters]')
+    // console.log('[InitFilters]')
     viewer_new.imagefilters({ sync_key: this.props.path });
     viewer_ref.imagefilters({ sync_key: this.props.path });
   }
