@@ -3,7 +3,9 @@ export const iiif_url = (output_dir_url, path) => {
   let identifier = output_dir_url.replace("/stage/algo_data", "")
   // remove the URL' leading "/s"
   identifier = identifier.replace(/\/*?s\//, "")
-  identifier = `${identifier}/${path}`;
+  // console.log(identifier)
+  identifier = identifier.replace(/\//g, '%2F') + encodeURIComponent(`/${path}`);
+  // console.log(identifier)
   // IIIF specs require encoding the slashes inside the identifier
   let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
   let endpoint = is_cde_file
@@ -14,7 +16,8 @@ export const iiif_url = (output_dir_url, path) => {
       ? `/fcgi-bin/iipsrv.fcgi?IIIF=`
       : `/iiif/2/`
   }
-  identifier = encodeURIComponent(identifier)
+  // we expect that everything is already URL encoded
+  // identifier = encodeURIComponent(identifier)
   let url = `${endpoint}${identifier}`
   return url
 }

@@ -85,18 +85,18 @@ class CiCommit(Base):
   @property
   def repo_commit_dir(self):
     if self.commit_dir_override is not None:
-      return quote(Path(self.commit_dir_override))
+      return Path(self.commit_dir_override)
     else:
       commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
-      return quote(self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name)
+      return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
 
   @property
   def commit_dir_url(self):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override
-      return f'/s{relative_path}' 
-    return f"/s{self.commit_dir}".replace("/home/arthurf/ci", "")
+      return quote(f'/s{relative_path}')
+    return quote(f"/s{self.commit_dir}".replace("/home/arthurf/ci", ""))
 
 
   @property
@@ -104,8 +104,8 @@ class CiCommit(Base):
     """The URL at which the data about this commit is stored. It's convenient."""
     if self.commit_dir_override is not None:
       relative_path = self.commit_dir_override
-      return f'/s{relative_path}' 
-    return f"/s{self.repo_commit_dir}"
+      return quote(f'/s{relative_path}')
+    return quote(f"/s{self.repo_commit_dir}")
 
 
 
