@@ -12,7 +12,7 @@ from functools import lru_cache
 from requests.utils import quote
 import numpy as np
 from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
-from sqlalchemy import Column
+from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
 
 from slamvizapp.models import Base, Output
@@ -43,6 +43,8 @@ class Batch(Base):
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
+  __table_args__ = (UniqueConstraint('ci_commit_id', 'label', name='_ci_commit__label'),)
+
   outputs = relationship("Output",
                          back_populates="batch",
                          cascade="all, delete-orphan"
@@ -59,7 +61,7 @@ class Batch(Base):
   @property
   @lru_cache()
   def output_dir_url(self):
-    return quote(self.ci_commit.commit_dir_url / self.output_folder)
+    return f"{self.ci_commit.commit_dir_url}/{quote(str(self.output_folder))}"
 
   def metrics(self, metric, outputs=None):
     """Returns a list of results - for a chosen metric - over the commit's outputs.
