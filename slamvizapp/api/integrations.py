@@ -29,6 +29,10 @@ from slamvizapp import app
 #         }
 # TODO: - Longer-term, we should use a centralized per user/project secret store
 
+# We love our proxies
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 @app.route("/api/v1/webhook/proxy", methods=['POST'])
 @app.route("/api/v1/webhook/proxy/", methods=['POST'])
@@ -90,6 +94,7 @@ def gitlab_job():
           print(j['name'], j['id'], j["created_at"], j['status'])
     except Exception as e:
         return jsonify({"error": f'Only these jobs are available: {jobs}'}), 404
+    # FIXME: sort by id
     job_id = matching_jobs[-1]['id']
 
   url = f"{gitlab_api}/projects/{project_id}/jobs/{job_id}"
