@@ -24,7 +24,7 @@ import { sider_width } from './AppSider'
 
 const Footer = () => {
   return <div style={{margin: "10px", textAlign: "right"}}>
-     <span className={Classes.TEXT_MUTED}>Made with ❤️ at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span> 
+     <span className={Classes.TEXT_MUTED}>Made with <span role="img" aria-label="<3">❤️</span> at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span> 
   </div>
 }
 

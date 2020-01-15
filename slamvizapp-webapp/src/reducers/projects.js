@@ -145,7 +145,13 @@ export function projects(state = {
           branch_last_commit = action.commits.filter(c => c.branch === default_branch )[0];
         }
         const last_commit_authored_datetime = new Date((branch_last_commit || {}).authored_datetime);
-        if (!!branch_last_commit && new_state.data[action.project].commits[branch].latest_commit === undefined || new_state.data[action.project].commits[branch].latest_commit < last_commit_authored_datetime) {
+        // console.log("branch_last_commit", branch_last_commit, last_commit_authored_datetime)
+        let had_latest_commit = new_state.data[action.project].commits[branch].latest_commit !== undefined;
+        // console.log("had_latest_commit", had_latest_commit)
+        let previous_latest_authored_datetime = had_latest_commit && new Date(new_state.data[action.project].commits[branch].latest_commit.authored_datetime)
+        // console.log('newer?', previous_latest_authored_datetime, previous_latest_authored_datetime < last_commit_authored_datetime)
+        if ( (!!branch_last_commit && !had_latest_commit) || previous_latest_authored_datetime < last_commit_authored_datetime) {
+          // console.log('new latest')
           new_state.data[action.project].commits[branch].latest_commit = {
             id: branch_last_commit.id,
             authored_datetime: last_commit_authored_datetime,

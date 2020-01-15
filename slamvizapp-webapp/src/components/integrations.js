@@ -155,7 +155,8 @@ class IntegrationsMenus extends React.Component {
       })
     }
     componentDidMount = function() {
-      this.startUpdateIntegrationStatuses(60 * 1000)
+      // Not necessary to rush fetching the statuses (?)
+      // this.startUpdateIntegrationStatuses(60 * 1000)
     }
     componentWillUnmount = function() {
       this.stopUpdateIntegrationStatuses()
@@ -165,7 +166,7 @@ class IntegrationsMenus extends React.Component {
     // }
  
     updateIntegrationStatuses = () => {
-        const { project, project_data={}, commit={} } = this.props;
+        const { project_data={}, commit={} } = this.props;
         const commit_qatools_config = (commit.data || {}).qatools_config || {};
         const project_qatools_config = (project_data.data || {}).qatools_config || {};
         const eval_templates_recusively = make_eval_templates_recursively(this.props)
@@ -198,7 +199,7 @@ class IntegrationsMenus extends React.Component {
             }
           });
           //  console.log(integration.text, integration)
-           const { label, icon, text, href, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
+           const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
            if (gitlabCI) {
             var req_url = '/api/v1/gitlab/job/';
             const git = (project_data.data || {}).git || {};
@@ -273,7 +274,7 @@ class IntegrationsMenus extends React.Component {
     }
 
     render() {
-        const { single_menu, project, project_data={}, commit={} } = this.props;
+        const { single_menu, project_data={}, commit={} } = this.props;
         const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
         const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
         // let _integrations = debug_integrations; // FIXME comment-out
@@ -281,7 +282,7 @@ class IntegrationsMenus extends React.Component {
         let integrations = [...default_gitlab_integrations, ..._integrations]
         integrations = JSON.parse(JSON.stringify(integrations))
         const uses_default_integrations = true
-        // console.log(this.props, _integrations)
+        // console.log(integrations)
         const eval_templates_recusively = make_eval_templates_recursively(this.props)
 
 
@@ -348,7 +349,6 @@ class IntegrationsMenus extends React.Component {
                     icon={badge || integration.icon}
                     label={right_label}
                     target="_blank"
-                    label={right_label}
                   />
           return <MenuItem
             key={idx}
@@ -436,7 +436,7 @@ const JobTag = ({job}) => {
   return <Tooltip>
     <a href={job.web_url} target="_blank"  rel="noopener noreferrer"><Tag
       round
-      onClick={e => {e.stopPropagation(); console.log('log....')}}
+      onClick={e => {e.stopPropagation()}}
       minimal
       interactive
       {...make_props(status, allow_failure)} >
@@ -464,6 +464,7 @@ const default_gitlab_integrations = [
     }, 
 ]
 
+/*
 const debug_integrations = [
     {
       divider: true,
@@ -551,3 +552,4 @@ const debug_integrations = [
     //   icon: 'upload',
     // },
 ]
+*/
