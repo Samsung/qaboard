@@ -58,7 +58,7 @@ class CommitBranchButton extends React.PureComponent {
         <Tag style={{marginLeft: '10px', padding: '5px'}} interactive minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
           {has_branch ? commit.branch : 'master'}
         </Tag>
-        <span>Select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>
+        <span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>
       </Tooltip>
     </span>
   }
@@ -159,14 +159,15 @@ class CommitNavbar extends React.Component {
 
             <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
               <Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
-                <EditableText
-                  onConfirm={this.selectCommit}
-                  minWidth={60}
-                  placeholder='id'
-                  key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-                  defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-                  style={{borderBottom: '1px dashed'}}
-                />
+                <div style={{borderBottom: '1px dotted #777'}}>
+                  <EditableText
+                    onConfirm={this.selectCommit}
+                    minWidth={60}
+                    placeholder='id'
+                    key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+                    defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+                  />
+                </div>
                 {milestones_menu}
               </Popover>
             </span>
