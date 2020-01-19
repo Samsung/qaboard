@@ -173,6 +173,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
       if is_ci:
         from shlex import quote
         click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
+      click.echo(click.style("Outputs at: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
 
       ctx.obj['output_directory'] = output_directory.resolve()
       ctx.obj['forwarded_args'] = forwarded_args
@@ -370,7 +371,12 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
     batches = [batches]
 
   batch_label = ctx.obj['batch_label']
-  commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
+
+  if not ctx.obj['offline']:
+    from requests.utils import quote
+    commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+    if is_ci or ctx.obj['share']:
+      click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
 
@@ -390,8 +396,6 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
 
   should_notify_qa_database = not dryrun and not ctx.obj['offline'] and not no_batch_qa_database
   if should_notify_qa_database:
-    if is_ci or ctx.obj['share']:
-      click.echo(click.style("Results at: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
     import uuid
     import datetime
     command_data = {
