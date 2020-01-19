@@ -182,7 +182,8 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
 
 def run_jobs_local(jobs, config, ctx):
   from joblib import Parallel, delayed
-  n_jobs = config.get('runners', {}).get('local', {}).get('concurrency', -1)
+  default_n_jobs = config.get('runners', {}).get('local', {}).get('concurrency', -1)
+  n_jobs = int(os.environ.get('QATOOLS_BATCH_CONCURRENCY', default_n_jobs))
   verbose = int(os.environ.get('QATOOLS_BATCH_VERBOSE', 0))
   # multiprocessing will try to reimport qatools, which relies on the CWD
   cwd = os.getcwd()
