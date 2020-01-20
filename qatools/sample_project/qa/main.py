@@ -61,13 +61,6 @@ def run(context):
   if context.obj['dryrun']:
     return
 
-  subprocess.run(command, shell=True,
-    cwd=context.obj["output_directory"],
-    encoding='utf-8',
-    stdout=pipe, stderr=pipe,
-    check=True,
-  )
-
   pipe = subprocess.PIPE
   with subprocess.Popen(command, shell=True,
                         cwd=context.obj["output_directory"],
