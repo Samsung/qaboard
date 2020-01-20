@@ -17,13 +17,13 @@ inputs:
   # We assume your inputs are located at $database/$input. [read the docs for other options...]
   database:
     # Often databases are mounted at different locations on linux and windows...
-    linux: /mnt/database
-    windows: F:/Database
+    linux: /
+    windows: C://
     # TODO: - List those mappings under storage.mapping[{linux,windows}]
 
   # What kind of inputs do you have? images? folders containing images?
-  # You need to provide a way to identify inputs. Here image files:
-  globs: '*.jpg'
+  # To find them automaticall when you run `qa batch my/folder`, you need to provide a way to identify them:
+  # globs: '*.jpg'
   # It is sometimes nicer to identify the folder containing a matching path as the input;
   # for instance if you identify inputs as folders with a file named "Frame_000.jpg":
   # use_parent_folder: false
