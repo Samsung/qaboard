@@ -103,7 +103,8 @@ class Job:
     else:
       dependencies_flag = ""
 
-    queue = self.lsf_config.queue if not interactive else self.lsf_config.fast_queue
+    fast_queue = self.lsf_config.fast_queue if self.lsf_config.fast_queue else self.lsf_config.queue  
+    queue = self.lsf_config.queue if not interactive else fast_queue 
     q_command = " ".join(
       [
         # When running without a TTY (usually under su/sudo)
