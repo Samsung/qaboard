@@ -74,12 +74,12 @@ def qa_init():
       config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
       config_content = config_content.replace('url: git@gitlab-srv/my_group/sample_project', f"url: {url}")
       config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
+      # Write the file out again
+      with config.open('w') as f:
+        f.write(config_content)
     except:
       click.secho('Please edit qatools.yaml with your project name and url ', fg='yellow')
 
-    # Write the file out again
-    with config.open('w') as f:
-      f.write(config_content)
 
   exit(0)
 
