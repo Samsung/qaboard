@@ -218,7 +218,7 @@ class CommitNavbar extends React.Component {
             <Menu>
               <MenuDivider title="Commit"/>
               <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
-              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(commit.commit_dir_url.slice(2))}} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.commit_dir_url).slice(2))}} />
               <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               {has_selected_batch && <>
               <MenuDivider title="Batch"/>

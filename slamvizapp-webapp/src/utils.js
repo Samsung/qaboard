@@ -257,7 +257,7 @@ const deserialize_config = configuration => {
 const linux_to_windows = path => {
   if (path === undefined || path === null)
     return path
-  let windows_path = path
+  let windows_path = decodeURI(path)
     .replace(/\/s\//, '/')
     .replace('//home', '//mars/raid/users')
     .replace('/home', '//mars/raid/users')
@@ -333,7 +333,7 @@ const make_eval_templates_recursively = ({project, project_data, ...rest }) => {
   return integration => {
     // try {
       // console.log("[before]", integration)
-      // console.log(context)
+      // console.log(context.commit)
       const evaled_integration = recursively_apply(integration, s => fill_template(s, context));
       // console.log("[after]", evaled_integration)
     // } catch {
