@@ -79,6 +79,11 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
     return
 
+  if not globs:
+    yield from input_paths
+    return
+
+  nb_inputs = 0
   for glob in globs:
     for input_path in input_paths:
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
@@ -87,18 +92,23 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
         inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
       if exclude:
         inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
-      yield from inputs
+      for i in inputs:
+        nb_inputs += 1
+        yield i
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
         if only and not match(metadata, only): continue
         if exclude and match(metadata, exclude): continue
+        nb_inputs += 1
         yield input_path
+  if not nb_inputs:
+    click.secho(f'Warning: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
   if path and Path(path).is_absolute():
     click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
-    click.secho(f'We except you to split "{path}" into a "database" and a relative path.', fg='red')
+    click.secho(f'Please split "{path}" into a "database" and a relative path.', fg='red')
     raise ValueError
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
@@ -114,11 +124,11 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
     return
 
-  globs = inputs_settings.get('globs', inputs_settings.get('glob', []))
+  globs = inputs_settings.get('globs', inputs_settings.get('glob'))
   if not globs:
-    click.secho(f'WARNING: Could not find how to identify inputs.', fg='yellow', err=True)
-    click.secho(f'Consider adding to qatools.yaml something like:\n```\ninputs:\n  globs: *.hex\n```', fg='yellow', err=True, dim=True)
-  if not isinstance(globs, tuple) and not isinstance(globs, list):
+    click.secho(f'ADVICE: Tell us how to identify inputs. You will be able to `qa batch` on all inputs under a given folder.', fg='cyan', err=True)
+    click.secho(f'Consider adding to qatools.yaml something like:\n```\ninputs:\n  globs: "*.bmp"\n```', fg='cyan', err=True, dim=True)
+  elif not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
   use_parent_folder = inputs_settings.get('use_parent_folder', False)
   yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)

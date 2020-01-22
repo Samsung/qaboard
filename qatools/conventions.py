@@ -25,7 +25,7 @@ def get_settings(inputs_type, config):
     "type": inputs_type,
   }
   if 'globs' not in settings:
-    settings['globs'] = settings.get('glob', [])
+    settings['globs'] = settings.get('glob')
   return settings
 
 
