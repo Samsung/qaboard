@@ -115,6 +115,14 @@ def entrypoint_module(config):
   return module
 
 
+def escaped_for_cli(string):
+  # we assume single_quotes are already escaped
+  if os.name == 'nt':
+    string_escaped = string.replace('\\', '\\\\')
+    string_escaped = string_escaped.replace('"', '\\"')
+    return f'"{string_escaped}"'
+  else:
+    return 
 
 # TODO: consider using @lru_cache since it's called twice within qa batch
 # from functools import lru_cache
