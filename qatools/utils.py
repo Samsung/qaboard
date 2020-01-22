@@ -214,7 +214,7 @@ def is_plaintext(path, config=None):
   exit(1)
 
 
-def file_info(path, normalize_eof=True, config=None):
+def file_info(path, normalize_eof=True, config=None, compute_hashes=True):
   """Return metadata about a file."""
   path = Path(path) # just to be sure...
 
@@ -240,28 +240,25 @@ def file_info(path, normalize_eof=True, config=None):
     normalized_file_info = file_info(normalized_file_name, normalize_eof=False)
     Path(normalized_file_name).unlink()
     return normalized_file_info
+  info = {"st_size": os.stat(path).st_size}
+  if compute_hashes:
+    md5 = hashlib.md5()
+    block_size = 4**10
+    with path.open('rb') as f:
+      while True:
+        data = f.read(block_size)
+        if not data: break
+        md5.update(data)
+    info['md5'] = md5.hexdigest()
+  return info
 
-  md5 = hashlib.md5()
-  block_size = 4**10
-  with path.open('rb') as f:
-    while True:
-      data = f.read(block_size)
-      if not data: break
-      md5.update(data)
-  stats = os.stat(path)
-  return {
-    "st_size": stats.st_size,
-    "md5": md5.hexdigest(),
-  }
-
-
-def save_outputs_manifest(output_directory, config=None):
+def save_outputs_manifest(output_directory, config=None, compute_hashes=True):
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   def should_be_in_manifest(path):
     # avoid logs with timestamps and temporary NFS files
     return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
   output_files = {
-    path.relative_to(output_directory).as_posix(): file_info(path, config=config)
+    path.relative_to(output_directory).as_posix(): file_info(path, config=config, compute_hashes=compute_hashes)
     for path in output_directory.rglob('*')
     if should_be_in_manifest(path)
   }
