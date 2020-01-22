@@ -25,6 +25,10 @@ def metadata(absolute_input_path, database, input_path):
 If you define `metadata.label` it will be used in the UI instead of the input path.
 :::
 
+:::tip
+QA-Board will compares runs with different input if they have the same `metadata.id`. A common use-case is comparing images from different sensors taken in the same conditions.
+:::
+
 Qatools will forward metadata to your `run()` function as `ctx.obj['input_metadata']`.
 
 

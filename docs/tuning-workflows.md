@@ -9,15 +9,15 @@ title: Tuning workflows: all your options
 
 When doing QA or during development, you often want to run the code/configs from a given commit on new tests. Qatools' web application lets you define and runs batches of tests with extra tuning parameters:
 
-![Tuning from the UI](https://qa/s/qatools/img/tuning-from-the-ui.jpg)
+![Tuning from the UI](/img/tuning-from-the-ui.jpg)
 
 
 ## Investigating results/configs you see in the UI
 Every time you see an output in the web application, you see what configurations were used, and you can easily open the output directory:
 
-![Copy the Windows output dir](https://qa/s/qatools/img/output-windows-dir.jpg)
+![Copy the Windows output dir](/img/output-windows-dir.jpg)
 
-![Output directory from Windows](https://qa/s/qatools/img/winows-explorer-output-dir.jpg)
+![Output directory from Windows](/img/winows-explorer-output-dir.jpg)
 
 > The output logs always show you the exact CLI commands that were used, so that reproducing results is only a `git checkout $revision ; make ; qa run` away.
 
@@ -42,8 +42,8 @@ qa --ci --label testing-some-logic-tweaks batch [...]
 
 Results will appear in a new batch:
 
-![selecting local runs](https://qa/s/qatools/img/selecting-local-runs.jpg)
-![local runs warning](https://qa/s/qatools/img/local-runs-warning.jpg)
+![selecting local runs](/img/selecting-local-runs.jpg)
+![local runs warning](/img/local-runs-warning.jpg)
 
 > From Linux it will use our LSF cluster.
 

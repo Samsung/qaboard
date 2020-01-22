@@ -4,74 +4,110 @@ title: Visualizing your algorithm's outputs
 sidebar_label: Visualizations
 ---
 
-With you run your algorithm with `qa run`, you get an `output_directory` in which you can create any file you want. To display visualizations in the web application, you have to *declare* what visualizations you expect.
+The `run()`function wrapping your code receives an `output_directory` where it can create all kinds of files. Usually, you only want to look at a few of those files, the rest being debug data. **Visualizations** help you declare pre-sets of relevant files. 
 
-The *list* of your visualizations is defined in your project's [*qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L42) under `outputs.visualizations`. Here is a simple example, assuming your code creates a few images.
+Here is a simple example, assuming your code an image named *output.jpg*.
 
 ```yaml
+# qatools.yaml
 outputs:
     visualizations:
     - path: output.jpg
-      type: image/jpg
-    - path: debug.bmp
-      type: image/bmp
 ```
 
-> To debug your qatools visualizations, commit and push your *qatools.yaml*.
-> 
-> To get a real editing tool, contact [Arthur Flam](mailto:arthur.flam@samsung.com).
+:::note
+For now, to debug your visualizations, you have to commit and push your new *qatools.yaml*.
+We plan on letting you edit simply *qatools.yaml* locally, and update the visualizations when you use `qa --share`.
+:::
 
+You can provide multiple relevant files, and hide debug visualizations by default: 
 
-
-## Supported viewers
-The type of each visualization determines which viewer renders it:
-
-- `image/*`: image viewers:
-  * Pretty much all image formats are supported (jpg, bmp, tiff, jp2, pdf, dng, hex, raw+imgprops...)
-  * Smooth zoom, scrolling
-  * Histograms per channel
-  * Perceptual color difference
-  * Fast image streaming via [IIIF](https://iiif.io)
-
-![Image viewer](https://qa/s/qatools/img/image-viewer.gif)
-
-- `plotly/json`: [The Plotly library](https://plot.ly/python) has everything from bar charts to 3d plots. Save your plotly data as JSON:
-
-```javascript
-{ 
-  layout: {...},        // usual plotly "layout"
-  data: [{...}, {...}]  // array of usual plotly "traces"
-} 
-```
-![3d plot with plotly for LSF/Calibration](https://qa/s/qatools/img/plotly-3d-example.png)
-
-- `text/plain`: Text/diff viewer.
-
-![Text/diff viewer](https://qa/s/qatools/img/text-viewer.jpg)
-
-- `video/*`: Video viewer
-- `plain/html`: Embedded HTML viewer
-- `pointcloud/txt`: performant pointcloud viewer (coupled to the *tof/swip_tof* project...)
-- `6dof/txt`: SLAM 6dof plots + optionnal 3d plots and debug info (coupled to the *dvs/psp_swip* project...)
-
-## Hidden-by default visualizations
-Some visualization are heavy, or mostly useful for debugging. If you want, a toggle button will let you switch them on/off:
- 
 ```yaml
+# qatools.yaml
 outputs:
-    detailed_views:
-    - name: Registers
-      type: text/plain
-      path: output_registers.txt
+    visualizations:
+    - path: output.jpg
+    - path: debug.jpg
       default_hidden: true
+      # type: image/jpg # auto-guessed
 ```
 
-![](https://qa/s/qatools/img/hidden_by_default_switches.png)
+Users will get switches to toggle debug visualizations:
+
+![toggle visualizations](/img/hidden_by_default_switches.png)
+
+
+## Available file viewers
+QA-Board tries to guess the right image viewer depending on the file extension or a `type`
+
+Extenstions                                         | Type         | Viewer                                       |
+----------------------------------------------------|--------------|----------------------------------------------|
+`*.jpg*`, `*.png*`, `*.bmp*`, `*.tif*`, `*.pdf*`... |  `image/*`   | **Image**                                    |
+`*.hex*`, `*.raw*`, `*.dng*`                        |  `image/*`   | **Image** (via CDE)                          |
+`*.plotly.json`                                     | `plotly/json`| **Plot.ly**                                  |
+`*.mp4`                                             | `video/*`    | **Video** (synced)                           |
+`*.html`                                            | `plain/html` | **HTML** (assumes trusted input..!)          |
+`*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
+`</>`                                               | `pointcloud/txt` | ToF's **pointcloud** viewer (needs to be split) |
+`</>`                                               | `6dof/txt`       | SLAM's **6DoF** viewer (needs to be split)      |
+
+
+### Image viewer
+  * Supports all common image formats.
+  * Fast and smooth zoom & pan, synced. Fast image streaming via [IIIF](https://iiif.io).
+  * Color tooltip.
+  * Perceptual color difference.
+  * Automatic regions of interest.
+  * Image filters (exposure, contrast, gamma...).
+  * Histograms per channel.
+
+
+<!-- ![Image viewer](/img/image-viewer.gif) -->
+<!-- ![Image viewer](/img/image-perceptural-diff.png) -->
+
+![Image viewer](/img/image-viewer-autoroi.png)
+
+
+<!-- http://qa:3000/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/051ee752a3aafa817b735bf34f7779dec9920387?reference=a4222720d3101049b3e43b458e2b8cd02470e65b&controls=%7B%22show%22%3A%7B%22Debug%20Image%22%3Afalse%2C%22CDE%20config%22%3Afalse%2C%22Video%22%3Afalse%2C%22BPC%20Directions%22%3Afalse%2C%22Remosaic%20RGB%22%3Afalse%2C%22HDR%20Merger%20LMS%20Weights%20Map%22%3Afalse%7D%2C%22diff%22%3Atrue%7D&batch=foveon_full&filter=Foveon_AFIT%2F61_SDQH_3_Nona_OutD_Person_FAR_1of800s_ISO100_5184x3792_GR.he&batch_ref=foveon_full&filter_ref= -->
+
+### Plot.ly viewer
+[The Plotly library](https://plot.ly/graphing-libraries/) has everything you need from bar charts to 3d plots.
+- huge variety of plots
+- interactive plots
+- easy-ish to use with binding to [python](https://plot.ly/python/getting-started/)/JS/matlab...
+- web-based
+- open-source and popular
+- performant
+
+![plotly gallery](/img/plotly-1.png)
+
+<!-- ![plotly gallery](/img/plotly-2.png) -->
+
+![3d plot with plotly for LSF/Calibration](/img/plotly-3d-example.png)
+
+All you need is to save your plot data as JSON. 
+
+```python
+import plotly.graph_objects as go
+fig = go.Figure(data=go.Bar(y=[2, 3, 1]))
+with open('graph.plotly.json', 'w') as f:
+  spec = fig.to_json() # '{"layout": {...}, "data": [{...}, {...}, ...]}'
+  f.write()
+```
+
+### Text Viewer
+![Text/diff viewer](/img/text-viewer.jpg)
+
+### More Viewers?
+Contact us to tell us what you need! The backlog contains:
+- [**Flame Graphs**](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html) and [**differential-flame-graphs**](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html) for software performance
+- **Config CDE:** as graph like tensorboard
+- [**Vega**](https://vega.github.io/vega/)
 
 ## Dynamic visualizations
 You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will we able to choose what to display using sliders / select options:
 
-![Viewing each frame of a movie](https://qa/s/qatools/img/dynamic-outputs.gif)
+![Viewing each frame of a movie](/img/dynamic-outputs.gif)
 
 ```yaml
 outputs:
@@ -108,7 +144,7 @@ outputs:
 
 By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show:
 
-![Everything is synced](https://qa/s/qatools/img/dynamic-outputs-select.gif)
+![Everything is synced](/img/dynamic-outputs-select.gif)
 
 If you want, you can visualize all matching files:
 
@@ -123,28 +159,25 @@ If you want, you can visualize all matching files:
              # viewer  # let the viewer decide what to do... (EXPERIMENTAL)
 ```
 
-## Creating custom visualizations
-> You'll have to write some `javascript` that downloads results and displays them. It's not that hard 👍👽
 
-- **[Arthur Flam](mailto:arthur.flam@samsung.com) can advise you along the way**.
-- You can setup a nice interactive dev environment in 15 minutes and start coding / adapting existing visualization:
+## Advanced Options 
+### Custom styles [EXPERIMENTAL]
+You can style your visualizations:
 
-```bash
-# download and install nodejs
-# https://nodejs.org/en/download/
-npm install
-npm start
-#=> dev server listening on http://localhost:3000 
+```yaml
+outputs:
+    # define global or per-view styles
+    style:
+        # use any CSS properties
+        width: 500px
+        # the style will be applied to the outer-container
+        # and passed down to the viewers
+    detailed_views:
+    - name: My debug visualization
+      style:
+        width: 400px   
 ```
-
-- We use the simple [`reactjs`](https://reactjs.org) framework.
-- Existing visualizations are varied so you never start from a blank page
-  * existing viewers are [implemented here](http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp-webapp/src/viewers)
-  * the mapping from visualization-type <-> viewer are [defined here](http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp-webapp/src/viewers/OutputCard.js)
-
-
-## Advanced Options [EXPERIMENTAL]
-### Viewer extra configuration
+### Viewer extra configuration [EXPERIMENTAL]
 Some viewers can read extra configuration parameters from their configuration: 
 
 ```yaml
@@ -166,19 +199,3 @@ outputs:
       default: false
 ```
 
-### Custom styles
-You can style your visualizations:
-
-```yaml
-outputs:
-    # define global or per-view styles
-    style:
-        # use any CSS properties
-        width: 500px
-        # the style will be applied to the outer-container
-        # and passed down to the viewers
-    detailed_views:
-    - name: My debug visualization
-      style:
-        width: 400px   
-```

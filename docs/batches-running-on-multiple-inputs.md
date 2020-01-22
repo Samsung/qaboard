@@ -4,10 +4,6 @@ title: Running on batches of inputs
 sidebar_label: Input Batches
 ---
 
-::: tip
-Are you using the old `XLS+json` way of defining batches? ? There is a [conversion script](http://gitlab-srv/CDE-Users/HW_ALG/blob/develop/tools/convert_tests_xls_to_yaml.py) to help you migrate!
-:::
-
 ## How do I run multiple inputs at once?
 If you defined a batch of inputs called *my-batch*, you run on all its inputs with:
 ```bash

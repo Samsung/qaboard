@@ -6,7 +6,7 @@ sidebar_label: Triggering External Tools
 
 You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). `QA-Board` lets you connect to those third-party tools on each commit's page and on commit index pages:
 
-![Allowing triggered build](https://qa/s/qatools/img/ui-triggers.png)
+![Allowing triggered build](/img/ui-triggers.png)
 
 ## Adding badges and external links
 Configure your project's *qatools.yaml* like so to display direct links to docs, build artifacts, coverage reports, etc:
@@ -38,7 +38,7 @@ integrations:
     gitlabCI:
       job_name: build-linux
 ```
-![jenkins-and-gitlab-integrations](https://qa/s/qatools/img/gitlab-jenkins.gif)
+![jenkins-and-gitlab-integrations](/img/gitlab-jenkins.gif)
 
   ## Trigger Jenkins builds
 Configure your project's *qatools.yaml*:
@@ -120,7 +120,7 @@ Since you'll commit those credentials with the code, make sure you don't have to
 2. Get a crumb to handle [Jenkins' CSRF](https://support.cloudbees.com/hc/en-us/articles/219257077-CSRF-Protection-Explained), eg at *http://jensirc:8080/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)*
 
 3. Go to your Jenkins project configuration page at *$JENKINS_URL/$PROJECT/configure* and allow triggered builds:
-![Allowing triggered build](https://qa/s/qatools/img/configure-jenkins-build-triggers.png)
+![Allowing triggered build](/img/configure-jenkins-build-triggers.png)
 
 4. Configure your project's *qatools.yaml*:
 

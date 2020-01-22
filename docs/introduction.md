@@ -1,15 +1,21 @@
 ---
 id: introduction
-title: Introduction to qatools
-sidebar_label: Introduction
+title: Algorithms R&D platform
+sidebar_label: Features & Benefits
 ---
 
-Qatools helps algorithm and QA engineers build great products with powerful quality evaluation tools:
+**QA-Board** helps Algorithms/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
 
-- **Focus on improving and experimenting algorithms**, not worrying about the QA infrastructure.
-- **Simple to Start**: qatools is built to be easy to get up and running in as little time possible.
-- Make it easy to **compare** different algorithms, configurations, **tune/optimize**, and **share** results.
-- **Visualizations**: qatools can display quantitative metrics, and also ships with an advanced image viewer, support for videos, plotly graphs, text, pointclouds, embedded HTML...
-- **Integrated** with version control (`git`), CI tools (`GitlabCI`, `Jenkins`...) and SIRC's `lsf` cluster, but **Unopiniated**: it doesn't care about your algorithm framework, language, how you define your tests, or in what format your results should be.
+> QA-Board is the main collaborative tool for ~20 projects. [Take a look at our live server](https://qa) 😊👓
 
-> [SIRC's qatools server](https://qa) displays many projects' results. Take a look 👓😊
+## Features
+- **Organize, View and Compare Results**, **Tuning/Optimization**
+- **Web-based:** sharable URLs, no install needed.
+- **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, embedded HTML...
+- **Integrations:** direct access from Git/CI, easily exportable results, API, links to the code, trigger jobs...
+- **Samsung colleagues** can ask for and get access!
+
+## Achieved Benefits
+- **Scale R&D:** enable engineers to achieve more and be more productive.
+- **Faster Time-to-Market:** collaboration across teams, workflow integration..
+- **Quality:** uncover issues earlier, KPIs, tuning, reporting...

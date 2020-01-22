@@ -32,14 +32,14 @@ At the moment nothing prevents your from modifying/destroying files created from
 :::
 
 1. **In the "Visualization" tab, an export utility** lets you copy-to-clipboard a path with filtered/nicely-renamed results/files: 
-![Export batch outputs](https://qa/s/qatools/img/export-files-viz.jpg)
+![Export batch outputs](/img/export-files-viz.jpg)
 
 2. **Next to each output**, there is always a button to copy-to-clipboard the path to the files it created.
 
-![Export batch outputs](https://qa/s/qatools/img/export-files-output.jpg)
+![Export batch outputs](/img/export-files-output.jpg)
 
 3. **From the Navigation bar**, you can copy-to-clipboard the windows-ish path where each commit saves its results:
-![Export batch outputs](https://qa/s/qatools/img/export-files-commit.jpg)
+![Export batch outputs](/img/export-files-commit.jpg)
 
 4. You can also **programmatically access qatools's data** by querying its API. While it's not documented (yet), it's not complicated:
 

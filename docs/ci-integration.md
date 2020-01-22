@@ -16,7 +16,7 @@ This said, you can still view your results in the web application by using `qa -
 ## Requirement
 - Make sure your Gitlab project has an integration with qatools. If you're not sure if/how, review the [qatools setup guide](project-init). You should be able to see your project in the qatools [web application](https://qa):.
 
-![Index of the projects](https://qa/s/qatools/img/projects-index.jpg)
+![Index of the projects](/img/projects-index.jpg)
 
 ## Running qatools in your CI
 1. **Have your CI launch qatools:** With GitlabCI, you would do something like:
@@ -36,7 +36,7 @@ You CI is responsible for setting up an environment (`$PATH`...) in which qatool
 
 2. **Push a commit to Gitlab**. If your CI is successful, the commit will appear in your project's page: 
 
-![Index of the latest commits](https://qa/s/qatools/img/commits-index.jpg)
+![Index of the latest commits](/img/commits-index.jpg)
 
 
 ## Example with GitlabCI

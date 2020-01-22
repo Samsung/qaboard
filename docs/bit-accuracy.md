@@ -10,7 +10,7 @@ The web application lets you view and compare all files created by your algorith
 - Files are marked depending on its status (identical, different, added, removed). Identical files are hidden by default.
 - You can click on them to open qatools' viewer:
 
-![bit accuracy viewer](https://qa/s/qatools/img/bit-accuracy-viewer.jpg)
+![bit accuracy viewer](/img/bit-accuracy-viewer.jpg)
 
 :::note
 The UI doesn't care about [*qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml#L93)'s `bit-accuracy.patterns` *(discussed later)*.
