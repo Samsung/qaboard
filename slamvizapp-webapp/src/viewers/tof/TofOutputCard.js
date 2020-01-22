@@ -148,8 +148,8 @@ class TofOutputCard extends Component {
     // if the tof crashed for instance, they won't be there
     let has_frames_info = props.output_new.metrics.frames !== undefined
     // we will first display the last frame of each recording
-    let last_frame_id = has_frames_info ? props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1].frame_path_idx : 0;
-    let first_frame_id = has_frames_info ? props.output_new.metrics.frames[0].frame_path_idx : 0;
+    let last_frame_id = has_frames_info ? (props.output_new.metrics.frames[props.output_new.metrics.frames.length - 1] || {}).frame_path_idx : 0;
+    let first_frame_id = has_frames_info ? (props.output_new.metrics.frames[0] || {}).frame_path_idx : 0;
 
     const to_map = output => (output !==undefined && output.metrics !== undefined && output.metrics.frames !== undefined)
                               ? new Map(output.metrics.frames.map(frame => [parseFloat(frame.frame_path_idx), frame]))
