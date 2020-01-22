@@ -40,7 +40,8 @@ inputs:
   #     use_parent_folder: true
 
 
-  # You can define files containing definitions of batches of tests:
+  # You can define files containing definitions of batches of tests,
+  # which you run with `qa batch`
   batches:
   - qa/batches.yaml
 
@@ -62,27 +63,32 @@ outputs:
   # To learn more about how to describe how results should be visualized:
   # http://qa-docs/docs/visualizations
   visualizations:
-  - name: My plot
-    ## If you use plotly, it is very simple to view yours plots in the web UI
-    # type: plotly/json
-    ## Save your plot's data and layout in a json file
-    ## Note: To find the data they will display, some viewers might rely on conventions
-    ##       but it is best to be explicit
-    # path: data.json
-    ## {
-    ##   layout: {...},        // regular plotly layout
-    ##   data: [{...}, {...}]  // data (array) of regular plotly traces
-    ## }
-    #
-    ## If you add parameters, they will be passed down to the viewer
-    ## For instance, you may want to adjust optionnal displays, styling, etc.
-    ## Each viewer will have its own options....
-    #
-    ## You can hide by defaut your debug/heavy outputs
-    # default_hidden: false
+  # - name: My image
+  #   path: output.jpg
+
+  # - name: My plot
+  #   # path: data.plotly.json
+  #   ## If you use plotly, it is very simple to view yours plots in the web UI
+  #   ## Save your plot's data and layout in a json file
+  #   ## Note: To find the data they will display, some viewers might rely on conventions
+  #   ##       but it is best to be explicit
+  #   # type: plotly/json
+  #   ## {
+  #   ##   layout: {...},        // regular plotly layout
+  #   ##   data: [{...}, {...}]  // data (array) of regular plotly traces
+  #   ## }
+  #   #
+  #   ## You can hide by defaut your debug/heavy outputs
+  #   # default_hidden: false
+  #
+  #   ## If you add parameters, they will be passed down to the viewer
+  #   ## For instance, you may want to adjust optionnal displays, styling, etc.
+  #   ## Each viewer will have its own options....
+  #   #
 
 
   # You pass CSS style attributes to your viewers' container
+  # here we instance we change the visualizations' width 
   # style:
   #   width: 840px
 
@@ -100,15 +106,15 @@ outputs:
    ##                  | skip         # continue to the next test
 
 
-# After the build, you must define the "artifacts" needed to run your software:
-# binaries, libraries, sources, configuration files... To save them:
-#   $ qa save-artifacts
-# Note: .qatools.yaml and qatools/ are saved automatically
-artifacts:
-  configurations:
-    glob: configurations/*.json
-  binary:
-    glob: 'build/sample_project'
+# # After the build, you must define the "artifacts" needed to run your software:
+# # binaries, libraries, sources, configuration files... To save them:
+# #   $ qa save-artifacts
+# # Note: .qatools.yaml and qatools/ are saved automatically
+# artifacts:
+#   configurations:
+#     glob: configurations/*.json
+#   binary:
+#     glob: 'build/sample_project'
 
 
 # Bit accuray tests will look for files matching those glob patterns
@@ -125,9 +131,9 @@ bit_accuracy:
   # binary:
   #   - '*.raw'
   # If you provide both plaintext and binary patterns, you'll get an error.
-  patterns:
-    - output.jpg
-    - '*.txt'
+  # patterns:
+  #   - output.jpg
+  #   - '*.txt'
   # ignore:
   #  - XXXX
   # if the CI for commit you compare against failed, you can decide to compare against its first parent

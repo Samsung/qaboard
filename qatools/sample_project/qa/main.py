@@ -24,7 +24,7 @@ def run(context):
     if isinstance(c, dict):
       context.obj["parameters"].update(c)
   if context.obj["extra_parameters"]:
-    print(context.obj["extra_parameters"])
+      context.obj["parameters"].update(context.obj["extra_parameters"])
 
 
   click.secho("TODO: Run *your* code using...", fg='cyan', bold=True)
@@ -80,29 +80,30 @@ def run(context):
 
 
 
-def postprocess(runtime_metrics, context):
-  """
-  Postprocessing functions can
-    1. return a dict with metrics to save in metrics.json
-    2. Create any qualitative outputs you would like to view later (images, movies...)
-    
-   args:
-    context: Click.Context, context.obj has information from the CLI arguments
-    runtime_metrics: metrics from the run
-  """
-  # it can be as simple as....
-  return runtime_metrics
+# def postprocess(runtime_metrics, context):
+#   """
+#   Optionnaly, you can define a `postprocess` function that, just like `run()`, can:
+#     1. return a dict with metrics to save in metrics.json
+#     2. Create any qualitative outputs you would like to view later (images, movies...)
+#
+#
+#    args:
+#     context: Click.Context, context.obj has information from the CLI arguments
+#     runtime_metrics: metrics from the run
+#   """
+#   # it can be as simple as....
+#   return runtime_metrics
 
-  ## Sample ##
-  # You should know what files you algo writes to, and what they mean
-  output_path = context.obj["output_directory"] / 'my-output.txt'
-  metrics = {"is_failed": not output_path.exists()}
-  if metrics["is_failed"]:
-    return metrics
+#   ## Sample ##
+#   # You should know what files you algo writes to, and what they mean
+#   output_path = context.obj["output_directory"] / 'my-output.txt'
+#   metrics = {"is_failed": not output_path.exists()}
+#   if metrics["is_failed"]:
+#     return metrics
 
-  outputs = parse(output_path)
-  create_plots(outputs, context.obj['output_direectory'])
-  return {
-    **runtime_metrics,
-    **my_metrics(outputs),
-  }
+#   outputs = parse(output_path)
+#   create_plots(outputs, context.obj['output_direectory'])
+#   return {
+#     **runtime_metrics,
+#     **my_metrics(outputs),
+#   }
