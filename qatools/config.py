@@ -187,10 +187,6 @@ except KeyError:
 ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
 
 
-repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
-is_in_git_repo = (repo_root / '.git').is_dir()
-
-
 # This flag identifies runs that happen within the CI or tuning experiments
 ci_env_variables = (
     # Set by most CI tools (GitlabCI, CircleCI, TravisCI...) except Jenkins,
@@ -236,6 +232,12 @@ else:
 
 if not commit_id or not commit_branch:
     # using gitpython is very slow, so we read the git data directly
+    repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
+    is_in_git_repo = False
+    for d in (repo_root, *list(repo_root.parents)):
+      if (d / '.git').is_dir():
+        is_in_git_repo = True
+        repo_root = d
     if is_in_git_repo:
       commit_branch, commit_id = git_head(repo_root)
     else:
