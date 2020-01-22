@@ -2,9 +2,10 @@
 Returns a list of rois.
 Create a pdf report of rois comparison.
 """
-import time  # for Debugging purpose
 from pathlib import Path
+import time  # for Debugging purpose
 from math import sqrt, ceil
+
 import numpy as np
 from skimage.color import deltaE_cie76, rgb2lab, rgb2yiq
 from skimage.viewer import ImageViewer  # for Debugging purpose
@@ -12,7 +13,10 @@ from skimage.transform import rescale
 from skimage.feature import blob_dog # blob_log, blob_doh
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+
+from requests.utils import unquote
 from flask import request, jsonify
+
 from cde.image import read_image
 from slamvizapp import app
 from ..models import Output
@@ -23,8 +27,8 @@ from ..models import Output
 def get_images():
   data = request.get_json()
   # Directory URLs begin with /s/
-  new_url = Path(data['output_dir_url_new'][2:]) / data["path"]
-  ref_url = Path(data['output_dir_url_ref'][2:]) / data["path"]
+  new_url = Path(unquote(data['output_dir_url_new'][2:])) / data["path"]
+  ref_url = Path(unquote(data['output_dir_url_ref'][2:])) / data["path"]
   # print(data) # DEBUG
   blobs = createAutoRois(new_url, ref_url, data["diff_type"], data['threshold'], data['diameter'])
 
