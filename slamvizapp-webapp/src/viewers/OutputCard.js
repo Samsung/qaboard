@@ -90,12 +90,12 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
         </span>
         <Menu>
           {!!output.test_input_database && <>
-            <MenuDivider title="Database" />
+            <MenuDivider key={"Database"} title="Database" />
             <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
             <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy} />
           </>}
           {has_metadata && <>
-            <MenuDivider title="Properties" />
+            <MenuDivider key={"Properties"} title="Properties" />
             { has_label && <MenuItem text={output.test_input_path} icon="document" />}
             <MenuItem key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
@@ -459,7 +459,7 @@ class OutputCard extends React.Component {
 
     let container_style = {
       flex: "0 0 auto",
-      width: style.width || '400px',
+      width: style.width || '840px',
       marginBottom: "20px"
     }
     const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};

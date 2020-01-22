@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-
+import { is_image } from "./images/utils"
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images/images' /* webpackChunkName: "image-viewer" */));
@@ -14,6 +14,9 @@ const OutputViewer = props_ => {
     const { type, output_ref, ...props } = props_;
     const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
     let viewer;
+    if (is_image(props_)) {
+      viewer =  <LoadableImageViewer {...props} output_ref={maybe_output_ref}/>
+    } else
     if (!!type) {
       if (type === "6dof/txt")
         viewer =  <LoadableSlamViewer {...props} output_ref={maybe_output_ref}/>
@@ -33,19 +36,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <span>No viewer is defined for type: {type}</span>;
     } else {
-      const { path } = props_;
-      if (path.endsWith('png') ||
-          path.endsWith('jpg') ||
-          path.endsWith('jpeg')||
-          path.endsWith('bmp') ||
-          path.endsWith('pdf') ||
-          path.endsWith('tif') ||
-          path.endsWith('tiff')||
-          path.endsWith('dng') ||
-          path.endsWith('raw') ||
-          path.endsWith('hex')) {
-        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      } else if (path.endsWith('plotly.json')) {
+      const { path='' } = props_;
+      if (path.endsWith('plotly.json')) {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>

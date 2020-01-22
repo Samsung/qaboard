@@ -3,14 +3,22 @@ import { withRouter } from "react-router";
 import qs from "qs";
 
 import Plot from 'react-plotly.js';
-import { Classes, HTMLSelect, Tag, Colors, Intent, FormGroup, Switch } from "@blueprintjs/core";
+import {
+  Classes,
+  HTMLSelect,
+  Tag,
+  Colors,
+  Intent,
+  FormGroup,
+  Switch
+} from "@blueprintjs/core";
 
 import { updateSelected } from "./actions/selected";
 
 import { OutputCard } from "./viewers/OutputCard";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { BitAccuracyForm } from "./viewers/bit_accuracy/utils";
-
+import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median } from "./utils";
 
 import CommitRow from "./components/CommitRow";
@@ -518,12 +526,15 @@ class CommitsEvolutionPerTest extends React.Component {
       let output_ref = should_look_for_ref ? (((hovered_commit_ref || {}).batches[hovered_label] || {}).outputs || {})[reference_id] : null
       let controls_extra = project_data.data.qatools_config.outputs.controls || []
       let visualizations = project_data.data.qatools_config.outputs.visualizations || project_data.data.qatools_config.outputs.detailed_views || []
-      let maybe_diff = visualizations.some(v => v.type.startsWith('image')) && <Switch
+      let maybe_diff = visualizations.some(v => is_image(v)) && <Switch
           key='diff'
+          intent={Intent.WARNING}
           checked={this.state.controls.diff || false}
           onChange={this.toggle('diff')}
-          label={'Perceptual diff'}
-      />
+          labelElement={<strong>Image Diff</strong>}
+          innerLabel="off"
+          innerLabelChecked="on"
+        />
       let controls = <>
         {!show_bit_accuracy && visualizations.map( (view, idx) => {
           if (!view.default_hidden ||

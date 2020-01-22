@@ -3,13 +3,15 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 
 import {
+  Intent,
+  Classes,
   HTMLSelect,
   Switch,
-  Classes,
   Button,
   MenuItem,
   Card,
   Tabs,
+  NonIdealState,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";
@@ -30,6 +32,7 @@ import { TuningForm } from "./components/tuning/forms";
 import { AddRecordingsForm } from "./components/tuning/form_groups";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
+import { is_image } from "./viewers/images/utils"
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { match_query } from "./utils";
 
@@ -213,14 +216,18 @@ class CiCommitResults extends Component {
       />
     );
 
-    let controls_extra = (((config_data.data || {}).qatools_config || {}).outputs || {}).controls || []
-    let config_outputs =  ((config_data.data || {}).qatools_config || {}).outputs || {};
+    const qatools_config = (config_data.data || {}).qatools_config || {};
+    let config_outputs =  qatools_config.outputs || {};
+    let controls_extra = config_outputs.controls || []
     let visualizations = [...(config_outputs.visualizations || []), ...(config_outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
-    let maybe_diff = visualizations.some(v => v.type.startsWith('image')) && <Switch
+    let maybe_diff = visualizations.some(v => is_image(v)) && <Switch
         key='diff'
+        intent={Intent.WARNING}
         checked={this.state.controls.diff || false}
         onChange={this.toggle('diff')}
-        label={'Perceptual diff'}
+        labelElement={<strong>Image Diff</strong>}
+        innerLabel="off"
+        innerLabelChecked="on"
     />
     let controls = <>
       {!selected_views.includes('bit-accuracy') && visualizations.map( (view, idx) => {
@@ -330,16 +337,22 @@ class CiCommitResults extends Component {
                 </Card>
                </Section>}
 
-              {selected_views.includes('tuning') && <Section>
-                <h2 className={Classes.HEADING}>Tuning Experiments</h2>
-                <Card>
-                  {!!(config_data.data || {}).qatools_config && <TuningForm
-                    project={project}
-                    project_data={config_data}
-                    commit={new_commit}
-                   />}
-                </Card>
-               </Section>}
+              {selected_views.includes('tuning') && (Object.keys(qatools_config.artifacts || {}).length === 0
+                ? <NonIdealState
+                    icon="heatmap"
+                    title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
+                    description={<p><a target="_blank" href={`${process.env.REACT_APP_QABOARD_DOCS}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
+                  />
+                : <Section>
+                  <h2 className={Classes.HEADING}>Tuning Experiments</h2>
+                  <Card>
+                    {!!(config_data.data || {}).qatools_config && <TuningForm
+                      project={project}
+                      project_data={config_data}
+                      commit={new_commit}
+                    />}
+                  </Card>
+              </Section>)}
 
               {selected_views.includes('table-compare') && <Section>
                 <Card>
@@ -386,7 +399,13 @@ class CiCommitResults extends Component {
 
 
 
-              {selected_views.includes('output-list') && <Section>
+              {selected_views.includes('output-list') && (visualizations.length === 0
+                 ? <NonIdealState
+                     icon="heatmap"
+                     title="Visualizations are not configured yet."
+                     description={<p><a target="_blank" href={`${process.env.REACT_APP_QABOARD_DOCS}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
+                   />
+                 : <Section>
                  {all_controls}
                   <h2 className={Classes.HEADING}>Outputs</h2>
                   <ExportPlugin
@@ -412,7 +431,7 @@ class CiCommitResults extends Component {
                     dispatch={this.props.dispatch}
                     sorted_extra_parameters={this.props.sorted_extra_parameters}
                   />
-               </Section>}
+              </Section>)}
 
               {selected_views.includes('bit-accuracy') && <Section>
                  {all_controls}

@@ -10,8 +10,6 @@ import {
   Collapse,
   Callout,
   Button,
-  Tag,
-  Intent,
   NonIdealState,
   Tooltip,
 } from "@blueprintjs/core";

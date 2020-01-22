@@ -138,7 +138,7 @@ class PlotlyViewer extends PureComponent {
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     const { style } = this.props;
-    const width = (!!style && style.width) || '400px';
+    const width = (!!style && style.width) || '840px';
 
     if (!side_by_side) {
       let layout_ = {
