@@ -138,11 +138,14 @@ class Batch(Base):
 
 # TODO: refactored with proper SQL
 def aggregated_metrics(outputs, metrics_to_aggregate):
+  if not metrics_to_aggregate:
+    return {}
+
   valid_outputs = [o for o in outputs if not o.is_failed and not o.is_pending]
   aggregated = {}
   for metric, treshold in metrics_to_aggregate.items():
     values = np.array([
-        o.metrics[metric] for o in outputs
+        o.metrics[metric] for o in valid_outputs
         if metric in o.metrics and not o.metrics[metric] is None
     ])
     has_values = values.shape[0]>0

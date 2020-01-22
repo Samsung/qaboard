@@ -13,7 +13,7 @@ from gitdb.exc import BadName
 from flask import request, jsonify, make_response, redirect
 
 from sqlalchemy import func, and_, asc, or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.sql import label
 
@@ -44,8 +44,9 @@ def get_commits(branch=None):
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=4))
   ci_commits = (db_session
                   .query(func.max(CiCommit.authored_datetime))
-                  .filter(CiCommit.batches.any())
                   .filter(CiCommit.project_id == project_id)
+                  # now all projects should have results for all commits, with some CI
+                  # .filter(CiCommit.batches.any())
                 )
   if branch:
     branch = branch.replace('origin/', '')
@@ -59,14 +60,13 @@ def get_commits(branch=None):
   	return jsonify([])
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
 
-
   ci_commits = (db_session
                 .query(CiCommit)
-                .options(joinedload(CiCommit.batches))
+                .options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
                 .filter(
-                  CiCommit.project_id == project_id,
+                  CiCommit.authored_datetime >= from_date,
                   CiCommit.authored_datetime <= to_date,
-                  CiCommit.authored_datetime >= from_date
+                  CiCommit.project_id == project_id,
                 )
                 .order_by(CiCommit.authored_datetime.desc())
                )
@@ -87,11 +87,11 @@ def get_commits(branch=None):
     if only_ci_batches:
       with_batches = ['default', 'ci-android-rt', 'manual-android-rt']
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
-  # from ..utils import profiled
-  # with profiled():
-  serializable_commits = [c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs)
-                          for c in ci_commits]
-  response = make_response(ujson.dumps(serializable_commits))
+  from ..utils import profiled
+  with profiled():
+    serializable_commits = [c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs)
+                            for c in ci_commits]
+    response = make_response(ujson.dumps(serializable_commits))
   response.headers['Content-Type'] = 'application/json'
   return response
 
