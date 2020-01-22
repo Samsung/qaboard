@@ -224,10 +224,16 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
   output_directory = context.obj['output_directory']
   try:
     if not skip:
-      metrics = entrypoint_module(config).postprocess(runtime_metrics, context)
+      try:
+        entrypoint_postprocess = entrypoint_module(config).postprocess
+      except:
+        metrics = runtime_metrics
+      else: 
+        metrics = entrypoint_postprocess(runtime_metrics, context)
     else:
       metrics = runtime_metrics 
-  except Exception as e:
+  except:
+    exc_type, exc_value, exc_traceback = sys.exc_info()
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
     # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -448,15 +454,25 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       if not should_run and action_on_existing=='skip':
         continue
 
+      if not forwarded_args:
+        forwarded_args_cli = None
+      else:
+        if not on_windows:
+           # FIXME: we assume no single quotes...
+          forwarded_args_cli = ' '.join(f"'{a}'" for a in forwarded_args)
+        else:
+          from utils import escaped_for_cli
+           # FIXME: may not work...
+          forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
+
       if input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_serialized = input_configuration.replace('\\', '\\\\')
-          input_configuration_serialized = input_configuration_serialized.replace('"', '\\"')
-          configuration_cli =  f'--configuration "{input_configuration_serialized}"'
+          from utils import escaped_for_cli
+          configuration_cli =  f'--configuration {escaped_for_cli(input_configuration)}'
 
       args = [
           f"qa",
@@ -471,7 +487,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
           'run' if should_run else action_on_existing,
           f'--input "{input_path}"',
           f'--output "{output_directory}"' if prefix_outputs_path else None,
-          ' '.join(forwarded_args),
+          forwarded_args_cli if forwarded_args_cli else None,
       ]
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
