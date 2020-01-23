@@ -14,7 +14,7 @@ import click
 
 from .lsf import Job, LsfPriority
 from .lsf import get_running_lsf_jobs, job_is_failed, job_ran_once, run_jobs
-from .api import notify_qa_database
+from .api import notify_qa_database, print_url
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
@@ -157,13 +157,13 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
     ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-    absolute_input_path = ctx.obj['prefix_output_dir']
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
     if not 'QATOOLS_RUN_KEEP' in os.environ:
       import shutil
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
+
 
     # without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
@@ -174,6 +174,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
         from shlex import quote
         click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
       click.echo(click.style("Outputs at: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
+      print_url(ctx)
 
       ctx.obj['output_directory'] = output_directory.resolve()
       ctx.obj['forwarded_args'] = forwarded_args
@@ -297,7 +298,6 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-  absolute_input_path = ctx.obj['prefix_output_dir']
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
@@ -322,7 +322,6 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
   ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-  absolute_input_path = ctx.obj['prefix_output_dir']
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
@@ -377,12 +376,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
     batches = [batches]
 
   batch_label = ctx.obj['batch_label']
-
-  if not ctx.obj['offline']:
-    from requests.utils import quote
-    commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
-    if is_ci or ctx.obj['share']:
-      click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
+  print_url(ctx)
 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
 
@@ -532,8 +526,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
     if is_failed:
-      if is_ci:
-        click.secho(f"Read all the logs at: {commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs", fg='red', bold=True)
+      print_url(ctx, status="failure")
       exit(1)
 
 

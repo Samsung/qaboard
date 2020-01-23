@@ -9,7 +9,7 @@ from functools import lru_cache
 
 import click
 
-from .config import config, commit_id, available_metrics
+from .config import config, commit_id, is_ci, available_metrics
 
 # For now we use http, until we deal with cert trust issues
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
@@ -18,9 +18,21 @@ api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
+def print_url(ctx, status="starting"):
+  if not ctx.obj['offline']:
+    from requests.utils import quote
+    batch_label = ctx.obj["batch_label"]
+    commit_url = f"https://{api_host}/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+    if is_ci or ctx.obj['share']:
+      if status == "starting":
+        click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
+      elif status == "failure":
+        click.secho(f"Read Logs at: {commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs", fg='red', bold=True)
+
+
 
 class NumpyEncoder(simplejson.JSONEncoder):
-    """ Special simplejson encoder for numpy types """
+    """Special simplejson encoder for numpy types"""
     def default(self, obj):
         import numpy as np
         if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
