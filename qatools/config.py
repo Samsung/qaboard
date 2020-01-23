@@ -230,14 +230,14 @@ else:
     commit_id = None
 
 
+# using gitpython is very slow, so we read the git data directly
+repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
+is_in_git_repo = False
+for d in (repo_root, *list(repo_root.parents)):
+  if (d / '.git').is_dir():
+    is_in_git_repo = True
+    repo_root = d
 if not commit_id or not commit_branch:
-    # using gitpython is very slow, so we read the git data directly
-    repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
-    is_in_git_repo = False
-    for d in (repo_root, *list(repo_root.parents)):
-      if (d / '.git').is_dir():
-        is_in_git_repo = True
-        repo_root = d
     if is_in_git_repo:
       commit_branch, commit_id = git_head(repo_root)
     else:
