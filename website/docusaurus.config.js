@@ -21,31 +21,22 @@ const users = [
   },
 ];
 
-const siteConfig = {
-  title: 'qatools', // Title for your website.
-  tagline: 'QA + Algorithms',
-  // SIRC
-  url: 'http://qa-docs', // Your website URL
-  baseUrl: '/', // Base URL for your project */
-
-  // CODE-GITHUB
-  // For github.io type URLs, you would set the url and baseUrl like:
-  // url: 'https://github.sec.samsung.net',
-  // baseUrl: '/arthur-flam/',
+var siteConfig = {
+  title: 'QA-Board', // Title for your website.
+  // tagline: "Easily organize, visualize and compare and share your algorithms' results.",
+  tagline: "Visualize and compare algorithm results. Optimize parameters. Share results and track progress.",
 
   // Used for publishing and more
+  githubHost: 'github.sec.samsung.net',
+  organizationName: 'arthur-flam',
   projectName: 'qatools',
-  organizationName: 'Samsung',
-  // For top-level user or org sites, the organization is still the same.
-  // e.g., for the https://JoelMarcey.github.io site, it would be set like...
-  //   organizationName: 'JoelMarcey'
 
   // For no header links in the top nav bar -> headerLinks: [],
   headerLinks: [
     {doc: 'introduction', label: 'Docs'},
   //  {doc: 'doc4', label: 'API'},
     {page: 'help', label: 'Help'},
-  //  {blog: true, label: 'Blog'},
+    {blog: true, label: 'Blog'},
   ],
 
   // If you have users set above, you add it here:
@@ -58,6 +49,8 @@ const siteConfig = {
   // https://realfavicongenerator.net/
   favicon: 'img/favicon/favicon-32x32.png',
 
+  docsSideNavCollapsible: false,
+  scrollToTop: true,
 
   /* Colors for website */
   colors: {
@@ -80,7 +73,7 @@ const siteConfig = {
   */
 
   // This copyright info is used in /core/Footer.js and blog RSS/Atom feeds.
-  copyright: `Samsung ©${new Date().getFullYear()}`,
+  copyright: "Made with ❤️ at Samsung. Apache 2.0 License",
 
   highlight: {
     // Highlight.js theme to use for syntax highlighting in code blocks.
@@ -118,5 +111,26 @@ const siteConfig = {
   // template. For example, if you need your repo's URL...
   repoUrl: 'https://gitlab-srv/common-infrastructure/qatools',
 };
+
+const deploy_korea = process.env.PUBLISH === 'korea' 
+if (!deploy_korea) {
+  siteConfig = {
+    ...siteConfig,
+    url: 'http://qa-docs', // Your website URL
+    baseUrl: '/', // Base URL for your project */
+  }
+} else {
+  // CODE-GITHUB
+  siteConfig = {
+    ...siteConfig,
+    url: 'https://github.sec.samsung.net',
+    baseUrl: '/pages/arthur-flam/qatools/',
+  }
+
+}
+
+  // For github.io type URLs, you would set the url and baseUrl like:
+
+
 
 module.exports = siteConfig;

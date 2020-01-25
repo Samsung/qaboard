@@ -49,13 +49,13 @@ class Footer extends React.Component {
           </div>
           <div>
             <h5>More</h5>
-            /*<a href={`${this.props.config.baseUrl}blog`}>Blog</a>*/
+            {/*<a href={`${this.props.config.baseUrl}blog`}>Blog</a>*/}
             <a href={this.props.config.repoUrl}>Code</a>
-            <a href="https://github.sec.samsung.net/arthur-flam/qatools/">Samsung Open-Source @GitHub</a>
+            <a href="https://github.com/samsung/qaboard/">Open-Sourced @GitHub</a>
           </div>
         </section>
 
-        <a
+        {/* {<a
           href="https://github.com/Samsung/"
           target="_blank"
           rel="noreferrer noopener"
@@ -65,7 +65,7 @@ class Footer extends React.Component {
             alt="Samsung Open Source"
             width="170"
           />
-        </a>
+        </a>} */}
         <section className="copyright">{this.props.config.copyright}</section>
       </footer>
     );

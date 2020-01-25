@@ -1,26 +1,37 @@
 {
   "docs": {
-    "Introduction": ["introduction"],
+    "Introduction": [
+		"introduction",
+		"alternatives-and-missing-features"
+	],
   	"Getting Started": [
       "installation",
       "project-init",
-      "project-setup"
+	  "identifying-inputs-files",
+	  "running-your-code",
+	  "creating-and-viewing-outputs-files",
+	  "computing-quantitative-metrics",
+	  "specifying-configurations"
   	],
-  	"Guides": [
-  		"ci-integration",
-  		"visualizations",
-  		"batches-running-on-multiple-inputs",
-  		"tuning-workflows",
-  		"bit-accuracy",
-  		"subprojects",
-  		"exporting-results",
-      "triggering-third-party-tools",
-  		"metadata-integration-external-databases",
-  		"qa-run",
+	"Guides": [
+		"using-the-qa-cli",
+		"references-and-milestones",
+		"visualizations",
+		"batches-running-on-multiple-inputs",
+		"lsf-integration",
+        "triggering-third-party-tools",
+		"debugging-runs-with-an-IDE",
+		"bit-accuracy",
+		"metadata-integration-external-databases",
+
+		"apis",
+		"tuning-workflows",
+		"monorepos-subprojects",
+		"ci-integration",
   		"docker-integration",
-  		"debugging-runs-with-an-IDE",
   		"remote-platforms",
-  		"faq"
+
+		"faq"
   	],
   	"Admin Guides": [
   		"starting-server",
