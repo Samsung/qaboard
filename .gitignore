@@ -1,5 +1,5 @@
 build/
-build_qa/
+build_qadocs/
 
 *.png
 *.jpg
