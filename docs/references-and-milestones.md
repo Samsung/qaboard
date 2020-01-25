@@ -1,5 +1,5 @@
 ---
-id: milestones
+id: references-and-milestones
 title: References & Milestones
 sidebar_label: References & Milestones
 ---

@@ -41,7 +41,7 @@ qa batch my-batch
 We'll cover [batches in depth later](batches-running-on-multiple-inputs).
 :::
 
-## Identifying inputs
+## Identifying inputs (Recommended)
 You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify your images as inputs.
 
 In [*qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
@@ -83,8 +83,8 @@ inputs:
   use_parent_folder: false
 ```
 
-## Handling multiple input types (advanced, can be skipped!)
-Big project sometimes need to distinguish different types of inputs, which will be processed with a different logic.
+## Handling multiple input types (Advanced)
+Big projects sometimes need to distinguish different types of inputs, which will be processed with a different logic.
 
 ```yaml
 # qatools.yaml
@@ -105,8 +105,7 @@ inputs:
 You can choose what type each batch is: 
 
 ```
-# batches.yaml
-
+# qa/batches.yaml
 my-images:
   inputs:
   - my/image.jpg
@@ -124,4 +123,3 @@ If needed, you can also specify the input type from the CLI:
 qa batch my-imagess              # by default look for images
 qa --type movie batch my-movies  # here we look for movies
 ```
-

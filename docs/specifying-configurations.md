@@ -25,6 +25,35 @@ We could have opted for configurations as a "dict" of values, but found "cascadi
 **Note:** Today the API provides tuning parameters via `extra_parameters`, as a dict... In the future we may simply append it to ctx.obj['configurations'], to let users transparently do tuning. 
 :::
 
+## Specifying configurations
+You can specify configurations on the CLI:
+
+```bash
+qa --configuration low-power run --input my/test
+#=> ctx.obj['configuration'] = ['low-power']
+qa --configuration base:delta run --input my/test
+#=> ctx.obj['configuration'] = ['base', 'delta']
+
+# Note: The ":"-separated syntax will be replaced by just giving multiple --configuration flags.
+#       Users usually run batches, and rarely write `qa run` commands by hand.
+```
+
+If you use batches (more details later):
+
+```yaml
+# qa/batches.yaml
+my-batch:
+  inputs:
+  - A.jpg
+  configurations:
+  - base
+  - delta
+
+# $ qa batch my-batch
+# => qa --configuration base:delta run A.jpg
+# => qa --configuration base:delta run B.jpg
+```
+
 ## Common meaning for configurations
 While QA-Board is not opiniated, projects usually standardize on setups like:
 
@@ -84,34 +113,3 @@ It could work as before with
 ```
 
 You could also parse the dicts to add CLI parameters... Whatever works for you!
-
-
-## Specifying configurations
-You can specify configurations on the CLI:
-
-```bash
-qa --configuration low-power run --input my/test
-#=> ctx.obj['configuration'] = ['low-power']
-
-qa --configuration base:delta run --input my/test
-#=> ctx.obj['configuration'] = ['base', 'delta']
-
-# Note: The ":"-separated syntax will be replaced by just giving multiple --configuration flags
-#       Users usually run batches, and rarely write `qa run` commands by hand.
-```
-
-If you use batches (more details later):
-
-```yaml
-# batches.yaml
-my-batch:
-  inputs:
-  - A.jpg
-  configurations:
-  - base
-  - delta
-
-# $ qa batch my-batch
-# => qa --configuration base:delta run A.jpg
-# => qa --configuration base:delta run B.jpg
-```

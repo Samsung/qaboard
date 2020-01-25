@@ -1,12 +1,12 @@
 ---
 id: installation
-title: Installing qatools
+title: Installing QA-Board's CLI
 sidebar_label: Installation
 ---
 
-> qatools is already installed on SIRC's vdi servers. Install your own to easily use custom python packages.
+> `qa` is already installed on SIRC's vdi servers. Install your own to easily use custom python packages.
 
-Qatools is installable via `pip` on both Linux and Windows:
+To use QA-Board you need it `pip install` the `qatools` package. On both Linux and Windows:
 
 ```bash
 pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools
@@ -14,7 +14,7 @@ pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools
 # If you have timeouts, not authorized, proxy errors, or "this is not a git repo error", use --proxy http://dlp2-wcg01:8080 # in case of proxy issues (TIMEOUT error) in case of SSL/proxy issues
 
 # If you don't have pip / permissions, it means your python environment sucks.
-# The easiest way to overcome the issue is using the anaconda python distribution.
+# If you're not a python pro, simply install python with the anaconda distribution.
 # https://www.anaconda.com/distribution/#download-section
 ```
 
@@ -23,5 +23,3 @@ To make sure the installation was successful, try printing a list of qatools' CL
 ```bash
 qa --help
 ```
-
-

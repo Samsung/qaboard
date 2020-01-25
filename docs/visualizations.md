@@ -115,14 +115,15 @@ outputs:
     - name: Movie Frames
       # you can use the `/user/:name` syntax to match part of filenames
       path: ":frame/output.jpg"
+      # you can match part of filenames (experimental)
+      path: ":frame/frame_:number.jpg"
 
       # For more examples, the full syntax is available at:
       # https://github.com/pillarjs/path-to-regexp
 
 ```
 
-
-You can also use regular expressions (inside parentheses!) to match which output files you want to view:
+You can also use regular expressions **(inside parentheses!)** to match which output files you want to view:
 
 ```yaml
 outputs:
@@ -149,8 +150,7 @@ By default, only one viewer/path is shown at a time, and you get sliders/select 
 If you want, you can visualize all matching files:
 
 ```yaml
-   # :
-   # 
+   # --snip--
     - name: KPI reports
       path: "reports/:report"
       type: plotly/json
@@ -160,8 +160,8 @@ If you want, you can visualize all matching files:
 ```
 
 
-## Advanced Options 
-### Custom styles [EXPERIMENTAL]
+## Advanced Options [EXPERIMENTAL] 
+### Custom Styles
 You can style your visualizations:
 
 ```yaml
@@ -177,7 +177,8 @@ outputs:
       style:
         width: 400px   
 ```
-### Viewer extra configuration [EXPERIMENTAL]
+
+### Viewer Configuration
 Some viewers can read extra configuration parameters from their configuration: 
 
 ```yaml

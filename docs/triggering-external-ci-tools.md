@@ -4,9 +4,15 @@ title: Triggering CI and third-party tools via the web application
 sidebar_label: Triggering External Tools
 ---
 
-You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). `QA-Board` lets you connect to those third-party tools on each commit's page and on commit index pages:
+You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). QA-Board lets you connect to those third-party tools on each commit's page and on commit index pages:
 
 ![Allowing triggered build](/img/ui-triggers.png)
+
+:::note
+The screenshots are not up-to-date; the menu is now named **"Actions & Links"**
+:::
+
+
 
 ## Adding badges and external links
 Configure your project's *qatools.yaml* like so to display direct links to docs, build artifacts, coverage reports, etc:
@@ -20,10 +26,6 @@ integrations:
   href: http://my-project/docs
   alt: Coverage Report
 ```
-
-:::tip
-If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages.
-:::
 
 :::tip
 The menu item will be disabled if the link doesn't work.
@@ -77,33 +79,36 @@ You can use some special variables in your strings with some `${VARIABLE}` templ
 - **Artifacts** are saved under `commit.commit_dir_url = commit.repo_commit_dir_url / subproject`.
 - `user` is the one defined in the tuning tab or the project's default. 
 
-## Styling the list of integrations
-Optionnaly you can style each button
+:::tip
+If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages. You can add a dummy `only: {branch}`.
+:::
+
+## Styling the integrations
+Optionnaly you can style each menu item:
 ```yaml
 integrations:
   - text: Styled Integration
-    # https://blueprintjs.com/docs/#icons
+    # Full list of icons: https://blueprintjs.com/docs/#icons
     icon: build
-    # For the full list of options refer to
-    # https://blueprintjs.com/docs/#core/components/menu
+    # Full list of options: https://blueprintjs.com/docs/#core/components/menu
     label: docs
     disabled: false
     intent: danger
 ```
 
-To group integration, you can add dividers:
+You can add dividers to group integration:
 ```yaml
 integrations:
-  # ...
+  # --snip--
   - divider: true
     title: Section Title
-  # ...
+  # --snip--
 ```
 
 
-## Example: "manual" Jenkins integration
+## Example: Jenkins integration via Webhooks
 :::caution
-The out-of-the-box jenkins integration shown earlier will also give you a link to the build page. Use it, what's below is just an example with webhooks!
+The out-of-the-box jenkins integration above is much better! This is just an example with webhooks!
 :::
 
 1. If you don't have one, [get an API token](https://stackoverflow.com/questions/45466090/how-to-get-the-api-token-for-jenkins) for your user

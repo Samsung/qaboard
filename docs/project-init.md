@@ -23,12 +23,10 @@ root-git-repository
 │  ├── main.py         # sample entrypoint that runs your code
 │  ├── batches.yaml    # examples of how to run multiple tests
 │  └── metrics.yaml    # examples of how to define KPIs
-└── qatools.yaml       # => the project configuration
+└── qatools.yaml       # 👇 QA-Board configuration ⚙️ 
 ```
 
-> Feel free to take a look at the project configuration,[ *qatools.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml).
-
-## Gitlab integration
+## Gitlab Integration
 Create a Gitlab integration to keep the QA-Board and `git` in sync.
 
 1. Be one of the project's Masters / Maintainers.
@@ -37,10 +35,10 @@ Create a Gitlab integration to keep the QA-Board and `git` in sync.
   * __URL:__ `http://qa:5000/webhook/gitlab`
   * __Secret token:__ *(leave the field empty)*
 
-> To test everything went well, Gitlab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🎉
+> To test everything went well, Gitlab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🔵🎉.
 
 :::important To make sure you can view your runs...
 Commit thoses changes and push!
 
-*For now, the web interface can only show runs from commit that were pushed to Gitlab.* We plan on remove this restriction, and supporting other git servers (e.g. GitHub).
+*For now, the web interface can only show runs from commit that were pushed to Gitlab.* We plan on removing this restriction and even the need to setup an integration. We'll also support other git servers (e.g. GitHub).
 :::
