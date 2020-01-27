@@ -455,7 +455,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
            # FIXME: we assume no single quotes...
           forwarded_args_cli = ' '.join(f"'{a}'" for a in forwarded_args)
         else:
-          from utils import escaped_for_cli
+          from .utils import escaped_for_cli
            # FIXME: may not work...
           forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
 
@@ -465,7 +465,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          from utils import escaped_for_cli
+          from .utils import escaped_for_cli
           configuration_cli =  f'--configuration {escaped_for_cli(input_configuration)}'
 
       args = [
@@ -780,7 +780,6 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
           # we want to show in the summary tab the best results for the tuning experiment
           # but in the exploration see the results per iteration....
           "output_type": 'optim_iteration', # or... single ? don't show them in the UI
-          "is_pending": False,
           "is_pending": False,
           "is_failed": False,
           "metrics": {
