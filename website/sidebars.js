@@ -1,6 +1,19 @@
-{
+// "monorepos-subprojects",
+// "docker-integration",
+// "remote-platforms",
+
+//   "Admin Guides": [
+// 	  "starting-server",
+// 	  "server-maintenance"
+//   ]
+// },
+// "docs-other": {
+// "A Category": ["doc4", "doc5"]
+// }
+
+module.exports = {
   "docs": {
-    "Introduction": [
+    "QA-Board": [
 		"introduction",
 		"alternatives-and-missing-features"
 	],
@@ -23,22 +36,10 @@
 		"debugging-runs-with-an-IDE",
 		"bit-accuracy",
 		"metadata-integration-external-databases",
-
 		"apis",
 		"tuning-workflows",
-		"monorepos-subprojects",
 		"ci-integration",
-  		"docker-integration",
-  		"remote-platforms",
-
 		"faq"
-  	],
-  	"Admin Guides": [
-  		"starting-server",
-  		"server-maintenance"
-  	]
-  },
-  "docs-other": {
-    "A Category": ["doc4", "doc5"]
+	]
   }
 }

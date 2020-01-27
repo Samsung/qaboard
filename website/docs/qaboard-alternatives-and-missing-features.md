@@ -13,8 +13,9 @@ QA-Board works with other tools. It won't replace or provide:
 - **Data Versionning**
 
 ## Planned features
+- **1 vs N comparaisons** versus only pairs of versions.
 - **Pipelines / DAG**, needed for calibration/training->evaluation pipelines. *But stay tuned, we're working on that!*
-- **More Viewers**: [flamgraphs](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html), [vega](https://vega.github.io/vega/), links to open with as a notebook, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
+- **More Viewers**: [flamgraphs](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html), [vega](https://vega.github.io/vega/), links to open with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
 - **Users** for login, and commenting on results.
 We also plan to introduct a number of smaller features
 

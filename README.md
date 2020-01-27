@@ -44,7 +44,5 @@ pip install --editable .
 3. the [API server](https://gitlab-srv/dvs/slamvizapp) that exposes a database with all the data.
 
 
-## Why not X instead?
-- Most comparable tools focus on **training for machine learning** (`sacred`, `mlflow`, `tensorboard`, `polyaxon`, `cometML`). Our use cases revolve around qualitative outputs. It means we *need* flexible visualizations. This said, those tools are great too! They often have features that qatools is still missing (labelling and commenting outputs, better GUI in some respects).
-- **Notebooks** are amazing for experimentation and r&d reporting, but are not easy to compare and manage. 
-- **Tensorboard** has a lot of qualities, but it doesn't scale to many experiments, doesn't know about `git`, and is not persistent. We may integrate an "Open in Tensorboard" button, ask about it and stay tuned.
+## Licensing
+- The logo is the recolored puddle [twemoji](https://twemoji.twitter.com/). *Copyright 2019 Twitter, Inc and other contributors. Code licensed under the [MIT License](http://opensource.org/licenses/MIT). Graphics licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)*

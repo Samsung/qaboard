@@ -15,11 +15,12 @@ def run():
     }
 ```
 
-2. Describe your metrics in  <span style="border-bottom: 1px dotted #000; text-decoration: none;" title="To use different file, edit in qatools.yaml `outputs.metrics`">*qa/metrics.yaml*</span>. Here is an example
+2. Describe your metrics in *qa/metrics.yaml*. Here is an example
 
 ```yaml
+# qa/metrics.yaml (location from qatools.yaml: outputs.metrics)
 available_metrics:
-  loss:  # the fields below are all optionnal, but sadly for now you have to define metrics ahead of time
+  loss:  # the fields below are all optionnal
     label: Loss function     # human-readable name
     short_label: Loss        # somes part of the UI are better with thin labels...
     smaller_is_better: true  # default: true
@@ -43,3 +44,7 @@ If it all goes well you get:
 ![https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta](/img/quantitative-metrics-on-viz.png)
 
 - and evolution over time per branch...
+
+:::note
+We plan on not requiring you to define metrics ahead of time.
+:::

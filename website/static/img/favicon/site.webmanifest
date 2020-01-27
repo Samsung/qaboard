@@ -1,6 +1,6 @@
 {
-    "name": "",
-    "short_name": "",
+    "name": "QA-Board",
+    "short_name": "QA-Board",
     "icons": [
         {
             "src": "/android-chrome-192x192.png",
@@ -13,7 +13,7 @@
             "type": "image/png"
         }
     ],
-    "theme_color": "#233c8c",
-    "background_color": "#233c8c",
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
     "display": "standalone"
 }

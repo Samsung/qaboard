@@ -4,10 +4,10 @@ title: References & Milestones
 sidebar_label: References & Milestones
 ---
 
-When you look at results, it is important to *compare* them to a reference.  It could to a previous version, results from a benchmark
+when looking at results, it is important to *compare* them to a reference.  It could to a previous version, results from a benchmark
 
 ## Comparing versus a reference
-When you open results pages, QA-Board always compares the commit you selected (labeled `new`) versus a reference (`ref`):
+In results pages, QA-Board always compares the commit you selected (labeled `new`) versus a reference (`ref`):
 
 ![new-vs-reference](/img/comparing-new-and-reference.png)
 

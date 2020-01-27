@@ -4,8 +4,6 @@ title: Installing QA-Board's CLI
 sidebar_label: Installation
 ---
 
-> `qa` is already installed on SIRC's vdi servers. Install your own to easily use custom python packages.
-
 To use QA-Board you need it `pip install` the `qatools` package. On both Linux and Windows:
 
 ```bash

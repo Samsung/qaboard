@@ -14,7 +14,7 @@ setup(
   author="Arthur Flam",
   author_email="arthur.flam@samsung.com",
   description="QA-Tools helps organize and visualize your results.",
-  license="Apache 2.0",
+  license="Apache-2.0",
 
   python_requires='>=3.6',
   install_requires=[

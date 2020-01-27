@@ -9,9 +9,10 @@ Input metadata are useful to:
 - Decide **what metrics to compute** on your outputs
 
 
-To enable metadata support in qatools, implement in  your <span style={{borderBottom: "1px dotted #000; text-decoration: none;" title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that returns metadata as a dict. Here is an example:
+To enable metadata support in qatools, implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
 
 ```python
+# qa/main.py (qatools.yaml: project.entrypoint)
 def metadata(absolute_input_path, database, input_path):
   metadata_file = absolute_input_path.with_suffix('.metadata.yaml')
   if not metadata_file.exists():
@@ -53,12 +54,13 @@ qa batch inputs-filtered-using-metadata
 ```
 
 ## Integrating with external input databases
-Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with qatools, implement in  your <span style={{borderBottom: "1px dotted #000; text-decoration: none;"}} title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that iterates over inputs given a query:
+Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with qatools, implement in your project's entrypoint a function that iterates over inputs given a query:
 
 ```python
+# qa/main.py
 def iter_inputs(path, database, only, exclude, inputs_settings):
-  # TODO: connect to an SQL database
-  #       use sqlalchemy to execute something like
+  # TODO: Maybe here connect to an SQL database
+  #       and execute something like
   #       f"SELECT test, metadata from tests where path LIKE {path} and database={database}"
   # OPTIONALLY: return filtered inputs using only/exclude
   #             even if you don't do it, qatools will always re-filter
