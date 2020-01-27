@@ -1,6 +1,6 @@
 ---
 id: introduction
-title: Algorithms R&D platform
+title: "QA-Board is a platform for algorithms R&D"
 sidebar_label: Features & Benefits
 ---
 

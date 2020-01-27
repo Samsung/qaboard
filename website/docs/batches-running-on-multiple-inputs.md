@@ -1,9 +1,8 @@
 ---
 id: batches-running-on-multiple-inputs
-title: Running on batches of inputs
+title: Batches of inputs
 sidebar_label: Batches of Inputs
 ---
-
 :::important Reminder
 Make sure you read [the section on input files](identifying-inputs-files)
 :::

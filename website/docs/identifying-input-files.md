@@ -3,7 +3,6 @@ id: identifying-inputs-files
 sidebar_label: Inputs
 title: Identifying input files
 ---
-
 Algorithms turn inputs into outputs. *What are your inputs?* They can be image files, folders containing images...
 
 > For QA-Board, an input is a **path**, split into "**$database** / **$input**".

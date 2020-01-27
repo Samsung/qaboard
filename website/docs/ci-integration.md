@@ -3,7 +3,6 @@ id: ci-integration
 title: Integrating qatools with your CI
 sidebar_label: CI Integration
 ---
-
 CI tools run automated scripts and tests everytime someone pushes a new commit.
 
 :::tip

@@ -1,7 +1,7 @@
 ---
 id: tuning-workflows
 sidebar_label: Tuning Workflows
-title: Tuning workflows: all your options
+title: "Various Tuning Workflows"
 ---
 
 ## Enabling tuning from QA-Board

@@ -4,7 +4,7 @@ sidebar_label: Running your code
 title: Running your code
 ---
 
-`QA-Board` works as a CLI wrapper for your code. As a default to get started, it runs commands you provide as extra arguments: 
+QA-Board works as a CLI wrapper for your code. As a default to get started, it runs commands you provide as extra arguments: 
 
 ```bash
 qa run --input relatve/path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
@@ -121,6 +121,9 @@ def run(context):
         benchmark = context.obj['configurations'][0]['benchmark']
         # Find the benchmark results...
         benchmark_outputs = context.obj['database'] / benchmark context.obj['input_path'].parent / context.obj['input_path'].stem
+        # To copy the result image only
+        os.copy(str(benchmark_outputs / 'output.jpg'), str(context.obj['output_directory'])
+        # To copy the whole directory
         shutil.copytree(
             str(benchmark_outputs),
             str(context.obj['output_directory'],

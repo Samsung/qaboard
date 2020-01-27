@@ -3,14 +3,13 @@ id: metadata-integration-external-databases
 sidebar_label: Metadata & External Databases
 title: Using input metadata and integrating with external databases
 ---
-
 ## Metadata
 Input metadata are useful to:
 - **Filter** and **group** inputs
 - Decide **what metrics to compute** on your outputs
 
 
-To enable metadata support in qatools, implement in  your <span style="border-bottom: 1px dotted #000; text-decoration: none;" title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that returns metadata as a dict. Here is an example:
+To enable metadata support in qatools, implement in  your <span style={{borderBottom: "1px dotted #000; text-decoration: none;" title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that returns metadata as a dict. Here is an example:
 
 ```python
 def metadata(absolute_input_path, database, input_path):
@@ -54,7 +53,7 @@ qa batch inputs-filtered-using-metadata
 ```
 
 ## Integrating with external input databases
-Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with qatools, implement in  your <span style="border-bottom: 1px dotted #000; text-decoration: none;" title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that iterates over inputs given a query:
+Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with qatools, implement in  your <span style={{borderBottom: "1px dotted #000; text-decoration: none;"}} title="defined in *qatools.yaml* as `project.entrypoint`">project's entrypoint</span> a function that iterates over inputs given a query:
 
 ```python
 def iter_inputs(path, database, only, exclude, inputs_settings):

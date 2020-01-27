@@ -19,7 +19,7 @@ There is a huge variety of configuration formats and needs. Hence, QA-Board is n
 Access configurations using `context.obj['configurations']`. It defaults to `[]`, or the value of `inputs.configurations` in *qatools.yaml*.
 :::
 
-:::note API Design
+:::question API Design
 We could have opted for configurations as a "dict" of values, but found "cascading/layers of configs" is not hard to think about and is a useful concept.
 
 **Note:** Today the API provides tuning parameters via `extra_parameters`, as a dict... In the future we may simply append it to ctx.obj['configurations'], to let users transparently do tuning. 
