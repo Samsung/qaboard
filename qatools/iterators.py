@@ -86,6 +86,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   nb_inputs = 0
   for glob in globs:
     for input_path in input_paths:
+      input_path = cased_path(input_path)
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if only:
