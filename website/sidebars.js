@@ -1,15 +1,3 @@
-// "monorepos-subprojects",
-// "docker-integration",
-// "remote-platforms",
-
-//   "Admin Guides": [
-// 	  "starting-server",
-// 	  "server-maintenance"
-//   ]
-// },
-// "docs-other": {
-// "A Category": ["doc4", "doc5"]
-// }
 
 module.exports = {
   "docs": {
@@ -20,7 +8,7 @@ module.exports = {
   	"Getting Started": [
       "installation",
       "project-init",
-	  "identifying-inputs-files",
+	  "inputs",
 	  "running-your-code",
 	  "creating-and-viewing-outputs-files",
 	  "computing-quantitative-metrics",
@@ -39,7 +27,22 @@ module.exports = {
 		"apis",
 		"tuning-workflows",
 		"ci-integration",
-		"faq"
-	]
-  }
+		"faq",
+		// "history"
+		// "monorepos-subprojects",
+		// "docker-integration",
+		// "remote-platforms",
+	],
+	// "Parameter Tuning": [
+	// 	"Tuning Workflows",
+	// 	"Enabling Tuning from QA-Board", // Save artifacts..
+	// 	"Tuning runners", // setup LSF and != LSF///
+	//   "Auto-Tuning"
+	// ],
+	//      ""
+	//   "Admin Guides": [
+	// 	  "starting-server",
+	// 	  "server-maintenance"
+	//   ]
+}
 }

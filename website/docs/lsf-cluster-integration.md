@@ -37,7 +37,7 @@ qatools doesn't use LSF's job arrays. If your algorithm takes very little time t
 
 ## LSF options per batch
 
-```yaml
+```yaml {3-5}
 # qa/batches.yaml
 you-can-give-an-LSF-configuration:
   lsf:
@@ -48,8 +48,9 @@ you-can-give-an-LSF-configuration:
   inputs:
   - images/A.jpg
   - images/B.jpg
+```
 
-
+```yaml {2-3,8-10}
 you-can-give-an-LSF-configuration-per-input:
   lsf:
     memory: 1000

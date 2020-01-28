@@ -73,7 +73,7 @@ config = {
           path: 'docs',
           routeBasePath: 'docs',
           sidebarPath: require.resolve('./sidebars.js'),
-          // remarkPlugins: [admonitions],
+          remarkPlugins: [admonitions],
 
           editUrl: 'http://gitlab-srv/common-infrastructure/qatools/edit/master/website/',
           // Show documentation's last contributor's name.

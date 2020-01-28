@@ -22,7 +22,7 @@ We plan on letting you edit simply *qatools.yaml* locally, and update the visual
 
 You can provide multiple relevant files, and hide debug visualizations by default: 
 
-```yaml
+```yaml {5-6}
 # qatools.yaml
 outputs:
     visualizations:
@@ -109,7 +109,7 @@ You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to cr
 
 ![Viewing each frame of a movie](/img/dynamic-outputs.gif)
 
-```yaml
+```yaml {5,7}
 outputs:
     visualizations:
     - name: Movie Frames
@@ -125,7 +125,7 @@ outputs:
 
 You can also use regular expressions **(inside parentheses!)** to match which output files you want to view:
 
-```yaml
+```yaml {4,6,8}
 outputs:
     visualizations:
       # A common use case is matching file extensions
@@ -149,7 +149,7 @@ By default, only one viewer/path is shown at a time, and you get sliders/select 
 
 If you want, you can visualize all matching files:
 
-```yaml
+```yaml {5-7}
    # --snip--
     - name: KPI reports
       path: "reports/:report"
@@ -164,7 +164,7 @@ If you want, you can visualize all matching files:
 ### Custom Styles
 You can style your visualizations:
 
-```yaml
+```yaml {3-7,10-12}
 outputs:
     # define global or per-view styles
     style:
@@ -181,7 +181,7 @@ outputs:
 ### Viewer Configuration
 Some viewers can read extra configuration parameters from their configuration: 
 
-```yaml
+```yaml {5}
 outputs:
     detailed_views:
     - name: My SLAM plot
@@ -191,7 +191,7 @@ outputs:
 
 You can specify those parameters at "display-time" by defining controls:
 
-```yaml
+```yaml {2-7}
 outputs:
   controls:
     - type: toggle

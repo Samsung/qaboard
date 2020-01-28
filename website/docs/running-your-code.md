@@ -7,10 +7,10 @@ title: Running your code
 QA-Board works as a CLI wrapper for your code. As a default to get started, it runs commands you provide as extra arguments: 
 
 ```bash
-qa run --input relatve/path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
+qa run --input path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
 #=> runs this echo command with useful info
 
-qa --share run --input relatve/path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
+qa --share run --input path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
 #=> View logs in the web interface! It should print the URL
 ```
 

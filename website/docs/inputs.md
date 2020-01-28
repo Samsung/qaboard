@@ -1,7 +1,7 @@
 ---
-id: identifying-inputs-files
+id: inputs
 sidebar_label: Inputs
-title: Identifying input files
+title: Input files
 ---
 Algorithms turn inputs into outputs. *What are your inputs?* They can be image files, folders containing images...
 
@@ -23,7 +23,7 @@ It is also possible to use external input databases not just files. If you need 
 To run on batches of multiple inputs, use `qa batch my-batch`, where **my-batch** is defined in:
 
 ```yaml
-# qa/batches.yaml (default location, can be changed in qatools.yaml via inputs.batches)
+# qa/batches.yaml (can be changed in qatools.yaml via inputs.batches)
 my-batch:
  inputs:
    - images/A.jpg
@@ -37,7 +37,7 @@ qa batch my-batch
 ```
 
 :::note
-We'll cover [batches in depth later](batches-running-on-multiple-inputs).
+We'll cover [batches in more depth later](batches-running-on-multiple-inputs).
 :::
 
 ## Identifying inputs (Recommended)
@@ -59,7 +59,7 @@ my-batch:
    - images
 ```
 
-::: tip
+:::tip
 To run on all the inputs found under `$database / $PATH` you can simply use `qa batch $PATH`.
 :::
 
@@ -76,7 +76,7 @@ inputs:
 
 A common use case is identifying folders containing a file patching a pattern, for instance movies given a sequence of frames, *frame_000.jpg*, *frame_001.jpg*... In this case you can use `use_parent_folder`:
 
-```yaml
+```yaml {3}
 inputs:
   globs: frame_000.jpg
   use_parent_folder: false
@@ -85,7 +85,7 @@ inputs:
 ## Handling multiple input types (Advanced)
 Big projects sometimes need to distinguish different types of inputs, which will be processed with a different logic.
 
-```yaml
+```yaml {3-9}
 # qatools.yaml
 inputs:
   types:
@@ -103,7 +103,7 @@ inputs:
 
 You can choose what type each batch is: 
 
-```
+```yaml {7}
 # qa/batches.yaml
 my-images:
   inputs:

@@ -19,12 +19,6 @@ There is a huge variety of configuration formats and needs. Hence, QA-Board is n
 Access configurations using `context.obj['configurations']`. It defaults to `[]`, or the value of `inputs.configurations` in *qatools.yaml*.
 :::
 
-:::question API Design
-We could have opted for configurations as a "dict" of values, but found "cascading/layers of configs" is not hard to think about and is a useful concept.
-
-**Note:** Today the API provides tuning parameters via `extra_parameters`, as a dict... In the future we may simply append it to ctx.obj['configurations'], to let users transparently do tuning. 
-:::
-
 ## Specifying configurations
 You can specify configurations on the CLI:
 
@@ -38,9 +32,9 @@ qa --configuration base:delta run --input my/test
 #       Users usually run batches, and rarely write `qa run` commands by hand.
 ```
 
-If you use batches (more details later):
+If you use batches:
 
-```yaml
+```yaml {5-7}
 # qa/batches.yaml
 my-batch:
   inputs:
@@ -55,19 +49,24 @@ my-batch:
 ```
 
 ## Common meaning for configurations
-While QA-Board is not opiniated, projects usually standardize on setups like:
+While QA-Board is not opiniated, projects usually consider that each configuration in `ctx.obj["configurations"]` is meant to be merged with ones before. Using "delta"/"cascading"/"partial" configurations is easy to work with.
+standardize on setups like:
 
 ```yaml
 # ctx.obj['configuration'] as YAML:
-configurations:                 # each configuration is a "partial/delta/incremental" config, merged with the earlier ones
-- base                          #   load from a file, e.g. ./configurations/{base}.yaml, kept in source control
-- /absolute/path/to/config.yaml #   read from absolute paths for convenience
-- key: value                    #   give directly parameters...
-- section:                      #   don't be shy to structure parameters!
+configurations:
+- base                     # load from a file, e.g. ./configs/{base}.yaml, kept in source control
+- /abs/path/to/config.yaml # read from absolute paths for convenience
+- key: value               # give directly parameters...
+- section:                 # don't be shy to structure parameters!
     key2: value2
 ```
 
 You are free to pick different conventions.
+
+:::note API Design
+Today the API provides tuning parameters via `extra_parameters`, as a dict... In the future we may simply append it to ctx.obj['configurations'], to let users transparently do tuning. 
+:::
 
 ### Use-case #1: Running Python code
 ```python

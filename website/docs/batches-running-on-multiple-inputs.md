@@ -26,7 +26,7 @@ qa batch --batch first-batch --batch second-batch
 ```
 
 ## Setting a custom database per batch
-```yaml
+```yaml {2-4}
 you-can-override-the-default-database:
   database:
     linux: /net/f2/algo_archive/DVS_SLAM_Database
@@ -43,7 +43,7 @@ Make sure you read [the section on configurations](identifying-inputs-files)
 
 Let's look at examples from the `HW_ALG` project to illustrate how configuration can be given:
 
-```yaml
+```yaml {2-3}
 using-a-custom-configuration:
   configurations:
   - workspace/base
@@ -52,7 +52,9 @@ using-a-custom-configuration:
   - Bayer/MCC_700lux_BPCNRoff_01.dng
 # => configurations == ["base"]
 # => the code would load workspace/base/config.cde
+```
 
+```yaml {2-4}
 multiple-configurations:
   configurations:
     - base
@@ -62,8 +64,9 @@ multiple-configurations:
   - Bayer/MCC_700lux_BPCNRoff_01.dng
 #=> configurations == ["base", "low-light"]
 #=> we merge 2 CDE configs 
+```
 
-
+```yaml {2-8}
 configurations-can-be-complex-objects:
   configurations:
     - base
@@ -77,8 +80,9 @@ configurations-can-be-complex-objects:
   - Bayer/MCC_700lux_BPCNRoff_01.dng
 # configurations == ["base", "low-light", {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
 # => Here we use the "cde" config parameter to pass CLI arguments to CDE.
+```
 
-
+```yaml {5,7-10}
 each-input-can-have-its-own-configuration:
   configurations:
     - base
@@ -93,7 +97,6 @@ each-input-can-have-its-own-configuration:
 ```
 
 ## Organizing your groups of inputs
-
 ### Group aliases
 For convenience you can define aliases for groups you often run together. For instance you can do:
 
@@ -111,7 +114,7 @@ qa batch two-batches
 ### Configuration aliases
 For convenience you can define YAML aliases for common configurations
 
-```yaml
+```yaml {1-3,7}
 .base: &base
   - base
   - partial
@@ -131,11 +134,10 @@ hdr:
 YAML "aliases" and "anchors" are standard YAML feature. [Read more here](https://confluence.atlassian.com/bitbucket/yaml-anchors-960154027.html).
 :::
 
-#### Reusable configurations/inputs
+### Reusable configurations/inputs
 Sometimes you want to mix and match reusabe definitions of configs and inputs. YAML anchors let you do it:
 
 ```yaml
-# You want to reuse those lists of inputs across all HDR inputs
 .inputs_hdr: &inputs_hdr
   inputs:
     - A

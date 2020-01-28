@@ -6,6 +6,7 @@
   "scripts": {
     "start": "docusaurus start",
     "build": "docusaurus build",
+    "update-search-index": "node build-search-data.js",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "ci": "yarn lint && yarn prettier:diff",
@@ -17,6 +18,8 @@
     "@docusaurus/core": "^2.0.0-alpha.40",
     "@docusaurus/preset-classic": "^2.0.0-alpha.40",
     "classnames": "^2.2.6",
+    "docusurus-lunr-search": "^0.0.4",
+    "lunr": "^2.3.8",
     "react": "^16.8.4",
     "react-dom": "^16.8.4",
     "remark-admonitions": "^1.1.1"

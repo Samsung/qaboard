@@ -5,16 +5,16 @@ title: Frequently Asked Questions
 ---
 
 ## There is a bug I'd like you to know about
-[Arthur Flam](mailto:arthur.flam@samsung.com), `054-706-2015`.
+[Arthur Flam](mailto:arthur.flam@samsung.com)
 
-## What is qatools written with?
+## What is QA-Board written with?
 - **CLI tool** (wraps your code): `python`
-- **Frontend:** views with `reactjs`, state with `reduxjs`, design with `blueprintjs`, plots with `plotly` and `threejs`, images with `openseadragon`.
-- **Backend**: `postgreSQL` (to store metadata) via `flask`
+- **Frontend:** views with `reactjs`, state with `reduxjs`, design with `blueprintjs`, images with `openseadragon`, plots with `plotly`/`threejs`...
+- **Backend**: `postgreSQL` (to store metadata) accessed via `flask`
 
 
-## Does qatools work with `python2.7`?
-Yes, just wrapp a system call to your EOL python. 
+## Does QA-Board work with `python2.7`?
+Well enough! Just call `python2 your_code.py` as any other executable.
 
 ## Where are results saved?
 - **Local runs** are saved under the *output/* directory in the project.
