@@ -21,6 +21,7 @@ from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
 from .utils import save_outputs_manifest
 from .utils import redirect_std_streams
+from .utils import getenvs
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
@@ -404,6 +405,9 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       "lsf_jobs_prefix": lsf_jobs_prefix,
       **ctx.obj,
     }
+    job_url = getenvs(('BUILD_URL', 'CI_JOB_URL')) # jenkins, gitlabCI
+    if job_url:
+      command_data['job_url'] = job_url
     notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
 
   jobs = []
