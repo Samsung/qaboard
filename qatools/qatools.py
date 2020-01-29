@@ -521,10 +521,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
     waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(batches)}-wait"
-    # Our share storage takes a while to sync. It should be solved, and this sleep removed
-    # But for local runs, no need to wait
-    delay_before_status_check = 0 if is_ci or ctx.obj['share'] else 0 #seconds
-    is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, delay_before_status_check=delay_before_status_check, config=config, ctx=ctx)
+    is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
     if jobs and is_ci and (batch_label=='default' or 'QATOOLS_ALWAYS_UPDATE_GITLAB' in os.environ):
