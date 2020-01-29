@@ -79,7 +79,7 @@ When you try to re-run already existing results, The behaviour of `qa batch` can
 
 ## Connecting to a custom QA-Board instance
 Use `qa --offline` to ensure you don't connect to a QA-Board instance. It's useful if... you don't have one (?).
-The default connection settings can be overriden by environment variables and are:
+The default connection settings can be overriden by environment variables. For example:
 
 ```bash
 export QATOOLS_DB_PROTOCOL=http
