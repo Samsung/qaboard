@@ -48,7 +48,7 @@ Configure your project's *qatools.yaml*:
 integrations:
   - text: Jenkins Triggered Build
     jenkins:
-      build_url: http://jensirc:8080/job/CDE_Project_Linux
+      build_url: $JENKINS_URL/job/CDE_Project_Linux
       parameters:
         commit: "${commit.id}"
 ```
@@ -114,7 +114,7 @@ The out-of-the-box jenkins integration above is much better! This is just an exa
 1. If you don't have one, [get an API token](https://stackoverflow.com/questions/45466090/how-to-get-the-api-token-for-jenkins) for your user
 
 ```bash
-http://jensirc:8080/me/descriptorByName/jenkins.security.ApiTokenProperty/generateNewToken
+$JENKINS_URL/me/descriptorByName/jenkins.security.ApiTokenProperty/generateNewToken
 # Enter "OK to retry using POST" and get the "tokenValue"
 ```
 
@@ -122,7 +122,7 @@ http://jensirc:8080/me/descriptorByName/jenkins.security.ApiTokenProperty/genera
 Since you'll commit those credentials with the code, make sure you don't have too many privileges... At some point qatools will support *secrets*. 
 :::
 
-2. Get a crumb to handle [Jenkins' CSRF](https://support.cloudbees.com/hc/en-us/articles/219257077-CSRF-Protection-Explained), eg at *http://jensirc:8080/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)*
+2. Get a crumb to handle [Jenkins' CSRF](https://support.cloudbees.com/hc/en-us/articles/219257077-CSRF-Protection-Explained), eg at *$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)*
 
 3. Go to your Jenkins project configuration page at *$JENKINS_URL/$PROJECT/configure* and allow triggered builds:
 ![Allowing triggered build](/img/configure-jenkins-build-triggers.png)
@@ -136,12 +136,12 @@ integrations:
       method: post
       url: $JENKINS_URL/job/$PROJECT/buildWithParameters
       headers:
-        Jenkins-Crumb: c762b20d61bd34c5fd8e49ad6637a8a2
+        Jenkins-Crumb: $JenkinsCrumb
       params:
         token: $TOKEN
       auth: {
-        username: arthurf
-        password: api-token
+        username: $username
+        password: api-token    # keep as-is
       data:
         commit: "${commit.id}"
         cause: Triggered on the QA web app
@@ -154,7 +154,7 @@ integrations:
   - text: Build
     label: With Parameters
     icon: build
-    href: http://jensirc:8080/view/HW_ALG/job/HW_ALG-delivery/build?delay=0sec
+    href: $JENKINS_URL/view/HW_ALG/job/HW_ALG-delivery/build?delay=0sec
     # Jenkins behaves wtf and returns 405 errors...
     # https://issues.jenkins-ci.org/browse/JENKINS-3121
     ignore_failure: true
