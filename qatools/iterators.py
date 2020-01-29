@@ -11,6 +11,8 @@ from itertools import chain
 import numbers
 import json
 
+from typing import List, Union, Dict, Tuple
+
 import yaml
 import click
 
@@ -19,27 +21,21 @@ from .utils import input_metadata, entrypoint_module, cased_path
 
 
 
-
-def flatten(lst):
-  if type(lst) not in (tuple, list):
+def flatten(lst: Union[str, List, Tuple]):
+  if type(lst) not in (tuple, list): # string
     yield(lst)
     return
   yield from chain.from_iterable((flatten(x) for x in lst))
-# list(flatten([1, [2], [3, 4, [5], [6, [7]]] ]))
-# list(flatten([1, {"cde:" [2, 3]} ]))
 
 
-def alias_groups(group, group_aliases):
-  if type(group) not in (tuple, list):
-    if group in group_aliases:
-      yield from alias_groups(group_aliases.get(group), group_aliases)
+def resolve_aliases(names : Union[str, List[str], Tuple[str]], aliases: Dict[str, List[str]]):
+  if type(names) in (tuple, list):
+    yield from chain.from_iterable((resolve_aliases(n, aliases) for n in names))
+  else:  # string
+    if names in aliases:
+      yield from resolve_aliases(aliases.get(names), aliases)
     else:
-      yield group
-  else:
-    yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
-# list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
-# list(alias_groups(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']}))
-# FIXME: infinite loop if "groups.x: x"
+      yield names
 
 
 
@@ -163,7 +159,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
   if debug: click.secho(str(available_batches), dim=True)
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
-  groups = list(alias_groups(groups, group_aliases))
+  groups = list(resolve_aliases(groups, group_aliases))
 
   if not groups:
     click.secho(f'WARNING: No group chosen.', fg='yellow', err=True)
