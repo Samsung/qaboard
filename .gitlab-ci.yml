@@ -4,12 +4,29 @@ stages:
 
 before_script:
   - export PATH=/home/ispq/miniconda3/bin:$PATH
+  - export PATH=/home/arthurf/opt/bin:$PATH
 
-test:
+unit:tests:
   stage: test
   script:
     - python -munittest
 
+cli:tests:
+  stage: test
+  script:
+    - cd qatools/sample_project
+    - python -mqatools --help
+    - mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg
+    - export QA_DATABASE=$(pwd)
+    - export QA_OFFLINE=true
+    - python -mqatools run -i cli_tests/a.txt 'echo "{absolute_input_path} => {output_directory}"'
+    # expect 1 run, cli_test
+    - python -mqatools --dryrun batch cli_tests
+    - sed -i 's/# globs:/globs:/' qatools.yaml
+    # expect 3 run, cli_test
+    - python -mqatools --dryrun batch cli_tests
+    - python -mqatools --dryrun batch cli_tests --list | jq
+    
 deploy:
   stage: deploy
   only:
