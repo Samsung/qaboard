@@ -136,7 +136,7 @@ class Job:
         "\nEOF",
       ]
     )
-    if 'QATOOLS_BATCH_VERBOSE' in os.environ:
+    if 'QA_BATCH_VERBOSE' in os.environ:
       click.secho(q_command, dim=True)
     os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
 
@@ -152,7 +152,7 @@ class Job:
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
     )
-    if 'QATOOLS_BATCH_VERBOSE' in os.environ:
+    if 'QA_BATCH_VERBOSE' in os.environ:
       click.secho(out.stdout, dim=True)
     out.check_returncode()
     return out
@@ -185,8 +185,8 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
 def run_jobs_local(jobs, config, ctx):
   from joblib import Parallel, delayed
   default_n_jobs = config.get('runners', {}).get('local', {}).get('concurrency', -1)
-  n_jobs = int(os.environ.get('QATOOLS_BATCH_CONCURRENCY', default_n_jobs))
-  verbose = int(os.environ.get('QATOOLS_BATCH_VERBOSE', 0))
+  n_jobs = int(os.environ.get('QA_BATCH_CONCURRENCY', default_n_jobs))
+  verbose = int(os.environ.get('QA_BATCH_VERBOSE', 0))
   # multiprocessing will try to reimport qatools, which relies on the CWD
   cwd = os.getcwd()
   if 'previous_cwd' in ctx.obj:

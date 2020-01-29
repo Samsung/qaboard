@@ -132,7 +132,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 
-def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QATOOLS_DEBUG', False)):
+def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
   """Returns an iterator over the (input_path, configurations, lsf-configuration) from the selected groups
   params:
   - groups: array of group names or paths whose inputs you want to iterate

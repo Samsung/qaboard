@@ -151,23 +151,27 @@ def get(ctx, input_path, output_path, variable):
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('--keep-previous', is_flag=True, help="Don't clean previous outputs before the run.")
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
 @click.option('--save-manifests-in-database', is_flag=True, help="Save the input and outputs manifests in the database.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
-def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manifests_in_database):
+def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_args, save_manifests_in_database):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
     ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
-    if not 'QATOOLS_RUN_KEEP' in os.environ:
+    # Usually we want to remove any files already present in the output directory.
+    # It avoids issues with remaining state... This said,
+    # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
+    # Note: we keep support for QATOOLS_RUN_KEEP, but it's only used by David so let's tell him to change tomorrow :)
+    if not (keep_previous or 'QATOOLS_RUN_KEEP' in os.environ):
       import shutil
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
-
-    # without this, we can only log runs from `qa batch`, on linux, via LSF
+    # Without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
     # if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
     with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
@@ -175,7 +179,7 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
       if is_ci:
         from shlex import quote
         click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
-      click.echo(click.style("Outputs at: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
+      click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
       print_url(ctx)
 
       ctx.obj['output_directory'] = output_directory.resolve()
@@ -524,7 +528,8 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
     is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
-    if jobs and is_ci and (batch_label=='default' or 'QATOOLS_ALWAYS_UPDATE_GITLAB' in os.environ):
+    always_update = getenvs(('QATOOLS_ALWAYS_UPDATE_GITLAB', 'QA_ALWAYS_UPDATE_GITLAB'))
+    if jobs and is_ci and (batch_label=='default' or always_update):
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
     if is_failed:
@@ -535,6 +540,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
 
 @cli.command()
 @click.option('--file', '-f', 'files', multiple=True, help="Save spcific files instead of artifacts indicated by yaml file")
+# Do we use this? let's deprecate and remove
 @click.option('--out', '-o', 'artifacts_path', default='', help="Path to save artifacts in case of specified files")
 @click.argument('groups', nargs=-1, type=click.UNPROCESSED, default=None)
 @click.pass_context
@@ -551,12 +557,12 @@ def save_artifacts(ctx, files, artifacts_path, groups):
   if files:
     artifacts = {f"__{f}": {"glob": str(Path(artifacts_path) / f)} for f in files}
   else:
-    # default artifacts
     if 'artifacts' not in config:
       config['artifacts'] = {}
+    # Default artifacts
     config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
     config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
-    # we also allow sub-qatools-projects
+    # Handle sub-projects
     config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
     config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
     config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
@@ -565,7 +571,7 @@ def save_artifacts(ctx, files, artifacts_path, groups):
       artifacts = {g: config['artifacts'][g] for g in groups if g in config['artifacts'].keys()}
     else:
       artifacts = config['artifacts']
-  if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(artifacts)
+  if 'QA_VERBOSE_VERBOSE' in os.environ: print(artifacts)
   if not is_in_git_repo:
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
@@ -597,14 +603,14 @@ def save_artifacts(ctx, files, artifacts_path, groups):
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
-        if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(destination)
+        if 'QA_VERBOSE_VERBOSE' in os.environ: print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           # when working on subprojects, the artifact might be copied already,
           # but manifests are saved per-subproject
           if path.as_posix() not in manifest:
             manifest[path.as_posix()] = file_info(path, config=config)
           continue
-        if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
+        if 'QA_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
         if not ctx.obj['dryrun']:
           copy(path, destination)
