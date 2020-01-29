@@ -20,11 +20,13 @@ gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')
 def ci_commit_data(commit_id):
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}"
   r = requests.get(url, headers=gitlab_headers)
+  r.raise_for_status()
   return r.json()
 
 def ci_commit_statuses(commit_id, **kwargs):
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}/statuses"
   r = requests.get(url, headers=gitlab_headers, params=kwargs)
+  r.raise_for_status()
   return r.json()
 
 
@@ -41,6 +43,7 @@ def update_gitlab_status(commit_id, state='success'):
   }
   try:
     r = requests.post(url, headers=gitlab_headers, params=params)
+    r.raise_for_status()
     # print(r.json())
   except Exception as e:
     print(r)

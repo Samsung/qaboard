@@ -203,7 +203,7 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
   wait_time = 15 # seconds
   while True:
     statuses = ci_commit_statuses(commit.hexsha, ref=commit_branch, name=failed_ci_job_name)
-    print(statuses)
+    # print(statuses)
 
     if statuses is None:
       click.secho(f'WARNING: Could not get the CI status. You may need a different GITLAB_ACCESS_TOKEN.', fg='yellow', err=True)

@@ -25,7 +25,7 @@ cli:tests:
     - python -mqatools --dryrun batch cli_tests
     # expect 3 runs
     - sed -i 's/# globs:/globs:/' qatools.yaml
-    - python -mqatools --dryrun batch cli_tests --list | jq
+    - python -mqatools --dryrun batch cli_tests --list | jq '.'
     - python -mqatools          batch cli_tests 'echo "{absolute_input_path} => {output_directory}"'
     - python -mqatools          batch --runner=local cli_tests 'echo "{absolute_input_path} => {output_directory}"'
     # other CLI tests
