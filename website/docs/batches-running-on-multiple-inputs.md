@@ -29,11 +29,11 @@ qa batch --batch first-batch --batch second-batch
 ```yaml {2-4}
 you-can-override-the-default-database:
   database:
-    linux: /net/f2/algo_archive/DVS_SLAM_Database
-    windows: '\\\\netapp\\algo_archive\\DVS_SLAM_Database'
+    linux: /mnt/database
+    windows: '\\\\storage\\database'
   inputs:
-  - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
-  - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
+  - Images/Demo3/A.jpg
+  - Images/Demo2
 ```
 
 ## Specifying test configurations
@@ -41,17 +41,17 @@ you-can-override-the-default-database:
 Make sure you read [the section on configurations](identifying-inputs-files)
 :::
 
-Let's look at examples from the `HW_ALG` project to illustrate how configuration can be given:
+Let's look at examples from the `HW_ALG` project to illustrate how configurations can be given:
 
 ```yaml {2-3}
 using-a-custom-configuration:
   configurations:
-  - workspace/base
+  - base
   inputs:
-  - Bayer/MCC_700lux_BPCNRoff_00.dng
-  - Bayer/MCC_700lux_BPCNRoff_01.dng
+  - Bayer/A.dng
+  - Bayer/B.dng
 # => configurations == ["base"]
-# => the code would load workspace/base/config.cde
+# => the code would load base/config.cde
 ```
 
 ```yaml {2-4}
@@ -60,8 +60,8 @@ multiple-configurations:
     - base
     - low-light
   inputs:
-  - Bayer/MCC_700lux_BPCNRoff_00.dng
-  - Bayer/MCC_700lux_BPCNRoff_01.dng
+  - Bayer/A.dng
+  - Bayer/B.dng
 #=> configurations == ["base", "low-light"]
 #=> we merge 2 CDE configs 
 ```
@@ -76,8 +76,8 @@ configurations-can-be-complex-objects:
       - "-h 2448"
       - "-it BAYER10"
   inputs:
-  - Bayer/MCC_700lux_BPCNRoff_00.dng
-  - Bayer/MCC_700lux_BPCNRoff_01.dng
+  - Bayer/A.dng
+  - Bayer/B.dng
 # configurations == ["base", "low-light", {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
 # => Here we use the "cde" config parameter to pass CLI arguments to CDE.
 ```
@@ -87,9 +87,9 @@ each-input-can-have-its-own-configuration:
   configurations:
     - base
   inputs:
-  - Bayer/MCC_700lux_BPCNRoff_00.dng:
+  - Bayer/A.dng:
     #=> configurations == ["base"]
-  - Bayer/MCC_700lux_BPCNRoff_01.dng:
+  - Bayer/B.dng:
       - low-light
       - cde:
         - "-DD"
