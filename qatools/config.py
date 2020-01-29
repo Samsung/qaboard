@@ -277,7 +277,6 @@ commit = _Commit(repo, commit_id)
 # print(commit.committer.email)
 # print(commit.authored_datetime)
 
-from .conventions import serialize_config
 default_platform = platform
 default_batch_label = 'default'
 
@@ -296,6 +295,7 @@ default_input_type = config_inputs_types.get('default', 'default')
 
 
 def get_default_configuration(input_settings):
+  from .conventions import serialize_config
   default_configuration = input_settings.get('configurations', input_settings.get('configuration', []))
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
@@ -344,10 +344,11 @@ if metrics_file:
 
 # We want to allow any user to use the Gitlab API, stay backward compatible
 # ...and remove the credentials from the repo
-default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets')
+default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets.yaml')
 secrets_path = Path(config.get('secrets', default_secrets_path))
 if secrets_path.exists():
   with secrets_path.open() as f:
     secrets = yaml.load(f, Loader=yaml.SafeLoader)
 else:
   secrets = {}
+print(secrets)
