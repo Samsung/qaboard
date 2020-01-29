@@ -34,19 +34,20 @@ from .config import user, commit_id, commit_ci_dir, root_qatools, commit_rootpro
 from .config import is_ci, on_windows
 
 
+
 @click.group()
 @click.pass_context
 @click.option('--platform', default=default_platform)
 @click.option('--configuration', '-c', help="Will be passed to the run function")
-@click.option('--label', '-l', 'batch_label', default=default_batch_label, help="Gives tuning experiments a name.")
+@click.option('--label', '-l', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
-@click.option('--database', 'input_database', type=PathType(), help="Test database location")
+@click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, input_database, input_type, offline):
+def cli(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
@@ -79,13 +80,13 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
-  ctx.obj['raw_batch_label'] = batch_label
-  ctx.obj['batch_label'] = batch_label if not share else f"@{user}| {batch_label}"
+  ctx.obj['raw_batch_label'] = label
+  ctx.obj['batch_label'] = label if not share else f"@{user}| {label}"
   ctx.obj['platform'] = platform
 
   ctx.obj['input_type'] = input_type
   ctx.obj['inputs_settings'] = get_settings(input_type, config)
-  ctx.obj['database'] = input_database if input_database else get_default_database(ctx.obj['inputs_settings'])
+  ctx.obj['database'] = database if database else get_default_database(ctx.obj['inputs_settings'])
   ctx.obj['configuration'] = configuration if configuration else get_default_configuration(ctx.obj['inputs_settings'])
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
@@ -357,7 +358,7 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue'), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
-@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
+@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_contexts, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
@@ -405,7 +406,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       "lsf_jobs_prefix": lsf_jobs_prefix,
       **ctx.obj,
     }
-    job_url = getenvs(('BUILD_URL', 'CI_JOB_URL')) # jenkins, gitlabCI
+    job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
     notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
@@ -845,7 +846,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
 
 
 def main():
-  cli(obj={}, auto_envvar_prefix='QATOOLS')
+  cli(obj={}, auto_envvar_prefix='QA')
 
 if __name__ == '__main__':
   main()
