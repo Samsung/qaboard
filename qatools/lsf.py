@@ -200,6 +200,7 @@ def run_jobs(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, 
     run_jobs_lsf(jobs, runner, no_wait, lsf_jobs_prefix, lsf_config, waiting_job_name)
     # Our shared storage takes a while to sync when using LSF. It should be solved, and this sleep removed
     if not all([j.id for j in jobs]): # if we can read the status from the database, no sync issue
+      print('sleeping')
       time.sleep(1) # seconds
 
   if runner == 'local':
