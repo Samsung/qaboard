@@ -1,16 +1,23 @@
 import os
+from pathlib import Path
 
 import requests
+import click
 
 from requests.utils import quote
 from .config import config, root_qatools_config, subproject, commit_branch
+from .config import secrets
 
 # TODO: read root_qatools_config['project']['url']
 #       handle git@ and http:// schemes...
 # TODO: don't put credentials here...
-gitlab_host = os.getenv('GITLAB_HOST', 'http://gitlab-srv')
+gitlab_host = os.getenv('GITLAB_HOST', secrets.get('GITLAB_HOST', 'https://gitlab.com'))
+gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN', secrets.get('GITLAB_ACCESS_TOKEN'))
+if not gitlab_token:
+  click.secho("WARNING: GITLAB_ACCESS_TOKEN is not defined.", fg='yellow', bold=True, err=True)
+  click.secho("         Please provide it as an environment variable: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html", fg='yellow', err=True)
 gitlab_headers = {
-  'Private-Token': os.environ.get('GITLAB_ACCESS_TOKEN', 'd5sbmEPvncmsgTcgZLoS'),
+  'Private-Token': gitlab_token,
 }
 gitlab_api = f"{gitlab_host}/api/v4"
 gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')

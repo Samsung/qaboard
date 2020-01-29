@@ -31,6 +31,7 @@ renamings = (
   ('--save-manifests', '--save-manifests-in-database'),
   ('--return-prefix-outputs-path', '--list-output-dirs'),
   ('--ci', '--share'),
+  ('--dry-run', '--dryrun'),
   ('--group', '--batch'),
   ('--groups-file', '--batches-file'),
   ('--no-qa-database', '--offline'),
@@ -231,7 +232,7 @@ else:
 
 
 # using gitpython is very slow, so we read the git data directly
-repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
+repo_root = Path(os.environ.get('QA_REPO', str(root_qatools)))
 is_in_git_repo = False
 for d in (repo_root, *list(repo_root.parents)):
   if (d / '.git').is_dir():
@@ -338,3 +339,15 @@ if metrics_file:
           no_config_warning = True
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
+
+
+
+# We want to allow any user to use the Gitlab API, stay backward compatible
+# ...and remove the credentials from the repo
+default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets')
+secrets_path = config.get('secrets', default_secrets_path)
+if secrets_path.exists():
+  with secrets_path.open() as f:
+    secrets = yaml.load(f, Loader=yaml.SafeLoader)
+else:
+  secrets = {}

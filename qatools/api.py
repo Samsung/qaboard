@@ -10,12 +10,23 @@ from functools import lru_cache
 import click
 
 from .config import config, commit_id, is_ci, available_metrics
+from .config import secrets
 
-# For now we use http, until we deal with cert trust issues
-api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
-api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
-api_port = os.getenv('QATOOLS_DB_PORT', '5000')
-api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
+qaboard_protocol = os.getenv('QABOARD_PROTOCOL', secrets.get('QABOARD_PROTOCOL', 'https'))
+qaboard_hostname = os.getenv('QABOARD_HOSTNAME', secrets.get('QABOARD_HOSTNAME'))
+qaboard_port = os.getenv('QABOARD_PORT', secrets.get('QABOARD_PORT'))
+qaboard_host = os.getenv('QABOARD_HOST', secrets.get('QABOARD_HOST'))
+if qaboard_hostname and qaboard_port:
+  qaboard_url = f"{qaboard_protocol}://{qaboard_hostname}:{qaboard_port}"
+elif qaboard_host:
+  qaboard_url = f"{qaboard_protocol}://{qaboard_host}"
+else:
+  click.secho("WARNING: We don't know where to look for your QA-Board server.", fg='yellow', bold=True, err=True)
+  click.secho("         Please provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
+  click.secho("         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
+  click.secho("       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
+
+api_prefix = "{qaboard_url}/api/v1"
 
 
 def print_url(ctx, status="starting"):
