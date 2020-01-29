@@ -351,4 +351,3 @@ if secrets_path.exists():
     secrets = yaml.load(f, Loader=yaml.SafeLoader)
 else:
   secrets = {}
-print(secrets)
