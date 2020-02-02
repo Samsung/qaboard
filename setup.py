@@ -25,7 +25,7 @@ from setuptools import setup, find_packages
 
 # The directory containing this file
 HERE = Path(__file__).parent
-README = (HERE / "README.md").read_text()
+# README = (HERE / "README.md").read_text()
 
 setup(
   name='qaboard',
@@ -34,7 +34,7 @@ setup(
 
   url="https://github.com/Samsung/qaboard",
   description="Visualize and compare algorithm results. Optimize parameters. Share results and track progress.",
-  long_description=README,
+  long_description=" ",#README,
   long_description_content_type="text/markdown",
 
   author="Arthur Flam",
