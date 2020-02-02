@@ -1,5 +1,5 @@
 ---
-title: Introducing qatools: algorithm engineering
+title: "Introducing QA-Board: R&D Platform"
 author: Arthur Flam
 authorURL: https://shapescience.xyz/
 authorFBID: 508446717

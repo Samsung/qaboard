@@ -1,17 +1,37 @@
 stages:
   - test
-  -  deploy
+  - deploy
 
 before_script:
   - export PATH=/home/ispq/miniconda3/bin:$PATH
+  - export PATH=/home/arthurf/opt/bin:$PATH
+  - export PYTHONPATH=$(pwd)
 
-# For now tests are disabled
-test:
+unit:tests:
   stage: test
-  allow_failure: true
   script:
     - python -munittest
 
+cli:tests:
+  stage: test
+  script:
+    - cd qatools/sample_project
+    - python -mqatools --help
+    - mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg
+    - export QA_DATABASE=$(pwd)
+    - export QA_OFFLINE=true
+    - python -mqatools run -i cli_tests/a.jpg 'echo "{absolute_input_path} => {output_directory}"'
+    # expect 1 run
+    - python -mqatools --dryrun batch cli_tests
+    # expect 3 runs
+    - sed -i 's/# globs:/globs:/' qatools.yaml
+    - python -mqatools --dryrun batch cli_tests --list | jq '.'
+    - python -mqatools          batch cli_tests 'echo "{absolute_input_path} => {output_directory}"'
+    - python -mqatools          batch --runner=local cli_tests 'echo "{absolute_input_path} => {output_directory}"'
+    # other CLI tests
+    # - python -mqatools save-artifacts # Gitlab: 404: Project not found
+    - python -mqatools get commit_id
+    
 deploy:
   stage: deploy
   only:
@@ -19,4 +39,3 @@ deploy:
   script:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - pip install $PROXY_STUFF .
-  # when: manual

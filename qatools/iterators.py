@@ -11,6 +11,8 @@ from itertools import chain
 import numbers
 import json
 
+from typing import List, Union, Dict, Tuple
+
 import yaml
 import click
 
@@ -19,27 +21,21 @@ from .utils import input_metadata, entrypoint_module, cased_path
 
 
 
-
-def flatten(lst):
-  if type(lst) not in (tuple, list):
+def flatten(lst: Union[str, List, Tuple]):
+  if type(lst) not in (tuple, list): # string
     yield(lst)
     return
   yield from chain.from_iterable((flatten(x) for x in lst))
-# list(flatten([1, [2], [3, 4, [5], [6, [7]]] ]))
-# list(flatten([1, {"cde:" [2, 3]} ]))
 
 
-def alias_groups(group, group_aliases):
-  if type(group) not in (tuple, list):
-    if group in group_aliases:
-      yield from alias_groups(group_aliases.get(group), group_aliases)
+def resolve_aliases(names : Union[str, List[str], Tuple[str]], aliases: Dict[str, List[str]]):
+  if type(names) in (tuple, list):
+    yield from chain.from_iterable((resolve_aliases(n, aliases) for n in names))
+  else:  # string
+    if names in aliases:
+      yield from resolve_aliases(aliases.get(names), aliases)
     else:
-      yield group
-  else:
-    yield from chain.from_iterable((alias_groups(x, group_aliases) for x in group))
-# list(alias_groups(["ci", "xxxxx"], {"ci": ["a", "b"], "b": ["e", "f"]}))
-# list(alias_groups(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']}))
-# FIXME: infinite loop if "groups.x: x"
+      yield names
 
 
 
@@ -79,26 +75,37 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
     return
 
+  if not globs:
+    yield from input_paths
+    return
+
+  nb_inputs = 0
   for glob in globs:
     for input_path in input_paths:
+      input_path = cased_path(input_path)
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if only:
         inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
       if exclude:
         inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
-      yield from inputs
+      for i in inputs:
+        nb_inputs += 1
+        yield i
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
         if only and not match(metadata, only): continue
         if exclude and match(metadata, exclude): continue
+        nb_inputs += 1
         yield input_path
+  if not nb_inputs:
+    click.secho(f'Warning: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
   if path and Path(path).is_absolute():
     click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
-    click.secho(f'We except you to split "{path}" into a "database" and a relative path.', fg='red')
+    click.secho(f'Please split "{path}" into a "database" and a relative path.', fg='red')
     raise ValueError
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
@@ -114,18 +121,18 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
     return
 
-  globs = inputs_settings.get('globs', inputs_settings.get('glob', []))
+  globs = inputs_settings.get('globs', inputs_settings.get('glob'))
   if not globs:
-    click.secho(f'WARNING: Could not find how to identify inputs.', fg='yellow', err=True)
-    click.secho(f'Consider adding to qatools.yaml something like:\n```\ninputs:\n  globs: *.hex\n```', fg='yellow', err=True, dim=True)
-  if not isinstance(globs, tuple) and not isinstance(globs, list):
+    click.secho(f'ADVICE: Tell us how to identify inputs. You will be able to `qa batch` on all inputs under a given folder.', fg='cyan', err=True)
+    click.secho(f'Consider adding to qatools.yaml something like:\n```\ninputs:\n  globs: "*.bmp"\n```', fg='cyan', err=True, dim=True)
+  elif not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
   use_parent_folder = inputs_settings.get('use_parent_folder', False)
   yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)
 
 
 
-def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QATOOLS_DEBUG', False)):
+def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
   """Returns an iterator over the (input_path, configurations, lsf-configuration) from the selected groups
   params:
   - groups: array of group names or paths whose inputs you want to iterate
@@ -145,11 +152,14 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
 
   if not inputs_settings:
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
+  else:
+    from copy import copy
+    inputs_settings = copy(inputs_settings)
 
   if debug: click.secho(str(available_batches), dim=True)
   # for convenience, users can define "groups of groups"
   group_aliases = available_batches.get('groups', {})
-  groups = list(alias_groups(groups, group_aliases))
+  groups = list(resolve_aliases(groups, group_aliases))
 
   if not groups:
     click.secho(f'WARNING: No group chosen.', fg='yellow', err=True)
@@ -274,9 +284,11 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   elif tuning_search['search_type'] == 'grid':
     # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
     from sklearn.model_selection import ParameterGrid
+    # from search import ParameterGrid
     params_iterator = ParameterGrid(parameter_search)
   elif tuning_search['search_type'] == 'sampler':
     from sklearn.model_selection import ParameterSampler
+    # from search import ParameterSampler
     params_iterator = ParameterSampler(parameter_search, n_iter=n_iter)
   else:
     raise ValueError

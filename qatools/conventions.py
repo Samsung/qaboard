@@ -25,7 +25,7 @@ def get_settings(inputs_type, config):
     "type": inputs_type,
   }
   if 'globs' not in settings:
-    settings['globs'] = settings.get('glob', [])
+    settings['globs'] = settings.get('glob')
   return settings
 
 
@@ -60,8 +60,11 @@ def slugify(s : str, maxlength=64):
   # everything except 0-9 and a-z replaced with -. 
   slug = re.sub('[^0-9a-z.=]', '-', slug)
   slug = re.sub('-{2,}', '-', slug)
-  # No leading / trailing -. 
-  return slug.strip('-')
+  # No leading / trailing -.
+  # if len(slug) > 1: # empty config: -
+  #   slug = slug.strip('-') 
+  slug = slug.strip('-') 
+  return slug
 
 def slugify_config(s : str, maxlength=64):
   """Slugiy a string like they do at Gitlab."""

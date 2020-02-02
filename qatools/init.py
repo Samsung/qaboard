@@ -37,7 +37,7 @@ def qa_init():
   # Locate the sample project's configuration
   try: # fast, available from python3.7
     from importlib import resources
-    with resources.path('qatools', '') as qatools_dir:
+    with resources.path('qa', '') as qatools_dir:
       pass
   except:
       import pkg_resources
@@ -47,9 +47,9 @@ def qa_init():
   shutil.copy(str(qatools_dir / 'sample_project/qatools.yaml'), 'qatools.yaml')
 
   click.secho('...added qatools.yaml', fg='green', dim=True)
-  shutil.copytree(str(qatools_dir/'sample_project/qatools'), 'qatools')
+  shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa')
 
-  click.secho('...added qatools/', fg='green', dim=True)
+  click.secho('...added qa/', fg='green', dim=True)
   click.secho(
     'If you need help configuring qatools. please read the tutorial at http://qa-docs/ or @arthurf for help\n',
     fg='blue'
@@ -60,24 +60,26 @@ def qa_init():
   if not repo:
     click.secho('Warning: could not find a git repository', fg='yellow')
   else:
-    remote = repo.remote()
-    url = list(remote.urls)[0]
-    if url.startswith('git'):
-      name = url.split(':')[-1].replace('.git', '')
-    else:
-      name =  '/'.join(url.split('/')[3:]).replace('.git', '')
-    reference_branch = remote.refs.HEAD.reference.name.replace('origin/', '')
+    try:
+      remote = repo.remote()
+      url = list(remote.urls)[0] #FIXME: preference for "origin"
+      if url.startswith('git'):
+        name = url.split(':')[-1].replace('.git', '')
+      else:
+        name =  '/'.join(url.split('/')[3:]).replace('.git', '')
+      reference_branch = remote.refs.HEAD.reference.name.replace('origin/', '')
+      config = Path('qatools.yaml')
+      with config.open() as f:
+        config_content = f.read()
+      config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
+      config_content = config_content.replace('url: git@gitlab-srv/my_group/sample_project', f"url: {url}")
+      config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
+      # Write the file out again
+      with config.open('w') as f:
+        f.write(config_content)
+    except:
+      click.secho('Please edit qatools.yaml with your project name and url ', fg='yellow')
 
-    config = Path('qatools.yaml')
-    with config.open() as f:
-      config_content = f.read()
-    config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
-    config_content = config_content.replace('url: git@gitlab-srv/my_group/sample_project', f"url: {url}")
-    config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
-
-    # Write the file out again
-    with config.open('w') as f:
-      f.write(config_content)
 
   exit(0)
 

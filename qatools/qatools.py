@@ -14,12 +14,14 @@ import click
 
 from .lsf import Job, LsfPriority
 from .lsf import get_running_lsf_jobs, job_is_failed, job_ran_once, run_jobs
-from .api import notify_qa_database
+from .api import notify_qa_database, print_url
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
+from .utils import save_outputs_manifest
 from .utils import redirect_std_streams
+from .utils import getenvs
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
@@ -32,19 +34,20 @@ from .config import user, commit_id, commit_ci_dir, root_qatools, commit_rootpro
 from .config import is_ci, on_windows
 
 
+
 @click.group()
 @click.pass_context
 @click.option('--platform', default=default_platform)
 @click.option('--configuration', '-c', help="Will be passed to the run function")
-@click.option('--label', '-l', 'batch_label', default=default_batch_label, help="Gives tuning experiments a name.")
+@click.option('--label', '-l', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
-@click.option('--database', 'input_database', type=PathType(), help="Test database location")
+@click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
-@click.option('--no-qa-database', is_flag=True, help="Do not notify the QA database about what is pending/running/done...")
-def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryrun, share, input_database, input_type, no_qa_database):
+@click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
+def cli(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qatools.yaml
   # it should be located at the root of the git repository
@@ -72,18 +75,18 @@ def cli(ctx, platform, configuration, batch_label, tuning, tuning_filepath, dryr
   ctx.obj['user'] = user
   ctx.obj['dryrun'] = dryrun
   ctx.obj['share'] = share
-  ctx.obj['no_qa_database'] = no_qa_database
+  ctx.obj['offline'] = offline
 
   ctx.obj['commit_ci_dir'] = commit_ci_dir
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
-  ctx.obj['raw_batch_label'] = batch_label
-  ctx.obj['batch_label'] = batch_label if not share else f"@{user}| {batch_label}"
+  ctx.obj['raw_batch_label'] = label
+  ctx.obj['batch_label'] = label if not share else f"@{user}| {label}"
   ctx.obj['platform'] = platform
 
   ctx.obj['input_type'] = input_type
   ctx.obj['inputs_settings'] = get_settings(input_type, config)
-  ctx.obj['database'] = input_database if input_database else get_default_database(ctx.obj['inputs_settings'])
+  ctx.obj['database'] = database if database else get_default_database(ctx.obj['inputs_settings'])
   ctx.obj['configuration'] = configuration if configuration else get_default_configuration(ctx.obj['inputs_settings'])
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
@@ -148,23 +151,27 @@ def get(ctx, input_path, output_path, variable):
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('--keep-previous', is_flag=True, help="Don't clean previous outputs before the run.")
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
 @click.option('--save-manifests-in-database', is_flag=True, help="Save the input and outputs manifests in the database.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
-def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manifests_in_database):
+def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_args, save_manifests_in_database):
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
     ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-    absolute_input_path = ctx.obj['prefix_output_dir']
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
 
-    if not 'QATOOLS_RUN_KEEP' in os.environ:
+    # Usually we want to remove any files already present in the output directory.
+    # It avoids issues with remaining state... This said,
+    # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
+    # Note: we keep support for QATOOLS_RUN_KEEP, but it's only used by David so let's tell him to change tomorrow :)
+    if not (keep_previous or 'QATOOLS_RUN_KEEP' in os.environ):
       import shutil
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
 
-    # without this, we can only log runs from `qa batch`, on linux, via LSF
+    # Without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
     # if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
     with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
@@ -172,10 +179,12 @@ def run(ctx, input_path, output_path, no_postprocess, forwarded_args, save_manif
       if is_ci:
         from shlex import quote
         click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
+      click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
+      print_url(ctx)
 
       ctx.obj['output_directory'] = output_directory.resolve()
       ctx.obj['forwarded_args'] = forwarded_args
-      if not ctx.obj['no_qa_database']:
+      if not ctx.obj['offline']:
           notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
       start = time.time()
@@ -222,10 +231,16 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
   output_directory = context.obj['output_directory']
   try:
     if not skip:
-      metrics = entrypoint_module(config).postprocess(runtime_metrics, context)
+      try:
+        entrypoint_postprocess = entrypoint_module(config).postprocess
+      except:
+        metrics = runtime_metrics
+      else: 
+        metrics = entrypoint_postprocess(runtime_metrics, context)
     else:
       metrics = runtime_metrics 
-  except Exception as e:
+  except:
+    exc_type, exc_value, exc_traceback = sys.exc_info()
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
     # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -262,13 +277,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
-  def should_be_in_manifest(path):
-    # avoid logs with timestamps and temporary NFS files
-    return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
-  # To help the UI application know what results we created, we save the complete list.
-  output_files = {path.relative_to(output_directory).as_posix(): file_info(path, config=config) for path in output_directory.rglob('*') if should_be_in_manifest(path)}
-  with (output_directory / 'manifest.outputs.json').open('w') as f:
-    json.dump(output_files, f, indent=2)
+  save_outputs_manifest(output_directory, config=config)
 
   if save_manifests_in_database:
     if full_input_path.is_file():
@@ -278,7 +287,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       copy(output_directory / 'manifest.inputs.json', full_input_path / 'manifest.inputs.json')
       copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
 
-  if not context.obj.get('no_qa_database') and not context.obj.get('dryrun'):
+  if not context.obj.get('offline') and not context.obj.get('dryrun'):
     notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
 
   return metrics
@@ -295,7 +304,6 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-  absolute_input_path = ctx.obj['prefix_output_dir']
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
@@ -320,7 +328,6 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
   ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-  absolute_input_path = ctx.obj['prefix_output_dir']
   if not output_path:
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
   else:
@@ -355,7 +362,7 @@ lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else co
 @click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue'), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
-@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "postprocess"), help="When there are already results, whether to do run/postprocess/sync/skip")
+@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already results, whether to do run/postprocess/sync/skip")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_contexts, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
@@ -363,7 +370,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
     click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
-    click.secho(f'Where batches.yaml is formatted like in http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools/input_groups.yaml', fg='red', err=True)
+    click.secho(f'Where batches.yaml is formatted like in http://qa-docs/docs/batches-running-on-multiple-inputs', fg='red', err=True)
     return
 
   if not batches:
@@ -375,7 +382,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
     batches = [batches]
 
   batch_label = ctx.obj['batch_label']
-  commit_url = f"https://qa/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={batch_label}' if batch_label != 'default' else ''}"
+  print_url(ctx)
 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
 
@@ -393,10 +400,8 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   batch_hash = make_hash([batches, tuning_search, str(tuning_search_file)])
   lsf_jobs_prefix = f"{batch_hash[:8]}/"
 
-  should_notify_qa_database = not dryrun and not ctx.obj['no_qa_database'] and not no_batch_qa_database
+  should_notify_qa_database = not dryrun and not ctx.obj['offline'] and not no_batch_qa_database
   if should_notify_qa_database:
-    if is_ci or ctx.obj['share']:
-      click.echo(click.style("Results at: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
     import uuid
     import datetime
     command_data = {
@@ -405,6 +410,9 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       "lsf_jobs_prefix": lsf_jobs_prefix,
       **ctx.obj,
     }
+    job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
+    if job_url:
+      command_data['job_url'] = job_url
     notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
 
   jobs = []
@@ -438,6 +446,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
           "database": str(input_database),
           "configurations": input_configurations,
           "input_database": str(input_database),
+          "output_directory": str(output_directory),
         })
         break
 
@@ -448,32 +457,40 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       if not should_run and action_on_existing=='skip':
         continue
 
-      # print(input_configuration)
-      # print(get_default_configuration(ctx.obj['inputs_settings']))
-      if False and input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
+      if not forwarded_args:
+        forwarded_args_cli = None
+      else:
+        if not on_windows:
+           # FIXME: we assume no single quotes...
+          forwarded_args_cli = ' '.join(f"'{a}'" for a in forwarded_args)
+        else:
+          from .utils import escaped_for_cli
+           # FIXME: may not work...
+          forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
+
+      if input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration}'"
         else:
-          input_configuration_serialized = input_configuration.replace('\\', '\\\\')
-          input_configuration_serialized = input_configuration_serialized.replace('"', '\\"')
-          configuration_cli =  f'--configuration "{input_configuration_serialized}"'
+          from .utils import escaped_for_cli
+          configuration_cli =  f'--configuration {escaped_for_cli(input_configuration)}'
 
       args = [
           f"qa",
           f'--share' if ctx.obj["share"] else None,
+          f'--offline' if ctx.obj['offline'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != default_platform else None,
           f'--type "{input_type}"' if input_type != default_input_type else None,
-          f'--database "{input_database.as_posix()}"', #if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
-          f'--no-qa-database' if ctx.obj['no_qa_database'] else None,
+          f'--database "{input_database.as_posix()}"' if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
           f'--input "{input_path}"',
           f'--output "{output_directory}"' if prefix_outputs_path else None,
-          ' '.join(forwarded_args),
+          forwarded_args_cli if forwarded_args_cli else None,
       ]
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
@@ -508,26 +525,26 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   if not dryrun:
     tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
     waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(batches)}-wait"
-    # Our share storage takes a while to sync. It should be solved, and this sleep removed
-    # But for local runs, no need to wait
-    delay_before_status_check = 0 if is_ci or ctx.obj['share'] else 0 #seconds
-    is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, delay_before_status_check=delay_before_status_check, config=config, ctx=ctx)
+    is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, config=config, ctx=ctx)
 
     from .gitlab import update_gitlab_status
-    if jobs and is_ci and (batch_label=='default' or 'QATOOLS_ALWAYS_UPDATE_GITLAB' in os.environ):
+    always_update = getenvs(('QATOOLS_ALWAYS_UPDATE_GITLAB', 'QA_ALWAYS_UPDATE_GITLAB'))
+    if jobs and is_ci and (batch_label=='default' or always_update):
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
     if is_failed:
-      if is_ci:
-        click.secho(f"Read all the logs at: {commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs", fg='red', bold=True)
+      print_url(ctx, status="failure")
       exit(1)
 
 
 
 @cli.command()
 @click.option('--file', '-f', 'files', multiple=True, help="Save spcific files instead of artifacts indicated by yaml file")
+# Do we use this? let's deprecate and remove
+@click.option('--out', '-o', 'artifacts_path', default='', help="Path to save artifacts in case of specified files")
+@click.argument('groups', nargs=-1, type=click.UNPROCESSED, default=None)
 @click.pass_context
-def save_artifacts(ctx, files):
+def save_artifacts(ctx, files, artifacts_path, groups):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import is_in_git_repo, qatools_config_paths
@@ -535,43 +552,49 @@ def save_artifacts(ctx, files):
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 
+  artifacts = {}
+
   if files:
-    globs = files
+    artifacts = {f"__{f}": {"glob": str(Path(artifacts_path) / f)} for f in files}
   else:
-    # default artifacts
     if 'artifacts' not in config:
-      config['artifacts'] = {}  
+      config['artifacts'] = {}
+    # Default artifacts
     config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
     config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
-    # we also allow sub-qatools-projects
+    # Handle sub-projects
     config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
     config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
     config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
     config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
-    if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(config['artifacts'])
-    if not is_in_git_repo:
-        click.secho(
-            "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
-            fg='yellow', dim=True)
-        exit(1)
+    if groups:
+      artifacts = {g: config['artifacts'][g] for g in groups if g in config['artifacts'].keys()}
+    else:
+      artifacts = config['artifacts']
+  if 'QA_VERBOSE_VERBOSE' in os.environ: print(artifacts)
+  if not is_in_git_repo:
+      click.secho(
+          "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
+          fg='yellow', dim=True)
+      exit(1)
 
-    for artifact_name, artifact_config in config['artifacts'].items():
-      click.secho(f'Saving artifacts: {artifact_name}', bold=True)
-      manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
-      manifest_path.parent.mkdir(parents=True, exist_ok=True)
-      if manifest_path.exists():
-        with manifest_path.open() as f:
-          try:
-            manifest = json.load(f)
-          except: 
-            manifest = {}
-      else:
-        manifest = {} 
+  for artifact_name, artifact_config in artifacts.items():
+    click.secho(f'Saving artifacts: {artifact_name}', bold=True)
+    manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    if manifest_path.exists():
+      with manifest_path.open() as f:
+        try:
+          manifest = json.load(f)
+        except: 
+          manifest = {}
+    else:
+      manifest = {} 
 
-      nb_files = 0
-      globs = artifact_config.get('glob')
-      if not isinstance(globs, list):
-        globs = [globs]
+    nb_files = 0
+    globs = artifact_config.get('glob')
+    if not isinstance(globs, list):
+      globs = [globs]
 
     for g in globs:
       if not g: continue
@@ -580,14 +603,14 @@ def save_artifacts(ctx, files):
         if not path.is_file():
           continue
         destination = commit_rootproject_ci_dir / path
-        if 'QATOOLS_EXTRA_VERBOSE' in os.environ: print(destination)
+        if 'QA_VERBOSE_VERBOSE' in os.environ: print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           # when working on subprojects, the artifact might be copied already,
           # but manifests are saved per-subproject
           if path.as_posix() not in manifest:
             manifest[path.as_posix()] = file_info(path, config=config)
           continue
-        if 'QATOOLS_VERBOSE' in os.environ or ctx.obj['dryrun']:
+        if 'QA_VERBOSE' in os.environ or ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
         if not ctx.obj['dryrun']:
           copy(path, destination)
@@ -766,7 +789,6 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
           # but in the exploration see the results per iteration....
           "output_type": 'optim_iteration', # or... single ? don't show them in the UI
           "is_pending": False,
-          "is_pending": False,
           "is_failed": False,
           "metrics": {
             "iteration": iteration+1,
@@ -827,7 +849,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
 
 
 def main():
-  cli(obj={}, auto_envvar_prefix='QATOOLS')
+  cli(obj={}, auto_envvar_prefix='QA')
 
 if __name__ == '__main__':
   main()

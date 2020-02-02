@@ -103,7 +103,8 @@ class Job:
     else:
       dependencies_flag = ""
 
-    queue = self.lsf_config.queue if not interactive else self.lsf_config.fast_queue
+    fast_queue = self.lsf_config.fast_queue if self.lsf_config.fast_queue else self.lsf_config.queue  
+    queue = self.lsf_config.queue if not interactive else fast_queue 
     q_command = " ".join(
       [
         # When running without a TTY (usually under su/sudo)
@@ -135,7 +136,7 @@ class Job:
         "\nEOF",
       ]
     )
-    if 'QATOOLS_BATCH_VERBOSE' in os.environ:
+    if 'QA_BATCH_VERBOSE' in os.environ:
       click.secho(q_command, dim=True)
     os.environ['LSB_INTERACT_MSG_ENH'] = 'N'
 
@@ -151,8 +152,9 @@ class Job:
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
     )
-    if 'QATOOLS_BATCH_VERBOSE' in os.environ:
+    if 'QA_BATCH_VERBOSE' in os.environ:
       click.secho(out.stdout, dim=True)
+    out.check_returncode()
     return out
 
 
@@ -182,8 +184,9 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
 
 def run_jobs_local(jobs, config, ctx):
   from joblib import Parallel, delayed
-  n_jobs = config.get('runners', {}).get('local', {}).get('concurrency', -1)
-  verbose = int(os.environ.get('QATOOLS_BATCH_VERBOSE', 0))
+  default_n_jobs = config.get('runners', {}).get('local', {}).get('concurrency', -1)
+  n_jobs = int(os.environ.get('QA_BATCH_CONCURRENCY', default_n_jobs))
+  verbose = int(os.environ.get('QA_BATCH_VERBOSE', 0))
   # multiprocessing will try to reimport qatools, which relies on the CWD
   cwd = os.getcwd()
   if 'previous_cwd' in ctx.obj:
@@ -195,8 +198,10 @@ def run_jobs_local(jobs, config, ctx):
 def run_jobs(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, waiting_job_name=None, delay_before_status_check=0, config=None, ctx=None):
   if runner == 'lsf':
     run_jobs_lsf(jobs, runner, no_wait, lsf_jobs_prefix, lsf_config, waiting_job_name)
-    if delay_before_status_check:
-      time.sleep(delay_before_status_check)
+    # Our shared storage takes a while to sync when using LSF. It should be solved, and this sleep removed
+    if not all([j.id for j in jobs]): # if we can read the status from the database, no sync issue
+      print('sleeping')
+      time.sleep(1) # seconds
 
   if runner == 'local':
     if no_wait:
@@ -232,6 +237,7 @@ def get_running_lsf_jobs():
   Return the names of the running LSF jobs for the current user (as a set)
   From Windows we return an empty set, but if you really want to, you should be able to find a way to connect to LSF.
   """
+  # FIXME: we should review 100% how we fetch pending jobs, at least use the runners config in qatools.yaml..
   if os.name=='nt':
       return set()
 

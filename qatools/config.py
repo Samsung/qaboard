@@ -31,8 +31,10 @@ renamings = (
   ('--save-manifests', '--save-manifests-in-database'),
   ('--return-prefix-outputs-path', '--list-output-dirs'),
   ('--ci', '--share'),
+  ('--dry-run', '--dryrun'),
   ('--group', '--batch'),
   ('--groups-file', '--batches-file'),
+  ('--no-qa-database', '--offline'),
 )
 def renamed_deprecated(arg):
   for before, after in renamings:
@@ -186,10 +188,6 @@ except KeyError:
 ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
 
 
-repo_root = Path(os.environ.get('QATOOLS_REPO', str(root_qatools)))
-is_in_git_repo = (repo_root / '.git').is_dir()
-
-
 # This flag identifies runs that happen within the CI or tuning experiments
 ci_env_variables = (
     # Set by most CI tools (GitlabCI, CircleCI, TravisCI...) except Jenkins,
@@ -233,8 +231,14 @@ else:
     commit_id = None
 
 
+# using gitpython is very slow, so we read the git data directly
+repo_root = Path(os.environ.get('QA_REPO', str(root_qatools)))
+is_in_git_repo = False
+for d in (repo_root, *list(repo_root.parents)):
+  if (d / '.git').is_dir():
+    is_in_git_repo = True
+    repo_root = d
 if not commit_id or not commit_branch:
-    # using gitpython is very slow, so we read the git data directly
     if is_in_git_repo:
       commit_branch, commit_id = git_head(repo_root)
     else:
@@ -273,7 +277,6 @@ commit = _Commit(repo, commit_id)
 # print(commit.committer.email)
 # print(commit.authored_datetime)
 
-from .conventions import serialize_config
 default_platform = platform
 default_batch_label = 'default'
 
@@ -292,6 +295,7 @@ default_input_type = config_inputs_types.get('default', 'default')
 
 
 def get_default_configuration(input_settings):
+  from .conventions import serialize_config
   default_configuration = input_settings.get('configurations', input_settings.get('configuration', []))
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
@@ -304,7 +308,7 @@ def get_default_database(input_settings):
   if not database:
     database = "."
     if not no_config_warning:
-      click.secho(f'WARNING: Could not find the database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
+      click.secho(f'WARNING: Could not find the default database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
       click.secho(f'Consider adding to qatools.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
       no_config_warning = True
   return Path(database)
@@ -335,3 +339,15 @@ if metrics_file:
           no_config_warning = True
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
+
+
+
+# We want to allow any user to use the Gitlab API, stay backward compatible
+# ...and remove the credentials from the repo
+default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets.yaml')
+secrets_path = Path(config.get('secrets', default_secrets_path))
+if secrets_path.exists():
+  with secrets_path.open() as f:
+    secrets = yaml.load(f, Loader=yaml.SafeLoader)
+else:
+  secrets = {}

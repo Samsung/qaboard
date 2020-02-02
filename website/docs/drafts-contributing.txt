@@ -1,0 +1,19 @@
+
+## Creating custom visualizations
+> You'll have to write some `javascript` that downloads results and displays them. It's not that hard 👍👽
+
+- **[Arthur Flam](mailto:arthur.flam@samsung.com) can advise you along the way**.
+- You can setup a nice interactive dev environment in 15 minutes and start coding / adapting existing visualization:
+
+```bash
+# download and install nodejs
+# https://nodejs.org/en/download/
+npm install
+npm start
+#=> dev server listening on http://localhost:3000 
+```
+
+- We use the simple [`reactjs`](https://reactjs.org) framework.
+- Existing visualizations are varied so you never start from a blank page
+  * existing viewers are [implemented here](http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp-webapp/src/viewers)
+  * the mapping from visualization-type <-> viewer are [defined here](http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp-webapp/src/viewers/OutputCard.js)
