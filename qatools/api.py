@@ -14,8 +14,8 @@ from .config import secrets
 
 qaboard_protocol = os.getenv('QABOARD_PROTOCOL', secrets.get('QABOARD_PROTOCOL', 'https'))
 qaboard_hostname = os.getenv('QABOARD_HOSTNAME', secrets.get('QABOARD_HOSTNAME'))
-qaboard_port = os.getenv('QABOARD_PORT', secrets.get('QABOARD_PORT'))
-qaboard_host = os.getenv('QABOARD_HOST', secrets.get('QABOARD_HOST'))
+qaboard_port = os.getenv('QABOARD_PORT', secrets.get('QABOARD_PORT', '5000'))
+qaboard_host = os.getenv('QABOARD_HOST', secrets.get('QABOARD_HOST', 'qa'))
 if qaboard_hostname and qaboard_port:
   qaboard_url = f"{qaboard_protocol}://{qaboard_hostname}:{qaboard_port}"
 elif qaboard_host:
