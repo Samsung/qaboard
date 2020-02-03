@@ -344,7 +344,7 @@ if metrics_file:
 
 # We want to allow any user to use the Gitlab API, stay backward compatible
 # ...and remove the credentials from the repo
-default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets.yaml')
+default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml')
 secrets_path = Path(config.get('secrets', default_secrets_path))
 if secrets_path.exists():
   with secrets_path.open() as f:
