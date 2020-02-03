@@ -555,7 +555,7 @@ def save_artifacts(ctx, files, artifacts_path, groups):
   artifacts = {}
 
   if files:
-    artifacts = {f"__{f}": {"glob": str(Path(artifacts_path) / f)} for f in files}
+    artifacts = {f"__{f}": {"glob": f} for f in files}
   else:
     if 'artifacts' not in config:
       config['artifacts'] = {}
@@ -602,7 +602,7 @@ def save_artifacts(ctx, files, artifacts_path, groups):
         path = cased_path(path)
         if not path.is_file():
           continue
-        destination = commit_rootproject_ci_dir / path
+        destination = (commit_rootproject_ci_dir / artifacts_path / path) if artifacts_path else (commit_rootproject_ci_dir / path)
         if 'QA_VERBOSE_VERBOSE' in os.environ: print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           # when working on subprojects, the artifact might be copied already,

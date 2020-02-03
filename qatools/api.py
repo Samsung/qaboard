@@ -28,6 +28,14 @@ else:
 
 api_prefix = "{qaboard_url}/api/v1"
 
+# TODO: remove this block
+# For now we use http, until we deal with cert trust issues
+api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
+api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
+api_port = os.getenv('QATOOLS_DB_PORT', '5000')
+api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
+##############################################################
+
 
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline']:

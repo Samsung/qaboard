@@ -34,7 +34,7 @@ setup(
 
   url="https://github.com/Samsung/qaboard",
   description="Visualize and compare algorithm results. Optimize parameters. Share results and track progress.",
-  long_description=README,
+  long_description=" ",#README,
   long_description_content_type="text/markdown",
 
   author="Arthur Flam",
