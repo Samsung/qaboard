@@ -25,7 +25,7 @@ from setuptools import setup, find_packages
 
 # The directory containing this file
 HERE = Path(__file__).parent
-README = (HERE / "README.md").read_text()
+README = (HERE / "README.md").read_text(encoding='utf-8')
 
 setup(
   name='qaboard',
