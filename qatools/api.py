@@ -34,14 +34,16 @@ api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
 api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
 api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
-##############################################################
+
 
 
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline']:
     from requests.utils import quote
     batch_label = ctx.obj["batch_label"]
-    commit_url = f"https://{api_prefix}/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+    # FIXME: use the same port at SIRC for the API/web, and don't hardcode...
+    qaboard_url = "https://qa"
+    commit_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
       if status == "starting":
         click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
