@@ -157,7 +157,11 @@ class Job:
     )
     if 'QA_BATCH_VERBOSE' in os.environ:
       click.secho(out.stdout, dim=True)
-    out.check_returncode()
+    try:
+      out.check_returncode()
+    except:
+      click.secho(out.stdout, dim=True)
+      raise Exception("Failed to send jobs to LSF")
     return out
 
 
