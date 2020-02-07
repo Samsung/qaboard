@@ -1,10 +1,10 @@
 const templates = {
-  "default": "",
+  "no tuning": "",
   "none": "{}",
   "simple-combinations": JSON.stringify(
     {
-      events_per_frame: [5e3, 10e3, 15e3, 20e3],
-      smart_frame_on: [0, 1]
+      "block.register_en": [0, 1],
+      "some_parameter_str": ["a", "b"],
     },
     null,
     2
@@ -20,6 +20,13 @@ const templates = {
         max_events_per_frame: 20e3
       }
     ],
+    null,
+    2
+  ),
+  "1x2 matrix": JSON.stringify(
+    {
+      "block.register_1x2_matrix": [[0, 0], [1, 1]],
+    },
     null,
     2
   ),

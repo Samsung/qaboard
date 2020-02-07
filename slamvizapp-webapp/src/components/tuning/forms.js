@@ -117,10 +117,10 @@ class TuningForm extends Component {
   constructor(props) {
     super(props);
     let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {}
-    let default_user = this.props.user || ((qatools_config.runners || qatools_config).lsf || {}).user || 'arthurf';
+    let default_user = this.props.user || ((qatools_config.runners || qatools_config).lsf || {}).user;
 
     let search_type = this.props.search_type || "grid"
-    let parameter_search = this.props.parameter_search ? this.props.parameter_search : templates["default"];
+    let parameter_search = this.props.parameter_search ? this.props.parameter_search : templates["no tuning"];
     let search_options = {
       n_iter: 50,
     }
@@ -153,6 +153,16 @@ class TuningForm extends Component {
   componentDidMount() {
     const { selected_group } = this.state;
     if (selected_group) this.getGroupInfo(selected_group);
+
+    // TODO: remove at some point, or expose via tuning.runners.lsf.forbidden_users...
+    if (this.props.user === 'ispq') {
+      this.update('user')('')
+      toaster.show({
+        message: <span>Sorry, using the <strong>ispq</strong> user for tuning is not allowed anymore!</span>,
+        intent: Intent.WARNING,
+        timeout: 10000,
+      });
+    }
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -313,9 +323,9 @@ class TuningForm extends Component {
 
     // console.log(this.state.parameter_search)
     const panel_manual = <>
-      <Callout title="Syntax examples" icon="info-sign" style={{marginBottom: '15px'}}>
+      <Callout title="Examples for parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
         <p>
-        {["default", "simple-combinations", "list-of-combinations", "function"].map(x => (
+        {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
           <Button
             style={{margin: '4px'}}
             key={x}
@@ -330,10 +340,12 @@ class TuningForm extends Component {
         inline
         labelFor="select-search-type"
         helperText={
+          !this.state.parameter_search ? '' : (
           search_type === "optimize" ? '' :
             search_type === "grid"
             ? `Explores ${combinations} combination${combinations > 1 ? "s" : ""}`
             : `Uniform sampling of ${combinations} combinations`
+          )
         }
       >
         <HTMLSelect
@@ -342,7 +354,7 @@ class TuningForm extends Component {
           onChange={this.update('search_type')}
           minimal
         >
-          <option key="grid" value="grid">Grid search</option>
+          <option key="grid" value="grid">All combinations</option>
           <option key="sampler" value="sampler">Sampling</option>
         </HTMLSelect>
         {(search_type === "sampler") && (
@@ -361,7 +373,7 @@ class TuningForm extends Component {
       <MonacoEditor
         readonly
         height={200}
-        language={language || 'javascript'}
+        language={language || 'json'}
         value={this.state.parameter_search || ''}
         options={editor_options}
         name="editor-tuning-set"
@@ -391,17 +403,16 @@ class TuningForm extends Component {
 
     return <>
       <FormGroup
-        helperText={<span>Re-using a name adds more results. The <code className={Classes.CODE}>default</code> batch corresponds to the CI results</span>}
-        label="Experiment name:"
+        helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
+        label={`Experiment name:`}
         labelFor="batch-label"
-        intent={Intent.PRIMARY}
+        intent={!experiment_name ? Intent.DANGER : Intent.PRIMARY}
      >
         <input
           id="batch-label"
           className={Classes.INPUT}
-          intent={Intent.PRIMARY}
           style={{ width: "300px" }}
-          placeholder="search-radius-sensibility"
+          placeholder="my-tuning-experiment"
           value={experiment_name}
           onChange={this.updateExperimentName}
           type="text"
@@ -410,8 +421,8 @@ class TuningForm extends Component {
       </FormGroup>
 
       <FormGroup
-        label="Tests and configurations:"
-        intent={Intent.PRIMARY}
+        label="Batch of inputs+configurations:"
+        intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
         helperText={<>
           {tests.length > 0 ? <Popover inheritDarkTheme portalClassName={Classes.DARK} position="right" hoverCloseDelay={300} interactionKind={"hover"}>
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
@@ -490,10 +501,16 @@ class TuningForm extends Component {
         <Tab id="search-optimize" title={<>Automated tuning <Tag>Experimental</Tag></>} panel={panel_auto} />
       </Tabs>
 
+      <FormGroup
+        helperText={!user ? "Please provide a user in the input below"
+                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : undefined)}
+        intent={(!user || this.state.experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
+      >
       <Button
         onClick={this.onSubmit}
         disabled={
           this.state.submitted ||
+          !user ||
           this.state.experiment_name.length === 0 ||
           !total_runs
         }
@@ -502,6 +519,7 @@ class TuningForm extends Component {
       >
         Send
       </Button>
+      </FormGroup>
 
       <FormGroup
           label="Overwrite previous identical runs"
@@ -517,8 +535,9 @@ class TuningForm extends Component {
 
       <FormGroup
         label="Run as"
-        helperText="Get faster results by running as your own user."
+        helperText="(required)"
         labelFor="input-user"
+        intent={!user ? Intent.DANGER : undefined}
         inline
       >
         <input
@@ -526,7 +545,7 @@ class TuningForm extends Component {
           className={Classes.INPUT}
           style={{ width: "300px" }}
           value={user}
-          placeholder={(qatools_config.lsf || {}).user || 'ispq'}
+          placeholder='user'
           onChange={this.update('user')}
           type="text"
           dir="auto"
