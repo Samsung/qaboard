@@ -127,7 +127,7 @@ class Job:
         f"-R \"rusage[mem={self.lsf_config.max_memory}]\"" if self.lsf_config.max_memory > 0 else "",
         f"-R \"{self.lsf_config.resources}\"" if self.lsf_config.resources else '',
         dependencies_flag,
-        '<< EOF\n'
+        '<< "EOF"\n'
         # the click python package hates ascii locales, for good reasons
         "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
         # forces a non-interactive matplotlib backend
