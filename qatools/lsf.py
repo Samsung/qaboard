@@ -42,7 +42,7 @@ class LsfConfig:
 class Job:
   """Wraps LSF jobs for convenience."""
 
-  def __init__(self, name, command="", output_directory=Path().resolve(), lsf_config_dict=None):
+  def __init__(self, name, command="", output_directory=Path().resolve(), lsf_config_dict=None, lsf_config=None):
     self.name = str(name).replace(" ", "-").replace('"','')
     self.command = command
     self.output_directory = output_directory
@@ -51,9 +51,12 @@ class Job:
     self.lsf_log_file = (output_directory / "log.lsf.txt").resolve()
     self.log_file = (output_directory / "log.txt").resolve()
 
-    self.lsf_config = LsfConfig()
-    if lsf_config_dict:
-      self.lsf_config = replace(self.lsf_config, **lsf_config_dict)
+    if not lsf_config:
+      self.lsf_config = LsfConfig()
+      if lsf_config_dict:
+        self.lsf_config = replace(self.lsf_config, **lsf_config_dict)
+    else:
+      self.lsf_config = lsf_config
 
     # Id of the corresponding Output in the qatools database
     self.id = None
@@ -103,7 +106,7 @@ class Job:
     else:
       dependencies_flag = ""
 
-    fast_queue = self.lsf_config.fast_queue if self.lsf_config.fast_queue else self.lsf_config.queue  
+    fast_queue = self.lsf_config.fast_queue if self.lsf_config.fast_queue else self.lsf_config.queue
     queue = self.lsf_config.queue if not interactive else fast_queue 
     q_command = " ".join(
       [
@@ -172,7 +175,7 @@ def run_jobs_lsf(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=No
       # the kill is async, so we can't easily rename the jobs logs...
       # we should also create a rename_log_files jobs and send it
       # All of this sucks. Let's make sure the frontend can display both files
-      kill_jobs_lsf(waiting_job, via_lsf=True)
+      kill_jobs_lsf(waiting_job, lsf_config, via_lsf=True)
       exit(1)
     signal.signal(signal.SIGTERM, sigterm_handler)
     signal.signal(signal.SIGINT, sigterm_handler)
@@ -213,10 +216,10 @@ def run_jobs(jobs, runner, no_wait=True, lsf_jobs_prefix=None, lsf_config=None, 
   return is_failed
 
 
-def kill_jobs_lsf(jobs, via_lsf=False):
+def kill_jobs_lsf(jobs, lsf_config, via_lsf=False):
     command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
     if True:
-        killer = Job(f"killer", f'"{command}"', lsf_config_dict={'priority': LsfPriority.HIGH})
+        killer = Job(f"killer", f'"{command}"', lsf_config_dict={**lsf_config, "priority": LsfPriority.HIGH})
         killer.run_lsf()
     else:
         out = subprocess.run(
