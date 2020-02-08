@@ -25,7 +25,9 @@ export const iiif_url = (output_dir_url, path) => {
 export const is_image = visualization => {
   const { type='', path } = visualization;
   if (type.startsWith('image'))
-    return true
+    return true;
+  if (path === undefined)
+    return false;
   return path.endsWith('png') ||
          path.endsWith('jpg') ||
          path.endsWith('jpeg')||
