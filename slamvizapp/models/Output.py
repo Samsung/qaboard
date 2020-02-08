@@ -223,9 +223,9 @@ class Output(Base):
       self.deleted = True
 
 
-  def update_manifest(self):
+  def update_manifest(self, compute_hashes=True):
     qatools_config = self.batch.ci_commit.project.data.get('qatools_config', {})
-    return save_outputs_manifest(self.output_dir, config=qatools_config)
+    return save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
 
   def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""
