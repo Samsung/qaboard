@@ -87,11 +87,11 @@ def get_commits(branch=None):
     if only_ci_batches:
       with_batches = ['default', 'ci-android-rt', 'manual-android-rt']
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
-  from ..utils import profiled
-  with profiled():
-    serializable_commits = [c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs)
-                            for c in ci_commits]
-    response = make_response(ujson.dumps(serializable_commits))
+  # from ..utils import profiled
+  # with profiled():
+  serializable_commits = [c.to_dict(with_aggregation=metrics_to_aggregate, with_batches=with_batches, with_outputs=with_outputs)
+                          for c in ci_commits]
+  response = make_response(ujson.dumps(serializable_commits))
   response.headers['Content-Type'] = 'application/json'
   return response
 
@@ -168,8 +168,8 @@ def crud_output(output_id):
 @app.route("/api/v1/output/<output_id>/manifest/", methods=['GET'])
 def get_output_manifest(output_id):
   output = Output.query.filter(Output.id==output_id).one()
-  if output.is_running:
-    manifest = output.update_manifest()
+  if output.is_running or request.args.get('refresh'):
+    manifest = output.update_manifest(compute_hashes=False)
     return jsonify(manifest)
   else:
     return redirect(f"{output.output_dir_url}/manifest.outputs.json", code=302)

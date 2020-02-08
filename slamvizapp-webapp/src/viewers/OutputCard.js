@@ -149,7 +149,7 @@ class OutputCard extends React.Component {
   }
 
 
-  fetchData(label) {
+  fetchData(label, update_manifest) {
     const { output_new, output_ref } = this.props;
     // console.log(output_new, output_ref)
 
@@ -159,7 +159,7 @@ class OutputCard extends React.Component {
     let results = [];
     const should_get_all = (label === undefined || label === null);
     if (should_get_all || label === 'new') {
-      let url = !output_new.is_running ? `${output_new.output_dir_url}/manifest.outputs.json` : `/api/v1/output/${output_new.id}/manifest/`
+      let url = (!output_new.is_running && !update_manifest) ? `${output_new.output_dir_url}/manifest.outputs.json` : `/api/v1/output/${output_new.id}/manifest/${update_manifest ? '?refresh=true': ''}`
       results.push(['new', url])
       if (output_new.is_running) {
         setTimeout(() => this.fetchData('new') , 30*1000)
@@ -167,14 +167,29 @@ class OutputCard extends React.Component {
     }
     if (should_get_all || label === 'reference') {
       if (!!output_ref && !!output_ref.output_dir_url) {
-        let url = !output_new.is_running ? `${output_ref.output_dir_url}/manifest.outputs.json` : `/api/v1/output/${output_ref.id}/manifest/`
+        let url = (!output_ref.is_running && !update_manifest) ? `${output_ref.output_dir_url}/manifest.outputs.json` : `/api/v1/output/${output_ref.id}/manifest/`
         results.push(['reference', url])
-        if (output_new.is_running) {
+        if (output_ref.is_running) {
           setTimeout(() => this.fetchData('reference') , 30*1000)
         }
       }
     }
     const load_data = label => (response, thrown) => {
+      // The manifest is sometimes corrupted due to filesystem issues (?!?)
+      // maybe it happens if we update the manifest during a running output while it ends...
+      // https://github.com/axios/axios/issues/61
+      // Then the best option is maybe to regenerate the manifest..
+      if (typeof response.data === 'string') {
+        this.fetchData(label, update_manifest=true)
+        this.setState((previous_state, props) => ({
+          error: {
+            ...previous_state.error,
+            [label]: 'Corrupt output manifest.',
+          }
+        }))  
+        return;
+      }
+      // http://qa:3000/CDE-Users/HW_ALG/CIS/tests/products/RV1/commit/d4f44717870dc9593704aefcb353d6de77369f9d?batch=%40eliavm%7C%20default&selected_views=bit_accuracy
       this.setState((previous_state, props) => ({
         manifests: {
           ...previous_state.manifests,
@@ -304,7 +319,8 @@ class OutputCard extends React.Component {
           option.values.add(match.params[name_])          
         })
       })
-      option.values = Array.from(option.values.values())
+      option.values = Array.from(option.values.values()).sort( (a, b) => a.localeCompare(b) )
+  
       const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(Number(v)))
       const all_numbers = option.values.length > 0 && option.values.every(v => !isNaN(parseFloat(v)))
       // console.log(all_numbers)
@@ -373,7 +389,7 @@ class OutputCard extends React.Component {
         const options = new_options.map( (option, idx) => {
           let option_idx = `option-${idx}`;
           const option_label = isNaN(option.name) ? option.name : option.pattern
-          if (option.views.every(name => views.find(v => v.name === name).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
+          if (option.views.every(name => (views.find(v => v.name === name) || {}).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
             return <span key={option_idx} />
           if (option.type === 'slider') {
             // let labelStepSize = (option.max - option.min) / 10
