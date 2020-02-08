@@ -192,10 +192,10 @@ class BatchLogs extends React.PureComponent {
       configuration: '',
     }
 
-    let commands = (batch.data || {}).commands || {};
+    let commands = Object.values((batch.data || {}).commands || {});
+    const some_tuning_commands = commands.some(c => !c.job_url)
 
     const title = pretty_label(batch)
-
     return <>
       {Object.values(batch.outputs)
             .filter( output => output.output_type !== "optim_iteration")
@@ -208,17 +208,18 @@ class BatchLogs extends React.PureComponent {
               dispatch={this.props.dispatch}
             />)}
       <h2 style={{marginTop: '25px'}} className={Classes.HEADING}>Batch logs: {title}</h2>
-      <OutputLog
+      {some_tuning_commands && <OutputLog
         key={batch.output_dir_url}
         project={this.props.project}
         project_data={this.props.project_data}
         commit={this.props.commit}
         output={batch_mock_output}
         dispatch={this.props.dispatch}
-      />
-      <div>{Object.entries(commands).map( ([id, command]) => {
+      />}
+      <div>{commands.map( (command, id) => {
         return <Callout style={{marginBottom: '5px'}} key={id} title={
           <>
+            {!!command.job_url && <a style={{marginRight: '12px'}} href={command.job_url} target="_blank" rel="noopener noreferrer"><Button icon="share">Open Logs</Button></a>}
           	<Tooltip>
               <Moment fromNow utc>{command.command_created_at_datetime}</Moment>
               <Moment utc>{command.command_created_at_datetime}</Moment>
