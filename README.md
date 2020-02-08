@@ -1,27 +1,13 @@
 # QA-Board
-Web application integrated with the [`qatools`](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial) CLI wrapper. The main features are:
-- **Organize, View, Compare, Tuning/Optimization**
-- **Web-based:** sharable URLs, no need to install
-- **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, embedded HTML...
-- **Integrations:** direct access from Git/CI, easily exportable results, API, links to the code…
+[General README at](http://gitlab-srv/common-infrastructure/qatools)
 
-> **WIP:** Admin guides are being written, before we release to [github.com/samsung/qaboard](https://github.com/samsung/qaboard)!
->
-> **WIP:** We'll use a configuration format like `docker-compose`'s to split the container into database/backend/..., define env/ports/mounts cleanly, and make dev/ops simpler.
-
-## Repository organization
-- [slamvizapp-webapp](slamvizapp-webapp/) is the frontend, a web application.
-- [slamvizapp](slamvizapp/) is the applications' backend:
-  * It manages a database where results are stored...
-  * and exposes it via a simple HTTP API.
-- [cantaloupe](cantaloupe/) setups a [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIF server, used to stream large images to the users.
 
 ## How to build
 First get the code
 ```bash
 cd
 mkdir -p dvs/slamvizapp
-git clone git@gitlab-srv/dvs/slamvizapp.git
+git clone git@gitlab-srv:dvs/slamvizapp.git
 cd slamvizapp
 ```
 
