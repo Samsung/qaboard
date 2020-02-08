@@ -55,17 +55,11 @@ def print_url(ctx, status="starting"):
 class NumpyEncoder(simplejson.JSONEncoder):
     """Special simplejson encoder for numpy types"""
     def default(self, obj):
-        import numpy as np
-        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
-            np.int16, np.int32, np.int64, np.uint8,
-            np.uint16, np.uint32, np.uint64)):
-            return int(obj)
-        elif isinstance(obj, (np.float_, np.float16, np.float32,
-            np.float64)):
-            return float(obj)
-        elif isinstance(obj,(np.ndarray,)):
-            return obj.tolist()
-        return simplejson.JSONEncoder.default(self, obj)
+        # we take care not to import numpy unless it's already loaded
+        if 'numpy' in str(type(obj)) and hasattr(obj, 'tolist'):
+          return obj.tolist()
+        else:
+          return simplejson.JSONEncoder.default(self, obj)
 
 
 def serialize_path(path):
