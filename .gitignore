@@ -2,7 +2,7 @@ data/
 .gdb_history
 .vscode/
 */build/
-deploy_build/
+deployed_build/
 
 *.cer
 *.csr
