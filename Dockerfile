@@ -149,8 +149,6 @@ RUN echo 'deb http://nginx.org/packages/ubuntu/ bionic nginx'     >  /etc/apt/so
     # nginx-extra instead of just -full or smaller for WebDav and DAV Ext
     apt-get update -qq && apt-get install -y --no-install-recommends nginx-extras && \
     rm /etc/nginx/sites-enabled/default
-COPY deployment/nginx/mime.types deployment/nginx/nginx.conf /etc/nginx/
-COPY deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
 EXPOSE 5000 80 443
 
 
@@ -221,7 +219,7 @@ RUN --mount=type=ssh \
     # Needed for the auto-ROI feature, but for an open-source release we can remove it
     pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/cde/cde-python' && \
     # when we *just* update qatools/cde-python, it's a nice way to identify changes and force a rebuild...
-    echo cache-busting-000
+    echo cache-busting-001
 # Where we keep a cache of application data (e.g. git clones)
 VOLUME /var/slamvizapp
 
@@ -232,5 +230,10 @@ VOLUME /var/slamvizapp
 RUN useradd -u 11611 -g 10 arthurf --shell /bin/bash --no-create-home; \
     echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 USER arthurf
+
+
+# reverse proxy settings
+COPY deployment/nginx/mime.types deployment/nginx/nginx.conf /etc/nginx/
+COPY deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
 
 CMD ["/slamvizapp/deployment/init.sh"]
