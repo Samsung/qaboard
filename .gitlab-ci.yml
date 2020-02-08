@@ -1,6 +1,7 @@
 stages:
   - test
-  - deploy
+  - deploy  # Internally
+  - publish # to Pypi
 
 before_script:
   - export PATH=/home/ispq/miniconda3/bin:$PATH
@@ -31,7 +32,8 @@ cli:tests:
     # other CLI tests
     # - python -mqatools save-artifacts # Gitlab: 404: Project not found
     - python -mqatools get commit_id
-    
+
+
 deploy:
   stage: deploy
   only:
@@ -39,3 +41,11 @@ deploy:
   script:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - pip install $PROXY_STUFF .
+
+
+publish:
+  stage: publish
+  when: manual
+  script:
+  - ssh arthurf@planet31 'cd qaboard; twine upload --verbose -u __token__ dist/*'
+
