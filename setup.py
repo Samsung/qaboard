@@ -12,9 +12,10 @@ python setup.py sdist bdist_wheel
 twine check dist/*
 twine upload dist/*
 
-# yep..
-#   REQUESTS_CA_BUNDLE=/home/arthurf/dvs/slamvizapp/deployment/sirc-ca.crt
-#   verify=False => lib/python37/site-packages/twine/repository.py:175
+# From SIRC, we need some care to connect to PyPi:
+#   (no checked)  REQUESTS_CA_BUNDLE=/home/arthurf/dvs/slamvizapp/deployment/sirc-ca.crt
+#   (works, ugly) patch: `+  verify=False` in lib/python37/site-packages/twine/repository.py:175
+#   (helps)       ssh $nice_host
 twine upload --verbose -u __token__ dist/*
 """
 # https://github.com/ninjaaron/fast-entry_points
