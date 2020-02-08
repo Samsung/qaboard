@@ -11,16 +11,21 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts }) => {
     return <span/>
 
   const batches_to_options = batches =>
-    Object.entries(batches).map(([label, batch]) => {
+    Object.entries(batches)
+    .sort( ([label1, _1], [label2, _2]) => {
+      if (label1 === 'default')
+        return -1;
+      if (label2 === 'default')
+        return 1;
+      return label1.localeCompare(label2);
+    })
+    .map(([label, batch]) => {
       let outputs = Object.values(batch.outputs || {});
       const title = pretty_label(batch)
       let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
       let status = `${nb_success}/${outputs.length} ✅`;
       let nb_failed = outputs.filter(o => o.is_failed).length;
       let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
-
-
-      // {title}{(hide_counts===undefined || !hide_counts) && <span>&nbsp;•&nbsp; {status} &nbsp;{failures}</span>}
       return  <option key={label} value={label}>
          {title} &nbsp;•&nbsp; {status} &nbsp;{failures}
        </option>
