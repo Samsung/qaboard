@@ -8,7 +8,6 @@ DOCKER_IMAGE=$DOCKER_IMAGE:$DOCKER_TAG
 
 ## uncomment when deploying debug server:
 # DOCKER_IMAGE="qaboard-${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}" 
-
 echo "===== $DOCKER_IMAGE ====="
 
 DOCKER_ENV=""
@@ -74,7 +73,7 @@ else
   DOCKER_ENV+=" --env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
 fi
 if [ -z ${JENKINS_USER_NAME+x} ]; then
-  echo "[Error] \$JENKINS_USER_NAME is not defined: create one at http://http://qa-docs/docs/triggering-third-party-tools"; exit
+  echo "[WARNING] \$JENKINS_USER_NAME is not defined: create one at http://http://qa-docs/docs/triggering-third-party-tools";
 else
   DOCKER_ENV+=" --env JENKINS_USER_NAME=${JENKINS_USER_NAME}"
   DOCKER_ENV+=" --env JENKINS_USER_TOKEN=${JENKINS_USER_TOKEN}"
