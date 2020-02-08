@@ -84,8 +84,10 @@ class HtmlViewer extends PureComponent {
     if (!is_loaded) return <span/>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
+    // https://developer.mozilla.org/fr/docs/Web/HTML/Element/iframe
     const width = (!!style && style.width) || '400px';
     let has_reference = !!output_ref && !!output_ref.output_dir_url;
+    // <iframe width={width} srcDoc={data.new || ""} style={{borderWidth: '0px'}} Ssandbox="" /> 
     return <>
       {has_reference && <h3>New</h3>}
       <div style={{width}} dangerouslySetInnerHTML={{__html: data.new || ""}} /> 
