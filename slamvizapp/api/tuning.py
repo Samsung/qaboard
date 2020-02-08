@@ -294,8 +294,10 @@ def start_tuning(hexsha):
 
     qatools_config = ci_commit.project.data["qatools_config"]
     lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
-    default_user = lsf_config.get('user', 'arthurf')
+    default_user = lsf_config.get('user')
     user = data.get('user', default_user)
+    if not user:
+        return jsonify("You must provide a user as whom to run the tuning experiment."), 403
 
     queue = lsf_config.get("fast_queue", lsf_config['queue'])
     start_script = "".join(
