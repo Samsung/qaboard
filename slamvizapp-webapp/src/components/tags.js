@@ -136,7 +136,7 @@ class OutputTags extends React.Component {
 
 
   render() {
-    const { platform, configuration, output_dir_url } = this.props.output;
+    const { platform, configuration, output_dir_url, id } = this.props.output;
     const { warning } = this.props;
     return <span style={this.props.style}>
       <PlatformTag platform={platform} />
@@ -146,7 +146,7 @@ class OutputTags extends React.Component {
         <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
 
         <Menu>
-          <MenuItem
+          {id && <MenuItem
             icon="trash"
             text="Delete"
             intent={Intent.DANGER}
@@ -155,7 +155,7 @@ class OutputTags extends React.Component {
             onClick={() => {
               this.setState({waiting: true})
               toaster.show({message: "Delete requested."});
-              axios.delete(`/api/v1/output/${this.props.output.id}/`)
+              axios.delete(`/api/v1/output/${id}/`)
                 .then(response => {
                   this.setState({waiting: false})
                   toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
@@ -167,7 +167,7 @@ class OutputTags extends React.Component {
                   this.refresh()
                 });
             }}
-          />
+          />}
           {this.props.output_ref && <>
             <MenuDivider title="Reference Output" />
             <MenuItem icon="duplicate" text="Copy Windows path" onClick={()=>{
