@@ -188,7 +188,7 @@ class AppSider extends React.Component {
       <ul className={Classes.LARGE} style={{'listStyle': 'none', padding: '0px'}}>
       	<Navbar.Heading style={{paddingLeft: '15px', display: 'flex', 'justifyContent': 'space-around'}}>
       		<Link style={{ color: "#fff" }}  to="/">
-              <b>QA-board</b>
+              <b>QA-Board</b>
           </Link>
           <Tooltip><a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction.html`} rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Click to see the docs!</span></Tooltip>
       	</Navbar.Heading>
