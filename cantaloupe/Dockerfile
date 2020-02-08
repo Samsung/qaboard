@@ -95,7 +95,7 @@ RUN apk add sudo
 USER arthurf
 ENV GEM_HOME /tmp/gems
 
-CMD ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xmx16g -jar /usr/local/cantaloupe/cantaloupe-$VERSION.war"]
+CMD ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms4g -Xmx12g -jar /usr/local/cantaloupe/cantaloupe-$VERSION.war"]
 
 # http://planet31:8183/admin
 # http://planet31:8183/iiif/2/ci/arthurf/cis/test.png/info.json
