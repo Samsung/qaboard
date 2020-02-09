@@ -21,6 +21,7 @@ unit:tests:
 
 cli:tests:
   stage: test
+  retry: 2 # solves frequent filesystem sync issues
   script:
     - cd qatools/sample_project
     - python -mqatools --help
