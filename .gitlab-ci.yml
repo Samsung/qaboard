@@ -1,10 +1,18 @@
 stages:
   - test
   - deploy  # Internally
-  - publish # to Pypi
+  - publish # To Pypi
 
 before_script:
   - source .envrc
+  # Use ssh-agent to build container images that access private repositories
+  - eval $(ssh-agent -s)
+  - ssh-add <(echo "$SSH_DEPLOY_KEY")
+  - echo "${SSH_AGENT_PID}" > ssh-agent.pid
+
+after_script:
+  # don't leave ssh agents running
+  - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
 
 
 # Cache node modules in-between jobs
