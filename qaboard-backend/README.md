@@ -22,7 +22,7 @@ export CI_ENVIRONMENT_SLUG=staging
 docker build --ssh default --tag $DOCKER_IMAGE-$CI_ENVIRONMENT_SLUG .
 ```
 
-As explained in the [Dockerfile](Dockerfile), you also have to build the frontend separately. [Follow the instructions](slamvizapp-webapp/). 
+As explained in the [Dockerfile](Dockerfile), you also have to build the frontend separately. [Follow the instructions](../qaboard-webapp/). 
 
 ## How to run the backend
 You must set a few environment variable:
@@ -31,7 +31,7 @@ You must set a few environment variable:
 
 > **FIXME**: you also need to provide SSL keys in *deployment/ssl/...*.
 > As-is, the nginx server tries to look for SSL keys and will fail. If you don't have such keys remove
-> `ssl_certificate_key_*` settings from *deployment/nginx/sites-available/slamvizapp*.
+> `ssl_certificate_key_*` settings from *deployment/nginx/nginx.conf/qaboard.cong*.
 > 
 > **TODO**: It really should handled by a reverse proxy, not by us...
 
@@ -45,7 +45,7 @@ Then you're almost all set:
 # For interactive debugging,
 export CI_DEBUG=ON
 
-# This mounts $HOME/dvs/slamvizapp where the container looks for its code,
+# This mounts $HOME/qaboard where the container looks for its code,
 # and enables easier developmen
 export QABOARD_DEBUG_WITH_MOUNTS=TRUE
 
