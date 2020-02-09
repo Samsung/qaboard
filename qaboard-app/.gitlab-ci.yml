@@ -1,0 +1,55 @@
+image: gitlab-srv.transchip.com:4567/dvs/slamvizapp
+
+variables:
+  DOCKER_IMAGE: gitlab-srv.transchip.com:4567/dvs/slamvizapp
+
+stages:
+  - build
+  - test
+  - deploy
+
+# only tests that the syntax is OK
+test-backend:
+  stage: test
+  script:
+    - echo '......'
+#    - pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org .
+
+test-frontend:
+  stage: test
+  script:
+    - cd slamvizapp-webapp
+    - echo "skipped" # yarn install
+    - echo "skipped" # yarn build
+# we could run more tests with:
+#    - CI=true yarn test
+
+
+deploy_staging:
+  stage: deploy
+  script:
+    - ssh devdocker02-srv "cd $(pwd) && docker build -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push  $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+  environment:
+    name: staging
+    url: http://dvs:9000
+  only:
+    - master
+
+deploy_production:
+  stage: deploy
+  script:
+    - ssh devdocker02-srv "cd $(pwd) && docker build -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh planet31 docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh planet31 "docker stop slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "docker rm slamvizapp-$CI_ENVIRONMENT_SLUG || true"
+    - ssh planet31 "zsh --login -c \"CI_ENVIRONMENT_SLUG=\"$CI_ENVIRONMENT_SLUG\" ./dvs/slamvizapp/deployment/start-docker.sh\""
+  environment:
+    name: production
+    url: http://dvs:5000
+  only:
+    - master
+  when: manual

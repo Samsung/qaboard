@@ -1,0 +1,102 @@
+# we write dummy config file, just to import qatools.utils.
+# FIXME: cleaner import...
+###############################################################################
+###############################################################################
+
+project:
+  name: my_group/sample_project
+  type: git
+  url: git@gitlab-srv/my_group/sample_project
+  # the latest commit on this branch is the reference for bit-accuracy tests
+  # typical choices are master, develop, or release
+  reference_branch: master
+  # where the script implementing run and postprocess is located relative to the project's root
+  entrypoint: qatools/main.py
+
+
+# Depending on your project, you should use different job queues
+# in our LSF cluster. Those defaults are reasonnable.
+# In doubt, ask advice from your manager or the CAD team.
+# Find some quota information with `bqueues`
+lsf:
+  # errors will be sent to this email
+  email: arthur.flam@samsung.com
+  # This queue doesn't have a max number of pending jobs and has medium priority
+  queue: alg_q
+  # we will use a fast queue to launch jobs that create subsequent LSF jobs
+  # it helps get a fast feeback about which outputs are pending
+  fast_queue: alg_fast_q
+
+
+
+inputs:
+  # the default configuration.
+  # Usually you will use it in your `run` function to read from $configuration.json/yaml
+  configuration: base
+  # Your inputs are located at $database/$path
+  # In other words, your database is the longest common prefix of your inputs
+  # It's usually a different path on linux and windows
+  database:
+    linux: /net/f2/algo_archive/DVS_SLAM_Database
+    windows: F:/DVS_SLAM_Database
+
+  # where we define groups
+  # relative to the root of the project
+  groups: swip_slam/UnitTests/batches.yaml
+  # identifies test inputs
+  glob: '*.bin'
+
+
+outputs:
+  # each metric should have a label, a quality treshold, a scale, unit...
+  metrics: qatools/metrics.yaml
+  # to view the qualitative results, the GUI application needs to know
+  # what resources to fetch (images, movies, 6dof...).
+  # Currently supported: cis/image, slam/6dof, tof/depth
+  output_type: slam/6dof
+
+
+# After the build, you must defined what is needed to run your software:
+# binaries, libraries, configuration files...
+# These are called artifacts.
+# The qatools give you (TODO) a command, `save_artifacts`, to save them
+# Note: we don't use standard (even gitlab's) tools for artifact management. Maybe we should.
+#
+# Note: .qatools.yaml and qatools/ are saved automatically
+artifacts:
+  # this entry is special, those files will be shown in the UI
+  configurations: 
+    glob: configurations/*.json
+  binary:
+    glob: 'build/sample_project'
+
+  # results will be saved as:
+  # 
+  # commit_folder
+  # ├── .qatools.yaml
+  # ├── qatools/*
+  # ├── build
+  # │  └── sample_project
+  # └── configurations
+  #    ├── params.json
+  #    └── low-light.json
+
+
+bit_accuracy:
+  patterns:
+    - x.hex
+    - y.hex
+    - depth.hex
+
+
+# DON'T CHANGE THIS SETTING FOR NOW
+# TODO: use //f2/algo_data/ci
+#       1  check the file copy/retry issues: why have to try twice...
+#       2. the folder should be writable by anyone (?)
+#       3. move the /home/arthurf/ci/*/*/commits` there
+#       4. update the slamvizapp/slamvizapp/config.py
+# Each commit's outputs and artifacts will be saved sat $ci_root/$project_name
+ci_root:
+  linux: /home/arthurf/ci
+  # from windows you can still run bit-accuracy tests
+  windows: '\\\\netapp\\vol10\\users\\arthurf\\ci'
