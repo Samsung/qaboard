@@ -44,5 +44,10 @@ module.exports = {
 	// 	  "starting-server",
 	// 	  "server-maintenance"
 	//   ]
+	"Backend Admin": [
+		"backend-admin/troubleshooting",
+		"backend-admin/host-upgrades",
+		"backend-admin/getting-ssl-certiticates-from-it",
+	]
 }
 }

@@ -1,4 +1,9 @@
-## Getting SSL certificates from IT
+---
+id: getting-ssl-certiticates-from-it
+sidebar_label: SSL Certificates
+title: Getting SSL certificates from IT
+---
+
 ```bash
 cd deployment/nginx/ssl/qa
 
