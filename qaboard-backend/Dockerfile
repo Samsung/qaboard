@@ -199,8 +199,8 @@ COPY /qaboard/package.json /qaboard-webapp/package-lock.json ./
 # # - network issues would cause always one of the 1000 dependencies to fail fetching
 # #   solvable via an internal pip proxy (e.g. artifactory)
 # # As a user, you are expected to build it yourself with: 
-# # $ cd slamvizapp-webapp; npm ci; npm build
-# # Then mount the build/ folder to /slamvizapp/slamvizapp-webapp/build
+# # $ cd qaboard-webapp; npm ci; npm build
+# # Then mount the build/ folder to /qaboard/qaboard-webapp/build
 # We used to have things like
 # RUN ulimit -n 2000 && npm ci -ddd      # install exactly as in the lock-file (prefered...)
 # RUN ulimit -n 2000 && npm install -ddd # install compatible dependencies
@@ -237,4 +237,4 @@ USER arthurf
 COPY deployment/nginx/mime.types deployment/nginx/nginx.conf /etc/nginx/
 COPY deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
 
-CMD ["/slamvizapp/deployment/init.sh"]
+CMD ["/qaboard/qaboard-backend/deployment/init.sh"]
