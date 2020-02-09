@@ -271,6 +271,7 @@ class ImgViewer extends React.PureComponent {
           this.setState({
             image_width: width,
             image_height: height,
+            error: null,
           }, () => resolve())
 
 
