@@ -1,5 +1,5 @@
-# slamvizapp-webapp
-Web frontend for QA-Board
+# qaboard-webapp
+Web frontend for QA-Board.
 
 ## Setting up a development environment
 - [install nodejs](https://nodejs.org)

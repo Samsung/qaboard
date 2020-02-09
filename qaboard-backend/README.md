@@ -1,17 +1,16 @@
-# QA-Board
-[General README at](http://gitlab-srv/common-infrastructure/qatools)
-
+# QA-Board Backend
+Exposes an HTTP API used to read/write all the metadata on QA-Board's runs.
 
 ## How to build
 First get the code
 ```bash
 cd
-mkdir -p dvs/slamvizapp
-git clone git@gitlab-srv:dvs/slamvizapp.git
-cd slamvizapp
+git clone git@gitlab-srv:common-infrastructure/qatools.git qaboard
+cd qaboard/qaboard-backend
 ```
 
 Then build with `docker>=18.06`:
+
 ```bash
 # since we need to access private repositories
 export DOCKER_BUILDKIT=1

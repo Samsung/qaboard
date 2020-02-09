@@ -24,7 +24,7 @@
 
 ## Code organization
 Each section has its own README:
-- [qaboard-cli](qatools-cli): provides the `qa` CLI wrapper than runs your code, and the `import qatools` package.
+- [qatools](qatools): provides the `qa` CLI wrapper than runs your code, and the `import qatools` package.
 - [qaboard-webapp](qaboard-webapp/) is the frontend that displays results.
 - [qaboard-backend](qaboard-backend/) exposes an HTTP API used to read/write all the metadata on runs.
 - [thirdparty](thirdparty/):
