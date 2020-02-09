@@ -7,7 +7,7 @@ before_script:
   - source .envrc
   # Use ssh-agent to build container images that access private repositories
   - eval $(ssh-agent -s)
-  - ssh-add <(echo "$SSH_DEPLOY_KEY")
+  - ssh-add $HOME/.ssh/id_rsa
   - echo "${SSH_AGENT_PID}" > ssh-agent.pid
 
 after_script:
