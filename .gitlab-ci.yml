@@ -33,7 +33,6 @@ cli:tests:
     # - python -mqatools save-artifacts # Gitlab: 404: Project not found
     - python -mqatools get commit_id
 
-
 deploy:
   stage: deploy
   only:
@@ -43,9 +42,55 @@ deploy:
     - pip install $PROXY_STUFF .
 
 
-publish:
+publish:PyPi:
   stage: publish
   when: manual
   script:
   - ssh arthurf@planet31 'cd qaboard; twine upload --verbose -u __token__ dist/*'
+    
+# CI for the web application and the backend
+# TODO: enable it, make it work...
+# image: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
+# variables:
+#   DOCKER_IMAGE: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
+# backend:tests:
+#   stage: test
+#   script:
+#   - cd qaboard-backend
+#   # we only check that the syntax is correct
+#   - pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org .
+# webapp:tests:
+#   stage: test
+#   script:
+#     - cd slamvizapp-webapp
+#     - npm ci
+#     # - npm test
 
+
+deploy:staging:
+  stage: deploy
+  script:
+    - cd slamvizapp-webapp && GENERATE_SOURCEMAP=true npm ci && rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
+    - ssh qa docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG"
+    - ssh qa "CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh"
+  environment:
+    name: staging
+    url: http://qa:9000
+  only:
+  - master
+
+deploy:production:
+  stage: deploy
+  script:
+    - cd slamvizapp-webapp && GENERATE_SOURCEMAP=true npm ci && rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
+    - ssh qa "cd $(pwd)/qaboard-backend && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
+    - ssh qa docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
+    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG"
+    - ssh qa "CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh"
+  environment:
+    name: production
+    url: https://qa
+  only:
+  - master
+  when: manual

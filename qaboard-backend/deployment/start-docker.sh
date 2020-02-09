@@ -2,7 +2,7 @@
 # `docker run` wrapper
 # TODO: define everything in a `docker-compose` file
 set -ex
-DOCKER_IMAGE=gitlab-srv.transchip.com:4567/dvs/slamvizapp
+DOCKER_IMAGE=gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
 : "${DOCKER_TAG:=$CI_ENVIRONMENT_SLUG}"
 DOCKER_IMAGE=$DOCKER_IMAGE:$DOCKER_TAG
 
