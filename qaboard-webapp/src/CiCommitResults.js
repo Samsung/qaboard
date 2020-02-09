@@ -254,37 +254,44 @@ class CiCommitResults extends Component {
     </>
 
     let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
-    const all_controls = <Tabs>
-      <Tabs.Expander />
-      {show_viewer_controls && controls}
-      <HTMLSelect
-        defaultValue={this.props.sort_by}
-        onChange={this.update('sort_by')}
-      >
-        <option value="test_input_path">Sort by Name</option>
-        {this.props.sorted_extra_parameters.map(
-          param =>
-            <option key={param} value={param}>
-              Sort by {param} ({this.props.extra_parameters[param].size})
-            </option>            
-        )}
-        {Object.values(this.props.available_metrics).map(
-          m => (
-            <option key={m.key} value={m.key}>
-              Sort by {m.label}
-            </option>
-          )
-        )}
-      </HTMLSelect>
-      <HTMLSelect
-        defaultValue="descending"
-        onChange={this.selectOrder}
-      >
-        <option value={-1}>descending</option>
-        <option value={1}>ascending</option>
-      </HTMLSelect>
-    </Tabs>
-
+    // // display: flex
+    // flex-wrap: wrap;
+    // justify-content: space-between;
+    // align-items: baseline;
+    const all_controls = <>
+      <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline'}}>
+        {show_viewer_controls && controls}
+      </div>
+      <Tabs>
+          <Tabs.Expander />
+          <HTMLSelect
+            defaultValue={this.props.sort_by}
+            onChange={this.update('sort_by')}
+          >
+            <option value="test_input_path">Sort by Name</option>
+            {this.props.sorted_extra_parameters.map(
+              param =>
+                <option key={param} value={param}>
+                  Sort by {param} ({this.props.extra_parameters[param].size})
+                </option>            
+            )}
+            {Object.values(this.props.available_metrics).map(
+              m => (
+                <option key={m.key} value={m.key}>
+                  Sort by {m.label}
+                </option>
+              )
+            )}
+          </HTMLSelect>
+          <HTMLSelect
+            defaultValue="descending"
+            onChange={this.selectOrder}
+          >
+            <option value={-1}>descending</option>
+            <option value={1}>ascending</option>
+          </HTMLSelect>
+      </Tabs>
+    </>
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
     return (
       <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
@@ -341,7 +348,7 @@ class CiCommitResults extends Component {
                 ? <NonIdealState
                     icon="heatmap"
                     title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
-                    description={<p><a target="_blank" href={`${process.env.REACT_APP_QABOARD_DOCS}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
+                    description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
                   />
                 : <Section>
                   <h2 className={Classes.HEADING}>Tuning Experiments</h2>
@@ -402,8 +409,8 @@ class CiCommitResults extends Component {
               {selected_views.includes('output-list') && (visualizations.length === 0
                  ? <NonIdealState
                      icon="heatmap"
-                     title="Visualizations are not configured yet."
-                     description={<p><a target="_blank" href={`${process.env.REACT_APP_QABOARD_DOCS}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
+                     title="Visualizations are not configured yet." 
+                     description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
                    />
                  : <Section>
                  {all_controls}
