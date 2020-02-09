@@ -76,9 +76,9 @@ RUN apt-get update && \
 
 
 # Trust various SSL certificates used by Samsung's IT
-COPY deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
-COPY deployment/sirc-ca.cer    /usr/local/share/ca-certificates/samsung/sirc-ca.cer
-COPY deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.crt
+COPY qaboard-backend/deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
+COPY qaboard-backend/deployment/sirc-ca.cer    /usr/local/share/ca-certificates/samsung/sirc-ca.cer
+COPY qaboard-backend/deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.crt
 RUN update-ca-certificates && \
     yes | dpkg-reconfigure ca-certificates --
 
@@ -234,7 +234,7 @@ USER arthurf
 
 
 # reverse proxy settings
-COPY deployment/nginx/mime.types deployment/nginx/nginx.conf /etc/nginx/
-COPY deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
+COPY qaboard-backend/deployment/nginx/mime.types qaboard-backend/deployment/nginx/nginx.conf /etc/nginx/
+COPY qaboard-backend/deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
 
 CMD ["/qaboard/qaboard-backend/deployment/init.sh"]
