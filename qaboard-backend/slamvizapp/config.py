@@ -3,7 +3,7 @@ from pathlib import Path
 
 # we clone our repositories locally here to access commit metadata
 git_server = os.getenv('QABOARD_GIT_SERVER', 'gitlab-srv')
-app_data_directory = Path(os.getenv('QABOARD_DATA', '/var/slamvizapp')).resolve()
+app_data_directory = Path(os.getenv('QABOARD_DATA', '/var/qaboard')).resolve()
 
 # shared network location where we save custom per-project groups
 # FIXME: save in the database!

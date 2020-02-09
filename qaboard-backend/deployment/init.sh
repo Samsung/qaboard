@@ -23,21 +23,21 @@ sudo /etc/init.d/postgresql start &
 sleep 6
 
 # The first time you may need to
-# # docker run --entrypoint /bin/bash --rm -it  --volume=slamvizapp-postgresql-production:/etc/postgresql --volume=slamvizapp-postgresql-log-production:/var/log/postgresql --volume=slamvizapp-postgresql-lib-production:/var/lib/postgresql  gitlab-srv.transchip.com:4567/dvs/slamvizapp:production
+# # docker run --entrypoint /bin/bash --rm -it  --volume=qaboard-postgresql-production:/etc/postgresql --volume=qaboard-postgresql-log-production:/var/log/postgresql --volume=qaboard-postgresql-lib-production:/var/lib/postgresql  gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:production
 # # sudo pg_createcluster 10 main
 
 echo '...applying database migrations'
-cd /slamvizapp/slamvizapp
+cd /qaboard/qaboard-backend
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
 
 echo '...starting the application'
 sleep 1
-sudo chmod 777 /slamvizapp/deployment/
-cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /slamvizapp/deployment/slamvizapp.ini &
+sudo chmod 777 /qaboard/qaboard-backend/deployment/
+cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /qaboard/qaboard-backend/deployment/slamvizapp.ini &
 
 export QABOARD_DB_ECHO=True
-cd /slamvizapp && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
+cd /qaboard/qaboard-backend && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
 
 # command
 # status=$?

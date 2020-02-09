@@ -3,7 +3,7 @@ set -e
 
 # ssh ispq@ispq-vdi
 # crontab -e
-# 0 5 * * * ssh qa /home/arthurf/dvs/slamvizapp/deployment/create-backup.sh
+# 0 5 * * * ssh qa /home/arthurf/qaboard/deployment/create-backup.sh
 
 # It should be guessed by postgreSQL anyway
 export PGPASSFILE=$HOME/.pgpass

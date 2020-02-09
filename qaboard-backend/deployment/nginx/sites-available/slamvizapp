@@ -7,12 +7,12 @@ server {
 
   location ^~ /api {
       include uwsgi_params;
-      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
       uwsgi_read_timeout 300;
   }
   location ^~ /webhook {
       include uwsgi_params;
-      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
   }
 
 
@@ -151,7 +151,7 @@ server {
     add_header 'Cache-Control' 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
     expires off;
     proxy_no_cache 1;
-    root /slamvizapp/slamvizapp-webapp/build;
+    root /qaboard/qaboard-webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
   }
 
@@ -159,18 +159,18 @@ server {
     expires 1y;
     access_log off;
     add_header Cache-Control "public";
-    root /slamvizapp/slamvizapp-webapp/build;
+    root /qaboard/qaboard-webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
   }
 
   location / {
-    root /slamvizapp/slamvizapp-webapp/build;
+    root /qaboard/qaboard-webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
   }
 
   location ^~ /api {
       include uwsgi_params;
-      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
       uwsgi_read_timeout 300;
       if ($request_method ~* "(GET|POST|PUT|DELETE)") {
         add_header "Access-Control-Allow-Origin"  *;
@@ -185,11 +185,11 @@ server {
   }
   location ^~ /webhook {
       include uwsgi_params;
-      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
   }
   location ^~ /admin {
       include uwsgi_params;
-      uwsgi_pass unix:/slamvizapp/deployment/slamvizapp.sock;
+      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
   }
 
 
