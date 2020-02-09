@@ -7,6 +7,13 @@ before_script:
   - source .envrc
 
 
+# Cache node modules in-between jobs
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+  - qaboard-webapp/node_modules/
+
+
 unit:tests:
   stage: test
   script:
@@ -32,7 +39,7 @@ cli:tests:
     # - python -mqatools save-artifacts # Gitlab: 404: Project not found
     - python -mqatools get commit_id
 
-deploy:
+deploy:qa:
   stage: deploy
   only:
     - master
@@ -82,6 +89,7 @@ deploy:staging:
 deploy:production:
   stage: deploy
   script:
+    ssh planet31 "bash -c 'cd $(pwd) && source ../.envrc && npm ci'"
     - cd qaboard-webapp && GENERATE_SOURCEMAP=true npm ci && rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
     - ssh qa "cd $(pwd)/qaboard-backend && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG . && docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh qa docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
