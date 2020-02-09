@@ -27,14 +27,14 @@ sleep 6
 # # sudo pg_createcluster 10 main
 
 echo '...applying database migrations'
-cd /qaboard/qaboard-backend
+cd /qaboard/qaboard-backend/slamvizapp
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
 
 echo '...starting the application'
 sleep 1
 sudo chmod 777 /qaboard/qaboard-backend/deployment/
-cd /slamvizapp && sudo -E /opt/anaconda3/bin/uwsgi --ini /qaboard/qaboard-backend/deployment/slamvizapp.ini &
+cd /qaboard/qaboard-backend && sudo -E /opt/anaconda3/bin/uwsgi --ini /qaboard/qaboard-backend/deployment/slamvizapp.ini &
 
 export QABOARD_DB_ECHO=True
 cd /qaboard/qaboard-backend && FLASK_APP=slamvizapp FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002 &
