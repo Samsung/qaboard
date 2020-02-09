@@ -4,9 +4,8 @@ stages:
   - publish # to Pypi
 
 before_script:
-  - export PATH=/home/ispq/miniconda3/bin:$PATH
-  - export PATH=/home/arthurf/opt/bin:$PATH
-  - export PYTHONPATH=$(pwd)
+  - source .envrc
+
 
 unit:tests:
   stage: test
