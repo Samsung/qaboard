@@ -19,22 +19,15 @@ DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/raid/users"
 HOME_DOCKER=/opt/dockermounts$HOME
-# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/ssh/id_rsa:/root/.ssh/id_rsa" # helps avoid mount errors...
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage/algo_data:/stage/algo_data"
 DOCKER_VOLUMES+=" --volume=/data/asp_algorithms_data:/data/asp_algorithms_data"
-# DOCKER_VOLUMES+=" --volume=/stage/algo_archive:/stage/algo_archive"
 DOCKER_VOLUMES+=" --volume=/stage/qa_data:/stage/qa_data"
 DOCKER_VOLUMES+=" --volume=/stage/algo-datasets:/stage/algo-datasets"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive:/stage/algo_archive"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database"
 DOCKER_VOLUMES+=" --volume=/net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results"
-# DOCKER_VOLUMES+=" --volume=/raid:/raid"
-# DOCKER_VOLUMES+=" --volume=/net/f2:/net/f2"
-# --volume=/home/arthurf/ci/dvs:/home/arthurf/ci/dvs
 
-
-  # DOCKER_VOLUMES+="--volume:/opt/dockermounts/stage/algo_data/qatools_data:/var/slamvizapp"
 
 if [ -z ${CI_ENVIRONMENT_SLUG+x} ]; then
   echo "[Error] \$CI_ENVIRONMENT_SLUG is not defined."; exit
@@ -82,7 +75,7 @@ fi
 
 
 # Git clone configuration
-DOCKER_VOLUMES+=" --volume=slamvizapp:/var/slamvizapp"
+DOCKER_VOLUMES+=" --volume=slamvizapp:/var/qaboard"
 # Database configuration
 DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
 DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
@@ -95,24 +88,22 @@ DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/l
 
 if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   echo 'production !'
-  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp-webapp/deployed_build:/slamvizapp/slamvizapp-webapp/build"
-  # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/common-infrastructure/qatools/qatools:/opt/anaconda3/lib/python3.7/site-packages/qatools"
-
+  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-webapp/deployed_build:/qaboard/qaboard-webapp/build"
 else
   if [ -z ${QABOARD_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'
   else
-      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
-      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/conf.d:/etc/nginx/conf.d"
-      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/slamvizapp:/slamvizapp/slamvizapp"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/conf.d:/etc/nginx/conf.d"
+      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend:/qaboard/qaboard-backend"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/common-infrastructure/qatools/qatools:/opt/anaconda3/lib/python3.7/site-packages/qatools"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson:/opt/anaconda3/lib/python3.6/site-packages/simplejson"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson-3.16.0.dist-info:/opt/anaconda3/lib/python3.6/site-packages/simplejson-3.16.0.dist-info"
   fi
 fi
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/dvs/slamvizapp/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 
 if [ -z ${QABOARD_DB_HOST+x} ]; then
     echo 'Using container database'

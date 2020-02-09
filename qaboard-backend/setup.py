@@ -1,18 +1,19 @@
+# More information at
+# https://setuptools.readthedocs.io/en/latest/setuptools.html
 from setuptools import setup, find_packages
 
-# more information at
-# https://setuptools.readthedocs.io/en/latest/setuptools.html
-
 setup(
-  name='slamvizapp',
+  name='qaboard-backend',
   version="0.2",
-  packages=find_packages(),
+  license="Apache-2.0",
+
+  description="Backend for QA-Board",
+  url="https://github.com/Samsung/qaboard",
 
   author="Arthur Flam",
   author_email="arthur.flam@samsung.com",
-  description="Debugging tools for SLAM development",
-  license="Samsung SIRC - all rights reserved",
 
+  packages=find_packages(),
   install_requires=[
     'pandas>=0.22',
     'gitpython', # manipulate git repositories
@@ -24,17 +25,9 @@ setup(
     'psycopg2',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'flask-admin',
-    'uwsgi', # actually required, see below
+    'uwsgi',
     'ujson',
   ],
-
-  extras_require={
-      # REQUIRED, but currently doesn't build on LSF, so moved here.....
-      'server': ['uwsgi'],
-      # we started testing alternative json libraries, since a lot of time is
-      # spend serializing results from the database.
-      'test-json': ["python-rapidjson", "simplejson"],
-  },
 
   entry_points= {
     'console_scripts': [

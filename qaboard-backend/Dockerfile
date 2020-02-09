@@ -118,6 +118,7 @@ RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
                 pip pipenv \
                 gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-image scikit-learn click
 RUN --mount=type=ssh \
+    # TODO: why did we need a custom version? Rename this need and get the version on PyPi..
     pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/arthurf/scikit-optimize'
 
 
@@ -189,8 +190,8 @@ RUN curl -ksL https://deb.nodesource.com/setup_10.x  | \
 
 
 # Frontend's dependencies
-WORKDIR /slamvizapp/slamvizapp-webapp
-COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/package-lock.json ./
+WORKDIR /qaboard/qaboard-webapp
+COPY /qaboard/package.json /qaboard-webapp/package-lock.json ./
 ## FIXME ####################################
 # ENV NODE_ENV production
 # # At the  moment we don't build the app from the container because of frequent issues:
@@ -204,14 +205,14 @@ COPY /slamvizapp-webapp/package.json /slamvizapp-webapp/package-lock.json ./
 # RUN ulimit -n 2000 && npm ci -ddd      # install exactly as in the lock-file (prefered...)
 # RUN ulimit -n 2000 && npm install -ddd # install compatible dependencies
 # RUN npm run build
-COPY . /slamvizapp/
+COPY . /qaboard/
 
 
 # Backend API
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
-WORKDIR /slamvizapp
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .[server]
+WORKDIR /qaboard
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .
 
 RUN --mount=type=ssh \
     # TODO: package qatools in the same repo as "qa-cli"
@@ -221,7 +222,7 @@ RUN --mount=type=ssh \
     # when we *just* update qatools/cde-python, it's a nice way to identify changes and force a rebuild...
     echo cache-busting-001
 # Where we keep a cache of application data (e.g. git clones)
-VOLUME /var/slamvizapp
+VOLUME /var/qaboard
 
 
 # Some of our NFS mounts seem to use squash_root, eg /stage/algo_data
