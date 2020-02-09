@@ -7,8 +7,8 @@ Exposes an HTTP API used to read/write all the metadata on QA-Board's runs.
 First get the code
 ```bash
 cd
-git clone git@gitlab-srv:common-infrastructure/qatools.git qaboard
-cd qaboard/qaboard-backend
+git clone git@gitlab-srv:common-infrastructure/qaboard.git
+cd qaboard
 ```
 
 Then build with `docker>=18.06`:
