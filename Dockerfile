@@ -116,10 +116,7 @@ RUN conda install -k -c conda-forge uwsgi
 RUN conda install -k pandas
 RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
                 pip pipenv \
-                gitpython click flask flask_cors sqlalchemy alembic sqlalchemy_utils flask-admin ujson sklearn scikit-image scikit-learn click
-RUN --mount=type=ssh \
-    # TODO: why did we need a custom version? Rename this need and get the version on PyPi..
-    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/arthurf/scikit-optimize'
+                gitpython click flask flask_cors flask-admin sqlalchemy alembic sqlalchemy_utils ujson sklearn scikit-image scikit-learn scikit-optimize
 
 
 # TODO:
