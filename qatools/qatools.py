@@ -523,9 +523,12 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
     return
 
   if not dryrun:
-    tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
-    waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(batches)}-wait"
-    is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, config=config, ctx=ctx)
+    if jobs:
+      tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
+      waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(batches)}-wait"
+      is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, config=config, ctx=ctx)
+    else:
+      is_failed = False 
 
     from .gitlab import update_gitlab_status
     always_update = getenvs(('QATOOLS_ALWAYS_UPDATE_GITLAB', 'QA_ALWAYS_UPDATE_GITLAB'))
