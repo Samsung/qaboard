@@ -1,5 +1,7 @@
 build/
 build_qadocs/
+log.lsf.txt
+log.txt
 
 *.png
 *.jpg
