@@ -88,7 +88,7 @@ DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/l
 
 if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   echo 'production !'
-  DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-webapp/deployed_build:/qaboard/qaboard-webapp/build"
+  DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home/ispq/qaboard/webapp_builds:/qaboard/qaboard-webapp/build"
 else
   if [ -z ${QABOARD_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'
