@@ -223,7 +223,7 @@ VOLUME /var/qaboard
 
 # Some of our NFS mounts seem to use squash_root, eg /stage/algo_data
 # It forces us to acces them with a regular SIRC user and dance around with sudo
-# FIXME: use a different user, e.g. sircdevops, possibly use ARG/.env to parametrize
+# FIXME: use a different user, possibly use ARG/.env to parametrize
 RUN useradd -u 11611 -g 10 arthurf --shell /bin/bash --no-create-home; \
     echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 USER arthurf
