@@ -29,7 +29,7 @@ As explained in the [Dockerfile](Dockerfile), you also have to build the fronten
 ## How to run the backend
 You must set a few environment variable:
 - *$GITLAB_ACCESS_TOKEN*: [get it here](http://gitlab-srv/profile/personal_access_tokens)
-- *$SSH_PASSPHRASE*: the passphrase a SIRC user key in in *deployment/ssh/id_rsa*. In the future we'll configure SSH agent forwarding from the host to make this simpler...
+- *$SSH_PASSPHRASE*: the passphrase for a SIRC user key in in *deployment/ssh/id_rsa*. In the future we'll configure SSH agent forwarding from the host to make this simpler...
 
 > **FIXME**: you also need to provide SSL keys in *deployment/ssl/...*.
 > As-is, the nginx server tries to look for SSL keys and will fail. If you don't have such keys remove
