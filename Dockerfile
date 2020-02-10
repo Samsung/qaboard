@@ -211,12 +211,11 @@ COPY . /qaboard/
 # Backend API
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
-WORKDIR /qaboard/qaboard-backend
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable .
+WORKDIR /qaboard
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable . qaboard-backend
 
+WORKDIR /qaboard
 RUN --mount=type=ssh \
-    # TODO: package qatools in the same repo as "qa-cli"
-    pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/common-infrastructure/qaboard' && \
     # Needed for the auto-ROI feature, but for an open-source release we can remove it
     pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org 'git+ssh://git@gitlab-srv/cde/cde-python' && \
     # when we *just* update qatools/cde-python, it's a nice way to identify changes and force a rebuild...
