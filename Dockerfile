@@ -212,7 +212,7 @@ COPY . /qaboard/
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 WORKDIR /qaboard
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable . qaboard-backend
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable . ./qaboard-backend
 
 WORKDIR /qaboard
 RUN --mount=type=ssh \
