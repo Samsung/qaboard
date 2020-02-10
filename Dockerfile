@@ -191,7 +191,7 @@ RUN curl -ksL https://deb.nodesource.com/setup_10.x  | \
 
 # Frontend's dependencies
 WORKDIR /qaboard/qaboard-webapp
-COPY qaboard-webapp/package.json qaboard-webapp/package-lock.json ./
+COPY qaboard-webapp/package.json qaboard-webapp/npm-shrinkwrap.json ./
 ## FIXME ####################################
 # ENV NODE_ENV production
 # # At the  moment we don't build the app from the container because of frequent issues:
