@@ -84,7 +84,7 @@ variables:
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
   GIT_CLEAN_FLAGS: -ffdx --exclude=qaboard-webapp/node_modules/
 
-  deploy:staging:
+deploy:staging:
   stage: deploy
   script:
     - cd qaboard-webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install && GENERATE_SOURCEMAP=true npm run build'" && cd ..
