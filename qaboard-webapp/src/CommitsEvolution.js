@@ -695,7 +695,7 @@ class CommitsEvolution extends Component {
     const { available_metrics={}, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
 
     if (!default_metric)
-      return <div>To see metrics over time, <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction`}>define your project's metrics</a>.</div>;
+      return <div>To see metrics over time, <a href={process.env.REACT_APP_QABOARD_DOCS_ROOT}>define your project's metrics</a>.</div>;
 
     return (
       <div style={style}>
