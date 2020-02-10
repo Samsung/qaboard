@@ -303,6 +303,11 @@ class ImgViewer extends React.PureComponent {
         })
         .catch(error => {
           console.log(error)
+          // If there is an error we don't want to show a previous image successfully loaded... 
+          if (viewer_new.world.getItemCount() > 0)
+            viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
+          if (viewer_ref.world.getItemCount() > 0)
+            viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))
           this.setState({ error })
           reject({ error })
         });
@@ -522,9 +527,8 @@ class ImgViewer extends React.PureComponent {
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
     const has_reference = !!output_ref && !!output_ref.output_dir_url;
-    if (!!error && Object.keys(error).length > 0) {
-      console.log(error)
-      return <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
+    const has_error = !!error && Object.keys(error).length > 0;
+    const error_messages = !has_error ? <span/> : <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
         <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
         <div style={{ padding: '5px' }}>
           {!!error.message && <p>{JSON.stringify(error.message)}</p>}
@@ -532,8 +536,7 @@ class ImgViewer extends React.PureComponent {
           {!!error.response && !!error.response.data && <p>response.data: {JSON.stringify(error.response.data)}</p>}
           {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
         </div>
-      </Popover>;
-    }
+    </Popover>;
 
     const single_image_width = (width - 10) / (diff ? 3 : 2);
     const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
@@ -628,37 +631,38 @@ class ImgViewer extends React.PureComponent {
     // const empty_image = <canvas key="empty-image" {...single_image_size} />
 
     return <>
-      {this.state.ready && has_reference &&
-        <MultiSelectTags
-          output_new={output_new}
-          output_ref={output_ref}
-          viewer_new={this.viewer_new}
-          viewer_ref={this.viewer_ref}
-          path={path}
-          qatools_config={this.props.qatools_config}
-        />}
-      <span>
-        <Tooltip>
-          <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
-          <ul>
-            <li>This image is not the real image! It's JPEG compressed (100-quality).</li>
-            <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
-          </ul>
-        </Tooltip>
-        <CoordTooltip color={this.state.color_new} />
-        {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
-        <ColorTooltip color={first_image === 'new' ? this.state.color_new : this.state.color_ref} />
-        <ColorTooltip color={first_image === 'new' ? this.state.color_ref : this.state.color_new} />
-        {label && (label || path)}
-      </span>
-
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }}>
+      {error_messages}
+      {!has_error && <>
+        {this.state.ready && has_reference &&
+          <MultiSelectTags
+            output_new={output_new}
+            output_ref={output_ref}
+            viewer_new={this.viewer_new}
+            viewer_ref={this.viewer_ref}
+            path={path}
+            qatools_config={this.props.qatools_config}
+          />}
+        <span>
+          <Tooltip>
+            <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
+            <ul>
+              <li>This image is not the real image! It's JPEG compressed (100-quality).</li>
+              <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
+            </ul>
+          </Tooltip>
+          <CoordTooltip color={this.state.color_new} />
+          {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
+          <ColorTooltip color={first_image === 'new' ? this.state.color_new : this.state.color_ref} />
+          <ColorTooltip color={first_image === 'new' ? this.state.color_ref : this.state.color_new} />
+          {label && (label || path)}
+        </span>
+      </>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignContent: 'center', paddingBottom: 5 }} hidden={has_error}>
         {first_image === 'new' ? image_new : image_ref}
         {diff_info}
         {first_image === 'new' ? image_ref : image_new}
       </div>
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center"}} hidden={has_error}>>
         {hist_info}
       </div>
     </>
