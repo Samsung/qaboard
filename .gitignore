@@ -2,6 +2,7 @@ build/
 build_qadocs/
 log.lsf.txt
 log.txt
+ssl/
 
 *.png
 *.jpg
