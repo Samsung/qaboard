@@ -265,21 +265,18 @@ def start_tuning(hexsha):
             "set -xe\n\n",
             f'cd "{working_directory}";\n\n',
             ('\n'.join(envrcs) + '\n') if envrcs else "",
-            # we want this for now....
-            'export LD_LIBRARY_PATH=/usr/local/gcc/7.2.0/lib64:$LD_LIBRARY_PATH;\n',
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
             # we avoid DISPLAY issues with matplotlib, since we're headless here
             'export MPLBACKEND=agg;\n',
-            # bsub_su is owned by root, this leads to the PATH not being what we would expect
-            # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
-            # "export PATH=$PATH:/usr/local/bin;\n",
+
             f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
             # Those options are specific to android
             f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
+
             # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
             f"\nexport CI=true;\n",
             f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
