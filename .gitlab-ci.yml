@@ -90,8 +90,8 @@ deploy:staging:
     - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG .\""
     - ssh qa "docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh qa docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG"
-    - ssh qa "CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh"
+    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG" || true
+    - ssh qa "bash -c \"CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh\""
   environment:
     name: staging
     url: http://qa:9000
@@ -106,8 +106,8 @@ deploy:production:
     - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG .\""
     - ssh qa "docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
     - ssh qa docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG"
-    - ssh qa "CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh"
+    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG" || true
+    - ssh qa "bash -c \"CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh\""
   environment:
     name: production
     url: https://qa
