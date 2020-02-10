@@ -12,13 +12,13 @@ echo "===== $DOCKER_IMAGE ====="
 
 DOCKER_ENV=""
 
+
 DOCKER_VOLUMES=""
+DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
+# optionnal mounts
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/raid:/raid"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage:/stage"
-
-DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/home"
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home:/raid/users"
-HOME_DOCKER=/opt/dockermounts$HOME
 DOCKER_VOLUMES+=" --volume=/opt/dockermounts/stage/algo_data:/stage/algo_data"
 DOCKER_VOLUMES+=" --volume=/data/asp_algorithms_data:/data/asp_algorithms_data"
 DOCKER_VOLUMES+=" --volume=/stage/qa_data:/stage/qa_data"
@@ -81,6 +81,7 @@ DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postg
 DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
 DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
 
+HOME_DOCKER=/opt/dockermounts$HOME
 # Custom configuration
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.zshrc:/root/.zshrc"
 # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/.oh-my-zsh:/root/.oh-my-zsh"
@@ -96,10 +97,7 @@ else
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/conf.d:/etc/nginx/conf.d"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend:/qaboard/qaboard-backend"
-      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qatools:/opt/anaconda3/lib/python3.7/site-packages/qatools"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
-      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson:/opt/anaconda3/lib/python3.6/site-packages/simplejson"
-      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3/lib/python3.7/site-packages/simplejson-3.16.0.dist-info:/opt/anaconda3/lib/python3.6/site-packages/simplejson-3.16.0.dist-info"
   fi
 fi
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
