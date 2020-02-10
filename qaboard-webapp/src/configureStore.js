@@ -19,6 +19,8 @@ import { rootReducer } from './reducers'
 // https://github.com/rt2zz/redux-persist/blob/master/src/types.js#L13-L27
 const persistConfig = {
   key: 'root',
+  transforms: [
+  ],
   storage: localForage,
   whitelist: [
     'projects',
@@ -35,13 +37,13 @@ const persistConfig = {
 
 
 export default function configureStore(preloadedState) {
-  let is_prod = process.env.NODE_ENV === 'production'
-  // let is_prod = false
+  let is_production = process.env.NODE_ENV === 'production'
+  // let is_production = false
 
-  let middlewares = is_prod ? [thunkMiddleware] : [loggerMiddleware, thunkMiddleware]
+  let middlewares = is_production ? [thunkMiddleware] : [loggerMiddleware, thunkMiddleware]
   let middlewareEnhancer = applyMiddleware(...middlewares)
-  let enhancers = is_prod ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
-  let composedEnhancers = is_prod ? compose(...enhancers) : composeWithDevTools(...enhancers)
+  let enhancers = is_production ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
+  let composedEnhancers = is_production ? compose(...enhancers) : composeWithDevTools(...enhancers)
 
   const persistedReducer = persistReducer(persistConfig, rootReducer)
   const store = createStore(persistedReducer, preloadedState, composedEnhancers)
