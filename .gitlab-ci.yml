@@ -16,11 +16,11 @@ after_script:
 
 
 # Cache node modules in-between jobs
-cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-  - qaboard-webapp/node_modules/
-
+.npm_cache: &npm_cache
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+    - qaboard-webapp/node_modules/
 
 unit:tests:
   stage: test
@@ -74,6 +74,7 @@ publish:PyPi:
 #   - pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org .
 # webapp:tests:
 #   stage: test
+#   <<: *npm_cache
 #   script:
 #     - cd qaboard-webapp
 #     - npm ci
@@ -86,6 +87,7 @@ variables:
 
 deploy:staging:
   stage: deploy
+  <<: *npm_cache
   script:
     - cd qaboard-webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install && GENERATE_SOURCEMAP=true npm run build'" && cd ..
     - cd qaboard-webapp  &&                               rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
@@ -102,6 +104,7 @@ deploy:staging:
 
 deploy:production:
   stage: deploy
+  <<: *npm_cache
   script:
     - cd qaboard-webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install && GENERATE_SOURCEMAP=true npm run build'" && cd ..
     - cd qaboard-webapp  &&                               rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
