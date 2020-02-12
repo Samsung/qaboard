@@ -1,0 +1,176 @@
+project:
+  name: my_group/sample_project
+  url: git@gitlab-srv/my_group/sample_project
+  type: git
+  # remote_type: gitlab | github | gitea | ...
+  # By default the project is shown in the web application with the avatar and description from the remote
+  # avatar_url: https:// ....
+  # description
+  # Where the script implementing `run` and `postprocess` functions is located (relative to the project's root)
+  entrypoint: qa/main.py
+  # The latest commit on this branch is used for as default reference when comparing results
+  reference_branch: master # or develop, release... 
+
+
+# Default settings (can be overridden per run...)
+inputs:
+  # We assume your inputs are located at $database/$input. [read the docs for other options...]
+  database:
+    # Often databases are mounted at different locations on linux and windows...
+    linux: /
+    windows: C://
+    # TODO: - List those mappings under storage.mapping[{linux,windows}]
+
+  # What kind of inputs do you have? images? folders containing images?
+  # To find them automaticall when you run `qa batch my/folder`, you need to provide a way to identify them:
+  # globs: '*.jpg'
+  # It is sometimes nicer to identify the folder containing a matching path as the input;
+  # for instance if you identify inputs as folders with a file named "Frame_000.jpg":
+  # use_parent_folder: false
+
+
+  # For complex projects, you want to distinguish different types of inputs (eg images, movies...)
+  # types:
+  #   default: image
+  #   image:
+  #     globs: '*.raw'
+  #     use_parent_folder: false
+  #   movie:
+  #     globs: 'Frame_000.jpg'
+  #     use_parent_folder: true
+
+
+  # You can define files containing definitions of batches of tests,
+  # which you run with `qa batch`
+  batches:
+  - qa/batches.yaml
+
+
+  # Your code runs on an inputs + a list of configurations (default: empty list).
+  # You are free to give any meaning to your configurations. In the wild we see setups like:
+  # configurations:       # each element provides a partial config, merged with earlier ones
+  # - base                # read config/{base}.yaml
+  # - /path/to/delta.yaml # read from absolute paths for convenience
+  # - key: value          # give directly parameters...
+
+
+
+outputs:
+  # Each metric should have a label, a quality treshold, a scale, unit...
+  # It is all defined in this file
+  metrics: qa/metrics.yaml
+
+  # To learn more about how to describe how results should be visualized:
+  # http://qa-docs/docs/visualizations
+  visualizations:
+  # - name: My image
+  #   path: output.jpg
+
+  # - name: My plot
+  #   # path: data.plotly.json
+  #   ## If you use plotly, it is very simple to view yours plots in the web UI
+  #   ## Save your plot's data and layout in a json file
+  #   ## Note: To find the data they will display, some viewers might rely on conventions
+  #   ##       but it is best to be explicit
+  #   # type: plotly/json
+  #   ## {
+  #   ##   layout: {...},        // regular plotly layout
+  #   ##   data: [{...}, {...}]  // data (array) of regular plotly traces
+  #   ## }
+  #   #
+  #   ## You can hide by defaut your debug/heavy outputs
+  #   # default_hidden: false
+  #
+  #   ## If you add parameters, they will be passed down to the viewer
+  #   ## For instance, you may want to adjust optionnal displays, styling, etc.
+  #   ## Each viewer will have its own options....
+  #   #
+
+
+  # You pass CSS style attributes to your viewers' container
+  # here we instance we change the visualizations' width 
+  # style:
+  #   width: 840px
+
+  # The UI lets you define controls that pass parameters down to all viewers
+  # controls:
+  #   - type: toggle     # TODO: Only toggle is supported for now. We could support all HTML inputs: text_input, select...
+  #     label: Debug     # optionnal
+  #     name: show_debug # required
+  #     default: false   # required
+
+   # Decides what to do when asked to re-run a test for which we already have results
+   # action_on_existing: run          # redo both the run and postprocessing
+   ##                  | postprocess  # redo the postprocessing
+   ##                  | sync         # reads `metrics.json` to make sure the database is up to date
+   ##                  | skip         # continue to the next test
+
+
+# # After the build, you must define the "artifacts" needed to run your software:
+# # binaries, libraries, sources, configuration files... To save them:
+# #   $ qa save-artifacts
+# # Note: .qatools.yaml and qatools/ are saved automatically
+# artifacts:
+#   configurations:
+#     glob: configurations/*.json
+#   binary:
+#     glob: 'build/sample_project'
+
+
+# Bit accuray tests will look for files matching those glob patterns
+bit_accuracy:
+  # In order to compare file hashes/sizes between Linux and Windows, text files need to have end of lines normalized.
+  # If you provide a list of patterns for plaintext files, the rest will be considered binary
+  # plaintext:
+  #   - '*.txt'
+  #   - '*.cde'
+  #   - '*.hex'
+  #   - '*.dvs'
+  #   - '*.iir'
+  # If you provide a list of patterns for binary files, the rest will be considered plaintext
+  # binary:
+  #   - '*.raw'
+  # If you provide both plaintext and binary patterns, you'll get an error.
+  # patterns:
+  #   - output.jpg
+  #   - '*.txt'
+  # ignore:
+  #  - XXXX
+  # if the CI for commit you compare against failed, you can decide to compare against its first parent
+  # on_reference_failed_ci: compare-first-parent
+  # after that many "replacement commits", fail
+  # max_parents_depth: 5
+  # you can choose the CI stage that defines failure. By default, we use gitlab's global commit status
+  # failed_ci: qa-tests
+
+
+
+# the web application can give users buttons to trigger gitlabCI/jenkins builds or webhooks
+# http://qa-docs/docs/triggering-third-party-tools
+# integrations:
+#   - text: Windows
+#     href: http://direct.link/anywhere
+
+
+runners:
+  # By default `qa batch` uses LSF on linux and the local host on Windows
+  # default: lsf
+  local:
+    concurrency: -1
+  lsf: # we use our cluster on linux
+    user: ispq
+    # Depending on your project, you may want to use different LSF job queues
+    # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
+    queue: alg_q
+    # qatools uses a fast queue to launch jobs that create subsequent LSF jobs
+    # It helps get faster feeback about which outputs are pending
+    fast_queue: alg_fast_q
+    # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
+    # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # You can also set: project, resources, priority
+
+
+# Your artifacts will be saved under this location.
+ci_root:
+  linux: /stage/algo_data/ci
+  windows: '//netapp/algo_data/ci'

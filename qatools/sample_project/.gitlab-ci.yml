@@ -1,0 +1,69 @@
+# For more information on GitlabCI's pipelines, read the docs:
+# https://docs.gitlab.com/ee/ci/yaml/
+#
+# If you use Jenkins, you should be able to adapt this easily into a Jenkinsfile
+# https://jenkins.io/doc/book/pipeline/jenkinsfile/
+
+# Reminder: `qatools` needs to be installed in your test runner's environment
+# To solve those dependencies issues, a good solution is Docker.
+# image: my_image_with_everything_installed
+
+
+# a real project would have jobs for coverage, generating the documentation, ...
+stages:
+  - build
+  - test
+  - performance
+  - analysis
+
+# This is an example to show how you can ask qatools
+# for example where it saves results and artifacts
+before_script:
+  - export COMMIT_CI_DIR=$(qa get commit_ci_dir)
+
+# Enables incremental recompilation, per branch.
+# https://docs.gitlab.com/ee/ci/yaml/#cache
+# https://docs.gitlab.com/ee/ci/caching/index.html#good-caching-practices
+cache:
+  key: "$CI_COMMIT_REF_NAME"
+  paths:
+    - build/
+
+# save the binaries, ouputs...
+after_script:
+  - qa save_artifacts
+
+build:
+  stage: build
+  script:
+    - mkdir build; cd build
+    - export BOOST_ROOT=/home/arthurf/opt
+    - export BOOST_FLAGS="-DBOOST_ROOT=$BOOST_ROOT -DBOOST_INCLUDEDIR=$BOOST_ROOT/include -DBOOST_LIBRARYDIR=$BOOST_ROOT/lib -DBoost_USE_MULTITHREADED=False"
+    - cmake $BOOST_FLAGS -GNinja ..
+    # We use bsub to compile on our LSF cluster
+    # You may want to specify the queue with -q, just be sure to
+    # use one with small memory constraints as compiling is sometimes demanding
+    - bsub ninja
+    - qa save_artifacts
+
+test:
+  stage: build
+  script:
+     # here the tests are executed on the test runner itself
+     - ninja -C build test
+
+performance:
+  stage: performance
+  script:
+    - export filepath=DualGen3_WideAngle_IMU_BL15cm/Demo_set/2017-11-29-Scene_3.1/2017-11-29-Scene_3.1.bin
+    - qa run --input-path=$filepath
+    # will run on all the tests from the group of inputs named "easy" (more details on qatools.yaml and qatools/input-groups.yaml)
+    # we automatically use the LSF cluster to distribute the work
+    - qa batch --group easy
+    # tip: you can use the `--batch-label` flag to split your tests results
+
+
+bit-accuracy:
+  stage: analysis
+  script:
+    - qa check_bit_accuracy

@@ -1,0 +1,3 @@
+recursive-include qatools/sample_project/qa *
+include qatools/sample_project/qatools.yaml
+

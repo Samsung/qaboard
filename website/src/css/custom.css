@@ -1,0 +1,152 @@
+:root {
+    --ifm-font-size-base: 17px;
+    --ifm-code-font-size: 90%;
+
+    --ifm-color-primary: #0c4da2;
+    --ifm-color-primary-dark: #0b4592;
+    --ifm-color-primary-darker: #0a418a;
+    --ifm-color-primary-darkest: #083671;
+    --ifm-color-primary-light: #0d55b2;
+    --ifm-color-primary-lighter: #0e59ba;
+    --ifm-color-primary-lightest: #1064d3;
+
+    --ifm-color-emphasis-300: #1064d3;
+    --ifm-link-color: #1064d3;    
+    --ifm-menu-color-active: #1064d3;
+}
+
+
+.docusaurus-highlight-code-line {
+  background-color: rgba(0, 0, 0, 0.3);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}
+
+.admonition-content a {
+  text-decoration: underline;
+  font-weight: 600;
+  color: inherit;
+}
+
+a {
+  font-weight: 600;
+}
+
+blockquote {
+    /* samsung blue with lots of transparency */
+    background-color: #0c4da224;
+}
+@media (prefers-color-scheme: dark) {
+  blockquote {
+    --ifm-color-emphasis-300: var(--ifm-color-primary);
+    /* border-left: 6px solid var(--ifm-color-emphasis-300); */
+  }
+}
+@media (prefers-color-scheme: dark) {
+  code {
+    /* background-color: rgb(41, 45, 62); */
+  }
+}
+
+
+/* Docusaurus still defaults to their green! */
+@media (prefers-color-scheme: dark) {
+  .react-toggle-thumb {
+    border-color: var(--ifm-color-primary) !important;
+  }
+}
+
+
+
+/* REMOVE WHEN BETTER ADMONITIONS SUPPORT */
+
+/* base admonitions variables of off infima variables */
+:root {
+  --ra-admonition-background-color: var(--ifm-alert-background-color);
+  --ra-admonition-border-width: var(--ifm-alert-border-width);
+  --ra-admonition-border-color: var(--ifm-alert-border-color);
+  --ra-admonition-border-radius: var(--ifm-alert-border-radius);
+  --ra-admonition-color: var(--ifm-alert-color);
+  --ra-admonition-padding-vertical: var(--ifm-alert-padding-vertical);
+  --ra-admonition-padding-horizontal: var(--ifm-alert-padding-horizontal);
+
+  --ra-color-note: var(--ifm-color-secondary);
+  --ra-color-important: var(--ifm-color-info);
+  --ra-color-tip: var(--ifm-color-success);
+  --ra-color-caution: var(--ifm-color-warning);
+  --ra-color-warning: var(--ifm-color-danger);
+  --ra-color-text-dark: var(--ifm-color-fray-900);
+}
+
+/* apply variables to admonitions */
+
+.admonition {
+  background-color: var(--ra-admonition-background-color);
+  border: var(--ra-admonition-border-width) solid var(--ra-admonition-border-color);
+  border-radius: var(--ra-admonition-border-radius);
+  box-sizing: border-box;
+  color: var(--ra-admonition-color);
+  padding: var(--ra-admonition-padding-vertical) var(--ra-admonition-padding-horizontal);
+  margin-bottom: 1em;
+}
+
+.admonition h5 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.admonition-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.2em;
+}
+
+.admonition-icon svg {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  stroke-width: 0;
+  fill: var(--ra-admonition-icon-color);
+  stroke: var(--ra-admonition-icon-color);
+}
+
+.admonition-content > :last-child {
+  margin-bottom: 0;
+}
+
+
+/* set variables based on admonition type */
+
+.admonition {
+  --ra-admonition-background-color: var(--ifm-color-primary);
+  --ra-admonition-icon-color: var(--ra-admonition-color);
+}
+
+.admonition-note {
+  --ra-admonition-background-color: var(--ra-color-note);
+  --ra-admonition-color: var(--ra-color-text-dark);
+}
+@media (prefers-color-scheme: dark) {
+  .admonition-note {
+    --ra-admonition-color: #1c1e21;
+  }
+}
+
+
+.admonition-important {
+  --ra-admonition-background-color: var(--ra-color-important);
+}
+
+.admonition-tip {
+  --ra-admonition-background-color: var(--ra-color-tip);
+}
+
+.admonition-caution {
+  --ra-admonition-background-color: var(--ra-color-caution);
+}
+
+.admonition-warning {
+  --ra-admonition-background-color: var(--ra-color-warning);
+}
