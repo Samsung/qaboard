@@ -1,7 +1,13 @@
 # QA-Board
 **QA-Board** helps Algorithms/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
 
+[![qaboard-chat](https://img.shields.io/badge/chat-spectrum-brightgreen)](https://spectrum.chat/qaboard)
+![PyPI](https://img.shields.io/pypi/v/qaboard)
+[![Docs](https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square)](https://samsung.github.io/qaboard)
+
 > QA-Board is the main collaborative tool for ~20 projects. [Take a look at SIRC's live server](https://qa) 😊👓
+>
+> It's an open-source project: https://github.com/samsung/qaboard
 
 ## Features
 - **Organize, View and Compare Results**, **Tuning/Optimization**
@@ -15,7 +21,7 @@
 - **Quality:** uncover issues earlier, KPIs, tuning, reporting...
 
 ## Getting Started
-[Read the docs!](http://qa-docs/docs/installation) You will learn how to:
+[Read the docs!](https://samsung.github.io/qaboard/docs/installation) You will learn how to:
 - install QA-Board's CLI wrapper
 - run a QA-Board server
 - wrap your code with QA-Board
@@ -30,11 +36,18 @@ Each section has its own README:
 - [thirdparty](thirdparty/):
   * [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIIF server, used to "stream" large images to the users.
 
-> **WIP:** we're merging multiple repos into one, expect those path to not be 100% accurate! 
 
-## Contributing
-> Merge requests are welcomed, and don't hesitate to create issues! For a quick chat do contact [Arthur Flam](mailto:arthur.flam@samsung.com)
+## Questions? Need Help? Found a bug?
+If you've got questions about setup, deploying, want to develop new features, or just want to chat with the developers, please feel free to [start a thread in our Spectrum community](https://spectrum.chat/qaboard)!
 
+Found a bug with QA-Board? Go ahead and [submit an issue](https://github.com/Samsung/qaboard/issues). And, of course, feel free to submit pull requests with bug fixes or changes to the `master` branch.
 
-## Licensing
+## Contributors
+QA-Board was started at [Samsung SIRC](https://www.linkedin.com/company/samsung-israel-r-d-center-sirc/) by [Arthur Flam](https://shapescience.xyz).
+
+Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Gal Hai, Rivka Emmanuel, Nadav Ofer. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
+
+> You don't see your name? Get in touch to be added to the list!
+
+## Credits
 - The logo is a the Poodle [twemoji](https://twemoji.twitter.com/) 🐩, recolored in Samsung Blue 🔵. *Copyright 2019 Twitter, Inc and other contributors. Code licensed under the [MIT License](http://opensource.org/licenses/MIT). Graphics licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)*
