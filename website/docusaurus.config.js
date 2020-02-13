@@ -75,7 +75,6 @@ config = {
           sidebarPath: require.resolve('./sidebars.js'),
           remarkPlugins: [admonitions],
 
-          editUrl: 'http://gitlab-srv/common-infrastructure/qatools/edit/master/website/',
           // Show documentation's last contributor's name.
           // enableUpdateBy: true,
           // Show documentation's last update time.
@@ -96,6 +95,7 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
     ...config,
     url: 'http://qa-docs', // Your website URL
     baseUrl: '/', // Base URL for your project */
+    editUrl: 'http://gitlab-srv/common-infrastructure/qatools/edit/master/website/',    
   }
 } else {
   if (publish_github_samsung_private) {
@@ -106,7 +106,6 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
       githubHost: 'github.sec.samsung.net',
       organizationName: 'arthur-flam',
       projectName: 'qatools',
-    
     }  
   }
   if (publish_github_samsung_public) {
@@ -117,7 +116,8 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
       githubHost: 'github.com',
       organizationName: 'Samsung',
       projectName: 'qaboard',
-        }  
+      editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/',    
+    }  
   }
 }
 
