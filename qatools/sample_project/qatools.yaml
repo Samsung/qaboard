@@ -174,3 +174,10 @@ runners:
 ci_root:
   linux: /stage/algo_data/ci
   windows: '//netapp/algo_data/ci'
+
+
+## Optionnal policy to delete old results
+# storage:
+#   garbage:
+#     after: 1month
+  

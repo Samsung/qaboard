@@ -112,12 +112,12 @@ class Output(Base):
     return f"{self.batch.output_dir_url}/{quote(str(self.output_folder))}" 
 
   def __repr__(self):
-    return (f"<Output "
-           f"ci_commit.hexsha='{self.batch.ci_commit.hexsha}' "
+    return (f"[Output "
+           f"ci_commit.hexsha='{self.batch.ci_commit.hexsha[:8]}' "
            f"batch='{self.batch.label}' "
            f"platform='{self.platform}' "
            f"config='{self.configuration}' "
-           f"filename='{self.test_input.filename}' />")
+           f"filename='{self.test_input.filename}' /]")
 
   def to_dict(self):
     cols = [
