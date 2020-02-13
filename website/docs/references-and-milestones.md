@@ -3,13 +3,14 @@ id: references-and-milestones
 title: References & Milestones
 sidebar_label: References & Milestones
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 when looking at results, it is important to *compare* them to a reference.  It could to a previous version, results from a benchmark
 
 ## Comparing versus a reference
 In results pages, QA-Board always compares the commit you selected (labeled `new`) versus a reference (`ref`):
 
-![new-vs-reference](/img/comparing-new-and-reference.png)
+<img alt="new-vs-reference" src={useBaseUrl('img/comparing-new-and-reference.png')} />
 
 The reference is by default the latest commit from the project's reference branch:
 
@@ -20,7 +21,7 @@ project:
 ```
 
 To change the selected `new` or `ref` commit, you can edit the commit ID field in the navbar. Hovering it gives you a menu with other options:
-![commit-select-menu.png](/img/commit-select-menu.png)
+<img alt="commit-select-menu.png" src={useBaseUrl('img/commit-select-menu.png')} />
 
 :::tip
 Clicking on the branch name in the navbar will select the latest commit on the branch.
@@ -42,11 +43,11 @@ project:
 ## Defining Milestones from QA-Board
 Every user can save milestones with the “star” icon in each commit navbar:
 
-![save-as-milestone](/img/save-as-milestone.png)
+<img alt="save-as-milestone" src={useBaseUrl('img/save-as-milestone.png')} />
 
 If needed, you can give them a name and leave notes:
 
-![milestone-details](/img/milestone-details.png)
+<img alt="milestone-details" src={useBaseUrl('img/milestone-details.png')} />
 
 You'll now be able to select them in the commit ID hover menu.
 

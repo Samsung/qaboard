@@ -3,10 +3,11 @@ id: triggering-third-party-tools
 title: Triggering CI and third-party tools via the web application
 sidebar_label: Triggering External Tools
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). QA-Board lets you connect to those third-party tools on each commit's page and on commit index pages:
 
-![Allowing triggered build](/img/ui-triggers.png)
+<img alt="Allowing triggered build" src={useBaseUrl('img/ui-triggers.png')} />
 
 :::note
 The screenshots are not up-to-date; the menu is now named **"Actions & Links"**
@@ -40,7 +41,7 @@ integrations:
     gitlabCI:
       job_name: build-linux
 ```
-![jenkins-and-gitlab-integrations](/img/gitlab-jenkins.gif)
+<img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
 
   ## Trigger Jenkins builds
 Configure your project's *qatools.yaml*:
@@ -105,7 +106,6 @@ integrations:
   # --snip--
 ```
 
-
 ## Example: Jenkins integration via Webhooks
 :::caution
 The out-of-the-box jenkins integration above is much better! This is just an example with webhooks!
@@ -125,7 +125,7 @@ Since you'll commit those credentials with the code, make sure you don't have to
 2. Get a crumb to handle [Jenkins' CSRF](https://support.cloudbees.com/hc/en-us/articles/219257077-CSRF-Protection-Explained), eg at *$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)*
 
 3. Go to your Jenkins project configuration page at *$JENKINS_URL/$PROJECT/configure* and allow triggered builds:
-![Allowing triggered build](/img/configure-jenkins-build-triggers.png)
+<img alt="Allowing triggered build" src={useBaseUrl('img/configure-jenkins-build-triggers.png')} />
 
 4. Configure your project's *qatools.yaml*:
 

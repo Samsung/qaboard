@@ -95,8 +95,8 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
     ...config,
     url: 'http://qa-docs', // Your website URL
     baseUrl: '/', // Base URL for your project */
-    editUrl: 'http://gitlab-srv/common-infrastructure/qatools/edit/master/website/',    
   }
+  config.presets[0][1].editUrl = 'http://gitlab-srv/common-infrastructure/qatools/edit/master/website/';
 } else {
   if (publish_github_samsung_private) {
     config = {
@@ -116,8 +116,8 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
       githubHost: 'github.com',
       organizationName: 'Samsung',
       projectName: 'qaboard',
-      editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/',    
-    }  
+    }
+    config.presets[0][1].editUrl = 'https://github.com/Samsung/qaboard/edit/master/website/';
   }
 }
 

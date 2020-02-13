@@ -3,6 +3,7 @@ id: using-the-qa-cli
 sidebar_label: QA CLI Tips
 title: Tips for CLI usage
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## CLI flags worth knowing
 ## `qa --help`
@@ -50,7 +51,7 @@ qa --label without-optimizations batch validation-images
 qa --label    with-optimizations batch validation-images
 ```
 
-![select-batch](/img/select-batch.png)
+<img alt="select-batch" src={useBaseUrl('img/select-batch.png')} />
 
 :::tip
 To keep previous output files, `export QATOOLS_RUN_KEEP=true`. It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
