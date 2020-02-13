@@ -3,6 +3,7 @@ id: computing-quantitative-metrics
 sidebar_label: Metrics
 title: Computing quantitative metrics
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 Algorithms are usually evaluated using KPIs / Objective Figures of Merit / metrics. To make sure qatools's web UI displays them:
 
@@ -38,14 +39,14 @@ If it all goes well you get:
 
 - Tables to compare KPIs per-input across versions:
 
-![https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=summary&filter=old](/img/quantitative-metrics.png)
+<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=summary&filter=old" src={useBaseUrl('img/quantitative-metrics.png')} />
 
 - Summaries:
 
-![https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=summary&filter=old](/img/summary-metrics.png)
+<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=summary&filter=old" src={useBaseUrl('img/summary-metrics.png')} />
 
 - Metrics integrated in the visualizations:
-![https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta](/img/quantitative-metrics-on-viz.png)
+<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
 
 - and evolution over time per branch...
 

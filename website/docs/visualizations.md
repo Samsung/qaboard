@@ -3,6 +3,7 @@ id: visualizations
 title: Visualizing your algorithm's outputs
 sidebar_label: Visualizations
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 The `run()`function wrapping your code receives an `output_directory` where it can create all kinds of files. Usually, you only want to look at a few of those files, the rest being debug data. **Visualizations** help you declare pre-sets of relevant files. 
 
@@ -34,7 +35,7 @@ outputs:
 
 Users will get switches to toggle debug visualizations:
 
-![toggle visualizations](/img/hidden_by_default_switches.png)
+<img alt="toggle visualizations" src={useBaseUrl('img/hidden_by_default_switches.png')} />
 
 
 ## Available file viewers
@@ -61,10 +62,10 @@ Extenstions                                         | Type         | Viewer     
   * Histograms per channel.
 
 
-<!-- ![Image viewer](/img/image-viewer.gif) -->
-<!-- ![Image viewer](/img/image-perceptural-diff.png) -->
+<!-- <img alt="Image viewer" src={useBaseUrl('img/image-viewer.gif')} /> -->
+<!-- <img alt="Image viewer" src={useBaseUrl('img/image-perceptural-diff.png')} /> -->
 
-![Image viewer](/img/image-viewer-autoroi.png)
+<img alt="Image viewer" src={useBaseUrl('img/image-viewer-autoroi.png')} />
 
 
 <!-- http://qa:3000/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/051ee752a3aafa817b735bf34f7779dec9920387?reference=a4222720d3101049b3e43b458e2b8cd02470e65b&controls=%7B%22show%22%3A%7B%22Debug%20Image%22%3Afalse%2C%22CDE%20config%22%3Afalse%2C%22Video%22%3Afalse%2C%22BPC%20Directions%22%3Afalse%2C%22Remosaic%20RGB%22%3Afalse%2C%22HDR%20Merger%20LMS%20Weights%20Map%22%3Afalse%7D%2C%22diff%22%3Atrue%7D&batch=foveon_full&filter=Foveon_AFIT%2F61_SDQH_3_Nona_OutD_Person_FAR_1of800s_ISO100_5184x3792_GR.he&batch_ref=foveon_full&filter_ref= -->
@@ -78,11 +79,11 @@ Extenstions                                         | Type         | Viewer     
 - open-source and popular
 - performant
 
-![plotly gallery](/img/plotly-1.png)
+<img alt="plotly gallery" src={useBaseUrl('img/plotly-1.png')} />
 
-<!-- ![plotly gallery](/img/plotly-2.png) -->
+<!-- <img alt="plotly gallery" src={useBaseUrl('img/plotly-2.png')} /> -->
 
-![3d plot with plotly for LSF/Calibration](/img/plotly-3d-example.png)
+<img alt="3d plot with plotly for LSF/Calibration" src={useBaseUrl('img/plotly-3d-example.png')} />
 
 All you need is to save your plot data as JSON. 
 
@@ -95,7 +96,7 @@ with open('graph.plotly.json', 'w') as f:
 ```
 
 ### Text Viewer
-![Text/diff viewer](/img/text-viewer.jpg)
+<img alt="Text/diff viewer" src={useBaseUrl('img/text-viewer.jpg')} />
 
 ### More Viewers?
 Contact us to tell us what you need! The backlog contains:
@@ -106,7 +107,7 @@ Contact us to tell us what you need! The backlog contains:
 ## Dynamic visualizations
 You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will we able to choose what to display using sliders / select options:
 
-![Viewing each frame of a movie](/img/dynamic-outputs.gif)
+<img alt="Viewing each frame of a movie" src={useBaseUrl('img/dynamic-outputs.gif')} />
 
 ```yaml {5,7}
 outputs:
@@ -144,7 +145,7 @@ outputs:
 
 By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show:
 
-![Everything is synced](/img/dynamic-outputs-select.gif)
+<img alt="Everything is synced" src={useBaseUrl('img/dynamic-outputs-select.gif')} />
 
 If you want, you can visualize all matching files:
 

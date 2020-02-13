@@ -3,6 +3,7 @@ id: tuning-workflows
 sidebar_label: Tuning Workflows
 title: "Various Tuning Workflows"
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## Enabling tuning from QA-Board
 1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qatools.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml#L85):
@@ -27,14 +28,14 @@ qa save-artifacts
 ## Tuning from QA-Board
 When doing QA or during development, you often want to run the code/configs from a given commit on new tests. QA-Board lets you define and runs batches of tests with extra tuning parameters:
 
-![Tuning from the UI](/img/tuning-from-the-ui.jpg)
+<img alt="Tuning from the UI" src={useBaseUrl('img/tuning-from-the-ui.jpg')} />
 
 ## Investigating results/configs you see in the UI
 Every time you see an output in the web application, you see what configurations were used, and you can easily open the output directory:
 
-![Copy the Windows output dir](/img/output-windows-dir.jpg)
+<img alt="Copy the Windows output dir" src={useBaseUrl('img/output-windows-dir.jpg')} />
 
-![Output directory from Windows](/img/winows-explorer-output-dir.jpg)
+<img alt="Output directory from Windows" src={useBaseUrl('img/winows-explorer-output-dir.jpg')} />
 
 > The output logs always show you the exact CLI commands that were used, so that reproducing results is only a `git checkout $revision ; make ; qa run` away.
 
@@ -63,8 +64,8 @@ qa --share --label testing-some-logic-tweaks batch [...]
 
 Results will appear in a new batch:
 
-![selecting local runs](/img/selecting-local-runs.jpg)
-![local runs warning](/img/local-runs-warning.jpg)
+<img alt="selecting local runs" src={useBaseUrl('img/selecting-local-runs.jpg')} />
+<img alt="local runs warning" src={useBaseUrl('img/local-runs-warning.jpg')} />
 
 
 ### **Commit > CI > QA-Board** Qorkflow

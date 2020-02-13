@@ -3,6 +3,7 @@ id: bit-accuracy
 sidebar_label: Bit Accuracy
 title: Bit accuracy tests
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 QA-Board was started at Samsung, within a business unit focused on hardware digital design. Because of those root, QA-Board provides a number of ways to check that results are equal from commit to commit.
 
@@ -12,7 +13,7 @@ The web application lets you view and compare all files created by your algorith
 - Files are marked depending on their status (identical, different, added, removed...). Identical files are hidden by default.
 - You can click on each file to open it with an appropriate file viewer:
 
-![bit accuracy viewer](/img/bit-accuracy-viewer.jpg)
+<img alt="bit accuracy viewer" src={useBaseUrl('img/bit-accuracy-viewer.jpg')} />
 
 :::note
 The UI doesn't care about [*qatools.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml#L93)'s `bit-accuracy.patterns` *(discussed later)*.

@@ -3,6 +3,7 @@ id: debugging-runs-with-an-IDE
 title: Debugging qatools' runs in an IDE
 sidebar_label: Debugging with IDEs
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## Debugging with PyCharm
 Edit your "debug configurations" like this:

@@ -3,6 +3,8 @@ id: ci-integration
 title: Integrating qatools with your CI
 sidebar_label: CI Integration
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
 CI tools run automated scripts and tests everytime someone pushes a new commit.
 
 :::tip
@@ -15,7 +17,7 @@ This said, you can still view your results in the web application by using `qa -
 ## Requirement
 - Make sure your Gitlab project has an integration with qatools. If you're not sure if/how, review the [qatools setup guide](project-init). You should be able to see your project in the QA-Board web application.
 
-![Index of the projects](/img/projects-index.jpg)
+<img alt="Index of the projects" src={useBaseUrl('img/projects-index.jpg')} />
 
 ## Running qatools in your CI
 1. **Have your CI launch qatools:** With GitlabCI, you would do something like:
@@ -35,7 +37,7 @@ You CI is responsible for setting up an environment (`$PATH`...) in which qatool
 
 2. **Push a commit to Gitlab**. If your CI is successful, the commit will appear in your project's page: 
 
-![Index of the latest commits](/img/commits-index.jpg)
+<img alt="Index of the latest commits" src={useBaseUrl('img/commits-index.jpg')} />
 
 
 ## Example with GitlabCI

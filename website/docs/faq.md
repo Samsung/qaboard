@@ -3,6 +3,7 @@ id: faq
 sidebar_label: FAQ
 title: Frequently Asked Questions
 ---
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## There is a bug I'd like you to know about
 Open an issue [here](https://github.com/Samsung/qaboard/issues), or even mail [Arthur Flam](mailto:arthur.flam@samsung.com).
@@ -28,13 +29,13 @@ At the moment nothing prevents your from modifying/destroying files created from
 :::
 
 1. **In the "Visualization" tab, an export utility** lets you copy-to-clipboard a path with filtered/nicely-renamed results/files: 
-![Export batch outputs](/img/export-files-viz.jpg)
+<img alt="Export batch outputs" src={useBaseUrl('img/export-files-viz.jpg')} />
 
 2. **Next to each output**, there is always a button to copy-to-clipboard the path to the files it created.
 
-![Export batch outputs](/img/export-files-output.jpg)
+<img alt="Export batch outputs" src={useBaseUrl('img/export-files-output.jpg')} />
 
 3. **From the Navigation bar**, you can copy-to-clipboard the windows-ish path where each commit saves its results:
-![Export batch outputs](/img/export-files-commit.jpg)
+<img alt="Export batch outputs" src={useBaseUrl('img/export-files-commit.jpg')} />
 
 4. You can also **programmatically access qatools's data** by [querying its API](api).
