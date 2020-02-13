@@ -144,37 +144,44 @@ class CiCommit(Base):
       return LocalGitCommit(self.hexsha, self.message, self.committer_name, self.authored_datetime)
 
 
-  def delete(self, ignore=None, dryrun=False):
+  def delete(self, ignore=None, keep=None, dryrun=False):
     """
     Delete the commit's artifacts, and mark it as delete.
     NOTE: We don't touch batches/outputs, you have to deal with them yourself.
           See hard_delete() in api/webhooks.py and clean.py
     """
     manifest_dir = self.commit_dir / 'manifests'
-    if self.commit_dir.exists():
-      if not manifest_dir.exists():
-        # Old versions of qatools don't have those manifests...
-        for p in self.commit_dir.iterdir():
-          if not dryrun and p.name not in ['output', 'tuning']:
-            remove(p)
-        self.deleted = True
-        return
-      else:
-        for manifest in manifest_dir.iterdir():
-          print(f'...delete artifacts {manifest.name}')
+    delete_errors = False
+    if manifest_dir.exists():
+      for manifest in manifest_dir.iterdir():
+        if keep and manifest in keep:
+          continue
+        print(f'  ...delete artifacts: {manifest.name}')
+        has_error = False 
+        try:
           with manifest.open() as f:
             files = json.load(f)
-          for file in files.keys():
-            if ignore:
-              if any([fnmatch.fnmatch(file, i) for i in ignore]):
-                continue
-            print(f'{self.commit_dir / file}')
-            if not dryrun:
-              try:
-                (self.commit_dir / file).unlink()
-              except:
-                print(f"WARNING: Could not remove: {self.commit_dir / file}")
-    self.deleted = True
+        except:
+          delete_errors = True
+          continue
+        for file in files.keys():
+          if keep and file in keep:
+            continue
+          if ignore:
+            if any([fnmatch.fnmatch(file, i) for i in ignore]):
+              continue
+          print(f'{self.commit_dir / file}')
+          if not dryrun:
+            try:
+              (self.commit_dir / file).unlink()
+            except:
+              has_error = True
+              print(f"WARNING: Could not remove: {self.commit_dir / file}")
+          if not has_error:
+            manifest.unlink()
+        delete_errors = delete_errors or has_error
+    if not delete_errors:
+      self.deleted = True
 
   @staticmethod
   def get_or_create(session, hexsha, project_id):

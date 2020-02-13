@@ -27,6 +27,7 @@ module.exports = {
 		"apis",
 		"tuning-workflows",
 		"ci-integration",
+		"deleting-old-data",
 		"faq",
 		// "history"
 		// "monorepos-subprojects",
