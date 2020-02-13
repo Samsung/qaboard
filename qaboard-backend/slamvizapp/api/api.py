@@ -226,7 +226,15 @@ def get_ci_commit(commit_id=None):
                   )
     except NoResultFound:
       try:
-        commit = project.repo.commit(commit_id)
+        project = Project.query.filter(Project.id==project_id).one()
+        commit = project.repo.tags[commit_id].commit
+        try:
+          commit = project.repo.commit(commit_id)
+        except:
+          try:
+            commit = project.repo.refs[commit_id].commit
+          except:
+            commit = project.repo.tags[commit_id].commit
         ci_commit = CiCommit(commit, project=project)
         db_session.add(ci_commit)
         db_session.commit()
