@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 This scrip fixed a race condition that caused duplicated batches
- /opt/anaconda3/bin/python /home/arthurf/qaboard/qaboard-backend/slamvizapp/remove_duplicates.py --dryrun
+ /opt/anaconda3/bin/python /home/arthurf/qaboard/backend/slamvizapp/remove_duplicates.py --dryrun
 """
 import click
 from click import secho

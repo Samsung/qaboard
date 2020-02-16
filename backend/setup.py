@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(
-  name='qaboard-backend',
+  name='backend',
   version="0.2",
   license="Apache-2.0",
 
