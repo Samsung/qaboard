@@ -35,9 +35,9 @@ else
             PORTS="-p0.0.0.0:10000:5000 -p0.0.0.0:10002:5002 -p0.0.0.0:10001:443"
  			# PORTS=""
 			# or we could yse a dummy port and change the host's nginx config to point to the correct port..
-			# DOCKER_VOLUMES+=" --volume=slamvizapp:/var/slamvizapp"
+			# DOCKER_VOLUMES+=" --volume=backend:/var/qaboard"
 			# this would replace using port 5000, but we need to update some nginx configurations before it works... 
-			# --volume=/tmp/slamvizapp/slamvizapp-$CI_ENVIRONMENT_SLUG.sock:/slamvizapp/socks/slamvizapp.sock
+			# --volume=/tmp/qaboard/backend-$CI_ENVIRONMENT_SLUG.sock:/backend/socks/backend.sock
   	fi
 	fi
 fi
@@ -59,11 +59,11 @@ fi
 
 
 # Git clone configuration
-DOCKER_VOLUMES+=" --volume=slamvizapp:/var/qaboard"
+DOCKER_VOLUMES+=" --volume=qaboard:/var/qaboard"
 # Database configuration
-DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
-DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
-DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
+DOCKER_VOLUMES+=" --volume=qaboard-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
+DOCKER_VOLUMES+=" --volume=qaboard-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
+DOCKER_VOLUMES+=" --volume=qaboard-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
 
 HOME_DOCKER=/opt/dockermounts$HOME
 # Custom configuration

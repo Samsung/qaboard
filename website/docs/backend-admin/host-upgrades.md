@@ -18,13 +18,13 @@ cp /home/ispq/qaboard/database_backups/2020-01-07.dump .
 ## To make the recovery easier
 ```
 # docker login docker-registry
-docker push docker-registry:qaboard:production
+docker push docker-registry/qaboard:production
 ```
 
 ## Stop the server and create a backup 
 ```bash
 docker stop qaboard-production
-qaboard/qaboard-backend/deployment/create-backup.sh
+qaboard/backend/deployment/create-backup.sh
 ```
 
 ## MAINTENANCE
@@ -47,15 +47,16 @@ If not:
 ```bash
 # if no images...
 # docker pull docker-registry/qaboard:production
-CI_ENVIRONMENT_SLUG=production qaboard/qaboard-backend/deployment/start-docker.sh
+CI_ENVIRONMENT_SLUG=production qaboard/backend/deployment/start-docker.sh
 ```
 
-**Check** the database works. In case of issues, Recover from a backup: https://github.com/Samsung/qaboard/tree/master/qaboard-backend#recovery
+**Check** the database works. In case of issues, Recover from a backup: https://github.com/Samsung/qaboard/tree/master/backend#recovery
+
 ```bash
 docker restart qaboard-production
 ```
 #### 4. RESTART
-ssh planet31
+ssh qa
 
 #### ABORT ###################
 **Check** the docker container is started

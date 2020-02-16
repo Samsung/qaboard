@@ -31,8 +31,8 @@ setup(
 
   entry_points= {
     'console_scripts': [
-      'slamvizapp_clean = slamvizapp.clean:clean',
-      'slamvizapp_init_database = slamvizapp.scripts.init_database:init_database',
+      'qaboard_clean = backend.clean:clean',
+      'qaboard_init_database = backend.scripts.init_database:init_database',
     ]
   },
 
