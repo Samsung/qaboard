@@ -39,12 +39,8 @@ Symptom:
 docker restart qaboard-production
              ## and the image server...
              # qaboard_iiif_cantaloupe-production
-<<<<<<< HEAD
-=======
              # qaboard_iip_cde-production
->>>>>>> 4a39c1f... Renamed backend.slamvizapp to backend.backend
 ```
-
 
 
 ### Start from scratch the docker container
@@ -53,11 +49,7 @@ docker stop qaboard-production
 docker rm qaboard-production
 # ! it's arthurf's dev workspace, UNSTABLE
 #   do your own clone...!
-<<<<<<< HEAD
-CI_ENVIRONMENT_SLUG=production qaboard/qaboard-backend/deployment/start-docker.sh
-=======
-CI_ENVIRONMENT_SLUG=production /home/arthurf/common-infrastructure/qaboard/backend/deployment/start-docker.sh
->>>>>>> 4a39c1f... Renamed backend.slamvizapp to backend.backend
+CI_ENVIRONMENT_SLUG=production qaboard/backend/deployment/start-docker.sh
 ```
 
 
@@ -69,21 +61,11 @@ Symptom:
 
 Remove the image cache:
 ```bash
-<<<<<<< HEAD
 docker stop qaboard_iiif_cantaloupe-production && \
-docker rm qaboard_iiif_cantaloupe-production && \
+docker rm   qaboard_iiif_cantaloupe-production && \
 docker volume rm cache_cantaloupe && \
 # restart the image server
 docker run --name qaboard_iiif_cantaloupe-production -p 8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
-=======
-docker stop backend_iiif_cantaloupe-production && \
-docker rm backend_iiif_cantaloupe-production && \
-docker volume rm cache_cantaloupe && \
-# restart the image server
-docker run --name backend_iiif_cantaloupe-production -p 8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
->>>>>>> 4a39c1f... Renamed backend.slamvizapp to backend.backend
-
-# you'll also likely need to restart the container
 ```
 
 Remove unused docker images
@@ -100,12 +82,8 @@ npm run build && \
 rsync -r build deployed_build && \
 cd .. && \
 # re-build the container
-<<<<<<< HEAD
 docker build -t qaboard:production . && \
-=======
-docker build -t gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:production . && \
->>>>>>> 4a39c1f... Renamed backend.slamvizapp to backend.backend
 docker stop qaboard-production && \
 docker rm qaboard-production && \
-CI_ENVIRONMENT_SLUG=production ~/common-infrastructure/qaboard/backend/deployment/start-docker.sh
+CI_ENVIRONMENT_SLUG=production backend/deployment/start-docker.sh
 ```

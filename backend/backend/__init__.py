@@ -11,8 +11,8 @@ app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
-from .config import git_server, app_data_directory
-repos = Repos(git_server, app_data_directory)
+from .config import git_server, qaboard_data_dir
+repos = Repos(git_server, qaboard_data_dir / 'git')
 
 
 # We could fetch the latest commits at startup

@@ -75,7 +75,11 @@ sudo su -
 # check performance issues with
 # https://github.com/jfcoz/postgresqltuner
 apt-get install -y libdbd-pg-perl
+<<<<<<< HEAD:backend/backend/README.md
 postgresqltuner.pl --host=localhost --database=qaboard --user=ci --password=password
+=======
+postgresqltuner.pl --host=localhost --database=qaboard --user=ci --password=dvsdvs
+>>>>>>> 4a39c1f... Renamed backend.slamvizapp to backend.backend:backend/backend/README.md
 
 # note that the database configuration is here
 nano /etc/postgresql/9.6/main/postgresql.conf
