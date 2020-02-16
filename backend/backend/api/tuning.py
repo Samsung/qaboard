@@ -103,7 +103,7 @@ def get_group():
     if commit_id:
       commit_groups_paths = get_commit_groups_paths(project, commit_id)
       if not commit_groups_paths:
-        message = "<p>Could not load the <code>inputs.batches</code> files defined in <em>qatools.yaml</em>.</p><p>For tuning to work, <code>qa save-artifacts</code> needs to be called.</p>"
+        message = "<p>Could not load the <code>inputs.batches</code> files defined in <em>qaboard.yaml</em>.</p><p>For tuning to work, <code>qa save-artifacts</code> needs to be called.</p>"
       groups_paths = [*commit_groups_paths, *groups_paths]
       try:
           ci_commit = CiCommit.query.filter(

@@ -49,10 +49,10 @@ from .config import is_ci, on_windows
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
 def cli(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
-  # We want all paths to be relative to top-most qatools.yaml
+  # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
   if config_has_error:
-    click.secho(f'Aborting: please first fix the configuration errrors in qatools.yaml', fg='red', err=True, bold=True)
+    click.secho(f'Aborting: please first fix the configuration errrors in qaboard.yaml', fg='red', err=True, bold=True)
     exit(1)
 
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
@@ -369,7 +369,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
-    click.secho(f'Consider adding to qatools.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
+    click.secho(f'Consider adding to qaboard.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
     click.secho(f'Where batches.yaml is formatted like in http://qa-docs/docs/batches-running-on-multiple-inputs', fg='red', err=True)
     return
 
@@ -562,11 +562,13 @@ def save_artifacts(ctx, files, artifacts_path, groups):
   else:
     if 'artifacts' not in config:
       config['artifacts'] = {}
+    # We support both qaboard.yaml and qaboard.yaml for backward compatibility with SIRC's projects
     # Default artifacts
-    config['artifacts']['__qatools.yaml'] = {"glob": 'qatools.yaml'}
-    config['artifacts']['__qatools'] = {"glob": 'qatools/*'}
+    config['artifacts']['__qaboard.yaml'] = {"glob": ['qaboard.yaml', 'qatools.yaml']}
+    config['artifacts']['__qatools'] = {"glob": ['qatools/*', 'qa/*']}
     # Handle sub-projects
-    config['artifacts']['__sub-qatools.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
+    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qaboard.yaml') for p in qatools_config_paths]}
+    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
     config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
     config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
     config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}

@@ -5,7 +5,7 @@ By default, the default reference branch, active commits and milestone are not d
 
 The default configuration is: 
 ```yaml
-# qatools.yaml
+# qaboard.yaml
 storage:
   garbage:
     after: 1month
@@ -63,7 +63,7 @@ def clean(project_id, dryrun, verbose):
         old_treshold = now - parse_time(gc_config.get('after', '1month'))
         secho(f"deleting data older than {old_treshold}", dim=True)
 
-        # protect milestones defined via qatools.yaml
+        # protect milestones defined via qaboard.yaml
         project_config = project.data.get("qatools_config", {}).get("project", {})
         protected_refs = [
             project_config.get("reference_branch", "master"),

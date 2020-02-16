@@ -24,7 +24,7 @@ basic-list-of-inputs:
   inputs:
   - DualGen3_WideAngle_IMU_BL10cm_mark25/Demo2
   - DualGen3_WideAngle_IMU_BL15cm/Demo_set/Scene_5-1/Scene_5-1.bin
-# context.obj['configurations'] => ["the default config defined in qatools.yaml"]
+# context.obj['configurations'] => ["the default config defined in qaboard.yaml"]
 
 
 you-can-override-the-default-configuration:

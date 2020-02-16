@@ -9,8 +9,8 @@ QA-Board lets you erase old outputs after a period of time.
 ## What data will *not* be deleted
 Outputs from commits that are either:
 - Recent (more info below)
-- On the `project.reference_branch` from *qatools.yaml*.
-- Are on a **commit/tag/branch** listed as a `project.milestones` in *qatools.yaml*.
+- On the `project.reference_branch` from *qaboard.yaml*.
+- Are on a **commit/tag/branch** listed as a `project.milestones` in *qaboard.yaml*.
 - Are a milestone defined from QA-Board's UI.
 
 
@@ -18,7 +18,7 @@ Outputs from commits that are either:
 Data can be erased after a period of time where the commit has no new outputs.
 
 ```yaml
-# qatools.yaml
+# qaboard.yaml
 storage:
   garbage:
     after: 1month
@@ -50,7 +50,7 @@ storage:
       delete: true
 ```
 
-If you want to keep some artifacts (maybe "small" coverage reports defined as `coverage_report: ...` in *qatools.yaml*'s artifacts)
+If you want to keep some artifacts (maybe "small" coverage reports defined as `coverage_report: ...` in *qaboard.yaml*'s artifacts)
 
 ```yaml {6-7}
 storage:
@@ -65,6 +65,6 @@ storage:
 ```
 
 Notes:
-- The settings that are used are those in the latest commit of the `reference_branch` defined in *qatools.yaml* 
+- The settings that are used are those in the latest commit of the `reference_branch` defined in *qaboard.yaml* 
 - If you change those settings, artifacts for already deleted commits don't get deleted.
 - When a `qa run` uses a commit that was deleted, or if you upload manifests for a deleted commit, it is marked as undeleted.

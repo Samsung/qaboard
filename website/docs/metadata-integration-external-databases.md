@@ -12,7 +12,7 @@ Input metadata are useful to:
 To enable metadata support in qatools, implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
 
 ```python
-# qa/main.py (qatools.yaml: project.entrypoint)
+# qa/main.py (qaboard.yaml: project.entrypoint)
 def metadata(absolute_input_path, database, input_path):
   metadata_file = absolute_input_path.with_suffix('.metadata.yaml')
   if not metadata_file.exists():
@@ -68,7 +68,7 @@ def iter_inputs(path, database, only, exclude, inputs_settings):
   return ({"absolute_input_path": database / p.path, "metadata": p.metadata} for p in inputs)
 
 # Note: path=None should match all inputs in the database
-# Note: inputs_settings is a dict with information on how inputs should be found: file globs, use_parent, or anything else you put in qatools.yaml's inputs.
+# Note: inputs_settings is a dict with information on how inputs should be found: file globs, use_parent, or anything else you put in qaboard.yaml's inputs.
 ```
 
 :::note

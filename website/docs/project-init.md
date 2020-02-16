@@ -23,7 +23,7 @@ root-git-repository
 │  ├── main.py         # sample entrypoint that runs your code
 │  ├── batches.yaml    # examples of how to run multiple tests
 │  └── metrics.yaml    # examples of how to define KPIs
-└── qatools.yaml       # 👇 QA-Board configuration ⚙️ 
+└── qaboard.yaml       # 👇 QA-Board configuration ⚙️ 
 ```
 
 ## Gitlab Integration

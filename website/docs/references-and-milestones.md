@@ -15,7 +15,7 @@ In results pages, QA-Board always compares the commit you selected (labeled `new
 The reference is by default the latest commit from the project's reference branch:
 
 ```yaml
-# qatools.yaml
+# qaboard.yaml
 project:
     reference_branch: master
 ```
@@ -28,10 +28,10 @@ Clicking on the branch name in the navbar will select the latest commit on the b
 :::
 
 ## Project References
-You can also list in *qatools.yaml* other versions as milestones.
+You can also list in *qaboard.yaml* other versions as milestones.
 
 ```yaml {4-7}
-# qatools.yaml
+# qaboard.yaml
 project:
     reference_branch: master
     milestones:

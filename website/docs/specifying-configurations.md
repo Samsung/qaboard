@@ -16,7 +16,7 @@ You will want to run code on the same inputs with different configuration. Depen
 There is a huge variety of configuration formats and needs. Hence, QA-Board is not very opiniated. The `run()` function will provide a **list of configurations**, which are are free to interpret however you please.
 
 :::tip
-Access configurations using `context.obj['configurations']`. It defaults to `[]`, or the value of `inputs.configurations` in *qatools.yaml*.
+Access configurations using `context.obj['configurations']`. It defaults to `[]`, or the value of `inputs.configurations` in *qaboard.yaml*.
 :::
 
 ## Specifying configurations

@@ -16,7 +16,7 @@ def get_settings(inputs_type, config):
   config_inputs = config.get('inputs', {})  
   config_inputs_types = config_inputs.get('types', {})
   if inputs_type != 'default' and inputs_type not in config_inputs_types:
-    error = f'Error: Unknown input type <{inputs_type}>. It is not defined in your qatools.yaml'
+    error = f'Error: Unknown input type <{inputs_type}>. It is not defined in your qaboard.yaml'
     click.secho(error, fg='red', err=True, bold=True)
     raise ValueError(error)
   settings = {

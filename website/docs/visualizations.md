@@ -10,21 +10,21 @@ The `run()`function wrapping your code receives an `output_directory` where it c
 Here is a simple example, assuming your code an image named *output.jpg*.
 
 ```yaml
-# qatools.yaml
+# qaboard.yaml
 outputs:
     visualizations:
     - path: output.jpg
 ```
 
 :::note
-For now, to debug your visualizations, you have to commit and push your new *qatools.yaml*.
-We plan on letting you edit simply *qatools.yaml* locally, and update the visualizations when you use `qa --share`.
+For now, to debug your visualizations, you have to commit and push your new *qaboard.yaml*.
+We plan on letting you edit simply *qaboard.yaml* locally, and update the visualizations when you use `qa --share`.
 :::
 
 You can provide multiple relevant files, and hide debug visualizations by default: 
 
 ```yaml {5-6}
-# qatools.yaml
+# qaboard.yaml
 outputs:
     visualizations:
     - path: output.jpg

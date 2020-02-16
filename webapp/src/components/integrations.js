@@ -23,7 +23,7 @@ export const toaster = Toaster.create();
 // - jenkins builds
 // In the future, to support more, we should refactor this code.
 // It looks like we can easily into a class/functions with
-//   .props.integration: what's in qatools.yaml
+//   .props.integration: what's in qaboard.yaml
 //   .state.status:
 //           Today we rely on
 //           - status.error / status.loading

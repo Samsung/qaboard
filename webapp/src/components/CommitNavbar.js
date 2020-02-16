@@ -111,7 +111,7 @@ class CommitNavbar extends React.Component {
     const qatools_config = (((project_data || {}).data || {}).qatools_config)
     const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
 
-    // in qatools.yaml users specify milestones as arrays, but here we handle them as a mapping...
+    // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
     const qatools_milestones_array = (((qatools_config || {}).project || {}).milestones || [])
     const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
     const shared_milestones = ((project_data || {}).data || {}).milestones || {}
@@ -124,8 +124,8 @@ class CommitNavbar extends React.Component {
       <MenuItem text="Remove from comparaison" icon="cross" onClick={() => this.removeSelection()} />
       <MenuDivider title="Select"/>
       <MenuItem text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
-      <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qatools.yaml" type="qatools" />
-      {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qatools.yaml</em> configuration.</span>}
+      <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
+      {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
       <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
       <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
     </Menu>

@@ -85,7 +85,7 @@ def entrypoint_module(config):
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
-    click.secho(f'Add to qatools.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
+    click.secho(f'Add to qaboard.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
     return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
@@ -218,7 +218,7 @@ def is_plaintext(path, config=None):
   if not plaintext_patterns and binary_patterns:
     #print(list((path.name, p, fnmatch.fnmatch(path.name, p)) for p in binary_patterns))
     return not any(fnmatch.fnmatch(path.name, p) for p in binary_patterns)
-  click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qatools.yaml', fg='red')
+  click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qaboard.yaml', fg='red')
   exit(1)
 
 
