@@ -151,7 +151,7 @@ server {
     add_header 'Cache-Control' 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
     expires off;
     proxy_no_cache 1;
-    root /qaboard/qaboard-webapp/build;
+    root /qaboard/webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
   }
 
@@ -159,12 +159,12 @@ server {
     expires 1y;
     access_log off;
     add_header Cache-Control "public";
-    root /qaboard/qaboard-webapp/build;
+    root /qaboard/webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
   }
 
   location / {
-    root /qaboard/qaboard-webapp/build;
+    root /qaboard/webapp/build;
     try_files $uri $uri/index.html $uri.html /index.html;
   }
 

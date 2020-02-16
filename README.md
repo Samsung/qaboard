@@ -31,7 +31,7 @@
 ## Code organization
 Each section has its own README:
 - [qatools](qatools): provides the `qa` CLI wrapper than runs your code, and the `import qatools` package.
-- [qaboard-webapp](qaboard-webapp/) is the frontend that displays results.
+- [webapp](webapp/) is the frontend that displays results.
 - [backend](backend/) exposes an HTTP API used to read/write all the metadata on runs.
 - [thirdparty](thirdparty/):
   * [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIIF server, used to "stream" large images to the users.
