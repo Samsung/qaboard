@@ -62,11 +62,11 @@ Symptom:
 
 Remove the image cache:
 ```bash
-docker stop backend_iiif_cantaloupe-production && \
-docker rm backend_iiif_cantaloupe-production && \
+docker stop qaboard_iiif_cantaloupe-production && \
+docker rm qaboard_iiif_cantaloupe-production && \
 docker volume rm cache_cantaloupe && \
 # restart the image server
-docker run --name backend_iiif_cantaloupe-production -p 8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
+docker run --name qaboard_iiif_cantaloupe-production -p 8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
 
 # you'll also likely need to restart the container
 ```

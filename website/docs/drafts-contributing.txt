@@ -15,5 +15,5 @@ npm start
 
 - We use the simple [`reactjs`](https://reactjs.org) framework.
 - Existing visualizations are varied so you never start from a blank page
-  * existing viewers are [implemented here](http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp-webapp/src/viewers)
-  * the mapping from visualization-type <-> viewer are [defined here](http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp-webapp/src/viewers/OutputCard.js)
+  * existing viewers are [implemented here](http://gitlab-srv/dvs/backend/tree/master/backend-webapp/src/viewers)
+  * the mapping from visualization-type <-> viewer are [defined here](http://gitlab-srv/dvs/backend/tree/master/backend-webapp/src/viewers/OutputCard.js)

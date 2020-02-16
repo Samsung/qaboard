@@ -25,7 +25,7 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 # from a computer with the  same postgresql major version, run something like...
-pg_dump --dbname=qaboard --username=ci --password -h localhost  > backup.07-01-2019.sql
+pg_dump --dbname=slamvizapp --username=ci --password -h localhost  > backup.07-01-2019.sql
 
 ```
 
@@ -38,11 +38,11 @@ auth='--username=ci --password -h localhost'
 PGPASS=$HOME/.pgpass
 auth='--username=ci --no-password -h localhost'
 
-dropdb $auth qaboard
+dropdb $auth slamvizapp
 # Password:
-createdb -T template0 $auth qaboard
+createdb -T template0 $auth slamvizapp
 Password:
-$ pg_restore $auth --dbname qaboard /home/ispq/qaboard/database_backups/2019-03-21.dump
+$ pg_restore $auth --dbname slamvizapp /home/ispq/qaboard/database_backups/2019-03-21.dump
 Password:
 $ exit
 > docker restart qaboard-production
@@ -75,7 +75,7 @@ sudo su -
 # check performance issues with
 # https://github.com/jfcoz/postgresqltuner
 apt-get install -y libdbd-pg-perl
-postgresqltuner.pl --host=localhost --database=qaboard --user=ci --password=dvsdvs
+postgresqltuner.pl --host=localhost --database=slamvizapp --user=ci --password=dvsdvs
 
 # note that the database configuration is here
 nano /etc/postgresql/9.6/main/postgresql.conf
@@ -91,7 +91,7 @@ Profiling and getting an SQL prompt
 #   -D /var/lib/postgresql/9.6/main \
 #   -c config_file=/etc/postgresql/9.6/main/postgresql.conf &
 # sudo su postgres
-# psql -d qaboard
+# psql -d slamvizapp
 # \dt
 # select count(*) from outputs;
 # alter table outputs rename to outputs_backup;
