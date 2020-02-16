@@ -73,7 +73,7 @@ HOME_DOCKER=/opt/dockermounts$HOME
 
 if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
   echo 'production !'
-  DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home/ispq/qaboard/webapp_builds:/qaboard/qaboard-webapp/build"
+  DOCKER_VOLUMES+=" --volume=/opt/dockermounts/home/ispq/qaboard/webapp_builds:/qaboard/webapp/build"
 else
   if [ -z ${QABOARD_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'

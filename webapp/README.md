@@ -1,4 +1,4 @@
-# qaboard-webapp
+# webapp
 Web frontend for QA-Board.
 
 ## Setting up a development environment

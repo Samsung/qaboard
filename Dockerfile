@@ -125,8 +125,8 @@ RUN curl -ksL https://deb.nodesource.com/setup_10.x  | \
 
 
 # Frontend's dependencies
-WORKDIR /qaboard/qaboard-webapp
-COPY qaboard-webapp/package.json qaboard-webapp/npm-shrinkwrap.json ./
+WORKDIR /qaboard/webapp
+COPY webapp/package.json webapp/npm-shrinkwrap.json ./
 ## FIXME ####################################
 # ENV NODE_ENV production
 # # At the  moment we don't build the app from the container because of frequent issues:
@@ -134,8 +134,8 @@ COPY qaboard-webapp/package.json qaboard-webapp/npm-shrinkwrap.json ./
 # # - network issues would cause always one of the 1000 dependencies to fail fetching
 # #   solvable via an internal pip proxy (e.g. artifactory)
 # # As a user, you are expected to build it yourself with: 
-# # $ cd qaboard-webapp; npm ci; npm build
-# # Then mount the build/ folder to /qaboard/qaboard-webapp/build
+# # $ cd webapp; npm ci; npm build
+# # Then mount the build/ folder to /qaboard/webapp/build
 # We used to have things like
 # RUN ulimit -n 2000 && npm ci -ddd      # install exactly as in the lock-file (prefered...)
 # RUN ulimit -n 2000 && npm install -ddd # install compatible dependencies

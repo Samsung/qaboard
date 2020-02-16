@@ -19,7 +19,7 @@ export CI_ENVIRONMENT_SLUG=staging
 docker build --tag $DOCKER_IMAGE-$CI_ENVIRONMENT_SLUG .
 ```
 
-As explained in the [Dockerfile](Dockerfile), you also have to build the frontend separately. [Follow the instructions](../qaboard-webapp/). 
+As explained in the [Dockerfile](Dockerfile), you also have to build the frontend separately. [Follow the instructions](../webapp/). 
 
 ## How to run the backend
 As of now we expect users to use Gitlab...
