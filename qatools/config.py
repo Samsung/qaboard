@@ -264,9 +264,9 @@ commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit
 # When running qatools from a folder in which we saved a commit's artifacts,
 # we don't have any information about the git commit we're looking at.
 # Because of this, the web application that starts tuning runs will tell qatools what to
-# by setting both the QATOOLS_CI_COMMIT_DIR and CI_COMMIT_SHA environment variables
-if 'QATOOLS_CI_COMMIT_DIR' in os.environ:
-    commit_ci_dir = Path(os.environ['QATOOLS_CI_COMMIT_DIR'])
+# by setting both the QA_CI_COMMIT_DIR and CI_COMMIT_SHA environment variables
+if 'QA_CI_COMMIT_DIR' in os.environ:
+    commit_ci_dir = Path(os.environ['QA_CI_COMMIT_DIR'])
     commit_rootproject_ci_dir = commit_ci_dir
 
 

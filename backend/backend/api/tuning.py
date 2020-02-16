@@ -31,7 +31,7 @@ def get_groups_path(project_id, name="extra-batches"):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
-            f.write("""# Docs:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
+            f.write("""# Docs:\n# https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs""")
     return path
 
 
@@ -280,7 +280,7 @@ def start_tuning(hexsha):
             # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
             f"\nexport CI=true;\n",
             f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
-            f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
+            f"export QA_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
             batch_command,
         ]
     )

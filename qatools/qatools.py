@@ -165,8 +165,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     # Usually we want to remove any files already present in the output directory.
     # It avoids issues with remaining state... This said,
     # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
-    # Note: we keep support for QATOOLS_RUN_KEEP, but it's only used by David so let's tell him to change tomorrow :)
-    if not (keep_previous or 'QATOOLS_RUN_KEEP' in os.environ):
+    if not keep_previous:
       import shutil
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)

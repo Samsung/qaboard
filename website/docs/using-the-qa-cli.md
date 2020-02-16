@@ -25,7 +25,7 @@ If you don't like this default, make `--share` the default via
 alias qa="qa --share"
 
 # you can also use an environment variable
-export QATOOLS_SHARE=true
+export QA_SHARE=true
 ```
 :::
 
@@ -54,7 +54,7 @@ qa --label    with-optimizations batch validation-images
 <img alt="select-batch" src={useBaseUrl('img/select-batch.png')} />
 
 :::tip
-To keep previous output files, `export QATOOLS_RUN_KEEP=true`. It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
+To keep previous output files, use `qa batch/run --keep-previous` or `EXPORT QA_KEEP_PREVIOUS=true`. It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
 :::
 
 ## `qa batch`
@@ -83,8 +83,8 @@ Use `qa --offline` to ensure you don't connect to a QA-Board instance. It's usef
 The default connection settings can be overriden by environment variables. For example:
 
 ```bash
-export QATOOLS_DB_PROTOCOL=http
-export QATOOLS_DB_HOST=qa
-export QATOOLS_DB_PORT=5000
+export QABOARD_DB_PROTOCOL=http
+export QABOARD_DB_HOST=qa
+export QABOARD_DB_PORT=5000
 ```
 
