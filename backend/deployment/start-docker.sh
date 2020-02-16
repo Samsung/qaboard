@@ -78,14 +78,14 @@ else
   if [ -z ${QABOARD_DEBUG_WITH_MOUNTS+x} ]; then
       echo 'reading source from container'
   else
-      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
-      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/conf.d:/etc/nginx/conf.d"
-      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend:/qaboard/qaboard-backend"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
+      # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/conf.d:/etc/nginx/conf.d"
+      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend:/qaboard/backend"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
   fi
 fi
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
-DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/ssl/dvs:/etc/nginx/ssl/dvs"
+DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 
 if [ -z ${QABOARD_DB_HOST+x} ]; then
     echo 'Using container database'
@@ -94,7 +94,7 @@ else
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
-# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard-backend/deployment/init.sh:/qaboard/qaboard-backend/deployment/init.sh"
+# DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/init.sh:/qaboard/backend/deployment/init.sh"
 
 # Networking:
 # --publish-all -P

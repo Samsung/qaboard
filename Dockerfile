@@ -24,9 +24,9 @@ RUN apt-get update && \
 
 
 # Trust various SSL certificates used by Samsung's IT
-COPY qaboard-backend/deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
-COPY qaboard-backend/deployment/sirc-ca.cer    /usr/local/share/ca-certificates/samsung/sirc-ca.cer
-COPY qaboard-backend/deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.crt
+COPY backend/deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
+COPY backend/deployment/sirc-ca.cer    /usr/local/share/ca-certificates/samsung/sirc-ca.cer
+COPY backend/deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.crt
 RUN update-ca-certificates && \
     yes | dpkg-reconfigure ca-certificates --
 
@@ -147,7 +147,7 @@ COPY . /qaboard/
 ENV LANG 'C.UTF-8'
 ENV LC_ALL 'C.UTF-8'
 WORKDIR /qaboard
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable . ./qaboard-backend
+RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --editable . ./backend
 
 WORKDIR /qaboard
 VOLUME /var/qaboard
@@ -162,7 +162,7 @@ USER arthurf
 
 
 # reverse proxy settings
-COPY qaboard-backend/deployment/nginx/mime.types qaboard-backend/deployment/nginx/nginx.conf /etc/nginx/
-COPY qaboard-backend/deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
+COPY backend/deployment/nginx/mime.types backend/deployment/nginx/nginx.conf /etc/nginx/
+COPY backend/deployment/nginx/conf.d/qaboard.conf /etc/nginx/conf.d/
 
-CMD ["/qaboard/qaboard-backend/deployment/init.sh"]
+CMD ["/qaboard/backend/deployment/init.sh"]

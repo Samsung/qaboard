@@ -7,12 +7,12 @@ server {
 
   location ^~ /api {
       include uwsgi_params;
-      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
+      uwsgi_pass unix:/qaboard/backend/deployment/qaboard.sock;
       uwsgi_read_timeout 300;
   }
   location ^~ /webhook {
       include uwsgi_params;
-      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
+      uwsgi_pass unix:/qaboard/backend/deployment/qaboard.sock;
   }
 
 
@@ -170,7 +170,7 @@ server {
 
   location ^~ /api {
       include uwsgi_params;
-      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
+      uwsgi_pass unix:/qaboard/backend/deployment/qaboard.sock;
       uwsgi_read_timeout 300;
       if ($request_method ~* "(GET|POST|PUT|DELETE)") {
         add_header "Access-Control-Allow-Origin"  *;
@@ -185,11 +185,11 @@ server {
   }
   location ^~ /webhook {
       include uwsgi_params;
-      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
+      uwsgi_pass unix:/qaboard/backend/deployment/qaboard.sock;
   }
   location ^~ /admin {
       include uwsgi_params;
-      uwsgi_pass unix:/qaboard/qaboard-backend/deployment/qaboard.sock;
+      uwsgi_pass unix:/qaboard/backend/deployment/qaboard.sock;
   }
 
 
