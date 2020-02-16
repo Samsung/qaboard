@@ -38,8 +38,8 @@ Symptom:
 ```bash
 docker restart qaboard-production
              ## and the image server...
-             # slamvizapp_iiif_cantaloupe-production
-             # slamvizapp_iip_cde-production
+             # qaboard_iiif_cantaloupe-production
+             # qaboard_iip_cde-production
 ```
 
 
@@ -50,7 +50,7 @@ docker stop qaboard-production
 docker rm qaboard-production
 # ! it's arthurf's dev workspace, UNSTABLE
 #   do your own clone...!
-CI_ENVIRONMENT_SLUG=production /home/arthurf/dvs/slamvizapp/deployment/start-docker.sh
+CI_ENVIRONMENT_SLUG=production /home/arthurf/common-infrastructure/qaboard/backend/deployment/start-docker.sh
 ```
 
 
@@ -62,11 +62,11 @@ Symptom:
 
 Remove the image cache:
 ```bash
-docker stop slamvizapp_iiif_cantaloupe-production && \
-docker rm slamvizapp_iiif_cantaloupe-production && \
+docker stop backend_iiif_cantaloupe-production && \
+docker rm backend_iiif_cantaloupe-production && \
 docker volume rm cache_cantaloupe && \
 # restart the image server
-docker run --name slamvizapp_iiif_cantaloupe-production -p 8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
+docker run --name backend_iiif_cantaloupe-production -p 8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
 
 # you'll also likely need to restart the container
 ```
@@ -78,15 +78,15 @@ docker image prune
 
 ### Re-build and start the docker container
 ```bash
-cd slamvizapp-webapp && \
+cd webapp && \
 # build the frontend
 npm run build && \
 # keep old JS bundles not to break users currently using the app
 rsync -r build deployed_build && \
 cd .. && \
 # re-build the container
-docker build -t gitlab-srv.transchip.com:4567/dvs/slamvizapp:production . && \
+docker build -t gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:production . && \
 docker stop qaboard-production && \
 docker rm qaboard-production && \
-CI_ENVIRONMENT_SLUG=production ~/dvs/slamvizapp/deployment/start-docker.sh
+CI_ENVIRONMENT_SLUG=production ~/common-infrastructure/qaboard/backend/deployment/start-docker.sh
 ```

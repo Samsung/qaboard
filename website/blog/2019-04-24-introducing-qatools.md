@@ -70,7 +70,7 @@ How does it work, concretely?
 
 
 ## open source tech blocker
-- rename dvs/slamvizapp => qatools/frontend + qatools/backend; common-infrastrcture/qatools => qatools/cli
+- rename dvs/backend => qatools/frontend + qatools/backend; common-infrastrcture/qatools => qatools/cli
 - storage: need to review linux/windows: offer eg s8, make it clearer
 - github integration, per-project repo host, permissions, integrations like user pictures...
 - replace lsf with eg celery, make it pluggable (qatools[lsf]), so also need to carve it out of the server...

@@ -10,7 +10,7 @@ export PGPASSFILE=$HOME/.pgpass
 
 BACKUP_DIR=/home/ispq/qaboard/database_backups
 backup=$BACKUP_DIR/$(date --rfc-3339=date).dump
-connect="--username=ci --no-password -h localhost --dbname=slamvizapp"
+connect="--username=ci --no-password -h localhost --dbname=qaboard"
 
 pg_dump $connect -Fc > $backup
 

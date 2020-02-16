@@ -1,1 +1,0 @@
-from .slamvizapp import app

@@ -1,8 +1,6 @@
 # QA-Board Backend
 Exposes an HTTP API used to read/write all the metadata on QA-Board's runs.
 
-> The python package implementing the API is named `slamvizapp`, let's find some time to rename it `qaboard_backend`... Likewise, the database is named `slamvizapp`...
-
 ## How to build
 First get the code
 ```bash

@@ -2,7 +2,7 @@
 ```bash
 docker build --tag cantaloupe .
 
-docker run --name slamvizapp_iiif_cantaloupe-production -p 0.0.0.0:8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
+docker run --name qaboard_iiif_cantaloupe-production -p 0.0.0.0:8182:8182 -v cache_cantaloupe:/var/cache/cantaloupe -v /opt/dockermounts/stage/algo_data:/repository -v /srv/cantaloupe:/srv/cantaloupe --detach --restart always -it cantaloupe
 
 ```
 ## Image formats

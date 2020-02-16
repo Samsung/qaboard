@@ -18,13 +18,13 @@ cp /home/ispq/qaboard/database_backups/2020-01-07.dump .
 ## To make the recovery easier
 ```
 # docker login gitlab-srv.transchip.com:4567
-docker push gitlab-srv.transchip.com:4567/dvs/slamvizapp:production
+docker push gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:production
 ```
 
 ## Stop the server and create a backup 
 ```bash
 docker stop qaboard-production
-/home/arthurf/dvs/slamvizapp/deployment/create-backup.sh
+/home/arthurf/qaboard/backend/deployment/create-backup.sh
 ```
 
 ## MAINTENANCE
@@ -46,11 +46,11 @@ If not:
 If not:
 ```bash
 # if no images...
-# docker pull gitlab-srv.transchip.com:4567/dvs/slamvizapp:production
-CI_ENVIRONMENT_SLUG=production ~/dvs/slamvizapp/deployment/start-docker.sh
+# docker pull gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:production
+CI_ENVIRONMENT_SLUG=production ~/qaboard/backend/deployment/start-docker.sh
 ```
 
-**Check** the database works. In case of issues, Recover from a backup: http://gitlab-srv/dvs/slamvizapp/tree/master/slamvizapp#recovery
+**Check** the database works. In case of issues, Recover from a backup: http://gitlab-srv/common-infrastructure/qaboard/tree/master/backend#recovery
 ```bash
 docker restart qaboard-production
 ```
