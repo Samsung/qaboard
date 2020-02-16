@@ -180,7 +180,7 @@ except KeyError:
   config_has_error = True
   if not no_config_warning:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
-    click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
+    click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /var/qaboard/data\n  windows: "\\\\shared_storage\\qaboard\\data"\n```', fg='red', err=True, dim=True)
     no_config_warning = True
 
 

@@ -25,6 +25,22 @@ root-git-repository
 └── qatools.yaml       # 👇 QA-Board configuration ⚙️ 
 ```
 
+## Storing results
+For now, we expect that all computers running `qa` can access a shared storage (`NFS`, `samba`...) at `/var/qaboard/data`. To create this directly locally, run: 
+
+```bash
+mkdir -p /var/qabaord/data
+chmod -R 777 /var/qaboard/data
+```
+
+To change this location, or set it up for Windows:
+```yaml
+# qatools.yaml
+ci_root:
+  linux: /var/qaboard/data
+  windows: '//shared_storage/var/qaboard/data'
+```
+
 ## Gitlab Integration
 Create a Gitlab integration to keep the QA-Board and `git` in sync.
 

@@ -172,8 +172,8 @@ runners:
 
 # Your artifacts will be saved under this location.
 ci_root:
-  linux: /stage/algo_data/ci
-  windows: '//netapp/algo_data/ci'
+  linux: /var/qaboard/data
+  windows: '//shared_storage/var/qaboard/data'
 
 
 ## Optionnal policy to delete old results

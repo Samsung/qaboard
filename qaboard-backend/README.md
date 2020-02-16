@@ -22,7 +22,9 @@ docker build --tag $DOCKER_IMAGE-$CI_ENVIRONMENT_SLUG .
 As explained in the [Dockerfile](Dockerfile), you also have to build the frontend separately. [Follow the instructions](../qaboard-webapp/). 
 
 ## How to run the backend
-- Your user must have an SSH keys setup to connect to your gitlab instance.
+As of now we expect users to use Gitlab...
+- Set your Gitlab server name as environment variabled, named `QABOARD_GITLAB_SERVER` (defaults to *gitlab.com*).
+- Your user must have an SSH keys setup to connect to your gitlab server.
 - You must have set the *$GITLAB_ACCESS_TOKEN* environment variable ([get it here](http://gitlab-srv/profile/personal_access_tokens))
 
 > **FIXME**: you also need to provide SSL keys in *deployment/ssl/...*.

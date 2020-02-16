@@ -102,7 +102,7 @@ RUN echo "listen_addresses = '*'" >> /etc/postgresql/10/main/postgresql.conf && 
     echo 'host    all             all              ::/0                            md5' >> /etc/postgresql/10/main/pg_hba.conf && \
     echo 'host    all             all              0.0.0.0/0                       md5' >> /etc/postgresql/10/main/pg_hba.conf
 USER postgres
-RUN /etc/init.d/postgresql start && sleep 10 && psql --command "CREATE USER ci WITH SUPERUSER PASSWORD 'dvsdvs';"
+RUN /etc/init.d/postgresql start && sleep 10 && psql --command "CREATE USER qaboard WITH SUPERUSER PASSWORD 'password';"
 USER root
 VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 EXPOSE 5432

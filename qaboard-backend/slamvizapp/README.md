@@ -78,7 +78,7 @@ sudo su -
 # check performance issues with
 # https://github.com/jfcoz/postgresqltuner
 apt-get install -y libdbd-pg-perl
-postgresqltuner.pl --host=localhost --database=slamvizapp --user=ci --password=dvsdvs
+postgresqltuner.pl --host=localhost --database=slamvizapp --user=ci --password=password
 
 # note that the database configuration is here
 nano /etc/postgresql/9.6/main/postgresql.conf
