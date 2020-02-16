@@ -10,7 +10,7 @@ Edit your "debug configurations" like this:
 
 - **Module name:** qatools *(make sure you select "module" not "script" in the dropdown menu).*
 - **Parameters:** CLI parameters for `qa`: **`run -i images/A.jpg`**.
-- **Working directory:** Check it’s defined as the directory with *qatools.yaml*. If this directory happens to have a subfolder named "qatools", use it.
+- **Working directory:** Check it’s defined as the directory with *qaboard.yaml*. If this directory happens to have a subfolder named "qatools", use it.
 
 
 ![pyCharm setup](/img/pycharm-debugging-setup.png)

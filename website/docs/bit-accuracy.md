@@ -16,19 +16,19 @@ The web application lets you view and compare all files created by your algorith
 <img alt="bit accuracy viewer" src={useBaseUrl('img/bit-accuracy-viewer.jpg')} />
 
 :::note
-The UI doesn't care about [*qatools.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml#L93)'s `bit-accuracy.patterns` *(discussed later)*.
+The UI doesn't care about [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L93)'s `bit-accuracy.patterns` *(discussed later)*.
 :::
 
 ### "Hard" `qa check-bit-accuracy` on the CLI
 `qa check-bit-accuracy $batch` compares the results of `qa batch $batch` to:
-- The latest results on `project.reference_branch` from [*qatools.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml) (default: *master*).
+- The latest results on `project.reference_branch` from [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml) (default: *master*).
 - ...unlesss you're checking a merge made to that branch. In which case the commit's parents will act as references.
 - You can ask to compare versus a specific git commit, branch or tag with `qa check-bit-accuracy --reference $git-ref`.
 
 > If the commit you compare against has not finished its CI, `qa` will  wait.
 
 :::note Custom Needs
-You can opt-in to more complex behaviour in *[qatools.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml)* with `bit-accuracy.on_reference_failed_ci`, in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
+You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml)* with `bit-accuracy.on_reference_failed_ci`, in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
 :::
 
 If output files are different, `qa` prints a report and exists with a failure.
@@ -38,7 +38,7 @@ For specific use-case, there is also `qa check-bit-accuracy-manifest` which chec
 :::
 
 ### What files are checked?
-Files matching the patterns defined as `bit-accuracy.patterns` in [*qatools.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml#L93) will be checked.
+Files matching the patterns defined as `bit-accuracy.patterns` in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L93) will be checked.
 
 :::note
 If you work with text files on both Linux and Windows, EOL can make things tricky... You can decide what files are plaintext or binary using `bit-accuracy.plaintext` *or* `bit-accuracy.binary`.

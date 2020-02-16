@@ -126,7 +126,7 @@ class CommitParameters extends React.Component {
 
     const help_text = <>
       <p>
-        Configurations are defined in your <strong>qatools.yaml</strong>, eg as <code>artifacts.configurations</code>.
+        Configurations are defined in your <strong>qaboard.yaml</strong>, eg as <code>artifacts.configurations</code>.
         <br/>
         You can explore all your artifacts:  {artifacts.map((artifact, idx) => 
             <Button

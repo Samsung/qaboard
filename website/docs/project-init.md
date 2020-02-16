@@ -22,7 +22,7 @@ root-git-repository
 │  ├── main.py         # sample entrypoint that runs your code
 │  ├── batches.yaml    # examples of how to run multiple tests
 │  └── metrics.yaml    # examples of how to define KPIs
-└── qatools.yaml       # 👇 QA-Board configuration ⚙️ 
+└── qaboard.yaml       # 👇 QA-Board configuration ⚙️ 
 ```
 
 ## Storing results
@@ -35,7 +35,7 @@ chmod -R 777 /var/qaboard/data
 
 To change this location, or set it up for Windows:
 ```yaml
-# qatools.yaml
+# qaboard.yaml
 ci_root:
   linux: /var/qaboard/data
   windows: '//shared_storage/var/qaboard/data'

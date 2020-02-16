@@ -18,7 +18,7 @@ LSF jobs sent by `qa` will have use your project's name as LSF project (`-P`).
 You can change the default LSF configuration with:
 
 ```yaml
-# qatools.yaml
+# qaboard.yaml
 runners:
   # In doubt, ask advice from your manager / CAD / bqueues.
   lsf:

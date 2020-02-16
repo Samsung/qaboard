@@ -18,7 +18,7 @@ qa --share run --input path/to/your/input.file 'echo "{absolute_input_path} => {
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
 
 ## Wrapping your code
-How does it work? When you `pip install` QA-Board with `pip`, you get the `qa` executable. `qa` opens *qatools.yaml* and imports the python file specified by `project.entrypoint`. Then it runs your entrypoint's `run()` function with information about the current run: input, configuration, where outputs should be saved etc.
+How does it work? When you `pip install` QA-Board with `pip`, you get the `qa` executable. `qa` opens *qaboard.yaml* and imports the python file specified by `project.entrypoint`. Then it runs your entrypoint's `run()` function with information about the current run: input, configuration, where outputs should be saved etc.
 
 Take a look at the default `run()` in [*qatools/main.py*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qa/main.py). You should change it to run your code. In most cases that means finding and executing an exectuable file, or importing+running python code...
 

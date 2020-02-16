@@ -124,7 +124,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
   globs = inputs_settings.get('globs', inputs_settings.get('glob'))
   if not globs:
     click.secho(f'ADVICE: Tell us how to identify inputs. You will be able to `qa batch` on all inputs under a given folder.', fg='cyan', err=True)
-    click.secho(f'Consider adding to qatools.yaml something like:\n```\ninputs:\n  globs: "*.bmp"\n```', fg='cyan', err=True, dim=True)
+    click.secho(f'Consider adding to qaboard.yaml something like:\n```\ninputs:\n  globs: "*.bmp"\n```', fg='cyan', err=True, dim=True)
   elif not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
   use_parent_folder = inputs_settings.get('use_parent_folder', False)

@@ -60,10 +60,10 @@ To keep previous output files, `export QATOOLS_RUN_KEEP=true`. It can be useful 
 ## `qa batch`
 ### Batch Runners
 While `qa run` uses the local environment, `qa batch` will offload computation to a "runner" backend. Currently:
-- On Windows we use [`joblib`](http://joblib.readthedocs.io/) for parallel computing. You can set the concurrency with `QATOOLS_BATCH_CONCURRENCY` and [other environment variables](https://joblib.readthedocs.io/en/latest/parallel.html) from `joblib`. `runners.local.concurrency` in *qatools.yaml* also works...
+- On Windows we use [`joblib`](http://joblib.readthedocs.io/) for parallel computing. You can set the concurrency with `QATOOLS_BATCH_CONCURRENCY` and [other environment variables](https://joblib.readthedocs.io/en/latest/parallel.html) from `joblib`. `runners.local.concurrency` in *qaboard.yaml* also works...
 - On linux we use SIRC's LSF cluster
 
-You can also set the runner via `--runner=local`, and even set a default with `runners.default: local` in *qatools.yaml*.
+You can also set the runner via `--runner=local`, and even set a default with `runners.default: local` in *qaboard.yaml*.
 
 :::note Help needed for more runner!
 We intent on supporting more task runners: `python-rq` or `celery`, maybe even a custom one with just list of hosts to `ssh` into... Ideally we'll implement a couple integrations, then write integration docs and rely on the community. Maybe we can piggyback on `joblib` if other project provide distributed backend...

@@ -243,7 +243,7 @@ def get_running_lsf_jobs():
   Return the names of the running LSF jobs for the current user (as a set)
   From Windows we return an empty set, but if you really want to, you should be able to find a way to connect to LSF.
   """
-  # FIXME: we should review 100% how we fetch pending jobs, at least use the runners config in qatools.yaml..
+  # FIXME: we should review 100% how we fetch pending jobs, at least use the runners config in qaboard.yaml..
   if os.name=='nt':
       return set()
 

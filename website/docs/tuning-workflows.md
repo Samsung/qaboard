@@ -6,7 +6,7 @@ title: "Various Tuning Workflows"
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## Enabling tuning from QA-Board
-1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qatools.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml#L85):
+1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L85):
 
 ```yaml
 artifacts:
@@ -17,7 +17,7 @@ artifacts:
     glob: configurations/*.json
 ```
 
-> For convenience, *.qatools.yaml* and *qatools/* are saved automatically.
+> For convenience, *.qaboard.yaml* and *qatools/* are saved automatically.
 
 2. **Save the artifacts** when your build/training is done. In your CI, you will want to execute:
 

@@ -19,7 +19,7 @@ Well enough! Just call `python2 your_code.py` as any other executable.
 
 ## Where are results saved?
 - **Local runs** are saved under the *output/* directory in the project.
-- **During CI runs**, results are saved under the `ci_root` defined in [*qatools.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml#L119). To be honest, the exact naming conventions is complicated... **Export the data using the UI's export utilities, or ask qatools' simple API.** 
+- **During CI runs**, results are saved under the `ci_root` defined in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L119). To be honest, the exact naming conventions is complicated... **Export the data using the UI's export utilities, or ask qatools' simple API.** 
 
 ## Can I export the data or use a third-party viewer?
 **Yes!** All the outputs are saved as files, and qatools provides multiple ways to get them out.

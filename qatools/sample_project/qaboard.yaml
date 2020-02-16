@@ -109,7 +109,7 @@ outputs:
 # # After the build, you must define the "artifacts" needed to run your software:
 # # binaries, libraries, sources, configuration files... To save them:
 # #   $ qa save-artifacts
-# # Note: .qatools.yaml and qatools/ are saved automatically
+# # Note: .qaboard.yaml and qatools/ are saved automatically
 # artifacts:
 #   configurations:
 #     glob: configurations/*.json

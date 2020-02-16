@@ -29,7 +29,7 @@ def qa_init():
   """Initialize a qatools repository"""
   _, qatools_config_paths = find_qatools_configs(Path('.'))
   if qatools_config_paths:
-    click.secho(f'You already have a qatools.yaml configuration:', fg='green', bold=True, err=True)
+    click.secho(f'You already have a qaboard.yaml configuration:', fg='green', bold=True, err=True)
     for p in qatools_config_paths:
       click.secho(str(p), fg='green')
     exit(0)
@@ -44,9 +44,9 @@ def qa_init():
       qatools_dir = Path(pkg_resources.resource_filename('qatools', ''))
 
   click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
-  shutil.copy(str(qatools_dir / 'sample_project/qatools.yaml'), 'qatools.yaml')
+  shutil.copy(str(qatools_dir / 'sample_project/qaboard.yaml'), 'qaboard.yaml')
 
-  click.secho('...added qatools.yaml', fg='green', dim=True)
+  click.secho('...added qaboard.yaml', fg='green', dim=True)
   shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa')
 
   click.secho('...added qa/', fg='green', dim=True)
@@ -68,7 +68,7 @@ def qa_init():
       else:
         name =  '/'.join(url.split('/')[3:]).replace('.git', '')
       reference_branch = remote.refs.HEAD.reference.name.replace('origin/', '')
-      config = Path('qatools.yaml')
+      config = Path('qaboard.yaml')
       with config.open() as f:
         config_content = f.read()
       config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
@@ -78,7 +78,7 @@ def qa_init():
       with config.open('w') as f:
         f.write(config_content)
     except:
-      click.secho('Please edit qatools.yaml with your project name and url ', fg='yellow')
+      click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
 
 
   exit(0)

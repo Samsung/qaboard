@@ -61,7 +61,7 @@ It is a step above notebooks
 Follow the [tutorial](http://gitlab-srv/common-infrastructure/qatools/wikis/step-by-step-tutorial).
 How does it work, concretely?
 - You need to write a `run()` python function that wraps your code. It gives you a CLI interface (eg `qa run --input my_input`) for local development.
-- A configuration file, *qatools.yaml*, describes metadata like how to find your inputs, what outputs and metrics you expect, etc.
+- A configuration file, *qaboard.yaml*, describes metadata like how to find your inputs, what outputs and metrics you expect, etc.
 - ... after init, print link to the project's integration page
 - ? need to start server first ? (docker commands), qa init should get the URL, unless we default to the hosted version. Still need stuff like git permissions to clone, project namespace... (maybe provide a deploy key, or setup as a 2FA application? maybe offer inputs, with default...)
 - API if no results, None, just 200 empty list...

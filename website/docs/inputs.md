@@ -7,7 +7,7 @@ Algorithms turn inputs into outputs. *What are your inputs?* They can be image f
 
 > For QA-Board, an input is a **path**, split into "**$database** / **$input**".
 
-1. In *qatools.yaml*, define your default database `inputs.database` (it defaults to `/` or `C://`)
+1. In *qaboard.yaml*, define your default database `inputs.database` (it defaults to `/` or `C://`)
 2. Try to run:
 
 ```bash
@@ -23,7 +23,7 @@ It is also possible to use external input databases not just files. If you need 
 To run on batches of multiple inputs, use `qa batch my-batch`, where **my-batch** is defined in:
 
 ```yaml
-# qa/batches.yaml (can be changed in qatools.yaml via inputs.batches)
+# qa/batches.yaml (can be changed in qaboard.yaml via inputs.batches)
 my-batch:
  inputs:
    - images/A.jpg
@@ -43,7 +43,7 @@ We'll cover [batches in more depth later](batches-running-on-multiple-inputs).
 ## Identifying inputs (Recommended)
 You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify your images as inputs.
 
-In [*qatools.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qatools.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
+In [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
 
 ```yaml
 inputs:
@@ -86,7 +86,7 @@ inputs:
 Big projects sometimes need to distinguish different types of inputs, which will be processed with a different logic.
 
 ```yaml {3-9}
-# qatools.yaml
+# qaboard.yaml
 inputs:
   types:
     default: image

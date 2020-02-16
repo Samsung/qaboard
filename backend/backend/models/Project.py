@@ -153,9 +153,9 @@ def update_project(data, db_session):
       return None
 
 
-  # List all the files named "qatools.yaml" in this commit
+  # List all the files named "qaboard.yaml" in this commit
   repo_files = repo.git.ls_tree('--name-only', '-r', commit_id).splitlines()
-  projects_config_paths = [Path(f) for f in repo_files if f.endswith('qatools.yaml')]
+  projects_config_paths = [Path(f) for f in repo_files if f.endswith('qaboard.yaml') or f.endswith('qatools.yaml') ]
   for subproject_config_path in projects_config_paths:
     project_id = str(root_project_id / subproject_config_path.parent)
     # Make sure the it exists in the database, with up-to-date metadata
@@ -174,7 +174,7 @@ def update_project(data, db_session):
       return f"404 ERROR: with commit id {commit_id} in project {project_id}: {info}", 404
 
     # To update the (sub)project configuration stored in the database,
-    # we first need to read relevant qatools.yaml files from this commit.
+    # we first need to read relevant qaboard.yaml files from this commit.
     config_paths = [p for p in projects_config_paths if is_relative_to(subproject_config_path.parent, p.parent)]
     config_paths.sort(key=lambda p: len(str(p)))
 

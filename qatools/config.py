@@ -13,7 +13,7 @@ from .utils import getenvs, git_head, _Commit, _Repo
 from .conventions import slugify, get_commit_ci_dir
 from .iterators import flatten
 
-# In case the qatools.yaml configuration has errors, we don't want to exit directly.
+# In case the qaboard.yaml configuration has errors, we don't want to exit directly.
 # We want to show all the errors to fix, and still allow qatools.config to be imported.
 config_has_error = False
 
@@ -27,7 +27,7 @@ renamings = (
   ('--reference-branch', '--reference'),
   ('--batch-label', '--label'),
   ('--inputs-database', '--database'),
-  ('--inputs-globs', 'REMOVED: Use "inputs.types" in qatools.yaml'),
+  ('--inputs-globs', 'REMOVED: Use "inputs.types" in qaboard.yaml'),
   ('--save-manifests', '--save-manifests-in-database'),
   ('--return-prefix-outputs-path', '--list-output-dirs'),
   ('--ci', '--share'),
@@ -48,18 +48,21 @@ if '--lsf-sequential' in sys.argv:
 
 
 def find_qatools_configs(path):
-    """Returns the parsed content and paths of qatools.yaml files that should be loaded for a (sub)project at the `path`.
-    Returns a tuple (configs, paths). Each element is a list - the root qatools.yaml is first and the subproject's is last.
+    """Returns the parsed content and paths of qaboard.yaml files that should be loaded for a (sub)project at the `path`.
+    Returns a tuple (configs, paths). Each element is a list - the root qaboard.yaml is first and the subproject's is last.
     """
     qatools_configs = []
     qatools_config_paths = []
     # We need a full path to iterate on the parents
     path = path.resolve()
-    # We look for qatools.yaml configuration files in the path folder and its parents
+    # We look for qaboard.yaml configuration files in the path folder and its parents
     parents = [path, *list(path.parents)]
     for parent in parents:
-        qatools_config_path = parent / 'qatools.yaml'
-        if not qatools_config_path.exists(): continue
+        qatools_config_path = parent / 'qaboard.yaml'
+        if not qatools_config_path.exists():
+          qatools_config_path = parent / 'qatools.yaml'
+          if not qatools_config_path.exists():
+            continue
         with qatools_config_path.open('r') as f:
             qatools_config = yaml.load(f, Loader=yaml.SafeLoader)
             qatools_configs.append(qatools_config)
@@ -85,7 +88,7 @@ qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
 if not qatools_configs:
   config_has_error = True
   if not no_config_warning:
-    click.secho('ERROR: Could not find a `qatools.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
+    click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
     click.secho(
         'Please read the tutorial or ask Arthur Flam for help:\n'
         'http://qa-docs/',
@@ -113,8 +116,8 @@ config = {}
 for c in qatools_configs:
   config = merge(c, config)
 
-# The top-most qatools.yaml is the root project
-# The current subproject corresponds to the lowest qatools.yaml
+# The top-most qaboard.yaml is the root project
+# The current subproject corresponds to the lowest qaboard.yaml
 if not qatools_config_paths:
   root_qatools = None
   project_dir = None
@@ -134,18 +137,18 @@ else:
   if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
     config_has_error = True
     if not no_config_warning:
-      click.secho(f"ERROR: Don't redefine the project's URL in ./qatools.yaml.", fg='red', bold=True, err=True)
+      click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
       no_config_warning = True
 
-  # We identify sub-qatools projects using the location of qatools.yaml related to the project root
+  # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
   # It's not something the user should change...
   leaf_project_name = root_qatools_config['project']['name'] / subproject
   uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
   if uncoherent_name:
     config_has_error = True
     if not no_config_warning:
-      click.secho(f"ERROR: Don't redefine <project.name> in ./qatools.yaml", fg='red', bold=True, err=True)
+      click.secho(f"ERROR: Don't redefine <project.name> in ./qaboard.yaml", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
       no_config_warning = True
   config['project']['name'] = leaf_project_name.as_posix()
@@ -180,7 +183,7 @@ except KeyError:
   config_has_error = True
   if not no_config_warning:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
-    click.secho(f'Consider adding to qatools.yaml:\n```\nci_root_directory:\n  linux: /var/qaboard/data\n  windows: "\\\\shared_storage\\qaboard\\data"\n```', fg='red', err=True, dim=True)
+    click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /var/qaboard/data\n  windows: "\\\\shared_storage\\qaboard\\data"\n```', fg='red', err=True, dim=True)
     no_config_warning = True
 
 
@@ -309,7 +312,7 @@ def get_default_database(input_settings):
     database = "."
     if not no_config_warning:
       click.secho(f'WARNING: Could not find the default database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
-      click.secho(f'Consider adding to qatools.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
+      click.secho(f'Consider adding to qaboard.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
       no_config_warning = True
   return Path(database)
 
@@ -326,7 +329,7 @@ if metrics_file:
   if not metrics_file_path.exists():
     if not no_config_warning:
       click.secho(f'WARNING: Could not find the file containing metrics ({metrics_file})', fg='yellow', err=True)
-      click.secho(f'         It is defined in qatools.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
+      click.secho(f'         It is defined in qaboard.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
       no_config_warning = True
   else:
     with metrics_file_path.open(errors="surrogateescape") as f:

@@ -23,7 +23,7 @@ Alternatively, you can also write your metrics as JSON in `ctx.obj['output_direc
 2. Describe your metrics in *qa/metrics.yaml*. Here is an example
 
 ```yaml
-# qa/metrics.yaml (location from qatools.yaml: outputs.metrics)
+# qa/metrics.yaml (location from qaboard.yaml: outputs.metrics)
 available_metrics:
   loss:  # the fields below are all optionnal
     label: Loss function     # human-readable name
