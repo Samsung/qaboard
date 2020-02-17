@@ -30,7 +30,7 @@ api_prefix = "{qaboard_url}/api/v1"
 
 
 def print_url(ctx, status="starting"):
-  if not ctx.obj['offline']:
+  if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
     from requests.utils import quote
     batch_label = ctx.obj["batch_label"]
     # FIXME: use the same port at SIRC for the API/web, and don't hardcode...

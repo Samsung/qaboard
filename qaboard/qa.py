@@ -309,12 +309,15 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
     output_directory = output_path
   ctx.obj['output_directory'] =  output_directory
   ctx.obj['forwarded_args'] = forwarded_args
-  metrics = postprocess_({}, ctx)
-  if metrics['is_failed']:
-    click.secho('[ERROR] The run has failed.', fg='red', err=True, bold=True)
-    click.secho(str(metrics), fg='red')
-  else:
-    click.secho(str(metrics), fg='green')      
+  with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
+    click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
+    print_url(ctx)
+    metrics = postprocess_({}, ctx)
+    if metrics['is_failed']:
+      click.secho('[ERROR] The run has failed.', fg='red', err=True, bold=True)
+      click.secho(str(metrics), fg='red')
+    else:
+      click.secho(str(metrics), fg='green')      
 
 
 
@@ -494,7 +497,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
       if str(subproject) != '.':
-        command = f"cd {subproject} && {command}"
+        command = f"cd {subproject} && QA_BATCH=true {command}"
 
       lsf_configuration['priority'] = LsfPriority.LOW if tuning_params else LsfPriority.NORMAL
       job = Job(f"{lsf_jobs_prefix}{output_directory}", command, output_directory, lsf_configuration)
