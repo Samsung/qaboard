@@ -35,7 +35,7 @@ cli:tests:
     # expect 3 runs
     - sed -i 's/# globs:/globs:/' qaboard.yaml
     - python -mqaboard --dryrun batch cli_tests --list | jq '.'
-    # - python -mqaboard          batch cli_tests 'echo "{absolute_input_path} => {output_directory}"'
+    - python -mqaboard          batch                cli_tests 'echo "{absolute_input_path} => {output_directory}"'
     - python -mqaboard          batch --runner=local cli_tests 'echo "{absolute_input_path} => {output_directory}"'
     # other CLI tests
     # - python -mqaboard save-artifacts # Gitlab: 404: Project not found
