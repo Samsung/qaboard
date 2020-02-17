@@ -76,4 +76,4 @@ def check_for_updates():
     newer_version_available = to_ints(current_version) < to_ints(latest_version)
     if newer_version_available:
       click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
-      click.secho('       $ pip install --upgrade qaboard', fg='yellow', err=True)
+      click.secho('       $ pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools', fg='yellow', err=True)
