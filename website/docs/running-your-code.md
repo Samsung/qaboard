@@ -178,12 +178,12 @@ Yes, the API is ugly, it will change before the open-source release and we're op
 
 ## Accessing the QA-Board configuration from the entrypoint (Reference)
 ```python
-from qatools.config import config
+from qaboard.config import config
 config['project']['name']
 #
 # etc
 ```
 
 :::note Work in Progress
-A full reference for `qatools.config` will arrive in the docs!
+A full reference for `from qaboard.config import ...` will arrive in the docs!
 :::

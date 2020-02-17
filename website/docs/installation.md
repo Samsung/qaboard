@@ -4,7 +4,7 @@ title: Installing QA-Board's CLI
 sidebar_label: Installation
 ---
 
-To use QA-Board you need it `pip install` the `qatools` package. On both Linux and Windows:
+To use QA-Board you need it `pip install` the `qaboard` package. On both Linux and Windows:
 
 ```bash
 pip install --upgrade qaboard
