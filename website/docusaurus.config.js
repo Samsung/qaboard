@@ -17,7 +17,6 @@ var config = {
   tagline: "Visualize and compare algorithm results. Optimize parameters. Share results and track progress.",
   // You may provide arbitrary config keys to be used as needed by your
   // template. For example, if you need your repo's URL...
-  // repoUrl: 'https://gitlab-srv/common-infrastructure/qatools',
 
   // scripts: [
   // Add custom scripts here that would be placed in <script> tags.
@@ -40,7 +39,7 @@ var config = {
       links: [
         {to: 'docs/introduction', label: 'Docs', position: 'left'},
         {
-          href: 'https://github.com/samsung/qaboard',
+          href: 'https://github.com/Samsung/qaboard',
           label: 'GitHub.com',
           position: 'right',
         },
@@ -96,16 +95,16 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
     url: 'http://qa-docs', // Your website URL
     baseUrl: '/', // Base URL for your project */
   }
-  config.presets[0][1].editUrl = 'http://gitlab-srv/common-infrastructure/qatools/edit/master/website/';
+  config.presets[0][1].editUrl = 'http://gitlab-srv/common-infrastructure/qaboard/edit/master/website/';
 } else {
   if (publish_github_samsung_private) {
     config = {
       ...config,
       url: 'https://github.sec.samsung.net',
-      baseUrl: '/pages/arthur-flam/qatools/',
+      baseUrl: '/pages/arthur-flam/qaboard/',
       githubHost: 'github.sec.samsung.net',
       organizationName: 'arthur-flam',
-      projectName: 'qatools',
+      projectName: 'qaboard',
     }  
   }
   if (publish_github_samsung_public) {

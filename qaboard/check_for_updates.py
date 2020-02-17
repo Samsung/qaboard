@@ -20,7 +20,7 @@ def latest_qatools_version():
   import re
   try:
     # we surely could do something more robust
-    r = requests.get('http://gitlab-srv/common-infrastructure/qatools/raw/master/setup.py', timeout=1)
+    r = requests.get('https://raw.githubusercontent.com/Samsung/qaboard/master/setup.py', timeout=1)
   except:
     return None
   for l in r.text.split('\n'):
@@ -71,9 +71,9 @@ def check_for_updates():
 
 
   if latest_version:
-    from qatools import __version__ as current_version
+    from qaboard import __version__ as current_version
     to_ints = lambda v: [int(n) for n in v.split('.')]
     newer_version_available = to_ints(current_version) < to_ints(latest_version)
     if newer_version_available:
-      click.secho(f'A new version of qatools is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
-      click.secho('$ pip install --upgrade --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org  git+http://gitlab-srv/common-infrastructure/qatools', fg='yellow', err=True)
+      click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
+      click.secho('       $ pip install --upgrade qaboard', fg='yellow', err=True)

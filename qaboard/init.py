@@ -41,7 +41,7 @@ def qa_init():
       pass
   except:
       import pkg_resources
-      qatools_dir = Path(pkg_resources.resource_filename('qatools', ''))
+      qatools_dir = Path(pkg_resources.resource_filename('qaboard', ''))
 
   click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
   shutil.copy(str(qatools_dir / 'sample_project/qaboard.yaml'), 'qaboard.yaml')
