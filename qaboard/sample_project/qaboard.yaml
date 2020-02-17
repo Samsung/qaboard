@@ -161,10 +161,10 @@ runners:
     user: ispq
     # Depending on your project, you may want to use different LSF job queues
     # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
-    queue: alg_q
+    queue: alg_isp_q
     # qatools uses a fast queue to launch jobs that create subsequent LSF jobs
     # It helps get faster feeback about which outputs are pending
-    fast_queue: alg_fast_q
+    fast_queue: alg_isp_q
     # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
     # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
     # You can also set: project, resources, priority

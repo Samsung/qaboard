@@ -62,6 +62,9 @@ class RedirectStream():
 
 @contextmanager
 def redirect_std_streams(file, color=None):
+  if os.environ.get('QA_NO_STREAM_REDIRECT'):
+    yield sys.stdout, sys.stderr
+    return
   # print(">> Redirecting STDX")
   stdout = RedirectStream('stdout', file, color)
   stderr = RedirectStream('stderr', file, color)
