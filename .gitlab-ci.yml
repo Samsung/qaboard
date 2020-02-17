@@ -62,13 +62,13 @@ variables:
 # backend:tests:
 #   stage: test
 #   script:
-#   - cd qaboard-backend
+#   - cd backend
 #   # we only check that the syntax is correct
 #   - pip install .
 # webapp:tests:
 #   stage: test
 #   script:
-#     - cd qaboard-webapp
+#     - cd webapp
 #     - npm ci
 #     # - npm test
 
@@ -78,11 +78,11 @@ variables:
 .deploy: &deploy
   stage: deploy
   script:
-    - cd qaboard-webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install --no-audit && GENERATE_SOURCEMAP=true npm run build'" && cd ..
-    - cd qaboard-webapp  &&                               rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
+    - cd webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install --no-audit && GENERATE_SOURCEMAP=true npm run build'" && cd ..
+    - cd webapp  &&                               rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
     - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG .\""
     - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG" || true
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/qaboard-backend/deployment/start-docker.sh\""
+    - ssh qa "bash -c \"cd $(pwd) && source .envrc && CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/backend/deployment/start-docker.sh\""
 
 deploy:production:
   <<: *deploy
