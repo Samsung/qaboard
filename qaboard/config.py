@@ -180,12 +180,12 @@ else:
 try:
     ci_root = Path(config['ci_root'][mount_flavor])
 except KeyError:
+  ci_root = Path() # just to let the execution continue...
   config_has_error = True
   if not no_config_warning:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
     no_config_warning = True
-    ci_root = Path() # just to let the execution continue...
 if not ci_root.exists():
     click.secho(f'ERROR: The ci_root defined in qatools.yaml does not exist', fg='red', err=True)
     click.secho(f'"{ci_root}" needs to be writable.', fg='red', err=True, dim=True)
