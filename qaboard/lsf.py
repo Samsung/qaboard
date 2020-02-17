@@ -48,7 +48,7 @@ class Job:
     self.output_directory = output_directory
     # We have caching issues, so we save STDOUT, to log.lsf.txt, real-time logs to log.txt
     # and copy the full LSF logs in place of the real-time logs after the run
-    self.lsf_log_file = (output_directory / "log.lsf.txt").resolve()
+    self.lsf_log_file = (output_directory / "log.txt").resolve()
     self.log_file = (output_directory / "log.txt").resolve()
 
     if not lsf_config:
@@ -135,6 +135,7 @@ class Job:
         "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
         # forces a non-interactive matplotlib backend
         "MPLBACKEND=agg",
+        "QA_NO_STREAM_REDIRECT=true", # LSF does its own redirections, we stay clear
         self.command,
         "\nEOF",
       ]
