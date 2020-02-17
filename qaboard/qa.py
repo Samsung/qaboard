@@ -496,6 +496,8 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       ]
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
+      import re
+      command = re.sub('^qa', 'python -m qaboard', command) # helps make sure we run the right thing when testing 
       if str(subproject) != '.':
         command = f"cd {subproject} && QA_BATCH=true {command}"
 

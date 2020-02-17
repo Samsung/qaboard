@@ -67,12 +67,12 @@ class Job:
       output_db = get_output(self.id)
       failed = not output_db or output_db["is_failed"]
       if failed:
-        click.secho(f'ERROR: At least a run crashed... {self.output_directory}', fg='red', err=True)
+        click.secho(f'ERROR: Failed run! More info in QA-Board or at: {self.output_directory}', fg='red', err=True)
       return failed
     else:
       metrics_file = self.output_directory / 'metrics.json'
       if not metrics_file.exists():
-        click.secho(f'ERROR: A run crashed: could not find {metrics_file}', fg='red', err=True)
+        click.secho(f'ERROR: Failed run! Could not find {metrics_file}', fg='red', err=True)
         return True
       with metrics_file.open() as f:
         metrics = json.load(f)
@@ -105,7 +105,6 @@ class Job:
       dependencies_flag = f'-w "{dependencies_expression}"'
     else:
       dependencies_flag = ""
-
     fast_queue = self.lsf_config.fast_queue if self.lsf_config.fast_queue else self.lsf_config.queue
     queue = self.lsf_config.queue if not interactive else fast_queue 
     q_command = " ".join(
@@ -119,6 +118,7 @@ class Job:
         # note: we don't request a pseudoterminal here -Is
         # on our current use-cases, -K should be enough
         "-I" if interactive else "",
+        "-K" if os.environ.get('QA_BATCH_CONCURRENCY') == '1' and not interactive else "",
         f"-P {self.lsf_config.project}",
         f"-q {queue}",
         f"-sp {self.lsf_config.priority}",
@@ -153,14 +153,16 @@ class Job:
       shell=True,
       encoding="utf-8",
       stdout=subprocess.PIPE,
-      stderr=subprocess.STDOUT,
+      stderr=subprocess.PIPE,
     )
     if 'QA_BATCH_VERBOSE' in os.environ:
       click.secho(out.stdout, dim=True)
+      click.secho(out.stderr, dim=True)
     try:
       out.check_returncode()
     except:
       click.secho(out.stdout, dim=True)
+      click.secho(out.stderr, dim=True)
       raise Exception("Failed to send jobs to LSF")
     return out
 
