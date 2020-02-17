@@ -24,22 +24,22 @@ cli:tests:
   stage: test
   retry: 2 # solves frequent filesystem sync issues
   script:
-    - cd qatools/sample_project
-    - python -mqatools --help
+    - cd qaboard/sample_project
+    - python -mqaboard --help
     - mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg
     - export QA_DATABASE=$(pwd)
     - export QA_OFFLINE=true
-    - python -mqatools run -i cli_tests/a.jpg 'echo "{absolute_input_path} => {output_directory}"'
+    - python -mqaboard run -i cli_tests/a.jpg 'echo "{absolute_input_path} => {output_directory}"'
     # expect 1 run
-    - python -mqatools --dryrun batch cli_tests
+    - python -mqaboard --dryrun batch cli_tests
     # expect 3 runs
-    - sed -i 's/# globs:/globs:/' qatools.yaml
-    - python -mqatools --dryrun batch cli_tests --list | jq '.'
-    - python -mqatools          batch cli_tests 'echo "{absolute_input_path} => {output_directory}"'
-    - python -mqatools          batch --runner=local cli_tests 'echo "{absolute_input_path} => {output_directory}"'
+    - sed -i 's/# globs:/globs:/' qaboard.yaml
+    - python -mqaboard --dryrun batch cli_tests --list | jq '.'
+    - python -mqaboard          batch cli_tests 'echo "{absolute_input_path} => {output_directory}"'
+    - python -mqaboard          batch --runner=local cli_tests 'echo "{absolute_input_path} => {output_directory}"'
     # other CLI tests
-    # - python -mqatools save-artifacts # Gitlab: 404: Project not found
-    - python -mqatools get commit_id
+    # - python -mqaboard save-artifacts # Gitlab: 404: Project not found
+    - python -mqaboard get commit_id
 
 deploy:qa:
   stage: deploy
