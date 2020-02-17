@@ -25,7 +25,7 @@ else:
   click.secho("         Please provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
   click.secho("         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
   click.secho("       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
-
+  qaboard_url = "http://localhost:5002"
 api_prefix = "{qaboard_url}/api/v1"
 
 
@@ -33,8 +33,6 @@ def print_url(ctx, status="starting"):
   if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
     from requests.utils import quote
     batch_label = ctx.obj["batch_label"]
-    # FIXME: use the same port at SIRC for the API/web, and don't hardcode...
-    qaboard_url = "https://qa"
     commit_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
       if status == "starting":
