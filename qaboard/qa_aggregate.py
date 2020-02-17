@@ -23,7 +23,7 @@ import subprocess
 from pathlib import Path
 
 import click
-from qatools.config import root_qatools, available_metrics
+from qaboard.config import root_qatools, available_metrics
 
 
 

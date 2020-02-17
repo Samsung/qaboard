@@ -6,7 +6,7 @@ import unittest
 
 class TestConventions(unittest.TestCase):
   def test_flatten(self):
-    from qatools.iterators import flatten
+    from qaboard.iterators import flatten
     self.assertEqual(list(flatten([])), [])
     self.assertEqual(list(flatten([1])), [1])
     self.assertEqual(list(flatten([1, [2]])), [1, 2])
@@ -14,7 +14,7 @@ class TestConventions(unittest.TestCase):
     self.assertEqual(list(flatten([1, {"cde": [2, 3]} ])), [1, {"cde": [2, 3]}])
 
   def test_resolve_aliases(self):
-    from qatools.iterators import resolve_aliases
+    from qaboard.iterators import resolve_aliases
     self.assertEqual(
         list(resolve_aliases(["a", "b"], {"c": ["d", "e"], "f": ["g", "h"]})),
         ['a', 'b']

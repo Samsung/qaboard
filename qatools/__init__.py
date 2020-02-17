@@ -1,9 +1,20 @@
-# need to be update setup.py as well
-__version__ = '0.8.2'
-from .check_for_updates import check_for_updates
-check_for_updates()
+"""
+For backward-compatibility: once qaboard was imported as "import qatools"
+Inspired by https://stackoverflow.com/a/24324577/5993501
+"""
+import sys
+import qaboard
 
-from .config import on_windows, on_linux, on_lsf, on_vdi, is_ci
-from .config import config, merge
-from .conventions import slugify
-from .qatools import cli
+modules = [
+    'qaboard',
+    'qaboard.check_for_updates',
+    'qaboard.config',
+    'qaboard.utils',
+    'qaboard.conventions',
+    'qaboard.iterators',
+    'qaboard.qa',
+    'qaboard.lsf',
+    'qaboard.api'
+]
+for m in modules:
+    sys.modules[m.replace('qaboard', 'qatools')] = sys.modules[m]

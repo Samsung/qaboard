@@ -47,7 +47,7 @@ from .config import is_ci, on_windows
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
-def cli(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
+def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
@@ -122,7 +122,7 @@ def cli(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['color'] = is_ci or share
 
 
-@cli.command()
+@qa.command()
 @click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
 @click.argument('variable')
@@ -144,7 +144,7 @@ def get(ctx, input_path, output_path, variable):
 
 
 
-@cli.command(context_settings=dict(
+@qa.command(context_settings=dict(
     ignore_unknown_options=True,
     allow_interspersed_args=False,
 ))
@@ -293,7 +293,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 
 
 
-@cli.command(context_settings=dict(
+@qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
 @click.pass_context
@@ -318,7 +318,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 
 
 
-@cli.command(context_settings=dict(
+@qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
 @click.pass_context
@@ -341,7 +341,7 @@ def sync(ctx, input_path, output_path):
 
 
 lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else config.get('lsf', {})
-@cli.command(context_settings=dict(
+@qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
@@ -540,7 +540,7 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
 
 
 
-@cli.command()
+@qa.command()
 @click.option('--file', '-f', 'files', multiple=True, help="Save spcific files instead of artifacts indicated by yaml file")
 # Do we use this? let's deprecate and remove
 @click.option('--out', '-o', 'artifacts_path', default='', help="Path to save artifacts in case of specified files")
@@ -629,7 +629,7 @@ def save_artifacts(ctx, files, artifacts_path, groups):
   notify_qa_database(object_type='commit', **ctx.obj)
 
 
-@cli.command()
+@qa.command()
 @click.pass_context
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
@@ -681,7 +681,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
 
 
 
-@cli.command()
+@qa.command()
 @click.pass_context
 @click.option(
     "--reference",
@@ -751,7 +751,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
           click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit_accuracy", fg='red')
       exit(1)
 
-@cli.command(context_settings=dict(
+@qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
@@ -853,7 +853,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
 
 
 def main():
-  cli(obj={}, auto_envvar_prefix='QA')
+  qa(obj={}, auto_envvar_prefix='QA')
 
 if __name__ == '__main__':
   main()
