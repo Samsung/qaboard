@@ -14,7 +14,7 @@ from .conventions import slugify, get_commit_ci_dir
 from .iterators import flatten
 
 # In case the qaboard.yaml configuration has errors, we don't want to exit directly.
-# We want to show all the errors to fix, and still allow qatools.config to be imported.
+# We want to show all the errors to fix, and still allow qaboard.config to be imported.
 config_has_error = False
 
 
@@ -178,17 +178,20 @@ else:
 # Results are saved at a centralized location. This makes it easy to read results
 # either from the web application, or for local bit-accuracy tests.
 try:
-    ci_root = config['ci_root'][mount_flavor]
+    ci_root = Path(config['ci_root'][mount_flavor])
 except KeyError:
+  ci_root = Path() # just to let the execution continue...
   config_has_error = True
   if not no_config_warning:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /var/qaboard/data\n  windows: "\\\\shared_storage\\qaboard\\data"\n```', fg='red', err=True, dim=True)
     no_config_warning = True
+if not ci_root.exists():
+    click.secho(f'ERROR: The ci_root defined in qatools.yaml does not exist', fg='red', err=True)
+    click.secho(f'"{ci_root}" needs to be writable.', fg='red', err=True, dim=True)
+    no_config_warning = True
 
-
-
-ci_dir = Path(ci_root) / root_qatools_config['project']['name'] if root_qatools_config else None
+ci_dir = ci_root / root_qatools_config['project']['name'] if root_qatools_config else None
 
 
 # This flag identifies runs that happen within the CI or tuning experiments
