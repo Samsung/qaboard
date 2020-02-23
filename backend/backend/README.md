@@ -1,4 +1,4 @@
-## backend-backend
+## QA-Board's backend
 Backend for `qaboard` built as a [flask](https://flask.pocoo.org) application. It handles all our HTTP needs.
 
 ## Overview
