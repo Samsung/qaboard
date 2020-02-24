@@ -14,8 +14,8 @@ import yaml
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
-from qatools.iterators import iter_inputs
-from qatools.conventions import deserialize_config
+from qaboard.iterators import iter_inputs
+from qaboard.conventions import deserialize_config
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -163,16 +163,18 @@ def get_group():
     try:
         tests = list(
             iter_inputs(
-                [request.args["name"]],
-                groups_paths,
-                project.database,
-                default_configuration,
-                {},
-                qatools_config,
+                [request.args["name"]], # groups
+                groups_paths,           # groups_file,
+                project.database,       # database
+                default_configuration,  # default_configuration
+                'lsf',                  # platform
+                {"type": 'lsf'},        # default_lsf_configuration
+                qatools_config,         # qatools_config
+                # inputs_settings=None
             )
         )
         return jsonify({
-            "tests": [{"input_path": str(test.relative_to(database)), "configurations": configuration} for test, configuration, _, database, _ in tests],
+            "tests": [{"input_path": str(run_context.rel_input_path), "configurations": run_context.configurations} for run_context in tests],
             "message": message,
         })
     except Exception as e:
@@ -197,7 +199,7 @@ def start_tuning(hexsha):
         return jsonify("Sorry, the commit id was not found"), 404
 
     if "qatools_config" not in ci_commit.project.data:
-        return jsonify("Please configure `qatools first`"), 404
+        return jsonify("Please create `qaboard.yaml`"), 404
 
     ci_commit.latest_output_datetime = datetime.datetime.now()
     ci_commit.latest_output_datetime = datetime.datetime.now()
@@ -279,8 +281,8 @@ def start_tuning(hexsha):
 
             # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
             f"\nexport CI=true;\n",
-            f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
-            f"export QA_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
+            f"export CI_COMMIT_SHA='{ci_commit.hexsha}';\n",
+            f"export QA_CI_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
             batch_command,
         ]
     )

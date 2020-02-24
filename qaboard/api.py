@@ -38,7 +38,15 @@ def print_url(ctx, status="starting"):
       if status == "starting":
         click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
       elif status == "failure":
-        click.secho(f"Read Logs at: {commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs", fg='red', bold=True)
+        click.echo(
+          click.style("[FAILED] Read the full logs at: ", bold=True, fg='red') +
+          click.style(
+            f"{commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs",
+            fg='red',
+            underline=True,
+            bold=True,
+          ),
+        err=True)
 
 
 
@@ -92,7 +100,7 @@ def notify_qa_database(object_type='output', **kwargs):
     return
 
   # we only update the output database if we're in a CI run, or if the user used `qa --ci`
-  if not is_ci and not kwargs['share']:
+  if not (is_ci or kwargs['share']):
     return
 
   # some light custom serialization for Path objects
@@ -147,9 +155,9 @@ def get_output(output_id):
     except:
       pass
 
-
-@lru_cache()
-def batch_info(reference, is_branch, batch):
+# We used to use a cache but now we want to check run statuses before/after the batch
+# @lru_cache()
+def batch_info(reference, batch, is_branch=False):
   """Get data about a batch of outputs in the database"""
   import requests
   params = {
@@ -164,7 +172,8 @@ def batch_info(reference, is_branch, batch):
   url = f'{api_prefix}/commit/{commit_id}'
   r = requests.get(url, params=params)
   if 'batches' not in r.json():
-  	print(r.url)
+  	click.secho('WARNING: We could not get the results for the "{batch}" batch {reference}', fg='yellow', bold=True)
+  	click.secho(r.url, fg='yellow')
   	raise ValueError(f'We could not get the results for {batch}')
   return r.json()['batches'][batch]
 

@@ -6,10 +6,8 @@ import subprocess
 from pathlib import Path
 import click
 
-# We provide an easy way to know in which environment your code executes
-from qatools.config import on_windows, on_linux, on_lsf, on_vdi
 # Whis will identify runs through GitlabCI or Jenkins.
-from qatools.config import is_ci
+from qaboard.config import is_ci
 
 
 def run(context):

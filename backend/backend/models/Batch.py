@@ -103,26 +103,23 @@ class Batch(Base):
 
 
   def stop(self):
-    stdouts = []
-    kill_commands = []
-    for _, command in self.data.get('commands', {}).items():
-      ssh = "LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi"
-      bsub = f"bsub_su {command['user']} -I"
-      kill_command = f"{ssh} {bsub} bkill -J '{command['lsf_jobs_prefix']}/*'"
-      kill_commands.append(kill_command)
-      print(kill_command)
-      out = subprocess.run(kill_command, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # TODO: can we after the stop() just mark all outputs as is_pending:False ?
+    errors = []
+    for command_id, command in self.data.get('commands', {}).items():
+      from qaboard.runners.job import JobGroup
+      # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
+      # if the stop dosn't only use the command_id...
+      jobs = JobGroup(job_options={"type": "local", "command_id": command_id, **command})
       try:
-        out.check_returncode()
-        print(out.stdout)
-        stdouts.append(str(out.stdout))
+        error = stop_command(command_id, command)
+        if error:
+          errors.append(error)
       except:
-        # If LSF can't find the jobs, they are done already
-        if 'No match' not in str(out.stdout):
-          return {"error": str(out.stdout), "cmd": str(kill_command)}
-    # TODO: check it's enough to mark all outputs as is_pending:false !
-    return {"cmd": '\n'.join(kill_commands), "stdout": '\n\n'.join(stdouts)}
-
+        continue
+    if errors:
+      return {"error": errors}
+    else:
+      return {}
 
   def delete(self, session):
     """

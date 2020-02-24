@@ -171,9 +171,9 @@ def batch_objective(batch_label, config_objective):
     # or get reference results from historical data
     if not use_default_targets:
       target_batch_info = batch_info(
-        target['id'] if 'id' in target else target['branch'],
-        is_branch='branch' in target,
-        batch=target.get('batch', 'default')
+        target.get('id', target.get('branch', target.get('tag', ''))),
+        batch=target.get('batch', 'default'),
+        is_branch='branch' in target, # for tag we need special care...
       )
   else:
     use_default_targets = True

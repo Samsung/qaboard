@@ -9,19 +9,22 @@ import sys
 import traceback
 import json
 import yaml
+import uuid
+import datetime
 
 import click
 
-from .lsf import Job, LsfPriority
-from .lsf import get_running_lsf_jobs, job_is_failed, job_ran_once, run_jobs
-from .api import notify_qa_database, print_url
+from .runners import runners, Job, JobGroup
+from .runners.lsf import LsfPriority
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
+from .conventions import url_to_dir
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
 from .utils import save_outputs_manifest
 from .utils import redirect_std_streams
 from .utils import getenvs
+from .api import batch_info, notify_qa_database, print_url, serialize_paths
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
@@ -194,6 +197,10 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           del ctx.obj['extra_parameters']
 
         runtime_metrics = entrypoint_module(config).run(ctx)
+        if not isinstance(runtime_metrics, dict):
+          click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
+          runtime_metrics = {'is_failed': True}
+
         if not runtime_metrics:
           runtime_metrics = {}
         runtime_metrics['compute_time'] = time.time() - start
@@ -344,30 +351,33 @@ def sync(ctx, input_path, output_path):
 
 
 lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else config.get('lsf', {})
+local_config = config.get('runners', {}).get('local', {})
+# FIXME: change how we pick the default task runner
+# task_runners = [r for r in config.get('runners', {}).keys() if r not in ['default', 'local']]
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
-@click.option('--tuning-search', help='string containing JSON describing the tuning parameters to explore')
+@click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
-@click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.option('--list', 'list_contexts', is_flag=True, help="Print as JSON details about each run we would do.")
 @click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
-@click.option('--no-batch-qa-database', is_flag=True, help="Do not notify the qa database before sending jobs.")
 @click.option('--runner', default=config.get('runners', {}).get('default', 'lsf' if os.name!='nt' else 'local'), help="Run runs locally or on LSF")
+@click.option('--local-concurrency', default=os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency')), type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
 @click.option('--lsf-threads', default=lsf_config.get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-memory', default=lsf_config.get('memory', 0), help="restrict memory (MB) to use. 0=no restriction")
 @click.option('--lsf-queue', default=lsf_config.get('queue'), help="LSF queue (-q)")
-@click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue'), help="Fast LSF queue, for interactive jobs")
+@click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue', lsf_config.get('queue')), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already results, whether to do run/postprocess/sync/skip")
+@click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wait, prefix_outputs_path, list_contexts, list_output_dirs, list_inputs, no_batch_qa_database, runner, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, forwarded_args):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
@@ -387,75 +397,85 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
   print_url(ctx)
 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
+  should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
+  def get_qaboard_outputs(): # we will need the list later to check job statuses
+    if not should_notify_qa_database:
+      return {}
+    try:
+      return batch_info(reference=commit_id, batch=batch_label)['outputs']
+    except:
+      return {}
+  existing_outputs = get_qaboard_outputs()
 
-  # it's debatable whether dryrun should list possibly running jobs
-  running_lsf_jobs = get_running_lsf_jobs() if not dryrun else set()
+  command_id = str(uuid.uuid4()) # unique IDs for triggered runs makes it easier to wait/cancel them 
 
-  default_lsf_config =  {
-    "project": lsf_config.get('project', config.get("project", {}).get('name', 'qatools')),
-    "max_threads": lsf_threads,
-    "max_memory": lsf_memory,
-    "queue": lsf_queue,
-    "fast_queue": lsf_fast_queue,
-    'resources': lsf_resources
-  }
-  batch_hash = make_hash([batches, tuning_search, str(tuning_search_file)])
-  lsf_jobs_prefix = f"{batch_hash[:8]}/"
-
-  should_notify_qa_database = not dryrun and not ctx.obj['offline'] and not no_batch_qa_database
   if should_notify_qa_database:
-    import uuid
-    import datetime
     command_data = {
       "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
       "argv": sys.argv,
-      "lsf_jobs_prefix": lsf_jobs_prefix,
+      "runner": runner,
       **ctx.obj,
     }
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
-    notify_qa_database(object_type='batch', command={str(uuid.uuid4()): command_data}, **ctx.obj)
+    notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
 
-  jobs = []
-  jobs_contexts = []
 
-  tuning_search_dict, filetype = load_tuning_search(tuning_search, tuning_search_file)
-  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_lsf_config, config, ctx.obj['inputs_settings'])
-  for input_path_abs, input_configurations, lsf_configuration, input_database, input_type in inputs_iter:
-    input_configuration = serialize_config(input_configurations)
-    input_path = input_path_abs.relative_to(input_database)
+  tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
+  default_runner_options = {
+    "type": runner,
+    "command_id": command_id,
+    # This is a "merged" list of options, each runner sorts it out...
+    # Having --runner-X prefixes makes it all a mess, but still the help text is useful
+    # It would be nice to generate the CLI help depending on the runner that's choosen, then we could use
+    # unprefixed options!
+    "concurrency": local_concurrency,
+    "project": lsf_config.get('project', config.get("project", {}).get('name', 'qaboard')),
+    "max_threads": lsf_threads,
+    "max_memory": lsf_memory,
+    'resources': lsf_resources,
+    "queue": lsf_queue,
+    "fast_queue": lsf_fast_queue,
+    "user": ctx.obj['user'],
+  }
+  if runner == 'local' or runner == 'celery':
+    default_runner_options["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
 
-    tuning_iterator = iter_parameters(tuning_search_dict, filetype=filetype, extra_parameters=ctx.obj['extra_parameters'])
-    for tuning_file, tuning_hash, tuning_params in tuning_iterator:
+  jobs = JobGroup(job_options=default_runner_options)
+
+  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], default_runner_options, config, ctx.obj['inputs_settings'])
+  for run_context in inputs_iter:
+    input_configuration_str = serialize_config(run_context.configurations)
+    for tuning_file, tuning_hash, tuning_params in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(commit_ci_dir, ctx.obj["batch_label"], ctx.obj["platform"], input_configuration, tuning_file if tuning_params else None, ctx.obj['share'])
+          prefix_output_dir = make_prefix_outputs_path(
+            commit_ci_dir,
+            ctx.obj["batch_label"],
+            run_context.platform,
+            input_configuration_str,
+            tuning_file if tuning_params else None,
+            ctx.obj['share']
+          )
       else:
           prefix_output_dir = commit_ci_dir / prefix_outputs_path
           if tuning_file:
               prefix_output_dir = prefix_output_dir / Path(tuning_file).stem
-      output_directory = prefix_output_dir / input_path.with_suffix('')
+      run_context.output_dir = prefix_output_dir / run_context.rel_input_path.with_suffix('')
+      run_context.extra_parameters = tuning_params
       if list_output_dirs:
-        print(output_directory)
+        print(run_context.output_dir)
         break
       if list_inputs:
-        print(input_path_abs)        
-        break
-      if list_contexts:
-        jobs_contexts.append({
-          "absolute_input_path": str(input_path_abs),
-          "input_path": str(input_path),
-          "database": str(input_database),
-          "configurations": input_configurations,
-          "input_database": str(input_database),
-          "output_directory": str(output_directory),
-        })
+        print(run_context.input_path)        
         break
 
-      # LSF job names are based on the output directory and transformed 
-      is_pending = Job(output_directory).name in running_lsf_jobs
-      is_failed = job_is_failed(output_directory)
-      should_run = not is_pending and (action_on_existing=='run' or is_failed or not job_ran_once(output_directory)) 
+      matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
+      matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None # at most 1, garanteed by database constaints
+      is_pending = matching_existing_output['is_pending'] if matching_existing_output else False
+      is_failed = matching_existing_output['is_failed'] if matching_existing_output else run_context.is_failed()
+      ran_before = True if matching_existing_output else run_context.ran()
+      should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before) 
       if not should_run and action_on_existing=='skip':
         continue
 
@@ -470,28 +490,29 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
            # FIXME: may not work...
           forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
 
-      if input_configuration == get_default_configuration(ctx.obj['inputs_settings']):
+      if input_configuration_str == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
         if not on_windows:
-          configuration_cli =  f"--configuration '{input_configuration}'"
+          configuration_cli =  f"--configuration '{input_configuration_str}'"
         else:
           from .utils import escaped_for_cli
-          configuration_cli =  f'--configuration {escaped_for_cli(input_configuration)}'
+          configuration_cli =  f'--configuration {escaped_for_cli(input_configuration_str)}'
 
+      # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
       args = [
           f"qa",
           f'--share' if ctx.obj["share"] else None,
           f'--offline' if ctx.obj['offline'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
-          f'--platform "{ctx.obj["platform"]}"' if ctx.obj["platform"] != default_platform else None,
-          f'--type "{input_type}"' if input_type != default_input_type else None,
-          f'--database "{input_database.as_posix()}"' if input_database != get_default_database(ctx.obj['inputs_settings']) else None,
+          f'--platform "{run_context.platform}"' if run_context.platform != default_platform else None, # TODO: make it customizable in batches
+          f'--type "{run_context.type}"' if run_context.type != default_input_type else None,
+          f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
           f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
           'run' if should_run else action_on_existing,
-          f'--input "{input_path}"',
-          f'--output "{output_directory}"' if prefix_outputs_path else None,
+          f'--input "{run_context.rel_input_path}"',
+          f'--output "{run_context.output_dir}"' if prefix_outputs_path else None,
           forwarded_args_cli if forwarded_args_cli else None,
       ]
       command = ' '.join([arg for arg in args if arg is not None])
@@ -501,38 +522,32 @@ def batch(ctx, batches, batches_files, tuning_search, tuning_search_file, no_wai
       if str(subproject) != '.':
         command = f"cd {subproject} && QA_BATCH=true {command}"
 
-      lsf_configuration['priority'] = LsfPriority.LOW if tuning_params else LsfPriority.NORMAL
-      job = Job(f"{lsf_jobs_prefix}{output_directory}", command, output_directory, lsf_configuration)
+      run_context.command = command
+      run_context.job_options['command_id'] = command_id
+      job = Job(run_context)
+
       if should_notify_qa_database:
+        # TODO: accumulate and send all at once to avoid 100s of requests?
         db_output = notify_qa_database(**{
           **ctx.obj,
-          **{
-            "configuration": input_configuration,
-            "output_directory": output_directory,
-            "input_path": input_path,
-            "input_type": input_type,
-            "database": input_database,
-            "extra_parameters": tuning_params,
-            "is_pending": True,
-          },
+          **run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
+          "is_pending": True,
         })
-        if db_output:
+        if db_output: # Note: the ID is already in the matching job above
           job.id = db_output["id"]
 
       jobs.append(job)
 
 
   if list_contexts:
-    print(json.dumps(jobs_contexts, indent=2))
+    print(json.dumps([serialize_paths(j.run_context.asdict()) for j in jobs], indent=2))
     return
 
   if not dryrun:
-    if jobs:
-      tuning_search_hash = make_hash(tuning_search) if tuning_search else ''
-      waiting_job_name = f"{commit_id}-{tuning_search_hash}-{'|'.join(batches)}-wait"
-      is_failed = run_jobs(jobs, runner, no_wait, lsf_jobs_prefix, default_lsf_config, waiting_job_name, config=config, ctx=ctx)
-    else:
-      is_failed = False 
+    is_failed = jobs.start(
+      blocking=not no_wait,
+      get_qaboard_outputs=get_qaboard_outputs,
+    )
 
     from .gitlab import update_gitlab_status
     always_update = getenvs(('QATOOLS_ALWAYS_UPDATE_GITLAB', 'QA_ALWAYS_UPDATE_GITLAB'))
@@ -648,23 +663,20 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
 
     commit_dir = commit_ci_dir if is_ci else Path()
     all_bit_accurate = True
-    inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
     nb_compared = 0
-    for input_path_abs, input_configurations, _, input_database, _ in inputs_iter:
+    for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
       nb_compared += 1
-      if input_path_abs.is_file():
+      if run_context.input_path.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
         # otherwise the manifest is at
         #   * input_path.parent / 'manifest.json' in the database
         #   * input_path.with_suffix('') / 'manifest.json' in the results
-        # # reference_output_directory = input_path_abs if input_path_abs.is_folder() else input_path_abs.parent
+        # # reference_output_directory = run_context.input_path if run_context.input_path.is_folder() else run_context.input_path.parent
         exit(1)
 
-      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
+      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
       # print(prefix_output_dir)
-      input_path = input_path_abs.relative_to(input_database)
-      # print(commit_dir / prefix_output_dir, input_database, [input_path])
-      input_is_bit_accurate = is_bit_accurate(commit_dir / prefix_output_dir, input_database, [input_path])
+      input_is_bit_accurate = is_bit_accurate(commit_dir / prefix_output_dir, run_context.database, [run_context.rel_input_path])
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if not all_bit_accurate:
@@ -731,10 +743,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       output_directories = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
     else:
       output_directories = []
-      inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], {}, config, ctx.obj['inputs_settings'])
-      for input_path_abs, input_configurations, _, input_database, _ in inputs_iter:
-        prefix_output_dir = make_prefix_outputs_path(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(input_configurations), None, ctx.obj['share'])
-        input_path = input_path_abs.relative_to(input_database)
+      for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
+        prefix_output_dir = make_prefix_outputs_path(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
+        input_path = run_context.input_path.relative_to(run_context.database)
         output_directory = prefix_output_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
 

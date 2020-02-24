@@ -15,8 +15,8 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
 
-from qatools.utils import copy
-from qatools.conventions import deserialize_config, serialize_config
+from qaboard.utils import copy
+from qaboard.conventions import deserialize_config, serialize_config
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_config
 

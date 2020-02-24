@@ -81,6 +81,8 @@ setup(
     # TODO: To make installation faster, especially on windows
     #       we should remove this dependency and implement what we need ourselves.
     'sklearn',
+    # TODO: only a dev dependency
+    'green', 
   ],
 
   extras_require={
