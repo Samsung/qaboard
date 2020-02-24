@@ -11,7 +11,7 @@ from itertools import chain
 import numbers
 import json
 
-from typing import List, Union, Dict, Tuple
+from typing import List, Union, Dict, Tuple, Iterator, cast
 
 import yaml
 import click
@@ -21,17 +21,17 @@ from .utils import input_metadata, entrypoint_module, cased_path
 from .run import RunContext
 
 
-def flatten(lst: Union[str, List, Tuple]) -> Union[str, List, Tuple]:
-  if type(lst) in (tuple, list):
+def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
+  if isinstance(lst, tuple) or isinstance(lst, list):
     yield from chain.from_iterable((flatten(x) for x in lst))
   else: # type==str
     yield(lst)
 
 
-def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10):
+def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10) -> Iterator[Union[str, List[str], Tuple[str, ...]]]:
   if not depth:
     yield from chain.from_iterable(names)
-  if type(names) in (tuple, list):
+  if isinstance(names, tuple) or isinstance(names, list):
     yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
   else: # type==str
     if names in aliases:
@@ -74,7 +74,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   maybe_parent = lambda path: path.parent if use_parent_folder else path
   input_paths = list(database.glob(str(path))) # to support wildcards
   if not input_paths:
-    click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
+    click.secho(f'Warning: No inputs found for the batch "{path}>"', fg='yellow', err=True)
     return
 
   if not globs:

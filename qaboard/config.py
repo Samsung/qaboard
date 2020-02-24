@@ -5,6 +5,7 @@ import os
 import sys
 from itertools import chain
 from pathlib import Path, PurePosixPath
+from typing import Dict, Any, Tuple, List
 
 import yaml
 import click
@@ -47,12 +48,11 @@ if '--lsf-sequential' in sys.argv:
   click.secho('DEPRECATION WARNING: "--lsf-sequential" was replaced with "--runner local"', fg='yellow', bold=True)
 
 
-def find_qatools_configs(path):
+def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
     """Returns the parsed content and paths of qaboard.yaml files that should be loaded for a (sub)project at the `path`.
     Returns a tuple (configs, paths). Each element is a list - the root qaboard.yaml is first and the subproject's is last.
     """
-    qatools_configs = []
-    qatools_config_paths = []
+    configsxpaths = []
     # We need a full path to iterate on the parents
     path = path.resolve()
     # We look for qaboard.yaml configuration files in the path folder and its parents
@@ -60,17 +60,16 @@ def find_qatools_configs(path):
     for parent in parents:
         qatools_config_path = parent / 'qaboard.yaml'
         if not qatools_config_path.exists():
-          qatools_config_path = parent / 'qatools.yaml'
+          qatools_config_path = parent / 'qatools.yaml' # backward compatibility
           if not qatools_config_path.exists():
             continue
         with qatools_config_path.open('r') as f:
             qatools_config = yaml.load(f, Loader=yaml.SafeLoader)
-            qatools_configs.append(qatools_config)
-            qatools_config_paths.append(qatools_config_path)
-            if qatools_config.get('root'): break
-    qatools_configs.reverse()
-    qatools_config_paths.reverse()
-    return qatools_configs, qatools_config_paths
+            configsxpaths.append((qatools_config, qatools_config_path))
+            if qatools_config.get('root'):
+              break
+    configsxpaths.reverse()
+    return configsxpaths
 
 
 
@@ -84,8 +83,10 @@ if len(sys.argv)>1 and sys.argv[1] == 'init':
 # to avoid printing lots and lots of warnings, we define
 no_config_warning = '--help' in sys.argv or not sys.argv
 
-qatools_configs, qatools_config_paths = find_qatools_configs(path=Path())
-if not qatools_configs:
+qatools_configsxpaths = find_configs(path=Path())
+qatools_configs = [q[0] for q in qatools_configsxpaths]
+qatools_config_paths = [q[1] for q in qatools_configsxpaths]
+if not qatools_configsxpaths:
   config_has_error = True
   if not no_config_warning:
     click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
@@ -96,7 +97,7 @@ if not qatools_configs:
   no_config_warning = True
 
 
-def merge(src, dest):
+def merge(src: Dict, dest: Dict) -> Dict:
     # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
     if src:
       for key, value in src.items():
@@ -112,7 +113,7 @@ def merge(src, dest):
 
 
 # take care not to mutate the root config, as its project.name is the git repo name
-config = {}
+config : Dict[str, Any] = {}
 for c in qatools_configs:
   config = merge(c, config)
 
@@ -121,7 +122,7 @@ for c in qatools_configs:
 if not qatools_config_paths:
   root_qatools = None
   project_dir = None
-  root_qatools_config = {}
+  root_qatools_config: Dict[str, Any] = {}
   subproject = Path(".")
 else:
   if len(qatools_config_paths)==1:
@@ -129,17 +130,18 @@ else:
     project_dir = root_qatools
     root_qatools_config = qatools_configs[0]
   else:
-    root_qatools, *_, project_dir = [c.parent for c in qatools_config_paths]
+    root_qatools, *__, project_dir = [c.parent for c in qatools_config_paths]
     root_qatools_config, *_ = qatools_configs
-  subproject = project_dir.relative_to(root_qatools) if root_qatools else None
+  subproject = project_dir.relative_to(root_qatools) if root_qatools else Path(".")
 
   # We check for consistency
-  if root_qatools_config.get('project').get('url') != config.get('project').get('url'):
-    config_has_error = True
-    if not no_config_warning:
-      click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
-      click.secho(f"Changed from {root_qatools_config['project']['url']} to {config['project']['url']}", fg='red')
-      no_config_warning = True
+  if root_qatools_config and config:
+    if root_qatools_config.get('project', {}).get('url') != config.get('project', {}).get('url'):
+      config_has_error = True
+      if not no_config_warning:
+        click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
+        click.secho(f"Changed from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}", fg='red')
+        no_config_warning = True
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
   # It's not something the user should change...
@@ -322,9 +324,9 @@ def get_default_database(input_settings):
 
 
 
-_metrics = {}
-available_metrics = {}
-main_metrics = []
+_metrics: Dict = {}
+available_metrics: Dict[str, Dict[str, Any]] = {}
+main_metrics: List = []
 
 metrics_file = config.get('outputs', {}).get('metrics')
 if metrics_file:

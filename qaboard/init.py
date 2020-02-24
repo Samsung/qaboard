@@ -10,7 +10,7 @@ import shutil
 import git
 import click
 
-from .config import find_qatools_configs
+from .config import find_configs
 
 
 
@@ -27,10 +27,10 @@ def find_repo(path):
 
 def qa_init():
   """Initialize a qatools repository"""
-  _, qatools_config_paths = find_qatools_configs(Path('.'))
-  if qatools_config_paths:
+  config_paths = [p for  _, p in find_configs(Path('.'))]
+  if config_paths:
     click.secho(f'You already have a qaboard.yaml configuration:', fg='green', bold=True, err=True)
-    for p in qatools_config_paths:
+    for p in config_paths:
       click.secho(str(p), fg='green')
     exit(0)
 

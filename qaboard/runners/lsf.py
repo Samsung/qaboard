@@ -13,10 +13,11 @@ import os
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, cast
 
 from click import secho
 
+from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
 from ..api import get_output
@@ -32,13 +33,13 @@ class LsfPriority:
 
 @dataclass
 class LsfOptions():
-  project: str = None
-  queue: str = None
-  fast_queue: str = None
+  project: Optional[str] = None
+  queue: Optional[str] = None
+  fast_queue: Optional[str] = None
   priority: int = LsfPriority.NORMAL
   max_threads: int = 0
   max_memory: int = 0 #in MB
-  resources: str = None
+  resources: Optional[str] = None
   # not strictly LSF options, but important to send jobs
   user: str = getenvs(('USERNAME', 'USER'))
   cwd: Path = Path() # current working directory
@@ -62,14 +63,14 @@ def dict_to_LsfOptions(job_options):
   return replace(options, **filtered_options)
 
 
-class LsfRunner:
+class LsfRunner(BaseRunner):
   """Start jobs using the LSF task management system."""
   type = "lsf"
 
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
     # aliases for  quick access
-    self.output_dir = run_context.output_dir
+    self.output_dir: Optional[Path] = run_context.output_dir
     self.command = run_context.command
 
     self.options = dict_to_LsfOptions(run_context.job_options)
@@ -86,13 +87,10 @@ class LsfRunner:
     return f"{job_prefix}{output_dir_slug}"
 
 
-  def start(self, blocking=True, dependencies: Optional[List[Job]] = None, name: Optional[str] = None, flags: str = ''):
+  def start(self, blocking=True, name: Optional[str] = None, flags: str = ''):
     """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
-    if dependencies:
-      dependencies_expression = " && ".join([f'ended({job.name})' for job in dependencies])
-      flags += f'-w "{dependencies_expression}"'
     fast_queue = self.options.fast_queue if self.options.fast_queue else self.options.queue
     queue = self.options.queue if blocking else fast_queue
 
@@ -131,7 +129,7 @@ class LsfRunner:
         "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
         # forces a non-interactive matplotlib backend
         "MPLBACKEND=agg",
-        self.command,
+        self.command if self.command else 'echo OK',
         "\nEOF",
       ]
     )
@@ -184,6 +182,7 @@ class LsfRunner:
       # We create a job that will just wait for the others
       from copy import deepcopy
       waiting_job = deepcopy(jobs[0])
+      waiting_job.runner = cast(LsfRunner, waiting_job.runner) # we'll never mix runners
       waiting_job.runner.options = dict_to_LsfOptions(job_options)
       waiting_job.runner.command = 'echo Done'
       waiting_job.runner.output_dir = None # disable logging

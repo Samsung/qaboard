@@ -4,7 +4,7 @@ from pathlib import Path
 import requests
 import click
 
-from requests.utils import quote
+from urllib.parse import quote
 from .config import config, root_qatools_config, subproject, commit_branch
 from .config import secrets
 

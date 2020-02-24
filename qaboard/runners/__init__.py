@@ -1,10 +1,12 @@
-from .job import Job, JobGroup
+from typing import Dict, Type
 
+from .job import Job, JobGroup
+from .base import BaseRunner
 from .lsf import LsfRunner
 from .local import LocalRunner
 from .celery import CeleryRunner
 
-runners = {
+runners: Dict[str, Type[BaseRunner]] = {
     'local': LocalRunner,
     'lsf': LsfRunner,
     'celery': CeleryRunner,
@@ -16,8 +18,6 @@ runners = {
 ## Besides, when we call stop_command server-side, having custom runners makes things even more complex
 # def register_runner(runnerType):
 #     assert hasattr(runnerType, 'type')
-#     assert hasattr(runnerType, 'start')
 #     assert hasattr(runnerType, 'start_jobs')
 #     assert hasattr(runnerType, 'stop_jobs')
-#     assert hasattr(runnerType, 'stop_command')
 #     runners[runnerType.type] = runnerType

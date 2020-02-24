@@ -3,11 +3,14 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Any
 
+import click
+
+from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
 
 
-class LocalRunner():
+class LocalRunner(BaseRunner):
   type = "local"
 
   def __init__(self, run_context : RunContext):

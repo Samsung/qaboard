@@ -350,7 +350,7 @@ def sync(ctx, input_path, output_path):
     click.secho(str(metrics), fg='green')      
 
 
-lsf_config = config.get('runners').get('lsf', {}) if 'runners' in config else config.get('lsf', {})
+lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {}) 
 local_config = config.get('runners', {}).get('local', {})
 # FIXME: change how we pick the default task runner
 # task_runners = [r for r in config.get('runners', {}).keys() if r not in ['default', 'local']]

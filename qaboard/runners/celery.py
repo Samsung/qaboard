@@ -1,14 +1,11 @@
 from typing import List, Dict, Any
 
+from .base import BaseRunner
 from .job import Job
 from ..run import RunContext 
 
-
-class CeleryRunner():
+class CeleryRunner(BaseRunner):
   type = "celery"
-
-  def __init__(self, run_context : RunContext):
-    raise NotImplementedError
 
   def start(self, blocking=True, **kwargs):
     raise NotImplementedError
