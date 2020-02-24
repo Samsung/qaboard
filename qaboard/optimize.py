@@ -7,13 +7,111 @@ import requests
 import click
 import numpy as np
 
-from skopt import Optimizer
-from skopt.utils import Space
-from skopt.utils import Integer
-from skopt.utils import use_named_args
+from .api import NumpyEncoder, batch_info, notify_qa_database
+from .config import commit_id, available_metrics, default_batches_files
+from .conventions import batch_dir
+from .utils import PathType
 
-from .api import NumpyEncoder, batch_info
-from .config import commit_id, available_metrics
+
+
+
+@click.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
+@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+@click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
+@click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def optimize(ctx, batches, batches_files, config_file, forwarded_args):
+  ctx.obj['prefix_output_dir'].mkdir(parents=True, exist_ok=True)
+  ctx.obj['batches'] = batches
+  ctx.obj['batches_files'] = batches_files
+  ctx.obj['forwarded_args'] = forwarded_args
+
+  from shutil import rmtree
+  from .api import aggregated_metrics
+  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
+
+  # TODO: warm-start
+  #   load and "tell" existing results (if there are any)
+  #   (or use a checkpoint?)
+
+  for iteration in range(optim_config['evaluations']):
+      suggested = optimizer.ask()
+      y = objective([*suggested, iteration])
+      results = optimizer.tell(suggested, y)
+
+      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
+      iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
+      notify_qa_database(**{
+        **ctx.obj,
+        **{
+          "extra_parameters": dim_mapping(suggested),
+          # TODO: we really should to tuning/platform in make_prefix_outputs_path
+          #       1. make change, 2. rename existing folders)
+          "output_directory": iteration_batch_dir,
+          'input_path': '|'.join(batches),
+          # we want to show in the summary tab the best results for the tuning experiment
+          # but in the exploration see the results per iteration....
+          "output_type": 'optim_iteration', # or... single ? don't show them in the UI
+          "is_pending": False,
+          "is_failed": False,
+          "metrics": {
+            "iteration": iteration+1,
+            "objective": y,
+            **aggregated_metrics(iteration_batch_label),
+          },
+        },
+      })
+
+      notify_qa_database(object_type='batch', **{
+        **ctx.obj,
+        **{
+            "data": {
+              "optimization": True,
+              "iterations": iteration+1,
+            },
+        },
+      })
+
+      # results
+      #    .x [float]: location of the minimum.
+      #    .fun [float]: function value at the minimum.
+      #    .models: surrogate models used for each iteration.
+      #    .x_iters [array]: location of function evaluation for each iteration.
+      #    .func_vals [array]: function value for each iteration.
+      #    .space [Space]: the optimization space.
+      #    .specs [dict]: parameters passed to the function.
+      is_best = results.fun < results.func_vals[iteration]
+      if iteration==0 or is_best:
+        click.secho(f'New best @iteration{iteration+1}: {y} at iteration {iteration+1}', fg='green')
+        notify_qa_database(object_type='batch', **{
+          **ctx.obj,
+          **{
+              "data": {
+                "best_params": dim_mapping(suggested),
+                "best_iter": iteration+1,
+                "best_metrics": aggregated_metrics(iteration_batch_label),
+              },
+          },
+        })
+        try:
+          make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+        except:
+          pass
+      else:
+        # We remove the results to make sure we don't waste disk space
+        rmtree(iteration_batch_dir, ignore_errors=True)
+
+  print(results)
+  if not results.models: # needs at least n_initial_points(=5) evaluations!
+    return
+
+  # tuning plots are saved in the label directory
+  make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+
+
 
 
 def init_optimization(optim_config_file, ctx):
@@ -36,7 +134,7 @@ def init_optimization(optim_config_file, ctx):
     "random_state": 42,
     **optim_config.get('solver', {}),
   }
-
+  from skopt.utils import Space
   space = Space.from_yaml(optim_config_file, namespace='search_space')
   preset_params = optim_config.get('preset_params', {})
   click.secho("Search space:", fg="blue", err=True)
@@ -45,8 +143,11 @@ def init_optimization(optim_config_file, ctx):
   click.secho(str(preset_params), fg="blue", dim=True, err=True)
 
   # we use the iteration step in the objective function, to store results at the right place
+  from skopt.utils import Integer
   dim_iteration = Integer(name='iteration', low=0, high=2^16)
   dims = [*space, dim_iteration]
+
+  from skopt.utils import use_named_args
 
   @use_named_args(dims)
   def objective(**opt_params):
@@ -86,6 +187,7 @@ def init_optimization(optim_config_file, ctx):
 
   # For the full list of options, refer to:
   # https://scikit-optimize.github.io/#skopt.Optimizer
+  from skopt import Optimizer
   optimizer = Optimizer(space, random_state=optim_config['solver']['random_state'])
 
   # in the optimization loop, `ask` gives us an array of values
@@ -95,10 +197,6 @@ def init_optimization(optim_config_file, ctx):
     return {**preset_params, **opt_params}
 
   return objective, optimizer, optim_config, dim_mapping
-
-
-
-
 
 
 
@@ -138,13 +236,15 @@ def make_reduce(options):
   if reduce_type == 'relu':
     return lambda x: relu(sum(x)) / len(x)
   if len(reduce_type) == 2:
-    return lambda x: np.linalg.norm(x, ord=int(reduce_type[1])) / len(x)
+    from numpy.linalg import norm
+    return lambda x: norm(x, ord=int(reduce_type[1])) / len(x)
 
 
 def matching_output(output_reference, outputs):
   """
   Return the output from from a given batch that looks most similar to a given output.
   This helps us compare an output to historical results.
+  FIXME: this is old......... there is newer version in the backend
   """
   matching_outputs = [o for o in outputs if o.test_input_path == output_reference.test_input_path]
   valid_outputs = [o for o in matching_outputs if not o.is_pending and not o.is_failed]
