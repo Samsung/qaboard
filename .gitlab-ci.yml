@@ -15,13 +15,18 @@ after_script:
   - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
 
 
-unit:tests:
+unit-tests:
   stage: test
   retry: 2 # solves frequent filesystem sync issues
   script:
     - green -vvv
     # - PYTHONPATH=$(pwd) python -munittest
 
+type-check:
+  stage: test
+  allow_failure: true
+  script:
+  - mypy -p qaboard --ignore-missing-imports
 
 deploy:qa:
   stage: deploy

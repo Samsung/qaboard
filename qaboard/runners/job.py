@@ -14,12 +14,16 @@ from ..api import get_outputs, notify_qa_database
 class Job():
     """Describes a task that will be sent to an async task queue"""
     def __init__(self, run_context: RunContext):
-        self.id = None # ID in the QA-Board database
-        self.run_context = run_context
-        from . import runners
-        for Runner in runners.values():
-            if run_context.job_options['type'] == Runner.type:
-                self.runner = Runner(run_context)
+      # We reserve members that correspond to matching data in in the QA-Board database
+      self.id: Optional[str] = None
+      self.qaboard_output: Optional[Dict[str, Any]] = None # as returned by the API 
+
+      self.run_context = run_context
+      from . import runners
+      for Runner in runners.values():
+        Runner.type
+        if run_context.job_options['type'] == Runner.type:
+            self.runner = Runner(run_context)
 
     def asdict(self):
       return asdict(self)
@@ -81,25 +85,26 @@ class JobGroup():
 
     # Here we add the matching outputs as job.qaboard_output
     outputdir_to_qaboard_output = {url_to_dir(o['output_dir_url']): o for o in finished_outputs.values()}
-    for job in self.jobs:
-      assert job.run_context.output_dir in outputdir_to_qaboard_output
-      job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
 
-
+    is_failed = False
     # If runs are SIGKILL'ed, they never get a chance to update that they are done
     # it happens often when users use a lot of memory and some task queue manager gets angry 
-    jobs_with_pending_outputs = [j for j in self.jobs if j.qaboard_output['is_pending']]
+    jobs_with_pending_outputs = []
+    for job in self.jobs:
+      job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
+      assert job.qaboard_output
+      is_failed = is_failed or job.qaboard_output["is_failed"] 
+      if job.qaboard_output['is_pending']:
+        jobs_with_pending_outputs.append(job)
+
     for j in jobs_with_pending_outputs:
       notify_qa_database(**{
-        **qa_context,
+        **(qa_context if qa_context else {}),
         **j.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
         "is_pending": False,
         "is_failed": True, # we know something went wrong
       })
-
-    return any(j.qaboard_output["is_failed"] for j in self.jobs)
-
-    # we could do it here
+    return is_failed
 
   def stop(self):
     self.Runner.stop_jobs(self.jobs, self.job_options)

@@ -12,6 +12,7 @@ import shutil
 import traceback
 import json
 from contextlib import contextmanager
+from typing import Tuple
 
 import yaml
 import click
@@ -337,7 +338,7 @@ class _Commit(object):
 
 
 
-def git_head(repo_root : Path) -> (str, str):
+def git_head(repo_root : Path) -> Tuple[str, str]:
   """Return the git ref and sha for the HEAD""" 
   with (repo_root / '.git' / 'HEAD').open() as f:
     head_data = f.read().strip()

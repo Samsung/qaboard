@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 import click
-from requests.utils import unquote
+from urllib.parse import unquote
 
 
 def get_settings(inputs_type, config):
