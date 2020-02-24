@@ -21,25 +21,27 @@ from .utils import input_metadata, entrypoint_module, cased_path
 from .run import RunContext
 
 
-def flatten(lst: Union[str, List, Tuple]):
-  if type(lst) not in (tuple, list): # string
+def flatten(lst: Union[str, List, Tuple]) -> Union[str, List, Tuple]:
+  if type(lst) in (tuple, list):
+    yield from chain.from_iterable((flatten(x) for x in lst))
+  else: # type==str
     yield(lst)
-    return
-  yield from chain.from_iterable((flatten(x) for x in lst))
 
 
-def resolve_aliases(names : Union[str, List[str], Tuple[str]], aliases: Dict[str, List[str]]):
+def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10):
+  if not depth:
+    yield from chain.from_iterable(names)
   if type(names) in (tuple, list):
-    yield from chain.from_iterable((resolve_aliases(n, aliases) for n in names))
-  else:  # string
+    yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
+  else: # type==str
     if names in aliases:
-      yield from resolve_aliases(aliases.get(names), aliases)
+      yield from resolve_aliases(aliases[names], aliases, depth-1)
     else:
       yield names
 
 
 
-def match(value, value_filter):
+def match(value, value_filter) -> bool:
   # print('match:', value, 'vs', value_filter)
   if isinstance(value_filter, list):
     return any([match(value, e) for e in value_filter])

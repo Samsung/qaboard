@@ -27,9 +27,10 @@ class TestConventions(unittest.TestCase):
         list(resolve_aliases(["branch-specific"],  {'chain': ['remosaic', 'hdr3', 'hdr-2'], 'branch-specific': ['small-group']})),
         ['small-group']
     )
-# 
-# 
-# FIXME: infinite loop if "groups.x: x"
+    self.assertEqual(
+        list(resolve_aliases(["self-referential"],  {'chain': ['self-referential']})),
+        ['self-referential']
+    )
 
 
 if __name__ == '__main__':
