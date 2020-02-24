@@ -111,10 +111,9 @@ class Batch(Base):
       # if the stop dosn't only use the command_id...
       jobs = JobGroup(job_options={"type": "local", "command_id": command_id, **command})
       try:
-        error = stop_command(command_id, command)
-        if error:
-          errors.append(error)
-      except:
+        jobs.stop()
+      except Exception as e:
+        errors.append(str(e))
         continue
     if errors:
       return {"error": errors}

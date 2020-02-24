@@ -95,7 +95,11 @@ class Output(Base):
       parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
     else:
       parameters_hash = ''
-    return f'{self.platform}/{slugify_config(self.configuration)}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    config_slug = slugify_config(self.configuration)
+    if config_slug:
+      return f'{self.platform}/{config_slug}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
+    else:
+      return f'{self.platform}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
     # return Path(self.platform) / slugify_config(self.configuration) / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
 
   @property

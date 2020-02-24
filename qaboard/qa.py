@@ -24,7 +24,7 @@ from .utils import PathType, entrypoint_module, input_data, load_tuning_search
 from .utils import save_outputs_manifest
 from .utils import redirect_std_streams
 from .utils import getenvs
-from .api import batch_info, notify_qa_database, print_url, serialize_paths
+from .api import get_outputs, notify_qa_database, print_url, serialize_paths
 from .iterators import iter_inputs, iter_parameters
 
 # The `qa init` command is implemented in config.py
@@ -393,22 +393,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     batches, *forwarded_args = forwarded_args
     batches = [batches]
 
-  batch_label = ctx.obj['batch_label']
   print_url(ctx)
+  existing_outputs = get_outputs(ctx.obj)
+  command_id = str(uuid.uuid4()) # unique IDs for triggered runs makes it easier to wait/cancel them 
 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
-  def get_qaboard_outputs(): # we will need the list later to check job statuses
-    if not should_notify_qa_database:
-      return {}
-    try:
-      return batch_info(reference=commit_id, batch=batch_label)['outputs']
-    except:
-      return {}
-  existing_outputs = get_qaboard_outputs()
-
-  command_id = str(uuid.uuid4()) # unique IDs for triggered runs makes it easier to wait/cancel them 
-
   if should_notify_qa_database:
     command_data = {
       "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
@@ -546,12 +536,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   if not dryrun:
     is_failed = jobs.start(
       blocking=not no_wait,
-      get_qaboard_outputs=get_qaboard_outputs,
+      qa_context=ctx.obj,
     )
 
     from .gitlab import update_gitlab_status
     always_update = getenvs(('QATOOLS_ALWAYS_UPDATE_GITLAB', 'QA_ALWAYS_UPDATE_GITLAB'))
-    if jobs and is_ci and (batch_label=='default' or always_update):
+    if jobs and is_ci and (ctx.obj['batch_label']=='default' or always_update):
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
     if is_failed:

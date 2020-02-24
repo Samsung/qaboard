@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 import json
 import simplejson
 from functools import lru_cache
+from typing import Any, Dict, Optional
 
 import click
 
@@ -177,6 +178,17 @@ def batch_info(reference, batch, is_branch=False):
   	raise ValueError(f'We could not get the results for {batch}')
   return r.json()['batches'][batch]
 
+
+def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
+  if not qa_context:
+    return {}
+  should_notify_qa_database = (is_ci or qa_context['share']) and not (qa_context['dryrun'] or qa_context['offline'])
+  if not should_notify_qa_database:
+    return {}
+  try:
+    return batch_info(reference=commit_id, batch=qa_context['batch_label'])['outputs']
+  except:
+    return {}
 
 
 @lru_cache()
