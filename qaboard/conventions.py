@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 import click
+from requests.utils import unquote
 
 
 def get_settings(inputs_type, config):
@@ -172,7 +173,7 @@ def make_hash(obj):
 
 
 def batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci=False):
-  from qatools.config import is_ci, subproject
+  from qaboard.config import is_ci, subproject
   batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return commit_ci_dir / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
 
@@ -198,3 +199,5 @@ def tuning_foldername(batch_label, tuning_parameters_hash):
   return parameters_folder 
 
 
+def url_to_dir(url):
+  return Path(unquote(url)[2:])
