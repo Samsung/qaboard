@@ -55,6 +55,7 @@ class BatchStatusMessages extends React.Component {
       this.setState({waiting_stop: false})
     })
     .catch(error => {
+      console.log(error)
       this.setState({waiting_stop: true, error });
     });
   }
