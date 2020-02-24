@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any, Callable
 
 from ..run import RunContext 
 from ..conventions import url_to_dir
+from ..api import get_outputs, notify_qa_database
 
 # TODO: We could make start_jobs belong to JobGroup as simply "start" 
 #       It would be a bit simpler, but then we'd need new runners to implement two classes?
@@ -61,7 +62,7 @@ class JobGroup():
     self.jobs.append(job)
 
 
-  def start(self, blocking=True, get_qaboard_outputs: Optional[Callable[[], Dict[int, Any]]] = None) -> bool:
+  def start(self, blocking=True, qa_context: Optional[Dict[str, Any]] = None) -> bool:
     """
     Starts the jobs, and returns whether at least one failed.
     """
@@ -72,16 +73,33 @@ class JobGroup():
     # Note: we used to always do as below, it's OK but makes many network requests
     # return any(job.is_failed(verbose=True) for job in self.jobs)
 
-    finished_outputs = get_qaboard_outputs() if get_qaboard_outputs else []
+    # Note: We get all outputs in the batch, some not started in this command...
+    finished_outputs = get_outputs(qa_context)
     if not finished_outputs:
       # If we don't have jobs, either we were offline or something aweful happenned
       return any(job.run_context.is_failed(verbose=True) for job in self.jobs)
 
-    # We get a whole batch of results, with possibly outputs not started in this batch
-    jobs_output_dirs = set([j.run_context.output_dir for j in self.jobs])
-    matching_finished_outputs = [o for o in finished_outputs.values() if url_to_dir(o['output_dir_url']) in jobs_output_dirs]
-    assert len(matching_finished_outputs) == len(self.jobs)
-    return any(o["is_failed"] for o in matching_finished_outputs)
+    # Here we add the matching outputs as job.qaboard_output
+    outputdir_to_qaboard_output = {url_to_dir(o['output_dir_url']): o for o in finished_outputs.values()}
+    for job in self.jobs:
+      assert job.run_context.output_dir in outputdir_to_qaboard_output
+      job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
+
+
+    # If runs are SIGKILL'ed, they never get a chance to update that they are done
+    # it happens often when users use a lot of memory and some task queue manager gets angry 
+    jobs_with_pending_outputs = [j for j in self.jobs if j.qaboard_output['is_pending']]
+    for j in jobs_with_pending_outputs:
+      notify_qa_database(**{
+        **qa_context,
+        **j.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
+        "is_pending": False,
+        "is_failed": True, # we know something went wrong
+      })
+
+    return any(j.qaboard_output["is_failed"] for j in self.jobs)
+
+    # we could do it here
 
   def stop(self):
     self.Runner.stop_jobs(self.jobs, self.job_options)

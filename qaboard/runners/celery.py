@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 
 from .job import Job
 from ..run import RunContext 
@@ -14,9 +14,9 @@ class CeleryRunner():
     raise NotImplementedError
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Optional[Dict[str, Any]]= None, blocking=True):
+  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
       raise NotImplementedError
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Optional[Dict[str, Any]] = None):
+  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
       raise NotImplementedError

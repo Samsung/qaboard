@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 
 from .job import Job
 from ..run import RunContext
@@ -29,7 +29,7 @@ class LocalRunner():
       return process.returncode
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Optional[Dict[str, Any]] = None, blocking=True):
+  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
       if not blocking:
         click.secho(f'WARNING: We currently dont support non-blocking local runs.', fg='yellow', err=True)
 
@@ -46,5 +46,5 @@ class LocalRunner():
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Optional[Dict[str, Any]] = None):
+  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
     return NotImplementedError

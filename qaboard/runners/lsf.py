@@ -164,7 +164,7 @@ class LsfRunner:
 
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Optional[Dict[str, Any]], blocking=True):
+  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
     # start asynchronously the jobs 
     for job in jobs:
       job.start(blocking=False)
@@ -197,7 +197,7 @@ class LsfRunner:
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Optional[Dict[str, Any]]):
+  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
       # We could dot this to be sure we explicitely kill all jobs 
       #   command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
       # But we're only sending jobs as part of a single command...
