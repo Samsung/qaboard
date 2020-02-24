@@ -254,7 +254,11 @@ class OutputCard extends React.Component {
   }
 
   setSelectedOption = name => e => {
-    const selected = !!e.target ? e.target.value : e;
+    let selected = !!e.target ? e.target.value : e;
+    // console.log(typeof(selected), selected)
+    if (this.state.options[name].type === 'slider') {
+      selected = this.state.options[name].to_raw[selected]
+    }
     this.setState({
       options: {
         ...this.state.options,
@@ -266,8 +270,6 @@ class OutputCard extends React.Component {
     })
   }
 
-
-
   updateOptions() {
     if (this.state.manifests.new === undefined || this.state.manifests.new === null) {
       this.setState({
@@ -278,67 +280,89 @@ class OutputCard extends React.Component {
 
     const outputs = (((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}
     const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])]; // we allow both for some leeway with half updated projects
-    // console.log(views)
     var options = {}
     views.forEach((view, idx) => {
       if (view.path === undefined) return
-      // be glob-friendly
-      // FIXME: also get the extension, that's the common case...
-      // let path_regex = view.path.replace(/[^\.]\*/g, '(.*)')
+      // FIXME: be glob-friendly? view.path.replace(/[^\.]\*/g, '(.*)')
       let view_options = pathToRegexp.parse(view.path)
       view_options.forEach(token => {
         // console.log(token)
         if (token.name === undefined) // static part
           return
         if (Number.isInteger(token.name)) {
-          // we must not confuse unnamed group
+          // We don't sync option selection for unnamed groups,
+          // and need to give each a unique name
           token.unnamed_group = token.name
           token.name = `${idx}-${token.name}`
         }
         if (options[token.name] === undefined)
           options[token.name] = { views: [], paths: [] }
         options[token.name] = { ...options[token.name], ...token }
-        // if (!!token.path)
-        //   options[token.name] = { ...options[token.name], ...token }
         options[token.name].views.push(view.name)
         options[token.name].paths.push(view.path)
       })
     })
 
+    const selected = {}
     const paths = Object.keys(this.state.manifests.new)
+    // TODO: Ideally, as we iterate over options, we should select values
+    // and filter the remaining `paths` according to those choices
+    // this way we're sure to get possible values.
+    // Likewise, when users select options, we should update the list of available options
+    // But at the same time, doing this can hide options values...
+    // At least for init we could make a valid selection.
+    // http://qa:3000/CIS_ISP_Algorithms/motiondetection/commit/e4b8ad883dc07
     Object.entries(options).forEach(([name, option]) => {
       // console.log(name, option)
       option.values = new Set()
       paths.forEach(path => {
-        // const match = option.match.exec(p);
         option.paths.forEach(option_path => {
+          // first we check if we have a match, without any selection
           const match = matchPath(path, { path: option_path }) // they do their own caching
-          // console.log('>', path, match)
           if (match === null || match === undefined) return;
+          // console.log('>', path, match)
+
+          // Then something like...
+          // const matches_with_selection = !!compilePath(option_path)(selected)
+          //    ? do we need to provide default values for all groups? if yes things are more complicated...
+          //    -> we can use only the named capture groups since we don't sync the others
+          //       this way we also don't need to worry about the origin token names...
           let name_ = option.unnamed_group !== undefined ? option.unnamed_group : name;
           option.values.add(match.params[name_])          
         })
       })
       option.values = Array.from(option.values.values()).sort( (a, b) => a.localeCompare(b) )
   
-      const all_is_integer = option.values.length > 0 && option.values.every(v => Number.isInteger(Number(v)))
-      const all_numbers = option.values.length > 0 && option.values.every(v => !isNaN(parseFloat(v)))
-      // console.log(all_numbers)
+      let selected_value = undefined
+      const has_different_values = option.values.length > 1
+      const all_is_integer = has_different_values && option.values.length > 0 && option.values.every(v => Number.isInteger(Number(v)))
+      const all_numbers = all_is_integer && option.values.every(v => !isNaN(parseFloat(v)))
       if (all_is_integer) {
-        option.type = 'slider'
         option.to_raw = {}
         option.min = Infinity
         option.max = -Infinity
+        option.numeric_values = new Set()
         option.values.forEach(v => {
           const v_num = parseFloat(v);
           if (v_num < option.min) option.min = v_num;
           if (v_num > option.max) option.max = v_num;
           option.to_raw[v_num] = v
+          option.numeric_values.add(v_num)
         })
-        option.selected = [option.max]
+        selected_value = option.to_raw[option.max]
+
+        const range = [...Array(option.max - option.min + 1).keys()].map(v => v + option.min);
+        const sequential = range.every(idx => option.numeric_values.has(idx))
+        if(sequential)
+          option.type = 'slider'
       } else {
-        option.selected = [option.values[all_numbers ? option.values.length-1 : 0]]
+        selected_value = option.values[all_numbers ? option.values.length-1 : 0]
       }
+
+      const is_without_previous_value = !this.state.options[option.name] || !this.state.options[option.name].selected
+      if (is_without_previous_value) {
+        selected[option.name] = [selected_value]
+        option.selected = [selected_value]
     })
     this.setState({
       options,
@@ -381,7 +405,7 @@ class OutputCard extends React.Component {
           return <span key={idx} />
 
         const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
-        if (view_options.some(o => o.selected[0] === undefined || o.selected[0] === null))
+        if (view_options.some(o => o.selected ===  undefined || o.selected[0] === undefined || o.selected[0] === null))
           return <span key={idx} />
 
         const new_options = view_options.filter(({name}) => already_shown_options[name] === undefined)
@@ -391,11 +415,22 @@ class OutputCard extends React.Component {
           const option_label = isNaN(option.name) ? option.name : option.pattern
           if (option.views.every(name => (views.find(v => v.name === name) || {}).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
             return <span key={option_idx} />
+       
           if (option.type === 'slider') {
             // let labelStepSize = (option.max - option.min) / 10
+            // console.log(option)
             let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
             return <div key={option_idx} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
-              <Slider key={option_idx} initialValue={option.selected[0]} value={option.selected[0]} min={option.min} max={option.max} labelStepSize={labelStepSize} onChange={this.setSelectedOption(option.name)} showTrackFill />
+              <Slider
+                key={option_idx}
+                initialValue={parseFloat(option.selected[0])}
+                value={parseFloat(option.selected[0])}
+                min={option.min}
+                max={option.max}
+                onChange={this.setSelectedOption(option.name)}
+                labelStepSize={labelStepSize}
+                showTrackFill
+              />
             </div>
           } else {
             return <div key={option_idx} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
@@ -404,7 +439,7 @@ class OutputCard extends React.Component {
 
         if (!(view.display === 'viewer') && view_options.length > 0) {
           if (view.display === undefined || view.display === 'single') {
-            const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.to_raw ? o.to_raw[o.selected[0]] : o.selected[0]])
+            const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.selected[0]])
             var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
           } else if (view.display === 'all') {
             paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
