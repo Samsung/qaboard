@@ -42,7 +42,7 @@ class LocalRunner(BaseRunner):
       if 'cwd' in job_options:
         os.chdir(job_options['cwd'])
       Parallel(
-        n_jobs=job_options.get('concurrency', 0),
+        n_jobs=job_options.get('concurrency'),
         verbose=int(os.environ.get('QA_BATCH_VERBOSE', 0)),
       )(delayed(lambda j: j.start())(j) for j in jobs)
       os.chdir(cwd)
