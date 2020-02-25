@@ -5,6 +5,8 @@ from typing import List, Dict, Optional, Union, Any
 
 import click
 
+from .conventions import serialize_config
+
 
 @dataclass
 class RunContext():
@@ -74,6 +76,7 @@ class RunContext():
             "output_directory": self.output_dir, 
             "input_path": self.rel_input_path,
             "absolute_input_path": self.input_path,
+            "configuration": serialize_config(self.configurations),
             # TODO: If we do the change above, we need something like...
             # "configurations": self.configurations[:-1] if self.tuning else self.configurations,
             # "extra_parameters": self.configurations[-1] if self.tuning else {}
