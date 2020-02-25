@@ -106,5 +106,9 @@ class JobGroup():
       })
     return is_failed
 
+
+  # Currently called onlt by the backend when it tries to stop a `qa batch` command
+  # Sadly it only knows about the command_id, not jobs....
+  # TODO: make it stop_command to make usage clearer..
   def stop(self):
     self.Runner.stop_jobs(self.jobs, self.job_options)
