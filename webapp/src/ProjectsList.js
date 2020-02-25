@@ -135,9 +135,9 @@ class ProjectsList extends Component {
     return (
       <Container>
         <Callout intent={Intent.PRIMARY}>
-          <h4 className={Classes.HEADING}>Get started with qatools</h4>
+          <h4 className={Classes.HEADING}>Get started with QA-Board</h4>
           <p>
-            Learn about <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction`}>qatools</a>!
+            Read <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction`}>the docs </a> or check out the code on <a href="https://github.com/Samsung/qaboard">github.com</a>!
           </p>
         </Callout>
         {warnings}
