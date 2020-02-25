@@ -363,6 +363,7 @@ class OutputCard extends React.Component {
       if (is_without_previous_value) {
         selected[option.name] = [selected_value]
         option.selected = [selected_value]
+      }
     })
     this.setState({
       options,
