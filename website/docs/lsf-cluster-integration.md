@@ -74,3 +74,25 @@ qa batch --help
   --lsf-resources TEXT            LSF resources restrictions (-R)
   --lsf-sequential / --lsf-parallel
 ```
+
+## Connecting to LSF via a "bridge" host
+It's needed for the server, that runs in a container, and sometimes to send LSF jobs from windows. There are two options:
+
+1. Via environment variables:
+```bash
+export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access {bsub_command}'
+export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access su {user} {bsub_command}'
+```
+
+1. Via project configuraton:
+```yaml {5}
+# qaboard.yaml
+runners:
+  lsf:
+    # --snip--
+    bridge: 'ssh bridge_host'
+```
+
+:::tip
+When using bridges, `qa` will explicitely ask LSF to run in your current working directory, so no need to play games with `ssh 'cd {cwd} && {bsub_command}'`...
+:::
