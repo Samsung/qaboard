@@ -12,8 +12,9 @@
 ## Features
 - **Organize, View and Compare Results**, **Tuning/Optimization**
 - **Web-based:** sharable URLs, no install needed.
-- **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, embedded HTML...
-- **Integrations:** direct access from Git/CI, easily exportable results, API, links to the code, trigger jobs...
+- **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, HTML...
+- **Integrations:** direct access from Git and CI tools, easily exportable results, API, links to the code, trigger jobs...
+- **Agnostic** to your language/framework: run your existing code, write files, view them.
 
 ## Benefits
 - **Scale R&D:** enable engineers to achieve more and be more productive.
@@ -42,10 +43,11 @@ We think you could be interested if have projects where:
 
 ## Code organization
 Each section has its own README:
-- [qatools](qatools): provides the `qa` CLI wrapper than runs your code, and the `import qatools` package.
+- [qaboard](qaboard): provides the `qa` CLI wrapper than runs your code, and the `import qaboard` package.
 - [webapp](webapp/) is the frontend that displays results.
 - [backend](backend/) exposes an HTTP API used to read/write all the metadata on runs.
 - [webapp](webapp/) is the frontend that displays results.
+- [website](website/) is the QA-Board website and docs - samsung.github.io/qaboard
 - [thirdparty](thirdparty/):
   * [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIIF server, used to "stream" large images to the users.
 
@@ -58,7 +60,7 @@ Found a bug with QA-Board? Go ahead and [submit an issue](https://github.com/Sam
 ## Contributors
 QA-Board was started at [Samsung SIRC](https://www.linkedin.com/company/samsung-israel-r-d-center-sirc/) by [Arthur Flam](https://shapescience.xyz).
 
-Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Gal Hai, Rivka Emmanuel, Nadav Ofer. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
+Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Shai Shamir, Matan Danino, Roy Shaul, Gal Hai, Rivka Emmanuel, Nadav Ofer. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Yotam Ater, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
 
 > You don't see your name? Get in touch to be added to the list!
 
