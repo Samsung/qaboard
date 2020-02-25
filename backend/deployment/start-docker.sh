@@ -19,27 +19,29 @@ DOCKER_VOLUMES+=" --volume=/home:/home"
 # DOCKER_VOLUMES+=" --volume=src:dst"
 # ...
 
+#               frontend            debug api           database            https-frontend
+PORTS____PROD="-p0.0.0.0:5001:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:443:443"
+PORTS_STAGING="-p0.0.0.0:9000:6000 -p0.0.0.0:6002:5002 -p0.0.0.0:6433:5432 -p0.0.0.0:6001:443"
+PORTS_____DEV="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9433:5432 -p0.0.0.0:9001:443"
+# TODO: It really should be more transparent. At least for the API we should make it work with env.qa-server 
+#       we could make magic with nginx and e.g. --volume=/tmp/qaboard/backend-$CI_ENVIRONMENT_SLUG.sock:/backend/socks/backend.sock
+
 if [ -z ${CI_ENVIRONMENT_SLUG+x} ]; then
   echo "[Error] \$CI_ENVIRONMENT_SLUG is not defined."; exit
 else
-	if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
-		#                 frontend           debug api            database     https-frontend
-		PORTS="-p0.0.0.0:5001:5000 -p0.0.0.0:5002:5002 -p0.0.0.0:5432:5432 -p0.0.0.0:443:443"
-	else
-		if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
-      #                 frontend           debug api            database     https-frontend
-		  PORTS="-p0.0.0.0:9000:5000 -p0.0.0.0:9002:5002 -p0.0.0.0:9433:5432 -p0.0.0.0:9001:443"
-      # DOCKER_ENV+=" --env QABOARD_DB_HOST=dvs"    
-      # DOCKER_ENV+=" --env QABOARD_DB_PORT=5432"    
-		else
-            PORTS="-p0.0.0.0:10000:5000 -p0.0.0.0:10002:5002 -p0.0.0.0:10001:443"
- 			# PORTS=""
-			# or we could yse a dummy port and change the host's nginx config to point to the correct port..
-			# DOCKER_VOLUMES+=" --volume=backend:/var/qaboard"
-			# this would replace using port 5000, but we need to update some nginx configurations before it works... 
-			# --volume=/tmp/qaboard/backend-$CI_ENVIRONMENT_SLUG.sock:/backend/socks/backend.sock
-  	fi
-	fi
+  if [ $CI_ENVIRONMENT_SLUG = "production" ]; then
+      PORTS="$PORTS____PROD"
+  else
+    if [ $CI_ENVIRONMENT_SLUG = "staging" ]; then
+      PORTS="$PORTS_STAGING"
+    else
+      # dev...
+      PORTS="$PORTS_____DEV"
+      # users can opt to connect to the prod/staging database with e.g.
+      # DOCKER_ENV+=" --env QABOARD_DB_HOST=qa"    
+      # DOCKER_ENV+=" --env QABOARD_DB_PORT=5432"
+    fi
+  fi
 fi
 
 
@@ -47,20 +49,25 @@ fi
 if [ -z ${GITLAB_ACCESS_TOKEN+x} ]; then
   echo "[Error] \$GITLAB_ACCESS_TOKEN is not defined: create one at http://gitlab-srv/profile/personal_access_tokens"; exit
 else
-  DOCKER_ENV+=" --env GITLAB_ACCESS_TOKEN=${GITLAB_ACCESS_TOKEN}"
+  DOCKER_ENV+=" --env GITLAB_ACCESS_TOKEN"
 fi
 if [ -z ${JENKINS_USER_NAME+x} ]; then
   echo "[WARNING] \$JENKINS_USER_NAME is not defined: create one at http://http://qa-docs/docs/triggering-third-party-tools";
 else
-  DOCKER_ENV+=" --env JENKINS_USER_NAME=${JENKINS_USER_NAME}"
-  DOCKER_ENV+=" --env JENKINS_USER_TOKEN=${JENKINS_USER_TOKEN}"
-  DOCKER_ENV+=" --env JENKINS_USER_CRUMB=${JENKINS_USER_CRUMB}"
+  DOCKER_ENV+=" --env JENKINS_USER_NAME"
+  DOCKER_ENV+=" --env JENKINS_USER_TOKEN"
+  DOCKER_ENV+=" --env JENKINS_USER_CRUMB"
 fi
 
+# to actually run jobs we'd need also some kind of "cd {pwd}"
+export QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
+# https://unix.stackexchange.com/questions/379181/escape-a-variable-for-use-as-content-of-another-script
+DOCKER_ENV+=" --env QA_RUNNERS_LSF_BRIDGE"
+# DOCKER_ENV+=" --env QA_RUNNERS_LSF_BRIDGE='${QA_RUNNERS_LSF_BRIDGE}'"
 
-# Git clone configuration
+# We store there Git/Application data
 DOCKER_VOLUMES+=" --volume=qaboard:/var/qaboard"
-# Database configuration
+# And here the database data
 DOCKER_VOLUMES+=" --volume=qaboard-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
 DOCKER_VOLUMES+=" --volume=qaboard-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
 DOCKER_VOLUMES+=" --volume=qaboard-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
@@ -88,9 +95,9 @@ DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/ssl/dvs
 DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/ssl/qa:/etc/nginx/ssl/qa"
 
 if [ -z ${QABOARD_DB_HOST+x} ]; then
-    echo 'Using container database'
+    echo "Using the container's database"
 else
-    DOCKER_ENV+=" --env QABOARD_DB_HOST=qa"
+    DOCKER_ENV+=" --env QABOARD_DB_HOST"
 fi
 
 # ! we already copy the whole nginx config folder in the dockerfile... that's not great.
