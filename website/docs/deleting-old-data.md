@@ -13,6 +13,9 @@ Outputs from commits that are either:
 - Are on a **commit/tag/branch** listed as a `project.milestones` in *qaboard.yaml*.
 - Are a milestone defined from QA-Board's UI.
 
+:::caution
+QA-Board will set as a commit's branch the first it was seen on. If you merge with fast-forward rebased branches, then this information will not be what you expect. 
+:::
 
 ## Configuring garbage collection
 Data can be erased after a period of time where the commit has no new outputs.

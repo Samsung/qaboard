@@ -5,25 +5,6 @@ title: "Various Tuning Workflows"
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-## Enabling tuning from QA-Board
-1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L85):
-
-```yaml
-artifacts:
-  binary:
-    glob: 'build/sample_project'
-  # The "configurations" artifacts are shown in the UI under the commit's "Configuration" tab
-  configurations:
-    glob: configurations/*.json
-```
-
-> For convenience, *.qaboard.yaml* and *qatools/* are saved automatically.
-
-2. **Save the artifacts** when your build/training is done. In your CI, you will want to execute:
-
-```bash
-qa save-artifacts
-```
 
 ## Tuning from QA-Board
 When doing QA or during development, you often want to run the code/configs from a given commit on new tests. QA-Board lets you define and runs batches of tests with extra tuning parameters:

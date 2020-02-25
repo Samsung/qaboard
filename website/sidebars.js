@@ -1,9 +1,9 @@
 
 module.exports = {
-  "docs": {
+  docs: {
     "QA-Board": [
 		"introduction",
-		"alternatives-and-missing-features"
+		"alternatives-and-missing-features",
 	],
   	"Getting Started": [
       "installation",
@@ -12,14 +12,22 @@ module.exports = {
 	  "running-your-code",
 	  "creating-and-viewing-outputs-files",
 	  "computing-quantitative-metrics",
-	  "specifying-configurations"
+	  "specifying-configurations",
   	],
 	"Guides": [
 		"using-the-qa-cli",
 		"references-and-milestones",
 		"visualizations",
 		"batches-running-on-multiple-inputs",
-		"lsf-integration",
+		{
+			type: 'category',
+			label: 'Tuning & Async Task Queues',
+			items: [
+				"tuning-from-the-webapp",
+				"celery-integration",
+				"lsf-integration",		
+			],
+		},
         "triggering-third-party-tools",
 		"debugging-runs-with-an-IDE",
 		"bit-accuracy",
@@ -28,6 +36,7 @@ module.exports = {
 		"tuning-workflows",
 		"ci-integration",
 		"deleting-old-data",
+		"dag-pipelines",
 		"faq",
 		// "history"
 		// "monorepos-subprojects",

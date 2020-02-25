@@ -157,6 +157,10 @@ runners:
   # default: lsf
   local:
     concurrency: -1
+
+  # Read the docs to learn how to configure Celery to run your batches
+  # celery:
+
   lsf: # we use our cluster on linux
     user: ispq
     # Depending on your project, you may want to use different LSF job queues
