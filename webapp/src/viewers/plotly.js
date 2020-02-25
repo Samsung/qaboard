@@ -4,6 +4,13 @@ import Plot from 'react-plotly.js';
 import { Colors } from "@blueprintjs/core";
 
 
+// TODO: keep the zoom in the state, like explained here
+//        https://github.com/plotly/react-plotly.js/#state-management
+//       and like we did in the history-over-time plot...
+// TODO: sync zoom across new and ref
+// TODO: sync zoom across all plots sharing the same path, like we do for images
+// TODO: add magic to e.g. compare tables with a diff  
+
 const colors = {
   groundtruth: `${Colors.GREEN2}dd`,
   new: `${Colors.ORANGE2}dd`,
@@ -12,8 +19,6 @@ const colors = {
 
 
 const adapt = (trace, label, side_by_side) => {
-  // if (trace.type === 'heatmap')
-  //   trace.type = 'heatmapgl'
   if (side_by_side)
     return trace
 
@@ -32,10 +37,10 @@ const adapt = (trace, label, side_by_side) => {
     legendgroup: !!trace.legendgroup ? `${label} | ${trace.legendgroup}` : undefined,
     line: {
       ...trace.line,
-      // FIXME: if already color, use dotted line, or more alpha.. ?
+      // FIXME: if we already use color, use some alpha like below, or dotted lines?
       color: !!(trace.line || {}).color ? trace.line.color : colors[label],
       dash: (!!(trace.line || {}).color && !!!trace.dash && label === "ref") ? 'dashdot' : trace.dash,
-      // the ref is wider to highlight unchanged results
+      // The reference is wider to make it easy to identify unchanged results
       width,
     },
     marker: {
@@ -44,7 +49,7 @@ const adapt = (trace, label, side_by_side) => {
       color: !!(trace.marker || {}).color ? trace.marker.color : colors[label],
       size,
     },
-    // TODO: do we need other ajustments for other plot types?
+    // TODO: make other ajustments for other plot types, like tables...
   }
 }
 
@@ -123,6 +128,9 @@ class PlotlyViewer extends PureComponent {
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
       let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
       let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
+      // TODO: if we have a ref and didn't before, call adapt on the new
+      //       and don't call adapt unless we have a ref...
+      //       This would help preserve colors.  
       if (updated_new || updated_path) {
         this.getData(this.props, 'new');
       }
@@ -140,6 +148,7 @@ class PlotlyViewer extends PureComponent {
     const { style } = this.props;
     const width = (!!style && style.width) || '840px';
 
+    // console.log(this.props)
     if (!side_by_side) {
       let layout_ = {
         xaxis: {},
@@ -166,10 +175,14 @@ class PlotlyViewer extends PureComponent {
     if (side_by_side) {
       let width_full = parseFloat(width.substring(0, width.length-2))
       let layout_ = {
-        width:  !!data.ref ? width_full / 2 : width_full,
+        xaxis: {},
+        yaxis: {},
+        width:  !!data.ref ? (width_full / 2 - 40) : width_full,
         ...layouts['new'],
         ...this.props.layout,
       };
+      layout_.xaxis.automargin = true;
+      layout_.yaxis.automargin = true;
       return <>
         <Plot key="new" data={data.new} layout={layout_}/>
         {!!data.ref && <Plot key="ref" data={data.ref} layout={layout_}/>}
