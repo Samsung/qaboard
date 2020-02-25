@@ -165,7 +165,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_pl
   group_aliases = available_batches.get('groups', {})
   groups = list(resolve_aliases(groups, group_aliases))
 
-  runner = default_job_configuration['type']
+  runner = default_job_configuration.get('type', 'local')
 
   if not groups:
     click.secho(f'WARNING: No group chosen.', fg='yellow', err=True)
