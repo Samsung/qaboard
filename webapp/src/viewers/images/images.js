@@ -662,7 +662,7 @@ class ImgViewer extends React.PureComponent {
         {diff_info}
         {first_image === 'new' ? image_ref : image_new}
       </div>
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center"}} hidden={has_error}>>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center"}} hidden={has_error}>
         {hist_info}
       </div>
     </>
