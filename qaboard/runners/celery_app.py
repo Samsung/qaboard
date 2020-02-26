@@ -19,7 +19,7 @@ app.conf.update(**celery_config)
 
 
 @app.task(bind=True, name=celery_config.get('qaboard_task_name', "qaboard"))
-def start(self, job):
+def start(self, job, cwd=None):
   # https://docs.celeryproject.org/en/stable/userguide/tasks.html#task-request-info
   print('Executing task id {0.id}, groupID: {0.group}'.format(self.request))
 
@@ -29,7 +29,7 @@ def start(self, job):
                         # Avoid issues with code outputing malformed unicode
                         # https://docs.python.org/3/library/codecs.html#error-handlers
                         errors='surrogateescape',
-                        cwd=job.run_context.job_options['cwd'],
+                        cwd=cwd if cwd else job.run_context.job_options['cwd'],
                         stdout=pipe, stderr=pipe) as process:
     for line in process.stdout:
       print(line, end='')
