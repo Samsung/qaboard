@@ -16,8 +16,13 @@ class CeleryRunner(BaseRunner):
     from .celery_app import app, start
     app.conf.update(**job_options)
 
+    # same as for the  local runner, but not sure it's necessary
+    cwd = os.getcwd()
+    if 'cwd' in job_options:
+      os.chdir(job_options['cwd'])
+
     # https://docs.celeryproject.org/en/stable/userguide/canvas.html#canvas-group
-    g = group(start.s(job) for job in jobs)
+    g = group(start.s(job, cwd=cwd) for job in jobs)
     # We set the group ID with our own UUID to make cancellation easier to manage
     g.id = job_options['command_id']
     result = g()
@@ -38,6 +43,7 @@ class CeleryRunner(BaseRunner):
       signal.signal(signal.SIGINT, sigterm_handler)
 
       results = result.get()
+    os.chdir(cwd)
 
 
 
