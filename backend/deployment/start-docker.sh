@@ -88,6 +88,7 @@ else
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/nginx.conf:/etc/nginx/nginx.conf"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend/deployment/nginx/conf.d:/etc/nginx/conf.d"
       DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/backend:/qaboard/backend"
+      DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/qaboard/qaboard:/qaboard/qaboard"
       # DOCKER_VOLUMES+=" --volume=$HOME_DOCKER/anaconda3:/opt/anaconda3"
   fi
 fi
