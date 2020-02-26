@@ -223,6 +223,28 @@ class CommitNavbar extends React.Component {
               {has_selected_batch && <>
               <MenuDivider title="Batch"/>
               <MenuItem
+                icon="redo"
+                text="Redo Deleted Outputs"
+                intent={Intent.WARNING}
+                minimal
+                disabled={this.state.waiting}
+                onClick={() => {
+                  this.setState({waiting: true})
+                  toaster.show({message: "Redo requested."});
+                  axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
+                    .then(response => {
+                      this.setState({waiting: false})
+                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      this.refresh()
+                    })
+                    .catch(error => {
+                      this.setState({waiting: false });
+                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                      this.refresh()
+                    });
+                }}
+              />
+              <MenuItem
                 icon="trash"
                 text="Delete"
                 intent={Intent.DANGER}
@@ -244,7 +266,8 @@ class CommitNavbar extends React.Component {
                       this.refresh()
                     });
                 }}
-              /></>}
+              />
+            </>}
             </Menu>
           </Popover>
         </>}

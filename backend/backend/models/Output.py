@@ -195,6 +195,48 @@ class Output(Base):
       return output
 
 
+  def redo(self):
+    extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
+    command = ' '.join([
+      'qa',
+      f'--label "{self.batch.label}"',
+      f"--configuration '{self.configuration}'",
+      f"--database '{self.test_input.database}'",
+      f"--tuning '{extra_parameters}'",
+      'batch',
+      '--no-wait',
+      "--lsf-memory 12000", # TODO: not hardcoded?
+      '--action-on-existing=run',
+      # '--list',
+      f'"{self.test_input.path}"',
+    ])
+    script = '\n'.join([
+      '#!/bin/bash',
+      'set -ex',
+      # needed...
+      f"export CI=true;",
+      f"export CI_COMMIT_SHA='{self.batch.ci_commit.hexsha}';",
+      f"export QATOOLS_CI_COMMIT_DIR='{self.batch.ci_commit.commit_dir}'",
+      f'export QA_BATCH_COMMAND_HIDE_LOGS=true'
+      "",
+      # get the env right
+      f'cd "{self.batch.ci_commit.commit_dir}"',
+      # TODO: hum....
+      '[[ -f ".envrc" ]] && source .envrc',
+      '[[ -f "../.envrc" ]] && source ../.envrc',
+      '[[ -f "../../.envrc" ]] && source ../../.envrc',
+      '[[ -f "../../../.envrc" ]] && source ../../../.envrc',
+      command,
+    ])
+    script_path = self.output_dir / 'redo.sh'
+    with script_path.open('w') as f:
+      f.write(script)
+    print(script)
+    print(f'"{script_path}"')
+    import os
+    os.system(f'ssh arthurf@arthurf-vdi \'bash "{script_path}"\'')
+
+
   def delete(self, soft=True, ignore=None, dryrun=False):
     """
     Delete the output's output files.

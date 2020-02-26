@@ -101,6 +101,11 @@ class Batch(Base):
             f"label='{self.label}' "
             f"outputs={len(self.outputs)} />")
 
+  def redo(self, only_deleted=False):
+    for output in self.outputs:
+      if only_deleted and not output.deleted:
+        continue
+      output.redo()
 
   def stop(self):
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?

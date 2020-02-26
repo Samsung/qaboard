@@ -98,6 +98,17 @@ def stop_batch():
   status = batch.stop()
   return jsonify(status), 200 if not "error" in status else 500
 
+@app.route('/api/v1/batch/redo', methods=['POST'])
+@app.route('/api/v1/batch/redo/', methods=['POST'])
+def redo_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  status = batch.redo(only_deleted=data.get('only_deleted', False))
+  return '{"status": "OK"}'
+
 
 @app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
 @app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
