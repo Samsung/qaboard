@@ -23,13 +23,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 
-# Trust various SSL certificates used by Samsung's IT
-COPY backend/deployment/DLP-TRITON.crt /usr/local/share/ca-certificates/samsung/DLP-TRITON.crt
-COPY backend/deployment/sirc-ca.cer    /usr/local/share/ca-certificates/samsung/sirc-ca.cer
-COPY backend/deployment/sirc-ca.crt    /usr/local/share/ca-certificates/samsung/sirc-ca.crt
-RUN update-ca-certificates && \
-    yes | dpkg-reconfigure ca-certificates --
-
 
 # Install git, up-to-date.
 # Since the application manages a cache of all projects' repos, it is preferable.
