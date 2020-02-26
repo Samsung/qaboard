@@ -82,11 +82,11 @@ DOCKER_ENV+=" --env QA_RUNNERS_LSF_BRIDGE"
 # DOCKER_ENV+=" --env QA_RUNNERS_LSF_BRIDGE='${QA_RUNNERS_LSF_BRIDGE}'"
 
 # We store there Git/Application data
-DOCKER_VOLUMES+=" --volume=qaboard:/var/qaboard"
+DOCKER_VOLUMES+=" --volume=slamvizapp:/var/qaboard"
 # And here the database data
-DOCKER_VOLUMES+=" --volume=qaboard-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
-DOCKER_VOLUMES+=" --volume=qaboard-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
-DOCKER_VOLUMES+=" --volume=qaboard-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
+DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-$CI_ENVIRONMENT_SLUG:/etc/postgresql"
+DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-log-$CI_ENVIRONMENT_SLUG:/var/log/postgresql"
+DOCKER_VOLUMES+=" --volume=slamvizapp-postgresql-lib-$CI_ENVIRONMENT_SLUG:/var/lib/postgresql"
 
 HOME_DOCKER=/opt/dockermounts$HOME
 # Custom configuration
@@ -133,6 +133,7 @@ else
   echo 'Interactive session'
   POLICY="--rm -it"
 fi
+
 # --rm: removed container on exit
 # -i interactive
 # -t pseudo tty
