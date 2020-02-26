@@ -48,8 +48,9 @@ now = datetime.datetime.utcnow()
 @click.command()
 @click.option('--project', 'project_id')
 @click.option('--dryrun', is_flag=True)
+@click.option('--restore-deleted-outputs', is_flag=True)
 @click.option('--verbose', is_flag=True)
-def clean(project_id, dryrun, verbose):
+def clean(project_id, dryrun, restore_deleted_outputs, verbose):
     projects = db_session.query(Project).all()
     for project in projects:
         if project_id and project.id != project_id:
@@ -89,6 +90,20 @@ def clean(project_id, dryrun, verbose):
         # protect milestones defined via the web application
         project_webapp_milestone_commits = [m['commit'] for m in project.data.get("milestones", {}).values()]
         secho(f"  protected commits from webapp: {project_webapp_milestone_commits}", dim=True)
+
+        if restore_deleted_outputs:
+            commits = (
+                db_session.query(CiCommit)
+                .filter(CiCommit.project == project)
+                .filter(CiCommit.hexsha.in_(project_webapp_milestone_commits))
+                .all()
+            )
+            for c in commits:
+                print(c)
+                for b in c.batches:
+                    b.redo(only_deleted=True)
+            exit(0)
+
 
         commits = (
             db_session.query(CiCommit)

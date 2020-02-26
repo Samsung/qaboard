@@ -409,7 +409,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
-    notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
+    if not os.environ.get('QA_BATCH_COMMAND_HIDE_LOGS'):
+      notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
@@ -544,7 +545,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     if jobs and is_ci and (ctx.obj['batch_label']=='default' or always_update):
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
-    if is_failed:
+    if is_failed and not not_wait:
       print_url(ctx, status="failure")
       exit(1)
 
