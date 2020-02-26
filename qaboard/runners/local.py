@@ -17,14 +17,14 @@ class LocalRunner(BaseRunner):
     self.run_context = run_context
 
 
-  def start(self, blocking=True, cwd=Path()):
+  def start(self, blocking=True, cwd=None):
     pipe = subprocess.PIPE
     with subprocess.Popen(self.run_context.command, shell=True,
                           encoding='utf-8',
                           # Avoid issues with code outputing malformed unicode
                           # https://docs.python.org/3/library/codecs.html#error-handlers
                           errors='surrogateescape',
-                          cwd=self.run_context.job_options['cwd'],
+                          cwd=cwd if cwd else self.run_context.job_options['cwd'],
                           stdout=pipe, stderr=pipe) as process:
       for line in process.stdout:
         print(line, end='')
@@ -44,7 +44,7 @@ class LocalRunner(BaseRunner):
       Parallel(
         n_jobs=job_options.get('concurrency'),
         verbose=int(os.environ.get('QA_BATCH_VERBOSE', 0)),
-      )(delayed(lambda j: j.start())(j) for j in jobs)
+      )(delayed(lambda j: j.start(cwd=cwd))(j) for j in jobs)
       os.chdir(cwd)
 
 
