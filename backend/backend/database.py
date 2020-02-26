@@ -16,7 +16,7 @@ db_user = os.getenv('QABOARD_DB_USER', 'ci')
 db_password = os.getenv('QABOARD_DB_PASSWORD', 'dvsdvs')
 db_host = os.getenv('QABOARD_DB_HOST', 'localhost')
 db_port = os.getenv('QABOARD_DB_PORT', 5432)
-db_name = os.getenv('QABOARD_DB_NAME', 'qaboard')
+db_name = os.getenv('QABOARD_DB_NAME', 'slamvizapp')
 db_echo = bool(os.getenv('QABOARD_DB_ECHO', False))
 
 
