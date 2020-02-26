@@ -11,13 +11,13 @@ When doing QA or during development, you often want to run the code/configs from
 
 <img alt="Tuning from the UI" src={useBaseUrl('img/tuning-from-the-ui.jpg')} />
 
-## Enabling tuning from QA-Board
-### Task runner
 :::caution
 Right now, it doesn't work (outside of Samsung....) as the server is hardcoded to use our infra. It will change very soon!
 :::
 
-You need to configure a task runner, that will execute tuning runs asynchronously. We recommend getting started with Celery. All the details are on the next page!
+## Enabling tuning from QA-Board
+### Task runner
+You need to configure a task runner, that will execute tuning runs asynchronously. We recommend getting started with Celery. All the details are on the [next page](celery-integration)!
 
 
 ### Build Artifacts
@@ -39,4 +39,7 @@ artifacts:
 ```bash
 qa save-artifacts
 ```
+
+### Handling tuning parameters
+You entrypint's `run()` function should do something with context.obj['extra_parameters']`. That's all.
 

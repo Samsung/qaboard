@@ -6,7 +6,8 @@ module.exports = {
 		"alternatives-and-missing-features",
 	],
   	"Getting Started": [
-      "installation",
+	  "installation",
+	  "start-server",
       "project-init",
 	  "inputs",
 	  "running-your-code",
