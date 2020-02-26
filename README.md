@@ -22,8 +22,8 @@
 
 ## Getting Started
 [Read the docs!](https://samsung.github.io/qaboard/docs/installation) You will learn how to:
-- install QA-Board's CLI wrapper
 - run a QA-Board server
+- install QA-Board's CLI wrapper
 - wrap your code with QA-Board
 - view output files and KPIs
 - ...and improve your integration with many guides: bit-accuracy, tuning, etc.
@@ -33,6 +33,7 @@ Each section has its own README:
 - [qatools](qatools): provides the `qa` CLI wrapper than runs your code, and the `import qatools` package.
 - [webapp](webapp/) is the frontend that displays results.
 - [backend](backend/) exposes an HTTP API used to read/write all the metadata on runs.
+- [website](website/) is the QA-Board website and docs - samsung.github.io/qaboard
 - [thirdparty](thirdparty/):
   * [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIIF server, used to "stream" large images to the users.
 
