@@ -109,7 +109,7 @@ class Batch(Base):
       from qaboard.runners.job import JobGroup
       # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
       # if the stop dosn't only use the command_id...
-      jobs = JobGroup(job_options={"type": :"local", "command_id": command_id, **command})
+      jobs = JobGroup(job_options={"type": "local", "command_id": command_id, **command})
       try:
         jobs.stop()
       except Exception as e:
