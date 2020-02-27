@@ -673,7 +673,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
     if not all_bit_accurate:
       click.secho("\nError: you are not bit-accurate versus the manifest.", fg='red', underline=True, bold=True)
       click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
-      if not input_database.is_absolute():
+      if not run_context.database.is_absolute():
         click.secho("If that's what you wanted, update and commit all manifests.", fg='red')
         # click.secho("If that's what you wanted, update all manifests using:", fg='red')
         # click.secho("$ qa batch * --save-manifests-in-database", fg='red')
