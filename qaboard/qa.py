@@ -545,7 +545,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     if jobs and is_ci and (ctx.obj['batch_label']=='default' or always_update):
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
-    if is_failed and not not_wait:
+    if is_failed and not no_wait:
       print_url(ctx, status="failure")
       exit(1)
 
