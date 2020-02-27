@@ -222,12 +222,12 @@ class CommitNavbar extends React.Component {
               <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               {has_selected_batch && <>
               <MenuDivider title="Batch"/>
-              <MenuItem
+              {batch.deleted_outputs > 0 && <MenuItem
                 icon="redo"
                 text="Redo Deleted Outputs"
                 intent={Intent.WARNING}
                 minimal
-                disabled={this.state.waiting}
+                disabled={this.state.waiting_redo}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Redo requested."});
@@ -235,15 +235,13 @@ class CommitNavbar extends React.Component {
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
-                      this.refresh()
                     })
                     .catch(error => {
                       this.setState({waiting: false });
                       toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
-                      this.refresh()
                     });
                 }}
-              />
+              />}
               <MenuItem
                 icon="trash"
                 text="Delete"

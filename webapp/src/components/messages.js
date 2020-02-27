@@ -8,8 +8,11 @@ import {
   Button,
   Tooltip,
   NonIdealState,
+  Toaster,
 } from "@blueprintjs/core";
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
+
+const toaster = Toaster.create();
 
 const CommitsWarningMessages = ({commits}) => {
 	let some_ids_not_correct = Object.keys(commits).some(id => id===null)
@@ -44,20 +47,41 @@ class BatchStatusMessages extends React.Component {
     super(props);
     this.state = {
       waiting_stop: false,
+      waiting_redo: false,
     };
   }
 
   stop_batch(batch) {
     if (batch === undefined || batch === null) return;
     this.setState({waiting_stop: true})
+    toaster.show({message: "Stop requested."});
     post(`/api/v1/batch/stop/`, {id: batch.id})
     .then(response => {
       this.setState({waiting_stop: false})
     })
     .catch(error => {
       console.log(error)
+      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
       this.setState({waiting_stop: true, error });
     });
+  }
+
+
+  redo_batch(batch) {
+    if (batch === undefined || batch === null) return;
+    this.setState({waiting_redo: true})
+    toaster.show({message: "Redo requested."});
+    post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
+      .then(response => {
+        this.setState({waiting_redo: false})
+        toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+        this.refresh()
+      })
+      .catch(error => {
+        this.setState({waiting_redo: false });
+        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+        this.refresh()
+      });
   }
 
 
@@ -131,12 +155,29 @@ class BatchStatusMessages extends React.Component {
       </Callout>
     )
 
+    let deleted_message = batch.deleted_outputs > 0 && (
+      <Callout
+        icon="trash"
+        title={`${batch.deleted_outputs} of the outputs below were deleted`}
+      >
+        <Button
+          icon="redo"
+          text="Redo deleted outputs"
+          minimal
+          disabled={!!this.state.waiting_stop}
+          onClick={() => this.redo_batch(batch)}
+        />
+      </Callout>
+    )
+
+
     return <Fragment>
       {local_batch_message}
       {running_message}
       {pending_message}
       {stop_runs}
       {failed_message}
+      {deleted_message}
     </Fragment>;
 
   }
