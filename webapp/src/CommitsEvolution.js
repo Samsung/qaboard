@@ -231,6 +231,8 @@ class CommitsEvolutionPerTest extends React.Component {
     const output_filter_ = per_output_granularity ? make_output_filter(output_filter) : null;
     shown_metrics.forEach(key => {
       let metric = available_metrics[key];
+      if (metric === undefined)
+        return
       this.props.shown_batches.forEach(label => {
         const commits_with_batch  = per_output_granularity
           ? commits.filter(c => !!c.batches[label])
@@ -635,9 +637,9 @@ class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
     const params = new URLSearchParams(window.location.search);
-    const { main_metrics, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
+    const { main_metrics=[], default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
     this.state = {
-      select_metrics: this.props.select_metrics || main_metrics || [],
+      select_metrics: this.props.select_metrics || main_metrics,
       selected_metric: params.get("selected_metric") || default_metric,
       selected_aggregation: params.get("selected_aggregation") || "median",
 
@@ -756,7 +758,7 @@ class CommitsEvolution extends Component {
             new_commit={new_commit}
             ref_commit={ref_commit}
             shown_batches={this.props.shown_batches || ['default']}
-            metrics={[selected_metric]}
+            metrics={!!selected_metric ? [selected_metric] : []}
             output_filter={output_filter}
             aggregation={breakdown_per_test ? null : selected_aggregation}
             per_output_granularity={per_output_granularity}
