@@ -91,11 +91,15 @@ class JobGroup():
     # it happens often when users use a lot of memory and some task queue manager gets angry 
     jobs_with_pending_outputs = []
     for job in self.jobs:
-      job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
-      assert job.qaboard_output
-      is_failed = is_failed or job.qaboard_output["is_failed"] 
-      if job.qaboard_output['is_pending']:
-        jobs_with_pending_outputs.append(job)
+      # we still fallback to the server-less check, in case it was down during part of the runs...
+      if job.run_context.output_dir not in outputdir_to_qaboard_output:
+        is_failed = is_failed or job.run_context.is_failed(verbose=True)
+      else:
+        job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
+        assert job.qaboard_output
+        is_failed = is_failed or job.qaboard_output["is_failed"] 
+        if job.qaboard_output['is_pending']:
+          jobs_with_pending_outputs.append(job)
 
     for j in jobs_with_pending_outputs:
       notify_qa_database(**{
