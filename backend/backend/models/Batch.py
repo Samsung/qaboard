@@ -93,6 +93,7 @@ class Batch(Base):
         'pending_outputs': len([o for o in self.outputs if o.is_pending]),
         'running_outputs': len([o for o in self.outputs if o.is_running]),
         'failed_outputs': len([o for o in self.outputs if o.is_failed]),
+        'deleted_outputs': len([o for o in self.outputs if o.deleted]),
         **outputs,
     }
 

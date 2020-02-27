@@ -175,6 +175,7 @@ const filter_batch = (batch, filter_values) => {
   batch_filtered.running_outputs = 0
   batch_filtered.pending_outputs = 0
   batch_filtered.failed_outputs = 0
+  batch_filtered.deleted_outputs = 0
   Object.values(batch_filtered.outputs).forEach(o => {
     if (o.is_running)
       batch_filtered.running_outputs += 1
@@ -184,6 +185,8 @@ const filter_batch = (batch, filter_values) => {
       batch_filtered.failed_outputs += 1
     else
       batch_filtered.valid_outputs += 1
+    if (o.deleted)
+      batch_filtered.deleted_outputs += 1
   })
   return batch_filtered;
 };
