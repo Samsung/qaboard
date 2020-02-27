@@ -250,6 +250,7 @@ class IntegrationsMenus extends React.Component {
                       is_loaded: true,
                       loading: false,
                       error: null,
+                      statusText: null,
                       ...((gitlabCI || jenkins) ? {job: response.data} : {})
                     },
                   }
