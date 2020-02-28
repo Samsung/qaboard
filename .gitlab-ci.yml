@@ -12,8 +12,7 @@ unit-tests:
   stage: test
   retry: 2 # solves frequent filesystem sync issues
   script:
-    - green -vvv
-    # - PYTHONPATH=$(pwd) python -munittest
+    - green -vvv --quiet-stdout --run-coverage
 
 type-check:
   stage: test
@@ -41,7 +40,7 @@ publish:PyPi:
 variables:
   DOCKER_IMAGE: qaboard
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
-  GIT_CLEAN_FLAGS: -ffdx --exclude=qaboard-webapp/node_modules/
+  GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
 
 # CI for the web application and the backend
 # TODO: enable it, make it work...
