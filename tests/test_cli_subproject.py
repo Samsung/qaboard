@@ -10,12 +10,13 @@ from click.testing import CliRunner
 # Missing:
 # - tests with --share
 # - tests with CI=ON CI_COMMIT=XXXXXX
-# 
-class TestQaCli(unittest.TestCase):
+
+
+class TestQaCliSubproject(unittest.TestCase):
   @classmethod
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
-    os.chdir('qaboard/sample_project')
+    os.chdir('qaboard/sample_project/subproject')
     # we create some files...
     os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
     images = {'images': {
@@ -25,7 +26,7 @@ class TestQaCli(unittest.TestCase):
       }
     }
     # TODO: use a temp file?
-    with Path('image.batches.yaml').open('w') as f:
+    with Path('../image.batches.yaml').open('w') as f:
       f.write(yaml.dump(images))
     os.environ['QA_DATABASE'] = str(Path().resolve())
     os.environ['QA_OFFLINE'] = 'true'
@@ -56,96 +57,48 @@ class TestQaCli(unittest.TestCase):
       return result
     self.qa = qa_
 
-
-  def test_help(self):
-    result = self.qa('--help')
-    assert result.exit_code == 0
-    assert 'Usage:' in result.output
-
-  def test_run(self):
+  def test_sub_run(self):
     result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{absolute_input_path} => {output_directory}"')
     assert result.exit_code == 0
     assert 'a.jpg =>' in result.output
     assert "'is_failed': False" in result.output
 
-  def test_get(self):
-    result = self.qa('get', 'commit_id')
+  def test_sub_get(self):
+    result = self.qa('get', 'subproject')
+    assert 'subproject' in result.stdout
     assert result.exit_code == 0
 
-  def test_batch(self):
+  def test_sub_batch(self):
     result = self.qa('--dryrun', 'batch', 'cli_tests')
     assert result.exit_code == 0
 
-  def test_batch_list(self):
+  def test_sub_batch_list(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list')
     tests = json.loads(result.stdout)
     assert len(tests) == 3
     assert result.exit_code == 0
 
-  def test_batch_list_output_dirs(self):
+  def test_sub_batch_list_output_dirs(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-output-dirs')
     output_dirs = result.stdout.splitlines()
     assert len(output_dirs) == 3
     assert result.exit_code == 0
 
-  def test_batch_list_inputs(self):
+  def test_sub_batch_list_inputs(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-inputs')
     output_dirs = result.stdout.splitlines()
     assert len(output_dirs) == 3
     assert result.exit_code == 0
 
-  def test_runner_local(self):
+  def test_sub_runner_local(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
-    print('stdout:', result.stdout)
-    print('stderr:', result.stderr)
+    # print('stdout:', result.stdout)
+    # print('stderr:', result.stderr)
     assert result.exit_code == 0
-    # we also test subprojects
-    os.chdir('subproject')
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
 
-  def test_runner_lsf(self):
+  def test_sub_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
     assert result.exit_code == 0
-    # we also test subprojects
-    os.chdir('subproject')
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
-
-  # def test_save_artifacts(self):
-  #   result = self.qa('save-artifacts')
-  #   # => Gitlab/QA-Board: 404: Project not found
-
-  def test_batch_lsf_interrupt(self):
-      # https://stackoverflow.com/a/59303823/5993501
-      from multiprocessing import Queue, Process
-      from threading import Timer
-      from time import sleep
-      from os import kill, getpid
-      from signal import SIGINT
-
-      q = Queue()
-      # Running out app in SubProcess and after a while using signal sending 
-      # SIGINT, results passed back via channel/queue  
-      def background():
-          Timer(2, lambda: kill(getpid(), SIGINT)).start()
-          result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
-          # qa batch --batches-file image.batches.yaml images --runner=lsf 'echo "{absolute_input_path} => {output_directory}"'
-          q.put(('exit_code', result.exit_code))
-          # print(result.stdout)
-          # print(result.stderr)
-          q.put(('output', result.output))
-      p = Process(target=background)
-      p.start()
-      results = {}
-      while p.is_alive():
-          sleep(0.1)
-      else:
-          while not q.empty():
-              key, value = q.get()
-              results[key] = value
-      # print(results['output'])
-      assert "Aborted." in results['output']
-      # we could also check for "bkill" if we run with QA_BATCH_VERBOSE=1
-
 
 
 if __name__ == '__main__':
