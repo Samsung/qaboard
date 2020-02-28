@@ -65,6 +65,8 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
             continue
         with qatools_config_path.open('r') as f:
             qatools_config = yaml.load(f, Loader=yaml.SafeLoader)
+            if not qatools_config: # support empty files that just mark subprojects
+              qatools_config = {}
             configsxpaths.append((qatools_config, qatools_config_path))
             if qatools_config.get('root'):
               break
