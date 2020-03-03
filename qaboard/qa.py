@@ -553,12 +553,14 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
 
 @qa.command()
+# Do we want this? we could simply use groups not defined in qatools.yaml:artifacts as paths
 @click.option('--file', '-f', 'files', multiple=True, help="Save spcific files instead of artifacts indicated by yaml file")
+@click.option('--exclude', 'excluded_groups', multiple=True, help="Exclude specific artifact groups")
 # Do we use this? let's deprecate and remove
 @click.option('--out', '-o', 'artifacts_path', default='', help="Path to save artifacts in case of specified files")
 @click.argument('groups', nargs=-1, type=click.UNPROCESSED, default=None)
 @click.pass_context
-def save_artifacts(ctx, files, artifacts_path, groups):
+def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import is_in_git_repo, qatools_config_paths
@@ -584,6 +586,8 @@ def save_artifacts(ctx, files, artifacts_path, groups):
     config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
     config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
     if groups:
+      if excluded_groups:
+        groups = [g for g in groups if g not in excluded_groups]
       artifacts = {g: config['artifacts'][g] for g in groups if g in config['artifacts'].keys()}
     else:
       artifacts = config['artifacts']
