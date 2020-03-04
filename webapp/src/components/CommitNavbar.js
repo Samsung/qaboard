@@ -230,7 +230,7 @@ class CommitNavbar extends React.Component {
                 disabled={this.state.waiting_redo}
                 onClick={() => {
                   this.setState({waiting: true})
-                  toaster.show({message: "Redo requested."});
+                  toaster.show({message: "Redo of deleted outputs requested."});
                   axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
                     .then(response => {
                       this.setState({waiting: false})
@@ -243,8 +243,51 @@ class CommitNavbar extends React.Component {
                 }}
               />}
               <MenuItem
+                icon="redo"
+                text="Redo All Outputs"
+                intent={Intent.WARNING}
+                minimal
+                disabled={this.state.waiting_redo}
+                onClick={() => {
+                  this.setState({waiting: true})
+                  toaster.show({message: "Redo requested."});
+                  axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
+                    .then(response => {
+                      this.setState({waiting: false})
+                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                    })
+                    .catch(error => {
+                      this.setState({waiting: false });
+                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                    });
+                }}
+              />
+              <MenuItem
                 icon="trash"
-                text="Delete"
+                text="Delete Failed Outputs"
+                intent={Intent.DANGER}
+                minimal
+                disabled={this.state.waiting || batch.label === 'default'}
+                onClick={() => {
+                  this.setState({waiting: true})
+                  toaster.show({message: "Delete requested for failed outputs."});
+                  axios.delete(`/api/v1/batch/${batch.id}/`)
+                    .then(response => {
+                      this.setState({waiting: false})
+                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
+                      this.refresh()
+                      update(`selected_batch_${type}`)('default')
+                    })
+                    .catch(error => {
+                      this.setState({waiting: false });
+                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                      this.refresh()
+                    });
+                }}
+              />
+              <MenuItem
+                icon="trash"
+                text="Delete All Outputs"
                 intent={Intent.DANGER}
                 minimal
                 disabled={this.state.waiting || batch.label === 'default'}
