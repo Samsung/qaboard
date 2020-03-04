@@ -14,38 +14,13 @@ from .utils import getenvs, git_head, _Commit, _Repo
 from .conventions import slugify, get_commit_ci_dir
 from .iterators import flatten
 
+
 # In case the qaboard.yaml configuration has errors, we don't want to exit directly.
-# We want to show all the errors to fix, and still allow qaboard.config to be imported.
+# but first show all the errors that need to be fixed.
 config_has_error = False
 
-
-# We handle deprecate flag names here
-renamings = (
-  ('--input-path', '--input'),
-  ('--output-path', '--output'),
-  ('save_artifacts', 'save-artifacts'),
-  ('check_bit_accuracy', 'check-bit-accuracy'),
-  ('--reference-branch', '--reference'),
-  ('--batch-label', '--label'),
-  ('--inputs-database', '--database'),
-  ('--inputs-globs', 'REMOVED: Use "inputs.types" in qaboard.yaml'),
-  ('--save-manifests', '--save-manifests-in-database'),
-  ('--return-prefix-outputs-path', '--list-output-dirs'),
-  ('--ci', '--share'),
-  ('--dry-run', '--dryrun'),
-  ('--group', '--batch'),
-  ('--groups-file', '--batches-file'),
-  ('--no-qa-database', '--offline'),
-)
-def renamed_deprecated(arg):
-  for before, after in renamings:
-    if arg == before:
-      click.secho(f'DEPRECATION WARNING: "{before}" was replaced by "{after}" and will be removed in a future release.', fg='yellow')
-      return after
-  return arg
-sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
-if '--lsf-sequential' in sys.argv:
-  click.secho('DEPRECATION WARNING: "--lsf-sequential" was replaced with "--runner local"', fg='yellow', bold=True)
+# Don't lots of verbose info if the users just wants the help, or start a new project
+no_config_warning = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
 
 
 def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
@@ -75,15 +50,6 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
 
 
 
-# The `init` command is implemented here to avoid printing config error messages
-# when users use qatools for the first time. Its goal is to provide a sample qatools configuration
-if len(sys.argv)>1 and sys.argv[1] == 'init':
-  from .init import qa_init
-  qa_init()
-
-
-# to avoid printing lots and lots of warnings, we define
-no_config_warning = '--help' in sys.argv or not sys.argv
 
 qatools_configsxpaths = find_configs(path=Path())
 qatools_configs = [q[0] for q in qatools_configsxpaths]
