@@ -126,12 +126,14 @@ class Batch(Base):
     else:
       return {}
 
-  def delete(self, session):
+  def delete(self, session, only_failed=False):
     """
     Hard delete the batch and all related outputs.
     Note: You should call .stop() before
     """
     for output in self.outputs:
+      if only_failed and not output.deleted:
+        continue
       output.delete(soft=False)
       session.delete(output)
     session.delete(self)
