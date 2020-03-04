@@ -79,7 +79,3 @@ def qa_init():
         f.write(config_content)
     except:
       click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
-
-
-  exit(0)
-

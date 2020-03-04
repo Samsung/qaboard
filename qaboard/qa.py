@@ -147,6 +147,7 @@ def get(ctx, input_path, output_path, variable):
 
 
 
+
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
     allow_interspersed_args=False,
@@ -771,9 +772,16 @@ qa.add_command(optimize)
 # qa.add_command(check_bit_accuracy)
 # qa.add_command(check_bit_accuracy_manifest)
 
+@qa.command()
+def init():
+  """Provide a sample qaboard.yaml configuration."""
+  from .init import qa_init
+  qa_init()
 
 
 def main():
+  from .compat import ensure_cli_backward_compatibility
+  ensure_cli_backward_compatibility()
   qa(obj={}, auto_envvar_prefix='QA')
 
 if __name__ == '__main__':
