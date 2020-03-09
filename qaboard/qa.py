@@ -774,10 +774,11 @@ qa.add_command(optimize)
 # qa.add_command(check_bit_accuracy_manifest)
 
 @qa.command()
-def init():
+@click.pass_context
+def init(ctx):
   """Provide a sample qaboard.yaml configuration."""
   from .init import qa_init
-  qa_init()
+  qa_init(ctx)
 
 
 def main():

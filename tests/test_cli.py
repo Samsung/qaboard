@@ -110,9 +110,23 @@ class TestQaCli(unittest.TestCase):
     os.chdir('subproject')
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
 
-  # def test_save_artifacts(self):
-  #   result = self.qa('save-artifacts')
-  #   # => Gitlab/QA-Board: 404: Project not found
+
+  def test_init(self):
+    import tempfile
+    prev = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      os.chdir(tmp_dir)
+      assert not os.system('git init')
+      assert not os.system('echo OK > file')
+      assert not os.system('git add file')
+      assert not os.system('git commit -m "first commit"')
+      # assert not os.system('git remote add origin git@gitlab-srv:common-infrastructure/qaboard.git')
+      # assert not os.system('git remote add origin git@github.com:Samsung/qaboard.git')
+      assert not os.system('git remote add origin https://github.com/Samsung/qaboard.git')
+      assert not os.system('qa init')
+      assert not os.system('qa get project')
+    os.chdir(prev)
+
 
   def test_batch_lsf_interrupt(self):
       # https://stackoverflow.com/a/59303823/5993501

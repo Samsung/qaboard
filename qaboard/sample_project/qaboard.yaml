@@ -1,6 +1,6 @@
 project:
-  name: my_group/sample_project
-  url: git@gitlab-srv/my_group/sample_project
+  name: user/sample_project
+  url: git@github.com/user/sample_project
   type: git
   # remote_type: gitlab | github | gitea | ...
   # By default the project is shown in the web application with the avatar and description from the remote
