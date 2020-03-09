@@ -63,7 +63,7 @@ def match(value, value_filter) -> bool:
       return fnmatch.fnmatch(value, value_filter)
   elif isinstance(value_filter, dict):
     if value_filter and not value: return False
-    return all([match(value.get(k), value_filter[k]) for k,v in value_filter.items()])
+    return all([match(value.get(k,""), value_filter[k]) for k,v in value_filter.items()])
   else: # bool, number...
     return value == value_filter
 
@@ -75,7 +75,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   maybe_parent = lambda path: path.parent if use_parent_folder else path
   input_paths = list(database.glob(str(path))) # to support wildcards
   if not input_paths:
-    click.secho(f'Warning: No inputs found for the batch "{path}>"', fg='yellow', err=True)
+    click.secho(f'Warning: No inputs found for the batch "{path}"', fg='yellow', err=True)
     return
 
   if not globs:
@@ -88,19 +88,34 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       input_path = cased_path(input_path)
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
-      if only:
-        inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
-      if exclude:
-        inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
+      if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
+        inputs.append(cased_path(input_path))
       for i in inputs:
+        if only or exclude:
+          metadata = input_metadata(i, database, i.relative_to(database), qatools_config)
+          if only:
+            if not match(metadata, only): continue
+          if exclude:
+            if metadata:
+              if match(metadata, exclude): continue
+            if match(os.path.basename(i), exclude): continue
         nb_inputs += 1
         yield i
-      if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-        metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
-        if only and not match(metadata, only): continue
-        if exclude and match(metadata, exclude): continue
-        nb_inputs += 1
-        yield input_path
+
+  #     if only:
+  #       inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
+  #     if exclude:
+  #       inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
+  #     for i in inputs:
+  #       nb_inputs += 1
+  #       yield i
+  #     if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
+  #       metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
+  #       if only and not match(metadata, only): continue
+  #       if exclude and match(metadata, exclude): continue
+  #       nb_inputs += 1
+  #       yield input_path
+
   if not nb_inputs:
     click.secho(f'Warning: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
 
@@ -131,7 +146,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
   elif not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
   use_parent_folder = inputs_settings.get('use_parent_folder', False)
-  yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)
+  yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=only, exclude=exclude)
 
 
 
