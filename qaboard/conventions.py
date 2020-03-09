@@ -12,6 +12,9 @@ import yaml
 import click
 from urllib.parse import unquote
 
+from .git import git_show
+
+
 
 def get_settings(inputs_type, config):
   config_inputs = config.get('inputs', {})  
@@ -37,13 +40,7 @@ def get_commit_ci_dir(ci_dir, commit):
   # commit is either a gipython commit, or a commit hexsha
   if isinstance(commit, str):
     try:
-      p = subprocess.run(
-        ["git", "show", "-s", "--format=%at|%an|%H"],
-        encoding='utf8',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-      )
-      authored_date, author_name, commit_id = p.stdout.strip().split('|')
+      authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
       dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
     except:
       return Path()    
@@ -53,7 +50,6 @@ def get_commit_ci_dir(ci_dir, commit):
 
 
 def slugify(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
   # lowercased and shortened to 63 bytes
   slug = s.lower()
   if maxlength:

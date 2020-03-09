@@ -41,7 +41,7 @@ class LsfOptions():
   max_memory: int = 0 #in MB
   resources: Optional[str] = None
   # not strictly LSF options, but important to send jobs
-  user: str = getenvs(('USERNAME', 'USER'))
+  user: Optional[str] = getenvs(('USERNAME', 'USER'))
   cwd: Path = Path() # current working directory
   # The QA-Board server will try to start or kill jobs,
   # but it runs in a container, and does not have direct access to LSF.

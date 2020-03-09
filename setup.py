@@ -69,7 +69,6 @@ setup(
     'dataclasses', # Backport for python3.6
     'click>=7.0',  # CLI for humans. In v7 they changed CLI command conventions, started using "-" vs "_"
     'requests',    # HTTP for humans
-    'gitpython',   # It's painfully slow, we don't use it anymore, only keep it for backward compatibility. Let's deprecate and remove.
     # Used for serializer flexibility,
     # but we could replace it since it requires a compiler for the optionnal C-extensions at `pip install`-time... 
     # We had issues with Windows users who had VisualStudio, but had not installed a C++ toolchain. 

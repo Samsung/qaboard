@@ -27,14 +27,12 @@ from .utils import getenvs
 from .api import get_outputs, notify_qa_database, print_url, serialize_paths
 from .iterators import iter_inputs, iter_parameters
 
-# The `qa init` command is implemented in config.py
-# it helps avoiding try/catch on the import and providing lots of NA values
-from .config import config_has_error
-from .config import subproject, config, get_default_database
-from .config import default_batches_files, default_batch_label, default_platform
+from .config import config_has_error, ignore_config_errors
+from .config import subproject, config
+from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
-from .config import user, commit_id, commit_ci_dir, root_qatools, commit_rootproject_ci_dir
-from .config import is_ci, on_windows
+from .config import commit_id, commit_ci_dir, root_qatools, commit_rootproject_ci_dir
+from .config import user, is_ci, on_windows
 
 
 
@@ -54,7 +52,7 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
-  if config_has_error:
+  if config_has_error and not ignore_config_errors:
     click.secho(f'Aborting: please first fix the configuration errrors in qaboard.yaml', fg='red', err=True, bold=True)
     exit(1)
 
@@ -63,8 +61,8 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   ctx.obj = {}
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
-  get_command = 'get' in sys.argv
-  if root_qatools != Path().resolve() and not will_show_help and not get_command:
+  noop_command = 'get' in sys.argv or 'init' in sys.argv
+  if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
     ctx.obj['previous_cwd'] = os.getcwd()
     click.echo(click.style("Working	directory changed to: ", fg='cyan') + click.style(str(root_qatools), fg='cyan', bold=True), err=True)
     os.chdir(root_qatools)
@@ -73,7 +71,7 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   # it makes collaboration among mutliple users / automated tools so much easier...
   os.umask(0)
 
-  ctx.obj['project'] = config['project']['name']
+  ctx.obj['project'] = config.get('project', {}).get('name')
   ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
   ctx.obj['user'] = user
   ctx.obj['dryrun'] = dryrun
@@ -565,7 +563,8 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   """Save the results at a standard location"""
   import filecmp
   from qatools.config import is_in_git_repo, qatools_config_paths
-  from .utils import copy, file_info, cased_path
+  from .utils import copy, file_info
+  from .compat import cased_path
 
   click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
 

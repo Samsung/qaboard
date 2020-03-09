@@ -17,7 +17,8 @@ import yaml
 import click
 
 from .conventions import make_hash, make_pretty_tuning_filename, get_settings
-from .utils import input_metadata, entrypoint_module, cased_path
+from .utils import input_metadata, entrypoint_module
+from .compat import cased_path
 from .run import RunContext
 
 

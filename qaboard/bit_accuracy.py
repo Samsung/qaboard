@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 
 import click
-import git
 
 from .config import subproject, config, commit_branch
 from .gitlab import ci_commit_statuses

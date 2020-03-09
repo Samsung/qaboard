@@ -10,7 +10,8 @@ from typing import Dict, Any, Tuple, List
 import yaml
 import click
 
-from .utils import getenvs, git_head, _Commit, _Repo
+from .utils import getenvs
+from .git import git_head
 from .conventions import slugify, get_commit_ci_dir
 from .iterators import flatten
 
@@ -20,7 +21,7 @@ from .iterators import flatten
 config_has_error = False
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
-no_config_warning = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
+ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
 
 
 def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
@@ -56,16 +57,17 @@ qatools_configs = [q[0] for q in qatools_configsxpaths]
 qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
   config_has_error = True
-  if not no_config_warning:
+  if not ignore_config_errors:
     click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
     click.secho(
         'Please read the tutorial or ask Arthur Flam for help:\n'
         'http://qa-docs/',
         dim=True, err=True)
-  no_config_warning = True
+  ignore_config_errors = True
 
 
 def merge(src: Dict, dest: Dict) -> Dict:
+    """Deep merge QA-Board configuration files"""
     # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
     if src:
       for key, value in src.items():
@@ -106,10 +108,10 @@ else:
   if root_qatools_config and config:
     if root_qatools_config.get('project', {}).get('url') != config.get('project', {}).get('url'):
       config_has_error = True
-      if not no_config_warning:
+      if not ignore_config_errors:
         click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
         click.secho(f"Changed from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}", fg='red')
-        no_config_warning = True
+        ignore_config_errors = True
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
   # It's not something the user should change...
@@ -117,10 +119,10 @@ else:
   uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
   if uncoherent_name:
     config_has_error = True
-    if not no_config_warning:
+    if not ignore_config_errors:
       click.secho(f"ERROR: Don't redefine <project.name> in ./qaboard.yaml", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
-      no_config_warning = True
+      ignore_config_errors = True
   config['project']['name'] = leaf_project_name.as_posix()
 
 
@@ -129,6 +131,7 @@ else:
 # For instance Linux builds are often at `build/bin/` vs `/x64/Release/` on Windows.
 on_windows = os.name == 'nt'
 on_linux = not on_windows
+
 # SIRC-specific hosts
 on_vdi = 'HOST' in os.environ and os.environ['HOST'].endswith("vdi")
 on_lsf = 'HOST' in os.environ and (os.environ['HOST'].endswith("transchip.com") or os.environ['HOST'].startswith("planet"))
@@ -152,14 +155,14 @@ try:
 except KeyError:
   ci_root = Path() # just to let the execution continue...
   config_has_error = True
-  if not no_config_warning:
+  if not ignore_config_errors:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
     click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /var/qaboard/data\n  windows: "\\\\shared_storage\\qaboard\\data"\n```', fg='red', err=True, dim=True)
-    no_config_warning = True
+    ignore_config_errors = True
 if not ci_root.exists():
     click.secho(f'ERROR: The ci_root defined in qatools.yaml does not exist', fg='red', err=True)
     click.secho(f'"{ci_root}" needs to be writable.', fg='red', err=True, dim=True)
-    no_config_warning = True
+    ignore_config_errors = True
 
 ci_dir = ci_root / root_qatools_config['project']['name'] if root_qatools_config else None
 
@@ -207,7 +210,7 @@ else:
     commit_id = None
 
 
-# using gitpython is very slow, so we read the git data directly
+# TODO: refactor in git.py, consider calling git directly...
 repo_root = Path(os.environ.get('QA_REPO', str(root_qatools)))
 is_in_git_repo = False
 for d in (repo_root, *list(repo_root.parents)):
@@ -244,15 +247,6 @@ if 'QA_CI_COMMIT_DIR' in os.environ:
 
 
 
-# Lazy-evaluated gitpython objects for convenience
-repo = _Repo(repo_root)
-commit = _Commit(repo, commit_id)
-# print(repo)
-# print(list(repo.iter_commits(rev='refs/remotes/origin/master')))
-# print(commit)
-# print(commit.committer.email)
-# print(commit.authored_datetime)
-
 default_platform = platform
 default_batch_label = 'default'
 
@@ -279,14 +273,14 @@ def get_default_configuration(input_settings):
 def get_default_database(input_settings):
   # All recordings used should be stored at the same location
   # We will refer to them by their relative path related to the "database"
-  global no_config_warning
+  global ignore_config_errors
   database = input_settings.get('database', {}).get(mount_flavor)
   if not database:
     database = "."
-    if not no_config_warning:
+    if not ignore_config_errors:
       click.secho(f'WARNING: Could not find the default database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
       click.secho(f'Consider adding to qaboard.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
-      no_config_warning = True
+      ignore_config_errors = True
   return Path(database)
 
 
@@ -300,19 +294,19 @@ metrics_file = config.get('outputs', {}).get('metrics')
 if metrics_file:
   metrics_file_path = Path(root_qatools / metrics_file)
   if not metrics_file_path.exists():
-    if not no_config_warning:
+    if not ignore_config_errors:
       click.secho(f'WARNING: Could not find the file containing metrics ({metrics_file})', fg='yellow', err=True)
       click.secho(f'         It is defined in qaboard.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
-      no_config_warning = True
+      ignore_config_errors = True
   else:
     with metrics_file_path.open(errors="surrogateescape") as f:
       try:
         _metrics = yaml.load(f, Loader=yaml.SafeLoader)
       except:
         config_has_error = True
-        if not no_config_warning:
+        if not ignore_config_errors:
           click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
-          no_config_warning = True
+          ignore_config_errors = True
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
 
