@@ -477,7 +477,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
            # FIXME: we assume no single quotes...
           forwarded_args_cli = ' '.join(f"'{a}'" for a in forwarded_args)
         else:
-          from .utils import escaped_for_cli
+          from .compat import escaped_for_cli
            # FIXME: may not work...
           forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
 
@@ -487,7 +487,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         if not on_windows:
           configuration_cli =  f"--configuration '{input_configuration_str}'"
         else:
-          from .utils import escaped_for_cli
+          from .compat import escaped_for_cli
           configuration_cli =  f'--configuration {escaped_for_cli(input_configuration_str)}'
 
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
