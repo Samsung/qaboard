@@ -99,9 +99,12 @@ class TestQaCli(unittest.TestCase):
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
-    # we also test subprojects
-    os.chdir('subproject')
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    # we test with --share, but really being offline is a problem here..
+    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    print('stdout:', result.stdout)
+    print('stderr:', result.stderr)
+    assert result.exit_code == 0
+
 
   def test_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
@@ -110,9 +113,29 @@ class TestQaCli(unittest.TestCase):
     os.chdir('subproject')
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
 
-  # def test_save_artifacts(self):
-  #   result = self.qa('save-artifacts')
-  #   # => Gitlab/QA-Board: 404: Project not found
+  def test_save_artifacts(self):
+    result = self.qa('save-artifacts')
+    print('stdout:', result.stdout)
+    # print('stderr:', result.stderr)
+    assert result.exit_code == 0
+    # => Gitlab/QA-Board: 404: Project not found
+
+  def test_init(self):
+    import tempfile
+    prev = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      os.chdir(tmp_dir)
+      assert not os.system('git init')
+      assert not os.system('echo OK > file')
+      assert not os.system('git add file')
+      assert not os.system('git commit -m "first commit"')
+      assert not os.system('git remote add origin git@gitlab-srv:common-infrastructure/qaboard.git')
+      # assert not os.system('git remote add origin git@github.com:Samsung/qaboard.git')
+      # assert not os.system('git remote add origin https://github.com/Samsung/qaboard.git')
+      assert not os.system('qa init')
+      assert not os.system('qa get project')
+    os.chdir(prev)
+
 
   def test_batch_lsf_interrupt(self):
       # https://stackoverflow.com/a/59303823/5993501
@@ -128,10 +151,7 @@ class TestQaCli(unittest.TestCase):
       def background():
           Timer(2, lambda: kill(getpid(), SIGINT)).start()
           result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
-          # qa batch --batches-file image.batches.yaml images --runner=lsf 'echo "{absolute_input_path} => {output_directory}"'
           q.put(('exit_code', result.exit_code))
-          # print(result.stdout)
-          # print(result.stderr)
           q.put(('output', result.output))
       p = Process(target=background)
       p.start()

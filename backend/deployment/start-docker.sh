@@ -80,6 +80,7 @@ export QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /h
 # https://unix.stackexchange.com/questions/379181/escape-a-variable-for-use-as-content-of-another-script
 DOCKER_ENV+=" --env QA_RUNNERS_LSF_BRIDGE"
 # DOCKER_ENV+=" --env QA_RUNNERS_LSF_BRIDGE='${QA_RUNNERS_LSF_BRIDGE}'"
+DOCKER_ENV+=" --env QABOARD_DB_NAME=slamvizapp"
 
 # We store there Git/Application data
 DOCKER_VOLUMES+=" --volume=slamvizapp:/var/qaboard"
