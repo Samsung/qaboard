@@ -10,7 +10,7 @@ import traceback
 from pathlib import Path
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Iterable, Tuple
 
 import yaml
 import click
@@ -19,7 +19,7 @@ from click._compat import isatty, strip_ansi
 
 
 
-def getenvs(variables: List[str], default=None) -> Optional[str]:
+def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
   """Return the value of the environment variable that is defined - or None."""
   for name in variables:
     if name in os.environ:
@@ -289,7 +289,7 @@ def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=Tr
 
 
 
-def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Dict:
+def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Tuple[Dict, str]:
   if tuning_search and tuning_search_file:
     click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
     exit(1)
