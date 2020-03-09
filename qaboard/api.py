@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 import json
 import simplejson
 from functools import lru_cache
+from urllib.parse import unquote
 from typing import Any, Dict, Optional
 
 import click
@@ -28,6 +29,11 @@ else:
   click.secho("       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
   qaboard_url = "http://localhost:5002"
 api_prefix = "{qaboard_url}/api/v1"
+
+
+
+def url_to_dir(url):
+  return Path(unquote(url)[2:])
 
 
 def print_url(ctx, status="starting"):

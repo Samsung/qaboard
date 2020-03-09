@@ -5,8 +5,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Callable
 
 from ..run import RunContext 
-from ..conventions import url_to_dir
-from ..api import get_outputs, notify_qa_database
+from ..api import url_to_dir, get_outputs, notify_qa_database
 
 # TODO: We could make start_jobs belong to JobGroup as simply "start" 
 #       It would be a bit simpler, but then we'd need new runners to implement two classes?

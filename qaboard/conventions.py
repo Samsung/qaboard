@@ -10,7 +10,6 @@ from pathlib import Path
 
 import yaml
 import click
-from urllib.parse import unquote
 
 from .git import git_show
 
