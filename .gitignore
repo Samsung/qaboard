@@ -4,6 +4,8 @@ log.lsf.txt
 log.txt
 ssl/
 
+image.batches.yaml
+
 *.png
 *.jpg
 *.ico
