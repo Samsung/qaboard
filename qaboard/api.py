@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 import json
 import simplejson
 from functools import lru_cache
+from urllib.parse import unquote
 from typing import Any, Dict, Optional
 
 import click
@@ -36,6 +37,11 @@ api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
 api_port = os.getenv('QATOOLS_DB_PORT', '5000')
 api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
+
+
+
+def url_to_dir(url):
+  return Path(unquote(url)[2:])
 
 
 def print_url(ctx, status="starting"):

@@ -19,12 +19,12 @@ from .runners.lsf import LsfPriority
 
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
-from .conventions import url_to_dir
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
 from .utils import save_outputs_manifest
 from .utils import redirect_std_streams
 from .utils import getenvs
-from .api import get_outputs, notify_qa_database, print_url, serialize_paths
+from .api import url_to_dir, print_url
+from .api import get_outputs, notify_qa_database, serialize_paths
 from .iterators import iter_inputs, iter_parameters
 
 from .config import config_has_error, ignore_config_errors
