@@ -32,6 +32,31 @@ class TestConventions(unittest.TestCase):
         ['self-referential']
     )
 
+  def test_match(self):
+    from qaboard.iterators import match
+    metadata = {"Sensor": "HM4"}
+    # exact match
+    self.assertEqual(match(metadata, {"Sensor": "HM4"}), True)
+    self.assertEqual(match(metadata, {"Sensor": "HM2"}), False)
+    # array of options
+    self.assertEqual(match(metadata, {"Sensor": ["HM2", "HM4"]}), True)
+    # wildcards
+    self.assertEqual(match(metadata, {"Sensor": "HM*"}), True)
+    # case insensitive
+    self.assertEqual(match(metadata, {"Sensor": "hm4"}), True)
+    # multiple filters
+    metadata = {"Sensor": "HM4"}
+    self.assertEqual(match(metadata, {"Sensor": "HM4", "Binning": "4"}), False)
+    metadata = {"Sensor": "HM4", "Binning": "4"}
+    self.assertEqual(match(metadata, {"Sensor": "HM4", "Binning": "4"}), True)
+    # booleans
+    metadata = {"Binning": False}
+    self.assertEqual(match(metadata, {"Binning": False}), True)
+    # numbers
+    metadata = {"Distance": 5}
+    self.assertEqual(match(metadata, {"Distance": 3}), False)
+    self.assertEqual(match(metadata, {"Distance": 5}), True)
+    self.assertEqual(match(metadata, {"Distance": ">=5"}), True)
 
 if __name__ == '__main__':
   unittest.main()
