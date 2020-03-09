@@ -60,7 +60,7 @@ def match(value, value_filter) -> bool:
       if operator == '>': return value > value_filter
       return False
     else:
-      return fnmatch.fnmatch(value, value_filter)
+      return fnmatch.fnmatch(value.casefold(), value_filter.casefold())
   elif isinstance(value_filter, dict):
     if value_filter and not value: return False
     return all([match(value.get(k,""), value_filter[k]) for k,v in value_filter.items()])
