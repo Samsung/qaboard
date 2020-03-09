@@ -99,9 +99,12 @@ class TestQaCli(unittest.TestCase):
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
-    # we also test subprojects
-    os.chdir('subproject')
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    # we test with --share, but really being offline is a problem here..
+    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    print('stdout:', result.stdout)
+    print('stderr:', result.stderr)
+    assert result.exit_code == 0
+
 
   def test_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
@@ -110,6 +113,12 @@ class TestQaCli(unittest.TestCase):
     os.chdir('subproject')
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
 
+  def test_save_artifacts(self):
+    result = self.qa('save-artifacts')
+    print('stdout:', result.stdout)
+    # print('stderr:', result.stderr)
+    assert result.exit_code == 0
+    # => Gitlab/QA-Board: 404: Project not found
 
   def test_init(self):
     import tempfile
@@ -142,10 +151,7 @@ class TestQaCli(unittest.TestCase):
       def background():
           Timer(2, lambda: kill(getpid(), SIGINT)).start()
           result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
-          # qa batch --batches-file image.batches.yaml images --runner=lsf 'echo "{absolute_input_path} => {output_directory}"'
           q.put(('exit_code', result.exit_code))
-          # print(result.stdout)
-          # print(result.stderr)
           q.put(('output', result.output))
       p = Process(target=background)
       p.start()
