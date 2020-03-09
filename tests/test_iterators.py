@@ -45,7 +45,6 @@ class TestConventions(unittest.TestCase):
     # case insensitive
     self.assertEqual(match(metadata, {"Sensor": "hm4"}), True)
     # multiple filters
-    metadata = {"Sensor": "HM4"}
     self.assertEqual(match(metadata, {"Sensor": "HM4", "Binning": "4"}), False)
     metadata = {"Sensor": "HM4", "Binning": "4"}
     self.assertEqual(match(metadata, {"Sensor": "HM4", "Binning": "4"}), True)
