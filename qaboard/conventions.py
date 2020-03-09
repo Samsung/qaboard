@@ -33,21 +33,6 @@ def get_settings(inputs_type, config):
 
 
 
-def get_commit_ci_dir(ci_dir, commit):
-  if not commit or not ci_dir:
-    return Path()
-  # commit is either a gipython commit, or a commit hexsha
-  if isinstance(commit, str):
-    try:
-      authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
-      dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
-    except:
-      return Path()    
-  else:
-    dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
-  return ci_dir / 'commits' / dir_name
-
-
 def slugify(s : str, maxlength=64):
   # lowercased and shortened to 63 bytes
   slug = s.lower()
@@ -167,19 +152,25 @@ def make_hash(obj):
 
 
 
+def get_commit_ci_dir(ci_dir, commit):
+  if not commit or not ci_dir:
+    return Path()
+  # commit is either a gipython commit, or a commit hexsha
+  if isinstance(commit, str):
+    try:
+      authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
+      dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
+    except:
+      return Path()    
+  else:
+    dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
+  return ci_dir / 'commits' / dir_name
+
+
 def batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci=False):
   from qaboard.config import is_ci, subproject
   batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return commit_ci_dir / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
-
-
-def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning, save_with_ci):
-  return (
-    batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
-    platform /
-    slugify_config(configuration) /
-    tuning_foldername(batch_label, hash_parameters(tuning))
-  )
 
 
 def tuning_foldername(batch_label, tuning_parameters_hash):
@@ -194,5 +185,11 @@ def tuning_foldername(batch_label, tuning_parameters_hash):
   return parameters_folder 
 
 
-def url_to_dir(url):
-  return Path(unquote(url)[2:])
+def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning, save_with_ci):
+  return (
+    batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
+    platform /
+    slugify_config(configuration) /
+    tuning_foldername(batch_label, hash_parameters(tuning))
+  )
+
