@@ -709,10 +709,10 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    from .config import is_in_git_repo, commit, commit_branch, repo, is_ci, ci_dir
+    from .config import is_in_git_repo, commit_branch, is_ci, ci_dir
     from .bit_accuracy import is_bit_accurate, lastest_successful_ci_commit
     from .conventions import get_commit_ci_dir
-    from .utils import latest_commit
+    from .git import latest_commit, git_show
 
     if not is_in_git_repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
@@ -724,13 +724,12 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       click.secho(f"Comparing bit-accuracy against this commit's ({commit_id[:8]}) parents.", fg='cyan', bold=True, err=True)
       # It will work until we try to rebase merge requests.
       # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
-      reference_commits = commit.parents
+      reference_commits = git_parents(commit_id)
     else:
-      click.secho(f'Comparing bit-accuracy versus the latest commit from origin/{reference}', fg='cyan', bold=True, err=True)
-      reference_commits = [latest_commit(repo, reference)]
+      click.secho(f'Comparing bit-accuracy versus the latest remote commit of {reference}', fg='cyan', bold=True, err=True)
+      reference_commits = [latest_commit(reference)]
 
-    reference_shas = ','.join([r.hexsha[:8] for r in reference_commits])
-    click.secho(f"{commit_id[:8]} versus {reference_shas}.", fg='cyan', err=True)
+    click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
     
     # This where the new results are located
     commit_dir = commit_rootproject_ci_dir if is_ci else Path()
@@ -753,14 +752,13 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
       all_bit_accurate = True
       for o in output_directories:
-        for reference_commit in reference_commits:
           all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"ERROR: results are not bit-accurate to {reference_shas}.", fg='red', bold=True)
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit.hexsha}&selected_views=bit_accuracy", fg='red')
+          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy", fg='red')
       exit(1)
 
 from .optimize import optimize

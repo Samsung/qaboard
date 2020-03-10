@@ -1,17 +1,26 @@
 import subprocess
 from pathlib import Path
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
+
+import click
 
 
-def git_show(format: str) -> str:
-  # https://git-scm.com/docs/git-show
-  # Common options:
-  # %H hash, %P parent hashes
-  # %an author name, %ae author email, %cn/%ce for commit
-  # %at author date t/i/D for timestamp/iso/..
-  # %B %s%b suject/body
+def git_show(format: str, reference: str = None) -> str:
+  """
+  Wrapper around git show --format={format} [reference]
+
+  https://git-scm.com/docs/git-show
+  Common options:
+    %H hash, %P parent hashes
+    %an author name, %ae author email, %cn/%ce for commit
+    %at author date t/i/D for timestamp/iso/..
+    %B %s%b suject/body
+  """
+  command = ["git", "show", "-s", f"--format={format}"]
+  if reference:
+    command.append(reference)
   p = subprocess.run(
-    ["git", "show", "-s", f"--format={format}"],
+    command,
     encoding='utf8',
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
@@ -20,25 +29,51 @@ def git_show(format: str) -> str:
   return p.stdout.strip()
 
 
+def git_parents(reference: str) -> List[str]:
+  # returns a list of the parent hashes
+  return git_show('%P', reference).split()
 
 
-def latest_commit(repo, reference):
+def git_remotes() -> List[str]:
+  # returns a list of the remote names
+  p = subprocess.run(
+    ["git", "remote", "show"],
+    encoding='utf8',
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    check=True,
+  )
+  return p.stdout.strip().splitlines()
+
+
+def latest_commit(reference: str) -> str:
     """Returns the latest commit on a reference (commit, tag or branch)."""
-    # FIXME: couldn't we just use the project's git repo URL from the configuration?
-    # Here we find a local copy of the repo and use it to iterate through commits
-    # TODO: we should use the branch slug.... but it will work for develop/master/release...
-    remote = repo.remote()
-    try:
-      return remote.refs[reference].commit
-    except:
-      try:
-        # print([r.name for r in remote.refs if ('testing' in r.name)])
-        # print([r for r in remote.refs if r.name==reference or r.name==f'{r.remote_name}/{reference}'])
-        return [r for r in remote.refs if r.name==reference or reference.replace(r.remote_name, '') == r.name or reference==f'{r.remote_name}/{r.name}'][0]
-      except:
-        return repo.commit(rev=reference)
-    # try:/
-    #   return list(repo.iter_commits(reference.replace('origin/', ''), max_count=1))[0]
+    remotes = git_remotes()
+    remote = remotes[-1] if remotes else None
+    if len(remotes) > 1:
+      click.secho(f"WARNING: Multiple remotes found, defaulting to {remote}", fg='yellow')
+
+    if remote:
+      p = subprocess.run(
+        ["git", "ls-remote", remote, reference],
+        encoding='utf8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+      )
+      lines = p.stdout.strip().splitlines()
+      if lines:
+        return lines[0].split()[0]
+
+    p = subprocess.run(
+        ["git", "show", "-s", f"--format=%H", reference],
+        encoding='utf8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    local_commit = p.stdout.strip()
+    if local_commit:
+      return local_commit
+    return reference
 
 
 def git_head(repo_root : Path) -> Tuple[str, str]:
@@ -72,7 +107,6 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
   return commit_branch, commit_branch
 
 
-
-
-
-
+# if __name__ == '__main__':
+#   import fire
+#   fire.Fire(latest_commit)
