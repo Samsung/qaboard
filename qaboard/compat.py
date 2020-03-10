@@ -3,8 +3,8 @@ Deprecation warnings, backward compatibility, Windows compatibility
 """
 import os
 import sys
-
 import click
+from pathlib import Path
 
 
 def ensure_cli_backward_compatibility():
