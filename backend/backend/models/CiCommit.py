@@ -14,7 +14,6 @@ from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 
 from backend.models import Base, Batch, Output
-from backend.models.LocalMocks import LocalGitCommit
 from ..utils import get_users_per_name
 from ..git_utils import find_branch
 
@@ -139,9 +138,7 @@ class CiCommit(Base):
   def gitcommit(self):
     if self.commit_type == 'git':
       return self.project.repo.commit(self.hexsha)
-    else:
-      # this mocks a real git commit
-      return LocalGitCommit(self.hexsha, self.message, self.committer_name, self.authored_datetime)
+    raise NotImplementedError
 
 
   def delete(self, ignore=None, keep=None, dryrun=False):

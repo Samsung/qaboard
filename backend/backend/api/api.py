@@ -19,7 +19,6 @@ from sqlalchemy.sql import label
 
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
-from ..models.LocalMocks import LocalCommit
 from ..models import latest_successful_commit
 
 
@@ -241,10 +240,7 @@ def get_ci_commit(commit_id=None):
       except:
         return jsonify({'error': 'Sorry, we could not find the commit in the cloned git repo.'}), 404
     except BadName:
-      try:
-        ci_commit = LocalCommit(commit_id)
-      except:
-        return jsonify({'error': 'Sorry, we could not find the commit folder.'}), 404
+      return jsonify({f'error': 'Sorry, we could not understand the commid ID {commid_id}.'}), 404
     except Exception as e:
       raise(e)
       return jsonify({'error': 'Sorry, the request failed.'}), 500
