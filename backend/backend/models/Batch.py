@@ -15,20 +15,10 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
 
+from qaboard.conventions import slugify
+
 from backend.models import Base, Output
 
-
-def slugify(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
-  # lowercased and shortened to 63 bytes
-  slug = s.lower()
-  if maxlength:
-    slug = slug[:(maxlength - 1)]
-  # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z.=]', '-', slug)
-  slug = re.sub('-{2,}', '-', slug)
-  # No leading / trailing -. 
-  return slug.strip('-')
 
 
 class Batch(Base):
