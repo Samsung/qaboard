@@ -24,7 +24,6 @@ setup(
     'alembic',          # SQL schema migrations
     'psycopg2',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
-    'flask-admin',
     'uwsgi',
     'ujson',
   ],
