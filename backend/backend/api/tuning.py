@@ -116,11 +116,6 @@ def get_group():
     else:
       qatools_config = project.data["qatools_config"]
 
-    default_configuration = qatools_config.get('inputs', {}).get('configuration', "default")
-    if not (isinstance(default_configuration, list) or isinstance(default_configuration, tuple)):
-      default_configuration = deserialize_config(default_configuration)
-    # print('group', request.args["name"], groups_paths)
-
 
     has_custom_iter_inputs = False
     # TODO: make it more robust in case of "from iters import *"
@@ -160,17 +155,27 @@ def get_group():
 
     # We don't need to seperate the two cases, but
     # doing so might let us avoid a fork and qa startup...
+    # like in qaboard/config.py
+    config_inputs = qatools_config.get('inputs', {})
+    config_inputs_types = config_inputs.get('types', {})
+    default_input_type = config_inputs_types.get('default', 'default')
+    input_settings = get_settings(default_input_type, qatools_config)
+    # like in qaboard/qa.py
+    from qaboard.config import get_default_configuration, get_default_database
+    default_configuration = get_default_configuration(input_settings)
+    default_configurations = deserialize_config(default_configurations)
+    default_database = get_default_database(input_settings)
+    # print('group', request.args["name"], groups_paths)
     try:
         tests = list(
             iter_inputs(
                 [request.args["name"]], # groups
                 groups_paths,           # groups_file,
-                project.database,       # database
-                default_configuration,  # default_configuration
-                'lsf',                  # platform
-                {"type": 'lsf'},        # default_lsf_configuration
-                qatools_config,         # qatools_config
-                # inputs_settings=None
+                default_database,       # database
+                default_configurations,  # default_configuration
+                {"type": 'lsf'},        # default_job_configuration
+                qatools_config,
+                inputs_settings=input_settings,
             )
         )
         return jsonify({
