@@ -189,7 +189,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
 
 
 
-def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
+def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
   if max_parents_depth < 0:
     click.secho(f'Could not find a commit that passed CI', fg='red', bold=True, err=True)
     exit(1)
@@ -201,12 +201,12 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
 
   wait_time = 15 # seconds
   while True:
-    statuses = ci_commit_statuses(commit.hexsha, ref=commit_branch, name=failed_ci_job_name)
+    statuses = ci_commit_statuses(commit_id, ref=commit_branch, name=failed_ci_job_name)
     # print(statuses)
 
     if statuses is None:
       click.secho(f'WARNING: Could not get the CI status. You may need a different GITLAB_ACCESS_TOKEN.', fg='yellow', err=True)
-      return commit
+      return commit_id
 
     if failed_ci_job_name:
       # print('filtering')
@@ -215,17 +215,17 @@ def lastest_successful_ci_commit(commit, max_parents_depth=config.get('bit_accur
 
     commit_failed = any(s['status'] in ['failed', 'canceled'] and not s.get('allow_failure', False) for s in statuses)
     if commit_failed:
-      click.secho(f"WARNING: {commit.hexsha[:8]} failed the CI pipeline. (statuses: {set(s['status'] for s in statuses)})", fg='yellow', bold=True, err=True)
+      click.secho(f"WARNING: {commit_id[:8]} failed the CI pipeline. (statuses: {set(s['status'] for s in statuses)})", fg='yellow', bold=True, err=True)
       if config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent':
         click.secho(f"We now try to compare against its first parent.", fg='yellow', err=True)
-        return lastest_successful_ci_commit(commit.parents[0], max_parents_depth=1)
+        return lastest_successful_ci_commit(git_parents(commit_id)[0], max_parents_depth=1)
       else:
-        return commit
+        return commit_id
 
     commit_success = all(s['status'] == 'success' or s.get('allow_failure', False) for s in statuses)
     if commit_success:
-      return commit
+      return commit_id
 
-    click.secho(f"The CI pipeline for {commit.hexsha[:8]} is not over yet (statuses: {set(s['status'] for s in statuses)}). Retrying in {wait_time}s", fg='yellow', dim=True, err=True)
+    click.secho(f"The CI pipeline for {commit_id[:8]} is not over yet (statuses: {set(s['status'] for s in statuses)}). Retrying in {wait_time}s", fg='yellow', dim=True, err=True)
     # click.secho(str(statuses), fg='yellow', dim=True, err=True)
     time.sleep(wait_time)
