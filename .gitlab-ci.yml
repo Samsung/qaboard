@@ -23,7 +23,6 @@ unit-tests:
 
 type-check:
   stage: test
-  allow_failure: true
   script:
   - mypy -p qaboard --ignore-missing-imports
 

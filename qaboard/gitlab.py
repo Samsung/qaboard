@@ -63,6 +63,8 @@ def update_gitlab_status(commit_id, state='success'):
 
 
 def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
+  from .git import git_parents
+
   if max_parents_depth < 0:
     click.secho(f'Could not find a commit that passed CI', fg='red', bold=True, err=True)
     exit(1)
