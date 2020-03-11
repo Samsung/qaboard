@@ -59,7 +59,7 @@ Found a bug with QA-Board? Go ahead and [submit an issue](https://github.com/Sam
 ## Contributors
 QA-Board was started at [Samsung SIRC](https://www.linkedin.com/company/samsung-israel-r-d-center-sirc/) by [Arthur Flam](https://shapescience.xyz).
 
-Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Shai Shamir, Matan Danino, Roy Shaul, Gal Hai, Rivka Emanuel, Ela Shahar, Nadav Ofer. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Yotam Ater, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
+Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Shai Shamir, Matan Danino, Roy Shaul, Gal Hai, Rivka Emanuel, Ela Shahar, Nadav Ofer, David Nukrai. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Yotam Ater, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
 
 > You don't see your name? Get in touch to be added to the list!
 
