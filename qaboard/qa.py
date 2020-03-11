@@ -713,7 +713,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
     from .bit_accuracy import is_bit_accurate
     from .gitlab import lastest_successful_ci_commit
     from .conventions import get_commit_ci_dir
-    from .git import latest_commit, git_show
+    from .git import latest_commit, git_show, git_parents
 
     if not is_in_git_repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
