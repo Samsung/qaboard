@@ -710,7 +710,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
   versus the latest commit on origin/develop.
   """
     from .config import is_in_git_repo, commit_branch, is_ci, ci_dir
-    from .bit_accuracy import is_bit_accurate, lastest_successful_ci_commit
+    from .bit_accuracy import is_bit_accurate
+    from .gitlab import lastest_successful_ci_commit
     from .conventions import get_commit_ci_dir
     from .git import latest_commit, git_show
 
