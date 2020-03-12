@@ -72,8 +72,7 @@ const make_output_filter = output_filter => {
     if (o.is_pending) return false;
     if (output_filter.length === 0) return true;
     let metadata_s = Object.keys(o.test_input_metadata).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
-    let metadata = metadata_s.replace(/"/g, "")
-    let searched = `${o.test_input_path} ${o.platform} ${metadata} ${o.configuration}`;
+    let searched = `${o.test_input_path} ${o.platform} ${metadata_s} ${JSON.stringify(o.configurations)}`.replace(/"/g, "");
     return matcher(searched)
   };
 };
@@ -121,7 +120,7 @@ class CommitsEvolutionPerTest extends React.Component {
       selected_ref: false,
       // when displaying per-input data 
       hovered_test_input_path: "",
-      hovered_test_configuration: "",
+      hovered_test_configurations: "",
 
       controls: controls_defaults(project_qatools_config),
     };
@@ -131,7 +130,7 @@ class CommitsEvolutionPerTest extends React.Component {
     let point_number = e.points[0].pointNumber;
     let curve_number = e.points[0].curveNumber;
     // when not doing per-input display, test_input_path and configuration will be undefined 
-    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[curve_number];
+    let { label, test_input_path, configurations, commits } = this.state.traces_metadata[curve_number];
     let hovered_commit_ref = point_number < commits.length ? commits[point_number + 1] : null;
     const hovered_commit = commits[point_number]
     if (!!this.props.aggregation && this.props.per_output_granularity && this.props.output_filter.length>0) {
@@ -145,7 +144,7 @@ class CommitsEvolutionPerTest extends React.Component {
     }))
     this.setState({
       hovered_test_input_path: test_input_path,
-      hovered_test_configuration: configuration,
+      hovered_test_configurations: configurations,
       hovered_label: label,
       hovered_commit,
       ...((!this.state.selected_ref && !!hovered_commit_ref) ? {hovered_commit_ref}: {}),
@@ -160,7 +159,7 @@ class CommitsEvolutionPerTest extends React.Component {
     const curve_number = e.points[0].curveNumber
     let point_number = e.points[0].pointNumber;
     // when not doing per-input display, test_input_path and configuration will be undefined 
-    let { label, test_input_path, configuration, commits } = this.state.traces_metadata[curve_number];
+    let { label, test_input_path, configurations, commits } = this.state.traces_metadata[curve_number];
     let hovered_commit = commits[point_number];
     this.props.dispatch(updateSelected(this.props.project, {
       ref_commit_id: hovered_commit.id,
@@ -169,7 +168,7 @@ class CommitsEvolutionPerTest extends React.Component {
     this.setState({
       selected_ref: true,
       hovered_test_input_path: test_input_path,
-      hovered_test_configuration: configuration,
+      hovered_test_configurations: configurations,
       hovered_label: label,
       hovered_commit,
       hovered_commit_ref: hovered_commit,
@@ -318,20 +317,21 @@ class CommitsEvolutionPerTest extends React.Component {
       this.props.shown_batches.forEach(label => {
         let commits_with_batch = commits.filter(c => !!c.batches[label]);
         if (commits_with_batch.length > 0) {
-          let input_configuration_set = new Set();
+          let input_configurations_set = new Set();
           commits_with_batch.forEach(c => {
             Object.values(c.batches[label].outputs || {})
               .filter(output_filter_)
-              .forEach(o => input_configuration_set.add(JSON.stringify([o.test_input_path, o.configuration])));
+              .forEach(o => input_configurations_set.add(JSON.stringify([o.test_input_path, o.configurations])));
           });
           // console.log("commits_with_batch", commits_with_batch)
           // console.log(input_configuration_set)
-          input_configuration_set.forEach( input_config_json => {
-            const [test_input_path, configuration] = JSON.parse(input_config_json)
+          input_configurations_set.forEach( input_config_json => {
+            const [test_input_path, configurations] = JSON.parse(input_config_json)
+            const configurations_str = JSON.stringify(configurations);
             let commits_with_output = commits_with_batch.filter(
               c =>
                 (Object.values(c.batches[label].outputs || {})
-                  .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
+                  .filter(o => o.test_input_path === test_input_path && JSON.stringify(o.configurations) === configurations_str)
                   .filter(output_filter_)
                   .map(o => o.metrics[metric.key])
                   .filter(m => !(isNaN(m) || m === null || m === undefined))
@@ -342,9 +342,8 @@ class CommitsEvolutionPerTest extends React.Component {
               .map(
                 c =>
                   Object.values(c.batches[label].outputs || {})
-                    .filter(o => o.test_input_path === test_input_path && o.configuration === configuration)
+                    .filter(o => o.test_input_path === test_input_path && JSON.stringify(o.configurations) === configurations_str)
                     .filter(output_filter_)
-                    .filter(o => this.props.project !== 'dvs/psp_swip' || o.configuration.includes("stereo"))
               )
               .filter(outputs => outputs.length > 0)
               .map(outputs => outputs[0].metrics)
@@ -355,13 +354,13 @@ class CommitsEvolutionPerTest extends React.Component {
               //    metrics[metric.key] * metric.scale
               //  )
               //);
-            // console.log(test_input_path, '@', configuration, values)
+            // console.log(test_input_path, '@', configurations, values)
             const y0 = values[values.length - 1];
             const y = (relative && !!y0) ? values.map(v => 100 * v / y0) : values;
 
             let color = hash_color(test_input_path, label);
             let trace = {
-              name: `${test_input_path} @${configuration}`,
+              name: `${test_input_path} @${JSON.stringify(configurations)}`,
               type: "scatter",
               mode: "lines+markers",
               x: commits_with_output.map(c => c.authored_datetime),
@@ -384,7 +383,7 @@ class CommitsEvolutionPerTest extends React.Component {
             };
             let trace_metadata = {
               test_input_path,
-              configuration,
+              configurations,
               label,
               commits: commits_with_output
             };
@@ -514,7 +513,7 @@ class CommitsEvolutionPerTest extends React.Component {
       traces,
       layout,
       hovered_test_input_path,
-      hovered_test_configuration,
+      hovered_test_configurations,
       hovered_label,
       hovered_commit=new_commit,
       hovered_commit_ref=ref_commit,
@@ -522,7 +521,7 @@ class CommitsEvolutionPerTest extends React.Component {
 
     if (!!hovered_commit) {
       let hovered_commit_outputs = Object.values((hovered_commit.batches[hovered_label] || {}).outputs || {})
-      let hovered_output = hovered_commit_outputs.filter(o => o.test_input_path === hovered_test_input_path && o.configuration === hovered_test_configuration)[0];
+      let hovered_output = hovered_commit_outputs.filter(o => o.test_input_path === hovered_test_input_path && o.configurations === hovered_test_configurations)[0];
       let should_look_for_ref = !!hovered_output &&  !!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]
       let { reference_id, reference_warning } = should_look_for_ref ? hovered_output : {}
       let output_ref = should_look_for_ref ? (((hovered_commit_ref || {}).batches[hovered_label] || {}).outputs || {})[reference_id] : null
@@ -565,7 +564,7 @@ class CommitsEvolutionPerTest extends React.Component {
 
       var legend = <div style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}>
         {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
-            {hovered_test_input_path} @{hovered_test_configuration}
+            {hovered_test_input_path} @{hovered_test_configurations}
         </Tag>}
         {(!!hovered_label && hovered_label !== "default") && <Tag style={{ marginLeft: "15px" }}>{hovered_label}</Tag>}
         <CommitRow

@@ -18,7 +18,7 @@ import {
 } from "@blueprintjs/core";
 
 import { fetchCommit } from "../actions/commit";
-import { deserialize_config, linux_to_windows } from '../utils'
+import { linux_to_windows } from '../utils'
 
 
 const toaster = Toaster.create();
@@ -64,7 +64,7 @@ class PlatformTag extends React.Component {
 
 class ConfigurationsTags extends React.Component {
   render() {
-    const configurations = this.props.configurations || deserialize_config(this.props.configuration)
+    const configurations = this.props.configurations
     const intent = this.props.intent || Intent.PRIMARY;
 
     // Some configuration key names are used and shown by viewers
@@ -91,7 +91,7 @@ class ConfigurationsTags extends React.Component {
       </Tag>
     })
 
-    const pretty_json = this.props.configuration || JSON.stringify(this.props.configurations, null, 2);
+    const pretty_json = JSON.stringify(this.props.configurations, null, 2);
     return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}>
       <span>{tags}</span>
     </CopyToClipboard>
@@ -136,11 +136,11 @@ class OutputTags extends React.Component {
 
 
   render() {
-    const { platform, configuration, output_dir_url, id } = this.props.output;
+    const { platform, configurations, output_dir_url, id } = this.props.output;
     const { warning } = this.props;
     return <span style={this.props.style}>
       <PlatformTag platform={platform} />
-      <ConfigurationsTags configuration={configuration} />
+      <ConfigurationsTags configurations={configurations} />
 
       <Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
         <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>

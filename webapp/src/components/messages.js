@@ -33,7 +33,7 @@ const SimpleOutputList = ({outputs, intent}) => {
     {outputs.map(o =>
       <li key={o.id}>
         <strong style={{paddingRight: '5px'}}>{o.test_input_path}</strong>
-        <ConfigurationsTags intent={intent} configuration={o.configuration}/>
+        <ConfigurationsTags intent={intent} configurations={o.configurations}/>
         <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
       </li>
     )}

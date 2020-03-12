@@ -254,8 +254,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
 };
 
 // -${JSON.stringify(output.extra_parameters)}
-const run_type = output =>
-  `${output.test_input_path}-${output.platform}-${output.configuration}`;
+const run_type = output => `${output.test_input_path}-${output.platform}-${JSON.stringify(output.configurations)}`;
 
 const pc_under_threshold = (array, threshold) => {
   if (threshold === null || threshold === undefined)

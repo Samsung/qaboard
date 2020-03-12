@@ -150,7 +150,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 
-def iter_inputs(groups, groups_file, database, default_configuration, default_platform, default_job_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
+def iter_inputs(groups, groups_file, database, default_configurations, default_platform, default_job_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
   """Returns an iterator over the (input_path, configurations, runner-configuration) from the selected groups
   params:
   - groups: array of group names or paths whose inputs you want to iterate
@@ -195,7 +195,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_pl
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(group), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(group, database, inputs_settings, qatools_config)
-      yield from (RunContext(input_path=i, database=database, configurations=default_configuration, platform=default_platform, job_options=default_job_configuration, type=inputs_settings['type']) for i in inputs_iter)
+      yield from (RunContext(input_path=i, database=database, configurations=default_configurations, platform=default_platform, job_options=default_job_configuration, type=inputs_settings['type']) for i in inputs_iter)
       return
 
     # 2. Those defined in the groups_file
@@ -205,7 +205,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_pl
     group_platform = available_batches[group].get('platform', default_platform)
     # Each group can define his own default runtime and runner configuration
     group_job_configuration = {**default_job_configuration, **available_batches[group].get(runner, {})}
-    group_configuration = available_batches[group].get('configurations', available_batches[group].get('configuration', default_configuration))
+    group_configuration = available_batches[group].get('configurations', available_batches[group].get('configuration', default_configurations))
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
     if 'type' in available_batches[group]:

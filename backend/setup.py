@@ -20,8 +20,8 @@ setup(
     'click',     # build CLI tools easily
     'flask',     # HTTP server
     'flask_cors',
-    'sqlalchemy',       # ORM
-    'alembic',          # SQL schema migrations
+    'sqlalchemy',# ORM
+    'alembic',   # SQL schema migrations
     'psycopg2',  # postgresql driver used by sqlalchemy
     'sqlalchemy_utils',
     'uwsgi',

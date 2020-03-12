@@ -16,13 +16,13 @@ import fnmatch
 from pathlib import Path
 
 from requests.utils import quote
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
-from sqlalchemy import cast, type_coerce
+from sqlalchemy.dialects.postgresql import JSONB
 
-from qatools.conventions import slugify, slugify_config, make_hash
+from qatools.conventions import slugify, slugify_config, make_hash, serialize_config
 from qatools.utils import save_outputs_manifest
 
 from backend.models import Base
@@ -53,12 +53,25 @@ class Output(Base):
   test_input_id = Column(Integer(), ForeignKey('test_inputs.id'), index=True)
   test_input = relationship("TestInput", lazy='joined', back_populates="outputs")
 
-  platform = Column(String()) # lsf/s8/...
-  # SLAM runs use params.json, $configuration.json (mono/stereo...)
-  # For CIS projects it might have other meanings
-  configuration = Column(String())
-  # Used for tuning
-  extra_parameters = Column(JSON(), default={})
+  platform = Column(String())
+  configurations = Column(JSONB(), default=[])
+  extra_parameters = Column(JSONB(), default={})
+
+  # https://stackoverflow.com/questions/6626810/multiple-columns-index-when-using-the-declarative-orm-extension-of-sqlalchemy
+  # CREATE INDEX CONCURRENTLY idx_outputs_config_params ON outputs (batch_id, test_input_id, configurations, extra_parameters, platform)
+  # CREATE INDEX CONCURRENTLY idx_outputs_configurations ON outputs (configurations)
+  # CREATE INDEX CONCURRENTLY idx_outputs_extra_parameters ON outputs (extra_parameters)
+  __table_args__ = (
+    Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
+    # we can't create an btree index on everything because JSON values can be big
+    # https://github.com/doorkeeper-gem/doorkeeper/wiki/How-to-fix-PostgreSQL-error-on-index-row-size
+    # https://dba.stackexchange.com/questions/162820/values-larger-than-1-3-of-a-buffer-page-cannot-be-indexed
+    # Index('idx_outputs_filter', "batch_id", "test_input_id", "configurations", "extra_parameters", "platform"),
+    # Note: we can't use ,postgresql_using='hash' for multiple columns
+    # Index('idx_outputs_configurations', "configurations", postgresql_using='hash'),
+    # Index('idx_outputs_extra_parameters', "extra_parameters", postgresql_using='hash'),
+    # but we could for single columns..
+  )
 
   #### How good we ran
   is_pending = Column(Boolean(), default=False)
@@ -79,7 +92,7 @@ class Output(Base):
     o.test_input_id = self.test_input_id
     o.test_input = self.test_input
     o.platform = self.platform
-    o.configuration = self.configuration
+    o.configurations = self.configurations
     o.extra_parameters = self.extra_parameters
     o.is_pending = self.is_pending
     o.is_running = self.is_running
@@ -87,6 +100,10 @@ class Output(Base):
     o.metrics = self.metrics
     o.data = self.data
     return o
+
+  @property
+  def configuration(self):
+    return serialize_config(self.configurations)
 
   @property
   def output_folder(self):
@@ -124,11 +141,12 @@ class Output(Base):
            f"filename='{self.test_input.filename}' /]")
 
   def to_dict(self):
+    print()
     cols = [
      'id',
      'output_type',
      'platform',
-     'configuration',
+     'configurations',
      'extra_parameters',
      'metrics',
      'is_failed',
@@ -148,15 +166,14 @@ class Output(Base):
 
   @staticmethod
   def get_or_create(session, **kwargs):
-    extra_parameters_json = type_coerce(kwargs['extra_parameters'], JSON)
     try:
       return session.query(Output).filter(
           and_(
               Output.batch_id == kwargs['batch'].id,
               Output.test_input_id == kwargs['test_input'].id,
               Output.platform == kwargs['platform'],
-              Output.configuration == kwargs['configuration'],
-              cast(Output.extra_parameters, String) == extra_parameters_json,
+              Output.configurations == kwargs['configurations'],
+              Output.extra_parameters == kwargs['extra_parameters'],
           )
       ).one()
     except NoResultFound:
@@ -164,7 +181,7 @@ class Output(Base):
           batch=kwargs['batch'],
           test_input=kwargs['test_input'],
           platform=kwargs['platform'],
-          configuration=kwargs['configuration'],
+          configurations=kwargs['configurations'],
           extra_parameters=kwargs['extra_parameters'],
       )
       # session.add(output)
@@ -179,15 +196,15 @@ class Output(Base):
               Output.batch_id == kwargs['batch'].id,
               Output.test_input_id == kwargs['test_input'].id,
               Output.platform == kwargs['platform'],
-              Output.configuration == kwargs['configuration'],
-              cast(Output.extra_parameters, String) == extra_parameters_json,
+              Output.configurations == kwargs['configurations'],
+              Output.extra_parameters == kwargs['extra_parameters'],
           )
       ).delete()
       output = Output(
           batch=kwargs['batch'],
           test_input=kwargs['test_input'],
           platform=kwargs['platform'],
-          configuration=kwargs['configuration'],
+          configurations=kwargs['configurations'],
           extra_parameters=kwargs['extra_parameters'],
       )
       session.add(output)

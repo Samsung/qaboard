@@ -7,6 +7,7 @@ import json
 import hashlib
 import subprocess
 from pathlib import Path
+from typing import List
 
 import yaml
 import click
@@ -56,7 +57,7 @@ def slugify_config(s : str, maxlength=64):
   return f"{s_hash}-{slugify(s[-(maxlength-8):], maxlength=None)}"
 
 
-def deserialize_config(configuration):
+def deserialize_config(configuration: str) -> List:
   # print("[deserialize] before : ", configuration)
   if configuration == '-':
     return []
@@ -99,7 +100,7 @@ def deserialize_config(configuration):
   return configurations
 
 
-def serialize_config(configurations):
+def serialize_config(configurations: List) -> str:
   # print("[serialize] before: ", configurations)
   if not configurations:
     return '-'
