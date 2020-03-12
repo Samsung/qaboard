@@ -19,6 +19,7 @@ from requests.utils import unquote
 from flask import request, jsonify
 
 from cde.image import read_image
+from qaboard.api import url_to_dir 
 from backend import app
 from ..models import Output
 
@@ -28,8 +29,8 @@ from ..models import Output
 def get_images():
   data = request.get_json()
   # Directory URLs begin with /s/
-  new_url = Path(unquote(data['output_dir_url_new'][2:])) / data["path"]
-  ref_url = Path(unquote(data['output_dir_url_ref'][2:])) / data["path"]
+  new_url = url_to_dir(data['output_dir_url_new']) / data["path"]
+  ref_url = url_to_dir(data['output_dir_url_ref']) / data["path"]
   # print(data) # DEBUG
   blobs = createAutoRois(new_url, ref_url, data["diff_type"], data['threshold'], data['diameter'])
 
