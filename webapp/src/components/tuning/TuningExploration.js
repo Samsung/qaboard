@@ -29,13 +29,13 @@ const Sensibility1DLines = ({
 }) => {
   Object.keys(outputs).forEach(id => {
     const output = outputs[id]
-    output.input_configuration = {test_input_path: output.test_input_path, configuration: output.configuration}
+    output.input_configurations = {test_input_path: output.test_input_path, configurations: output.configurations}
   })
-  let outputs_by_input_config = groupByObject(Object.values(outputs), "input_configuration");
+  let outputs_by_input_config = groupByObject(Object.values(outputs), "input_configurations");
 
   let traces = Object.entries(outputs_by_input_config).map(
     ([input_path_config,  outputs_for_input]) => {
-      const { test_input_path, configuration } =  JSON.parse(input_path_config)
+      const { test_input_path, configurations } =  JSON.parse(input_path_config)
       let outputs = outputs_for_input
         .filter(o => !o.is_pending && !o.is_failed)
         .sort(
@@ -53,13 +53,14 @@ const Sensibility1DLines = ({
         ? Math.min(...values)
         : Math.max(...values);
       let y = relative ? values.map(v => 100 * v / v0) : values;
+      let configurations_str = JSON.stringify(configurations);
       return {
         type: "scatter",
         mode: "lines+markers",
-        name: `${test_input_path} ${configuration}`,
+        name: `${test_input_path} ${configurations_str}`,
         x: outputs.map(o => o.extra_parameters[parameter]),
         y,
-        text: outputs.map(o => `${configuration}<br />${JSON.stringify(o.extra_parameters).replace(/,/g, '<br />')}`),
+        text: outputs.map(o => `${configurations_str}<br />${JSON.stringify(o.extra_parameters).replace(/,/g, '<br />')}`),
         marker: {
           size: 4,
           color,

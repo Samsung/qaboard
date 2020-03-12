@@ -56,8 +56,8 @@ def filter_outputs(query, outputs):
 
   def match(output):
     extra_parameters = json.dumps(output.extra_parameters)
-    extra_parameters = re.sub(r'[=:] +', ':', extra_parameters).replace('"', '')
-    searched = f"{output.test_input.path} {output.platform} {output.configuration} {extra_parameters}".lower()
+    configurations = json.dumps(output.configurations)
+    searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters}".replace('"', '').lower()
     # print(searched)
     # not using output.test_input_tags.join() like in the JS
     if any([t in searched for t in negative_tokens]):
@@ -89,7 +89,9 @@ def matching_output(output_reference, outputs):
     has_meta_id = output.test_input.data and output_reference.test_input.data and output.test_input.data.get('id')
     return (
       4 if has_meta_id and output.test_input.data.get('id') == output_reference.test_input.data.get('id') else 0 +
-      4 if output.configuration == output_reference.configuration else 0 +
+      4 if json.dumps(output.configurations, sorted=True) == json.dumps(output_reference.configurations, sorted=True) else 0 +
+      # 4 if output.configuration == output_reference.configuration else 0 + # FIXME: a faster property?
+      # we can't test for equality with == because of potentially nested dicts... 
       2 if output.platform == output_reference.platform else 0 +
       1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
     )
@@ -160,12 +162,12 @@ def export_to_folder():
     common_data['platform'] = all_outputs[0].platform
   all_configurations = {o.configuration for o in all_outputs}
   if len(all_configurations) == 1:
-    common_data['configuration'] = deserialize_config(all_outputs[0].configuration)
+    common_data['configurations'] = all_outputs[0].configurations
   elif len(all_configurations) > 1:
-    all_configurations = [deserialize_config(o.configuration) for o in all_outputs]
-    common_data['configuration_prefix'] = commonprefix(all_configurations)
-    all_reversed_configurations = [list(reversed(deserialize_config(o.configuration))) for o in all_outputs]
-    common_data['configuration_suffix'] = list(reversed(commonprefix(all_reversed_configurations)))
+    all_configurations = [o.configurations for o in all_outputs]
+    common_data['configurations_prefix'] = commonprefix(all_configurations)
+    all_reversed_configurations = [list(reversed(o.configurations)) for o in all_outputs]
+    common_data['configurations_suffix'] = list(reversed(commonprefix(all_reversed_configurations)))
   # To be honest, we really should find what is common in each batch
   # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
 
@@ -210,10 +212,10 @@ def export_to_folder():
         labels.append(output.batch.ci_commit.hexsha[:4])
       if output.platform != common_data.get("platform"):
         labels.append(output.platform)
-      if not common_data.get("configuration"):
+      if not common_data.get("configurations"):
         def strip_config(c):
-          c_prefix = serialize_config(common_data.get("configuration_prefix", 'placeholder-placeholder'))
-          c_suffix = serialize_config(common_data.get("configuration_suffix", 'placeholder-placeholder'))
+          c_prefix = serialize_config(common_data.get("configurations_prefix", 'placeholder-placeholder'))
+          c_suffix = serialize_config(common_data.get("configurations_suffix", 'placeholder-placeholder'))
           return c.replace(c_prefix, '').replace(c_suffix, '')
         stripped_config = slugify_config(strip_config(output.configuration))
         # list of common SIRC-specific names

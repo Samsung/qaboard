@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Button, Intent, MenuItem } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
-import { deserialize_config } from './../../utils';
 import { Crops } from "./crops";
 import AutoCrops from "./AutoCrops"
 
@@ -24,7 +23,7 @@ class MultiSelectTags extends React.PureComponent {
       intent: Intent.PRIMARY,
     }
     const { output_new, output_ref } = props;
-    let has_predefined_regions_of_interest = deserialize_config(output_new.configuration).some(c => !!c.roi);
+    let has_predefined_regions_of_interest = output_new.configurations.some(c => !!c.roi);
     if (has_predefined_regions_of_interest) {
       available_roi_groups.push(predefined_rois_group)
       selected_roi_groups.push(predefined_rois_group)

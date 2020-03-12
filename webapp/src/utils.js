@@ -64,12 +64,9 @@ const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
     8 * ((o.test_input_path !== output.test_input_path) | 0) +
-    4 * ((o.configuration !== output.configuration) | 0) +
+    4 * ((JSON.stringify(o.configurations) !== JSON.stringify(output.configurations)) | 0) +
     2 * ((o.platform !== output.platform) | 0) +
-    1 *
-    ((JSON.stringify(o.extra_parameters) !==
-      JSON.stringify(output.extra_parameters)) |
-      0);
+    1 * ((JSON.stringify(o.extra_parameters) !== JSON.stringify(output.extra_parameters)) | 0);
 
   let matching_outputs = Object.values(batch.outputs || {})
     .filter(o => !o.is_pending)
@@ -84,7 +81,7 @@ const matching_output = ({ output, batch }) => {
   let warning = imperfect_match ? <div>
     <h3>Comparing to</h3>
     {((ref_match_score & 8) === 8) && <p>{output_ref.test_input_path}</p>}
-    {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configuration={output_ref.configuration} /></p>}
+    {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configurations={output_ref.configurations} /></p>}
     {((ref_match_score & 2) === 2) && <p><PlatformTag inverted platform={output_ref.platform} /></p>}
     {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0
       ? <ExtraParametersTags inverted parameters={output_ref.extra_parameters} />
@@ -162,11 +159,13 @@ const filter_batch = (batch, filter_values) => {
   batch_filtered.outputs = {};
 
   Object.entries(batch.outputs).forEach(([id, output]) => {
-    let extra_parameters_s = Object.keys(output.extra_parameters || {}).length > 0 ? JSON.stringify(output.extra_parameters || {}) : "";
-    let metadata_s = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
-    let extra_parameters = extra_parameters_s.replace(/"/g, "");
-    let metadata = metadata_s.replace(/"/g, "");
-    let searched = `${output.test_input_path} ${output.platform} ${output.configuration} ${metadata} ${extra_parameters} ${output.is_failed ? 'fail crash' : ''} ${output.is_pending ? 'pending running' : ''}`;
+    let extra_parameters = Object.keys(output.extra_parameters || {}).length > 0 ? JSON.stringify(output.extra_parameters || {}) : "";
+    let metadata = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
+    let configuration = JSON.stringify(output.configurations)
+    let failed = output.is_failed ? 'fail crash' : '';
+    let pending = output.is_pending ? 'pending running' : ''
+    let searched = `${output.test_input_path} ${output.platform} ${configuration} ${metadata} ${extra_parameters} ${failed} ${pending}`;
+    searched = searched.replace(/"/g, "")
     if (matcher(searched))
       batch_filtered.outputs[id] = output;
   });
@@ -230,30 +229,6 @@ const project_avatar_style = project_id => {
     filter: `hue-rotate(${hue_rotate}deg) saturate(${1-Math.log(saturate)})`,
   }
 };
-
-
-
-const deserialize_config = configuration => {
-  if (configuration === undefined || configuration === null || configuration.length === 0 || configuration === '-') {
-    return []
-  }
-  let configurations = []
-  let configuration_part = ''
-  // eslint thinks `path` is not used (?) 
-  // eslint-disable-next-line
-  for (const token of configuration.split(':')) {
-    if (configuration_part.length === 0 && !token.startsWith('{')) {
-      configurations.push(token)
-    } else {
-      configuration_part = configuration_part ? `${configuration_part}:${token}` : token;
-      try {
-        configurations.push(JSON.parse(configuration_part))
-        configuration_part = '';
-      } catch { }
-    }
-  }
-  return configurations
-}
 
 
 // FIXME: make it part of a global user/project/instance configuration
@@ -357,7 +332,6 @@ export {
   project_avatar_style,
   hash_color,
   plotly_palette,
-  deserialize_config,
   linux_to_windows,
   make_eval_templates_recursively,
 };

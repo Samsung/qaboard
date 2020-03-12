@@ -35,7 +35,7 @@ const RowHeaderCell = ({ output, warning }) => {
     <th scope="row">
       {output.test_input_path} <ExtraParametersTags parameters={output.extra_parameters} />
       <PlatformTag platform={output.platform}/>
-      <ConfigurationsTags configuration={output.configuration}/>      
+      <ConfigurationsTags configurations={output.configurations}/>      
       {warning && (
         <Tooltip>
           <Tag intent={Intent.WARNING} icon="not-equal-to">ref</Tag>

@@ -1,3 +1,10 @@
+"""
+Notice: This file is unmaintained at the moment, and likely broken.
+Not much is needed to bring it back to life!
+
+> If needed contact Arthur Flam, arthur.flam@samsung.com
+> and it will happen.
+"""
 import subprocess
 from functools import lru_cache
 import yaml
@@ -252,9 +259,13 @@ def matching_output(output_reference, outputs):
     raise ValueError(f"Could not find an output for {output_reference.test_input_path} in the target batch")
 
   def match_key(output):
+    has_meta_id = output.test_input.data and output_reference.test_input.data and output.test_input.data.get('id')
     return (
-      5 if output.configuration == output_reference.configuration else 0 +
-      3 if output.platform == output_reference.platform else 0 +
+      4 if has_meta_id and output.test_input.data.get('id') == output_reference.test_input.data.get('id') else 0 +
+      4 if json.dumps(output.configurations, sorted=True) == json.dumps(output_reference.configurations, sorted=True) else 0 +
+      # 4 if output.configuration == output_reference.configuration else 0 + # FIXME: a faster property?
+      # we can't test for equality with == because of potentially nested dicts... 
+      2 if output.platform == output_reference.platform else 0 +
       1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
     )
   valid_outputs.sort(key=match_key, reverse=True)

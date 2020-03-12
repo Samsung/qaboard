@@ -189,7 +189,7 @@ class BatchLogs extends React.PureComponent {
       output_type: "batch",
       output_dir_url: batch.output_dir_url,
       test_input_metadata: batch.data,
-      configuration: '',
+      configurations: [],
     }
 
     let commands = Object.values((batch.data || {}).commands || {});

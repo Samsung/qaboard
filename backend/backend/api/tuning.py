@@ -159,11 +159,12 @@ def get_group():
     config_inputs = qatools_config.get('inputs', {})
     config_inputs_types = config_inputs.get('types', {})
     default_input_type = config_inputs_types.get('default', 'default')
+    from qaboard.conventions import get_settings
     input_settings = get_settings(default_input_type, qatools_config)
     # like in qaboard/qa.py
     from qaboard.config import get_default_configuration, get_default_database
     default_configuration = get_default_configuration(input_settings)
-    default_configurations = deserialize_config(default_configurations)
+    default_configurations = deserialize_config(default_configuration)
     default_database = get_default_database(input_settings)
     # print('group', request.args["name"], groups_paths)
     try:

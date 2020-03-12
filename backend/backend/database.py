@@ -23,6 +23,7 @@ db_echo = bool(os.getenv('QABOARD_DB_ECHO', False))
 import ujson
 import psycopg2.extras
 psycopg2.extras.register_default_json(loads=lambda x: ujson.loads)
+psycopg2.extras.register_default_jsonb(loads=lambda x: ujson.loads)
 
 engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
 engine = create_engine(
