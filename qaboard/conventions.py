@@ -61,7 +61,7 @@ def deserialize_config(configuration: str) -> List:
   # print("[deserialize] before : ", configuration)
   if configuration == '-':
     return []
-  configurations = []
+  configurations: List = []
   configuration_part = ''
 
   is_windows = os.name == 'nt'
