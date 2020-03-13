@@ -2,6 +2,10 @@
 var OpenSeadragon = require('openseadragon')
 
 function onMouseMove(event) {
+    if (event.originalEvent.delta_clientX)
+        event.position.x += event.originalEvent.delta_clientX;
+    if (event.originalEvent.delta_clientY)
+        event.position.y += event.originalEvent.delta_clientY;
     this.onCanvasHover(this.getValueAt(event.position));
 }
 
