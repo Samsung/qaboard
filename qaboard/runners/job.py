@@ -72,6 +72,8 @@ class JobGroup():
     if not self.jobs:
       return False
     self.Runner.start_jobs(self.jobs, self.job_options, blocking)
+    if not blocking:
+      return True
 
     # Note: we used to always do as below, it's OK but makes many network requests
     # return any(job.is_failed(verbose=True) for job in self.jobs)
