@@ -110,6 +110,17 @@ def redo_batch():
   status = batch.redo(only_deleted=data.get('only_deleted', False))
   return '{"status": "OK"}'
 
+@app.route('/api/v1/batch/rename', methods=['POST'])
+@app.route('/api/v1/batch/rename/', methods=['POST'])
+def rename_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  status = batch.rename(label=data['label'], db_session=db_session)
+  return '{"status": "OK"}'
+
 
 @app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
 @app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
@@ -165,6 +176,10 @@ def new_output_webhook():
     flag_modified(test_input, "data")
 
   platform = data['platform']
+  if platform == 'lsf':
+    platform = 'linux'
+  elif platform == 'windows':
+    platform = 'win32'
 
   configurations = deserialize_config(data['configuration']) if 'configuration' in data else data['configurations']
   output = Output.get_or_create(db_session,

@@ -16,6 +16,7 @@ import {
   FormGroup,
   InputGroup,
   NavbarGroup,
+  Dialog,
   Tooltip,
   Popover,
   Toaster,
@@ -103,7 +104,26 @@ class CommitNavbar extends React.Component {
     super(props);
     this.state = {
       waiting: false,
+      show_rename_dialog: false,
+      renamed_batch_label: '',
     };
+  }
+
+  renameBatch = () => {
+    const { batch } = this.props;
+    const { renamed_batch_label: label } = this.state;
+    this.setState({waiting: true, show_rename_dialog: false})
+    toaster.show({message: "Redo requested."});
+    axios.post(`/api/v1/batch/rename/`, {id: batch.id, label})
+      .then(response => {
+        this.setState({waiting: false})
+        toaster.show({message: `Renamed ${batch.label} to ${label}.`, intent: Intent.PRIMARY});
+        this.refresh()    
+      })
+      .catch(error => {
+        this.setState({waiting: false });
+        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+      });
   }
 
   render() {
@@ -222,12 +242,43 @@ class CommitNavbar extends React.Component {
               <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               {has_selected_batch && <>
               <MenuDivider title="Batch"/>
+              <Dialog
+                isOpen={this.state.show_rename_dialog}
+                onOpening={() => this.setState({renamed_batch_label: batch.label})}
+                onClose={() => this.setState({show_rename_dialog: false})}
+                title="Rename batch"
+                icon="edit"
+              >
+                <div className={Classes.DIALOG_BODY}>
+                  <input
+                    value={this.state.renamed_batch_label}
+                    onChange={event => this.setState({renamed_batch_label: event.target.value})}
+                    className={Classes.INPUT}
+                    style={{marginBottom: '15px'}}
+                  />
+                  <p>You won't be able to rename a batch with pending outputs.</p>
+                </div>
+                <div className={Classes.DIALOG_FOOTER}>
+                  <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+                    <Button onClick={() => this.setState({show_rename_dialog: false})}>Close</Button>
+                    <Button onClick={this.renameBatch} intent={Intent.PRIMARY}>Rename</Button>
+                  </div>
+                </div>
+              </Dialog>
+              <MenuItem
+                icon="edit"
+                text="Rename batch"
+                minimal
+                disabled={this.state.waiting}
+                shouldDismissPopover={false}
+                onClick={() => this.setState({show_rename_dialog: true})}
+              />
               {batch.deleted_outputs > 0 && <MenuItem
                 icon="redo"
                 text="Redo Deleted Outputs"
                 intent={Intent.WARNING}
                 minimal
-                disabled={this.state.waiting_redo}
+                disabled={this.state.waiting}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Redo of deleted outputs requested."});
@@ -235,6 +286,7 @@ class CommitNavbar extends React.Component {
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      this.refresh()
                     })
                     .catch(error => {
                       this.setState({waiting: false });
@@ -247,7 +299,7 @@ class CommitNavbar extends React.Component {
                 text="Redo All Outputs"
                 intent={Intent.WARNING}
                 minimal
-                disabled={this.state.waiting_redo}
+                disabled={this.state.waiting}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Redo requested."});
@@ -255,6 +307,10 @@ class CommitNavbar extends React.Component {
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      this.refresh()
+                      setTimeout(this.refresh,  1*1000)
+                      setTimeout(this.refresh,  5*1000)
+                      setTimeout(this.refresh, 10*1000)
                     })
                     .catch(error => {
                       this.setState({waiting: false });
