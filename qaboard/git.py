@@ -107,6 +107,67 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
   return commit_branch, commit_branch
 
 
+
+
+# for backward compatibility only
+class _Repo(object):
+  """Lazily wraps gitpython's Repo to avoid high import times and stay backward-compatible"""
+  def __init__(self, repo_root):
+    self.repo = None
+    self.repo_root = repo_root
+
+  def init(self):
+    import git
+    try:
+      self.repo = git.Repo(str(self.repo_root))
+    except:
+      self.repo = None
+  def __getattribute__(self, name):
+    # print(f'_Repo.__getattribute__ {name}')
+    if name in ['repo_root']:
+      return object.__getattribute__(self, name)
+    if not object.__getattribute__(self, 'repo'):
+      object.__getattribute__(self, 'init')()
+
+    repo = object.__getattribute__(self, 'repo')
+    if not repo:
+      raise ValueError(f"ERROR: Not a git rep {object.repo_root}")
+    return repo.__getattribute__(name)
+
+# for backward compatibility only
+class _Commit(object):
+  """Lazily wraps gitpython's Commit to avoid high import times and stay backward-compatible"""
+  def __init__(self, repo, commit_id):
+    self.commit = None
+    self.repo = repo
+    self.commit_id = commit_id
+
+  def init(self):
+    # print('init()')
+    if not self.commit_id:
+      self.commit = self.repo.commit(commit_id)
+    else:
+      # print('init: has commit_id')
+      # print("type(self.repo.commit)", type(self.repo.head.commit))
+      # print(self.repo.commit(self.repo.head.commit))
+      self.commit = self.repo.head.commit
+
+  def __getattribute__(self, name):
+    if name in ['commit_id', 'repo']:
+      return object.__getattribute__(self, name)
+    if not object.__getattribute__(self, 'commit'):
+      object.__getattribute__(self, 'init')()
+
+    commit = object.__getattribute__(self, 'commit')
+    # print("commit", type(commit))
+    if not commit:
+      raise ValueError(f"ERROR: Could not init a GitPython Commit: {object.commit_id}")
+    # FIXME: this seems to init a data fetch of some sort...
+    commit.committer
+    return commit.__getattribute__(name)
+
+
+
 # if __name__ == '__main__':
 #   import fire
 #   fire.Fire(latest_commit)

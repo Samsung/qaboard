@@ -321,3 +321,9 @@ if secrets_path.exists():
     secrets = yaml.load(f, Loader=yaml.SafeLoader)
 else:
   secrets = {}
+
+
+# backward compat only
+from .git import _Repo, _Commit
+repo = _Repo(repo_root)
+commit = _Commit(repo, commit_id)
