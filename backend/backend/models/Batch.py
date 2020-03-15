@@ -92,6 +92,16 @@ class Batch(Base):
             f"label='{self.label}' "
             f"outputs={len(self.outputs)} />")
 
+  def rename(self, label, db_session):
+    assert not any([o.is_pending for o in self.outputs])
+    # For now we could be computing those dirs based on the label...
+    # We avoid moving moving anything...
+    for output in self.outputs:
+      output.output_dir_override = str(output.output_dir)
+    self.label = label
+    db_session.add(self)
+    db_session.commit()
+
   def redo(self, only_deleted=False):
     for output in self.outputs:
       if only_deleted and not output.deleted:
