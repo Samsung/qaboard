@@ -1,6 +1,6 @@
 export const iiif_url = (output_dir_url, path) => {
   // remove the URL's leading "/s"
-  identifier = identifier.replace(/\/*?s\//, "")
+  let identifier = output_dir_url.replace(/\/*?s\//, "")
   // IIIF specs require encoding the slashes inside the identifier
   identifier = identifier.replace(/\//g, '%2F') + encodeURIComponent(`/${path}`);
   let endpoint = `${window.location.protocol}//${window.location.hostname}:8183/iiif/2/`
