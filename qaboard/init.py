@@ -5,27 +5,17 @@ qa init
 ```
 """
 from pathlib import Path
+import subprocess
 import shutil
 
-import git
 import click
 
 from .config import find_configs
 
 
 
-def find_repo(path):
-    path = path.resolve()
-    parents = [path, *list(path.parents)]
-    for parent in parents:
-      try:
-        return git.Repo(str(parent))
-      except:
-        pass
-    return None
 
-
-def qa_init():
+def qa_init(ctx):
   """Initialize a qatools repository"""
   config_paths = [p for  _, p in find_configs(Path('.'))]
   if config_paths:
@@ -44,38 +34,65 @@ def qa_init():
       qatools_dir = Path(pkg_resources.resource_filename('qaboard', ''))
 
   click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
-  shutil.copy(str(qatools_dir / 'sample_project/qaboard.yaml'), 'qaboard.yaml')
+  if not ctx.obj['dryrun']:
+    shutil.copy(str(qatools_dir / 'sample_project/qaboard.yaml'), 'qaboard.yaml')
 
   click.secho('...added qaboard.yaml', fg='green', dim=True)
-  shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa')
+  if not ctx.obj['dryrun']:
+    shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa')
 
   click.secho('...added qa/', fg='green', dim=True)
   click.secho(
-    'If you need help configuring qatools. please read the tutorial at http://qa-docs/ or @arthurf for help\n',
+    'If you need help configuring qatools. please read the tutorial at https://samsung.github.io/qaboard\n',
     fg='blue'
   )
 
   # We try to tweak the sample configuration much as possible
-  repo = find_repo(Path('.'))
-  if not repo:
-    click.secho('Warning: could not find a git repository', fg='yellow')
-  else:
+  try:
+    subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
+  except:
+    click.secho('Warning: Could not find a git repository', fg='yellow')
+    exit(0)
+
+
+  try:
+    p = subprocess.run("git remote show", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
+    remotes = p.stdout.strip().splitlines()
+    assert remotes
+    if len(remotes)>1:
+      print(f"We use the first of the git remotes: {remotes}")
+    remote = remotes[0]
+    print(f"git remote name: {remote}")
+
+    p = subprocess.run(f"git remote get-url {remote}", shell=True, stdout=subprocess.PIPE, check=True, encoding='utf-8')
+    url = p.stdout.strip()
+    print(f"git remote url: {url}")
+    if url.startswith('git'):
+      name = url.split(':')[-1].replace('.git', '')
+    else:
+      name =  '/'.join(url.split('/')[3:]).replace('.git', '')
+    print(f"project name: {name}")
+
+    p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
+    head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
+    reference_branch = head_info[0].split(':')[1]
     try:
-      remote = repo.remote()
-      url = list(remote.urls)[0] #FIXME: preference for "origin"
-      if url.startswith('git'):
-        name = url.split(':')[-1].replace('.git', '')
-      else:
-        name =  '/'.join(url.split('/')[3:]).replace('.git', '')
-      reference_branch = remote.refs.HEAD.reference.name.replace('origin/', '')
-      config = Path('qaboard.yaml')
-      with config.open() as f:
-        config_content = f.read()
-      config_content = config_content.replace('name: my_group/sample_project', f"name: {name}")
-      config_content = config_content.replace('url: git@gitlab-srv/my_group/sample_project', f"url: {url}")
-      config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
-      # Write the file out again
-      with config.open('w') as f:
-        f.write(config_content)
+      p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
+      head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
+      reference_branch = head_info[0].split(':')[1]
     except:
-      click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
+      click.secho('Warning: Could not find the remote HEAD, using master as reference branch', fg='yellow')
+      reference_branch = 'master'
+    print(f"reference_branch: {reference_branch}")
+
+    config = Path('qaboard.yaml')
+    with config.open() as f:
+      config_content = f.read()
+    config_content = config_content.replace('name: user/sample_project', f"name: {name}")
+    config_content = config_content.replace('url: git@github.com/user/sample_project', f"url: {url}")
+    config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
+    with config.open('w') as f:
+      if not ctx.obj['dryrun']:
+        f.write(config_content)
+  except:
+    click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
