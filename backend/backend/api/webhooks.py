@@ -164,6 +164,7 @@ def new_output_webhook():
     test_input.data['metadata'] = data['input_metadata']
     flag_modified(test_input, "data")
 
+  platform = data['platform']
 
   configurations = deserialize_config(data['configuration']) if 'configuration' in data else data['configurations']
   output = Output.get_or_create(db_session,
