@@ -174,6 +174,7 @@ def get_group():
                 groups_paths,           # groups_file,
                 default_database,       # database
                 default_configurations,  # default_configuration
+                'lsf',                # platform
                 {"type": 'lsf'},        # default_job_configuration
                 qatools_config,
                 inputs_settings=input_settings,
