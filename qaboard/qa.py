@@ -378,7 +378,6 @@ local_config = config.get('runners', {}).get('local', {})
 @click.pass_context
 def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
-  os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run` 
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
     click.secho(f'Consider adding to qaboard.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
@@ -397,6 +396,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   existing_outputs = get_outputs(ctx.obj)
   command_id = str(uuid.uuid4()) # unique IDs for triggered runs makes it easier to wait/cancel them 
 
+  os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run` 
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
   if should_notify_qa_database:
