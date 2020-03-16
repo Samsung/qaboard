@@ -129,7 +129,7 @@ class Output(Base):
   def output_dir_url(self):
     if self.output_dir_override is not None:
       relative_path = self.output_dir_override.replace("/home/arthurf/ci/", "")
-      return quote(str(f'/s/{relative_path}'))
+      return quote(str(f'/s{relative_path}'))
     return f"{self.batch.output_dir_url}/{quote(str(self.output_folder))}" 
 
   def __repr__(self):
