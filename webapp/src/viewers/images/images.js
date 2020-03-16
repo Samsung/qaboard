@@ -421,13 +421,13 @@ class ImgViewer extends React.PureComponent {
     */
 
     const { diff } = this.props;
-    if (diff) {
+    if (diff && this.canvas_diff.current) {
       const redirectEvent = eventType => {
         const canvas_el = this.canvas_diff.current;
         canvas_el.addEventListener(eventType, function (event) {
           // we cannot re-dispatch the event twice, we must copy it
           var new_event = new event.constructor(event.type, event)
-          if (event.Type.match(/(mouse|pointer)/)) {
+          if (eventType.match(/(mouse|pointer)/)) {
             const rect_diff = canvas_el.getBoundingClientRect();
             const rect_new = viewer_new.drawer.canvas.getBoundingClientRect();
             new_event.delta_clientX = rect_new.left - rect_diff.left;
