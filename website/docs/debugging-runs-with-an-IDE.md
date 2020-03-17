@@ -1,6 +1,6 @@
 ---
 id: debugging-runs-with-an-IDE
-title: Debugging qatools' runs in an IDE
+title: Debugging QA-Board' runs in an IDE
 sidebar_label: Debugging with IDEs
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
