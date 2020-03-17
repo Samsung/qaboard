@@ -176,10 +176,10 @@ def new_output_webhook():
     flag_modified(test_input, "data")
 
   platform = data['platform']
-  if platform == 'lsf':
-    platform = 'linux'
-  elif platform == 'windows':
-    platform = 'win32'
+  # if platform == 'lsf':
+  #   platform = 'linux'
+  # elif platform == 'windows':
+  #   platform = 'win32'
 
   configurations = deserialize_config(data['configuration']) if 'configuration' in data else data['configurations']
   output = Output.get_or_create(db_session,
