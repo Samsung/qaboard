@@ -1,11 +1,11 @@
 // https://create-react-app.dev/docs/proxying-api-requests-in-development/
 // https://github.com/chimurai/http-proxy-middleware
-const proxy = require('http-proxy-middleware');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function(app) {
   app.use(
     '/api',
-    proxy({
+    createProxyMiddleware({
       target: 'http://qa:5001', // prod
       // target: 'http://qa:9002', // dev-staging
       changeOrigin: true,
@@ -13,7 +13,7 @@ module.exports = function(app) {
   );
   app.use(
     '/s',
-    proxy({
+    createProxyMiddleware({
       target: 'http://qa',
       changeOrigin: true,
     })
@@ -22,7 +22,7 @@ module.exports = function(app) {
 
   app.use(
     '/fcgi-bin/',
-    proxy({
+    createProxyMiddleware({
       target: 'https://qa:8186',
       changeOrigin: true,
       secure: false,
@@ -32,7 +32,7 @@ module.exports = function(app) {
 
  app.use(
     '/iiif/2',
-    proxy({
+    createProxyMiddleware({
       target: 'https://qa:8183',
       changeOrigin: true,
       secure: false,
