@@ -2,7 +2,7 @@
 **QA-Board** helps Algorithms/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
 
 [![qaboard-chat](https://img.shields.io/badge/chat-spectrum-brightgreen)](https://spectrum.chat/qaboard)
-![PyPI](https://img.shields.io/pypi/v/qaboard)
+[![PyPI](https://img.shields.io/pypi/v/qaboard)](https://pypi.org/project/qaboard/)
 [![Docs](https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square)](https://samsung.github.io/qaboard)
 
 > QA-Board is not officially released yet, and likely won't work *yet* for you because it expects running on our infra...
@@ -41,15 +41,7 @@ We think you could be interested if have projects where:
 - view output files and KPIs
 - ...and improve your integration with many guides: bit-accuracy, tuning, etc.
 
-## Code organization
-Each section has its own README:
-- [qaboard](qaboard): provides the `qa` CLI wrapper than runs your code, and the `import qaboard` package.
-- [webapp](webapp/) is the frontend that displays results.
-- [backend](backend/) exposes an HTTP API used to read/write all the metadata on runs.
-- [website](website/) is the QA-Board website and docs - samsung.github.io/qaboard
-- [thirdparty](thirdparty/):
-  * [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIIF server, used to "stream" large images to the users.
-
+If you want to learn about the code organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Questions? Need Help? Found a bug?
 If you've got questions about setup, deploying, want to develop new features, or just want to chat with the developers, please feel free to [start a thread in our Spectrum community](https://spectrum.chat/qaboard)!
