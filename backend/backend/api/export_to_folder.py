@@ -89,11 +89,11 @@ def matching_output(output_reference, outputs):
     has_meta_id = output.test_input.data and output_reference.test_input.data and output.test_input.data.get('id')
     return (
       4 if has_meta_id and output.test_input.data.get('id') == output_reference.test_input.data.get('id') else 0 +
-      4 if json.dumps(output.configurations, sorted=True) == json.dumps(output_reference.configurations, sorted=True) else 0 +
+      4 if json.dumps(output.configurations, sort_keys=True) == json.dumps(output_reference.configurations, sort_keys=True) else 0 +
       # 4 if output.configuration == output_reference.configuration else 0 + # FIXME: a faster property?
       # we can't test for equality with == because of potentially nested dicts... 
       2 if output.platform == output_reference.platform else 0 +
-      1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
+      1 if json.dumps(output.extra_parameters, sort_keys=True) == json.dumps(output_reference.extra_parameters, sort_keys=True) else 0
     )
   valid_outputs.sort(key=match_key, reverse=True)
   return valid_outputs[0]
