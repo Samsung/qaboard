@@ -106,7 +106,7 @@ def serialize_config(configurations: List) -> str:
     return '-'
   if isinstance(configurations, str):
     return configurations
-  configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
+  configurations = [json.dumps(c, sort_keys=True) if isinstance(c, dict) else c for c in configurations]
   # print("[serialize] during", configurations)
   configuration = ":".join(configurations)
   # print("[serialize] after: ", configuration)
