@@ -4,14 +4,27 @@ import { connect } from 'react-redux'
 
 import styled from "styled-components";
 import { format } from "mathjs/number";
-import { Classes, Button, Icon, Intent, Tooltip, Tag } from "@blueprintjs/core";
+import copy from 'copy-to-clipboard';
+
+import {
+  Classes,
+  Button,
+  Icon,
+  Intent,
+  Tooltip,
+  Tag,
+  Menu,
+  MenuItem,
+  MenuDivider,
+  Popover,
+} from "@blueprintjs/core";
 
 import { updateSelected } from "../actions/selected";
 
 import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { shortId, pretty_label } from "../utils";
+import { shortId, pretty_label, linux_to_windows } from "../utils";
 
 const CommitDetails = styled.div`
   display: flex;
@@ -285,7 +298,7 @@ class CommitRow extends React.Component {
                   }}
                 >
                   <Icon
-                    style={{marginLeft: '4px', marginRight: '10px'}}
+                    style={{marginLeft: '4px', marginRight: '4px'}}
                     title="Copy to clipboard"
                     intent={Intent.PRIMARY}
                     iconSize={Icon.SIZE_SMALL}
@@ -294,10 +307,21 @@ class CommitRow extends React.Component {
                 </CopyToClipboard>
                 <span>Copy to clipboard</span>
               </Tooltip>
+
+            <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
+              <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
+              <Menu>
+                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
+                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.commit_dir_url).slice(2))}} />
+                <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+              </Menu>
+            </Popover>
+
+
               <Icon icon="git-branch" />
               <Link
                 style={{
-                  color: "rgba(0,0,0,0.85)",
+                  color: "rgba(0,0,0,0.65)",
                   marginRight: '5px',
                   marginTop: !!commit.message && '4px',
                 }}
