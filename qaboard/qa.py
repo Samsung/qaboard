@@ -759,7 +759,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       for o in output_directories:
         all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
-      click.secho(f"ERROR: results are not bit-accurate to {reference_shas}.", fg='red', bold=True)
+      click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
