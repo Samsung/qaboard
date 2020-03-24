@@ -189,6 +189,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
       start = time.time()
+      cwd = os.getcwd() 
       try:
         # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
         if 'ENV' in ctx.obj['extra_parameters']:
@@ -219,6 +220,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         ctx.obj['extra_parameters'].update(ctx.obj['ENV'])
         del ctx.obj['ENV']
 
+      if os.getcwd() != cwd: os.chdir(cwd)
       metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
       if not metrics:
         metrics = runtime_metrics
