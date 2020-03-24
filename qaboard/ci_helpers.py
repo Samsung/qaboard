@@ -36,7 +36,7 @@ def on_branch(branch):
 
   def on_branch_decorator(func):
     global skipped_test_nb
-    from qatools.config import commit_branch
+    from .config import commit_branch
     # commit_branch = 'abc' # for testing
 
     if func.__name__ in test_funcs_names:
