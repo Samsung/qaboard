@@ -220,7 +220,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         ctx.obj['extra_parameters'].update(ctx.obj['ENV'])
         del ctx.obj['ENV']
 
-      if os.getcwd() != cwd: os.chdir(cwd)
+      # avoid issues if code in run() changes cwd
+      if os.getcwd() != cwd:
+        os.chdir(cwd)
       metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
       if not metrics:
         metrics = runtime_metrics
