@@ -337,11 +337,8 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
       with params_file.open('w') as f:
         if filetype == 'json':
           f.write(params_s)
-        elif filetype == 'yaml':
+        elif filetype == 'yaml' or filetype == 'yml':
           yaml.dump(params, f)
-        elif filetype == 'cde':
-          from cde import Config
-          config = Config()
-          config.load_fromdict(config_dict)
-          yaml.dump(params, f)
+        else:
+          raise ValueError(f"{params_file} should be json/yaml")
     yield params_file, params_hash, params
