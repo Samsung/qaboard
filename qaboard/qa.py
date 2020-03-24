@@ -681,7 +681,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if not all_bit_accurate:
-      click.secho("\nError: you are not bit-accurate versus the manifest.", fg='red', underline=True, bold=True)
+      click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
       click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
       if not run_context.database.is_absolute():
         click.secho("If that's what you wanted, update and commit all manifests.", fg='red')
@@ -760,7 +760,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       for o in output_directories:
         all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
-      click.secho(f"ERROR: results are not bit-accurate to {reference_shas}.", fg='red', bold=True)
+      click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
