@@ -190,6 +190,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
       start = time.time()
+      cwd = os.getcwd() 
       try:
         # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
         if 'ENV' in ctx.obj['extra_parameters']:
@@ -220,6 +221,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         ctx.obj['extra_parameters'].update(ctx.obj['ENV'])
         del ctx.obj['ENV']
 
+      # avoid issues if code in run() changes cwd
+      if os.getcwd() != cwd:
+        os.chdir(cwd)
       metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
       if not metrics:
         metrics = runtime_metrics
@@ -677,7 +681,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if not all_bit_accurate:
-      click.secho("\nError: you are not bit-accurate versus the manifest.", fg='red', underline=True, bold=True)
+      click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
       click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
       if not run_context.database.is_absolute():
         click.secho("If that's what you wanted, update and commit all manifests.", fg='red')
@@ -756,7 +760,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       for o in output_directories:
         all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
-      click.secho(f"ERROR: results are not bit-accurate to {reference_shas}.", fg='red', bold=True)
+      click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
