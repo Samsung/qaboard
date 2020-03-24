@@ -19,6 +19,7 @@ from backend import app, repos, db_session
 from ..models import Project, CiCommit, Batch, Output, TestInput
 from ..models.Project import update_project
 
+from qaboard.conventions import deserialize_config
 
 @app.route('/api/v1/commit', methods=['POST'])
 @app.route('/api/v1/commit/', methods=['POST'])
@@ -98,6 +99,28 @@ def stop_batch():
   status = batch.stop()
   return jsonify(status), 200 if not "error" in status else 500
 
+@app.route('/api/v1/batch/redo', methods=['POST'])
+@app.route('/api/v1/batch/redo/', methods=['POST'])
+def redo_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  status = batch.redo(only_deleted=data.get('only_deleted', False))
+  return '{"status": "OK"}'
+
+@app.route('/api/v1/batch/rename', methods=['POST'])
+@app.route('/api/v1/batch/rename/', methods=['POST'])
+def rename_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  status = batch.rename(label=data['label'], db_session=db_session)
+  return '{"status": "OK"}'
+
 
 @app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
 @app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
@@ -109,7 +132,7 @@ def delete_batch(batch_id):
   stop_status = batch.stop()
   if "error" in stop_status:
     return jsonify(stop_status), 500
-  batch.delete(session=db_session)
+  batch.delete(session=db_session, only_failed=request.args.get('only_failed', False))
   return {"status": "OK"}
 
 
@@ -152,10 +175,17 @@ def new_output_webhook():
     test_input.data['metadata'] = data['input_metadata']
     flag_modified(test_input, "data")
 
+  platform = data['platform']
+  # if platform == 'lsf':
+  #   platform = 'linux'
+  # elif platform == 'windows':
+  #   platform = 'win32'
+
+  configurations = deserialize_config(data['configuration']) if 'configuration' in data else data['configurations']
   output = Output.get_or_create(db_session,
                                          batch=batch,
-                                         platform=data['platform'],
-                                         configuration=data['configuration'],
+                                         platform=platform,
+                                         configurations=configurations,
                                          extra_parameters=data['extra_parameters'],
                                          test_input=test_input,
                                         )

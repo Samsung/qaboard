@@ -16,7 +16,6 @@ DISPLAY= setsid ssh-add $HOME/.ssh/id_rsa
 
 sudo nginx &
 
-export QABOARD_DB_NAME=slamvizapp
 
 echo '...starting the database'
 # initdb -D /usr/local/pgsql/data

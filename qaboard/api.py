@@ -6,6 +6,8 @@ from pathlib import Path, PurePosixPath
 import json
 import simplejson
 from functools import lru_cache
+from urllib.parse import unquote
+from typing import Any, Dict, Optional
 
 import click
 
@@ -37,6 +39,11 @@ api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
 
+
+def url_to_dir(url):
+  return Path(unquote(url)[2:])
+
+
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
     from requests.utils import quote
@@ -48,7 +55,15 @@ def print_url(ctx, status="starting"):
       if status == "starting":
         click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
       elif status == "failure":
-        click.secho(f"Read Logs at: {commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs", fg='red', bold=True)
+        click.echo(
+          click.style("[FAILED] Read the full logs at: ", bold=True, fg='red') +
+          click.style(
+            f"{commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs",
+            fg='red',
+            underline=True,
+            bold=True,
+          ),
+        err=True)
 
 
 
@@ -118,7 +133,7 @@ def notify_qa_database(object_type='output', **kwargs):
     return
 
   # we only update the output database if we're in a CI run, or if the user used `qa --ci`
-  if not is_ci and not kwargs['share']:
+  if not (is_ci or kwargs['share']):
     return
 
   # some light custom serialization for Path objects
@@ -173,9 +188,9 @@ def get_output(output_id):
     except:
       pass
 
-
-@lru_cache()
-def batch_info(reference, is_branch, batch):
+# We used to use a cache but now we want to check run statuses before/after the batch
+# @lru_cache()
+def batch_info(reference, batch, is_branch=False):
   """Get data about a batch of outputs in the database"""
   import requests
   params = {
@@ -190,10 +205,22 @@ def batch_info(reference, is_branch, batch):
   url = f'{api_prefix}/commit/{commit_id}'
   r = requests.get(url, params=params)
   if 'batches' not in r.json():
-  	print(r.url)
+  	click.secho(f'WARNING: We could not get the results for the "{batch}" batch {reference}', fg='yellow', bold=True, err=True)
+  	click.secho(r.url, fg='yellow', err=True)
   	raise ValueError(f'We could not get the results for {batch}')
   return r.json()['batches'][batch]
 
+
+def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
+  if not qa_context:
+    return {}
+  should_notify_qa_database = (is_ci or qa_context['share']) and not (qa_context['dryrun'] or qa_context['offline'])
+  if not should_notify_qa_database:
+    return {}
+  try:
+    return batch_info(reference=commit_id, batch=qa_context['batch_label'])['outputs']
+  except:
+    return {}
 
 
 @lru_cache()

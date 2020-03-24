@@ -15,6 +15,7 @@ if __name__ == '__main__':
 """
 from functools import wraps
 import fnmatch
+from typing import Set
 
 from joblib import Parallel, delayed
 import click
@@ -24,7 +25,7 @@ import click
 test_funcs = []
 
 # To give helpful error messages, we store a few things
-test_funcs_names = set()
+test_funcs_names : Set[str] = set()
 skipped_test_nb = 0
 
 
@@ -58,10 +59,11 @@ def on_branch(branch):
   return on_branch_decorator
 
 
-def run_tests():
+def run_tests() -> int:
   if not test_funcs:
     click.secho("Warning: either you did not create tasks, or none were registered via `@on_branch`.", fg='yellow')
-    return
+    return 0
+
   click.secho(f"Running {len(test_funcs)} tasks", fg='green')
   if skipped_test_nb:
     click.secho(f"{skipped_test_nb} skipped", dim=True)

@@ -10,8 +10,6 @@ import {
   Toaster,
 } from "@blueprintjs/core";
 
-import { deserialize_config } from './../../utils';
-
 
 const toaster = Toaster.create();
 
@@ -21,8 +19,7 @@ class Crops extends React.PureComponent {
     const { output_new, viewer } = this.props;
     if (!!!output_new || !!!viewer) return <span />
 
-    let configs_with_regions_of_interest =
-      deserialize_config(output_new.configuration).filter(c => typeof c === 'object' && !!c.roi)
+    let configs_with_regions_of_interest = output_new.configurations.filter(c => typeof c === 'object' && !!c.roi)
     let { roi: regions_of_interest } = configs_with_regions_of_interest.length ?
       configs_with_regions_of_interest[0] : {}
 

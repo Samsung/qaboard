@@ -30,7 +30,7 @@ class Repos():
           str(clone_location)
         )
       except Exception as e:
-        print(f'[ERROR] Could not clone. Please set $QABOARD_DATA to a writable location and verify your network settings')
+        print(f'[ERROR] Could not clone: {e}. Please set $QABOARD_DATA to a writable location and verify your network settings')
         raise(e)
     self._repos[project_path] = repo
     return self._repos[project_path]

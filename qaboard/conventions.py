@@ -7,9 +7,13 @@ import json
 import hashlib
 import subprocess
 from pathlib import Path
+from typing import List
 
 import yaml
 import click
+
+from .git import git_show
+
 
 
 def get_settings(inputs_type, config):
@@ -30,29 +34,7 @@ def get_settings(inputs_type, config):
 
 
 
-def get_commit_ci_dir(ci_dir, commit):
-  if not commit or not ci_dir:
-    return Path()
-  # commit is either a gipython commit, or a commit hexsha
-  if isinstance(commit, str):
-    try:
-      p = subprocess.run(
-        ["git", "show", "-s", "--format=%at|%an|%H"],
-        encoding='utf8',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-      )
-      authored_date, author_name, commit_id = p.stdout.strip().split('|')
-      dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
-    except:
-      return Path()    
-  else:
-    dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
-  return ci_dir / 'commits' / dir_name
-
-
 def slugify(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
   # lowercased and shortened to 63 bytes
   slug = s.lower()
   if maxlength:
@@ -75,11 +57,11 @@ def slugify_config(s : str, maxlength=64):
   return f"{s_hash}-{slugify(s[-(maxlength-8):], maxlength=None)}"
 
 
-def deserialize_config(configuration):
+def deserialize_config(configuration: str) -> List:
   # print("[deserialize] before : ", configuration)
   if configuration == '-':
     return []
-  configurations = []
+  configurations: List = []
   configuration_part = ''
 
   is_windows = os.name == 'nt'
@@ -118,13 +100,13 @@ def deserialize_config(configuration):
   return configurations
 
 
-def serialize_config(configurations):
+def serialize_config(configurations: List) -> str:
   # print("[serialize] before: ", configurations)
   if not configurations:
     return '-'
   if isinstance(configurations, str):
     return configurations
-  configurations = [json.dumps(c) if isinstance(c, dict) else c for c in configurations]
+  configurations = [json.dumps(c, sort_keys=True) if isinstance(c, dict) else c for c in configurations]
   # print("[serialize] during", configurations)
   configuration = ":".join(configurations)
   # print("[serialize] after: ", configuration)
@@ -171,19 +153,25 @@ def make_hash(obj):
 
 
 
+def get_commit_ci_dir(ci_dir, commit):
+  if not commit or not ci_dir:
+    return Path()
+  # commit is either a gipython commit, or a commit hexsha
+  if isinstance(commit, str):
+    try:
+      authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
+      dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
+    except:
+      return Path()    
+  else:
+    dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
+  return ci_dir / 'commits' / dir_name
+
+
 def batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci=False):
-  from qatools.config import is_ci, subproject
+  from qaboard.config import is_ci, subproject
   batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
   return commit_ci_dir / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
-
-
-def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning, save_with_ci):
-  return (
-    batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
-    platform /
-    slugify_config(configuration) /
-    tuning_foldername(batch_label, hash_parameters(tuning))
-  )
 
 
 def tuning_foldername(batch_label, tuning_parameters_hash):
@@ -197,4 +185,12 @@ def tuning_foldername(batch_label, tuning_parameters_hash):
     parameters_folder = ''
   return parameters_folder 
 
+
+def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning, save_with_ci):
+  return (
+    batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
+    platform /
+    slugify_config(configuration) /
+    tuning_foldername(batch_label, hash_parameters(tuning))
+  )
 

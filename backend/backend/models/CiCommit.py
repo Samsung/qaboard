@@ -14,7 +14,6 @@ from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 
 from backend.models import Base, Batch, Output
-from backend.models.LocalMocks import LocalGitCommit
 from ..utils import get_users_per_name
 from ..git_utils import find_branch
 
@@ -139,9 +138,7 @@ class CiCommit(Base):
   def gitcommit(self):
     if self.commit_type == 'git':
       return self.project.repo.commit(self.hexsha)
-    else:
-      # this mocks a real git commit
-      return LocalGitCommit(self.hexsha, self.message, self.committer_name, self.authored_datetime)
+    raise NotImplementedError
 
 
   def delete(self, ignore=None, keep=None, dryrun=False):
@@ -319,24 +316,3 @@ def parent_successful_commit(ci_commit, batch_label=None):
     if len(ci_commit.ci_batch.outputs) or (batch_label and len(ci_commit.get_or_create_batch(batch_label).outputs)):
       return parent_ci_commit
     parent_hexsha = parent_ci_commit.gitcommit.parents[0]
-
-
-
-
-def remove(path):
-  if not path.exists():
-    raise ValueError(f"ERROR: {path} doesn't exist")
-  if path.is_file():
-    print(str(path))
-    try:
-      path.unlink()
-    except:
-      print(f"WARNING: Could not remove: {path}")
-    return
-  for p in path.iterdir():
-    remove(p)
-  print(str(path))
-  try:
-    p.unlink()
-  except:
-    print(f"WARNING: Could not remove: {p}")

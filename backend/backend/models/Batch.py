@@ -15,20 +15,10 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
 
+from qaboard.conventions import slugify
+
 from backend.models import Base, Output
 
-
-def slugify(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
-  # lowercased and shortened to 63 bytes
-  slug = s.lower()
-  if maxlength:
-    slug = slug[:(maxlength - 1)]
-  # everything except 0-9 and a-z replaced with -. 
-  slug = re.sub('[^0-9a-z.=]', '-', slug)
-  slug = re.sub('-{2,}', '-', slug)
-  # No leading / trailing -. 
-  return slug.strip('-')
 
 
 class Batch(Base):
@@ -93,6 +83,7 @@ class Batch(Base):
         'pending_outputs': len([o for o in self.outputs if o.is_pending]),
         'running_outputs': len([o for o in self.outputs if o.is_running]),
         'failed_outputs': len([o for o in self.outputs if o.is_failed]),
+        'deleted_outputs': len([o for o in self.outputs if o.deleted]),
         **outputs,
     }
 
@@ -101,35 +92,48 @@ class Batch(Base):
             f"label='{self.label}' "
             f"outputs={len(self.outputs)} />")
 
+  def rename(self, label, db_session):
+    assert not any([o.is_pending for o in self.outputs])
+    # For now we could be computing those dirs based on the label...
+    # We avoid moving moving anything...
+    for output in self.outputs:
+      output.output_dir_override = str(output.output_dir)
+    self.label = label
+    db_session.add(self)
+    db_session.commit()
+
+  def redo(self, only_deleted=False):
+    for output in self.outputs:
+      if only_deleted and not output.deleted:
+        continue
+      output.redo()
 
   def stop(self):
-    stdouts = []
-    kill_commands = []
-    for _, command in self.data.get('commands', {}).items():
-      ssh = "LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi"
-      bsub = f"bsub_su {command['user']} -I"
-      kill_command = f"{ssh} {bsub} bkill -J '{command['lsf_jobs_prefix']}/*'"
-      kill_commands.append(kill_command)
-      print(kill_command)
-      out = subprocess.run(kill_command, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # TODO: can we after the stop() just mark all outputs as is_pending:False ?
+    errors = []
+    for command_id, command in self.data.get('commands', {}).items():
+      from qaboard.runners.job import JobGroup
+      # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
+      # if the stop dosn't only use the command_id...
+      jobs = JobGroup(job_options={"type": "local", "command_id": command_id, **command})
       try:
-        out.check_returncode()
-        print(out.stdout)
-        stdouts.append(str(out.stdout))
-      except:
-        # If LSF can't find the jobs, they are done already
-        if 'No match' not in str(out.stdout):
-          return {"error": str(out.stdout), "cmd": str(kill_command)}
-    # TODO: check it's enough to mark all outputs as is_pending:false !
-    return {"cmd": '\n'.join(kill_commands), "stdout": '\n\n'.join(stdouts)}
+        jobs.stop()
+      except Exception as e:
+        errors.append(str(e))
+        continue
+    if errors:
+      return {"error": errors}
+    else:
+      return {}
 
-
-  def delete(self, session):
+  def delete(self, session, only_failed=False):
     """
     Hard delete the batch and all related outputs.
     Note: You should call .stop() before
     """
     for output in self.outputs:
+      if only_failed and not output.deleted:
+        continue
       output.delete(soft=False)
       session.delete(output)
     session.delete(self)

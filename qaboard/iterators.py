@@ -11,35 +11,38 @@ from itertools import chain
 import numbers
 import json
 
-from typing import List, Union, Dict, Tuple
+from typing import List, Union, Dict, Tuple, Iterator, cast
 
 import yaml
 import click
 
 from .conventions import make_hash, make_pretty_tuning_filename, get_settings
-from .utils import input_metadata, entrypoint_module, cased_path
+from .utils import input_metadata, entrypoint_module
+from .compat import cased_path
+from .run import RunContext
 
 
-
-def flatten(lst: Union[str, List, Tuple]):
-  if type(lst) not in (tuple, list): # string
+def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
+  if isinstance(lst, tuple) or isinstance(lst, list):
+    yield from chain.from_iterable((flatten(x) for x in lst))
+  else: # type==str
     yield(lst)
-    return
-  yield from chain.from_iterable((flatten(x) for x in lst))
 
 
-def resolve_aliases(names : Union[str, List[str], Tuple[str]], aliases: Dict[str, List[str]]):
-  if type(names) in (tuple, list):
-    yield from chain.from_iterable((resolve_aliases(n, aliases) for n in names))
-  else:  # string
+def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10) -> Iterator[Union[str, List[str], Tuple[str, ...]]]:
+  if not depth:
+    yield from chain.from_iterable(names)
+  if isinstance(names, tuple) or isinstance(names, list):
+    yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
+  else: # type==str
     if names in aliases:
-      yield from resolve_aliases(aliases.get(names), aliases)
+      yield from resolve_aliases(aliases[names], aliases, depth-1)
     else:
       yield names
 
 
 
-def match(value, value_filter):
+def match(value, value_filter) -> bool:
   # print('match:', value, 'vs', value_filter)
   if isinstance(value_filter, list):
     return any([match(value, e) for e in value_filter])
@@ -57,10 +60,10 @@ def match(value, value_filter):
       if operator == '>': return value > value_filter
       return False
     else:
-      return fnmatch.fnmatch(value, value_filter)
+      return fnmatch.fnmatch(value.casefold(), value_filter.casefold())
   elif isinstance(value_filter, dict):
     if value_filter and not value: return False
-    return all([match(value.get(k), value_filter[k]) for k,v in value_filter.items()])
+    return all([match(value.get(k,""), value_filter[k]) for k,v in value_filter.items()])
   else: # bool, number...
     return value == value_filter
 
@@ -72,7 +75,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   maybe_parent = lambda path: path.parent if use_parent_folder else path
   input_paths = list(database.glob(str(path))) # to support wildcards
   if not input_paths:
-    click.secho(f"Warning: no inputs for <{path}>.", fg='yellow', err=True)
+    click.secho(f'Warning: No inputs found for the batch "{path}"', fg='yellow', err=True)
     return
 
   if not globs:
@@ -85,19 +88,34 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       input_path = cased_path(input_path)
       inputs = set([maybe_parent(f) for f in input_path.rglob(glob)])
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
-      if only:
-        inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
-      if exclude:
-        inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
+      if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
+        inputs.append(cased_path(input_path))
       for i in inputs:
+        if only or exclude:
+          metadata = input_metadata(i, database, i.relative_to(database), qatools_config)
+          if only:
+            if not match(metadata, only): continue
+          if exclude:
+            if metadata:
+              if match(metadata, exclude): continue
+            if match(os.path.basename(i), exclude): continue
         nb_inputs += 1
         yield i
-      if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-        metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
-        if only and not match(metadata, only): continue
-        if exclude and match(metadata, exclude): continue
-        nb_inputs += 1
-        yield input_path
+
+  #     if only:
+  #       inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
+  #     if exclude:
+  #       inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
+  #     for i in inputs:
+  #       nb_inputs += 1
+  #       yield i
+  #     if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
+  #       metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
+  #       if only and not match(metadata, only): continue
+  #       if exclude and match(metadata, exclude): continue
+  #       nb_inputs += 1
+  #       yield input_path
+
   if not nb_inputs:
     click.secho(f'Warning: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
 
@@ -128,17 +146,19 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
   elif not isinstance(globs, tuple) and not isinstance(globs, list):
     globs = [globs]
   use_parent_folder = inputs_settings.get('use_parent_folder', False)
-  yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None)
+  yield from iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=only, exclude=exclude)
 
 
 
-def iter_inputs(groups, groups_file, database, default_configuration, default_lsf_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
-  """Returns an iterator over the (input_path, configurations, lsf-configuration) from the selected groups
+def iter_inputs(groups, groups_file, database, default_configurations, default_platform, default_job_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
+  """Returns an iterator over the (input_path, configurations, runner-configuration) from the selected groups
   params:
   - groups: array of group names or paths whose inputs you want to iterate
   - groups_file: path to a yaml file, or an array of paths
   - config: is none is specified
   """
+  # FIXME: can't change platform/entrypoint per-batch
+
   if not (isinstance(groups_file, list) or isinstance(groups_file, tuple)):
     groups_file = [groups_file]
   available_batches = {}
@@ -161,6 +181,8 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
   group_aliases = available_batches.get('groups', {})
   groups = list(resolve_aliases(groups, group_aliases))
 
+  runner = default_job_configuration.get('type', 'local')
+
   if not groups:
     click.secho(f'WARNING: No group chosen.', fg='yellow', err=True)
 
@@ -173,16 +195,17 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(group), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(group, database, inputs_settings, qatools_config)
-      yield from ((i, default_configuration , default_lsf_configuration, database, inputs_settings['type']) for i in inputs_iter)
+      yield from (RunContext(input_path=i, database=database, configurations=default_configurations, platform=default_platform, job_options=default_job_configuration, type=inputs_settings['type']) for i in inputs_iter)
       return
 
     # 2. Those defined in the groups_file
     if available_batches[group] is None: continue # happens when there is an orphan "$group:" in in the yaml...
     group_only = available_batches[group].get('only')
     group_exclude = available_batches[group].get('exclude')
-    # Each group can define his own default runtime and LSF configuration
-    group_lsf_configuration = {**default_lsf_configuration, **available_batches[group].get('lsf', {})}
-    group_configuration = available_batches[group].get('configurations', available_batches[group].get('configuration', default_configuration))
+    group_platform = available_batches[group].get('platform', default_platform)
+    # Each group can define his own default runtime and runner configuration
+    group_job_configuration = {**default_job_configuration, **available_batches[group].get(runner, {})}
+    group_configuration = available_batches[group].get('configurations', available_batches[group].get('configuration', default_configurations))
     group_configuration = list(flatten(group_configuration))
     group_database = Path(available_batches[group].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
     if 'type' in available_batches[group]:
@@ -195,7 +218,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
     if not locations:
       # run all inputs matching only/exclude
       inputs_iter = _iter_inputs(None, group_database, group_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
-      yield from ((i, group_configuration, group_lsf_configuration, group_database, group_inputs_settings['type']) for i in inputs_iter)
+      yield from (RunContext(input_path=i, database=group_database, configurations=group_configuration, platform=group_platform, job_options=group_job_configuration, type=group_inputs_settings['type']) for i in inputs_iter)
       return
 
     # We also allow each input to have its settings...
@@ -211,13 +234,14 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
 
     for location, location_configuration in locations.items():
       if not location_configuration:
+        location_platform = group_platform
         location_configuration = group_configuration
         location_database = group_database
-        location_lsf_configuration = group_lsf_configuration
+        location_job_configuration = group_job_configuration
         location_inputs_settings = group_inputs_settings
       else:
         if isinstance(location_configuration, dict):
-          location_lsf_configuration = {**group_lsf_configuration, **location_configuration.get('lsf', {})}
+          location_job_configuration = {**group_job_configuration, **location_configuration.get(runner, {})}
           location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', group_database))
           if 'type' in location_configuration:
             location_type = location_configuration['type']
@@ -225,7 +249,7 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
           else:
             location_inputs_settings = group_inputs_settings
           location_inputs_settings.update(location_configuration)
-          for k in ['type', 'database', 'lsf', 'glob', 'globs', 'use_parent_folder']:
+          for k in ['type', 'database', runner, 'platform', 'glob', 'globs', 'use_parent_folder']:
             if k in location_configuration:
               del location_configuration[k]
           if 'configurations' not in location_configuration and 'configurations' not in location_configuration:
@@ -236,17 +260,19 @@ def iter_inputs(groups, groups_file, database, default_configuration, default_ls
         elif isinstance(location_configuration, list):
           location_configuration = list(flatten(location_configuration))
           location_configuration = [*group_configuration, *location_configuration]
+          location_platform = group_platform
           location_database = group_database
-          location_lsf_configuration = group_lsf_configuration
+          location_job_configuration = group_job_configuration
           location_inputs_settings = group_inputs_settings
         else: # string?
+          location_platform = group_platform
           location_configuration =  [*group_configuration, location_configuration]
           location_database = group_database
-          location_lsf_configuration = group_lsf_configuration
+          location_job_configuration = group_job_configuration
           location_inputs_settings = group_inputs_settings
       if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(location, location_database, location_inputs_settings, qatools_config, only=group_only, exclude=group_exclude)
-      yield from ((i, location_configuration, location_lsf_configuration, location_database, location_inputs_settings['type']) for i in inputs_iter)
+      yield from (RunContext(input_path=i, database=location_database, configurations=location_configuration, platform=location_platform, job_options=location_job_configuration, type=location_inputs_settings['type']) for i in inputs_iter)
 
 
 

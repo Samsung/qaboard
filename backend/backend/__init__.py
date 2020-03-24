@@ -23,7 +23,7 @@ repos = Repos(git_server, app_data_directory)
 
 # Some magic to use sqlalchemy safely with Flask
 # http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/
-from backend.database import db_session
+from backend.database import db_session, engine, Base
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db_session.remove()
@@ -35,8 +35,9 @@ import backend.api.tuning
 import backend.api.export_to_folder
 import backend.api.auto_rois
 import backend.api.milestones
-import backend.admin
 
 # Enable cross-origin requests to avoid development headcaches  
 # cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 CORS(app)
+
+Base.metadata.create_all(engine)

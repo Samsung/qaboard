@@ -16,13 +16,14 @@ db_user = os.getenv('QABOARD_DB_USER', 'ci')
 db_password = os.getenv('QABOARD_DB_PASSWORD', 'dvsdvs')
 db_host = os.getenv('QABOARD_DB_HOST', 'localhost')
 db_port = os.getenv('QABOARD_DB_PORT', 5432)
-db_name = os.getenv('QABOARD_DB_NAME', 'qaboard')
+db_name = os.getenv('QABOARD_DB_NAME', 'slamvizapp')
 db_echo = bool(os.getenv('QABOARD_DB_ECHO', False))
 
 
 import ujson
 import psycopg2.extras
 psycopg2.extras.register_default_json(loads=lambda x: ujson.loads)
+psycopg2.extras.register_default_jsonb(loads=lambda x: ujson.loads)
 
 engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
 engine = create_engine(

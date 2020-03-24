@@ -1,0 +1,17 @@
+# Each qaboard.yaml in your repository will be a separate QA-Board project
+#
+#
+# Configuration is inherited from the parent projects, merged deeply
+#
+# All the paths you use here are meant relative to the root of the repository
+# When using qa commands, the working directory will change to the repository root 
+#
+# We support a tiny bit of magic for common use-cases
+# Let's say you want to append a visualization to ones defined in parent projects,
+# You can do this
+#
+# outputs:
+#   visualizations
+#   - super
+#   - path: output.jpg
+#     name: My new output

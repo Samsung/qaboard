@@ -41,7 +41,7 @@ README = README_md.read_text(encoding='utf-8')
 
 setup(
   name='qaboard',
-  version="0.8.2", # __version__ needs to be updated in qaboard/__init__.py as well
+  version="0.8.4", # __version__ needs to be updated in qaboard/__init__.py as well
   license="Apache-2.0",
 
   url="https://github.com/Samsung/qaboard",
@@ -69,7 +69,6 @@ setup(
     'dataclasses', # Backport for python3.6
     'click>=7.0',  # CLI for humans. In v7 they changed CLI command conventions, started using "-" vs "_"
     'requests',    # HTTP for humans
-    'gitpython',   # It's painfully slow, we don't use it anymore, only keep it for backward compatibility. Let's deprecate and remove.
     # Used for serializer flexibility,
     # but we could replace it since it requires a compiler for the optionnal C-extensions at `pip install`-time... 
     # We had issues with Windows users who had VisualStudio, but had not installed a C++ toolchain. 
@@ -81,6 +80,8 @@ setup(
     # TODO: To make installation faster, especially on windows
     #       we should remove this dependency and implement what we need ourselves.
     'sklearn',
+    # TODO: only a dev dependency
+    'green', 
   ],
 
   extras_require={

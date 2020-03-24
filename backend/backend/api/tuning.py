@@ -14,8 +14,8 @@ import yaml
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
-from qatools.iterators import iter_inputs
-from qatools.conventions import deserialize_config
+from qaboard.iterators import iter_inputs
+from qaboard.conventions import deserialize_config
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -116,11 +116,6 @@ def get_group():
     else:
       qatools_config = project.data["qatools_config"]
 
-    default_configuration = qatools_config.get('inputs', {}).get('configuration', "default")
-    if not (isinstance(default_configuration, list) or isinstance(default_configuration, tuple)):
-      default_configuration = deserialize_config(default_configuration)
-    # print('group', request.args["name"], groups_paths)
-
 
     has_custom_iter_inputs = False
     # TODO: make it more robust in case of "from iters import *"
@@ -160,19 +155,33 @@ def get_group():
 
     # We don't need to seperate the two cases, but
     # doing so might let us avoid a fork and qa startup...
+    # like in qaboard/config.py
+    config_inputs = qatools_config.get('inputs', {})
+    config_inputs_types = config_inputs.get('types', {})
+    default_input_type = config_inputs_types.get('default', 'default')
+    from qaboard.conventions import get_settings
+    input_settings = get_settings(default_input_type, qatools_config)
+    # like in qaboard/qa.py
+    from qaboard.config import get_default_configuration, get_default_database
+    default_configuration = get_default_configuration(input_settings)
+    default_configurations = deserialize_config(default_configuration)
+    default_database = get_default_database(input_settings)
+    # print('group', request.args["name"], groups_paths)
     try:
         tests = list(
             iter_inputs(
-                [request.args["name"]],
-                groups_paths,
-                project.database,
-                default_configuration,
-                {},
+                [request.args["name"]], # groups
+                groups_paths,           # groups_file,
+                default_database,       # database
+                default_configurations,  # default_configuration
+                'lsf',                # platform
+                {"type": 'lsf'},        # default_job_configuration
                 qatools_config,
+                inputs_settings=input_settings,
             )
         )
         return jsonify({
-            "tests": [{"input_path": str(test.relative_to(database)), "configurations": configuration} for test, configuration, _, database, _ in tests],
+            "tests": [{"input_path": str(run_context.rel_input_path), "configurations": run_context.configurations} for run_context in tests],
             "message": message,
         })
     except Exception as e:
@@ -197,7 +206,7 @@ def start_tuning(hexsha):
         return jsonify("Sorry, the commit id was not found"), 404
 
     if "qatools_config" not in ci_commit.project.data:
-        return jsonify("Please configure `qatools first`"), 404
+        return jsonify("Please create `qaboard.yaml`"), 404
 
     ci_commit.latest_output_datetime = datetime.datetime.now()
     ci_commit.latest_output_datetime = datetime.datetime.now()
@@ -279,7 +288,7 @@ def start_tuning(hexsha):
 
             # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
             f"\nexport CI=true;\n",
-            f"export CI_COMMIT_SHA='{ci_commit.gitcommit.hexsha}';\n",
+            f"export CI_COMMIT_SHA='{ci_commit.hexsha}';\n",
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
             batch_command,
         ]
