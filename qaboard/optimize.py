@@ -15,7 +15,7 @@ import click
 import numpy as np
 
 from .api import NumpyEncoder, batch_info, notify_qa_database
-from .config import commit_id, available_metrics, default_batches_files
+from .config import commit_id, commit_ci_dir, available_metrics, default_batches_files
 from .conventions import batch_dir
 from .utils import PathType
 
