@@ -566,7 +566,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   """Save the results at a standard location"""
   import filecmp
-  from qatools.config import is_in_git_repo, qatools_config_paths
+  from .config import is_in_git_repo, qatools_config_paths
   from .utils import copy, file_info
   from .compat import cased_path
 
