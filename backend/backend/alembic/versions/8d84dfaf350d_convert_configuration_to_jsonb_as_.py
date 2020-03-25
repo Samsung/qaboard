@@ -76,7 +76,7 @@ def upgrade():
 
 def downgrade():
   print('Downgrading extra_parameters')
-  op.alter_column('outputs', 'extra_parameters', type_=sa.dialects.postgresql.JSON, postgresql_using='extra_parameters::josnb::text')
+  op.alter_column('outputs', 'extra_parameters', type_=sa.dialects.postgresql.JSON, postgresql_using='extra_parameters::jsonb::text')
 
   print(f'Removing idx_outputs_filter [{time.time() - start:.1f}s]')
   op.drop_index('idx_outputs_filter')

@@ -20,7 +20,7 @@ from .runners.lsf import LsfPriority
 from .conventions import batch_dir, make_prefix_outputs_path, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
-from .utils import save_outputs_manifest
+from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams
 from .utils import getenvs
 from .api import url_to_dir, print_url
@@ -286,7 +286,11 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     with (output_directory / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
-  save_outputs_manifest(output_directory, config=config)
+  outputs_manifest = save_outputs_manifest(output_directory, config=config)
+  output_data = {
+    'storage': total_storage(outputs_manifest),
+  }
+
 
   if save_manifests_in_database:
     if full_input_path.is_file():
@@ -297,7 +301,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
 
   if not context.obj.get('offline') and not context.obj.get('dryrun'):
-    notify_qa_database(**context.obj, metrics=metrics, is_pending=False, is_running=False)
+    notify_qa_database(**context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
 
   return metrics
 

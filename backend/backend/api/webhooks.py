@@ -191,8 +191,9 @@ def new_output_webhook():
                                         )
   output.output_type = data.get('input_type', '')
 
+  output.data = data.get('data', {})
   # we can only trust CI outputs to run on the exact code from the commit
-  output.data = data.get('data', {"ci": data['job_type'] == 'ci'})
+  output.data["ci"] = data['job_type'] == 'ci'
   if output.deleted:
     output.deleted = False
 

@@ -287,6 +287,8 @@ def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=Tr
   return output_files
 
 
+def total_storage(manifest):
+  return sum([f['st_size'] for f in manifest.values()])
 
 
 def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Tuple[Dict, str]:
