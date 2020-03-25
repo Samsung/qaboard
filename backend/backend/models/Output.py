@@ -36,7 +36,7 @@ class Output(Base):
 
   batch_id = Column(Integer(), ForeignKey('batches.id'), index=True)
   batch = relationship("Batch", back_populates="outputs",)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow)
+  created_date = Column(DateTime, default=datetime.datetime.utcnow, index=True) # TODO make it desc
   # when we delete an output we still keep the metadata and manifest
   # to *really* delete it, feel free to delete Output.output_dir and remove the row
   deleted = Column(Boolean(), default=False)
