@@ -64,20 +64,21 @@ class PlatformTag extends React.Component {
 
 class ConfigurationsTags extends React.Component {
   render() {
-    const configurations = this.props.configurations
+    const configurations = this.props.configurations;
     const intent = this.props.intent || Intent.PRIMARY;
 
     // Some configuration key names are used and shown by viewers
     // we don't display them here...
-    const reserved_keys = ["roi", "auto_rois"]
+
+    const reserved_keys = [] //"roi", "auto_rois"]
     const tags = configurations.map((c, idx) => {
       const is_object = typeof (c) !== 'string';
       if (is_object) {
         reserved_keys.forEach(key => {
           delete c[key];
         })
-        if (Object.keys(c).length === 0)
-          return <span key={idx} />
+        // if (Object.keys(c).length === 0)
+        //   return <span key={idx} />
       }
       return <Tag
         intent={intent}
