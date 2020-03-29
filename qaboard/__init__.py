@@ -1,5 +1,5 @@
 # need to be update setup.py as well
-__version__ = '0.8.4'
+__version__ = '0.8.5'
 from .check_for_updates import check_for_updates
 check_for_updates()
 
