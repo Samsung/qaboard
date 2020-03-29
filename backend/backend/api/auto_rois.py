@@ -7,18 +7,14 @@ import time  # for Debugging purpose
 from math import sqrt, ceil
 
 import numpy as np
+from skimage import io
 from skimage.color import deltaE_cie76, rgb2lab, rgb2yiq
-from skimage.viewer import ImageViewer  # for Debugging purpose
 from skimage.transform import rescale
 from skimage.feature import blob_dog # blob_log, blob_doh
-from skimage import io
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 
 from requests.utils import unquote
 from flask import request, jsonify
 
-from cde.image import read_image
 from qaboard.api import url_to_dir 
 from backend import app
 from ..models import Output
@@ -104,6 +100,7 @@ def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
   print("delta size:",delta.size)
   print(delta.max())
   np.savetxt("/home/itamarp/delta.txt", delta)
+  from skimage.viewer import ImageViewer  # for Debugging purpose
   viewer = ImageViewer((delta)) #, plugins=[])
   viewer.show()
   '''
@@ -167,6 +164,9 @@ def pixelmatch(img1, img2) :
 ################################################################################
 @app.route("/api/v1/output/diff/report", methods=['GET', 'POST'])
 def get_rois():
+  import matplotlib.pyplot as plt
+  from matplotlib.backends.backend_pdf import PdfPages
+
   data = request.get_json()
   # Directory URLs begin with /s/
   report_folder = Path(data['output_dir_url_new'][2:]) / "reports"
@@ -183,7 +183,6 @@ def get_rois():
 
   image_1 = io.imread(Path(new_url))
   image_2 = io.imread(Path(ref_url))
-
 
   with PdfPages(report_path) as pdf:
 
