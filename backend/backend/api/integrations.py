@@ -230,6 +230,8 @@ def jenkins_build_trigger():
       "Jenkins-Crumb": os.environ['JENKINS_USER_CRUMB'],
     }
   }
+  if 'build_url' not in data:
+      return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
   build_url = re.sub("/$", "", data['build_url'])
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
