@@ -132,7 +132,7 @@ class Batch(Base):
     Note: You should call .stop() before
     """
     for output in self.outputs:
-      if only_failed and not output.deleted:
+      if only_failed and not output.is_failed:
         continue
       output.delete(soft=False)
       session.delete(output)
