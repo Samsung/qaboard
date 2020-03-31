@@ -5,6 +5,7 @@ log.txt
 ssl/
 
 image.batches.yaml
+iter.batches.yaml
 
 *.png
 *.jpg

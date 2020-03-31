@@ -95,9 +95,7 @@ class OutputCardsList extends React.Component {
         )}
         {!!ref_batch.label && ref_batch.label !== "default" && this.props.sorted_extra_parameters.length > 0 && (
           <Section><Callout intent={Intent.WARNING}>
-            We compare each output to <strong>any</strong> reference outputs
-            with matching recording+configuration+platform,{" "}
-            <strong>without looking at the tuning parameters</strong>.
+            We compare each output to the most matching reference output, <strong>but FYI there is no matching based on tuning parameters</strong>.
           </Callout></Section>
         )}
         <div

@@ -30,6 +30,7 @@ def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
 
 
 def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10) -> Iterator[Union[str, List[str], Tuple[str, ...]]]:
+  # TODO: Expose an API that -> Iterator[str], after all the recursive calls.
   if not depth:
     yield from chain.from_iterable(names)
   if isinstance(names, tuple) or isinstance(names, list):
@@ -150,14 +151,14 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 
-def iter_inputs(batches: List[str], batches_files: List[Path], database: Path, default_configurations: List, default_platform: str, default_job_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
+def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: Path, default_configurations: List, default_platform: str, default_job_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
   """
   Returns an iterator over the (input_path, configurations, runner-configuration) from the selected batches
   # TODO: allow changing the entrypoint per-batch
   """
-  available_batches = {}
-  for p in batches_file:
-    new_batches = yaml.load(Path(p).open(), Loader=yaml.SafeLoader)
+  available_batches: Dict = {}
+  for batches_file in batches_files:
+    new_batches = yaml.load(open(batches_file), Loader=yaml.SafeLoader)
     if new_batches and isinstance(new_batches, dict):
       # deep-merge the aliases
       old_aliases = available_batches.get('aliases', {})
@@ -175,7 +176,7 @@ def iter_inputs(batches: List[str], batches_files: List[Path], database: Path, d
 
 
   batch_aliases = available_batches.get('aliases', {})
-  batches = list(resolve_aliases(batches, batch_aliases))
+  batches = list(resolve_aliases(batches, batch_aliases)) # type: ignore
 
   runner = default_job_configuration.get('type', 'local')
 
@@ -212,8 +213,8 @@ def iter_inputs(batches: List[str], batches_files: List[Path], database: Path, d
     else:
       batch_inputs_settings = inputs_settings
     batch_inputs_settings.update(available_batches[batch])
-    locations = available_batches[batch].get('inputs', available_batches[batch].get('tests'))
 
+    locations = available_batches[batch].get('inputs', available_batches[batch].get('tests'))
     if not locations:
       # run all inputs matching only/exclude
       inputs_iter = _iter_inputs(None, batch_database, batch_inputs_settings, qatools_config, only=batch_only, exclude=batch_exclude)
@@ -222,7 +223,7 @@ def iter_inputs(batches: List[str], batches_files: List[Path], database: Path, d
 
     # We also allow each input to have its settings...
     if isinstance(locations, list):
-      locations_as_dict = {}
+      locations_as_dict: Dict = {}
       for l in locations:
         if l in locations:
           if not isinstance(l, dict):

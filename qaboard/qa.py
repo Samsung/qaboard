@@ -365,7 +365,7 @@ local_config = config.get('runners', {}).get('local', {})
     ignore_unknown_options=True,
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
-@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
+@click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
@@ -656,7 +656,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
 @qa.command()
 @click.pass_context
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
-@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+@click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 def check_bit_accuracy_manifest(ctx, batches, batches_files):
     """
   Checks the bit accuracy of the results in the current ouput directory
@@ -710,7 +710,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
     help="Branch, tag or commit used as reference."
 )
 @click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
-@click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
+@click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--reference-platform', help="Compare against a difference platform.")
 def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platform):
     """
