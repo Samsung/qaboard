@@ -16,19 +16,20 @@ class TestQaCliSubproject(unittest.TestCase):
   @classmethod
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
-    os.chdir('qaboard/sample_project/subproject')
+    os.chdir(Path(__file__).resolve().parent.parent / 'qaboard/sample_project' / 'subproject')
     # we create some files...
     os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
+    database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
       "inputs": ['cli_tests'],
-      # "database": str(Path().resolve())
+      "database": {"linux": database, "windows": database} 
       }
     }
     # TODO: use a temp file?
-    with Path('../image.batches.yaml').open('w') as f:
+    with Path('../sub.batches.yaml').open('w') as f:
       f.write(yaml.dump(images))
-    os.environ['QA_DATABASE'] = str(Path().resolve())
+    os.environ['QA_DATABASE'] = database
     os.environ['QA_OFFLINE'] = 'true'
 
   @classmethod
@@ -73,31 +74,31 @@ class TestQaCliSubproject(unittest.TestCase):
     assert result.exit_code == 0
 
   def test_sub_batch_list(self):
-    result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list')
+    result = self.qa('--dryrun', 'batch', '--batches-file', 'sub.batches.yaml', 'images', '--list')
     tests = json.loads(result.stdout)
     assert len(tests) == 3
     assert result.exit_code == 0
 
   def test_sub_batch_list_output_dirs(self):
-    result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-output-dirs')
+    result = self.qa('--dryrun', 'batch', '--batches-file', 'sub.batches.yaml', 'images', '--list-output-dirs')
     output_dirs = result.stdout.splitlines()
     assert len(output_dirs) == 3
     assert result.exit_code == 0
 
   def test_sub_batch_list_inputs(self):
-    result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-inputs')
+    result = self.qa('--dryrun', 'batch', '--batches-file', 'sub.batches.yaml', 'images', '--list-inputs')
     output_dirs = result.stdout.splitlines()
     assert len(output_dirs) == 3
     assert result.exit_code == 0
 
   def test_sub_runner_local(self):
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
     # print('stdout:', result.stdout)
     # print('stderr:', result.stderr)
     assert result.exit_code == 0
 
   def test_sub_runner_lsf(self):
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
     assert result.exit_code == 0
 
 

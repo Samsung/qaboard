@@ -18,7 +18,7 @@ class TestQaCli(unittest.TestCase):
     os.chdir(Path(__file__).resolve().parent.parent / 'qaboard/sample_project')
     # we create some files...
     os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
-    database = str(Path().resolve())
+    database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
       "inputs": ['cli_tests'],
