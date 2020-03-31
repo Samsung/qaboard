@@ -102,7 +102,7 @@ For convenience you can define aliases for groups you often run together. For in
 
 ```yaml
 # qa/batches.yaml
-groups:
+aliases:
   two-batches:
   - first-batch
   - second-batch

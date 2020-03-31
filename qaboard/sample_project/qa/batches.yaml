@@ -110,11 +110,11 @@ you-can-also-give-an-LSF-configuration-per-input:
 
 ## Groups of groups ###########################################################
 # For convenience you can define aliases for groups of batches you often run together:
-groups:
+aliases:
   ci:
     - basic-list-of-inputs
     - you-can-override-the-default-configuration
-# => those 2 groups will run with `qa batch ci`
+# => those 2 batches will run with `qa batch ci`
 
 
 
