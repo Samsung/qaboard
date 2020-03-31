@@ -8,6 +8,9 @@ import yaml
 
 # TODO: test support for inputs types
 
+
+root_dir = Path(__file__).parent.parent.resolve()
+
 class TestIterators(unittest.TestCase):
   def test_flatten(self):
     from qaboard.iterators import flatten
@@ -66,7 +69,7 @@ class TestIterators(unittest.TestCase):
     with Path('iter.batches.yaml').open('w') as f:
       f.write(sample_batches_yaml)
     def get_batch(batch):
-      database = Path(__file__).parent.parent.resolve() / Path("qaboard/sample_project/cli_tests")
+      database = root_dir / Path("qaboard/sample_project/cli_tests")
       return list(iter_inputs(
         [batch],
         [Path('iter.batches.yaml')],
@@ -75,10 +78,10 @@ class TestIterators(unittest.TestCase):
         default_platform='linux',
         default_job_configuration={"type": "local"},
         qatools_config={
-          "project": {"entrypoint": Path("qaboard/sample_project/qa/main.py")},
+          "project": {"entrypoint": root_dir / "qaboard/sample_project/qa/main.py"},
           "inputs": {
             "globs": '*.txt',
-            "database": Path("qaboard/sample_project/cli_tests"),
+            "database": {"linux": database, "windows": database},
           }
         },
         inputs_settings=None,
@@ -86,39 +89,37 @@ class TestIterators(unittest.TestCase):
       ))
 
     batches = get_batch('my-batch')
-    assert len(batches) == 2
-    assert batches[0].configurations == []
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, [])
 
     batches = get_batch('you-can-override-the-default-database')
-    assert len(batches) == 3
+    self.assertEqual(len(batches), 3)
 
     batches = get_batch('you-can-override-runner-config')
-    assert batches[0].job_options['param'] == 'value'
+    self.assertEqual(batches[0].job_options['param'], 'value')
 
     batches = get_batch('using-a-custom-configuration')
-    assert batches[0].configurations == ['base']
+    self.assertEqual(batches[0].configurations, ['base'])
 
     batches = get_batch('multiple-configurations')
-    assert batches[0].configurations == ['base', 'low-light']
+    self.assertEqual(batches[0].configurations, ['base', 'low-light'])
 
     batches = get_batch('configurations-can-be-complex-objects')
-    assert batches[0].configurations == ['base', 'low-light', {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
+    self.assertEqual(batches[0].configurations, ['base', 'low-light', {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}])
 
     batches = get_batch('each-input-can-have-its-own-configuration')
-    assert batches[0].configurations == ['base']
-    assert batches[1].configurations == ['base', 'low-light', {"cde": ["-DD"]}]
+    self.assertEqual(batches[0].configurations, ['base'])
+    self.assertEqual(batches[1].configurations, ['base', 'low-light', {"cde": ["-DD"]}])
 
     batches = get_batch('my-alias')
-    assert len(batches) == 2
+    self.assertEqual(len(batches), 2)
 
     batches = get_batch('you-can-override-globs')
-    assert len(batches) == 1
+    self.assertEqual(len(batches), 1)
 
     # batches-can-be-paths
     batches = get_batch('../cli_tests/dir')
-    print([b.input_path for b in batches])
-    assert len(batches) == 1
-
+    self.assertEqual(len(batches), 1)
 
 
 
@@ -192,6 +193,8 @@ aliases:
   my-alias:
   - my-batch
 """
+sample_batches_yaml = sample_batches_yaml.replace("qaboard/sample_project", str(root_dir / Path("qaboard/sample_project")))
+
 
 if __name__ == '__main__':
   unittest.main()

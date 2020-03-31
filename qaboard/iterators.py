@@ -158,7 +158,11 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
   """
   available_batches: Dict = {}
   for batches_file in batches_files:
-    new_batches = yaml.load(open(batches_file), Loader=yaml.SafeLoader)
+    try:
+      new_batches = yaml.load(open(batches_file), Loader=yaml.SafeLoader)
+    except Exception as e:
+      click.secho(f"ERROR: Invalid YAML: {batches_file}", err=True)
+      raise e
     if new_batches and isinstance(new_batches, dict):
       # deep-merge the aliases
       old_aliases = available_batches.get('aliases', {})
@@ -166,7 +170,7 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
       available_batches.update(new_batches)
       available_batches['aliases'] = {**old_aliases, **new_aliases}
   if debug:
-    click.secho(str(available_batches), dim=True)
+    click.secho(str(available_batches), dim=True, err=True)
 
   if not inputs_settings:
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
@@ -184,7 +188,7 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
     click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
 
   for batch in batches:
-    if debug: click.secho(f'batch: {batch}', dim=True)
+    if debug: click.secho(f'batch: {batch}', dim=True, err=True)
 
     # We can ask for two types of batches:
     # 1. All inputs under a given folder in the database
