@@ -15,19 +15,20 @@ class TestQaCli(unittest.TestCase):
   @classmethod
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
-    os.chdir('qaboard/sample_project')
+    os.chdir(Path(__file__).resolve().parent.parent / 'qaboard/sample_project')
     # we create some files...
     os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
+    database = str(Path().resolve())
     images = {'images': {
       "globs": ['*.jpg'],
       "inputs": ['cli_tests'],
-      # "database": str(Path().resolve())
+      "database": {"linux": database, "windows": database} 
       }
     }
     # TODO: use a temp file?
     with Path('image.batches.yaml').open('w') as f:
       f.write(yaml.dump(images))
-    os.environ['QA_DATABASE'] = str(Path().resolve())
+    os.environ['QA_DATABASE'] = database
     os.environ['QA_OFFLINE'] = 'true'
 
   @classmethod

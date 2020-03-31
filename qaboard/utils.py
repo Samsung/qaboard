@@ -97,7 +97,7 @@ def entrypoint_module(config):
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
-    click.secho(f'Add to qaboard.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='yellow', err=True, dim=True)
+    click.secho(f'Add to qaboard.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='red', err=True, dim=True)
     return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
