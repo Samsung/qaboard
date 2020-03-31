@@ -68,8 +68,8 @@ def groups():
             )
 
 
-def get_commit_groups_paths(project, commit_id):
-  groups_paths = []
+def get_commit_batches_paths(project, commit_id):
+  batches_paths = []
   try:
     ci_commit = CiCommit.query.filter(
         CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
@@ -83,8 +83,8 @@ def get_commit_groups_paths(project, commit_id):
     # custom groups have priority over the commit's groups
     for group_file in commit_group_files:
       if (ci_commit.repo_commit_dir / group_file).exists():
-        groups_paths.insert(0, ci_commit.repo_commit_dir / group_file)
-    return groups_paths
+        batches_paths.insert(0, ci_commit.repo_commit_dir / group_file)
+    return batches_paths
   except NoResultFound:
     return []
 
@@ -98,13 +98,13 @@ def get_group():
     project = Project.get_or_create(session=db_session, id=project_id)
 
     message = None
-    groups_paths = [get_groups_path(project_id)]
+    batches_paths = [get_groups_path(project_id)]
     commit_id = request.args.get("commit")
     if commit_id:
-      commit_groups_paths = get_commit_groups_paths(project, commit_id)
-      if not commit_groups_paths:
+      commit_batches_paths = get_commit_batches_paths(project, commit_id)
+      if not commit_batches_paths:
         message = "<p>Could not load the <code>inputs.batches</code> files defined in <em>qaboard.yaml</em>.</p><p>For tuning to work, <code>qa save-artifacts</code> needs to be called.</p>"
-      groups_paths = [*commit_groups_paths, *groups_paths]
+      batches_paths = [*commit_batches_paths, *batches_paths]
       try:
           ci_commit = CiCommit.query.filter(
               CiCommit.project_id == project_id,
@@ -132,7 +132,7 @@ def get_group():
         cmd = ' '.join([
             'qa',
             'batch',
-            *list(itertools.chain.from_iterable((('--batches-file', f'"{f}"') for f in groups_paths))),
+            *list(itertools.chain.from_iterable((('--batches-file', f'"{f}"') for f in batches_paths))),
             '--list',
             request.args["name"],
         ])
@@ -166,12 +166,12 @@ def get_group():
     default_configuration = get_default_configuration(input_settings)
     default_configurations = deserialize_config(default_configuration)
     default_database = get_default_database(input_settings)
-    # print('group', request.args["name"], groups_paths)
+    # print('group', request.args["name"], batches_paths)
     try:
         tests = list(
             iter_inputs(
-                [request.args["name"]], # groups
-                groups_paths,           # groups_file,
+                [request.args["name"]], # batches
+                batches_paths,           # batches_files,
                 default_database,       # database
                 default_configurations,  # default_configuration
                 'lsf',                # platform
@@ -219,7 +219,7 @@ def start_tuning(hexsha):
         return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
 
 
-    groups_paths = [*get_commit_groups_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
+    batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
@@ -252,7 +252,7 @@ def start_tuning(hexsha):
             f"--platform '{data['platform']}'" if "platform" in data else "",
             f"--label '{data['batch_label']}'",
             "optimize" if do_optimize else "batch",
-            ' '.join([f'--batches-file "{p}"' for p in groups_paths]),
+            ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
             f"--batch '{data['selected_group']}'",
             config_option,
             f"{overwrite} --no-wait" if not do_optimize else '',
