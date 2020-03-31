@@ -327,7 +327,7 @@ class CommitNavbar extends React.Component {
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested for failed outputs."});
-                  axios.delete(`/api/v1/batch/${batch.id}/`)
+                  axios.delete(`/api/v1/batch/${batch.id}/?only_failed=true`)
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
@@ -346,7 +346,7 @@ class CommitNavbar extends React.Component {
                 text="Delete All Outputs"
                 intent={Intent.DANGER}
                 minimal
-                disabled={this.state.waiting || batch.label === 'default'}
+                disabled={this.state.waiting}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});
