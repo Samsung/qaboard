@@ -122,17 +122,17 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(len(batches), 1)
 
     # matrices
-    # batches = get_batch('matrix-configurations')
-    # self.assertEqual(len(batches), 2)
-    # self.assertEqual(batches[0].configurations, ['base'])
-    # self.assertEqual(batches[1].configurations, ['base', 'delta'])
+    batches = get_batch('matrix-configurations')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['base'])
+    self.assertEqual(batches[1].configurations, ['base', 'delta'])
 
-    # batches = get_batch('matrix-configurations-and-per-input')
-    # self.assertEqual(len(batches), 1)
-    # self.assertEqual(batches[0].configurations, ['base', 'calibration'])
+    batches = get_batch('matrix-configurations-and-per-input')
+    self.assertEqual(len(batches), 1)
+    self.assertEqual(batches[0].configurations, ['base', 'calibration'])
 
-    # batches = get_batch('matrix-many')
-    # self.assertEqual(len(batches), 8)
+    batches = get_batch('matrix-many')
+    self.assertEqual(len(batches), 8)
 
     batches = get_batch('matrix-keep-type')
     self.assertEqual(len(batches), 2)
