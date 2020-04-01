@@ -2,15 +2,16 @@
 Iterators over inputs, parameters...
 """
 import os
-import sys
 import re
+import sys
+import json
+import numbers
 import fnmatch
 import traceback
+from copy import copy
 from pathlib import Path
 from itertools import chain
-import numbers
-import json
-
+from dataclasses import replace
 from typing import List, Union, Dict, Tuple, Iterator, cast
 
 import yaml
@@ -159,7 +160,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 
-def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: Path, default_configurations: List, default_platform: str, default_job_configuration, qatools_config, inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
+def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_database: Path, default_configurations: List, default_platform: str, default_job_configuration, qatools_config, default_inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
   """
   Returns an iterator over the (input_path, configurations, runner-configuration) from the selected batches
   # TODO: allow changing the entrypoint per-batch
@@ -180,25 +181,27 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
   if debug:
     click.secho(str(available_batches), dim=True, err=True)
 
-  if not inputs_settings:
-    inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
-  else:
-    from copy import copy
-    inputs_settings = copy(inputs_settings)
-
-
   batch_aliases = available_batches.get('aliases', {})
   batches = list(resolve_aliases(batches, batch_aliases)) # type: ignore
-
-  runner = default_job_configuration.get('type', 'local')
-
   if not batches:
-    click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found matching "{path}" under "{database}".', fg='red', err=True)
+      click.secho(f'ERROR: No batch was chosen.', fg='red', err=True)
       raise ValueError 
     else:
-      click.secho(f'WARNING: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
+      click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
+
+  if not default_inputs_settings:
+    inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
+  else:
+    inputs_settings = copy(default_inputs_settings)
+  run_context = RunContext(
+    input_path=Path(),
+    database=default_database,
+    configurations=default_configurations,
+    platform=default_platform,
+    job_options=default_job_configuration,
+    type=inputs_settings['type']
+  )
 
   for batch in batches:
     if debug: click.secho(f'batch: {batch}', dim=True, err=True)
@@ -208,34 +211,73 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
     if batch not in available_batches:
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
-      inputs_iter = _iter_inputs(batch, database, inputs_settings, qatools_config)
-      yield from (RunContext(input_path=i, database=database, configurations=default_configurations, platform=default_platform, job_options=default_job_configuration, type=inputs_settings['type']) for i in inputs_iter)
+      inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
+      yield from (replace(run_context, input_path=i) for i in inputs_iter)
+    else:
+      yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
+
+
+def deep_interpolate(value, replaced: str, to_value):
+  if isinstance(value, dict):
+    return {k: deep_interpolate(v, replaced, to_value) for k, v in value.items()}
+  elif isinstance(value, list):
+    return [deep_interpolate(v, replaced, to_value) for v in value]
+  elif isinstance(value, str):
+    if value == replaced:
+      return to_value
+    else:
+      return value.replace(replaced, str(to_value))
+  else:
+    return value
+
+
+def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug):
+    # Happens often when there is an orphan "my-batch:" in in the yaml file
+    if batch is None:
       return
 
-    # 2. Those defined in the batches_files
-    if available_batches[batch] is None:
-      continue # happens often when there is an orphan "my-batch:" in in the yaml file
+    run_context = copy(default_run_context)
+    run_context.database = Path(batch.get('database', {}).get('windows' if os.name=='nt' else 'linux', run_context.database))
+    run_context.configurations = batch.get('configurations', batch.get('configuration', run_context.configurations))
+    run_context.configurations = list(flatten(run_context.configurations))
+    if 'platform' in batch:
+      run_context.platform = batch['platform']
+    runner = run_context.job_options.get('type', 'local')
+    if batch.get(runner):
+      run_context.job_options = {**run_context.job_options, **batch[runner]}
 
-    batch_only = available_batches[batch].get('only')
-    batch_exclude = available_batches[batch].get('exclude')
-    batch_platform = available_batches[batch].get('platform', default_platform)
-    # Each batch can define his own default runtime and runner configuration
-    batch_job_configuration = {**default_job_configuration, **available_batches[batch].get(runner, {})}
-    batch_configuration = available_batches[batch].get('configurations', available_batches[batch].get('configuration', default_configurations))
-    batch_configuration = list(flatten(batch_configuration))
-    batch_database = Path(available_batches[batch].get('database', {}).get('windows' if os.name=='nt' else 'linux', database))
-    if 'type' in available_batches[batch]:
-      batch_type = available_batches[batch]['type']
-      batch_inputs_settings = get_settings(batch_type, qatools_config)
+    if 'type' in batch:
+      run_context.type = batch['type']
+      inputs_settings = get_settings(batch['type'], qatools_config)
     else:
-      batch_inputs_settings = inputs_settings
-    batch_inputs_settings.update(available_batches[batch])
+      inputs_settings = copy(default_inputs_settings)
+    inputs_settings.update(batch)
 
-    locations = available_batches[batch].get('inputs', available_batches[batch].get('tests'))
+    if batch.get('matrix'):
+      from sklearn.model_selection import ParameterGrid
+      for matrix in ParameterGrid(batch['matrix']):
+        batch_ = copy(batch)
+        for key in ['matrix', 'configuration', 'configurations', 'platform']:
+          if key in batch:
+            del batch_[key]
+        matrix_run_context = copy(run_context)
+        if 'platform' in matrix:
+          matrix_run_context.platform = matrix['platform']
+        if 'configuration' in matrix:
+          matrix_run_context.configurations = matrix['configuration']
+        if 'configurations' in matrix:
+          matrix_run_context.configurations = matrix['configurations']
+        for param, value in matrix.items():
+          if param in ['configuration', 'configurations', 'platform']:
+            continue
+          matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, '${matrix.%s}' % param, value)
+        yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
+      return
+
+    locations = batch.get('inputs', batch.get('tests'))
     if not locations:
-      # run all inputs matching only/exclude
-      inputs_iter = _iter_inputs(None, batch_database, batch_inputs_settings, qatools_config, only=batch_only, exclude=batch_exclude)
-      yield from (RunContext(input_path=i, database=batch_database, configurations=batch_configuration, platform=batch_platform, job_options=batch_job_configuration, type=batch_inputs_settings['type']) for i in inputs_iter)
+      inputs_iter = _iter_inputs(None, run_context.database, inputs_settings, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'))
+      yield from (replace(run_context, input_path=i) for i in inputs_iter)
       return
 
     # We also allow each input to have its settings...
@@ -249,47 +291,37 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
             locations_as_dict.update(l)
       locations = locations_as_dict
 
-    for location, location_configuration in locations.items():
-      if not location_configuration:
-        location_platform = batch_platform
-        location_configuration = batch_configuration
-        location_database = batch_database
-        location_job_configuration = batch_job_configuration
-        location_inputs_settings = batch_inputs_settings
-      else:
-        if isinstance(location_configuration, dict):
-          location_job_configuration = {**batch_job_configuration, **location_configuration.get(runner, {})}
-          location_database = Path(location_configuration.get('database', {}).get('windows' if os.name=='nt' else 'linux', batch_database))
-          if 'type' in location_configuration:
-            location_type = location_configuration['type']
-            location_inputs_settings = get_settings(location_type, qatools_config)
-          else:
-            location_inputs_settings = batch_inputs_settings
-          location_inputs_settings.update(location_configuration)
+    for location, location_configurations in locations.items():
+      location_run_context = copy(run_context)
+      location_inputs_settings = inputs_settings
+      if location_configurations:
+        if isinstance(location_configurations, dict):
+          if location_configurations.get(runner):
+            location_run_context.job_options = {**location_run_context.job_options, **location_configurations[runner]}
+          if 'database' in location_configurations:
+            location_run_context.database = Path(location_configurations.get('database', {}).get('windows' if os.name=='nt' else 'linux'))
+          if 'platform' in batch:
+            location_run_context.platform = location_configurations['platform']
+          location_inputs_settings = copy(inputs_settings)
+          if 'type' in location_configurations:
+            location_run_context.type = location_configurations['type']
+            location_inputs_settings = get_settings(location_run_context.type, qatools_config)
+          location_inputs_settings.update(location_configurations) # todo: only the keys below
           for k in ['type', 'database', runner, 'platform', 'glob', 'globs', 'use_parent_folder']:
-            if k in location_configuration:
-              del location_configuration[k]
-          if 'configurations' not in location_configuration and 'configurations' not in location_configuration:
-            location_configuration = [*batch_configuration, location_configuration]
+            if k in location_configurations:
+              del location_configurations[k]
+          if location_configurations and 'configurations' not in location_configurations and 'configurations' not in location_configurations:
+            location_run_context.configurations = [*location_run_context.configurations, location_configurations]
           else:
-            patch_config = location_configuration.get('configurations', location_configuration.get('configuration', []))
-            location_configuration = [*batch_configuration, *patch_config]
-        elif isinstance(location_configuration, list):
-          location_configuration = list(flatten(location_configuration))
-          location_configuration = [*batch_configuration, *location_configuration]
-          location_platform = batch_platform
-          location_database = batch_database
-          location_job_configuration = batch_job_configuration
-          location_inputs_settings = batch_inputs_settings
+            patch_config = location_configurations.get('configurations', location_configurations.get('configuration', []))
+            location_run_context.configurations = [*location_run_context.configurations, *patch_config]
+        elif isinstance(location_configurations, list):
+          location_run_context.configurations = [*location_run_context.configurations, *list(flatten(location_configurations))]
         else: # string?
-          location_platform = batch_platform
-          location_configuration =  [*batch_configuration, location_configuration]
-          location_database = batch_database
-          location_job_configuration = batch_job_configuration
-          location_inputs_settings = batch_inputs_settings
-      if debug: click.secho(str(location_database / location), bold=True, fg='cyan', err=True)
-      inputs_iter = _iter_inputs(location, location_database, location_inputs_settings, qatools_config, only=batch_only, exclude=batch_exclude)
-      yield from (RunContext(input_path=i, database=location_database, configurations=location_configuration, platform=location_platform, job_options=location_job_configuration, type=location_inputs_settings['type']) for i in inputs_iter)
+          location_run_context.configurations =  [*location_run_context.configurations, location_configurations]
+      if debug: click.secho(str(location_run_context.database / location), bold=True, fg='cyan', err=True)
+      inputs_iter = _iter_inputs(location, location_run_context.database, location_inputs_settings, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'))
+      yield from (replace(location_run_context, input_path=i) for i in inputs_iter)
 
 
 

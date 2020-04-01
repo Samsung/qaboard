@@ -73,7 +73,7 @@ class TestIterators(unittest.TestCase):
       return list(iter_inputs(
         [batch],
         [Path('iter.batches.yaml')],
-        database=database,
+        default_database=database,
         default_configurations=[],
         default_platform='linux',
         default_job_configuration={"type": "local"},
@@ -84,7 +84,7 @@ class TestIterators(unittest.TestCase):
             "database": {"linux": database, "windows": database},
           }
         },
-        inputs_settings=None,
+        default_inputs_settings=None,
         # debug=True,
       ))
 
@@ -111,15 +111,37 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(batches[0].configurations, ['base'])
     self.assertEqual(batches[1].configurations, ['base', 'low-light', {"cde": ["-DD"]}])
 
-    batches = get_batch('my-alias')
-    self.assertEqual(len(batches), 2)
-
     batches = get_batch('you-can-override-globs')
     self.assertEqual(len(batches), 1)
+
+    batches = get_batch('my-alias')
+    self.assertEqual(len(batches), 2)
 
     # batches-can-be-paths
     batches = get_batch('../cli_tests/dir')
     self.assertEqual(len(batches), 1)
+
+    # matrices
+    batches = get_batch('matrix-configurations')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['base'])
+    self.assertEqual(batches[1].configurations, ['base', 'delta'])
+
+    batches = get_batch('matrix-configurations-and-per-input')
+    self.assertEqual(len(batches), 1)
+    self.assertEqual(batches[0].configurations, ['base', 'calibration'])
+
+    batches = get_batch('matrix-many')
+    self.assertEqual(len(batches), 8)
+
+    batches = get_batch('matrix-keep-type')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['base', {"param": 1}])
+    self.assertEqual(batches[1].configurations, ['base', {"param": 2}])
+    batches = get_batch('matrix-interpolate')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['base', 'config-v1', {"version": "v1"}])
+    self.assertEqual(batches[1].configurations, ['base', 'config-v2', {"version": "v2"}])
 
 
 
@@ -148,7 +170,6 @@ you-can-override-globs:
    - a.txt
    - b.txt
 
-
 using-a-custom-configuration:
   configurations:
   - base
@@ -161,7 +182,6 @@ multiple-configurations:
     - low-light
   inputs:
   - a.txt
-#=> configurations == ["base", "low-light"]
 
 configurations-can-be-complex-objects:
   configurations:
@@ -173,8 +193,6 @@ configurations-can-be-complex-objects:
       - "-it BAYER10"
   inputs:
   - a.txt
-# configurations == ["base", "low-light", {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
-
 
 each-input-can-have-its-own-configuration:
   configurations:
@@ -188,10 +206,53 @@ each-input-can-have-its-own-configuration:
         - "-DD"
     #=> configurations == ["base", "low-light", {"cde": ["-DD"]}]
 
-
 aliases:
   my-alias:
   - my-batch
+
+matrix-configurations:
+  inputs:
+  - a.txt
+  matrix:
+    configurations:
+      -
+          - base
+      -
+          - base
+          - delta
+
+matrix-configurations-and-per-input:
+  inputs:
+    a.txt: calibration
+  matrix:
+    configurations: [[base]]
+
+matrix-many:
+  inputs:
+  - a.txt
+  matrix:
+    platform: [linux, windows]
+    parameter: [1, 2]
+    configurations: [[base], [base, delta]]
+
+matrix-keep-type:
+  inputs:
+  - a.txt
+  matrix:
+    param: [1, 2]
+  configurations:
+    - base
+    - param: ${matrix.param}
+
+matrix-interpolate:
+  inputs:
+  - a.txt
+  matrix:
+    version: [1, 2]
+  configurations:
+    - base
+    - config-v${matrix.version}
+    - version: v${matrix.version}
 """
 sample_batches_yaml = sample_batches_yaml.replace("qaboard/sample_project", str(root_dir / Path("qaboard/sample_project")))
 
