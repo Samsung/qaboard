@@ -96,9 +96,68 @@ each-input-can-have-its-own-configuration:
     #=> configurations == ["base", "low-light", {"cde": ["-DD"]}]
 ```
 
-## Organizing your groups of inputs
-### Group aliases
-For convenience you can define aliases for groups you often run together. For instance you can do:
+## Matrix batches
+You can use "matrix" batches to run on combinations of configurations (and platfornms):
+
+```yaml {4-10}
+multiple-configs:
+  inputs:
+  - a.raw
+  matrix:
+    configurations:
+      -
+          - base
+          - tuning
+      -
+          - base
+
+#=> `qa batch multiple-configs` will run
+#   with [base, tuning] and [tuning]
+```
+
+> Per-input extra configurations still work.
+>
+> The syntax was inspired from [DroneCI](https://0-8-0.docs.drone.io/matrix-builds/), [GithubActions](https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idstrategy), [AzurePipelines](https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema?view=azure-devops&tabs=example%2Cparameter-schema#matrix).
+
+### Interpolation
+Matrix variables are interpolated using the `${matrix.variable}` syntax:
+
+```yaml
+my-batch-multiple-configs:
+  inputs:
+  - image.raw
+  matrix:
+    version: [1, 2]
+  configurations:
+    - base-v${matrix.version}
+
+# => will run with [base-v1] and [base-v2]
+```
+
+And elaborate complex testing strategies:
+
+```yaml
+my-batch-multiple-values:
+  inputs:
+  - image.raw
+  matrix:
+    threshold: [1, 2, 3, 4]
+    mode: ["a", "b"]
+  configurations:
+    - base
+    - block.threshold: $matrix.threshold
+    - block.mode: $matrix.mode
+
+# => will start 8 runs run with
+#     [base, block.threshold: 1, block.mode: a
+#     [base, block.threshold: 1, block.mode: b
+#     [base, block.threshold: 2, block.mode: a
+#     etc
+```
+
+
+## Aliases for groups of batches
+For convenience you can define aliases for batches you often run together. For instance you can do:
 
 ```yaml
 # qa/batches.yaml
@@ -111,8 +170,8 @@ aliases:
 qa batch two-batches
 ```
 
-### Configuration aliases
-For convenience you can define YAML aliases for common configurations
+## YAML anchors and aliases
+For convenience you can define YAML anchors for common configurations
 
 ```yaml {1-3,7}
 .base: &base
