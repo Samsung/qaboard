@@ -76,8 +76,12 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   maybe_parent = lambda path: path.parent if use_parent_folder else path
   input_paths = list(database.glob(str(path))) # to support wildcards
   if not input_paths:
-    click.secho(f'Warning: No inputs found for the batch "{path}"', fg='yellow', err=True)
-    return
+    if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
+      click.secho(f'ERROR: No inputs found for the batch "{path}"', fg='red', err=True)
+      raise ValueError 
+    else:
+      click.secho(f'WARNING: No inputs found for the batch "{path}"', fg='yellow', err=True)
+      return
 
   if not globs:
     yield from input_paths
@@ -118,7 +122,11 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   #       yield input_path
 
   if not nb_inputs:
-    click.secho(f'Warning: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
+    if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
+      click.secho(f'ERROR: No inputs found matching "{path}" under "{database}".', fg='red', err=True)
+      raise ValueError 
+    else:
+      click.secho(f'WARNING: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
@@ -186,6 +194,11 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], database: 
 
   if not batches:
     click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
+    if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
+      click.secho(f'ERROR: No inputs found matching "{path}" under "{database}".', fg='red', err=True)
+      raise ValueError 
+    else:
+      click.secho(f'WARNING: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
 
   for batch in batches:
     if debug: click.secho(f'batch: {batch}', dim=True, err=True)
