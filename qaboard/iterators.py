@@ -267,7 +267,6 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           matrix_run_context.configurations = matrix['configuration']
         if 'configurations' in matrix:
           matrix_run_context.configurations = matrix['configurations']
-          del batch_['configurations']
         for param, value in matrix.items():
           if param in ['configuration', 'configurations', 'platform']:
             continue
