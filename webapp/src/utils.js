@@ -294,12 +294,16 @@ const make_eval_templates_recursively = ({project, project_data, branch, ...rest
       project_name_tolower,     // "subproject"
       project_parts_tolower,    // ["group", "project", "my", "subproject"]
       subproject_parts_tolower, // ["my", "subproject"]
-      branch,
-      branch_slug: slug(branch),
       ...rest,
+      // branch,
       // commit,
       // user,
   }
+  if (branch !== undefined){
+    context.branch = branch
+    context.branch_slug = slug(branch)
+  }
+  
   return integration => {
     // try {
       // console.log("[before]", integration)
