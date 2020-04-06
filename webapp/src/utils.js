@@ -284,7 +284,7 @@ const fill_template = (template_string, parameters) => {
 }
 
 
-const make_eval_templates_recursively = ({project, project_data, ...rest }) => {
+const make_eval_templates_recursively = ({project, project_data, branch, ...rest }) => {
   let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
   let subproject = project.slice(project_repo.length + 1);
   let project_parts = project.split('/');
@@ -308,6 +308,11 @@ const make_eval_templates_recursively = ({project, project_data, ...rest }) => {
       // commit,
       // user,
   }
+  if (branch !== undefined){
+    context.branch = branch
+    context.branch_slug = slug(branch)
+  }
+  
   return integration => {
     // try {
       // console.log("[before]", integration)
@@ -322,7 +327,17 @@ const make_eval_templates_recursively = ({project, project_data, ...rest }) => {
   }
 }
 
-
+const slug = text => {
+  const maxlength = 64
+  return text
+    .toString()                     // Cast to string
+    .slice(0, maxlength - 1)        // truncate to maxlength
+    .toLowerCase()                  // Convert the string to lowercase letters
+    .trim()                         // Remove whitespace from both sides of a string
+    .replace(/[^0-9a-z.=]+/g, '-')  // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple '-' with single '-'
+    .replace(/^\-+|\-+$/g, '');     // Remove excess '-' from both sides of a string
+}
 
 
 export {
