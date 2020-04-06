@@ -295,7 +295,7 @@ const make_eval_templates_recursively = ({project, project_data, branch, ...rest
       project_parts_tolower,    // ["group", "project", "my", "subproject"]
       subproject_parts_tolower, // ["my", "subproject"]
       branch,
-      branch_slug: slugify(branch),
+      branch_slug: slug(branch),
       ...rest,
       // commit,
       // user,
@@ -314,11 +314,11 @@ const make_eval_templates_recursively = ({project, project_data, branch, ...rest
   }
 }
 
-function slugify(text) {
+const slug = (text) => {
   const maxlength = 64
-  let newText = text.toString()     // Cast to string
-  newText = newText.slice(0, maxlength - 1)
-  return newText
+  return text
+    .toString()                     // Cast to string
+    .slice(0, maxlength - 1)        // truncate to maxlength
     .toLowerCase()                  // Convert the string to lowercase letters
     .trim()                         // Remove whitespace from both sides of a string
     .replace(/[^0-9a-z.=]+/g, '-')  // Remove all non-word chars
