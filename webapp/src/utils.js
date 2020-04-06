@@ -314,7 +314,7 @@ const make_eval_templates_recursively = ({project, project_data, branch, ...rest
   }
 }
 
-const slug = (text) => {
+const slug = text => {
   const maxlength = 64
   return text
     .toString()                     // Cast to string
