@@ -284,7 +284,7 @@ const fill_template = (template_string, parameters) => {
 }
 
 
-const make_eval_templates_recursively = ({project, project_data, branch, ...rest }) => {
+const make_eval_templates_recursively = ({project, project_data, branch, commit, ...rest }) => {
   let project_repo = (project_data && project_data.data && project_data.data.git && project_data.data.git.path_with_namespace) || '';
   let subproject = project.slice(project_repo.length + 1);
   let project_parts = project.split('/');
@@ -309,8 +309,10 @@ const make_eval_templates_recursively = ({project, project_data, branch, ...rest
       // user,
   }
   if (branch !== undefined){
-    context.branch = branch
     context.branch_slug = slug(branch)
+  }
+  if (commit.branch !== undefined){
+    context.commit.branch_slug = slug(commit.branch)
   }
   
   return integration => {
