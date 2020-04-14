@@ -300,9 +300,11 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
       // user,
   }
   if (branch !== undefined){
+    context.branch = branch
     context.branch_slug = slug(branch)
   }
-  if (commit.branch !== undefined){
+  if ((commit !== undefined) && (commit.branch !== undefined)){
+    context.commit = commit
     context.commit.branch_slug = slug(commit.branch)
   }
   
