@@ -177,10 +177,32 @@ def get_output_manifest(output_id):
 
 
 
-@app.route("/api/v1/commit")
-@app.route("/api/v1/commit/")
-@app.route("/api/v1/commit/<path:commit_id>")
-def get_ci_commit(commit_id=None):
+@app.route("/api/v1/commit", methods=['GET', 'POST'])
+@app.route("/api/v1/commit/", methods=['GET', 'POST'])
+@app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
+def api_ci_commit(commit_id=None):
+  # TODO: clean...
+  if request.method == 'POST':
+    try:
+      commit = CiCommit.get_or_create(
+        session=db_session,
+        hexsha=request.json['git_commit_sha'] if not commit_id else commit_id,
+        project_id=request.json['project'],
+      )
+    except:
+      return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
+    if not commit.data:
+      commit.data = {}
+    commit_data = request.json.get('data', {})
+    commit.data = {**commit.data, **commit_data}
+    flag_modified(commit, "data")
+    if commit.deleted:
+      commit.deleted = False
+    db_session.add(commit)
+    db_session.commit()
+    return jsonify({"status": "OK"})
+
+
   project_id = request.args['project']
   if not commit_id:
     commit_id = request.args.get('commit', None)

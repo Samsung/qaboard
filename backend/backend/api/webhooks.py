@@ -21,28 +21,6 @@ from ..models.Project import update_project
 
 from qaboard.conventions import deserialize_config
 
-@app.route('/api/v1/commit', methods=['POST'])
-@app.route('/api/v1/commit/', methods=['POST'])
-def update_commit():
-  try:
-    commit = CiCommit.get_or_create(
-      session=db_session,
-      hexsha=request.json['git_commit_sha'],
-      project_id=request.json['project'],
-    )
-  except:
-    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
-  if not commit.data:
-    commit.data = {}
-  commit_data = request.json.get('data', {})
-  commit.data = {**commit.data, **commit_data}
-  flag_modified(commit, "data")
-  if commit.deleted:
-    commit.deleted = False
-  db_session.add(commit)
-  db_session.commit()
-  return jsonify({"status": "OK"})
-
 
 @app.route('/api/v1/batch', methods=['POST'])
 @app.route('/api/v1/batch/', methods=['POST'])
