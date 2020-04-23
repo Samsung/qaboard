@@ -177,7 +177,7 @@ def get_group():
                 'lsf',                # platform
                 {"type": 'lsf'},        # default_job_configuration
                 qatools_config,
-                inputs_settings=input_settings,
+                default_inputs_settings=input_settings,
             )
         )
         return jsonify({
