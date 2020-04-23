@@ -15,6 +15,7 @@ from flask import request, jsonify, make_response, redirect
 from sqlalchemy import func, and_, asc, or_
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql import label
 
 from backend import app, db_session
