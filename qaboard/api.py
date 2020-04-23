@@ -28,7 +28,7 @@ else:
   click.secho("         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
   click.secho("       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
   qaboard_url = "http://localhost:5002"
-api_prefix = "{qaboard_url}/api/v1"
+api_prefix = f"{qaboard_url}/api/v1"
 
 
 
