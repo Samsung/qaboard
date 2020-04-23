@@ -22,6 +22,8 @@ config_has_error = False
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
+# When the code is imported we care less about warnings...
+ignore_config_errors = ignore_config_errors or sys.argv[0] != 'qa'
 
 
 def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
