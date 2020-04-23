@@ -1,12 +1,5 @@
 """
-Describes an output from a CI run:
-1. How we ran
-- what version of the code was used
-- on what platform we ran
-- what parameters were used
-2. What results we got
-- metrics: drift, RMSE, AAPE...
-- what assets are available (debug movies...) [todo]
+Describes an Output from `qa run`.
 """
 import re
 import datetime
