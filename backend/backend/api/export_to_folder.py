@@ -216,6 +216,11 @@ def export_to_folder():
     json.dump(common_data, f, sort_keys=True, indent=2, separators=(',', ': '))
 
 
+  # we save a mapping label => full into
+  label_mappings = {
+    'extra_parameters': dict(),
+    'configurations': dict(),
+  }
 
   glob = request.args.get('path', '*')
   for output in new_outputs:
@@ -223,13 +228,8 @@ def export_to_folder():
     if not output_ref:
       output_ref = output
 
-    # we save a mapping label => full into
-    label_mappings = {
-      'extra_parameters': {},
-      'configurations': {},
-    }
 
-    def get_labels(output):
+    def get_labels(output, label_mappings):
       labels = []
       if output.batch.ci_commit.hexsha != common_data.get("commit"):
         labels.append(output.batch.ci_commit.hexsha[:4])
@@ -245,7 +245,8 @@ def export_to_folder():
         stripped_config = stripped_config.replace('workspace-configurations-', '')
         if stripped_config:
           labels.append(stripped_config)
-        label_mappings['configurations'][stripped_config] = output.extra_parameters
+        label_mappings['configurations'][stripped_config] = output.configurations
+        print('label', stripped_config, output.configurations)
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
         p = tame(output.extra_parameters) - tame(common_extra_parameters)
@@ -259,16 +260,12 @@ def export_to_folder():
         if p: labels.append(extra_parameters_label)
       stitch = lambda l: f"@{'@'.join(l)}" if l else ''
       label = stitch(labels)
-      # print('label', label)
       return label
 
 
-    label_new = get_labels(output)
-    label_ref = get_labels(output_ref)
+    label_new = get_labels(output, label_mappings)
+    label_ref = get_labels(output_ref, label_mappings)
 
-    if label_mappings['configurations'] or label_mappings['extra_parameters']:
-      with (export_dir / '0.mappings.json').open('w') as f:
-        json.dump(label_mappings, f, indent=4, sort_keys=True)
 
     for output_path in output.output_dir.glob(glob):
       output_path_rel = output_path.relative_to(output.output_dir)
@@ -281,6 +278,11 @@ def export_to_folder():
           copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
           symlink_to(export_dir / copied_to_rel, output_path_ref)
           # copy(output_path, export_dir / copied_to_rel)
+
+
+  if label_mappings['configurations'] or label_mappings['extra_parameters']:
+    with (export_dir / '0.mappings.json').open('w') as f:
+      json.dump(label_mappings, f, indent=4, sort_keys=True)
 
   params = {
     "batch": new_batch.label,
