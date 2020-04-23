@@ -28,7 +28,7 @@ else:
   click.secho("         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
   click.secho("       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
 
-api_prefix = "{qaboard_url}/api/v1"
+api_prefix = f"{qaboard_url}/api/v1"
 
 # TODO: remove this block
 # For now we use http, until we deal with cert trust issues
