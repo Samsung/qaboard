@@ -3,6 +3,7 @@ import React from "react";
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 import { median as mathjs_median } from "mathjs/number";
+import { levenshtein } from "./levenshtein";
 
 import { ExtraParametersTags, ConfigurationsTags, PlatformTag } from './components/tags'
 
@@ -59,20 +60,52 @@ const pretty_label = batch => {
 
 const empty_output = { metrics: undefined, extra_parameters: {} };
 
+
+
 // Finds the most matching output from a batch
 const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
     8 * ((o.test_input_path !== output.test_input_path) | 0) +
-    4 * ((JSON.stringify(o.configurations) !== JSON.stringify(output.configurations)) | 0) +
+    4 * ((o.configurations_str !== output.configurations_str) | 0) +
     2 * ((o.platform !== output.platform) | 0) +
-    1 * ((JSON.stringify(o.extra_parameters) !== JSON.stringify(output.extra_parameters)) | 0);
+    1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
+
+    output.extra_parameters_str = JSON.stringify(output.extra_parameters)
+    output.configurations_str = JSON.stringify(output.configurations)
+
+  // console.log('MATCHING')
+  // const t0 = performance.now();
 
   let matching_outputs = Object.values(batch.outputs || {})
     .filter(o => !o.is_pending)
     .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
-    .sort((a, b) => match_score(a) - match_score(b));
+    .map(o => {
+      o.configurations_str = JSON.stringify(o.configurations)
+      o.extra_parameters_str = JSON.stringify(o.extra_parameters)
+
+      o.dist_configurations = levenshtein(o.configurations_str, output.configurations_str)
+      o.dist_extra_parameters = levenshtein(o.extra_parameters_str, output.extra_parameters_str)
+      return o;
+    })
+    // .sort((a, b) => match_score(a) - match_score(b));
+    .sort((a, b) => {
+      // +1: b more similar
+      // +-: b less similar
+      const dist_config = a.dist_configurations - b.dist_configurations;
+      if (dist_config !== 0) {
+        return dist_config;
+      }
+      const dist_extra_parameters = a.dist_extra_parameters - b.dist_extra_parameters;
+      if (dist_extra_parameters !== 0) {
+        return dist_extra_parameters;
+      }
+      return (a.platform === output.platform) - (b.platform === output.platform)
+  });
+  
+  // const t1 = performance.now();
+  // console.log("Match took " + (t1 - t0) + " ms.")
 
   let output_ref = matching_outputs[0] || empty_output;
   let ref_match_score = match_score(output_ref);
