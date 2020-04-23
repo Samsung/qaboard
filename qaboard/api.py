@@ -136,8 +136,8 @@ def notify_qa_database(object_type='output', **kwargs):
       return r.json()
     except:
       click.secho(f"WARNING: Can't understand the server response: {r.text}", fg='yellow', err=True)
-  except:
-    click.secho('WARNING: Failed to update QA-Board.', fg='yellow', bold=True, err=True)
+  except Exception as e:
+    click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
     click.secho(url, fg='yellow', err=True)
     click.secho(str(data), fg='yellow', err=True)
     try:
