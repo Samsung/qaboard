@@ -23,6 +23,8 @@ from ..models import Project, CiCommit, Batch, slugify_config
 
 # https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
 def levenshtein(s1, s2):
+    if s1 == "{}" and s2 == "{}":
+      return 0
     if len(s1) < len(s2):
         return levenshtein(s2, s1)
     # len(s1) >= len(s2)
@@ -111,7 +113,7 @@ def matching_output(output_reference, outputs):
       levenshtein(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
       output.platform == output_reference.platform,
     )
-  valid_outputs.sort(key=match_key, reverse=True)
+  valid_outputs.sort(key=match_key)
   return valid_outputs[0]
 
 
@@ -156,6 +158,8 @@ def export_to_folder():
   filter_ref = request.args.get('filter_ref')
   new_outputs = filter_outputs(filter_new, new_outputs)
   ref_outputs = filter_outputs(filter_ref, ref_outputs)
+  print("new_outputs", len(new_outputs))
+  print("ref_outputs", len(ref_outputs))
 
   # We save the links in a unique folder
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
@@ -166,6 +170,9 @@ def export_to_folder():
   output_refs = {}
   for output in new_outputs:
     output_refs[output.id] = matching_output(output, ref_outputs)
+    if output_refs[output.id]:
+      print("  config:", output.configurations)
+      print("  match:", output_refs[output.id].configurations)
 
   # find common characteristics
   common_data = {}
