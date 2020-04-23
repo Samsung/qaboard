@@ -21,6 +21,24 @@ from backend import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_config
 
 
+# https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
+def levenshtein(s1, s2):
+    if len(s1) < len(s2):
+        return levenshtein(s2, s1)
+    # len(s1) >= len(s2)
+    if len(s2) == 0:
+        return len(s1)
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1 # j+1 instead of j since previous_row and current_row are one character longer
+            deletions = current_row[j] + 1       # than s2
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
+
 
 def load_commit(project_id, commit_id):
   if not commit_id: return None
@@ -81,19 +99,17 @@ def matching_output(output_reference, outputs):
   Return the output from from a given batch that looks most similar to a given output.
   This helps us compare an output to historical results.
   """
+  def to_json(a):
+    return json.dumps(a, sort_keys=True)
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending and not o.is_failed]
   if not valid_outputs: return None
 
   def match_key(output):
-    has_meta_id = output.test_input.data and output_reference.test_input.data and output.test_input.data.get('id')
     return (
-      4 if has_meta_id and output.test_input.data.get('id') == output_reference.test_input.data.get('id') else 0 +
-      4 if json.dumps(output.configurations, sort_keys=True) == json.dumps(output_reference.configurations, sort_keys=True) else 0 +
-      # 4 if output.configuration == output_reference.configuration else 0 + # FIXME: a faster property?
-      # we can't test for equality with == because of potentially nested dicts... 
-      2 if output.platform == output_reference.platform else 0 +
-      1 if json.dumps(output.extra_parameters, sort_keys=True) == json.dumps(output_reference.extra_parameters, sort_keys=True) else 0
+      levenshtein(to_json(output.configurations), to_json(output_reference.configurations)), 
+      levenshtein(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
+      output.platform == output_reference.platform,
     )
   valid_outputs.sort(key=match_key, reverse=True)
   return valid_outputs[0]
