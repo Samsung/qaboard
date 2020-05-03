@@ -247,12 +247,19 @@ class ImgViewer extends React.PureComponent {
           this.setState({ loaded: true })
           // https://Openseadragon.github.io/examples/tilesource-iiif/
           // image dimensions
-          const { height, width } = res.data;
+          const { height, width, profile=[] } = res.data;
+          let format = 'jpg';
+          if (profile[1] !== undefined) {
+            const { formats } = profile[1];
+            if (formats.includes('png')) {
+              format = "png";
+            } 
+          }
           let source_config = {
             "@context": "http://iiif.io/api/image/2/context.json",
             protocol: "http://iiif.io/api/image",
             profile: ["http://iiif.io/api/image/2/level2.json"],
-            // formats: ["png"],
+            preferredFormats: [format],
             fitBounds: true,
             height,
             width,
@@ -641,7 +648,6 @@ class ImgViewer extends React.PureComponent {
     //       {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
 
     // const empty_image = <canvas key="empty-image" {...single_image_size} />
-
     return <>
       {error_messages}
       {!has_error && <>
