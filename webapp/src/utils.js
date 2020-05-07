@@ -77,7 +77,7 @@ const matching_output = ({ output, batch }) => {
   // console.log('MATCHING')
   // const t0 = performance.now();
 
-  let matching_outputs = Object.values(batch.outputs || {})
+  let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
     .filter(o => !o.is_pending)
     .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
@@ -123,24 +123,6 @@ const matching_output = ({ output, batch }) => {
   return { output_ref, warning, imperfect_match };
 };
 
-const sortOutputs = (sort_by, order) => {
-  // console.log(sort_by, order)
-  return ([ka, a], [kb, b]) => {
-    const a_value = a.metrics[sort_by] || a.extra_parameters[sort_by] || a[sort_by];
-    const b_value = b.metrics[sort_by] || b.extra_parameters[sort_by] || b[sort_by];
-    if (a_value === undefined || a_value === null) return 1;
-    // console.log(a_value, b_value)
-    if (a_value > b_value) {
-      return order;
-    }
-    if (a_value < b_value) {
-      return -order;
-    }
-    return 0;
-  };
-};
-
-
 const safe_regex = s => {
   // creating regexes with user input can lead to invalid regexes...
   try {
@@ -184,12 +166,25 @@ const match_query = pattern => {
 
 const filter_batch = (batch, filter_values) => {
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
-    return batch;
+    return {
+      outputs: Object.keys(batch.outputs || {}),
+      valid_outputs: batch.valid_outputs,
+      running_outputs: batch.running_outputs,
+      pending_outputs: batch.pending_outputs,
+      failed_outputs: batch.failed_outputs,
+      deleted_outputs: batch.deleted_outputs,    
+    };
 
   const matcher = match_query(filter_values)
 
-  let batch_filtered = Object.create(batch); // copy
-  batch_filtered.outputs = {};
+  let filtered = {
+    outputs: [],
+    valid_outputs: 0,
+    running_outputs: 0,
+    pending_outputs: 0,
+    failed_outputs: 0,
+    deleted_outputs: 0,  
+  }
 
   Object.entries(batch.outputs).forEach(([id, output]) => {
     let extra_parameters = Object.keys(output.extra_parameters || {}).length > 0 ? JSON.stringify(output.extra_parameters || {}) : "";
@@ -199,28 +194,22 @@ const filter_batch = (batch, filter_values) => {
     let pending = output.is_pending ? 'pending running' : ''
     let searched = `${output.test_input_path} ${output.platform} ${configuration} ${metadata} ${extra_parameters} ${failed} ${pending}`;
     searched = searched.replace(/"/g, "")
-    if (matcher(searched))
-      batch_filtered.outputs[id] = output;
+    if (matcher(searched)) {
+      filtered.outputs.push(id);
+      if (output.is_running)
+        filtered.running_outputs += 1
+      else if (output.is_pending && !output.is_running)
+        filtered.pending_outputs += 1
+      else if (output.is_failed)
+        filtered.failed_outputs += 1
+      else
+        filtered.valid_outputs += 1
+      if (output.deleted)
+        filtered.deleted_outputs += 1
+    }
   });
-  // we update the summary metrics
-  batch_filtered.valid_outputs = 0
-  batch_filtered.running_outputs = 0
-  batch_filtered.pending_outputs = 0
-  batch_filtered.failed_outputs = 0
-  batch_filtered.deleted_outputs = 0
-  Object.values(batch_filtered.outputs).forEach(o => {
-    if (o.is_running)
-      batch_filtered.running_outputs += 1
-    else if (o.is_pending && !o.is_running)
-      batch_filtered.pending_outputs += 1
-    else if (o.is_failed)
-      batch_filtered.failed_outputs += 1
-    else
-      batch_filtered.valid_outputs += 1
-    if (o.deleted)
-      batch_filtered.deleted_outputs += 1
-  })
-  return batch_filtered;
+
+  return filtered;
 };
 
 const plotly_palette_colors = [
@@ -377,7 +366,6 @@ export {
   calendarStrings,
   shortId,
   pretty_label,
-  sortOutputs,
   filter_batch,
   match_query,
   hash_numeric,

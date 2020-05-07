@@ -292,11 +292,11 @@ class IntegrationsMenus extends React.Component {
             integration = eval_templates_recusively(integration)
           } catch {
             // console.log('error with integration', integration)
-            return <span/>;
+            return <span key={idx}/>;
           }
           if (!integration) {
             // console.log('undef integration', integration)
-            return <span/>;
+            return <span key={idx}/>;
           }
           // console.log('good', integration)
           if (integration.divider) {

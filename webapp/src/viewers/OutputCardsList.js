@@ -10,7 +10,6 @@ import {
 
 import { Section } from "../components/layout";
 import { BitAccuracyForm } from "./bit_accuracy/utils";
-import { sortOutputs } from "../utils";
 import { OutputCard } from "./OutputCard";
 
 
@@ -20,7 +19,7 @@ class OutputCardsList extends React.Component {
     const params = new URLSearchParams(window.location.search);
 
     this.state = {
-      outputs: this.orderedOutputs(props),
+      outputs: this.makeOutputs(props),
       select_debug: "",
       // bit-accuracy controls
       show_all_files: params.get("show_all_files") === 'true' || false,
@@ -29,13 +28,13 @@ class OutputCardsList extends React.Component {
     };
   }
 
-  orderedOutputs = props => {
-    const { new_batch, sort_by, sort_order } = props;
+  makeOutputs = props => {
+    const { new_batch } = props;
     if (new_batch === undefined || new_batch === null)
       return []
-    return Object.entries(new_batch.outputs)
-                 .filter( ([id, output]) => output.output_type !== "optim_iteration")
-                 .sort(sortOutputs(sort_by, sort_order))
+    return new_batch.filtered.outputs
+      .map( id => [id, new_batch.outputs[id]])
+      .filter( ([id, output]) => output.output_type !== "optim_iteration")
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -48,7 +47,7 @@ class OutputCardsList extends React.Component {
     let updated_ref_batch = has_ref_batch && (!had_ref_batch || (had_ref_batch && prevProps.ref_batch !== this.props.ref_batch))
 
     if (updated_outputs || updated_ref_batch) {
-      this.setState({outputs: this.orderedOutputs(this.props)})      
+      this.setState({outputs: this.makeOutputs(this.props)})      
     }
 }
 
@@ -92,11 +91,6 @@ class OutputCardsList extends React.Component {
               style={{ width: "300px" }}
             />
           </FormGroup>
-        )}
-        {!!ref_batch.label && ref_batch.label !== "default" && this.props.sorted_extra_parameters.length > 0 && (
-          <Section><Callout intent={Intent.WARNING}>
-            We compare each output to the most matching reference output, <strong>but FYI there is no matching based on tuning parameters</strong>.
-          </Callout></Section>
         )}
         <div
           style={{

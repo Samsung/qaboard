@@ -197,8 +197,8 @@ class BatchLogs extends React.PureComponent {
 
     const title = pretty_label(batch)
     return <>
-      {Object.values(batch.outputs)
-            .filter( output => output.output_type !== "optim_iteration")
+      {batch.filtered.outputs.map(id => batch.outputs[id])
+            .filter( o => o.output_type !== "optim_iteration")
             .map(output => <OutputLog
               key={output.id}
               project={this.props.project}

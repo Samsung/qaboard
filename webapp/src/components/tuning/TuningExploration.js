@@ -501,19 +501,8 @@ class TuningExploration extends Component {
     const { batch } = props;
     if (batch === undefined || batch === null) return {};
 
-    // tuned_parameters holds all tuning values used for each parameter
-    let tuned_parameters = {};
-    Object.entries(batch.outputs).forEach(([id, o]) => {
-      Object.entries(o.extra_parameters).forEach(([param, value]) => {
-        if (tuned_parameters[param] === undefined)
-          tuned_parameters[param] = new Set();
-          tuned_parameters[param].add(value);
-      });
-    });
-    // we sort tuned parameters by the number of different values that were used
-    let sorted_parameters = Object.entries(tuned_parameters)
-      .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
-      .map(([k, v]) => k);
+    const tuned_parameters = batch.extra_parameters
+    const sorted_parameters = batch.sorted_extra_parameters
     return {
       tuned_parameters,
       sorted_parameters,
@@ -602,7 +591,12 @@ class TuningExploration extends Component {
     if (!batch)
       return <p>Loading...</p>;
 
-    if (sorted_parameters.length===0 && Object.keys(batch.outputs).length > 0)
+    let outputs = {}
+    batch.filtered.outputs.forEach(id => {
+      outputs[id] = batch.outputs[id]
+    })
+    let total_outputs = batch.filtered.outputs.length;
+    if (sorted_parameters.length===0 && total_outputs > 0)
       return <Callout>You did not do any parameter tuning.</Callout>
 
     let selected_parameter = this.state.selected_parameter;
@@ -614,8 +608,7 @@ class TuningExploration extends Component {
 
     let show_2d_sensibility = sorted_parameters.length > 1 && tuned_parameters[sorted_parameters[1]].size > 1;
 
-    let total_outputs = Object.keys(batch.outputs).length;
-    let number_inputs = Object.keys(groupBy(Object.values(batch.outputs), "test_input_path")).length;
+    let number_inputs = Object.keys(groupBy(Object.values(outputs), "test_input_path")).length;
 
     const batch_data = batch.data || {};
     let filtered_best_metrics = batch_data.best_metrics!==undefined ? Object.keys(batch_data.best_metrics)
@@ -643,7 +636,7 @@ class TuningExploration extends Component {
         </>}
 
         <ParallelTuningPlot
-          outputs={batch.outputs}
+          outputs={outputs}
           main_metric={metric}
           metrics={main_metrics.map(m => available_metrics[m])}
           parameters={sorted_parameters}
@@ -706,7 +699,7 @@ class TuningExploration extends Component {
             />
           </FormGroup>
           <Sensibility2DContour
-            outputs={batch.outputs}
+            outputs={outputs}
             metric={metric}
             available_metrics={available_metrics}
             parameters={[selected_parameter, selected_parameter_2]}
@@ -719,7 +712,7 @@ class TuningExploration extends Component {
         </>}
 
         {number_inputs>1 && <Sensibility1DBoxplots
-          outputs={batch.outputs}
+          outputs={outputs}
           metric={metric}
           available_metrics={available_metrics}
           parameter={selected_parameter}
@@ -732,7 +725,7 @@ class TuningExploration extends Component {
           onChange={e => {this.setState({ relative: !relative });}}
         />
         <Sensibility1DLines
-          outputs={batch.outputs}
+          outputs={outputs}
           metric={metric}
           available_metrics={available_metrics}
           parameter={selected_parameter}
@@ -752,7 +745,7 @@ class TuningExploration extends Component {
           />
         </FormGroup>
         <EfficientFrontierPlot
-          outputs={batch.outputs}
+          outputs={outputs}
           metric_x={metric}
           metric_y={metric2}
           available_metrics={available_metrics}

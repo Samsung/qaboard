@@ -23,11 +23,13 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { match_query } from "./utils";
 
 import { fetchCommits } from "./actions/projects";
+import { updateSelected } from "./actions/selected";
 
 import { empty_batch, default_date_range } from "./defaults";
 import {
   projectSelector,
   projectDataSelector,
+	configSelector,
   commitsDataSelector,
   commitsSelector,
   commitSelector,
@@ -115,12 +117,12 @@ class Dashboard extends React.Component {
       this.deselectMetric(this.getSelectedMetricIndex(metric));
     }
   };
-  selectSortBy = e => {
-    this.setState({ sort_by: e.target.value });
-  };
-  selectOrder = e => {
-    this.setState({ sort_order: e.target.value });
-  };
+
+  update = (attribute, attribute_url) => e => {
+  	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
+    this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
+  } 
+
 
   render() {
     const { project_data, project, commits, available_metrics, output_filter } = this.props;
@@ -141,8 +143,8 @@ class Dashboard extends React.Component {
     </Container>
 
 
-    const { new_commit, ref_commit, new_batch_filtered, ref_batch_filtered } = this.props;
-    const has_reference = !!ref_batch_filtered && !!ref_batch_filtered.outputs && Object.keys(ref_batch_filtered.outputs).length > 0
+    const { new_commit, ref_commit, new_batch, ref_batch } = this.props;
+    const has_reference = !!ref_batch && !!ref_batch.filtered && !!ref_batch.filtered.outputs && Object.keys(ref_batch.filtered.outputs).length > 0
 
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = (
@@ -162,7 +164,7 @@ class Dashboard extends React.Component {
       />
     );
 
-    let outputs_nb = Object.keys(new_batch_filtered.outputs).length
+    let outputs_nb = Object.keys(new_batch.filtered.outputs).length
     let count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} output{outputs_nb > 1 ? 's' : ''}</p> : <span/>
     return (
       <Container style={{paddingTop: '50px'}}>
@@ -198,8 +200,8 @@ class Dashboard extends React.Component {
                 selected_metrics={selected_metrics}
                 project={project}
                 project_data={project_data}
-                new_batch={new_batch_filtered}
-                ref_batch={ref_batch_filtered}
+                new_batch={new_batch}
+                ref_batch={ref_batch}
               />
             </Card>
           </Section>
@@ -215,7 +217,7 @@ class Dashboard extends React.Component {
               selected_metrics={selected_metrics}
               project={project}
               project_data={project_data}
-              new_batch={new_batch_filtered}
+              new_batch={new_batch}
               ref_batch={empty_batch}
             />
           </Card>
@@ -237,10 +239,8 @@ class Dashboard extends React.Component {
                 title="vs KPI"
                 panel={
                   <TableKpi
-                    sort_order={this.props.sort_order}
-                    sort_by={this.props.sort_by}
-                    new_batch={new_batch_filtered}
-                    ref_batch={ref_batch_filtered}
+                    new_batch={new_batch}
+                    ref_batch={ref_batch}
                     metrics={selected_metrics}
                     input={metricTableSelect}
                   />
@@ -251,10 +251,8 @@ class Dashboard extends React.Component {
                   id="table-compare"
                   panel={
                     <TableCompare
-                      sort_order={this.props.sort_order}
-                      sort_by={this.props.sort_by}
-                      new_batch={new_batch_filtered}
-                      ref_batch={ref_batch_filtered}
+                      new_batch={new_batch}
+                      ref_batch={ref_batch}
                       metrics={selected_metrics}
                       input={metricTableSelect}
                     />
@@ -264,8 +262,8 @@ class Dashboard extends React.Component {
               <Tabs.Expander />
                 <HTMLSelect
                   defaultValue={this.state.sort_by}
-                  onChange={this.selectSortBy}
-                >
+                  onChange={this.update('sort_by')}
+                  >
                   <option value="test_input_path">Sort by Name</option>
                   {Object.values(available_metrics).map(m => (
                     <option key={m.key} value={m.key}>
@@ -273,7 +271,7 @@ class Dashboard extends React.Component {
                     </option>
                   ))}
               </HTMLSelect>
-              <HTMLSelect defaultValue="descending" onChange={this.selectOrder}>
+              <HTMLSelect defaultValue="descending" onChange={this.update('sort_order')}>
                 <option value={-1}>descending</option>
                 <option value={1}>ascending</option>
               </HTMLSelect>
@@ -300,18 +298,17 @@ const mapStateToProps = (state, ownProps) => {
 
     let {
       selected_batch_new,
-      new_batch_filtered,
-      ref_batch_filtered,
+      new_batch,
+      ref_batch,
     } = batchSelector(state)
 
 
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
 
-    const commit_qatools_metrics  = ((new_commit   || {}).data || {}).qatools_metrics;
-    const project_qatools_metrics = ((project_data || {}).data || {}).qatools_metrics;
-    const metrics = commit_qatools_metrics || project_qatools_metrics
-    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = metrics
+    let { project_config, project_metrics } = configSelector(state)
+
+    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
     let aggregation_metrics = {};
     (dashboard_metrics || main_metrics || []).filter(m => available_metrics[m] !== undefined)
     .forEach(m => {
@@ -321,6 +318,7 @@ const mapStateToProps = (state, ownProps) => {
     return {
       params,
       project,
+      project_config,
       project_data,
       date_range: commits_data.date_range,
       commits: commits.filter(c => !!c),
@@ -335,8 +333,8 @@ const mapStateToProps = (state, ownProps) => {
       is_loading: commits_data.is_loading,
       // outputs
       selected_batch_new,
-      new_batch_filtered,
-      ref_batch_filtered,
+      new_batch,
+      ref_batch,
       // metrics
       aggregation_metrics,
       evolution_metrics: (dashboard_evolution_metrics || main_metrics || []),
@@ -348,8 +346,8 @@ const mapStateToProps = (state, ownProps) => {
 
       breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || true,
       output_filter: selected.filter_batch_new,
-      sort_by: params.get("sort_by") || selected.sort_by || metrics.default_metric || "input_test_path",
-      sort_order: params.get("sort_order") || selected.sort_order || -1,
+      sort_by: selected.sort_by,
+      sort_order: selected.sort_order || 'input_test_path',
     }
 }
 
