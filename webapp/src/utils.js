@@ -77,7 +77,7 @@ const matching_output = ({ output, batch }) => {
   // console.log('MATCHING')
   // const t0 = performance.now();
 
-  let matching_outputs = Object.values(batch.outputs || {})
+  let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
     .filter(o => !o.is_pending)
     .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
