@@ -136,7 +136,8 @@ class Batch(Base):
         continue
       output.delete(soft=False)
       session.delete(output)
-    session.delete(self)
+    if not only_failed:
+      session.delete(self)
     session.commit()
 
 
