@@ -564,7 +564,7 @@ class CommitsEvolutionPerTest extends React.Component {
 
       var legend = <div style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}>
         {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
-            {hovered_test_input_path} @{hovered_test_configurations}
+            {hovered_test_input_path} @{JSON.stringify(hovered_test_configurations)}
         </Tag>}
         {(!!hovered_label && hovered_label !== "default") && <Tag style={{ marginLeft: "15px" }}>{hovered_label}</Tag>}
         <CommitRow

@@ -428,15 +428,16 @@ class MetricsSummary extends Component {
     if (new_batch === null) return <span />;
 
     let xaxis_labels = this.props.xaxis_labels || ["New", "Reference"];
-    let outputs_new = Object.values(new_batch.outputs)
+    let outputs_new = new_batch.filtered.outputs
+                     .map(id => new_batch.outputs[id])
                      .filter(o => !o.is_pending)
                      .filter(o => o.output_type!=="optim_iteration");                    
     let run_types_new = new Set(outputs_new.map(o => run_type(o)));
-    let outputs_ref = Object.values(ref_batch.outputs)
-      .filter(o => run_types_new.has(run_type(o)))
-      .filter(o => !o.is_pending);
     run_types_new = new Set(outputs_new.map(o => o.test_input_path));
-    outputs_ref = Object.values(ref_batch.outputs)
+    // we only how ref outputs with a matching input+config+platform
+    // it's debatable, maybe we should show all, or filter also on tuning params...
+    let outputs_ref = ref_batch.filtered.outputs
+      .map(id => ref_batch.outputs[id])
       .filter(o => run_types_new.has(o.test_input_path))
       .filter(o => !o.is_pending);
 
@@ -447,14 +448,6 @@ class MetricsSummary extends Component {
         <Button icon="cross" minimal={true} onClick={this.handleClearMetrics} />
       ) : null;
 
-    // what parameters were changed?
-    let tuned_parameters = new Set();
-    Object.entries(new_batch.outputs).forEach(([id, o]) => {
-      Object.keys(o.extra_parameters).forEach(p => {
-        tuned_parameters.add(p);
-      });
-    });
-    let tuned_parameters_array = Array.from(tuned_parameters);
 
     if (breakdown_by_tag) {
       var tags = {};
@@ -481,7 +474,7 @@ class MetricsSummary extends Component {
     let batch_data = new_batch.data || {};
     return (
       <div>
-        {(!batch_data.optimization && tuned_parameters_array.length > 0) && (
+        {(!batch_data.optimization && new_batch.sorted_extra_parameters.length > 0) && (
           <Callout intent={Intent.WARNING}>
             For <strong>manual tuning</strong>, you may see below results with the tuning <strong>parameters mixed together.</strong>
           </Callout>

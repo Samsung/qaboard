@@ -101,29 +101,30 @@ class BatchStatusMessages extends React.Component {
       </Callout>
     )
 
-    let some_pending = Object.values(batch.outputs).some(o => o.is_pending);
+    const outputs = batch.filtered.outputs.map(id => batch.outputs[id])
+    let some_pending = outputs.some(o => o.is_pending);
     let stop_runs = some_pending && <Callout>
       <Button icon="stop" disabled={!!this.state.waiting_stop} onClick={() => this.stop_batch(batch)} minimal>Stop runs</Button>
     </Callout>
 
 
-    let running_message = batch.running_outputs > 0 && (
+    let running_message = batch.filtered.running_outputs > 0 && (
       <Callout
         icon="info-sign"
         intent={Intent.SUCCESS}
         title={
           <Tooltip>
             <span>
-              {batch.running_outputs} running
+              {batch.filtered.running_outputs} running
             </span>
             <SimpleOutputList
-              outputs={Object.values(batch.outputs).filter(o => o.is_running)}
+              outputs={outputs.filter(o => o.is_running)}
             />
           </Tooltip>
         }
       />
     )
-    let nb_pending = batch.pending_outputs - batch.running_outputs;
+    let nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
     let pending_message = nb_pending > 0 && (
       <Callout
         icon="info-sign"
@@ -134,31 +135,31 @@ class BatchStatusMessages extends React.Component {
               {nb_pending} pending
             </span>
             <SimpleOutputList
-              outputs={Object.values(batch.outputs).filter(o => o.is_pending && !o.is_running)}
+              outputs={outputs.filter(o => o.is_pending && !o.is_running)}
               intent={Intent.WARNING}
             />
           </Tooltip>
         }
       />
     )
-    let failed_message = batch.failed_outputs > 0 && (
+    let failed_message = batch.filtered.failed_outputs > 0 && (
       <Callout
         icon="error"
         intent={Intent.DANGER}
-        title={`${batch.failed_outputs} crashed`}
+        title={`${batch.filtered.failed_outputs} crashed`}
       >
         <p>Be sure to read the logs.</p>
         <SimpleOutputList
-          outputs={Object.values(batch.outputs).filter(o => o.is_failed)}
+          outputs={outputs.filter(o => o.is_failed)}
           intent={Intent.DANGER}
         />
       </Callout>
     )
 
-    let deleted_message = batch.deleted_outputs > 0 && (
+    let deleted_message = batch.filtered.deleted_outputs > 0 && (
       <Callout
         icon="trash"
-        title={`${batch.deleted_outputs} of the outputs below were deleted`}
+        title={`${batch.filtered.deleted_outputs} of the outputs below were deleted`}
       >
         <Button
           icon="redo"

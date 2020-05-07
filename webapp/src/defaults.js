@@ -112,8 +112,8 @@ export const default_selected = () => {
 
         // filter the list of commits / batches
         search: params.get("search") || "",
-		// sort_order: params.get("sort_order") || "",
-		// sort_by: params.get("sort_by") || "",
+		sort_order: params.get("sort_order") || -1,
+		sort_by: params.get("sort_by") || undefined, // undefined to be overriden by the default metric,
 	}
 	if (!!params.get("selected_views")) {
 		selected.selected_views = [params.get("selected_views")]

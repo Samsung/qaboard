@@ -203,13 +203,13 @@ class CommitNavbar extends React.Component {
           style={{marginTop: '36px'}}
           labelFor={`filter-${type}-input`}
           helperText={type === 'new' ? <Tooltip>
-            <><BatchTags batch={batch}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
+            <><BatchTags batch={batch.filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
             <ul>
               <li>You can use negative filters: <code>-2X5</code></li>
               <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
               <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
             </ul>
-          </Tooltip> : <BatchTags batch={batch}/>}
+          </Tooltip> : <BatchTags batch={batch.filtered}/>}
         >
           <InputGroup
             value={this.props.filter}
@@ -323,7 +323,7 @@ class CommitNavbar extends React.Component {
                 text="Delete Failed Outputs"
                 intent={Intent.DANGER}
                 minimal
-                disabled={this.state.waiting || batch.label === 'default'}
+                disabled={this.state.waiting}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested for failed outputs."});

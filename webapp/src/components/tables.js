@@ -13,7 +13,6 @@ import {
 
 import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
-import { sortOutputs } from "../utils";
 
 const metric_formatter = v => format(v, {precision: 3})
 const percent_formatter = new Intl.NumberFormat("en-US", {
@@ -101,18 +100,17 @@ const QualityCell = ({ metric, metrics }) => {
 const TableCompare = ({
   new_batch,
   ref_batch,
-  sort_order,
-  sort_by,
   metrics,
   input,
   labels
 }) => {
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
-  let outputs = Object.entries(new_batch.outputs)
+
+  const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
     .filter(([id, o]) => !o.is_pending)
-    .filter(([id, o]) => o.output_type!=="optim_iteration")
-    .sort(sortOutputs(sort_by, sort_order));
+    .filter(([id, o]) => o.output_type!=="optim_iteration");
+
   const metrics_ = metrics.filter(m => outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
@@ -167,18 +165,15 @@ const TableCompare = ({
 const TableKpi = ({
   new_batch,  
   ref_batch,
-  sort_order,
-  sort_by,
   metrics,
   input,
   labels
 }) => {
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Ref"];
-  let outputs = Object.entries(new_batch.outputs)
+  const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
     .filter(([id, o]) => !o.is_pending)
-    .filter(([id, o]) => o.output_type!=="optim_iteration")
-    .sort(sortOutputs(sort_by, sort_order));
+    .filter(([id, o]) => o.output_type!=="optim_iteration");
   const metrics_ = metrics.filter(m => outputs.some(([id, o])  => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>

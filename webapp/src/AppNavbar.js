@@ -128,8 +128,8 @@ class AppNavbar extends Component {
       new_commit,
       ref_commit,
       selected_batch_new,
-      new_batch_filtered,
-      ref_batch_filtered,
+      new_batch,
+      ref_batch,
       filter_batch_new,
       filter_batch_ref,
       dispatch,
@@ -146,7 +146,7 @@ class AppNavbar extends Component {
             update={this.update}
             commits={commits}
             commit={new_commit}
-            batch={new_batch_filtered}
+            batch={new_batch}
             filter={filter_batch_new}
             project={project}
             project_data={project_data}
@@ -160,7 +160,7 @@ class AppNavbar extends Component {
             update={this.update}
             commit={ref_commit}
             commits={commits}
-            batch={ref_batch_filtered}
+            batch={ref_batch}
             filter={filter_batch_ref}
             project={project}
             project_data={project_data}
