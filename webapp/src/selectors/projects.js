@@ -127,6 +127,10 @@ export const batchSelector = createSelector([selectedSelector, commitSelector, c
 
     let new_batch = ((!!new_commit && !!new_commit.batches) ? new_commit.batches[selected_batch_new] : empty_batch) || empty_batch;
     let ref_batch = ((!!ref_commit && !!ref_commit.batches) ? ref_commit.batches[selected_batch_ref] : empty_batch) || empty_batch;
+    if (new_batch.id === ref_batch.id) {
+      // can be same! need to make a copy...
+      ref_batch = Object.create(new_batch);
+    }
     if (new_batch.outputs === undefined || new_batch.outputs === null) new_batch.outputs = {}
     if (ref_batch.outputs === undefined || ref_batch.outputs === null) ref_batch.outputs = {}
 
