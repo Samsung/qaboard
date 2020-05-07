@@ -253,6 +253,7 @@ class CiCommitResults extends Component {
             onChange={this.update('sort_by')}
           >
             <option value="test_input_path">Sort by Name</option>
+            <option value="id">Sort by ID</option>
             {new_batch.sorted_extra_parameters.map(
               param =>
                 <option key={param} value={param}>
