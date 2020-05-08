@@ -19,10 +19,10 @@ Well enough! Just call `python2 your_code.py` as any other executable.
 
 ## Where are results saved?
 - **Local runs** are saved under the *output/* directory in the project.
-- **During CI runs**, results are saved under the `ci_root` defined in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L119). To be honest, the exact naming conventions is complicated... **Export the data using the UI's export utilities, or ask qatools' simple API.** 
+- **During CI runs**, results are saved under the `ci_root` defined in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L119). To be honest, the exact naming conventions is complicated... **Export the data using the UI's export utilities, or ask QA-Board' simple API.** 
 
 ## Can I export the data or use a third-party viewer?
-**Yes!** All the outputs are saved as files, and qatools provides multiple ways to get them out.
+**Yes!** All the outputs are saved as files, and QA-Board provides multiple ways to get them out.
 
 :::caution
 At the moment nothing prevents your from modifying/destroying files created from the CI.
@@ -38,4 +38,4 @@ At the moment nothing prevents your from modifying/destroying files created from
 3. **From the Navigation bar**, you can copy-to-clipboard the windows-ish path where each commit saves its results:
 <img alt="Export batch outputs" src={useBaseUrl('img/export-files-commit.jpg')} />
 
-4. You can also **programmatically access qatools's data** by [querying its API](api).
+4. You can also **programmatically access QA-Board's data** by [querying its API](api).

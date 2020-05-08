@@ -1,6 +1,6 @@
 ---
 id: ci-integration
-title: Integrating qatools with your CI
+title: Integrating QA-Board with your CI
 sidebar_label: CI Integration
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -15,12 +15,12 @@ This said, you can still view your results in the web application by using `qa -
 
 
 ## Requirement
-- Make sure your Gitlab project has an integration with qatools. If you're not sure if/how, review the [qatools setup guide](project-init). You should be able to see your project in the QA-Board web application.
+- Make sure your Gitlab project has an integration with QA-Board. If you're not sure if/how, review the [setup guide](project-init). You should be able to see your project in the QA-Board web application.
 
 <img alt="Index of the projects" src={useBaseUrl('img/projects-index.jpg')} />
 
-## Running qatools in your CI
-1. **Have your CI launch qatools:** With GitlabCI, you would do something like:
+## Running QA-Board in your CI
+1. **Have your CI launch QA-Board:** With GitlabCI, you would do something like:
 
 ```yaml
 # gitlab-ci.yml
@@ -32,7 +32,7 @@ qa-tests:
 ```
 
 :::note
-You CI is responsible for setting up an environment (`$PATH`...) in which qatools is installed! Consider using `docker`, or sourcing a configuration file...
+You CI is responsible for setting up an environment (`$PATH`...) in which `qaboard` is installed! Consider using `docker`, or sourcing a configuration file...
 :::
 
 2. **Push a commit to Gitlab**. If your CI is successful, the commit will appear in your project's page: 
@@ -41,7 +41,7 @@ You CI is responsible for setting up an environment (`$PATH`...) in which qatool
 
 
 ## Example with GitlabCI
-> qatools knows how to work with the most common CI tools: GitlabCI, Jenkins...
+> QA-Board knows how to work with the most common CI tools: GitlabCI, Jenkins...
 
 ```yaml
 # .gitlab-ci.yaml
@@ -62,7 +62,7 @@ qa-tests
 ```
 
 ## Optionnal CI helpers
-qatools is not a CI tool, but it provide some utilities to run code only in some branches:
+QA-Board is not a CI tool, but it provide some utilities to run code only in some branches:
 
 :::caution
 This logic is usually better expressed in your CI tool itself.
@@ -70,7 +70,7 @@ This logic is usually better expressed in your CI tool itself.
 
 ```python
 # ci.py
-from qatools.ci_helpers import on_branch, run_tests
+from qaboard.ci_helpers import on_branch, run_tests
 
 @on_branch('develop')
 def my_tests():

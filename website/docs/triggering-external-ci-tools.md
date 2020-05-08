@@ -119,7 +119,7 @@ $JENKINS_URL/me/descriptorByName/jenkins.security.ApiTokenProperty/generateNewTo
 ```
 
 :::caution
-Since you'll commit those credentials with the code, make sure you don't have too many privileges... At some point qatools will support *secrets*. 
+Since you'll commit those credentials with the code, make sure you don't have too many privileges... At some point QA-Board will support *secrets*. 
 :::
 
 2. Get a crumb to handle [Jenkins' CSRF](https://support.cloudbees.com/hc/en-us/articles/219257077-CSRF-Protection-Explained), eg at *$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)*

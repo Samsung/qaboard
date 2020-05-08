@@ -7,7 +7,7 @@ sidebar_label: Batches of Inputs
 Make sure you read [the section on input files](inputs)
 :::
 
-As we discussed, you can define batches of inputs in file(s) whose paths are given by `inputs.batches` in your [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L25) configuration.
+As we discussed, you can define batches of inputs in file(s) whose paths are given by `inputs.batches` in your [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L25) configuration.
 
 ```yaml
 # qa/batches.yaml (default)

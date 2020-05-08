@@ -9,7 +9,7 @@ Input metadata are useful to:
 - Decide **what metrics to compute** on your outputs
 
 
-To enable metadata support in qatools, implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
+To enable metadata support in QA-Board, implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
 
 ```python
 # qa/main.py (qaboard.yaml: project.entrypoint)
@@ -29,7 +29,7 @@ If you define `metadata.label` it will be used in the UI instead of the input pa
 QA-Board will compares runs with different input if they have the same `metadata.id`. A common use-case is comparing images from different sensors taken in the same conditions.
 :::
 
-Qatools will forward metadata to your `run()` function as `ctx.obj['input_metadata']`.
+QA-Board will forward metadata to your `run()` function as `ctx.obj['input_metadata']`.
 
 
 ### Using metadata to filter batches of inputs
@@ -54,7 +54,7 @@ qa batch inputs-filtered-using-metadata
 ```
 
 ## Integrating with external input databases
-Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with qatools, implement in your project's entrypoint a function that iterates over inputs given a query:
+Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
 
 ```python
 # qa/main.py
@@ -63,7 +63,7 @@ def iter_inputs(path, database, only, exclude, inputs_settings):
   #       and execute something like
   #       f"SELECT test, metadata from tests where path LIKE {path} and database={database}"
   # OPTIONALLY: return filtered inputs using only/exclude
-  #             even if you don't do it, qatools will always re-filter
+  #             even if you don't do it, qa-board will always re-filter
   #             but doing it yourself in SQL can be much more efficient
   return ({"absolute_input_path": database / p.path, "metadata": p.metadata} for p in inputs)
 
@@ -72,5 +72,5 @@ def iter_inputs(path, database, only, exclude, inputs_settings):
 ```
 
 :::note
-Currently, you still have to write a `metadata()` function for `run()` to receive the metadata or for qatools to use them in the UI.
+Currently, you still have to write a `metadata()` function for `run()` to receive the metadata or for QA-Board to use them in the UI.
 :::

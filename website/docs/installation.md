@@ -10,7 +10,7 @@ To use QA-Board you need it `pip install` the `qaboard` package. On both Linux a
 pip install --upgrade qaboard
 ```
 
-To make sure the installation was successful, try printing a list of qatools' CLI commands:
+To make sure the installation was successful, try printing a list of `qa`'s CLI commands:
 
 ```bash
 qa --help

@@ -30,7 +30,7 @@ If you already have great development/debugging tools, use them!
 
 > You can continue to use the existing tools!
 
-This said, it's worth having your IDE/debugger/scripts call your code via qatools' CLI. [Here is how to do it](debugging).
+This said, it's worth having your IDE/debugger/scripts call your code via QA-Board's `qa` CLI. [Here is how to do it](debugging).
 
 ### **Local configs > SharedStorage > Tuning from QA-Board** Workflow
 > Details: WIP

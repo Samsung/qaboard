@@ -21,7 +21,7 @@ You need to configure a task runner, that will execute tuning runs asynchronousl
 
 
 ### Build Artifacts
-1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qatools/sample_project/qaboard.yaml#L85):
+1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L85):
 
 ```yaml
 artifacts:
@@ -32,7 +32,7 @@ artifacts:
     glob: configurations/*.json
 ```
 
-> For convenience, *.qaboard.yaml* and *qatools/* are saved automatically.
+> For convenience, *.qaboard.yaml* and *qa/* are saved automatically.
 
 2. **Save the artifacts** when your build/training is done. In your CI, you will want to execute:
 

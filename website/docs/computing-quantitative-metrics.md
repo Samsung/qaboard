@@ -5,7 +5,7 @@ title: Computing quantitative metrics
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Algorithms are usually evaluated using KPIs / Objective Figures of Merit / metrics. To make sure qatools's web UI displays them:
+Algorithms are usually evaluated using KPIs / Objective Figures of Merit / metrics. To make sure QA-Board's web UI displays them:
 
 1. `run()` should return a dict of metrics:
 ```python

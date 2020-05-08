@@ -24,7 +24,7 @@ runners:
   lsf:
     user: username
     queue: your_queue
-    # qatools uses a fast queue to launch jobs that create subsequent LSF jobs
+    # qaboard uses a fast queue to launch jobs that create subsequent LSF jobs
     # It helps get faster feeback about which outputs are pending
     # fast_queue: your_queue
     # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
