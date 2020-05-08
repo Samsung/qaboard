@@ -12,7 +12,7 @@ title: Auto-Optimization
 
 You need the `scikit-opt` package, which you can install with
 ```bash
-pip install qatools[opt]
+pip install qaboard[opt]
 ```
 
 ```bash

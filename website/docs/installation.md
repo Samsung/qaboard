@@ -16,7 +16,7 @@ pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools
 # https://www.anaconda.com/distribution/#download-section
 ```
 
-To make sure the installation was successful, try printing a list of qatools' CLI commands:
+To make sure the installation was successful, try printing a list of `qa`'s CLI commands:
 
 ```bash
 qa --help

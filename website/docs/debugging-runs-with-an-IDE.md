@@ -8,9 +8,9 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 ## Debugging with PyCharm
 Edit your "debug configurations" like this:
 
-- **Module name:** qatools *(make sure you select "module" not "script" in the dropdown menu).*
+- **Module name:** `qaboard` *(make sure you select "module" not "script" in the dropdown menu).*
 - **Parameters:** CLI parameters for `qa`: **`run -i images/A.jpg`**.
-- **Working directory:** Check it’s defined as the directory with *qaboard.yaml*. If this directory happens to have a subfolder named "qatools", use it.
+- **Working directory:** Check it’s defined as the directory with *qaboard.yaml*. If this directory happens to have a subfolder named "qaboard", use it.
 
 
 ![pyCharm setup](http://gitlab-srv/common-infrastructure/qatools/uploads/e799a84559ca42b5b8da0bb609245721/pycharm-debugg.png)

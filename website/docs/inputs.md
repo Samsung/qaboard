@@ -42,7 +42,7 @@ We'll cover [batches in more depth later](batches-running-on-multiple-inputs). B
 ## Identifying inputs (Recommended)
 You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify your images as inputs.
 
-In [*qaboard.yaml*](http://gitlab-srv/common-infrastructure/qatools/blob/master/qatools/sample_project/qatools.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
+In [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
 
 ```yaml title="qaboard.yaml"
 inputs:

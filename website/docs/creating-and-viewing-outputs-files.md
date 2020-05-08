@@ -16,7 +16,7 @@ QA-Board will try to guess the right file viewer depending on the extension. Man
 > **"Visualizations"** can help you declare pre-sets of relevant files. [Read the docs](visualizations) to learn more!
 
 ## Accessing output files
-All the outputs are saved as files. To get them out and qatools provides multiple ways to get them out.
+All the outputs are saved as files. To get them out and QA-Board provides multiple ways to get them out.
 
 1. **Next to each output**, there is always a button to copy-to-clipboard the path to the files it created.
 

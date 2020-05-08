@@ -1,6 +1,6 @@
 ---
 id: ci-integration
-title: Integrating qatools with your CI
+title: Integrating QA-Board with your CI
 sidebar_label: CI Integration
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -15,12 +15,12 @@ This said, you can still view your results in the web application by using `qa -
 
 
 ## Requirement
-- Make sure your Gitlab project has an integration with qatools. If you're not sure if/how, review the [qatools setup guide](project-init). You should be able to see your project in the qatools [web application](https://qa):.
+- Make sure your Gitlab project has an integration with QA-Board. If you're not sure if/how, review the [setup guide](project-init). You should be able to see your project in the QA-Board web application.
 
 <img alt="Index of the projects" src={useBaseUrl('img/projects-index.jpg')} />
 
-## Running qatools in your CI
-1. **Have your CI launch qatools:** With GitlabCI, you would do something like:
+## Running QA-Board in your CI
+1. **Have your CI launch QA-Board:** With GitlabCI, you would do something like:
 
 ```yaml title="gitlab-ci.yml"
 qa-tests:
@@ -31,7 +31,7 @@ qa-tests:
 ```
 
 :::note
-You CI is responsible for setting up an environment (`$PATH`...) in which qatools is installed! Consider using `docker`, or sourcing a configuration file...
+You CI is responsible for setting up an environment (`$PATH`...) in which `qaboard` is installed! Consider using `docker`, or sourcing a configuration file...
 :::
 
 2. **Push a commit to Gitlab**. If your CI is successful, the commit will appear in your project's page: 
@@ -40,7 +40,7 @@ You CI is responsible for setting up an environment (`$PATH`...) in which qatool
 
 
 ## Example with GitlabCI
-> qatools knows how to work with the most common CI tools: GitlabCI, Jenkins...
+> QA-Board knows how to work with the most common CI tools: GitlabCI, Jenkins...
 
 ```yaml title=".gitlab-ci.yml"
 stages:
@@ -67,7 +67,8 @@ This logic is usually better expressed in your CI tool itself. But if you're stu
 :::
 
 ```python
-from qatools.ci_helpers import on_branch, run_tests
+# ci.py
+from qaboard.ci_helpers import on_branch, run_tests
 
 @on_branch('develop')
 def my_tests():
