@@ -20,7 +20,7 @@ qa --share run --input path/to/your/input.file 'echo "{absolute_input_path} => {
 ## Wrapping your code
 How does it work? When you `pip install` QA-Board with `pip`, you get the `qa` executable. `qa` opens *qaboard.yaml* and imports the python file specified by `project.entrypoint`. Then it runs your entrypoint's `run()` function with information about the current run: input, configuration, where outputs should be saved etc.
 
-Take a look at the default `run()` in [*qa/main.py*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qa/main.py). You should change it to run your code. In most cases that means finding and executing an exectuable file, or importing+running python code...
+Take a look at the default `run()` in [*qa/main.py*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qa/main.py). You should change it to run your code. In most cases that means finding and executing an executable file, or importing+running python code...
 
 :::tip
 Many users want to separate algorithm runs and postprocessing. To make this flow easier, you can optionnaly implement `postprocess()`. Then you will get `qa run` and `qa postprocess`.
@@ -73,24 +73,19 @@ def binary_path():
     if sys.platform == 'win32':
         return Path("build/x64/my_binary.exe")
     else:  # Easy support for build types: Release/Debug/Coverage/ASAN...
-        return Path(f"build/{os.environ.get('PROJECT_BUILD_TYPE')}/my_binary")
+        return Path(f"build/{os.environ.get('PROJECT_BUILD_TYPE', 'Release')}/my_binary")
 
 def run():
     command = [
         f'{binary_path()}',
         "--input", str(context.obj["absolute_input_path"]),
         "--output", str(context.obj["output_directory"]),
-        *context.obj["output_directory"]
+        context.obj["output_directory"]
     ]
     process = subprocess.run(
         command,
         check=True,          # raise exception on exit code != 0
-        capture_output=True, # >=python3.7
     )
-    # Note: If you want live interleaved STDOUT/STDERR, (like sample entrypoint from `qa init`),
-    # it get a bit more complicated: https://docs.python.org/3/library/subprocess.html
-    print(process.stdout)
-    print(process.stderr)
     return {"is_failed": False}
 ```
 
