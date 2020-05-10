@@ -56,7 +56,7 @@ export const commitSelector = createSelector([selectedSelector, state => state.c
 })
 
 
-export const configSelector = createSelector([commitSelector, projectDataSelector, selectedSelector], (commit, project_data, selected) => {
+export const configSelector = createSelector([commitSelector, projectDataSelector, selectedSelector], ({new_commit: commit}, project_data, selected) => {
   const info = {
     ...project_data,
     ...commit,
@@ -67,7 +67,7 @@ export const configSelector = createSelector([commitSelector, projectDataSelecto
   }
 
   const commit_config  = (commit.data || {}).qatools_config;
-  const project_config = (project_data.data || {}).qatools_config;
+  const project_config = (project_data.data || {}).qatools_config || {};
 
   const commit_metrics  = (commit.data || {}).qatools_metrics;
   const project_metrics = (project_data.data || {}).qatools_metrics;
@@ -77,8 +77,8 @@ export const configSelector = createSelector([commitSelector, projectDataSelecto
   let selected_metrics = selected.selected_metrics || (metrics.main_metrics || []).map(k => available_metrics[k])
   return {
     info, /// TODO: remove this. Track usage, replace with config/metrics
-    project_config: project_config || {},
-    config: commit_config || project_config || {},
+    project_config: project_config,
+    config: commit_config || project_config,
     project_metrics: {
       available_metrics: {},
       ...project_metrics,
