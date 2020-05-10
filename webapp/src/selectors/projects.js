@@ -56,7 +56,7 @@ export const commitSelector = createSelector([selectedSelector, state => state.c
 })
 
 
-export const configSelector = createSelector([commitSelector, projectDataSelector, selectedSelector], ({new_commit: commit}, project_data, selected) => {
+export const configSelector = createSelector([commitSelector, projectDataSelector, selectedSelector], ({new_commit: commit={}}, project_data, selected) => {
   const info = {
     ...project_data,
     ...commit,
