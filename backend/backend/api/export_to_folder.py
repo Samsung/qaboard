@@ -104,7 +104,7 @@ def matching_output(output_reference, outputs):
   def to_json(a):
     return json.dumps(a, sort_keys=True)
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
-  valid_outputs = [o for o in possible_matching_outputs if not o.is_pending and not o.is_failed]
+  valid_outputs = [o for o in possible_matching_outputs if not o.is_pending]
   if not valid_outputs: return None
 
   def match_key(output):
