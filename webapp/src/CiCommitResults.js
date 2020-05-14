@@ -39,7 +39,6 @@ import { match_query } from "./utils";
 import {
 	projectSelector,
 	configSelector,
-	projectDataSelector,
 	commitSelector,
 	selectedSelector,
 	batchSelector,
@@ -163,6 +162,7 @@ class CiCommitResults extends Component {
     const {
       project,
       config,
+      metrics,
       info,
       ref_commit_id,
       new_commit_id,
@@ -408,7 +408,8 @@ class CiCommitResults extends Component {
                   />
                   <OutputCardsList
                     project={project}
-                    project_data={info}
+                    config={config}
+                    metrics={metrics}
                     new_commit={this.props.new_commit}
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -435,6 +436,8 @@ class CiCommitResults extends Component {
                     type='bit_accuracy'
                     project={project}
                     project_data={info}
+                    config={config}
+                    metrics={metrics}
                     new_commit={this.props.new_commit}
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -498,7 +501,7 @@ const mapStateToProps = (state, ownProps) => {
       project,
       info,
       config,
-      // metrics
+      metrics,
       available_metrics,
       selected_metrics,
       // selected commit

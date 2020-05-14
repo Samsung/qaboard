@@ -278,7 +278,7 @@ class OutputCard extends React.Component {
       return;
     }
 
-    const outputs = (((this.props.project_data || {}).data || {}).qatools_config || {}).outputs || {}
+    const outputs = this.props.config.outputs || {}
     const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])]; // we allow both for some leeway with half updated projects
     var options = {}
     views.forEach((view, idx) => {
@@ -374,15 +374,14 @@ class OutputCard extends React.Component {
 
   render() {
     const { is_loaded, error } = this.state;
-    const { output_new, output_ref } = this.props;
+    const { output_new, output_ref, config } = this.props;
 
     const has_output_new = output_new !== undefined && output_new !== null
     if (!has_output_new || (output_new.is_pending && !output_new.is_running))
       return <span />
 
-    const qatools_config = (((this.props.project_data || {}).data || {}) || {}).qatools_config;
     const style = {
-      ...((qatools_config.outputs || {}).style || {}),
+      ...((config.outputs || {}).style || {}),
       ...this.props.style,
     }
 
@@ -391,11 +390,11 @@ class OutputCard extends React.Component {
     if (!is_loaded && !has_output_new) {
       content = <span />;
     } else {
-      const { main_metrics, available_metrics } = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
+      const { main_metrics, available_metrics } = this.props.metrics;
       var controls = this.props.controls || {};
 
       // layout should be plotly-like. You could also pass down a props named style.
-      var views = [...((qatools_config.outputs || {}).visualizations || []), ...((qatools_config.outputs || {}).detailed_views || [])]; // we allow both for some leeway with half updated projects
+      var views = [...((config.outputs || {}).visualizations || []), ...((config.outputs || {}).detailed_views || [])]; // we allow both for some leeway with half updated projects
 
       // we display the input for each option before the first visualization that uses it
       let already_shown_options = {}
@@ -468,7 +467,7 @@ class OutputCard extends React.Component {
                 path={path}
                 {...controls}
                 style={{ ...style, ...view.style }}
-                qatools_config={qatools_config}
+                config={config}
               />
           </div>})
         return <>
