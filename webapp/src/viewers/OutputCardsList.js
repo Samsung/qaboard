@@ -19,7 +19,6 @@ class OutputCardsList extends React.Component {
     const params = new URLSearchParams(window.location.search);
 
     this.state = {
-      outputs: this.makeOutputs(props),
       select_debug: "",
       // bit-accuracy controls
       show_all_files: params.get("show_all_files") === 'true' || false,
@@ -28,36 +27,15 @@ class OutputCardsList extends React.Component {
     };
   }
 
-  makeOutputs = props => {
-    const { new_batch } = props;
-    if (new_batch === undefined || new_batch === null)
-      return []
-    return new_batch.filtered.outputs
-      .map( id => [id, new_batch.outputs[id]])
-      .filter( ([id, output]) => output.output_type !== "optim_iteration")
-  }
-
-  componentDidUpdate(prevProps, prevState) {
-    const has_outputs = !!this.props.new_batch && !!this.props.new_batch.outputs;
-    const had_outputs = !!prevProps.new_batch && !!prevProps.new_batch.outputs;
-    let updated_outputs = has_outputs && (!had_outputs || (had_outputs && prevProps.new_batch.outputs !== this.props.new_batch.outputs));
-
-    const has_ref_batch= !!this.props.ref_batch;
-    const had_ref_batch = !!prevProps.ref_batch;
-    let updated_ref_batch = has_ref_batch && (!had_ref_batch || (had_ref_batch && prevProps.ref_batch !== this.props.ref_batch))
-
-    if (updated_outputs || updated_ref_batch) {
-      this.setState({outputs: this.makeOutputs(this.props)})      
-    }
-}
 
   render() {
-    const { project, project_data, new_commit, ref_batch } = this.props;
+    const { new_batch, project, config, metrics, new_commit, ref_batch } = this.props;
     const { type, controls } = this.props;
-    const { outputs, show_all_files, expand_all, files_filter, select_debug } = this.state;
+    const { show_all_files, expand_all, files_filter, select_debug } = this.state;
     const misc_output_props = {
       project,
-      project_data,
+      config,
+      metrics,
       commit: new_commit,
       controls,
       type,
@@ -66,6 +44,11 @@ class OutputCardsList extends React.Component {
       expand_all,
       select_debug,
     }
+    const outputs = (new_batch === undefined || new_batch === null || new_batch.filtered == undefined) ? []
+              : (new_batch.filtered.outputs || [])
+                .map( id => [id, new_batch.outputs[id]])
+                .filter( ([id, output]) => output.output_type !== "optim_iteration")
+  
     return (
       <>
         {type === 'bit_accuracy' && <BitAccuracyForm
@@ -100,16 +83,14 @@ class OutputCardsList extends React.Component {
           }}
         >
           {outputs.map( ([id, output]) => {
-              return (
-                <OutputCard
-                  key={id}
-                  output_type={output.output_type}
-                  output_new={output}
-                  output_ref={ref_batch.outputs[output.reference_id]}
-                  dispatch={this.props.dispatch}
-                  {...misc_output_props}
-                />
-              );
+              return <OutputCard
+                key={id}
+                output_type={output.output_type}
+                output_new={output}
+                output_ref={ref_batch.outputs[output.reference_id]}
+                dispatch={this.props.dispatch}
+                {...misc_output_props}
+              />;
             })}
         </div>
       </>
