@@ -15,6 +15,19 @@ const toaster = Toaster.create();
 
 
 class Crops extends React.PureComponent {
+  componentDidMount() {
+    const { output_new, viewer } = this.props;
+    if (!!!output_new || !!!viewer) return;
+
+    let configs_with_regions_of_interest = output_new.configurations.filter(c => typeof c === 'object' && !!c.roi)
+    if (configs_with_regions_of_interest.length === 0) return
+    configs_with_regions_of_interest[0].roi[0].focused = true; // auto-select the first ROI - do we want this by default?
+
+    let focused_rois = configs_with_regions_of_interest[configs_with_regions_of_interest.length-1].roi.filter(r => r.focused)
+    if (focused_rois.length === 0) return
+    const focused_roi = focused_rois[focused_rois.length-1]
+    fitTo(focused_roi, viewer) 
+  }
   render() {
     const { output_new, viewer } = this.props;
     if (!!!output_new || !!!viewer) return <span />
@@ -51,9 +64,14 @@ class Crops extends React.PureComponent {
   }
 
 }
-const fitTo = (roi, viewer) => {
-  if (!isValidRoi(roi, viewer))
-    return;
+const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
+  if (!isValidRoi(roi, viewer)) {
+    if (retry_on_viewer_update){
+      viewer.addOnceHandler('tile-drawn', () => fitTo(roi, viewer, false));
+    } else {
+      return;
+    }
+  }
 
   let { x, y, width, height } = viewer.viewport.imageToViewportRectangle(
     roi.x,
