@@ -88,7 +88,7 @@ class MultiSelectTags extends React.PureComponent {
         />
         <p />
         {selected_auto_rois && <AutoCrops {...this.props} />}
-        {selected_predefined_rois && <Crops viewer={this.props.viewer_new} output_new={this.props.output_new} />}
+        {selected_predefined_rois && <Crops viewer={this.props.viewer_new} output_new={this.props.output_new} path={this.props.path} />}
       </>
     );
   }

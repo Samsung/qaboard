@@ -11,7 +11,20 @@ import {
 } from "@blueprintjs/core";
 
 
+import { iiif_url } from "./utils";
+
 const toaster = Toaster.create();
+
+
+const output_rois = output => {
+  let configs_rois = output.configurations.filter(c => typeof c === 'object' && !!c.roi).map(c => c.roi).flat()
+  let input_rois = output.test_input_metadata?.roi ?? [];
+  let rois = [...input_rois, ...configs_rois];
+  if (rois) {
+    rois.push({label: 'Full image'})
+  }
+  return rois;
+}
 
 
 class Crops extends React.PureComponent {
@@ -19,12 +32,12 @@ class Crops extends React.PureComponent {
     const { output_new, viewer } = this.props;
     if (!!!output_new || !!!viewer) return;
 
-    let configs_with_regions_of_interest = output_new.configurations.filter(c => typeof c === 'object' && !!c.roi)
-    if (configs_with_regions_of_interest.length === 0) return
-    configs_with_regions_of_interest[0].roi[0].focused = true; // auto-select the first ROI - do we want this by default?
+    let rois = output_rois(output_new)
+    if (rois.length === 0) return
+    rois[0].focused = true; // auto-select the first ROI - do we want this by default?
 
-    let focused_rois = configs_with_regions_of_interest[configs_with_regions_of_interest.length-1].roi.filter(r => r.focused)
-    if (focused_rois.length === 0) return
+    let focused_rois = rois.filter(r => r.focused)
+    if (focused_rois.length === 0) return // can't happen with the auto-select
     const focused_roi = focused_rois[focused_rois.length-1]
     fitTo(focused_roi, viewer) 
   }
@@ -32,30 +45,53 @@ class Crops extends React.PureComponent {
     const { output_new, viewer } = this.props;
     if (!!!output_new || !!!viewer) return <span />
 
-    let configs_with_regions_of_interest = output_new.configurations.filter(c => typeof c === 'object' && !!c.roi)
-    let { roi: regions_of_interest } = configs_with_regions_of_interest.length ?
-      configs_with_regions_of_interest[0] : {}
-
+    // TODO: add an ROI "full"
+    // TODO: read from 
+    let regions_of_interest = output_rois(output_new)
     if (!!!regions_of_interest) return <span />
 
     const tags = regions_of_interest.map((roi, idx) => {
+      let height = 50;
+      let url_prefix = iiif_url(output_new.output_dir_url, this.props.path)
+      let src = roi.label !== 'Full image' ? `${url_prefix}/${roi.x},${roi.y},${roi.w},${roi.h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
+      let tooltip_text = <p align="center">
+        <span>{roi.label || roi.tag || idx}</span>
+        <span>Select next/before roi with keyboard shortcut n/b</span>
+      </p>
 
-      const is_valid = isValidRoi(roi, viewer);
-      let is_selected = true; // viewer.coordinates === roi.coordinates
+      const is_valid = isValidRoi(roi, viewer) || roi.label == 'Full image';
+      let is_selected = false; // viewer.coordinates === roi.coordinates
+      /*
+      // it would be nice, but openseadragon doensn't trigger a react re-render,
+      // so it's broken.
+      if (is_valid) {
+        console.log(roi.label)
+        let viewport_center =  viewer.viewport.getCenter()
+        let image_center = viewer.viewport.viewportToImageCoordinates(viewport_center)
+        console.log("image_center", image_center)
+        let roi_center = {x: roi.x+roi.w/2, y: roi.y+roi.h/2}
+        console.log("roi_center", roi_center, {x: roi.x, y: roi.y})
+        is_selected = true
+      }
+      */
+    
+
+
       return <Tooltip
         key={idx}
-        disabled={is_valid && !!!roi.tooltip}
-        intent={Intent.DANGER}
-        content={`Invalid coordinates! ${JSON.stringify(roi)}`}
+        intent={is_valid ? undefined : Intent.DANGER}
+        content={is_valid ? tooltip_text : `Invalid coordinates! ${JSON.stringify(roi)}`}
       >
         <AnchorButton
           onClick={() => { fitTo(roi, viewer) }}
           intent={is_selected ? Intent.PRIMARY : null}
           disabled={!is_valid}
           large={false}
+          minimal
           style={{ margin: "5px" }}
         >
-          {roi.label || roi.tag || idx}
+          <div><img src={src} alt={idx} height={height} /></div>
+          <div><span>{roi.label || roi.tag || idx}</span></div>
         </AnchorButton>
       </Tooltip>
     });
@@ -65,6 +101,10 @@ class Crops extends React.PureComponent {
 
 }
 const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
+  if (roi.label === "Full image") {
+    viewer.viewport.goHome()
+    return
+  }
   if (!isValidRoi(roi, viewer)) {
     if (retry_on_viewer_update){
       viewer.addOnceHandler('tile-drawn', () => fitTo(roi, viewer, false));
@@ -94,6 +134,8 @@ const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
 
 
 const isValidRoi = (roi, viewer) => {
+  if (roi.label === "Full image")
+    return true;
   if (isNaN(roi.x + roi.y + roi.w + roi.h)) return false;
 
   let viewport_rec = viewer.viewport.imageToViewportRectangle(
