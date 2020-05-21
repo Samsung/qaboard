@@ -107,7 +107,7 @@ class ImgViewer extends React.PureComponent {
     this.state = {
       ready: false,
       first_image: "new",
-      width: parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, '')),
+      width: Math.floor(parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, ''))),
       height: 217, // default 4/3 ratio
       diff_threshold: 0.05,
       color: {},
@@ -557,8 +557,8 @@ class ImgViewer extends React.PureComponent {
         </div>
     </Popover>;
 
-    const single_image_width = (width - 10) / (diff ? 3 : 2);
-    const single_image_height = !!image_height ? image_height / image_width * single_image_width : 0
+    const single_image_width = Math.floor((width - 10) / (diff ? 3 : 2));
+    const single_image_height = !!image_height ? Math.floor(image_height / image_width * single_image_width) : 0
     const flex = { flex: '0 0 auto' }
     const single_image_size = {
       width: `${single_image_width}px`,
