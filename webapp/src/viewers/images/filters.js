@@ -44,7 +44,7 @@ const default_filters = [
         name: 'Brightness',
         min: -255,
         max: 255,
-        value: 1,
+        value: 0,
         defaultValue: 0,
         make_processor: (viewer, value) => {
             // if (this.callback !== null) {
