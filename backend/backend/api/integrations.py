@@ -238,8 +238,8 @@ def jenkins_build_trigger():
     r = requests.post(
       build_trigger_url,
       params={
-        "token": "qatools",
-        "cause": "Triggered via QA-Board",
+        "token": data.get('token', "qatools"),
+        "cause": data.get('cause', "Triggered via QA-Board"),
         **data['params'],
       },
       **jenkins_credentials,
