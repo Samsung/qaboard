@@ -16,10 +16,20 @@ import { iiif_url } from "./utils";
 const toaster = Toaster.create();
 
 
+const uniq_rois = array => {
+  let seen = {};
+  return array.filter(function(item) {
+      const key = `${item.x} ${item.y} ${item.w} ${item.h} ${item.label} ${item.focused}`
+      return seen.hasOwnProperty(key) ? false : (seen[key] = true);
+  });
+}
+
+
 const output_rois = output => {
   let configs_rois = output.configurations.filter(c => typeof c === 'object' && !!c.roi).map(c => c.roi).flat()
   let input_rois = output.test_input_metadata?.roi ?? [];
   let rois = [...input_rois, ...configs_rois];
+  rois = uniq_rois(rois) // remove duplicates
   if (rois) {
     rois.push({label: 'Full image'})
   }
@@ -27,18 +37,15 @@ const output_rois = output => {
 }
 
 
-class Crops extends React.PureComponent {
+class Crops extends React.Component {
   componentDidMount() {
     const { output_new, viewer } = this.props;
     if (!!!output_new || !!!viewer) return;
 
     let rois = output_rois(output_new)
-    if (rois.length === 0) return
-    rois[0].focused = true; // auto-select the first ROI - do we want this by default?
 
     let focused_rois = rois.filter(r => r.focused)
-    if (focused_rois.length === 0) return // can't happen with the auto-select
-    const focused_roi = focused_rois[focused_rois.length-1]
+    const focused_roi = focused_rois.length > 0 ? focused_rois[focused_rois.length-1] : rois[0]
     fitTo(focused_roi, viewer) 
   }
   render() {
@@ -187,4 +194,4 @@ const CropSelection = ({ imageCoords }) => {
   }
 }
 
-export { Crops, fitTo, isValidRoi, CropSelection };
+export { Crops, fitTo, isValidRoi, CropSelection, output_rois };
