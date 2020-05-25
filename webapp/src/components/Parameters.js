@@ -5,6 +5,7 @@ import qs from "qs";
 import {
   Classes,
   Button,
+  Tag,
   Intent,
   Callout,
   FormGroup,
@@ -13,7 +14,7 @@ import {
   InputGroup,
 } from "@blueprintjs/core";
 
-import { bit_accuracy_help } from "../viewers/bit_accuracy/utils";
+import { bit_accuracy_help, humanFileSize } from "../viewers/bit_accuracy/utils";
 import { OutputViewer } from "../viewers/OutputViewer";
 
 
@@ -59,10 +60,18 @@ class CommitParameters extends React.Component {
         results.push(['reference', `${ref_commit.commit_dir_url}/manifests/${this.state.artifact}.json`])
     }
     const load_data = label => (response, error) => {
+      let storage = 0
+      if (response.data !== undefined) {
+        Object.values(response.data).forEach(f => {storage += f.st_size ?? 0})
+      }
       this.setState((previous_state, props) => ({
         manifests: {
           ...previous_state.manifests,
           [label]: response.data,
+        },
+        storage: {
+          ...previous_state.storage,
+          [label]: storage,
         },
         error: {
           ...previous_state.error,
@@ -141,7 +150,9 @@ class CommitParameters extends React.Component {
     </>
 
     const fake_output = {is_failed: false, is_running: false, is_pending: false, metrics: {}}
-    const viewer = is_loaded ? <OutputViewer
+    const viewer = !is_loaded ? <span/> : <>
+      <Tag>Total: {humanFileSize(this.state.storage.new, true)}</Tag>
+      <OutputViewer
         key="bit-accuracy"
         type="files/bit-accuracy"
         output_new={{...fake_output, output_dir_url: new_commit.repo_commit_dir_url}}
@@ -150,7 +161,8 @@ class CommitParameters extends React.Component {
         show_all_files={show_all_files}
         expand_all={expand_all}
         files_filter={files_filter}
-	/> : <span/>
+      />
+    </>
 
 
     const forms = <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
