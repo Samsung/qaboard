@@ -45,7 +45,6 @@ class CommitParameters extends React.Component {
 
   fetchData(props, label) {
     const { new_commit, ref_commit } = props;
-    // console.log(label, new_commit, ref_commit)
     if (new_commit === undefined || new_commit === null || new_commit.commit_dir_url === undefined || new_commit.commit_dir_url === null)
     	return;
 
@@ -98,8 +97,8 @@ class CommitParameters extends React.Component {
   componentDidUpdate(prevProps, prevState) {
       const has_new = this.props.new_commit !== undefined && this.props.new_commit !== null;
       const has_ref = this.props.ref_commit !== undefined && this.props.ref_commit !== null;
-      let updated_new = has_new && (prevProps.new_commit === null || prevProps.new_commit === undefined || prevProps.new_commit.id !== this.props.new_commit.id);
-      let updated_ref = has_ref && (prevProps.ref_commit === null || prevProps.ref_commit === undefined || prevProps.ref_commit.id !== this.props.ref_commit.id);
+      let updated_new = has_new && (prevProps.new_commit === null || prevProps.new_commit === undefined || prevProps.new_commit.id !== this.props.new_commit.id || prevProps.new_commit.commit_dir_url !== this.props.new_commit.commit_dir_url);
+      let updated_ref = has_ref && (prevProps.ref_commit === null || prevProps.ref_commit === undefined || prevProps.ref_commit.id !== this.props.ref_commit.id || prevProps.ref_commit.commit_dir_url !== this.props.ref_commit.commit_dir_url);
       if (updated_new) {
         if (!!this.state.cancel_source.new)
           this.state.cancel_source.new.cancel();
