@@ -26,6 +26,7 @@ import copy from 'copy-to-clipboard'
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
 import { OutputTags, ExtraParametersTags, StatusTag, style_skeleton } from '../components/tags'
+import { humanFileSize } from "./bit_accuracy/utils";
 
 import { updateSelected } from "../actions/selected";
 import { linux_to_windows } from '../utils'
@@ -100,6 +101,10 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
             <MenuItem key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
             </MenuItem>
+          </>}
+          {!!output?.data.storage && <>
+            <MenuDivider key={"Output-Info"} title="Output Info" />
+            <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />
           </>}
         </Menu>
       </Popover>
@@ -440,7 +445,10 @@ class OutputCard extends React.Component {
         if (!(view.display === 'viewer') && view_options.length > 0) {
           if (view.display === undefined || view.display === 'single') {
             const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.selected[0]])
+            // console.log(view_options_selected)
             var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
+            // Note: before we had a path with / and other characters, and now it's url encoded
+            // console.log(paths)
           } else if (view.display === 'all') {
             paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
           }
@@ -449,7 +457,6 @@ class OutputCard extends React.Component {
           let necessary_files_exist = view.path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[view.path]);
           paths = necessary_files_exist ? [view.path] : []
         }
-        // console.log(view.display, paths)
 
         let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
         const viewers = paths.map(
@@ -523,6 +530,7 @@ class OutputCard extends React.Component {
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
 
         {!this.props.no_header && <OutputHeader
+          key="header"
           project={this.props.project}
           commit={this.props.commit}
           output={output_new}
