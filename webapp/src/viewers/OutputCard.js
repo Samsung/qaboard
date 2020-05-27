@@ -102,7 +102,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
             </MenuItem>
           </>}
-          {!!output?.data.storage && <>
+          {!!output?.data?.storage && <>
             <MenuDivider key={"Output-Info"} title="Output Info" />
             <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />
           </>}
@@ -445,10 +445,8 @@ class OutputCard extends React.Component {
         if (!(view.display === 'viewer') && view_options.length > 0) {
           if (view.display === undefined || view.display === 'single') {
             const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.selected[0]])
-            // console.log(view_options_selected)
             var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
             // Note: before we had a path with / and other characters, and now it's url encoded
-            // console.log(paths)
           } else if (view.display === 'all') {
             paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
           }
