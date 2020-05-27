@@ -102,7 +102,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
             </MenuItem>
           </>}
-          {!!output?.data.storage && <>
+          {!!output?.data?.storage && <>
             <MenuDivider key={"Output-Info"} title="Output Info" />
             <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />
           </>}
