@@ -15,7 +15,6 @@ import {
   Tag,
   Menu,
   MenuItem,
-  MenuDivider,
   Popover,
 } from "@blueprintjs/core";
 

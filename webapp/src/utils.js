@@ -352,8 +352,8 @@ const slug = text => {
     .toLowerCase()                  // Convert the string to lowercase letters
     .trim()                         // Remove whitespace from both sides of a string
     .replace(/[^0-9a-z.=]+/g, '-')  // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple '-' with single '-'
-    .replace(/^\-+|\-+$/g, '');     // Remove excess '-' from both sides of a string
+    .replace(/--+/g, '-')         // Replace multiple '-' with single '-'
+    .replace(/^-+|-+$/g, '');     // Remove excess '-' from both sides of a string
 }
 
 
