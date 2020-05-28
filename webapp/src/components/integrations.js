@@ -450,6 +450,7 @@ const JobTag = ({job}) => {
 export { IntegrationsMenus };
 
 // For debugging
+/*eslint no-template-curly-in-string: "off"*/
 const default_gitlab_integrations = [
     {
       href: "${git.web_url}/commits/${branch}",

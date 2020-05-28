@@ -66,7 +66,7 @@ class Crops extends React.Component {
         <span>Select next/before roi with keyboard shortcut n/b</span>
       </p>
 
-      const is_valid = isValidRoi(roi, viewer) || roi.label == 'Full image';
+      const is_valid = isValidRoi(roi, viewer) || roi.label === 'Full image';
       let is_selected = false; // viewer.coordinates === roi.coordinates
       /*
       // it would be nice, but openseadragon doensn't trigger a react re-render,

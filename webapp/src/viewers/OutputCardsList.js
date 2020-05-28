@@ -4,11 +4,8 @@ import qs from "qs";
 import {
   FormGroup,
   InputGroup,
-  Callout,
-  Intent,
 } from "@blueprintjs/core";
 
-import { Section } from "../components/layout";
 import { BitAccuracyForm } from "./bit_accuracy/utils";
 import { OutputCard } from "./OutputCard";
 
@@ -44,7 +41,7 @@ class OutputCardsList extends React.Component {
       expand_all,
       select_debug,
     }
-    const outputs = (new_batch === undefined || new_batch === null || new_batch.filtered == undefined) ? []
+    const outputs = (new_batch === undefined || new_batch === null || new_batch.filtered === undefined) ? []
               : (new_batch.filtered.outputs || [])
                 .map( id => [id, new_batch.outputs[id]])
                 .filter( ([id, output]) => output.output_type !== "optim_iteration")
