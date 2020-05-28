@@ -73,9 +73,9 @@ export const branch_key = branch => {
   return branch.name || branch.committer || 'latests';
 }
 export function projects(state = {
-  data: {
+  data: !!default_project_id ?  {
     [default_project_id]: default_project,
-  },
+  } : {},
   is_loaded: false,
   is_loading: false,
   error: null,
