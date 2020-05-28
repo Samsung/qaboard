@@ -38,6 +38,16 @@ blockquote {
     background-color: #0c4da224;
 }
 @media (prefers-color-scheme: dark) {
+  :root {
+    --ifm-heading-color: white;
+    --ifm-hero-text-color: white;
+  }
+}
+@media (prefers-color-scheme: dark) {
+.hero.hero--primary { --ifm-hero-text-color: white;}
+}
+
+@media (prefers-color-scheme: dark) {
   blockquote {
     --ifm-color-emphasis-300: var(--ifm-color-primary);
     /* border-left: 6px solid var(--ifm-color-emphasis-300); */
