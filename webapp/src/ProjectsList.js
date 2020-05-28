@@ -58,11 +58,14 @@ class ProjectsList extends Component {
     if (!is_loaded && Object.keys(projects).length===0 )
       warnings = <NonIdealState title="Loading projects..." icon={<Spinner />} />;
 
-    const empty_projects = <NonIdealState
-      icon="folder-open"
-      title="Your projects are not connected to QA-Board yet"
-      description={<p>Learn how to to <a href="https://samsung.github.io/qaboard/docs/installation">get started</a>.</p>}
-    />;
+    const empty_projects = <div style={{marginTop: '10vh'}}>
+      <NonIdealState    
+        icon="heatmap"
+        title="No projects yet."
+        intent="primary"
+        description={<p>Learn how to to <a href="https://samsung.github.io/qaboard/docs/installation">get started, and<br/><a href="https://spectrum.chat/qaboard">chat with the maintainers</a> if you run into issues</a>.</p>}
+      />
+    </div>;
     let list_projects = Object.keys(projects).length === 0 ? empty_projects : (
       <div>
         {Object.entries(projects)
