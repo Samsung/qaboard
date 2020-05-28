@@ -13,6 +13,7 @@ To enable metadata support in QA-Board, implement in your project's entrypoint a
 
 ```python
 # qa/main.py (qaboard.yaml: project.entrypoint)
+import yaml
 def metadata(absolute_input_path, database, input_path):
   metadata_file = absolute_input_path.with_suffix('.metadata.yaml')
   if not metadata_file.exists():
