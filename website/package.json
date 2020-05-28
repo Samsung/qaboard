@@ -15,26 +15,26 @@
     "prettier:diff": "prettier --config .prettierrc --list-different \"**/*.{js,md}\""
   },
   "dependencies": {
-    "@docusaurus/core": "^2.0.0-alpha.48",
-    "@docusaurus/preset-classic": "^2.0.0-alpha.48",
+    "@docusaurus/core": "2.0.0-alpha.54",
+    "@docusaurus/preset-classic": "2.0.0-alpha.54",
     "classnames": "^2.2.6",
-    "docusurus-lunr-search": "^0.0.4",
+    "docusaurus-lunr-search": "^1.0.2",
     "lunr": "^2.3.8",
-    "react": "^16.8.4",
-    "react-dom": "^16.8.4",
-    "remark-admonitions": "^1.1.1"
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
+    "remark-admonitions": "^1.2.1"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.3",
     "eslint": "^6.7.1",
     "eslint-config-airbnb": "^18.0.1",
-    "eslint-config-prettier": "^6.7.0",
+    "eslint-config-prettier": "^6.11.0",
     "eslint-plugin-header": "^3.0.0",
-    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-import": "^2.20.2",
     "eslint-plugin-jsx-a11y": "^6.2.3",
     "eslint-plugin-react": "^7.16.0",
-    "eslint-plugin-react-hooks": "^2.3.0",
-    "prettier": "^1.19.1"
+    "eslint-plugin-react-hooks": "^4.0.0",
+    "prettier": "^2.0.5"
   },
   "browserslist": {
     "production": [

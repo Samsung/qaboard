@@ -53,6 +53,7 @@ var config = {
 
 config = {
   ...config,
+  plugins: ['docusaurus-lunr-search'],
   presets: [
     [
       '@docusaurus/preset-classic',
