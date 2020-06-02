@@ -2,35 +2,6 @@
 FROM alpine:3.10
 
 WORKDIR /tmp
-
-# SIRC proxy configuration [debian/ubuntu]
-# Copied from http://gitlab-srv/docker/drun/snippets/11/edit
-# if you still run into network issues, try building the image on a different server :_)
-ENV PROXY_HOST=webproxy.transchip.com \
-        PROXY_PORT=8080 \
-        PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
-    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
-    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-        NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
-RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
-
-
-COPY cert/* /tmp/cert/
-RUN cp -R /tmp/cert/* /usr/local/share/ca-certificates && \
-    update-ca-certificates $$ \
-    apk -U add ca-certificates
-    # mkdir -p /usr/share/ca-certificates/extra && \
-    # mkdir -p /etc/ssh/certs && \
-    # cp -R /tmp/cert/* /usr/share/ca-certificates/extra/ && \
-    # cp -R /tmp/cert/* /etc/ssh/certs && \
-
-
 RUN apk add --no-cache --update -X http://dl-cdn.alpinelinux.org/alpine/edge/community \
     curl \
     graphicsmagick \
@@ -97,12 +68,6 @@ RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$V
   && mkdir -p /var/cache/cantaloupe \
   && chown -R $user:$group /var/log/cantaloupe \
   && chown -R $user:$group /var/cache/cantaloupe
-
-
-# TODO: do we need ruby? we removed the delegate script
-# RUN apk add --no-cache -X http://dl-cdn.alpinelinux.org/alpine/edge/community --update ruby \
-#     && rm -rf /var/cache/apk/*
-# RUN gem install --no-document --install-dir /tmp/gems jwt json_pure
 
 
 COPY --chown=$user:$group cantaloupe.properties /etc/
