@@ -18,7 +18,7 @@ The screenshots are not up-to-date; the menu is now named **"Actions & Links"**
 ## Adding badges and external links
 Configure your project's *qaboard.yaml* like so to display direct links to docs, build artifacts, coverage reports, etc:
 
-```yaml
+```yaml title="qaboard.yaml"
 integrations:
 - text: Docs
   href: http://my-project/docs
@@ -34,8 +34,8 @@ To show a link but run the check on an other URL, you can provide `url`, `method
 :::
 
 ## Play GitlabCI manual jobs
-Configure your project's *qaboard.yaml*:
-```yaml
+Configure your project with:
+```yaml title="qaboard.yaml"
 integrations:
   - text: Gitlab Job
     gitlabCI:
@@ -44,8 +44,7 @@ integrations:
 <img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
 
   ## Trigger Jenkins builds
-Configure your project's *qaboard.yaml*:
-```yaml
+```yaml title="qaboard.yaml"
 integrations:
   - text: Jenkins Triggered Build
     jenkins:
@@ -127,9 +126,9 @@ Since you'll commit those credentials with the code, make sure you don't have to
 3. Go to your Jenkins project configuration page at *$JENKINS_URL/$PROJECT/configure* and allow triggered builds:
 <img alt="Allowing triggered build" src={useBaseUrl('img/configure-jenkins-build-triggers.png')} />
 
-4. Configure your project's *qaboard.yaml*:
+4. Configure your project with:
 
-```yaml
+```yaml title="qaboard.yaml"
 integrations:
   - name: Jenkins Triggered Build
     webhook:

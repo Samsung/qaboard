@@ -22,8 +22,7 @@ It is also possible to use external input databases not just files. If you need 
 ## Batches of inputs
 To run on batches of multiple inputs, use `qa batch my-batch`, where **my-batch** is defined in:
 
-```yaml
-# qa/batches.yaml (can be changed in qaboard.yaml via inputs.batches)
+```yaml title="qa/batches.yaml (can be changed in qaboard.yaml via inputs.batches)"
 my-batch:
  inputs:
    - images/A.jpg
@@ -45,15 +44,14 @@ You'll often want to do something like "run on all the images in a given folder"
 
 In [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
 
-```yaml
+```yaml title="qaboard.yaml"
 inputs:
   globs: '*.jpg'
 ```
 
 When you do this, you no longer have to define an explicit list of input paths in your batches. You can instead use folders or even [globs/wildcards](https://docs.python.org/3/library/glob.html) (`*`, `**`...):
 
-```yaml
-# qa/batches.yaml
+```yaml title="qa/batches.yaml"
 my-batch:
  inputs:
    - images
@@ -66,7 +64,7 @@ To run on all the inputs found under `$database / $PATH` you can simply use `qa 
 
 You can give multiple patterns:
 
-```yaml
+```yaml title="qaboard.yaml"
 inputs:
   globs:
   - '*.jpg'
@@ -76,7 +74,7 @@ inputs:
 
 A common use case is identifying folders containing a file patching a pattern, for instance movies given a sequence of frames, *frame_000.jpg*, *frame_001.jpg*... In this case you can use `use_parent_folder`:
 
-```yaml {3}
+```yaml {3} title="qaboard.yaml"
 inputs:
   globs: frame_000.jpg
   use_parent_folder: false
@@ -85,8 +83,7 @@ inputs:
 ## Handling multiple input types (Advanced)
 Big projects sometimes need to distinguish different types of inputs, which will be processed with a different logic.
 
-```yaml {3-9}
-# qaboard.yaml
+```yaml title="qaboard.yaml" {3-9}
 inputs:
   types:
     default: image
@@ -103,8 +100,7 @@ inputs:
 
 You can choose what type each batch is: 
 
-```yaml {7}
-# qa/batches.yaml
+```yaml {7} title="qa/batches.yaml"
 my-images:
   inputs:
   - my/image.jpg

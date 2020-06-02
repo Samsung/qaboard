@@ -9,8 +9,7 @@ Make sure you read [the section on input files](inputs)
 
 As we discussed, you can define batches of inputs in file(s) whose paths are given by `inputs.batches` in your [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L25) configuration.
 
-```yaml
-# qa/batches.yaml (default)
+```yaml title="qa/batches.yaml (default)" 
 my-batch:
  inputs:
    - A.jpg
@@ -159,8 +158,7 @@ my-batch-multiple-values:
 ## Aliases for groups of batches
 For convenience you can define aliases for batches you often run together. For instance you can do:
 
-```yaml
-# qa/batches.yaml
+```yaml title="qa/batches.yaml"
 aliases:
   two-batches:
   - first-batch

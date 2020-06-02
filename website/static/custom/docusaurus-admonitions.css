@@ -1,35 +1,6 @@
 /**
  Docusaurus-like styling for `remarkable-admonitions` blocks
  */
-
-.admonition {
-  margin-bottom: 1em;
-  padding: 15px 30px 15px 15px;
-}
-
-.admonition h5 {
-  margin-top: 0;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
-.admonition-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.2em;
-}
-
-.admonition-icon svg {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  stroke-width: 0;
-}
-
-.admonition-content > :last-child {
-  margin-bottom: 0;
-}
-
 /** Customization */
 .admonition-warning {
   background-color: rgba(230, 126, 34, 0.1);
@@ -100,3 +71,4 @@
   stroke: #f1c40f;
   fill: #f1c40f;
 }
+*/

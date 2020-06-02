@@ -11,8 +11,7 @@ Input metadata are useful to:
 
 To enable metadata support in QA-Board, implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
 
-```python
-# qa/main.py (qaboard.yaml: project.entrypoint)
+```python title="qa/main.py (qaboard.yaml: project.entrypoint)"
 import yaml
 def metadata(absolute_input_path, database, input_path):
   metadata_file = absolute_input_path.with_suffix('.metadata.yaml')
@@ -34,7 +33,7 @@ QA-Board will forward metadata to your `run()` function as `ctx.obj['input_metad
 
 
 ### Using metadata to filter batches of inputs
-```yaml
+```yaml title="qa/batches.yaml"
 inputs-filtered-using-metadata:
   only: # only run tests matching all those conditions
     PD pattern: 4PD
@@ -57,8 +56,7 @@ qa batch inputs-filtered-using-metadata
 ## Integrating with external input databases
 Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
 
-```python
-# qa/main.py
+```python title="qa/main.py"
 def iter_inputs(path, database, only, exclude, inputs_settings):
   # TODO: Maybe here connect to an SQL database
   #       and execute something like

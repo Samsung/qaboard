@@ -23,7 +23,7 @@ You need to configure a task runner, that will execute tuning runs asynchronousl
 ### Build Artifacts
 1. **Define artifacts:** you must define the "artifacts" needed to run your software. Besides the source, you might need compiled binaries, configurations, trained networks, etc. Artifacts are defined in [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L85):
 
-```yaml
+```yaml title="qaboard.yaml"
 artifacts:
   binary:
     glob: 'build/sample_project'

@@ -9,8 +9,7 @@ The `run()`function wrapping your code receives an `output_directory` where it c
 
 Here is a simple example, assuming your code an image named *output.jpg*.
 
-```yaml
-# qaboard.yaml
+```yaml title="qaboard.yaml"
 outputs:
     visualizations:
     - path: output.jpg
@@ -23,8 +22,7 @@ We plan on letting you edit simply *qaboard.yaml* locally, and update the visual
 
 You can provide multiple relevant files, and hide debug visualizations by default: 
 
-```yaml {5-6}
-# qaboard.yaml
+```yaml {5-6} title="qaboard.yaml"
 outputs:
     visualizations:
     - path: output.jpg
@@ -109,7 +107,7 @@ You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to cr
 
 <img alt="Viewing each frame of a movie" src={useBaseUrl('img/dynamic-outputs.gif')} />
 
-```yaml {5,7}
+```yaml {5,7} title="qaboard.yaml"
 outputs:
     visualizations:
     - name: Movie Frames

@@ -20,8 +20,7 @@ QA-Board will set as a commit's branch the first it was seen on. If you merge wi
 ## Configuring garbage collection
 Data can be erased after a period of time where the commit has no new outputs.
 
-```yaml
-# qaboard.yaml
+```yaml title="qaboard.yaml"
 storage:
   garbage:
     after: 1month
@@ -45,7 +44,7 @@ qa batch my-batch
 ## Deleting commit artifacts
 **Artifacts** are not deleted by default, you have to ask for it:
 
-```yaml {4,5}
+```yaml {4,5} title="qaboard.yaml"
 storage:
   garbage:
     after: 1month

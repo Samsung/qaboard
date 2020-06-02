@@ -34,8 +34,7 @@ qa --configuration base:delta run --input my/test
 
 If you use batches:
 
-```yaml {5-7}
-# qa/batches.yaml
+```yaml {5-7} title="qa/batches.yaml"
 my-batch:
   inputs:
   - A.jpg
@@ -69,7 +68,7 @@ Today the API provides tuning parameters via `extra_parameters`, as a dict... In
 :::
 
 ### Use-case #1: Running Python code
-```python
+```python title="qa/main.py"
 from pathlib import Path
 import yaml
 
@@ -97,7 +96,7 @@ def run():
 
 ### Use-case #2: Running an executable
 It could work as before with
-```python
+```python "qa/main.py"
     # --snip--
     config_path = context.obj["output_directory"] / "config.yaml" 
     with config_path.open('w') as f:

@@ -17,8 +17,7 @@ LSF jobs sent by `qa` will have use your project's name as LSF project (`-P`).
 ## LSF project options
 You can change the default LSF configuration with:
 
-```yaml
-# qaboard.yaml
+```yaml title="qaboard.yaml"
 runners:
   # In doubt, ask advice from your manager / CAD / bqueues.
   lsf:
@@ -37,8 +36,7 @@ runners:
 
 ## LSF options per batch
 
-```yaml {3-5}
-# qa/batches.yaml
+```yaml {3-5} title="qa/batches.yaml"
 you-can-give-an-LSF-configuration:
   lsf:
     memory: 1000
@@ -85,8 +83,7 @@ export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access su {user} {bsub_comman
 ```
 
 1. Via project configuraton:
-```yaml {5}
-# qaboard.yaml
+```yaml {5} title="qaboard.yaml"
 runners:
   lsf:
     # --snip--

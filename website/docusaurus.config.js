@@ -1,17 +1,15 @@
-/// Will be uncecessary after this PR is merged.
-// https://github.com/facebook/docusaurus/pull/2224/files
-const admonitions = require('remark-admonitions');
+const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
+const publish_github_samsung_public  = process.env.PUBLISH === 'github_samsung_public' 
+const is_for_webapp = !publish_github_samsung_private && !publish_github_samsung_public
 
-
-
-// https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
+// See https://docusaurus.io/docs/site-config for all the possible site configuration options.
 const logo = {
   alt: 'QA-Board Logo',
+  // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
   src: 'img/twemoji_poodle.svg',
   href: 'https://github.com/Samsung/qaboard',
 }
 
-// See https://docusaurus.io/docs/site-config for all the possible site configuration options.
 var config = {
   title: 'QA-Board',
   tagline: "Visualize and compare algorithm results. Optimize parameters. Share results and track progress.",
@@ -27,7 +25,11 @@ var config = {
   favicon: 'img/favicon/favicon-32x32.png',
 
   themeConfig: {
-    // image: 'img/twemoji_poodle.svg',
+    prism: {
+      additionalLanguages: ['nginx'],
+      theme: require('prism-react-renderer/themes/github'),
+      darkTheme: require('prism-react-renderer/themes/dracula'),
+    },
     footer: {
       logo,
       copyright: "Made with ❤️ at Samsung. Apache 2.0 License. Build with Docusaurus.",
@@ -37,7 +39,7 @@ var config = {
       logo,
       hideOnScroll: true,
       links: [
-        {to: 'docs/introduction', label: 'Docs', position: 'left'},
+        {to: is_for_webapp ? '/introduction' : 'docs/introduction', label: 'Docs', position: 'left'},
         {
           href: 'https://github.com/Samsung/qaboard',
           label: 'GitHub.com',
@@ -53,7 +55,7 @@ var config = {
 
 config = {
   ...config,
-  plugins: ['docusaurus-lunr-search'],
+  plugins: [`${__dirname}/node_modules/docusaurus-lunr-search`],
   presets: [
     [
       '@docusaurus/preset-classic',
@@ -73,7 +75,7 @@ config = {
           path: 'docs',
           routeBasePath: 'docs',
           sidebarPath: require.resolve('./sidebars.js'),
-          remarkPlugins: [admonitions],
+          // remarkPlugins: [admonitions],
 
           // Show documentation's last contributor's name.
           // enableUpdateBy: true,
@@ -88,15 +90,16 @@ config = {
 
 
 
-const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
-const publish_github_samsung_public  = process.env.PUBLISH === 'github_samsung_public' 
-if (!publish_github_samsung_private && !publish_github_samsung_public) {
+if (is_for_webapp) {
+  // build for the app at /docs
   config = {
     ...config,
-    url: 'http://qa-docs', // Your website URL
-    baseUrl: '/', // Base URL for your project */
+    url: 'https://qa', // Your website URL
+    baseUrl: '/docs/', // Base URL for your project */
   }
-  config.presets[0][1].editUrl = 'http://gitlab-srv/common-infrastructure/qaboard/edit/master/website/';
+  config.presets[0][1].docs.routeBasePath = '';
+  config.presets[0][1].docs.editUrl = 'http://gitlab-srv/common-infrastructure/qaboard/edit/master/website';
+  console.log(config.presets[0][1].docs)
 } else {
   if (publish_github_samsung_private) {
     config = {
@@ -117,7 +120,7 @@ if (!publish_github_samsung_private && !publish_github_samsung_public) {
       organizationName: 'Samsung',
       projectName: 'qaboard',
     }
-    config.presets[0][1].editUrl = 'https://github.com/Samsung/qaboard/edit/master/website/';
+    config.presets[0][1].docs.editUrl = 'https://github.com/Samsung/qaboard/edit/master/website/';
   }
 }
 
