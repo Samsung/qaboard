@@ -22,8 +22,7 @@ This said, you can still view your results in the web application by using `qa -
 ## Running qatools in your CI
 1. **Have your CI launch qatools:** With GitlabCI, you would do something like:
 
-```yaml
-# gitlab-ci.yml
+```yaml title="gitlab-ci.yml"
 qa-tests:
   stage: test
   script:
@@ -43,8 +42,7 @@ You CI is responsible for setting up an environment (`$PATH`...) in which qatool
 ## Example with GitlabCI
 > qatools knows how to work with the most common CI tools: GitlabCI, Jenkins...
 
-```yaml
-# .gitlab-ci.yaml
+```yaml title=".gitlab-ci.yml"
 stages:
   - build
   - qa
@@ -62,14 +60,13 @@ qa-tests
 ```
 
 ## Optionnal CI helpers
-qatools is not a CI tool, but it provide some utilities to run code only in some branches:
+QA-Board is not a CI tool, but it provide some utilities to run code only in some branches:
 
 :::caution
-This logic is usually better expressed in your CI tool itself.
+This logic is usually better expressed in your CI tool itself. But if you're stuck with stone-edge tooling sometimes you roll your own.
 :::
 
 ```python
-# ci.py
 from qatools.ci_helpers import on_branch, run_tests
 
 @on_branch('develop')

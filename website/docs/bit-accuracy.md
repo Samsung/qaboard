@@ -51,7 +51,7 @@ You often want to know when your algorithm's results change, *especially if anot
 
 Here is how you could get the CI to warn you with GitlabCI:
 
-```yaml
+```yaml title="qaboard.yaml"
 stages:
   - tests
   - bit-accuracy

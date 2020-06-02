@@ -40,14 +40,15 @@ Below are the most common ways users wrap their code. Identify what works for yo
 ---
 
 ### Use-case #1: Running Python code
-```python
+```python title="qa/main.py"
+from pathlib import  Path
+
 def run(context):
-  # Assuming your code is at *src/my_code.py* while the entrypoint is at *qa/main.py*
+  # Assuming your code is at *src/my_code.py*...
   sys.path.append(str(Path(__file__).parent.parent))
   from src.my_code import MyRun
-  # Note: you could also pip install your code as a package...
 
-  # People commonly wrap their code within Classes/functions
+  # People commonly wrap their code within Classes/functions...
   metrics = MyRun(
       input=context.obj['absolute_input_path'],
       output=context.obj['output_directory'],
@@ -61,7 +62,7 @@ def run(context):
 ### Use-case #2: Running an executable
 `QA-Board` assumes you already built your code.     
 
-```python
+```python title="qa/main.py"
 import os
 import sys
 from pathlib import Path
@@ -114,7 +115,7 @@ database
          └── output.jpg
 ```
 
-```python
+```python title="qa/main.py"
 def run(context):
     if context.obj["input_type"] == 'benchmark':
         import shutil
@@ -135,8 +136,7 @@ def run(context):
 
 To actually import the results, create a batch (more info later) for the benchmark. `qa batch import-standard-benchmark` with:
 
-```yaml
-# qa/batches.yaml
+```yaml  title="qa/batches.yaml"
 import-standard-benchmark:
   type: benchmark
   configurations:
@@ -185,5 +185,5 @@ config['project']['name']
 ```
 
 :::note Work in Progress
-A full reference for `from qaboard.config import ...` will arrive in the docs!
+A full reference for `from qaboard.config import ...` will arrive in the docs.
 :::

@@ -8,7 +8,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 Algorithms are usually evaluated using KPIs / Objective Figures of Merit / metrics. To make sure qatools's web UI displays them:
 
 1. `run()` should return a dict of metrics:
-```python
+```python title="qa/main.py"
 def run():
     # --snip--
     return {
@@ -18,8 +18,7 @@ def run():
 
 2. Describe your metrics in *qa/metrics.yaml*. Here is an example
 
-```yaml
-# qa/metrics.yaml (location from qaboard.yaml: outputs.metrics)
+```yaml title="qa/metrics.yaml (location from qaboard.yaml: outputs.metrics)"
 available_metrics:
   loss:  # the fields below are all optionnal
     label: Loss function     # human-readable name

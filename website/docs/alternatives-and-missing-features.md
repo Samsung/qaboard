@@ -5,7 +5,7 @@ title: Alternatives and missing features
 ---
 
 
-## Missing features
+## Non-features
 QA-Board works with other tools. It won't replace or provide:
 - **Automation:** we're not a CI tool, and won't provide logic needed to create build pipelines, or decide when to run what. In a CI system, QA-Board is just a standard executable, `qa`. If you're looking for a CI plaform, consider [GitlabCI](https://docs.gitlab.com/ee/ci/) or [DroneCI](https://github.com/drone/drone).
 - **Execution Environment:** if you need containers, install the QA-Board CLI as a dependency, or implement the logic needed within your code. As of now, the only help QA-Board gives is support for [*.envrc* files](https://direnv.net/). Implementing more types of `qa batch` "runners" might fill the gap here.

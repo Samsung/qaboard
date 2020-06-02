@@ -31,8 +31,7 @@ qa batch --runner=celery my-batch
 ## Configuring Celery
 To configure Celery at the **project level**:
 
-```yaml
-# qaboard.yaml
+```yaml title="qaboard.yaml"
 runners:
   default: celery
   celery:
@@ -56,8 +55,7 @@ It's often useful to give **batches** their own settings. For instance you may w
 celery -A qaboard.runners.celery_app worker --concurrency=1 --queues gpu,large-gpu
 ```
 
-```yaml {7-9}
-# qa/batches.yaml
+```yaml {7-9} title="qa/batches.yaml"
 my-batch-that-needs-a-gpu:
   inputs:
   - my/training/images
