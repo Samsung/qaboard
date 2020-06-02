@@ -177,7 +177,7 @@ def new_output_webhook():
 
   # We allow users to save their data in custom locations
   # at the commit and output levels
-  if Path(data.get('commit_ci_dir', ci_commit.commit_dir)) != ci_commit.commit_dir:
+  if Path(data.get('commit_ci_dir', ci_commit.commit_dir)).resolve() != Path(ci_commit.commit_dir):
     ci_commit.commit_dir_override = data.get('commit_ci_dir')
   if Path(data.get('output_directory', output.output_dir)) != output.output_dir:
     output.output_dir_override = data.get('output_directory')
