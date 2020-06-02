@@ -1,0 +1,41 @@
+# https://python-poetry.org/docs/basic-usage/
+# At SIRC, to deal with SSL issues:
+
+[tool.poetry]
+name = "backend"
+version = "0.2.0"
+description = "Backend for QA-Board"
+authors = ["Arthur Flam <arthur.flam@samsung.com>"]
+license="Apache-2.0"
+
+[tool.poetry.urls]
+repository="https://github.com/Samsung/qaboard"
+homepage="https://samsung.github.io/qaboard"
+
+[tool.poetry.dependencies]
+python = "3.8.*"
+gitpython = "*"   # manipulate git repositories
+click = "*"       # build CLI tools easily
+flask = "*"       # HTTP server
+flask_cors = "*"  # (not used?)
+sqlalchemy = "*"  # ORM
+alembic = "*"     # Schema migrations
+psycopg2 = "*"    # postgresql driver
+sqlalchemy_utils = "*"
+ujson = "*"       # fast json lib
+pandas = "*" # stats
+numpy = "=>1.17.3"# (needed by pandas - just we ensure python3.8 compat)
+uwsgi = "*"       # server
+uwsgitop = "*"    # top for uwsgi
+qaboard = { path = "..", optional = true }
+
+# Makes incremental docker builds easier
+[tool.poetry.extras]
+qaboard = ["qaboard"]
+
+[tool.poetry.dev-dependencies]
+pytest = "^3.4"
+
+[tool.poetry.scripts]
+qaboard_clean = 'backend.clean:clean'
+qaboard_init_database = 'backend.scripts.init_database:init_database'

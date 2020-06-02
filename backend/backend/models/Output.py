@@ -15,8 +15,8 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
-from qatools.conventions import slugify, slugify_config, make_hash, serialize_config
-from qatools.utils import save_outputs_manifest
+from qaboard.conventions import slugify, slugify_config, make_hash, serialize_config
+from qaboard.utils import save_outputs_manifest
 
 from backend.models import Base
 

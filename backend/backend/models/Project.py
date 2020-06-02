@@ -15,7 +15,7 @@ from sqlalchemy import cast, type_coerce
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
-import qatools
+import qaboard
 
 # "from X import Y" can cause circular import errors..
 from backend.models import Base, CiCommit  
@@ -181,7 +181,7 @@ def update_project(data, db_session):
     qatools_config = {}
     for config_path in config_paths:
       config = parsed_content(commit_id, config_path)
-      qatools_config = qatools.merge(config, qatools_config)
+      qatools_config = qaboard.merge(config, qatools_config)
     qatools_config['project']['name'] = project_id
 
     # We store qatools's configuration twice: at the project level and at the commit level
