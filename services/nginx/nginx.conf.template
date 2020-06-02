@@ -1,0 +1,62 @@
+# https://www.nginx.com/resources/wiki/start/topics/examples/full/
+user ${NGINX_USER} uucp;
+worker_processes auto;
+
+# https://github.com/docker-library/docs/tree/master/nginx#running-nginx-as-a-non-root-user
+pid        /tmp/nginx.pid;
+
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+	worker_connections 4096;
+}
+
+http {
+	# Basic Settings
+	sendfile on;
+	tcp_nopush on;
+	tcp_nodelay on;
+	keepalive_timeout 65;
+	types_hash_max_size 2048;
+	# server_tokens off;
+
+	# server_names_hash_bucket_size 64;
+	# server_name_in_redirect off;
+
+	include /etc/nginx/mime.types;
+	default_type application/octet-stream;
+
+	# SSL Settings
+	ssl_session_cache shared:SSL:10m;
+	ssl_session_timeout 1h;
+	ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # Dropping SSLv3, ref: POODLE
+	ssl_prefer_server_ciphers on;
+	ssl_ciphers EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:EECDH+3DES:RSA+3DES:!MD5;
+
+
+	# https://github.com/docker-library/docs/tree/master/nginx#running-nginx-as-a-non-root-user
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path       /tmp/proxy_temp_path;
+    fastcgi_temp_path     /tmp/fastcgi_temp;
+    uwsgi_temp_path       /tmp/uwsgi_temp;
+    scgi_temp_path        /tmp/scgi_temp;
+
+	# Logging Settings
+	access_log /tmp/access.log;
+	error_log /tmp/error.log;
+
+	# Gzip Settings
+	gzip on;
+	gzip_disable "msie6";
+	gzip_buffers 16 8k;
+	gzip_vary on;
+	gzip_min_length 1000;
+	gzip_proxied    expired no-cache no-store private auth;
+	gzip_comp_level 6;
+	# gzip_proxied any;
+	# gzip_http_version 1.1;
+	gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript text/csv;
+
+	# Virtual Host Configs
+	include /etc/nginx/conf.d/*.conf;
+}
