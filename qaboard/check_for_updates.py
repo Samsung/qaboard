@@ -12,8 +12,8 @@ from pathlib import Path
 import click
 
 
-def latest_qatools_version():
-  # Everybody install their own local version of qatools,
+def latest_qaboard_version():
+  # Everybody install their own local version of qaboard,
   # at a different place on Windows, Linux...
   # We simple need a way to let them know they are using an old version
   import requests
@@ -30,7 +30,9 @@ def latest_qatools_version():
 
 
 def check_for_updates():
-  # qatools user configuration and related files is saved in standard locations
+  if 'QA_NO_CHECK_FOR_UPDATES' in os.environ:
+    return
+  # qaboard user configuration and related files is saved in standard locations
   if os.name != 'nt':
     # On windows we use %LOCALAPPDATA%
     config_home = Path(os.environ['LOCALAPPDATA']) if 'LOCALAPPDATA' in os.environ else Path.home() / '.config'
@@ -39,19 +41,19 @@ def check_for_updates():
     # https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
     config_home = Path(os.environ['XDG_CONFIG_HOME']) if 'XDG_CONFIG_HOME' in os.environ else Path.home() / '.config'
 
-  qatools_config_dir = config_home / 'qatools'
-  if not qatools_config_dir.exists():
-    qatools_config_dir.mkdir(parents=True, exist_ok=True)
+  qaboard_config_dir = config_home / 'qaboard'
+  if not qaboard_config_dir.exists():
+    qaboard_config_dir.mkdir(parents=True, exist_ok=True)
 
   # We cache the latest version found 
-  qatools_latest_update = qatools_config_dir / 'latest-version'
-  if qatools_latest_update.exists():
+  qaboard_latest_update = qaboard_config_dir / 'latest-version'
+  if qaboard_latest_update.exists():
     try:
-      with qatools_latest_update.open() as f:
+      with qaboard_latest_update.open() as f:
         latest = json.load(f)
     except: # eg CI starts multiple `qa` runs, and corruption from concurrent writes on an NFS drive...
       try:
-        qatools_latest_update.unlink()
+        qaboard_latest_update.unlink()
       except:
         pass
       latest = None
@@ -62,9 +64,9 @@ def check_for_updates():
   now = datetime.datetime.now()
   seconds_since_last_check = (now - datetime.datetime.fromtimestamp(latest['when_checked'])).total_seconds() if latest else None
   if not latest or  seconds_since_last_check > 3600 * 24:
-    latest_version = latest_qatools_version()
+    latest_version = latest_qaboard_version()
     if latest_version:
-      with qatools_latest_update.open('w') as f:
+      with qaboard_latest_update.open('w') as f:
         json.dump({"version": latest_version, "when_checked": now.timestamp()}, f)
   else:
     latest_version = latest['version']
