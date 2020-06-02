@@ -1,0 +1,179 @@
+# https://docs.docker.com/compose/
+# https://docs.docker.com/compose/compose-file
+version: "3.5"
+
+# Production:
+#   # https://docs.docker.com/compose/production/
+#   # adds to all services "restart: always"
+#   docker-compose -f docker-compose.yml -f production.yml up -d
+# Development:
+#   # Mounts the local code for easy debugging with reloading
+#   docker-compose -f docker-compose.yml -f development.yml up
+# At SIRC
+#                  -f sirc.yml   # volumes..
+# Push:
+#   docker-compose -f docker-compose.yml build
+#   docker-compose -f docker-compose.yml push
+
+# Worth a read:
+# https://medium.com/softonic-eng/docker-compose-from-development-to-production-88000124a57c
+# https://runnable.com/docker/advanced-docker-compose-configuration
+
+
+# Container names will be prefixed with "qaboard-"
+
+# Usage:
+# - The application is served on port 8000
+# - Your responsability to setup another reverse proxy on top for SSL
+# - Just allow large bodies (TODO example with own ssl / cert-acme-bot-letsencrypt) 
+
+# General docker-compose usage:
+#   docker-compose up                    # start the whole stack
+#   docker-compose up -d                 # ...as a daemon
+#   docker-compose stop                  # stop the stack's containers
+#   docker-compose down --volumes        # [dangerous] remove the data too
+#   docker-compose build web             # build a single service
+#   docker-compose logs -f web           # logs! -t/--timestamps --tail=10
+#   docker-compose run web env           # "docker-run" commands from a service
+#   docker-compose up --no-deps -d web   # start a single service
+
+
+volumes:
+  data: {}              # git clones (and custom batches.yaml for now...)
+  db: {}                # database with runs, projects, output metadata...
+  cache_cantaloupe: {}  # cache for the iiif image server
+  pgadmin: {}
+  # all builds still available for smooth upgrades
+  frontend_builds: {}
+  website_builds: {}
+
+services:
+  # For all configuration options:
+  # https://hub.docker.com/_/postgres
+  # https://stackoverflow.com/questions/30848670/how-to-customize-the-configuration-file-of-the-official-postgresql-docker-image
+  db:
+    image: postgres:12-alpine
+    expose:
+    - "5432"
+    volumes:
+      - db:/var/lib/postgresql
+      # - db-config:/etc/postgresql
+      # - db-log:/var/log/postgresql
+    environment:
+      - POSTGRES_USER=qaboard
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=qaboard # defaults to POSTGRES_USER anyway
+
+
+  backend:
+    image: qaboard-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
+    command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
+    depends_on:
+      - db
+    expose:
+    - "3000"
+    volumes:
+    - data:/var/qaboard
+    environment:
+    - UWSGI_PROCESSES=2
+    - QABOARD_DB_HOST
+    - QABOARD_DB_PORT
+    - JENKINS_USER_NAME
+    - JENKINS_USER_TOKEN
+    - JENKINS_USER_CRUMB
+    - GITLAB_ACCESS_TOKEN
+
+  frontend:
+    build:
+      context: webapp
+      shm_size: 4gb
+    volumes:
+    - frontend_builds:/builds
+
+  website:
+    build:
+      context: website
+      shm_size: 4gb
+      args:
+        REACT_APP_QABOARD_DOCS_ROOT: "/"
+    volumes:
+    - website_builds:/builds
+  
+
+  # nginx as reverse-proxy
+  # https://hub.docker.com/_/nginx
+  # FIXME: We're missing a webDAV module for dav_ext_methods... in the past we used nginx-extras on debian
+  #   - https://askubuntu.com/questions/553937/what-is-the-difference-between-the-core-full-extras-and-light-packages-for-ngi
+  #   - https://github.com/nginxinc/docker-nginx/issues/14
+  #   It's not a heavily used feature though, and in case of urgent need there is
+  #   build:
+  #     context: .
+  #     dockerfile: services/nginx/Dockerfile
+  proxy:
+    image: nginx:1.18
+    # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
+    # TODO: template locations blocks for the mount, or find something... maybe include an optionnal file in the config?
+    command: /bin/bash -c "rm -rf /etc/nginx && cp -r /tmp/etc/nginx /etc && envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec ${NGINX_BIN-nginx} -g 'daemon off;'"
+    environment:
+    - NGINX_USER=nginx
+    ports:
+    - ${QABOARD_PORT_HTTP:-5151}:80
+    volumes:
+    - ./services/nginx:/tmp/etc/nginx:ro
+    - frontend_builds:/builds:ro
+    - website_builds:/docs:ro
+    depends_on:
+    - backend
+    - cantaloupe
+
+  # IIIF image server to serve images as tiles
+  cantaloupe:
+    build:
+      context: ./services/cantaloupe
+    expose:
+    - "8182"
+    volumes:
+    - cache_cantaloupe:/var/cache/cantaloupe
+    # INSECURE/FIXME: obviously it's not a great default, let's change it!
+    - /:/repository
+    - /srv/cantaloupe
+    # FIXME: change max memory with env variable
+    environment:
+      CANTALOUPE_MEM_START: 1g
+      CANTALOUPE_MEM_MAX: 2g
+    command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.war'
+
+
+
+  # For convenience, we also bundle pgadmin
+  # Login at localhost:5050, and use "password" as password
+  # Note: pgadmin ships with utilities at e.g. /usr/local/pgsql-12
+  # More more configuration options, e.g. reverse proxying with nginx:
+  # https://www.pgadmin.org/docs/pgadmin4/development/container_deployment.html
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}
+      # if you want to host it under a subdirectory, add a location.proxy_pass to the nginx conf
+      # SCRIPT_NAME: /pgadmin
+    volumes:
+      - pgadmin:/root/.pgadmin
+      # https://www.pgadmin.org/docs/pgadmin4/development/import_export_servers.html
+      - ./services/pgadmin/servers.json:/pgadmin4/servers.json
+      - ./services/pgadmin/passfile:/pgadmin4/passfile
+    ports:
+    - "${PGADMIN_PORT:-5050}:80"
+
+
+# TODO: add redis to use celery?
+#  redis:
+#    image: "redis:alpine"
+
+# Matamo:
+# - Add a service like in ~/matamo?
+# - in the frontend, check for MATAMO_URL being defined

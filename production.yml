@@ -1,0 +1,25 @@
+version: "3.5"
+
+services:
+  db:
+    restart: always
+    # On-prem, it can be helpul to expose the database and use various analytics products
+    # At Samsung we use Metabase to show a detailed dashboard of the storage used.
+    # ports:
+    # - 5432:5432
+  pgadmin:
+    restart: always
+  backend:
+    restart: always
+    environment:
+    - UWSGI_PROCESSES=8
+    # For a flask debugging server
+    # $ "docker-compose run backend 'QABOARD_DB_ECHO=True cd /qaboard/backend && FLASK_APP=backend FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 3001'"
+    # ports:/
+    # - ${QABOARD_PORT_FLASK:-5152}:3001
+    
+  proxy:
+    restart: always
+  cantaloupe:
+    restart: always
+  
