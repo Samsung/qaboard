@@ -66,7 +66,7 @@ services:
 
 
   backend:
-    image: qaboard-backend
+    image: arthurflam/qaboard:backend
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -88,6 +88,7 @@ services:
     - GITLAB_ACCESS_TOKEN
 
   frontend:
+    image: arthurflam/qaboard:frontend
     build:
       context: webapp
       shm_size: 4gb
@@ -95,6 +96,7 @@ services:
     - frontend_builds:/builds
 
   website:
+    image: arthurflam/qaboard:website
     build:
       context: website
       shm_size: 4gb
@@ -132,6 +134,7 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
+    image: arthurflam/qaboard:cantaloupe
     build:
       context: ./services/cantaloupe
     expose:
