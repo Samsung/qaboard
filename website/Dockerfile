@@ -31,8 +31,6 @@ RUN yarn config set strict-ssl false
 COPY package.json yarn.lock ./
 RUN yarn install
 COPY . ./
-ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
-ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
