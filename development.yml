@@ -1,0 +1,38 @@
+version: "3.5"
+
+services:
+  pgadmin:
+    logging:
+      driver: none
+  db:
+    logging:
+      driver: none
+  cantaloupe:
+    logging:
+      driver: none
+  # backend:
+  #   logging:
+  #     driver: none
+  
+  proxy:
+    environment:
+    - NGINX_BIN=nginx-debug
+
+  backend:
+    volumes:
+    - ./qaboard:/qaboard/qaboard
+    - ./backend:/qaboard/backend
+    environment:
+    # - QABOARD_DB_ECHO=true
+    - UWSGI_STATS=true
+    - FLASK_ENV=development
+    # For a flask debugging server
+    # $ "docker-compose run backend 'QABOARD_DB_ECHO=True cd /qaboard/backend && FLASK_APP=backend FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002'"
+    ports:
+    - ${QABOARD_PORT:-5002}:5002
+
+  # website:
+  #   user: "11611:10"
+  #   volumes:
+  #   - ./website:/website
+  

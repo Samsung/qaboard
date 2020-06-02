@@ -1,0 +1,15 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "QA-Board",
+            "Group": "QA-Board",
+            "Comment": "Default QA-Board server",
+            "Port": 5432,
+            "Username": "qaboard",
+            "Host": "db",
+            "SSLMode": "prefer",
+            "MaintenanceDB": "postgres",
+            "PassFile": "/pgadmin4/pgpassfile"
+        }
+    }
+}
