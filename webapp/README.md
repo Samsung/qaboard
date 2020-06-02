@@ -10,7 +10,12 @@ Web frontend for QA-Board.
 # On Windows:
 # set NODE_TLS_REJECT_UNAUTHORIZED=0
 # On Windows, to deal with various errors, you may also have to delete the file package-lock.json
+```
+
+- Install the third-party packages and run the application:
+```bash
 npm install
+# If not running QA-Board at http://localhost:5151 (default), edit src/setupProxy.js
 npm start
 #=> listenning on port 3000
 ``` 

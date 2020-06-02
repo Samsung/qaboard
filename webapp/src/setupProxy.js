@@ -2,42 +2,28 @@
 // https://github.com/chimurai/http-proxy-middleware
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
+let QABOARD_SERVER_URL= "http://localhost:5151";
+// QABOARD_SERVER_URL_PROD= "https://qa";
+
 module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://qa:5001', // prod
-      // target: 'http://qa:9002', // dev-staging
+      target: QABOARD_SERVER_URL,
       changeOrigin: true,
     })
   );
   app.use(
     '/s',
     createProxyMiddleware({
-      target: 'http://qa',
+      target: QABOARD_SERVER_URL,
       changeOrigin: true,
     })
   );
-
-
   app.use(
-    '/fcgi-bin/',
+    '/iiif',
     createProxyMiddleware({
-      target: 'https://qa:8186',
+      target: QABOARD_SERVER_URL,
       changeOrigin: true,
-      secure: false,
     })
   );
-
-
- app.use(
-    '/iiif/2',
-    createProxyMiddleware({
-      target: 'https://qa:8183',
-      changeOrigin: true,
-      secure: false,
-    })
-  );
-
-
-};
