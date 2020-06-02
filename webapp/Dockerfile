@@ -2,6 +2,16 @@ FROM node:lts-alpine
 WORKDIR /webapp
 
 
+ENV PROXY_HOST=webproxy.transchip.com \
+    PROXY_PORT=8080 \
+    PROXY_PROTOCOL=http
+ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
+ENV HTTP_PROXY=$PROXY \
+    http_proxy=$PROXY \
+    HTTPS_PROXY=$PROXY \
+    https_proxy=$PROXY \
+    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 RUN apk update && apk add --no-cache \
     # needed for node-gyp.. some do it with npm install in one layer
@@ -20,6 +30,8 @@ COPY package.json npm-shrinkwrap.json ./
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
 RUN npm ci
 COPY . ./
+ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
+ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
 RUN npm run-script build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

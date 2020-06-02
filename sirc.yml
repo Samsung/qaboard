@@ -1,0 +1,87 @@
+version: "3.5"
+
+# We may need to setup DNS for some 
+    # for the migration
+    # dns: 127.0.0.53
+    # dns_search: transchip.com
+    # jensirc: 106.199.20.60
+
+services:
+  iiif-cde:
+    image: gitlab-srv.transchip.com:4567/dvs/slamvizapp/iipsrv-cde
+    # command: 'tail -f /dev/null' # keeps the container up for debugging, but does nothing...
+    restart: always
+    expose:
+    - "80"
+    volumes:
+    - /opt/dockermounts/stage/algo_data:/var/www/localhost/images
+
+  db:
+    ports:
+      - "5432:5432"
+    volumes:
+    - /home/ispq/qaboard/database_backups:/backups
+      
+
+  backend:
+    environment:
+    - UWSGI_UID=arthurf
+    - UWSGI_GID=uucp
+    - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
+    volumes:
+    - ./services/backend/passwd:/etc/passwd
+    - /opt/dockermounts/home:/home
+    - /opt/dockermounts/raid:/raid
+    - /opt/dockermounts/stage:/stage
+    - /opt/dockermounts/home:/raid/users
+    - /opt/dockermounts/stage/algo_data:/stage/algo_data
+    - /data/asp_algorithms_data:/data/asp_algorithms_data
+    - /stage/qa_data:/stage/qa_data
+    - /stage/algo-datasets:/stage/algo-datasets
+    - /net/f2/algo_archive:/stage/algo_archive
+    - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
+    - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
+    - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
+
+  proxy:
+    ports:
+    - ${QABOARD_PORT_HTTPS:-443}:443
+    # backward compat
+    - "5000:5000"
+    - "5002:5002"
+    depends_on:
+    - iiif-cde
+    environment:
+    - NGINX_USER=arthurf
+    - QABOARD_PORT_HTTP=80
+    volumes:
+    - /home/arthurf/qaboard/services/nginx/ssl/dvs/dvs.key:/ssl/cert.key
+    - /home/arthurf/qaboard/services/nginx/ssl/dvs/dvs.pem:/ssl/cert.pem    
+    - ./services/nginx/passwd:/etc/passwd
+    - /opt/dockermounts/home:/home
+    - /opt/dockermounts/raid:/raid
+    - /opt/dockermounts/stage:/stage
+    - /opt/dockermounts/home:/raid/users
+    - /opt/dockermounts/stage/algo_data:/stage/algo_data
+    - /data/asp_algorithms_data:/data/asp_algorithms_data
+    - /stage/qa_data:/stage/qa_data
+    - /stage/algo-datasets:/stage/algo-datasets
+    - /net/f2/algo_archive:/stage/algo_archive
+    - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
+    - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
+    - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
+
+  cantaloupe:
+    user: arthurf
+    build:
+      args:
+        user: arthurf
+        uid: 11611
+        group: uucp
+        gid: 10
+    volumes:
+    - /opt/dockermounts/stage/algo_data:/repository
+    environment:
+      CANTALOUPE_MEM_START: 4g
+      CANTALOUPE_MEM_MAX: 8g
+  

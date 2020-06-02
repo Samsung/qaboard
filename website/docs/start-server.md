@@ -30,6 +30,10 @@ docker-compose up
 docker-compose -f docker-compose.yml -f production.yml up -d
 ```
 
+At SIRC:
+```bash
+docker-compose -f docker-compose.yml -f development.yml up -d
+```
 
 ## Environment variables
 > You can edit an `.env` file to set them, `A=B` on each line, or add `environment:` keys to `backend` service in one of the `docker-compose.yml`
