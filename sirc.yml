@@ -8,7 +8,7 @@ version: "3.5"
 
 services:
   iiif-cde:
-    image: gitlab-srv.transchip.com:4567/dvs/slamvizapp/iipsrv-cde
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:iiif-cde"
     # command: 'tail -f /dev/null' # keeps the container up for debugging, but does nothing...
     restart: always
     expose:
@@ -24,6 +24,7 @@ services:
       
 
   backend:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     environment:
     - UWSGI_UID=arthurf
     - UWSGI_GID=uucp
@@ -72,6 +73,7 @@ services:
     - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
 
   cantaloupe:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
     user: arthurf
     build:
       args:
@@ -85,3 +87,8 @@ services:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
   
+  frontend:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
+
+  website:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"
