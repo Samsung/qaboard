@@ -3,7 +3,7 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 let QABOARD_SERVER_URL= "http://localhost:5151";
-// QABOARD_SERVER_URL_PROD= "https://qa";
+QABOARD_SERVER_URL= "http://qa:5000";
 
 module.exports = function(app) {
   app.use(
@@ -27,3 +27,4 @@ module.exports = function(app) {
       changeOrigin: true,
     })
   );
+  }
