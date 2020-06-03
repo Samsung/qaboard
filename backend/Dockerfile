@@ -8,14 +8,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # Turns off buffering for easier container logging
     PYTHONUNBUFFERED=1 \
     # Tracebacks on segfaults
-    PYTHONFAULTHANDLER=1
+    PYTHONFAULTHANDLER=1 \
+    DEBIAN_FRONTEND=noninteractive
 
 
 # Install git, up-to-date.
 # The application manages a cache of all projects' repos, so it's useful.
 # If we ran into scale issues, we could look into a service like Gitlab's gitaly.
 RUN apt-get update -qq \
-    && apt-get install -y gnupg2 software-properties-common \
+    && apt-get install -y gnupg2 software-properties-common apt-utils \
+    && apt-key adv keyserver.ubuntu.com --recv-keys A1715D88E1DF1F24 \
     && add-apt-repository -y ppa:git-core/ppa \
     && apt-get update -qq \
     && apt-get install -y git
@@ -23,7 +25,9 @@ RUN apt-get update -qq \
 
 # https://www.psycopg.org/docs/install.html#install-from-source
 # https://www.psycopg.org/docs/faq.html#faq-compile
-RUN apt-get update && apt-get install -y libpq-dev gcc
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev gcc \
+    && apt-get clean
 
 
 # If we want uwsgi's routing support
