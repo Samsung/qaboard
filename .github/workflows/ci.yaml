@@ -1,0 +1,30 @@
+---
+# https://hynek.me/articles/python-github-actions/
+
+name: Docker Image CI
+
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build the docker-compose stack
+      run: docker-compose build
+    - name: Up the docker-compose stack
+      run: docker-compose up -d
+    - name: Check running containers
+      run: docker ps -a
+    - name: Check logs
+      run: docker logs backend
+    - name: Test
+      run: docker run --network container:webapp-frontend appropriate/curl -s --retry 10 --retry-connrefused http://localhost:5000/
+    - name: Run test suite
+      run: docker exec backend pytest --skip-auth
