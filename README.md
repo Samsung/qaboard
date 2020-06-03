@@ -5,7 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/qaboard)](https://pypi.org/project/qaboard/)
 [![Docs](https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square)](https://samsung.github.io/qaboard)
 
-> QA-Board is the main collaborative tool for ~20 projects. [Take a look at SIRC's live server](https://qa) 😊👓
+> [Take a look at SIRC's live server](https://qa) 😊👓
 >
 > It's an open-source project: https://github.com/samsung/qaboard
 
