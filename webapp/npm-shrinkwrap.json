@@ -3024,11 +3024,6 @@
         "@turf/helpers": "6.x"
       }
     },
-    "@types/anymatch": {
-      "version": "1.3.1",
-      "resolved": "https://registry.npmjs.org/@types/anymatch/-/anymatch-1.3.1.tgz",
-      "integrity": "sha512-/+CRPXpBDpo2RK9C68N3b2cOvO0Cf5B9aPijHsoDQTHivnGSObdOF2BRQOYjojWTDy6nQvMjmqRXIxH55VjxxA=="
-    },
     "@types/babel__core": {
       "version": "7.1.6",
       "resolved": "https://registry.npmjs.org/@types/babel__core/-/babel__core-7.1.6.tgz",
@@ -3199,11 +3194,6 @@
         "@types/react": "*"
       }
     },
-    "@types/source-list-map": {
-      "version": "0.1.2",
-      "resolved": "https://registry.npmjs.org/@types/source-list-map/-/source-list-map-0.1.2.tgz",
-      "integrity": "sha512-K5K+yml8LTo9bWJI/rECfIPrGgxdpeNbj+d53lwN4QjW1MCwlkhUms+gtdzigTeUyBr09+u8BwOIY3MXvHdcsA=="
-    },
     "@types/stack-utils": {
       "version": "1.0.1",
       "resolved": "https://registry.npmjs.org/@types/stack-utils/-/stack-utils-1.0.1.tgz",
@@ -3218,42 +3208,6 @@
         "@types/react": "*",
         "@types/react-native": "*",
         "csstype": "^2.2.0"
-      }
-    },
-    "@types/tapable": {
-      "version": "1.0.4",
-      "resolved": "https://registry.npmjs.org/@types/tapable/-/tapable-1.0.4.tgz",
-      "integrity": "sha512-78AdXtlhpCHT0K3EytMpn4JNxaf5tbqbLcbIRoQIHzpTIyjpxLQKRoxU55ujBXAtg3Nl2h/XWvfDa9dsMOd0pQ=="
-    },
-    "@types/uglify-js": {
-      "version": "3.0.4",
-      "resolved": "https://registry.npmjs.org/@types/uglify-js/-/uglify-js-3.0.4.tgz",
-      "integrity": "sha512-SudIN9TRJ+v8g5pTG8RRCqfqTMNqgWCKKd3vtynhGzkIIjxaicNAMuY5TRadJ6tzDu3Dotf3ngaMILtmOdmWEQ==",
-      "requires": {
-        "source-map": "^0.6.1"
-      }
-    },
-    "@types/webpack": {
-      "version": "4.39.1",
-      "resolved": "https://registry.npmjs.org/@types/webpack/-/webpack-4.39.1.tgz",
-      "integrity": "sha512-rgO9ihNu/l72Sjx3shqwc9r6gi+tOMsqxhMEZhOEVIZt82GFOeUyEdpTk1BO2HqEHLS/XJW8ldUTIIfIMMyYFQ==",
-      "requires": {
-        "@types/anymatch": "*",
-        "@types/node": "*",
-        "@types/tapable": "*",
-        "@types/uglify-js": "*",
-        "@types/webpack-sources": "*",
-        "source-map": "^0.6.0"
-      }
-    },
-    "@types/webpack-sources": {
-      "version": "0.1.5",
-      "resolved": "https://registry.npmjs.org/@types/webpack-sources/-/webpack-sources-0.1.5.tgz",
-      "integrity": "sha512-zfvjpp7jiafSmrzJ2/i3LqOyTYTuJ7u1KOXlKgDlvsj9Rr0x7ZiYu5lZbXwobL7lmsRNtPXlBfmaUD8eU2Hu8w==",
-      "requires": {
-        "@types/node": "*",
-        "@types/source-list-map": "*",
-        "source-map": "^0.6.1"
       }
     },
     "@types/yargs": {
@@ -12083,16 +12037,16 @@
       }
     },
     "monaco-editor": {
-      "version": "0.17.1",
-      "resolved": "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.17.1.tgz",
-      "integrity": "sha512-JAc0mtW7NeO+0SwPRcdkfDbWLgkqL9WfP1NbpP9wNASsW6oWqgZqNIWt4teymGjZIXTElx3dnQmUYHmVrJ7HxA=="
+      "version": "0.20.0",
+      "resolved": "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.20.0.tgz",
+      "integrity": "sha512-hkvf4EtPJRMQlPC3UbMoRs0vTAFAYdzFQ+gpMb8A+9znae1c43q8Mab9iVsgTcg/4PNiLGGn3SlDIa8uvK1FIQ=="
     },
     "monaco-editor-webpack-plugin": {
-      "version": "1.7.0",
-      "resolved": "https://registry.npmjs.org/monaco-editor-webpack-plugin/-/monaco-editor-webpack-plugin-1.7.0.tgz",
-      "integrity": "sha512-oItymcnlL14Sjd7EF7q+CMhucfwR/2BxsqrXIBrWL6LQplFfAfV+grLEQRmVHeGSBZ/Gk9ptzfueXnWcoEcFuA==",
+      "version": "1.9.0",
+      "resolved": "https://registry.npmjs.org/monaco-editor-webpack-plugin/-/monaco-editor-webpack-plugin-1.9.0.tgz",
+      "integrity": "sha512-tOiiToc94E1sb50BgZ8q8WK/bxus77SRrwCqIpAB5er3cpX78SULbEBY4YPOB8kDolOzKRt30WIHG/D6gz69Ww==",
       "requires": {
-        "@types/webpack": "^4.4.19"
+        "loader-utils": "^1.2.3"
       }
     },
     "monotone-convex-hull-2d": {
@@ -14829,11 +14783,12 @@
       "integrity": "sha512-GAnd5NRIpGjDqLoGahJCkiCEQS1d8+dIZbIfPuy/eQ0O5Rio43fEkj5G+qrKbZCQY55fiNafpHpuirVIHqPoSg=="
     },
     "react-monaco-editor": {
-      "version": "0.30.1",
-      "resolved": "https://registry.npmjs.org/react-monaco-editor/-/react-monaco-editor-0.30.1.tgz",
-      "integrity": "sha512-3u/omC0ZGISievdFTfhhR8L3iRxCrTh39aiD5ged82NGFo4CfExRWoj/QBDp/jXS/UhNaurUsrnR1r+SEmrjuw==",
+      "version": "0.36.0",
+      "resolved": "https://registry.npmjs.org/react-monaco-editor/-/react-monaco-editor-0.36.0.tgz",
+      "integrity": "sha512-JVA5SZhOoYZ0DCdTwYgagtRb3jHo4KN7TVFiJauG+ZBAJWfDSTzavPIrwzWbgu8ahhDqDk4jUcYlOJL2BC/0UA==",
       "requires": {
-        "@types/react": "^16.9.2",
+        "@types/react": "^16.x",
+        "monaco-editor": "*",
         "prop-types": "^15.7.2"
       }
     },

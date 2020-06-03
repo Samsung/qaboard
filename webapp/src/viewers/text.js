@@ -44,7 +44,7 @@ const editor_options = {
 
 
 
-class GenericTextViewer extends React.PureComponent {
+class GenericTextViewer extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -52,14 +52,17 @@ class GenericTextViewer extends React.PureComponent {
       is_loaded: false,
       error: null,
       cancel_source: CancelToken.source(),
+      shown_left: "reference",
     }
   }
 
   componentDidMount() {
     this.fetchData(this.props);
+    window.addEventListener("keypress", this.keyboard, { passive: true });
   }
 
   componentWillUnmount() {
+    window.removeEventListener('keypress', this.keypress);
     if (!!this.state.cancel_source)
       this.state.cancel_source.cancel();
   }
@@ -110,13 +113,13 @@ class GenericTextViewer extends React.PureComponent {
     .then( () => this.setState({is_loaded: true}) )
   }
 
-
   render() {
     const { is_loaded, error } = this.state;
     if (!is_loaded) return <span/>;
     if (!!error && !this.props.always_show_diff) return <span>{JSON.stringify(error)}</span>
 
-    const { data } = this.state;
+    const { data, shown_left } = this.state;
+    console.log("render", shown_left)
     if (!!!data.new && !this.props.always_show_diff)
       return <span></span>
 
@@ -136,8 +139,8 @@ class GenericTextViewer extends React.PureComponent {
           width={width}
           height={height}
           language={this.props.language || language(filename)}
-          value={data.new}
-          original={data.reference}
+          value={shown_left==='reference' ? data.new : data.reference}
+          original={shown_left==='reference' ? data.reference : data.new}
           options={editor_options}
         />
       : <MonacoEditor
@@ -150,9 +153,26 @@ class GenericTextViewer extends React.PureComponent {
         />
 
     return <>
-      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? "reference ➡️ " : ""}new</Tag> {hash && <Tooltip><Tag style={{backgroundColor: hash_color(hash)}}>hash: {hash.slice(0,8)}</Tag><span>Hash of the new file</span></Tooltip>}</h3>
+      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag> {hash && <Tooltip><Tag style={{backgroundColor: hash_color(hash)}}>hash: {hash.slice(0,8)}</Tag><span>Hash of the new file</span></Tooltip>}</h3>
       {editor}
     </>
+  }
+
+
+  switch = e => {
+    let shown_left = this.state.shown_left === 'reference' ? 'new' : 'reference';
+    this.setState({ shown_left })
+  }
+  keyboard = ev => {
+    if (ev.target.nodeName === 'INPUT')
+      return;
+    switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
+      case "t":
+        this.switch()
+        break
+      default:
+        return;
+    }
   }
 
 
