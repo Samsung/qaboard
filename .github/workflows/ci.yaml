@@ -24,7 +24,9 @@ jobs:
       run: docker ps -a
     - name: Check logs
       run: docker logs backend
-    - name: Test
-      run: docker run --network container:webapp-frontend appropriate/curl -s --retry 10 --retry-connrefused http://localhost:5000/
-    - name: Run test suite
-      run: docker exec backend pytest --skip-auth
+    - name: Smoke Test @api
+      run: curl -s --retry 10 --retry-connrefused http://localhost:5151/api/v1/projects
+    - name: Smoke Test @app
+      run: curl -s --retry 10 --retry-connrefused http://localhost:5151/
+    # - name: Run test suite
+    #   run: docker exec backend pytest --skip-auth
