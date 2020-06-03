@@ -17,7 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # If we ran into scale issues, we could look into a service like Gitlab's gitaly.
 RUN apt-get update -qq \
     && apt-get install -y gnupg2 software-properties-common apt-utils \
-    && apt-key adv keyserver.ubuntu.com --recv-keys A1715D88E1DF1F24 \
+    && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A1715D88E1DF1F24 \
     && add-apt-repository -y ppa:git-core/ppa \
     && apt-get update -qq \
     && apt-get install -y git
