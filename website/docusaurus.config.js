@@ -55,7 +55,7 @@ var config = {
 
 config = {
   ...config,
-  plugins: [require.resolve('@docusaurus/docusaurus-lunr-search')],
+  plugins: [require.resolve('docusaurus-lunr-search')],
   presets: [
     [
       '@docusaurus/preset-classic',
