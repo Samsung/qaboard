@@ -26,7 +26,7 @@ RUN apt-get update -qq \
 # https://www.psycopg.org/docs/install.html#install-from-source
 # https://www.psycopg.org/docs/faq.html#faq-compile
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev gcc \
+    && apt-get install -y libpq-dev gcc \
     && apt-get clean
 
 
