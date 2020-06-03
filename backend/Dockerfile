@@ -14,14 +14,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install git, up-to-date.
 # The application manages a cache of all projects' repos, so it's useful.
 # If we ran into scale issues, we could look into a service like Gitlab's gitaly.
-# Note: if we didn't have proxy issues we would just
-#       add-apt-repository -y ppa:git-core/ppa
-RUN apt-get update && apt-get install -y gnupg2 && \
-    echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
-    echo "deb-src http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
-    apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A1715D88E1DF1F24 && \
-    apt-get update -qq && apt-get install -y git && \
-    git config --global http.proxy $PROXY
+RUN add-apt-repository -y ppa:git-core/ppa \
+    && apt-get update -qq \
+    && apt-get install -y gnupg2 git
 
 
 # https://www.psycopg.org/docs/install.html#install-from-source
