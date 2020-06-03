@@ -263,10 +263,11 @@ const linux_to_windows = path => {
     .replace('/home', '//mars/raid/users')
     .replace('//stage/algo-datasets', '//f2/algo-datasets')
     .replace('/stage/algo-datasets', '//f2/algo-datasets')
-    .replace('//stage/algo_archive', '//mars/stage/algo_archive')
-    .replace('/stage/algo_archive', '//mars/stage/algo_archive')
+    .replace('//stage/algo_archive', '//mars/stage__/algo_archive')
+    .replace('/stage/algo_archive', '//mars/stage__/algo_archive')
     .replace('//stage', '//netapp')
     .replace('/stage', '//netapp')
+    .replace('stage__', 'stage')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
   //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
   return windows_path.replace(/\//g, '\\')
