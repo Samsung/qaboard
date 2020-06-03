@@ -4,13 +4,14 @@ title: Starting a QA-Board server
 sidebar_label: Starting the Server
 ---
 
+:::caution
+**For now** QA-Board expects that you use Gitlab. [We're working on removing that requirement](https://github.com/Samsung/qaboard/issues/1).  
+:::
+
+
 The `qa` executable will need to send updates to a central server, that tracks and displays results.
 
 > Please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues. 
-
-:::note
-We're considering offering a hosted solution to help users get started. If your're interested, contact the <a href="mailto:arthur@fl.am">maintainers</a>. 
-:::
 
 ## Dependencies
 1. [`docker`](https://docs.docker.com/engine/install/) and [`docker-compose`](https://docs.docker.com/compose/install/).
@@ -29,6 +30,10 @@ docker-compose up
 # To have the server start in the background and restart itself 
 docker-compose -f docker-compose.yml -f production.yml up -d
 ```
+
+:::note
+We're considering offering a hosted solution to help users get started. If your're interested, contact the <a href="mailto:arthur@fl.am">maintainers</a>. 
+:::
 
 
 ## Environment variables

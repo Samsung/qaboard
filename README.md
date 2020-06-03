@@ -5,9 +5,9 @@
 [![PyPI](https://img.shields.io/pypi/v/qaboard)](https://pypi.org/project/qaboard/)
 [![Docs](https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square)](https://samsung.github.io/qaboard)
 
-> QA-Board is not officially released yet, and likely won't work *yet* for you because it expects running on our infra...
+> QA-Board is not officially released yet. We're busy adding a public CI and checking it works out of the box.
 >
-> We're working on it! **Status: https://github.com/Samsung/qaboard/issues/1**
+> **Status: https://github.com/Samsung/qaboard/issues/1**
 
 ## Features
 - **Organize, View and Compare Results**, **Tuning/Optimization**
