@@ -1,7 +1,7 @@
 ---
 # https://hynek.me/articles/python-github-actions/
 
-name: Docker Image CI
+name: CI for Docker Images
 
 
 on:
