@@ -65,7 +65,7 @@ class CeleryRunner(BaseRunner):
     # https://stackoverflow.com/questions/13685344/retrieving-groupresult-from-taskset-id-in-celery
     # We may need to call result.save() in the task above for it to work...
     from celery.result import GroupResult
-    result = GroupResult.restore(result.id)
+    result = GroupResult.restore(job_options['command_id'])
     result.revoke()
 
     from celery.task.control import revoke

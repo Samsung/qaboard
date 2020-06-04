@@ -94,7 +94,6 @@ exit(0)
 
 
 
-# most_recent = datetime.datetime.now() - datetime.timedelta(days=7)
 
 print("Starting migration")
 def query(since):
@@ -109,7 +108,8 @@ def query(since):
   )
 
 print("Starting updates")
-for idx, output in enumerate(outputs):
+most_recent = datetime.datetime.now() - datetime.timedelta(days=7)
+for idx, output in enumerate(query(most_recent)):
   if output.is_pending:
     continue
   if output.data.get('storage'):

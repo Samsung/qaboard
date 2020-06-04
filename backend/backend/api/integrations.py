@@ -267,7 +267,7 @@ def jenkins_build_trigger():
       time.sleep(0.5)
       sleep_total = sleep_total + 0.5
   if not web_url:
-    return jsonify({"error": f"ERROR: When reading build queue info: {e}"}), 500
+    return jsonify({"error": f"ERROR: When reading build queue info, no build URL given at: {build_queue_location}"}), 500
   return jsonify({
     "web_url": r.json()['executable']['url'],
     "status": 'pending',

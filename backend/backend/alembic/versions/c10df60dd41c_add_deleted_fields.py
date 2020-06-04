@@ -73,4 +73,4 @@ def downgrade():
     session.add(project)
     session.commit()
 
-  op.alter_column('ci_commits', 'latest_output_datetime', new_column_name='time_of_last_batch', type_=DateTime(timezone=True))
+  op.alter_column('ci_commits', 'latest_output_datetime', new_column_name='time_of_last_batch', type_=sa.DateTime(timezone=True))

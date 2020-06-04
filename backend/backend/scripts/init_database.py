@@ -10,7 +10,7 @@ from alembic.config import Config
 from alembic import command
 
 import backend
-from backend.database import engine, Session
+from backend.database import engine, Session, Base
 
 
 
