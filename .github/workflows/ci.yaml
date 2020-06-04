@@ -78,6 +78,7 @@ jobs:
       - build-webapp
       - test-docker-images
     steps:
+    - uses: actions/checkout@v2
     - name: Publish images
       run: |
         echo ${{ secrets.GITHUB_TOKEN }} | docker login https://docker.pkg.github.com -u arthur-flam --password-stdin
