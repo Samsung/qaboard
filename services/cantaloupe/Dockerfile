@@ -73,9 +73,9 @@ RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$V
 COPY --chown=$user:$group cantaloupe.properties /etc/
 
 # if we run as another user, we don't want to deal with uid/gid issues
-RUN mkdir -p /srv/cantaloupe
+RUN mkdir -p /srv/cantaloupe/logs
 VOLUME /srv/cantaloupe
-RUN chmod 777 /srv/cantaloupe
+RUN chmod 777 /srv/cantaloupe && chmod 777 /srv/cantaloupe/logs
 
 # ENV GEM_HOME /tmp/gems
 USER $user
