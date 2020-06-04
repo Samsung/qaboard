@@ -104,6 +104,9 @@ def downgrade():
   # main downgrade
   op.alter_column('ci_commits', 'hexsha', type_=sa.String, new_column_name='id')
   op.create_primary_key('ci_commits_pkey', 'ci_commits', ['id'])
+  bind = op.get_bind()
+  session = Session(bind=bind)
+  ci_commits = session.query(CiCommitOld)
   for ci_commit in ci_commits:
   	ci_commits.id = ci_commit.hexsha
 

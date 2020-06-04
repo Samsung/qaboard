@@ -73,7 +73,7 @@ def clean(project_id, dryrun, restore_deleted_outputs, verbose):
         # users can write commits as milestones...
         def get_commit(repo, commit):
             try:
-                return repo.commit(r)
+                return repo.commit(commit)
             except:
                 return None
         protected_commit_milestones = [project.repo.commit(r).hexsha for r in protected_refs if get_commit(project.repo, r)]
@@ -169,7 +169,7 @@ def parse_time(time_str):
         groupdict['days'] = groupdict['days'] + 31 * float(groupdict['months']) 
         del groupdict['months']
     if groupdict.get('years'):
-        groupdict['days'] = groupdict['days'] + 365 * float(intgroupdict['years']) 
+        groupdict['days'] = groupdict['days'] + 365 * float(groupdict['years']) 
         del groupdict['years']
     time_params = {name: float(param) for name, param in groupdict.items() if param}
     return datetime.timedelta(**time_params)

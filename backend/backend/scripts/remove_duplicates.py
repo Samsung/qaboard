@@ -20,7 +20,7 @@ from backend.models import Project, CiCommit, Batch, Output
 # Find duplicates:
 #  ssh arthurf-vdi ; screen -r
 # SELECT ci_commit_id, label, count(*) as qty FROM batches GROUP BY ci_commit_id, label HAVING count(*)> 1;
-SELECT database, path, count(*) as qty FROM test_inputs GROUP BY database, path HAVING count(*)> 1;
+# SELECT database, path, count(*) as qty FROM test_inputs GROUP BY database, path HAVING count(*)> 1;
 # TOCO:
 # 1.  find duplicates
 # 2.  Merge

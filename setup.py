@@ -80,11 +80,18 @@ setup(
     # TODO: To make installation faster, especially on windows
     #       we should remove this dependency and implement what we need ourselves.
     'sklearn',
-    # TODO: only a dev dependency
-    'green', 
   ],
 
   extras_require={
+    'dev': [
+      # lint
+      'flake8',
+      # test runner
+      'green',
+      # type hint checks
+      'mypy',
+      # TODO: format with black
+    ],
     # Optionnal needed only for `qa optimize`
     # Since its CLI usage is not straightforward, it's best kept at an optionnal dependency
     # Enable with  `pip install qaboard[optimize]`

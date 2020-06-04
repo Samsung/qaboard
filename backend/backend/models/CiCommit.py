@@ -293,8 +293,8 @@ def parent_successful_commit(ci_commit, batch_label=None):
     try:
       query = CiCommit.query\
                       .filter(
-                        CiCommit.authored_datetime < self.authored_datetime,
-                        CiCommit.branch == self.branch,
+                        CiCommit.authored_datetime < ci_commit.authored_datetime,
+                        CiCommit.branch == ci_commit.branch,
                       )
       for ci_commit in query:
         if len(ci_commit.ci_batch.outputs) or (batch_label and len(ci_commit.get_or_create_batch(batch_label).outputs)):

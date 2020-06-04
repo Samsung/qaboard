@@ -75,6 +75,7 @@ def upgrade():
 
 
 def downgrade():
+  start = time.time()
   print('Downgrading extra_parameters')
   op.alter_column('outputs', 'extra_parameters', type_=sa.dialects.postgresql.JSON, postgresql_using='extra_parameters::jsonb::text')
 
