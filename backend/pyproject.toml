@@ -14,20 +14,20 @@ homepage="https://samsung.github.io/qaboard"
 
 [tool.poetry.dependencies]
 python = "3.8.*"
-gitpython = "*"   # manipulate git repositories
-click = "*"       # build CLI tools easily
-flask = "*"       # HTTP server
-flask_cors = "*"  # (not used?)
-sqlalchemy = "*"  # ORM
+gitpython = "*"    # manipulate git repositories
+click = "*"        # build CLI tools easily
+flask = "*"        # HTTP server
+flask_cors = "*"   # (not used?)
+sqlalchemy = "*"   # ORM
 sqlalchemy_utils = "*"
-alembic = "*"     # Schema migrations
-psycopg2 = "*"    # postgresql driver
-ujson = "*"       # fast json lib
-pandas = "*"      # stats
-numpy = "=>1.17.3"# (needed by pandas - just we ensure python3.8 compat)
-skimage = "*"     # image processing for auto-regions of interest
-uwsgi = "*"       # server
-uwsgitop = "*"    # top for uwsgi
+alembic = "*"      # Schema migrations
+psycopg2 = "*"     # postgresql driver
+ujson = "*"        # fast json lib
+pandas = "*"       # stats
+numpy = "=>1.17.3" # (needed by pandas - just we ensure python3.8 compat)
+scikit-image = "*" # image processing for auto-regions of interest
+uwsgi = "*"        # server
+uwsgitop = "*"     # top for uwsgi
 qaboard = { path = "..", optional = true }
 
 # Makes incremental docker builds easier
