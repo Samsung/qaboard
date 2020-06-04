@@ -72,7 +72,7 @@ jobs:
 
   publish-docker-images:
     runs-on: ubuntu-latest
-    if: github.ref == 'master'
+    if: github.ref == 'refs/heads/master'
     needs:
       - code-checks
       - build-webapp
