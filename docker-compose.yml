@@ -66,7 +66,7 @@ services:
 
 
   backend:
-    image: docker.pkg.github.com/samsung/qaboard/backend:latest
+    image: docker.pkg.github.com/samsung/qaboard:backend
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -88,7 +88,7 @@ services:
     - GITLAB_ACCESS_TOKEN
 
   frontend:
-    image: docker.pkg.github.com/samsung/qaboard/frontend:latest
+    image: docker.pkg.github.com/samsung/qaboard:frontend
     build:
       context: webapp
       shm_size: 4gb
@@ -96,7 +96,7 @@ services:
     - frontend_builds:/builds
 
   website:
-    image: docker.pkg.github.com/samsung/qaboard/website:latest
+    image: docker.pkg.github.com/samsung/qaboard:website
     build:
       context: website
       shm_size: 4gb
@@ -134,7 +134,7 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: docker.pkg.github.com/samsung/qaboard/cantaloupe:latest
+    image: docker.pkg.github.com/samsung/qaboard:cantaloupe
     build:
       context: ./services/cantaloupe
     expose:
