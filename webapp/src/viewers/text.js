@@ -61,6 +61,24 @@ class GenericTextViewer extends React.Component {
     window.addEventListener("keypress", this.keyboard, { passive: true });
   }
 
+  shouldComponentUpdate(nextProps, nextState) {
+    const {text_url_new, text_url_ref } = this.props
+    const {text_url_new: next_text_url_new, text_url_ref: next_text_url_ref } = this.props
+    const { is_loaded, error, data, shown_left } = this.state;
+    const { is_loaded: next_is_loaded, error: next_error, data: next_data, shown_left: next_shown_left } = nextState;
+    if (is_loaded === next_is_loaded && 
+        next_error === error &&
+        data.reference === next_data.reference &&
+        data.new === next_data.new &&
+        shown_left === next_shown_left &&
+        text_url_new === next_text_url_new &&
+        text_url_ref === next_text_url_ref
+       ) {
+      return false;
+    }
+    return true;
+  }
+
   componentWillUnmount() {
     window.removeEventListener('keypress', this.keypress);
     if (!!this.state.cancel_source)
@@ -119,7 +137,6 @@ class GenericTextViewer extends React.Component {
     if (!!error && !this.props.always_show_diff) return <span>{JSON.stringify(error)}</span>
 
     const { data, shown_left } = this.state;
-    console.log("render", shown_left)
     if (!!!data.new && !this.props.always_show_diff)
       return <span></span>
 
