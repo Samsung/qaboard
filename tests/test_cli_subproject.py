@@ -31,6 +31,7 @@ class TestQaCliSubproject(unittest.TestCase):
       f.write(yaml.dump(images))
     os.environ['QA_DATABASE'] = database
     os.environ['QA_OFFLINE'] = 'true'
+    os.environ['QA_CI_ROOT'] = '/tmp'
 
   @classmethod
   def TearDownClass(self):

@@ -153,7 +153,7 @@ else:
 # Results are saved at a centralized location. This makes it easy to read results
 # either from the web application, or for local bit-accuracy tests.
 try:
-    ci_root = Path(config['ci_root'][mount_flavor])
+    ci_root = Path(os.environ.get('QA_CI_ROOT', config['ci_root'][mount_flavor]))
 except KeyError:
   ci_root = Path() # just to let the execution continue...
   config_has_error = True
