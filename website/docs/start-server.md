@@ -17,7 +17,7 @@ The `qa` executable will need to send updates to a central server, that tracks a
 1. [`docker`](https://docs.docker.com/engine/install/) and [`docker-compose`](https://docs.docker.com/compose/install/).
 2. Get the code with:
 ```bash
-git@github.com:Samsung/qaboard.git
+git clone git@github.com:Samsung/qaboard.git
 cd qaboard
 ```
 
