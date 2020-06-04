@@ -64,7 +64,7 @@ setup(
   ],
 
   packages=find_packages(exclude=("tests","backend")),
-  python_requires='>=3.6',
+  python_requires='>=3.7',
   install_requires=[
     'dataclasses', # Backport for python3.6
     'click>=7.0',  # CLI for humans. In v7 they changed CLI command conventions, started using "-" vs "_"
