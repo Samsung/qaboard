@@ -107,6 +107,7 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
 
 
+  @unittest.skip("Not tested in the OSS version yet")
   def test_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
     assert result.exit_code == 0
@@ -114,6 +115,7 @@ class TestQaCli(unittest.TestCase):
     os.chdir('subproject')
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
 
+  @unittest.skip("FIXME: decide what to do by default with artifacts in the OSS version")
   def test_save_artifacts(self):
     result = self.qa('save-artifacts')
     print('stdout:', result.stdout)

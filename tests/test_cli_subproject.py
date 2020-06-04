@@ -97,6 +97,7 @@ class TestQaCliSubproject(unittest.TestCase):
     # print('stderr:', result.stderr)
     assert result.exit_code == 0
 
+  @unittest.skip("Not tested in the OSS version yet")
   def test_sub_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
     assert result.exit_code == 0
