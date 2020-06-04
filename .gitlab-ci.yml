@@ -19,6 +19,12 @@ type-check:
   script:
   - mypy -p qaboard --ignore-missing-imports
 
+lint:
+  stage: test
+  script:
+  - flake8 backend qaboard --count --select=E9,F63,F7,F82 --show-source --statistics
+
+
 deploy:qa:
   stage: deploy
   only:
