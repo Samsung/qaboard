@@ -420,7 +420,7 @@ develop = true
 name = "qaboard"
 optional = true
 python-versions = ">=3.7"
-version = "0.8.5"
+version = "0.8.6"
 
 [package.dependencies]
 click = ">=7.0"

@@ -4,31 +4,6 @@ References used:
 - https://setuptools.readthedocs.io/en/latest/setuptools.html
 
 We may want to take a close look at [poetry](https://python-poetry.org/) for packaging...
-
-```bash
-# pip install twine
-
-python setup.py sdist bdist_wheel
-twine check dist/*
-twine upload dist/*
-
-# From SIRC, we need some care to connect to PyPi:
-#   (no checked)  REQUESTS_CA_BUNDLE=/home/arthurf/qaboard/backend/deployment/sirc-ca.crt
-#   (works, ugly) patch: `+  verify=False` in lib/python37/site-packages/twine/repository.py:175
-#   (helps)       ssh $nice_host
-twine upload --verbose -u __token__ dist/*
-
-
-Until https://github.com/pypa/pip/issues/2195 is resolved,
-for local development with `pip install` without `--editable`,
-you'll likely want to speed-up pip
-```
-# site-packages/pip/_internal/download.py
-778: +        from shutil import ignore_patterns
-     +        shutil.copytree(link_path, location, symlinks=True, ignore=ignore_patterns('.git', 'node_modules'))
-     -        shutil.copytree(link_path, location, symlinks=True)
-```
-
 """
 # https://github.com/ninjaaron/fast-entry_points
 import fastentrypoints
@@ -41,7 +16,7 @@ README = README_md.read_text(encoding='utf-8')
 
 setup(
   name='qaboard',
-  version="0.8.5", # __version__ needs to be updated in qaboard/__init__.py as well
+  version="0.8.6", # __version__ needs to be updated in qaboard/__init__.py as well
   license="Apache-2.0",
 
   url="https://github.com/Samsung/qaboard",
