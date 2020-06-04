@@ -23,10 +23,8 @@ jobs:
     - name: Check running containers
       run: docker ps -a
     - name: Check logs
-      run: docker-compose logs backend
-    - name: Smoke Test @api
-      run: curl -s --retry 10 --retry-connrefused http://localhost:5151/api/v1/projects
+      run: docker-compose logs
     - name: Smoke Test @app
       run: curl -s --retry 10 --retry-connrefused http://localhost:5151/
-    # - name: Run test suite
-    #   run: docker exec backend pytest --skip-auth
+    - name: Smoke Test @api
+      run: curl -s --retry 10 --retry-connrefused http://localhost:5151/api/v1/projects
