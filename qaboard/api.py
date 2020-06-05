@@ -23,10 +23,11 @@ if qaboard_hostname and qaboard_port:
 elif qaboard_host:
   qaboard_url = f"{qaboard_protocol}://{qaboard_host}"
 else:
-  click.secho("WARNING: We don't know where to look for your QA-Board server.", fg='yellow', bold=True, err=True)
-  click.secho("         Please provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
-  click.secho("         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
-  click.secho("       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
+  qaboard_url = "http://localhost:5151"
+  click.secho(f"WARNING: We don't know where to look for your QA-Board server. Default: {qaboard_url}", fg='yellow', bold=True, err=True)
+  click.secho(f"         Please provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
+  click.secho(f"         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
+  click.secho(f"       > If you don't have a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
 
 api_prefix = f"{qaboard_url}/api/v1"
 
