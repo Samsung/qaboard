@@ -1,3 +1,9 @@
+
+services/
+build/
+dist/
+website/
+
 data*
 data/
 *.sock

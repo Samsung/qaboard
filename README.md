@@ -4,6 +4,7 @@
 [![qaboard-chat](https://img.shields.io/badge/chat-spectrum-brightgreen)](https://spectrum.chat/qaboard)
 [![PyPI](https://img.shields.io/pypi/v/qaboard)](https://pypi.org/project/qaboard/)
 [![Docs](https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square)](https://samsung.github.io/qaboard)
+[![CI](https://github.com/samsung/qaboard/workflows/CI/badge.svg)](https://github.com/samsung/qaboard/actions?query=workflow%3ACI)
 
 > [Take a look at SIRC's live server](https://qa) 😊👓
 >
