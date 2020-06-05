@@ -1,3 +1,4 @@
+import os
 from .database import db_session, Session
 
 # Configure the flask application
@@ -5,9 +6,9 @@ from flask import Flask
 from flask_cors import CORS
 app = Flask(__name__)
 
-# This is needed to use flask's sessions
-# and eg display flash messages after redirects
-app.secret_key = 'A0Zr98j/3yX R~JHCXQ!fgdsrtgLWX/,?RT'
+# This would be needed to use flask's sessions (e.g. display flash messages after redirects...)
+# However we never used this feature as (1) the backend is stateless and (2) the client uses an API, now generated views. 
+# app.secret_key = os.environ.get('QABOARD_FLASK_SECRET_KEY', 'xxxxxxxxxxx')
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
