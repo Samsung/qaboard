@@ -3,10 +3,14 @@
 # https://help.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions
 # https://help.github.com/en/actions/configuring-and-managing-workflows/authenticating-with-the-github_token
 # https://hynek.me/articles/python-github-actions/
+# https://medium.com/swlh/fast-docker-build-in-kubernetes-f52088854f45
 
 name: CI
 on: [push, pull_request]
 
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
   code-checks:
@@ -58,7 +62,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build the docker-compose stack
-      run: docker-compose build
+      run: docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1
     - name: Up the docker-compose stack
       run: docker-compose up -d
     - name: Check running containers
@@ -79,6 +83,8 @@ jobs:
       - test-docker-images
     steps:
     - uses: actions/checkout@v2
+    - name: Build the docker-compose stack
+      run: docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1
     - name: Publish images
       run: |
         echo ${{ secrets.GITHUB_TOKEN }} | docker login https://docker.pkg.github.com -u arthur-flam --password-stdin
