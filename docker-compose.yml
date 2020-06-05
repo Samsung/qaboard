@@ -66,9 +66,9 @@ services:
 
 
   backend:
-    image: docker.pkg.github.com/samsung/qaboard:backend
+    image: docker.pkg.github.com/samsung/qaboard/backend
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard:backend]
+      cache_from: [docker.pkg.github.com/samsung/qaboard/backend]
       context: .
       dockerfile: backend/Dockerfile
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
@@ -89,18 +89,18 @@ services:
     - GITLAB_ACCESS_TOKEN
 
   frontend:
-    image: docker.pkg.github.com/samsung/qaboard:frontend
+    image: docker.pkg.github.com/samsung/qaboard/frontend
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard:frontend]
+      cache_from: [docker.pkg.github.com/samsung/qaboard/frontend]
       context: webapp
       shm_size: 4gb
     volumes:
     - frontend_builds:/builds
 
   website:
-    image: docker.pkg.github.com/samsung/qaboard:website
+    image: docker.pkg.github.com/samsung/qaboard/website
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard:website]
+      cache_from: [docker.pkg.github.com/samsung/qaboard/website]
       context: website
       shm_size: 4gb
       args:
@@ -137,9 +137,9 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: docker.pkg.github.com/samsung/qaboard:cantaloupe
+    image: docker.pkg.github.com/samsung/qaboard/cantaloupe
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard:cantaloupe]
+      cache_from: [docker.pkg.github.com/samsung/qaboard/cantaloupe]
       context: ./services/cantaloupe
     expose:
     - "8182"
