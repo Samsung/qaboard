@@ -175,7 +175,7 @@ class TofOutputCard extends Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    let outputs_changed = prevProps.output_new !== this.props.output_new || prevProps.output_ref !== this.props.output_ref;
+    let outputs_changed = prevProps.output_new?.id !== this.props.output_new?.id || prevProps.output_ref?.id !== this.props.output_ref?.id;
     if (outputs_changed)
         this.updateFrames(this.props, /*keep_selected_frame=*/prevProps.output_new.test_input_path === this.props.output_new.test_input_path)
     const { selected_output_type, selected_frame } = this.state;
@@ -207,8 +207,9 @@ class TofOutputCard extends Component {
       } 
       
     }
-    if (this.state.show_heatmap && (should_load_heatmap || outputs_changed) )
-        this.getHeatmapData(this.props);
+    if (this.state.show_heatmap && (should_load_heatmap || outputs_changed) ) {
+      this.getHeatmapData(this.props);
+    }
   }
   
   
