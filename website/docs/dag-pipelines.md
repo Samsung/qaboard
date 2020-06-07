@@ -22,15 +22,15 @@ Below are two workarounds people have used until now, and a proposition for buil
 >
 > **The goal is a solution that is simple, expressive, and enables caching.**
 
-1. Run qa batch multiple times, with each run expecting that results of the previous run are available (as done with @rivka, @ToF).
-  a. (+) Rather easy to do
-  b. (-) The logic is outside QA-Board – it can’t easily be used for tuning from the web UI 
-2. Create a "meta" run, with a heavy run() function that itself takes care of everything  (as done with @eliav)
-  a. (+) Easy to do
-  b. (-) But very custom and not easy to use
-  c. (-) There many tricky corners (running locally, filesystem issues on LSF) that should not be the  engineer’s concern.
+1. Run qa batch multiple times, with each run expecting that results of the previous run are available _(as done with @rivka, @TF)_.
+  * **(+)** Rather easy to do
+  * **(-)** The logic is outside QA-Board – it can’t easily be used for tuning from the web UI 
+2. Create a "meta" run, with a heavy run() function that itself takes care of everything  _(as done with @eliav)_
+  * **(+)** Easy to do
+  * **(-)** But very custom and not easy to use
+  * **(-)** There many tricky corners (running locally, filesystem issues on LSF) that should not be the  engineer’s concern.
 3. "Built-in support" by QA-Board.
-One possible way we could do it is by extending the syntax used to defined batches with a `depends:`/ `needs:` keyword:
+One possible way we could do it is by extending the syntax used to defined batches with a `needs:` keyword:
 
 Simple example:
 ```yaml
@@ -42,7 +42,7 @@ batch1:
   - base
 
 batch2:
-  depends: batch1
+  needs: batch1
   type: script
   configurations:
   - python my_script.py {o.output_dir for o in depends["batch1"]}
@@ -65,14 +65,14 @@ my-calibration-images:
     - DL75.raw
 
 my-calibration:
-    depends:
+    needs:
       calibration_images: my-calibration-images
     type: script
     configurations:
     - python calibration.py ${o.output_directory for o in depends[calibration_images]}
 
 my-evaluation-batch:
-    depends:
+    needs:
       calibration: my-calibration
     inputs:
     - test_image_1.raw
@@ -90,6 +90,6 @@ $ qa batch my-evaluation-batch
 #=> qa batch my-evaluation-batch
 ```
 
-- (+) simple for users (I think so?)
-- (+) caching for free
-- (?) need to define a clear API: how each job can lookup results of earlier jobs… And likely we will need naming-conventions for parameter tuning…
+- **(+)** simple for users (I think so?)
+- **(+)** caching for free
+- **(?)** need to define a clear API: how each job can lookup results of earlier jobs… And likely we will need naming-conventions for parameter tuning…
