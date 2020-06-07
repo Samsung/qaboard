@@ -1,7 +1,7 @@
 """
 
 ```python
-from qatools.ci_helpers import on_branch, run_tests
+from qaboard.ci_helpers import on_branch, run_tests
 
 @on_branch('develop')
 def hdr_tests():
