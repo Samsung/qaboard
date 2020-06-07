@@ -651,7 +651,7 @@ class ImgViewer extends React.PureComponent {
     return <>
       {error_messages}
       {!has_error && <>
-        {this.state.ready && has_reference &&
+        {this.state.ready &&
           <MultiSelectTags
             output_new={output_new}
             output_ref={output_ref}
