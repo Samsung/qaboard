@@ -13,27 +13,30 @@ The `qa` executable will need to send updates to a central server, that tracks a
 
 > Please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues. 
 
-## Dependencies
-1. [`docker`](https://docs.docker.com/engine/install/) and [`docker-compose`](https://docs.docker.com/compose/install/).
-2. Get the code with:
+
+## Starting the server
+1. You need [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
+2. *(optionnal)* If you have a github.com account, [being `docker login`'ed](https://help.github.com/en/packages/using-github-packages-with-your-projects-ecosystem/configuring-docker-for-use-with-github-packages#authenticating-with-a-personal-access-token) let's you pull pre-built images.
+2. To start the QA-Board server:
 ```bash
 git clone git@github.com:Samsung/qaboard.git
 cd qaboard
+docker-compose up -d
+#=> the application is live at localhost:8080
 ```
 
-## Starting the server
-To start or restart the QA-Board server:
-```bash
-docker-compose up
-#=> the application is live at localhost:8080
 
-# To have the server start in the background and restart itself 
+To have the server restart automatically:
+
+```bash
 docker-compose -f docker-compose.yml -f production.yml up -d
 ```
 
 :::note
-We're considering offering a hosted solution to help users get started. If your're interested, contact the <a href="mailto:arthur@fl.am">maintainers</a>. 
+We're considering offering a hosted solution to help users get started. If your're interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
 :::
+
+If you want to install from a helm chart for Kubernetes, a CloudFormation configuration or Terraform, <a href="mailto:arthur.flam@gmail.com">get in touch</a>.
 
 
 ## Environment variables
@@ -75,7 +78,6 @@ docker exec -it qaboard_proxy_1 bash
 
 ## SSL / hosting behind a reverse proxy
 What we do is directly change the `nginx` confix:
-
 
 ```nginx title="services/nginx/conf.d/qaboard.conf"
 server {
