@@ -16,9 +16,7 @@ export function Feature({reversed, title, img, text}) {
   return (
     <div className={styles.featureContainer}>
       <div
-        className={classnames(styles.featureContent, {
-          [styles.reversed]: reversed === true,
-        })}
+        className={classnames('col col--12', styles.featureContent, {[styles.reversed]: reversed === true})}
       >
         {reversed ? (
           <>

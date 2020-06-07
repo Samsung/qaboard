@@ -101,6 +101,7 @@ function Home() {
           </section>
         )}
 
+      <div className="container">
       <Feature
         img={<img src={useBaseUrl('img/slides/commit-list.jpg')} alt="Annotations" loading="lazy" />}
         title="Organize & Share"
@@ -151,7 +152,7 @@ function Home() {
         text={
           <>
             <p>
-              With QA-Board each run dumps files in its output folder. When you compare it shows the different files. Files are displayed with a <a href="https://samsung.github.io/qaboard/docs/visualizations#available-file-viewers">wide range of viewers</a>: <strong>first-party support for <a href="https://plotly.com/python/">plotly</a></strong>, text, images, synced videos, 3d pointclouds, raw HTML...
+              With QA-Board, each run dumps files in an output folder. When comparing results, you see a diff of all the files. Files are displayed with a <a href="https://samsung.github.io/qaboard/docs/visualizations#available-file-viewers">wide range of viewers</a>: <strong>first-party support for <a href="https://plotly.com/python/">plotly</a></strong>, text, images, synced videos, 3d pointclouds, raw HTML...
             </p>
             <p>
               You can <a href="https://samsung.github.io/qaboard/docs/visualizations">declaratively create visualizations</a> to show e.g. multiple images, debug data, sliders....
@@ -159,7 +160,6 @@ function Home() {
           </>
         }
       />
-
       <Feature
         img={<img src={useBaseUrl('img/slides/image-viewer.jpg')} alt="Advanced Image Viewer" loading="lazy" />}
         title="Advanced Image Viewer"
@@ -169,12 +169,11 @@ function Home() {
               QA-Board notably supports a performance image viewer based on <a href="https://openseadragon.github.io/">OpenSeaDragon</a>. At Samsung it lets use work smoothly with >100MP images.
             </p>
             <p>
-              Advanced features include showing the perceptual difference, automatically (or defining ahead of time) "Regions of Interest", histograms, color tooltops and standard image.
+              Advanced features include showing perceptual differences, automatically finding interesting (or defining ahead of time) "Regions of Interest", histograms, color tooltops and standard image.
             </p>
           </>
         }
       />
-
       <Feature
         img={<img src={useBaseUrl('img/slides/tuning.jpg')} alt="Tuning & Optimization" loading="lazy" />}
         title="Tuning & Optimization"
@@ -190,7 +189,6 @@ function Home() {
           </>
         }
       />
-
       <Feature
         img={<img src={useBaseUrl('img/slides/triggers.jpg')} alt="Integrations" loading="lazy" />}
         title="Integrations"
@@ -202,8 +200,6 @@ function Home() {
           </>
         }
       />
-
-
       <Feature
         img={<img src={useBaseUrl('img/slides/regressions.jpg')} alt="Regression Explorer" loading="lazy" />}
         title="Regression Explorer"
@@ -219,7 +215,6 @@ function Home() {
           </>
         }
       />
-
       <Feature
         title="More features..."
         text={
@@ -230,6 +225,7 @@ function Home() {
           </>
         }
       />
+    </div>
 
 
       {/* <div className="container">
