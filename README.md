@@ -1,5 +1,5 @@
 # QA-Board
-**QA-Board** helps Algorithms/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
+**QA-Board** helps Algorithms/Software/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
 
 [![qaboard-chat](https://img.shields.io/badge/chat-spectrum-brightgreen)](https://spectrum.chat/qaboard)
 [![PyPI](https://img.shields.io/pypi/v/qaboard)](https://pypi.org/project/qaboard/)
@@ -12,9 +12,9 @@
 
 ## Features
 - **Organize, View and Compare Results**, **Tuning/Optimization**
-- **Web-based:** sharable URLs, no install needed.
+- **Web-based,** with sharable URLs.
 - **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, HTML...
-- **Integrations:** direct access from Git and CI tools, easily exportable results, API, links to the code, trigger jobs...
+- **Integrations:** direct access from Git and CI tools, easily exportable results, API, links to the code, trigger gitlabCI/jenkins/webhooks...
 - **Agnostic** to your language/framework: run your existing code, write files, view them.
 
 ## Benefits
