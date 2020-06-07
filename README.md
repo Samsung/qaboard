@@ -17,11 +17,12 @@
 - **Integrations:** direct access from Git and CI tools, easily exportable results, API, links to the code, trigger gitlabCI/jenkins/webhooks...
 - **Agnostic** to your language/framework: run your existing code, write files, view them.
 
+> For screenshots check the [project's website](https://samsung.github.io/qaboard).
+
 ## Benefits
 - **Scale R&D:** enable engineers to achieve more and be more productive.
 - **Faster Time-to-Market:** collaboration across teams, workflow integration..
 - **Quality:** uncover issues earlier, KPIs, tuning, reporting...
-
 
 ## Get in touch
 We are looking for feedback and insights from outside Samsung. This will help us set the direction for `qaboard`.

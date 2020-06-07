@@ -12,7 +12,7 @@ const logo = {
 
 var config = {
   title: 'QA-Board',
-  tagline: "Visualize and compare algorithm results. Optimize parameters. Share results and track progress.",
+  tagline: "Visualize and compare your code or algorithm results. Share results, track progress, and optimize its parameters.",
   // You may provide arbitrary config keys to be used as needed by your
   // template. For example, if you need your repo's URL...
 
@@ -23,8 +23,25 @@ var config = {
 
   // https://realfavicongenerator.net/
   favicon: 'img/favicon/favicon-32x32.png',
+  customFields: {
+    description:
+      'Visualize and compare algorithm results. Optimize parameters. Share results and track progress.',
+  },
 
   themeConfig: {
+    // announcementBar: {
+    //   id: 'supportus',
+    //   backgroundColor: '',
+    //   textColor: '',
+    //   content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
+    // },
+    // algolia: {
+    //   apiKey: 'xxxxxxxxxx',
+    //   indexName: 'qaboard-2',
+    //   algoliaOptions: {
+    //     facetFilters: [`version:${versions[0]}`],
+    //   },
+    // },
     prism: {
       additionalLanguages: ['nginx'],
       theme: require('prism-react-renderer/themes/github'),
@@ -42,8 +59,14 @@ var config = {
         {to: is_for_webapp ? '/introduction' : 'docs/introduction', label: 'Docs', position: 'left'},
         {
           href: 'https://github.com/Samsung/qaboard',
-          label: 'GitHub.com',
+          position: 'left',
+          label: 'Source',
+        },
+        {
+          href: 'https://github.com/Samsung/qaboard',
           position: 'right',
+          className: 'header-github-link',
+          'aria-label': 'GitHub repository',
         },
       ],
     },
