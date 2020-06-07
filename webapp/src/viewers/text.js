@@ -62,8 +62,8 @@ class GenericTextViewer extends React.Component {
   }
 
   shouldComponentUpdate(nextProps, nextState) {
-    const {text_url_new, text_url_ref } = this.props
-    const {text_url_new: next_text_url_new, text_url_ref: next_text_url_ref } = this.props
+    const {text_url_new, text_url_ref } = this.props || {};
+    const {text_url_new: next_text_url_new, text_url_ref: next_text_url_ref } = this.nextProps || {};
     const { is_loaded, error, data, shown_left } = this.state;
     const { is_loaded: next_is_loaded, error: next_error, data: next_data, shown_left: next_shown_left } = nextState;
     if (is_loaded === next_is_loaded && 
