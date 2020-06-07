@@ -12,7 +12,7 @@ const logo = {
 
 var config = {
   title: 'QA-Board',
-  tagline: "Visualize and compare your code or algorithm results. Share results, track progress, and optimize its parameters.",
+  tagline: "Visualize and compare your code or algorithm results. Share results, track progress, and optimize parameters.",
   // You may provide arbitrary config keys to be used as needed by your
   // template. For example, if you need your repo's URL...
 
