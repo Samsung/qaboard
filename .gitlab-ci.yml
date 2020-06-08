@@ -49,7 +49,6 @@ publish:PyPi:
 
 
 variables:
-  DOCKER_IMAGE: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
   GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
 
@@ -71,17 +70,18 @@ variables:
 
 .deploy: &deploy
   stage: deploy
+  variables:
+    DOCKER_HOST: alginfra1
+    COMPOSE_PROJECT_NAME: $CI_ENVIRONMENT_SLUG
   script:
-    - cd webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install -no-audit && GENERATE_SOURCEMAP=true npm run build'" && cd ..
-    - cd webapp  &&                               rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG .\""
-    - ssh qa "docker push $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG"
-    - ssh qa docker pull $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG
-    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG" || true
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/backend/deployment/start-docker.sh\""
+    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
+    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml push\"""
 
 deploy:staging:
   <<: *deploy
+  variables:
+    DOCKER_HOST: qa
+    CI_ENVIRONMENT_SLUG: ""
   environment:
     name: staging
     url: http://qa:9000
