@@ -1,8 +1,6 @@
-# TODO: Replace with a different CI for github.com...
 stages:
   - test
-  - deploy  # Internally
-  - publish # To Pypi
+  - deploy
 
 before_script:
   - source .envrc
@@ -32,16 +30,6 @@ deploy:qa:
   script:
     - pip install .
 
-
-publish:PyPi:
-  stage: publish
-  when: manual
-  script:
-  - cd qatools
-  - python setup.py sdist bdist_wheel
-  - twine upload --verbose -u __token__ dist/*
-
-
 variables:
   DOCKER_IMAGE: qaboard
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
@@ -68,11 +56,7 @@ variables:
 .deploy: &deploy
   stage: deploy
   script:
-    - cd webapp  && ssh qa "bash -c 'cd $(pwd) && source ../.envrc && npm install --no-audit && GENERATE_SOURCEMAP=true npm run build'" && cd ..
-    - cd webapp  &&                               rsync -r build/* /home/ispq/qaboard/webapp_builds && cd ..
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker build --ssh default -m 12g --tag $DOCKER_IMAGE:$CI_ENVIRONMENT_SLUG .\""
-    - ssh qa "docker stop qaboard-$CI_ENVIRONMENT_SLUG; docker rm qaboard-$CI_ENVIRONMENT_SLUG" || true
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && CI_ENVIRONMENT_SLUG=$CI_ENVIRONMENT_SLUG $(pwd)/backend/deployment/start-docker.sh\""
+    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
 
 deploy:production:
   <<: *deploy
