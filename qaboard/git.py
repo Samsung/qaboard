@@ -145,7 +145,7 @@ class _Commit(object):
   def init(self):
     # print('init()')
     if not self.commit_id:
-      self.commit = self.repo.commit(commit_id)
+      self.commit = self.repo.commit(object.commit_id)
     else:
       # print('init: has commit_id')
       # print("type(self.repo.commit)", type(self.repo.head.commit))
