@@ -169,7 +169,7 @@ function Home() {
               QA-Board notably supports a performance image viewer based on <a href="https://openseadragon.github.io/">OpenSeaDragon</a>. At Samsung it lets use work smoothly with >100MP images.
             </p>
             <p>
-              Advanced features include showing perceptual differences, automatically finding interesting (or defining ahead of time) "Regions of Interest", histograms, color tooltops and standard image.
+              Advanced features include showing perceptual differences, automatically finding interesting (or defining ahead of time) "Regions of Interest", use histograms, color tooltips and image filters.
             </p>
           </>
         }
