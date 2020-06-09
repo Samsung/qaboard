@@ -69,6 +69,7 @@ def escaped_for_cli(string):
   if os.name == 'nt':
     string_escaped = string.replace('\\', '\\\\')
     string_escaped = string_escaped.replace('"', '\\"')
+    string_escaped = string_escaped.replace('|', '^|')
     return f'"{string_escaped}"'
   else:
     return 
