@@ -47,7 +47,7 @@ Create a Gitlab integration to keep the QA-Board and `git` in sync.
 1. Be one of the project's Masters / Maintainers.
 2. Go to https://gitlab.com/$YOUR_GROUP/PROJECT/settings/integrations. (or an on-premises host...)
 3. Add an integration with:
-  * __URL:__ `http://$QABOARD_HOST/webhook/gitlab`
+  * __URL:__ `http://localhost:5151/webhook/gitlab`. Replace localhost with your hostname if you setup any DNS/SSL..
   * __Secret token:__ *(leave the field empty)*
 
 > To test everything went well, Gitlab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🔵🎉.
