@@ -6,22 +6,37 @@ title: Troubleshooting common issues
 Assuming you work on the QA-Board server:
 ```bash
 ssh qa
-# or whatever server you host it on..
 ```
 
-## How to get logs from QA-Board's backend
+## Talking to the different services
+You can interact with the individual services with e.g.
+
 ```bash
+# read logs from a specific service
 docker-compose logs -f backend
-# you can also log other services: proxy/cantaloupe/...
 
-# is the container even running ? restarting all the time
-docker ps
-# get a shell
+# you can get a shell on the various services:
 docker-compose exec backend bash
+docker-compose run proxy /bin/ash
+# or with the docker-compose conventions, if the service is up:
+docker exec -it qaboard_proxy_1 bash
 ```
 
+> Refer to the examples in *[docker-compose.yml](docker-compose.yml)* or to the `docker-compose` docs.
 
-## Restart the docker containers
+
+
+## Quesions to ask if things don't work
+- Is the container even running ? Is it restarting all the time?
+```bash
+docker ps
+```
+- Is the disk full?
+```bash
+df -h
+```
+
+## How to restart the docker containers
 Symptom:
 - Cannot load the web application
 - 500 errors
@@ -34,12 +49,11 @@ docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 
 ```
 
-### Start from scratch the docker container
+### How to start from scratch the docker container
 ```bash
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml down
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 ```
-
 
 ### Quick wins when the disk is full
 Symptom:
@@ -58,7 +72,7 @@ docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d cantal
 
 Remove unused docker images
 ```bash
-docker image prune
+docker image prune # -a
 ```
 
 ### Re-build and start the docker container

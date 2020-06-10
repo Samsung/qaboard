@@ -30,6 +30,10 @@ export REACT_APP_QABOARD_API_HOST=http://your-server:port
 The backend's [README](../backend) explains how to start a full dev server.
 
 
+:::tip
+To connect which backend you connect to (e.g. not localhost but maybe the production backend), edit _webapp/src/setupProxy.js_.
+:::
+
 ## How does it work?
 - This project was started with [Create React App](https://github.com/facebookincubator/create-react-app). [Go to their README](https://github.com/facebookincubator/create-react-app/blob/master/packages/react-scripts/template/README.md) to learn a lot about the dev environment (package manager, testing, proxying, formatting, linting, compilation, javascript features...)
 - What is the tech stack?
