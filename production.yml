@@ -13,10 +13,9 @@ services:
     restart: always
     environment:
     - UWSGI_PROCESSES=8
-    # For a flask debugging server
-    # $ "docker-compose run backend 'QABOARD_DB_ECHO=True cd /qaboard/backend && FLASK_APP=backend FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 3001'"
-    # ports:/
-    # - ${QABOARD_PORT_FLASK:-5152}:3001
+    # leave an unbound port open, useful for debugging 
+    ports:
+    - ${QABOARD_PORT_DEBUG:-5152}:3001
     
   proxy:
     restart: always
