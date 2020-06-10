@@ -21,15 +21,17 @@ services:
     - ./qaboard:/qaboard/qaboard
     - ./backend:/qaboard/backend
     environment:
-    - QABOARD_DB_ECHO=true
+    # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
     - FLASK_APP=backend
     - FLASK_ENV=development
     - FLASK_DEBUG=1
+    # Connect to the production database
+    - QABOARD_DB_HOST=qa
     # Start a flask debug server instead of the full uwsgi
-    # To use it, comment out, as well as frontent:environment below
     working_dir: /qaboard/backend
     command: flask run --host 0.0.0.0 --with-threads --port 5152
+    user: "11611:11"
     ports:
     - 5152:5152
     #   logging:
@@ -48,6 +50,10 @@ services:
     # Relay API requests to your development server
     - REACT_APP_QABOARD_API_HOST=http://backend:5152
     - REACT_APP_QABOARD_HOST=http://proxy:5151
+    ### At SIRC ####
+    - HTTP_PROXY=
+    - http_proxy=
+    - REACT_APP_QABOARD_HOST=http://proxy
     command: npm start
     ports:
     - 3000:3000

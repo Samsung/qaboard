@@ -8,7 +8,7 @@ version: "3.5"
 
 services:
   iiif-cde:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:iiif-cde"
+    image: "gitlab-srv:4567/dvs/slamvizapp/iipsrv-cde"
     # command: 'tail -f /dev/null' # keeps the container up for debugging, but does nothing...
     restart: always
     expose:
@@ -47,6 +47,7 @@ services:
   proxy:
     ports:
     - ${QABOARD_PORT_HTTPS:-443}:443
+    - 80:5003
     # backward compat
     - "5000:5000"
     - "5002:5002"

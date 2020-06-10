@@ -5,15 +5,15 @@ QA-Board's backend built as a [flask](https://flask.pocoo.org) application. It e
 ```bash
 git clone git@gitlab-srv:common-infrastructure/qaboard.git
 cd qaboard
-docker-compose -f docker-compose.yml -f development.yml up  -d 
+docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up  -d 
 ```
 
 > **Tip:** If you called `npm install` in the *webapp/*, (see the [README](../webapp)), a frontend connected to the dev backend will also be up on port 3000.
 
 Get logs and a shell with:
 ```
-docker-compose -f docker-compose.yml -f development.yml logs -f backend
-docker-compose -f docker-compose.yml -f development.yml exec backend bash
+docker-compose -f docker-compose.yml -f development.yml -f sirc.yml logs -f backend
+docker-compose -f docker-compose.yml -f development.yml -f sirc.yml exec backend bash
 ```
 
 Edit _development.yml_ as suits your needs to e.g. change connect to another database using `QABOARD_DB_HOST`.
