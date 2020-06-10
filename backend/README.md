@@ -75,12 +75,7 @@ $ exit
   * you'll find [many examples here](alembic/versions)
 
 
-## Monitoring
-```
-https://hub.docker.com/r/fenglc/pgadmin4/
-```
-
-## Application performance
+## Monitoring & Application performance
 To get information about how much time is spend where in the python code:
 ```python
 from ..utils import profiled

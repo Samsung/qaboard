@@ -3,6 +3,10 @@ id: troubleshooting
 sidebar_label: Troubleshooting
 title: Troubleshooting common issues
 ---
+Assuming you work on the QA-Board server:
+```bash
+ssh qaboard-server
+```
 
 ## Talking to the different services
 You can interact with the individual services with e.g.
@@ -20,9 +24,7 @@ docker exec -it qaboard_proxy_1 bash
 
 > Refer to the examples in *[docker-compose.yml](docker-compose.yml)* or to the `docker-compose` docs.
 
-
-
-## Quesions to ask if things don't work
+## Questions to ask if things don't work
 - Is the container even running ? Is it restarting all the time?
 ```bash
 docker ps

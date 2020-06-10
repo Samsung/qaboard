@@ -21,7 +21,7 @@ npm start
 ``` 
 
 :::tip
-To connect which backend you connect to (e.g. not localhost but maybe the production backend), edit _webapp/src/setupProxy.js_.
+To change which backend you connect to (e.g. not localhost but maybe the production backend), edit _webapp/src/setupProxy.js_.
 :::
 
 ## How does it work?
