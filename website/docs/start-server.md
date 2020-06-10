@@ -40,18 +40,19 @@ docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
 ## Environment variables
 > You can edit an `.env` file to set them, `A=B` on each line, or add `environment:` keys to `backend` service in one of the `docker-compose.yml`
 
-| ENV Variable           | Default | Usage                                            |
--------------------------|-------- |--------------------------------------------------|
-| `GITLAB_ACCESS_TOKEN`  | _none_  | **Required** *for now*, to get info on git repos |
-| `QABOARD_PORT_HTTP`    | 80      | Port mapped to the app on the host               |
-| `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
-| `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port           |
-| `JENKINS_USER_NAME`    | _none_  | Used to [trigger jenkins jobs](/docs/triggering-third-party-tool) ([how-to-get-it?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
-| `JENKINS_USER_TOKEN`   | _none_  |                                                  |
-| `JENKINS_USER_CRUMB`   | _none_  |                                                  |
-| `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server             |
-| `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                  |
-| `UWSGI_PROCESSS`       | 1       | default: 1g                                      |
+| ENV Variable            | Default | Usage                                            |
+--------------------------|-------- |--------------------------------------------------|
+| `GITLAB_ACCESS_TOKEN`   | _none_  | **Required** *for now*, to get info on git repos |
+| `QABOARD_PORT_HTTP`     | 80      | Port mapped to the app on the host               |
+| `QABOARD_DB_HOST`       | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
+| `QABOARD_DB_PORT`       | 5432    | Connect to a non-default database port           |
+| `REACT_APP_QABOARD_HOST`| _http://localhost:5151_ | During development, where you host the server - how it's reached from the  client |
+| `JENKINS_USER_NAME`     | _none_  | Used to [trigger jenkins jobs](/docs/triggering-third-party-tool) ([how-to-get-it?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
+| `JENKINS_USER_TOKEN`    | _none_  |                                                  |
+| `JENKINS_USER_CRUMB`    | _none_  |                                                  |
+| `CANTALOUPE_MEM_START`  | 1g      | Starting memory for the image server             |
+| `CANTALOUPE_MEM_MAX`    | 2g      | Max memory for the image server                  |
+| `UWSGI_PROCESSS`        | 1       | default: 1g                                      |
 
 
 ## Development

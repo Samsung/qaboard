@@ -1,6 +1,7 @@
 version: "3.5"
 
 services:
+  # don't show logs from those services
   pgadmin:
     logging:
       driver: none
@@ -10,9 +11,6 @@ services:
   cantaloupe:
     logging:
       driver: none
-  # backend:
-  #   logging:
-  #     driver: none
   
   proxy:
     environment:
@@ -23,16 +21,36 @@ services:
     - ./qaboard:/qaboard/qaboard
     - ./backend:/qaboard/backend
     environment:
-    # - QABOARD_DB_ECHO=true
+    - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
+    - FLASK_APP=backend
     - FLASK_ENV=development
-    # For a flask debugging server
-    # $ "docker-compose run backend 'QABOARD_DB_ECHO=True cd /qaboard/backend && FLASK_APP=backend FLASK_DEBUG=1 flask run --host 0.0.0.0 --with-threads --port 5002'"
+    - FLASK_DEBUG=1
+    # Start a flask debug server instead of the full uwsgi
+    # To use it, comment out, as well as frontent:environment below
+    working_dir: /qaboard/backend
+    command: flask run --host 0.0.0.0 --with-threads --port 5152
     ports:
-    - ${QABOARD_PORT:-5002}:5002
+    - 5152:5152
+    #   logging:
+    #     driver: none
 
-  # website:
-  #   user: "11611:10"
-  #   volumes:
-  #   - ./website:/website
-  
+
+  frontend:
+    volumes:
+    - ./webapp:/webapp
+    environment:
+    # Should we comment it out by default?
+    - HOST=0.0.0.0
+    - DANGEROUSLY_DISABLE_HOST_CHECK=true
+    - CHOKIDAR_USEPOLLING=true
+    # - REACT_EDITOR=code
+    # Relay API requests to your development server
+    - REACT_APP_QABOARD_API_HOST=http://backend:5152
+    - REACT_APP_QABOARD_HOST=http://proxy:5151
+    command: npm start
+    ports:
+    - 3000:3000
+    depends_on:
+    - proxy
+    - backend

@@ -77,7 +77,7 @@ def run():
     for c in context.obj["configurations"]:
       if isinstance(c, str): # Load from a file.
          # Supports absolute paths for free
-         config_path = Path('configurations') / f"{c}.yaml"
+         config_path = Path('configurations') / c if not c.exists() else c
          with config_path.open() as f:
              new_parameters = yaml.load(f)
       if isinstance(c, dict):
