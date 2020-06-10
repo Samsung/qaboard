@@ -67,17 +67,24 @@ def filter_outputs(query, outputs):
   if not query:
     return outputs
 
-  query = query.lower().replace('"', '')
+  query = query.strip().lower().replace('"', '')
   query = re.sub(r'[=:] +', ':', query)
 
   tokens = query = query.split()
   negative_tokens = [t[1:] for t in tokens if t.startswith('-')]
   positive_tokens = [t for t in tokens if not t.startswith('-')]
+  # print('negative_tokens', negative_tokens)
+  # print('positive_tokens', positive_tokens)
 
   def match(output):
-    extra_parameters = json.dumps(output.extra_parameters)
-    configurations = json.dumps(output.configurations)
-    searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters}".replace('"', '').lower()
+    # in the web application, json is serialized tight without extra whitespace
+    extra_parameters = json.dumps(output.extra_parameters, separators=(',', ':'))
+    configurations = json.dumps(output.configurations, separators=(',', ':'))
+    input_metadata = output.test_input.data['metadata'] if (output.test_input.data and 'metadata' in output.test_input.data) else {}
+    input_metadata = json.dumps(input_metadata, separators=(',', ':'))
+    failed = 'fail crash' if output.is_failed else ''
+    pending = 'pending running' if output.is_pending else ''
+    searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {input_metadata} {failed} {pending}".replace('"', '').lower()
     # print(searched)
     # not using output.test_input_tags.join() like in the JS
     if any([t in searched for t in negative_tokens]):
@@ -156,6 +163,8 @@ def export_to_folder():
 
   filter_new = request.args.get('filter_new')
   filter_ref = request.args.get('filter_ref')
+  print("filter_new", filter_new)
+  print("filter_ref", filter_ref)
   new_outputs = filter_outputs(filter_new, new_outputs)
   ref_outputs = filter_outputs(filter_ref, ref_outputs)
   print("new_outputs", len(new_outputs))
@@ -320,6 +329,8 @@ def export_to_folder():
       f.write(link_content)
   return jsonify({
   	"export_dir": str(export_dir),
+    "nb_outputs": len(new_outputs),
+    "nb_outputs_ref": len(ref_outputs),
   })
 
 
