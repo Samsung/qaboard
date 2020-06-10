@@ -96,6 +96,9 @@ services:
       shm_size: 4gb
     volumes:
     - frontend_builds:/builds
+    # by default we assume you run the QA-Board on localhost, but will want to change this
+    environment:
+    - REACT_APP_QABOARD_HOST=http://localhost:5151
 
   website:
     image: docker.pkg.github.com/samsung/qaboard/website
@@ -154,6 +157,11 @@ services:
       CANTALOUPE_MEM_MAX: 2g
     command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.war'
 
+
+  # cron jobs
+  # https://github.com/getsentry/onpremise/blob/master/docker-compose.yml#L126-L133
+  # https://github.com/getsentry/onpremise/blob/master/cron/Dockerfile
+  # https://github.com/getsentry/onpremise/blob/master/cron/entrypoint.sh 
 
 
   # For convenience, we also bundle pgadmin

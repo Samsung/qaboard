@@ -5,13 +5,18 @@ QA-Board's backend built as a [flask](https://flask.pocoo.org) application. It e
 ```bash
 git clone git@gitlab-srv:common-infrastructure/qaboard.git
 cd qaboard
-docker-compose -f docker-compose.yml -f development.yml up
-# edit development.yml as suits your needs, e.g. change QABOARD_DB_HOST
+docker-compose -f docker-compose.yml -f development.yml up  -d 
+```
 
-# if you started with "up -d", get logs and a shell with:
+> **Tip:** If you called `npm install` in the *webapp/*, (see the [README](../webapp)), a frontend connected to the dev backend will also be up on port 3000.
+
+Get logs and a shell with:
+```bash
 docker-compose -f docker-compose.yml -f development.yml logs -f backend
 docker-compose -f docker-compose.yml -f development.yml exec backend bash
 ```
+
+Edit _development.yml_ as suits your needs to e.g. change connect to another database using `QABOARD_DB_HOST`.
 
 Consult also:
 - [Starting QA-Board Guide](https://samsung.github.io/qaboard/docs/start-server)
@@ -35,7 +40,7 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
 ---
 
 
-## Backups (WIP, needs update!)
+## Backups (WIP, needs update after move to `docker-compose`!)
 ```bash
 # Take a look at:
 # deployment/create-backup.sh
@@ -45,18 +50,18 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 # from a computer with the  same postgresql major version, run something like...
-pg_dump --dbname=qaboard --username=ci --password -h localhost  > backup.07-01-2019.sql
+pg_dump --dbname=qaboard --username=qaboard --password -h localhost  > backup.07-01-2019.sql
 
 ```
 
-# Recovery
+## Recovery
 ```bash
 > docker exec -it qaboard-production bash
 export LC_ALL=C.UTF-8 LANG=C.UTF-8
 ps -aux | grep '\(flask run\|sudo .*uwsgi\)' | grep -v grep | awk '{print $2}' | xargs -I{} sudo kill {}
-auth='--username=ci --password -h localhost'
+auth='--username=qaboard --password -h localhost'
 PGPASS=$HOME/.pgpass
-auth='--username=ci --no-password -h localhost'
+auth='--username=qaboard --no-password -h localhost'
 
 dropdb $auth qaboard
 # Password:

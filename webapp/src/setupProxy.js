@@ -2,14 +2,17 @@
 // https://github.com/chimurai/http-proxy-middleware
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
-let QABOARD_SERVER_URL= "http://localhost:5151";
-// QABOARD_SERVER_URL_PROD= "https://qa";
+// by default we assume you run QA-Board on localhost
+let QABOARD_SERVER_URL= process.env.REACT_APP_QABOARD_HOST || "http://localhost:5151";
+// the api server doesn't serve the static content
+let REACT_APP_QABOARD_API_HOST= process.env.REACT_APP_QABOARD_API_HOST || QABOARD_SERVER_URL;
+
 
 module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: QABOARD_SERVER_URL,
+      target: REACT_APP_QABOARD_API_HOST,
       changeOrigin: true,
     })
   );
