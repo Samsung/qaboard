@@ -8,6 +8,12 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 import {Feature} from '../components/feature';
 import styles from './styles.module.css';
 
+
+const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
+const publish_github_samsung_public  = process.env.PUBLISH === 'github_samsung_public' 
+const is_for_webapp = !publish_github_samsung_private && !publish_github_samsung_public
+
+
 const features = [
   {
     title: <>What is QA-Board?</>,
@@ -57,7 +63,7 @@ function Home() {
                 'button button--secondary button--lg',
                 styles.getStarted,
               )}
-              to={useBaseUrl('https://samsung.github.io/qaboard/docs/introduction')}
+              to={useBaseUrl(is_for_webapp ? '/introduction' : '/docs/introduction')}
             >
               Get Started
             </Link>

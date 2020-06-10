@@ -40,11 +40,11 @@ If you want to install from a helm chart for Kubernetes, a CloudFormation config
 
 
 ## Environment variables
-> You can edit an `.env` file to set them, `A=B` on each line, or add `environment:` keys to `backend` service in one of the `docker-compose.yml`
+> To configure your installation, you can edit an `.env` file (`A=B` on each line). You can also edit one of the `docker-compose` files (`docker-compose.yml`, `development.yml`, `production.yml`...): add `environment:` keys to `backend` service.
 
 | ENV Variable           | Default | Usage                                            |
 -------------------------|-------- |--------------------------------------------------|
-| `GITLAB_ACCESS_TOKEN`  | _none_  | **Required** *for now*, to get info on git repos |
+| `GITLAB_ACCESS_TOKEN`  | _none_  | **Required** *for now*, to get info on git repos. Get it at https://$gitlab-server/profile/personal_access_tokens |
 | `QABOARD_PORT_HTTP`    | 80      | Port mapped to the app on the host               |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port           |
@@ -55,28 +55,16 @@ If you want to install from a helm chart for Kubernetes, a CloudFormation config
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                  |
 | `UWSGI_PROCESSS`       | 1       | default: 1g                                      |
 
+:::note
+In the future we plan to introduce a proper "secret" store, per user and per project.
+:::
 
-## Development
-If you are doing development, you can interact with the individual services with e.g.
+> Consult the [Troubleshooting](backend-admin/troubleshooting) page for examples that show how to get logs from the various services composing QA-Board.
+>
+> For development, consult the READMEs for the [backend](https://github.com/Samsung/qaboard/tree/master/backend) and the [frontend](https://github.com/Samsung/qaboard/tree/master/webapp).
 
-```bash
-# development.yml adds ENV variables to be more verbose, tweak it!
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml build backend
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up backend
 
-# you can get a shell on the various services:
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run proxy /bin/ash
-# or with the docker-compose conventions, if the service is up:
-docker exec -it qaboard_proxy_1 bash
-
-# This said, to dev on the frontend, it's best to
-#   cd webapp && npm install && npm start
-#   and edit webapp/src/setupProxy.js to have your dev version talk to either the prod/dev backend
-```
-
-> Refer to the examples in *[docker-compose.yml](docker-compose.yml)* or to the `docker-compose` docs.
-
-## SSL / hosting behind a reverse proxy
+## Using SSL / hosting behind a reverse proxy
 What we do is directly change the `nginx` confix:
 
 ```nginx title="services/nginx/conf.d/qaboard.conf"

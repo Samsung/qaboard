@@ -20,6 +20,10 @@ npm start
 #=> listenning on port 3000
 ``` 
 
+:::tip
+To connect which backend you connect to (e.g. not localhost but maybe the production backend), edit _webapp/src/setupProxy.js_.
+:::
+
 ## How does it work?
 - This project was started with [Create React App](https://github.com/facebookincubator/create-react-app). [Go to their README](https://github.com/facebookincubator/create-react-app/blob/master/packages/react-scripts/template/README.md) to learn a lot about the dev environment (package manager, testing, proxying, formatting, linting, compilation, javascript features...)
 - What is the tech stack?

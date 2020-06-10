@@ -35,13 +35,6 @@ var config = {
     //   textColor: '',
     //   content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
     // },
-    algolia: {
-      apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
-      indexName: 'samsung_qaboard',
-      algoliaOptions: {
-        // facetFilters: [`version:${versions[0]}`],
-      },
-    },
     prism: {
       additionalLanguages: ['nginx'],
       theme: require('prism-react-renderer/themes/github'),
@@ -74,6 +67,16 @@ var config = {
     // sidebarCollapsible: false,
   },
 };
+
+if (publish_github_samsung_public) {
+  config.themeConfig.algolia = {
+    apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
+    indexName: 'samsung_qaboard',
+    algoliaOptions: {
+      // facetFilters: [`version:${versions[0]}`],
+    },
+  }
+}
 
 
 config = {
