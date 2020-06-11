@@ -30,7 +30,7 @@ const output_rois = output => {
   let input_rois = output.test_input_metadata?.roi ?? [];
   let rois = [...input_rois, ...configs_rois];
   rois = uniq_rois(rois) // remove duplicates
-  if (rois) {
+  if (rois.length>0) {
     rois.push({label: 'Full image'})
   }
   return rois;
@@ -44,9 +44,11 @@ class Crops extends React.Component {
 
     let rois = output_rois(output_new)
 
-    let focused_rois = rois.filter(r => r.focused)
-    const focused_roi = focused_rois.length > 0 ? focused_rois[focused_rois.length-1] : rois[0]
-    fitTo(focused_roi, viewer) 
+    if (rois.length>0) {
+      let focused_rois = rois.filter(r => r.focused)
+      const focused_roi = focused_rois.length > 0 ? focused_rois[focused_rois.length-1] : rois[0]
+      fitTo(focused_roi, viewer)  
+    }
   }
   render() {
     const { output_new, viewer } = this.props;
