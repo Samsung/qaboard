@@ -16,7 +16,7 @@ ENV JAIHOME=/tmp/jai-1_1_2_01/lib \
   GEM_HOME=/tmp/gems \
   JAVA_HOME=/usr/lib/jvm/java-11-openjdk
 
-RUN apk --no-cache add openjdk11 wget openjpeg-tools ruby \
+RUN apk --no-cache add openjdk11 wget openjpeg-tools \
   # network issues at SIRC...
   # msttcorefonts-installer fontconfig \
   # && update-ms-fonts \
