@@ -45,7 +45,7 @@ ENV JAIHOME=/tmp/jai-1_1_2_01/lib \
   GEM_HOME=/tmp/gems \
   JAVA_HOME=/usr/lib/jvm/java-11-openjdk
 
-RUN apk --no-cache add openjdk11 wget openjpeg-tools ruby \
+RUN apk --no-cache add openjdk11 wget openjpeg-tools \
   # network issues at SIRC...
   # msttcorefonts-installer fontconfig \
   # && update-ms-fonts \
@@ -97,12 +97,6 @@ RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$V
   && mkdir -p /var/cache/cantaloupe \
   && chown -R $user:$group /var/log/cantaloupe \
   && chown -R $user:$group /var/cache/cantaloupe
-
-
-# TODO: do we need ruby? we removed the delegate script
-# RUN apk add --no-cache -X http://dl-cdn.alpinelinux.org/alpine/edge/community --update ruby \
-#     && rm -rf /var/cache/apk/*
-# RUN gem install --no-document --install-dir /tmp/gems jwt json_pure
 
 
 COPY --chown=$user:$group cantaloupe.properties /etc/
