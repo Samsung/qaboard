@@ -64,7 +64,11 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 > For development, consult the READMEs for the [backend](https://github.com/Samsung/qaboard/tree/master/backend) and the [frontend](https://github.com/Samsung/qaboard/tree/master/webapp).
 
 
-## Using SSL / hosting behind a reverse proxy
+## For "production"
+### Backups
+In *production.yml* you can uncomment the `cron-backup-db` service to enable daily backups.
+
+### Using SSL / hosting behind a reverse proxy
 What we do is directly change the `nginx` confix:
 
 ```nginx title="services/nginx/conf.d/qaboard.conf"

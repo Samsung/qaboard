@@ -1,0 +1,10 @@
+#!/bin/sh
+# Creates a backup
+set -e
+
+connect="--username=qaboard --no-password -h db --dbname=qaboard"
+pg_dump $connect -Fc > /var/opt/$(date -I).dump
+
+# TODO:
+# - Remove backups older than X
+# - upload the backup to e.g. S3
