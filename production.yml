@@ -22,3 +22,22 @@ services:
   cantaloupe:
     restart: always
   
+  # # Adapted from https://devopsheaven.com/cron/docker/alpine/linux/2017/10/30/run-cron-docker-alpine.html
+  # # To trigger a backup manually call: docker-compose -f docker-compose.yml -f production.yml up -d cron-backup-db
+  # # docker-compose run /etc/periodic/daily/backup
+  # cron-backup-db:
+  #   image: postgres:12-alpine
+  #   depends_on:
+  #     - db
+  #   environment:
+  #     # https://www.postgresql.org/docs/9.3/libpq-envars.html
+  #     PGHOST: db
+  #     PGDATABASE: qaboard
+  #     PGUSER: qaboard
+  #     PGPASSWORD: password
+  #   # https://busybox.net/downloads/BusyBox.html
+  #   command: crond -f -l 0
+  #   volumes:
+  #   - ./services/db/backup:/etc/periodic/daily/backup:ro
+  #   - /WHERE/TO/SAVE/BACKUPS:/var/opt
+    - /home/ispq/qaboard/database_backups:/var/opt
