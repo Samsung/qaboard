@@ -250,6 +250,17 @@ def start_tuning(hexsha):
             "\n",
         ]
     )
+    batch_command = " ".join([
+        "qa",
+        f"--platform '{data['platform']}'" if "platform" in data else "",
+        f"--label '{data['batch_label']}'",
+        "optimize" if do_optimize else "batch",
+        ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
+        f"--batch '{data['selected_group']}'",
+        # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
+        config_option,
+        f"{overwrite} --no-wait" if not do_optimize else '',
+    ])
     print(batch_command)
 
     # To avoid issues with quoting, we write a script to run the batch,
