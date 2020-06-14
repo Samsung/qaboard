@@ -31,7 +31,7 @@ def get_groups_path(project_id, name="extra-batches"):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
-            f.write("""# Docs:\n# http://qa-docs/docs/batches-running-on-multiple-inputs""")
+            f.write("""# Docs:\n# https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs""")
     return path
 
 
@@ -259,7 +259,7 @@ def start_tuning(hexsha):
             "\n",
         ]
     )
-    # print(batch_command)
+    print(batch_command)
 
     # To avoid issues with quoting, we write a script to run the batch,
     # and execute it with bsub/LSF
@@ -271,22 +271,24 @@ def start_tuning(hexsha):
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
-            "set -xe\n\n",
-            f'cd "{working_directory}";\n\n',
-            ('\n'.join(envrcs) + '\n') if envrcs else "",
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
+
             # we avoid DISPLAY issues with matplotlib, since we're headless here
             'export MPLBACKEND=agg;\n',
 
-            f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
-            # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
+            # Load all .envrc files relevant for the (sub)project
+            ('\n'.join(envrcs) + '\n') if envrcs else "",
+
+            "set -xe\n\n",
+            f'cd "{working_directory}";\n\n',
+
             # Those options are specific to android
             f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
             f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
 
-            # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
+            # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
             f"\nexport CI=true;\n",
             f"export CI_COMMIT_SHA='{ci_commit.hexsha}';\n",
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
@@ -306,18 +308,17 @@ def start_tuning(hexsha):
         return jsonify("You must provide a user as whom to run the tuning experiment."), 403
 
     queue = lsf_config.get("fast_queue", lsf_config['queue'])
-    start_script = "".join(
+    #     - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
+    # print("QA_RUNNERS_LSF_BRIDGE", os.environ['QA_RUNNERS_LSF_BRIDGE'])
+    start_script = "\n".join(
         [
-            "#!/bin/bash\n",
-            "set -xe\n\n",
-            f'mkdir -p "{batch.output_dir}"\n',
-            f'bsub_su "{user}" -q "{queue}" ',
-            '-sp 4000 ', # highest priority for manual runs
-            ## LSF refuses to give us long-running jobs....
-            ## '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
-            f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
-            f'\tssh -o StrictHostKeyChecking=no -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',
-            '\nEOF'
+            "#!/bin/bash",
+            "set -xe",
+            "",
+            f'mkdir -p "{batch.output_dir}"',
+            # highest priority for manual runs
+            f'bsub_su "{user}" -q "{queue}" -sp 4000 '
+            f"'bash \"{qa_batch_path}\" &> \"{batch.output_dir}/log.txt\"'",
         ]
     )
     print(start_script)
@@ -328,6 +329,7 @@ def start_tuning(hexsha):
         f.write(start_script)
 
     # Wraps and execute the script that starts the batch
+    # We need to be ispq in order to have access to bsub_su
     cmd = " ".join(
         [
             # there is only C.utf8 on our container, but it is not available on LSF
