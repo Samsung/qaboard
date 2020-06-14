@@ -100,3 +100,21 @@ server {
 }
 ```
 
+## Cleanup
+We run those 2 cron jobs:
+```cron
+# Weekly cleanup of old results
+# https://samsung.github.io/qaboard/docs/deleting-old-data
+59 1 1 * * cd qaboard && docker-compose exec backend qaboard_clean
+
+# Restart the image server, somehow after a while they need it (need research...)
+0 4 * * * cd qaboard && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml stop cantaloupe && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml rm -v cantaloupe && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d cantaloupe
+
+
+# Restart CDE's IIIF bridge
+0 4 * * * cd qaboard && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml restart iiif-cde
+```
+
+:::note
+It would be cleaner to run those crontabs within `docker-compose`... (pull requests welcome :smile:)
+:::
