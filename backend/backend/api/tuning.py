@@ -244,16 +244,7 @@ def start_tuning(hexsha):
     else:
         config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
 
-    overwrite = "--action-on-existing run" if data["overwrite"] == "on" else "--action-on-existing sync"
-    # FIXME: cd relative to main project
-    batch_command = " ".join(
-        [
-            "qa",
-            f"--platform '{data['platform']}'" if "platform" in data else "",
-            f"--label '{data['batch_label']}'",
-            "optimize" if do_optimize else "batch",
-            ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
-            f"--batch '{data['selected_group']}'",
+    overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
             config_option,
             f"{overwrite} --no-wait" if not do_optimize else '',
             "\n",
