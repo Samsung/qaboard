@@ -9,11 +9,16 @@ First connect to the QA-Board host:
 ssh qa
 ```
 
-## Check and save the latest daily backup
+## Make sure backups are enabled
+In *production.yml* you should uncomment the `cron-backup-db` service to enable daily backups, and replace `/WHERE/TO/SAVE/BACKUPS` with a (backup'ed!)location on the host.
+
+## Check the latest daily backup
 ```bash
-# FIXME: update with docker-compose
-ls -lh /home/ispq/qaboard/database_backups/2020-01-07.dump
-cp /home/ispq/qaboard/database_backups/2020-01-07.dump .
+# check the latest backup worked
+ls -lht /WHERE/BACKUPS/ARE/SAVED/ | head
+# copy the latest somewhere to make sure nothing can go wrong
+cp /WHERE/BACKUPS/ARE/SAVED/latest.dump .
+
 ```
 
 ## Stop the server and create a backup 
@@ -23,8 +28,8 @@ docker-compose -f docker-compose.yml -f production.yml stop
 # we need the database to create a backup
 docker-compose -f docker-compose.yml -f production.yml up -d db
 
-# FIXME: update with docker-compose
-qaboard/backend/deployment/create-backup.sh
+# manually start a backup
+docker-compose -f docker-compose.yml -f production.yml run cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
 ```
 
 ## Maintenance Period
@@ -41,4 +46,19 @@ docker-compose -f docker-compose.yml -f production.yml up -d
 - [ ] the logs are all right
 - [ ] the logs are all right
 
-> In case of issues, recover from a backup: https://github.com/Samsung/qaboard/tree/master/backend#recovery
+
+## Restoring from a backup
+In case of issues, recover from a backup:
+
+```bash
+# disconnect clients
+docker-compose -f docker-compose.yml -f production.yml stop
+# we need the database to create a backup
+docker-compose -f docker-compose.yml -f production.yml up -d db
+
+# now restore
+docker-compose -f docker-compose.yml -f production.yml exec db /opt/restore /backups/before-upgrade.dump
+
+# and restart
+docker-compose -f docker-compose.yml -f production.yml up -d
+```

@@ -3,6 +3,8 @@ version: "3.5"
 services:
   db:
     restart: always
+    volumes:
+    # - /WHERE/TO/SAVE/BACKUPS:/backups
     # On-prem, it can be helpul to expose the database and use various analytics products
     # At Samsung we use Metabase to show a detailed dashboard of the storage used.
     # ports:
@@ -39,5 +41,4 @@ services:
   #   command: crond -f -l 0
   #   volumes:
   #   - ./services/db/backup:/etc/periodic/daily/backup:ro
-  #   - /WHERE/TO/SAVE/BACKUPS:/var/opt
-    - /home/ispq/qaboard/database_backups:/var/opt
+  #   - /WHERE/TO/SAVE/BACKUPS:/backups

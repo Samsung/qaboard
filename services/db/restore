@@ -1,0 +1,15 @@
+#!/bin/sh
+# Restore from a backup
+set -ex
+
+export PGPASSWORD=$POSTGRES_PASSWORD
+export PGUSER=$POSTGRES_USER
+export PGDATABASE=$POSTGRES_DB
+
+
+dropdb $PGDATABASE
+createdb -T template0 qaboard
+pg_restore --verbose -d $PGDATABASE < $1
+#          --clean --create -l
+# If you migrate from a DB with a non-default owner, it can be useful to add
+#           --no-acl --no-owner

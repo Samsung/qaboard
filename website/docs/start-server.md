@@ -66,7 +66,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 
 ## For "production"
 ### Backups
-In *production.yml* you can uncomment the `cron-backup-db` service to enable daily backups.
+In *production.yml* you can uncomment the `cron-backup-db` service to enable daily backups, and replace `/WHERE/TO/SAVE/BACKUPS` with a (backup'ed!)location on the host.
 
 ### Using SSL / hosting behind a reverse proxy
 What we do is directly change the `nginx` confix:

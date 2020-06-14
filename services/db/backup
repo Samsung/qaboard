@@ -2,8 +2,13 @@
 # Creates a backup
 set -e
 
-connect="--username=qaboard --no-password -h db --dbname=qaboard"
-pg_dump $connect -Fc > /var/opt/$(date -I).dump
+if [ "$1" = "" ]; then
+    backup=$(date -I).dump
+else
+    backup=$1
+fi
+
+pg_dump -Fc > "/backups/$backup"
 
 # TODO:
 # - Remove backups older than X
