@@ -85,7 +85,7 @@ def run():
     ]
     process = subprocess.run(
         command,
-        check=True,          # raise exception on exit code != 0
+        check=True,  # will raise an exception on exit code != 0
     )
     return {"is_failed": False}
 ```
