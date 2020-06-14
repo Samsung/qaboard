@@ -77,7 +77,7 @@ A common use case is identifying folders containing a file patching a pattern, f
 ```yaml {3} title="qaboard.yaml"
 inputs:
   globs: frame_000.jpg
-  use_parent_folder: false
+  use_parent_folder: true
 ```
 
 ## Handling multiple input types (Advanced)
