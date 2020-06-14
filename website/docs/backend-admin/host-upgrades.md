@@ -19,6 +19,7 @@ ls -lht /WHERE/BACKUPS/ARE/SAVED/ | head
 # copy the latest somewhere to make sure nothing can go wrong
 cp /WHERE/BACKUPS/ARE/SAVED/latest.dump .
 
+# At SIRC backups are under /home/ispq/qaboard/database_backups
 ```
 
 ## Stop the server and create a backup 
@@ -29,7 +30,7 @@ docker-compose -f docker-compose.yml -f production.yml stop
 docker-compose -f docker-compose.yml -f production.yml up -d db
 
 # manually start a backup
-docker-compose -f docker-compose.yml -f production.yml run cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml run cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
 ```
 
 ## Maintenance Period
@@ -38,7 +39,7 @@ docker-compose -f docker-compose.yml -f production.yml run cron-backup-db /etc/p
 ## Restart
 After the boot, make sure everything is up:
 ```bash
-docker-compose -f docker-compose.yml -f production.yml up -d
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
 ```
 
 **Checks**:
@@ -52,13 +53,13 @@ In case of issues, recover from a backup:
 
 ```bash
 # disconnect clients
-docker-compose -f docker-compose.yml -f production.yml stop
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml stop
 # we need the database to create a backup
-docker-compose -f docker-compose.yml -f production.yml up -d db
+docker-compose -f docker-compose.yml -f production.yml up -f sirc.yml -d db
 
 # now restore
-docker-compose -f docker-compose.yml -f production.yml exec db /opt/restore /backups/before-upgrade.dump
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml exec --user 1411:10 db /opt/restore /backups/before-upgrade.dump
 
 # and restart
-docker-compose -f docker-compose.yml -f production.yml up -d
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
 ```

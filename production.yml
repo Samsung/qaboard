@@ -39,6 +39,6 @@ services:
     command: crond -f -l 0
     volumes:
     - ./services/db/backup:/etc/periodic/daily/backup:ro
-    - /home/ispq/qaboard/database_backups:/var/opt
+    - /home/ispq/qaboard/database_backups:/backups
     user: "1411:10"
 
