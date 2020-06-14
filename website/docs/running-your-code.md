@@ -85,13 +85,9 @@ def run():
     ]
     process = subprocess.run(
         command,
-        check=True,          # raise exception on exit code != 0
-        capture_output=True, # >=python3.7
+        check=True,          # will raise an exception on exit code != 0
+        capture_output=True,
     )
-    # Note: If you want live interleaved STDOUT/STDERR, (like sample entrypoint from `qa init`),
-    # it get a bit more complicated: https://docs.python.org/3/library/subprocess.html
-    print(process.stdout)
-    print(process.stderr)
     return {"is_failed": False}
 ```
 

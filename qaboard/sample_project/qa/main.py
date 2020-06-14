@@ -59,18 +59,15 @@ def run(context):
   if context.obj['dryrun']:
     return
 
-  pipe = subprocess.PIPE
-  with subprocess.Popen(command, shell=True,
-                        cwd=context.obj["output_directory"],
-                        encoding='utf-8',
-                        stdout=pipe, stderr=pipe) as process:
-    for line in process.stdout:
-      print(line)
-    process.wait()
-
-    if process.returncode:
-      return {"is_failed": True, "returncode": process.returncode}
-    return {"is_failed": False}
+  process = subprocess.run(
+    command,
+    shell=True,
+    cwd=context.obj["output_directory"],
+    encoding='utf-8',
+  )
+  if process.returncode != 0:
+    return {"is_failed": True, "returncode": process.returncode}
+  return {"is_failed": False}
 
   click.secho("TODO: Create plots/graphs...", fg='cyan', bold=True)
   click.secho("TODO: Return metrics...", fg='cyan', bold=True)

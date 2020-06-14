@@ -18,18 +18,15 @@ class LocalRunner(BaseRunner):
 
 
   def start(self, blocking=True, cwd=None):
-    pipe = subprocess.PIPE
-    with subprocess.Popen(self.run_context.command, shell=True,
-                          encoding='utf-8',
-                          # Avoid issues with code outputing malformed unicode
-                          # https://docs.python.org/3/library/codecs.html#error-handlers
-                          errors='surrogateescape',
-                          cwd=cwd if cwd else self.run_context.job_options['cwd'],
-                          stdout=pipe, stderr=pipe) as process:
-      for line in process.stdout:
-        print(line, end='')
-      process.wait()
-      return process.returncode
+    process = subprocess.run(
+      self.run_context.command, shell=True,
+      encoding='utf-8',
+      # Avoid issues with code outputing malformed unicode
+      # https://docs.python.org/3/library/codecs.html#error-handlers
+      errors='surrogateescape',
+      cwd=cwd if cwd else self.run_context.job_options['cwd'],
+    )
+    return process.returncode
 
   @staticmethod
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
