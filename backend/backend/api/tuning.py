@@ -244,22 +244,20 @@ def start_tuning(hexsha):
     else:
         config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
 
-    overwrite = "--action-on-existing run" if data["overwrite"] == "on" else "--action-on-existing sync"
-    # FIXME: cd relative to main project
-    batch_command = " ".join(
-        [
-            "qa",
-            f"--platform '{data['platform']}'" if "platform" in data else "",
-            f"--label '{data['batch_label']}'",
-            "optimize" if do_optimize else "batch",
-            ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
-            f"--batch '{data['selected_group']}'",
-            config_option,
-            f"{overwrite} --no-wait" if not do_optimize else '',
-            "\n",
-        ]
-    )
-    # print(batch_command)
+    overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
+    # print(data)
+    # return "OK"
+    batch_command = " ".join([
+        "qa",
+        f"--platform '{data['platform']}'" if "platform" in data else "",
+        f"--label '{data['batch_label']}'",
+        "optimize" if do_optimize else "batch",
+        ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
+        f"--batch '{data['selected_group']}'",
+        # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
+        config_option,
+        f"{overwrite} --no-wait" if not do_optimize else '',
+    ])
 
     # To avoid issues with quoting, we write a script to run the batch,
     # and execute it with bsub/LSF
@@ -268,89 +266,39 @@ def start_tuning(hexsha):
     use_openstf = data["android_device"].lower() == "openstf"
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
     envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
-    qa_batch_script = "".join(
-        [
-            "#!/bin/bash\n",
-            "set -xe\n\n",
-            f'cd "{working_directory}";\n\n',
-            ('\n'.join(envrcs) + '\n') if envrcs else "",
-            # qa uses click, which hates non-utf8 locales
-            'export LC_ALL=en_US.utf8;\n',
-            'export LANG=en_US.utf8;\n\n',
-            # we avoid DISPLAY issues with matplotlib, since we're headless here
-            'export MPLBACKEND=agg;\n',
-
-            f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
-            # https://unix.stackexchange.com/questions/115129/why-does-root-not-have-usr-local-in-path
-            # Those options are specific to android
-            f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
-            f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
-
-            # Make sure qatools doesn't complain about not being in a git repository and knows where to save results
-            f"\nexport CI=true;\n",
-            f"export CI_COMMIT_SHA='{ci_commit.hexsha}';\n",
-            f"export QA_CI_CI_COMMIT_DIR='{ci_commit.commit_dir}';\n\n",
-            batch_command,
-        ]
-    )
+    qa_batch_script = "\n".join([
+        "#!/bin/bash",
+        # qa uses click, which hates non-utf8 locales
+        'export LC_ALL=C.UTF-8',
+        'export LANG=C.UTF-8',
+        "",
+        # Avoid common DISPLAY issues with matplotlib, since we're headless here
+        'export MPLBACKEND=agg',
+        # Load all .envrc files relevant for the (sub)project
+        ('\n'.join(envrcs) + '\n') if envrcs else "",
+        "set -xe",
+        f'cd "{working_directory}"',
+        "",
+        "",
+        # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
+        f"export CI=true",
+        f"export CI_COMMIT_SHA='{ci_commit.hexsha}'",
+        f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}'",
+        "",
+        batch_command,
+        "",
+    ])
     print(qa_batch_script)
     qa_batch_path = batch.output_dir / f"qa_batch.sh"
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    qatools_config = ci_commit.project.data["qatools_config"]
-    lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
-    default_user = lsf_config.get('user')
-    user = data.get('user', default_user)
-    if not user:
-        return jsonify("You must provide a user as whom to run the tuning experiment."), 403
-
-    queue = lsf_config.get("fast_queue", lsf_config['queue'])
-    start_script = "".join(
-        [
-            "#!/bin/bash\n",
-            "set -xe\n\n",
-            f'mkdir -p "{batch.output_dir}"\n',
-            f'bsub_su "{user}" -q "{queue}" ',
-            '-sp 4000 ', # highest priority for manual runs
-            ## LSF refuses to give us long-running jobs....
-            ## '-W 24:00 ' if do_optimize else '-sp 4000 ', # highest priority for manual runs
-            f'-o "{batch.output_dir}/log.txt" << "EOF"\n',
-            f'\tssh -o StrictHostKeyChecking=no -q {user}@{user}-vdi \'bash "{qa_batch_path}"\'',
-            '\nEOF'
-        ]
-    )
-    print(start_script)
-
-
-    start_path = batch.output_dir / f"start.sh"
-    with start_path.open("w") as f:
-        f.write(start_script)
-
-    # Wraps and execute the script that starts the batch
-    cmd = " ".join(
-        [
-            # there is only C.utf8 on our container, but it is not available on LSF
-            "LC_ALL=en_US.utf8 LANG=en_US.utf8",
-            "ssh",
-            # quiet to avoid the welcome banner
-            "-q",
-            # ask, and force a TTY, otherwise bsub->su will complain
-            "-tt",
-            # make sure we OK the server key during the first-connection
-            "-o StrictHostKeyChecking=no",
-            # ispq is the only user that can use bsub_su, an alias for sudo -i -u {0} {1:}.
-            "-i /home/arthurf/.ssh/ispq.id_rsa",
-            "ispq@ispq-vdi",
-            f'\'bash "{start_path}"\'',
-        ]
-    )
+    batch.output_dir.mkdir(parents=True, exist_ok=True)
+    cmd = ['bash', '-c', f'"{qa_batch_path}" &> "{batch.output_dir}/log.txt"']
     print(cmd)
-
     try:
-        out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        out = subprocess.run(cmd, encoding='utf-8')
         out.check_returncode()
-        print(out.stdout)
     except:
         return jsonify({"error": str(out.stdout), "cmd": str(cmd)}), 500
     return jsonify({"cmd": str(cmd), "stdout": str(out.stdout)})
