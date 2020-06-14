@@ -245,8 +245,6 @@ def start_tuning(hexsha):
         config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
 
     overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
-    # print(data)
-    # return "OK"
     batch_command = " ".join([
         "qa",
         f"--platform '{data['platform']}'" if "platform" in data else "",
@@ -258,6 +256,7 @@ def start_tuning(hexsha):
         config_option,
         f"{overwrite} --no-wait" if not do_optimize else '',
     ])
+    print(batch_command)
 
     # To avoid issues with quoting, we write a script to run the batch,
     # and execute it with bsub/LSF
