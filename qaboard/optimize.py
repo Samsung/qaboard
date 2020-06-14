@@ -15,7 +15,7 @@ import click
 import numpy as np
 
 from .api import NumpyEncoder, batch_info, notify_qa_database
-from .config import commit_id, commit_ci_dir, available_metrics, default_batches_files
+from .config import subproject, commit_id, commit_ci_dir, available_metrics, default_batches_files
 from .conventions import batch_dir
 from .utils import PathType
 
@@ -165,28 +165,31 @@ def init_optimization(optim_config_file, ctx):
 
     batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
     command = ' '.join([
+      'cd {}'
       'qa',
-      f"--batch-label '{batch_label}'",
-      f'--platform "{ctx.obj["platform"]}"',
-      f'--configuration "{ctx.obj["configuration"]}"',
+      f"--label '{batch_label}'",
+      f"--platform '{ctx.obj['platform']}'",
+      f"--configuration '{ctx.obj['configuration']}'",
       f"--tuning '{json.dumps(params, sort_keys=True, cls=NumpyEncoder)}'",
       'batch',
-      f'--batches-file {ctx.obj["batches_file"]}',
-      ' '.join([f'--batch {b}' for b in ctx.obj["batches"]]),
+      ' '.join([f'--batches-file "{b}"' for b in ctx.obj["batches_files"]]),
+      ' '.join([f'--batch "{b}"' for b in ctx.obj["batches"]]),
       # we notably forward --batch
       ' '.join(ctx.obj["forwarded_args"]),
     ])
     click.secho(command, fg="blue")
+    import re
+    command = re.sub('^qa', 'python -m qaboard', command) # helps make sure we run the right thing when testing 
+    if str(subproject) != '.':
+      command = f"cd {subproject} && {command}"
+
     if not ctx.obj['dryrun']:
       out = subprocess.run(
           command,
           shell=True,
           encoding="utf-8",
-          stdout=subprocess.PIPE,
-          stderr=subprocess.STDOUT,
           check=True,
       )
-      click.secho(out.stdout)
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
