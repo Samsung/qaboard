@@ -196,9 +196,10 @@ def init_optimization(optim_config_file, ctx):
     return batch_objective(batch_label, optim_config['objective'])
 
   # For the full list of options, refer to:
-  # https://scikit-optimize.github.io/#skopt.Optimizer
+  # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
   from skopt import Optimizer
-  optimizer = Optimizer(space, random_state=optim_config['solver']['random_state'])
+  del optim_config['solver']['name']
+  optimizer = Optimizer(space, **optim_config['solver'])
 
   # in the optimization loop, `ask` gives us an array of values
   # this wrapper converts it back to the actual named parameters

@@ -41,7 +41,6 @@ setup(
   packages=find_packages(exclude=("tests","backend")),
   python_requires='>=3.7',
   install_requires=[
-    'dataclasses', # Backport for python3.6
     'click>=7.0',  # CLI for humans. In v7 they changed CLI command conventions, started using "-" vs "_"
     'requests',    # HTTP for humans
     # Used for serializer flexibility,
@@ -59,20 +58,14 @@ setup(
 
   extras_require={
     'dev': [
-      # lint
-      'flake8',
-      # test runner
-      'green',
-      # type hint checks
-      'mypy',
-      # TODO: format with black
+      'flake8', # lint
+      'green',  # test runner
+      'mypy',   # type hint checks
+      # 'black' # TODO: formatter 
     ],
-    # Optionnal needed only for `qa optimize`
+    # Optional needed only for `qa optimize` - `pip install qaboard[optimize]`
     # Since its CLI usage is not straightforward, it's best kept at an optionnal dependency
-    # Enable with  `pip install qaboard[optimize]`
-    # Since the package is not maintained anymore, maybe we should review the optimization loop
-    # and use nevergrad like all the cool kids.
-    'optimize':  ["skopt"],
+    'optimize':  ["scikit-optimize>=0.7.2"], # we need https://github.com/scikit-optimize/scikit-optimize/pull/806
   },
 
   entry_points={
