@@ -306,8 +306,8 @@ class TuningForm extends Component {
   };
 
   render() {
-    const { project, project_data } = this.props;
-    let qatools_config = ((project_data || {}).data || {}).qatools_config || {}
+    const { project, project_data={} } = this.props;
+    let qatools_config = project_data.data?.qatools_config || {}
     const { search_type, search_options } = this.state;
     const { experiment_name, selected_group, selected_group_info } = this.state;
     const { user, platform, android_device } = this.state;
@@ -321,7 +321,10 @@ class TuningForm extends Component {
           ? Intent.PRIMARY
           : Intent.WARNING;
 
-    // console.log(this.state.parameter_search)
+
+    // we should show different parameters for different runners: queues, user...
+    const lsf_runner = (qatools_config.runners?.lsf !== undefined || qatools_config.lsf !== undefined);
+
     const panel_manual = <>
       <Callout title="Examples for parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
         <p>
@@ -384,11 +387,7 @@ class TuningForm extends Component {
    
 
     const panel_auto = <>
-      <Callout icon="info-sign" title="What solver is used?">
-        <p><a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of other choices (RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, algorithms and popularity.</p>
-        <p><strong>Get in touch if you have experience/opinions.</strong></p>
-        </Callout>
-      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](qatools_config, project_data.data.qatools_metrics) })}>Show Example</Button>
+      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](qatools_config, project_data.data.qatools_metrics) })}>Reset</Button>
       <MonacoEditor
         height={200}
         language='yaml'
@@ -399,7 +398,7 @@ class TuningForm extends Component {
       />
     </>
 
-    const available_platforms = ((qatools_config.inputs || {}).platforms || [])
+    const available_platforms = qatools_config.inputs?.platforms || []
 
     return <>
       <FormGroup
@@ -498,7 +497,7 @@ class TuningForm extends Component {
 
       <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={this.updateSearchTab}  defaultSelectedTabId="search-manual">
         <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
-        <Tab id="search-optimize" title={<>Automated tuning <Tag>Experimental</Tag></>} panel={panel_auto} />
+        <Tab id="search-optimize" title={<>Automated tuning <Tag intent="primary">Try Me!</Tag></>} panel={panel_auto} />
       </Tabs>
 
       <FormGroup
@@ -533,7 +532,7 @@ class TuningForm extends Component {
         />
       </FormGroup>
 
-      <FormGroup
+      {lsf_runner && <FormGroup
         label="Run as"
         helperText="(required)"
         labelFor="input-user"
@@ -550,7 +549,17 @@ class TuningForm extends Component {
           type="text"
           dir="auto"
         />
-      </FormGroup>
+      </FormGroup>}
+
+      {search_type === "optimize" && <>
+        <Callout icon="info-sign" title="About auto-tuning">
+          <ul>
+          <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
+          <li>You need to use <a href="https://samsung.github.io/qaboard/docs/computing-quantitative-metrics">QA-Board metrics</a>.</li>
+          </ul>
+          <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
+        </Callout>
+      </>}
     </>;
   }
 }
