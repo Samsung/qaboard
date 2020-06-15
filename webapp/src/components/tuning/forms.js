@@ -326,7 +326,7 @@ class TuningForm extends Component {
     const lsf_runner = (qatools_config.runners?.lsf !== undefined || qatools_config.lsf !== undefined);
 
     const panel_manual = <>
-      <Callout title="Examples for parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
+      <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
         <p>
         {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
           <Button
@@ -375,7 +375,7 @@ class TuningForm extends Component {
       </FormGroup>
       <MonacoEditor
         readonly
-        height={200}
+        height={250}
         language={language || 'json'}
         value={this.state.parameter_search || ''}
         options={editor_options}
@@ -389,7 +389,7 @@ class TuningForm extends Component {
     const panel_auto = <>
       <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](qatools_config, project_data.data.qatools_metrics) })}>Reset</Button>
       <MonacoEditor
-        height={200}
+        height={250}
         language='yaml'
         options={editor_options}
         name="editor-tuning-auto"
