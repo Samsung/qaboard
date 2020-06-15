@@ -597,7 +597,9 @@ class TuningExploration extends Component {
     })
     let total_outputs = batch.filtered.outputs.length;
     if (sorted_parameters.length===0 && total_outputs > 0)
-      return <Callout>You did not do any parameter tuning.</Callout>
+      return <Callout title="How to start auto-tuning?" icon="info-sign">
+        <p>To get started with automatic tuning, go to the <strong>"Run Tests / Tuning"</strong> tab, and choose <strong>"Automated Tuning"</strong>.</p>
+      </Callout>
 
     let selected_parameter = this.state.selected_parameter;
     let selected_parameter_2 = this.state.selected_parameter_2;

@@ -449,7 +449,7 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('optimization') && <Section>
                 <Card>
-                  <h2 className={Classes.HEADING}>Tuning understanding</h2>
+                  <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
                   <TuningExploration
                     project={project}
                     project_data={info}

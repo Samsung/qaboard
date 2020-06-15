@@ -12,7 +12,6 @@ import {
   Tag,
   Icon,
   Button,
-  EditableText,
   FormGroup,
   InputGroup,
   NavbarGroup,
@@ -176,20 +175,24 @@ class CommitNavbar extends React.Component {
               filter={selected[`filter_batch_${type}`]}
               dispatch={dispatch}
             />
-
+            <div style={{ flex: '0 1 auto', alignSelf: 'center' }}>
+              <InputGroup
+                leftIcon="git-commit"
+                style={{
+                  width: '160px',
+                  fontFamily: 'monospace',
+                }}
+                rightElement={<Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
+                  <Tag minimal icon="edit">Change</Tag>
+                  {milestones_menu}
+                </Popover>}
+                onChange={this.selectCommit}
+                small
+                defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+                key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
+              />
+            </div>
             <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
-              <Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
-                <div style={{borderBottom: '1px dotted #777'}}>
-                  <EditableText
-                    onConfirm={this.selectCommit}
-                    minWidth={60}
-                    placeholder='id'
-                    key={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-                    defaultValue={(!!commit && !!commit.id) ? shortId(project, commit.id) : ''}
-                  />
-                </div>
-                {milestones_menu}
-              </Popover>
             </span>
             <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
@@ -378,8 +381,9 @@ class CommitNavbar extends React.Component {
     dispatch(fetchCommit({project, id: commit.id}))
   }
 
-  selectCommit = id => {
+  selectCommit = e => {
     const { project, type, selected, dispatch } = this.props;
+    const id = e.target.value;
     const attribute = `${type}_commit_id`
     const commit_id = selected[attribute]
     if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id)) {
