@@ -51,6 +51,7 @@ publish:PyPi:
 variables:
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
   GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
+  GIT_SUBMODULE_STRATEGY: recursive
 
 # CI for the web application and the backend
 # TODO: enable it, make it work...
