@@ -1,6 +1,7 @@
 # https://stackoverflow.com/a/33533514/5993501
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Callable
 
@@ -19,12 +20,12 @@ class Job():
       self.id: Optional[str] = None
       self.qaboard_output: Optional[Dict[str, Any]] = None # as returned by the API 
 
-      self.run_context = run_context
+      self.run_context = deepcopy(run_context)
       from . import runners
       for Runner in runners.values():
         Runner.type
         if run_context.job_options['type'] == Runner.type:
-            self.runner = Runner(run_context)
+            self.runner = Runner(self.run_context)
 
     def asdict(self):
       return asdict(self)
