@@ -53,6 +53,8 @@ def cased_path(path):
     elif not dirs[0]: # absolute paths like "\c\Users\..."
       dirs = [f'\\{dirs[1]}', *dirs[3:]]
       test_name = [dirs[0]]      
+    elif dirs[0].endswith(':'): # e.g. C:\\
+      test_name = [dirs[0]]
     else: # relative paths
       test_name = ["%s[%s]" % (dirs[0][:-1], dirs[0][-1])]
     for d in dirs[1:]:
