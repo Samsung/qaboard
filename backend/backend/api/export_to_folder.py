@@ -275,7 +275,6 @@ def export_to_folder():
     label_new = get_labels(output, label_mappings)
     label_ref = get_labels(output_ref, label_mappings)
 
-
     for output_path in output.output_dir.glob(glob):
       output_path_rel = output_path.relative_to(output.output_dir)
       copied_to_rel = copy_path_rel(output, output_path, label=label_new)
@@ -348,10 +347,14 @@ def symlink_to(path_from, path_to):
 
 
 def copy_path_rel(output, output_path, label):
-  output_path_rel = output_path.relative_to(output.batch.output_dir)
-  # we remove the platform, configuration, and tuning hashes
-  levels_to_ignore = 2 if output.batch.label == 'default' else 4
-  copied_rel = Path(*output_path_rel.parts[levels_to_ignore:])
+  try:
+    output_path_rel = output_path.relative_to(output.batch.output_dir)
+    # we remove the platform, configuration, and tuning hashes
+    levels_to_ignore = 2 if output.batch.label == 'default' else 4
+    copied_rel = Path(*output_path_rel.parts[levels_to_ignore:])
+  except:
+    output_path_rel = output.test_input.path / output_path.relative_to(output.output_dir)
+    copied_rel = output_path_rel
   copied_rel = copied_rel.parent / f"{output_path_rel.stem}{label}{output_path_rel.suffix}" 
   copied_rel = str(copied_rel).replace('/', '•') # or \ ? or just name .... ??
   return copied_rel
