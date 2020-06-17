@@ -324,6 +324,7 @@ class TuningForm extends Component {
 
     // we should show different parameters for different runners: queues, user...
     const lsf_runner = (qatools_config.runners?.lsf !== undefined || qatools_config.lsf !== undefined);
+    const any_runner_configured = !!qatools_config.lsf || Object.keys(qatools_config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
 
     const panel_manual = <>
       <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
@@ -401,6 +402,10 @@ class TuningForm extends Component {
     const available_platforms = qatools_config.inputs?.platforms || []
 
     return <>
+      {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
+      <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
+      <p>Otherwise, your runs may be killed if they take too long.</p>
+      </Callout>}
       <FormGroup
         helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
         label={`Experiment name:`}
