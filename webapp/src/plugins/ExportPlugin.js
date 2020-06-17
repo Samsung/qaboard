@@ -23,15 +23,18 @@ class ExportPlugin extends React.Component {
     super(props);
     this.state = {
       path: this.props.path || '*.bmp',
+      edited: false,
       is_loading: false,
     }
   }
 
   componentDidUpdate(prevProps) {
-    if (prevProps.project_data !== this.props.project_data) {
-      let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
-      let visualizations = (qatools_config.outputs || {}).visualizations || []
-      this.setState({path: (visualizations[0] || {}).path || '*.bmp'})
+    if (!this.state.edited && prevProps.config !== this.props.config) {
+      let visualizations = this.props.config?.outputs?.visualizations || []
+      let path = (visualizations[0] || {}).path || '*.bmp'
+      // for projects using dynamic outputs we should
+      path = path.replace(/:[a-zA-Z0-9_]+/, '*')
+      this.setState({path})
     }
   }
 
@@ -47,7 +50,7 @@ class ExportPlugin extends React.Component {
       filter_new: this.props.filter_batch_new,
       filter_ref: this.props.filter_batch_ref,
     };
-    get('/api/v1/export', {params})
+    get('/api/v1/export/', {params})
     .then(response => {
       const windows_export_dir = linux_to_windows(response.data.export_dir);
       copy(windows_export_dir);
@@ -79,7 +82,7 @@ class ExportPlugin extends React.Component {
       >
         <ControlGroup>
            <Button disabled={this.state.is_loading} icon="download" onClick={this.export_to_directory}>Export</Button>
-           <InputGroup onChange={e => this.setState({path: e.target.value})} value={this.state.path} placeholder={'*.bmp'} />
+           <InputGroup onChange={e => this.setState({path: e.target.value, edited: true})} value={this.state.path} placeholder={'*.bmp'} />
         </ControlGroup>
         {this.state.linux_export_dir && <div style={{marginTop: '10px'}}>
           <p><Tag>Windows</Tag> <code>{this.state.windows_export_dir}</code></p>

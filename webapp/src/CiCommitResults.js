@@ -424,7 +424,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Files & Bit Accuracy</h2>
                   <ExportPlugin
                     project={project}
-                    project_data={info}
+                    config={config}
                     new_commit_id={this.props.new_commit_id}
                     ref_commit_id={this.props.ref_commit_id}
                     selected_batch_new={this.props.selected_batch_new}
