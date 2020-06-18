@@ -43,8 +43,9 @@ Extenstions                                         | Type         | Viewer     
 ----------------------------------------------------|--------------|----------------------------------------------|
 `*.jpg*`, `*.png*`, `*.bmp*`, `*.tif*`, `*.pdf*`... |  `image/*`   | **Image**                                    |
 `*.plotly.json`                                     | `plotly/json`| **Plot.ly**                                  |
-`*.mp4`                                             | `video/*`    | **Video** (synced)                           |
+`*.flame.json`                                      | `flame/json` | **[Flame Graph](http://www.brendangregg.com/flamegraphs.html)**, [diffable](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)          |
 `*.html`                                            | `plain/html` | **HTML** (assumes trusted input..!)          |
+`*.mp4`                                             | `video/*`    | **Video** (synced)                           |
 `*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
 `</>`                                               | `pointcloud/txt` | **pointcloud** viewer (needs to be refactored, coupled to a specific internal project...) |
 `</>`                                               | `6dof/txt`       | **6DoF** viewer (needs to be refactored, coupled to a specific internal project...)      |
@@ -96,11 +97,15 @@ with open('graph.plotly.json', 'w') as f:
 ### Text Viewer
 <img alt="Text/diff viewer" src={useBaseUrl('img/text-viewer.jpg')} />
 
+### Flame Graphs
+We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.html) and integrated Martin Spier's [`d3-flame-graph`](https://github.com/spiermar/d3-flame-graph). At a glance, you can check where you code spends its CPU cycles, and use [differential flame graphs]((http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)) to debug regressions.
+
+<img alt="Text/diff viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
+
+> We have a draft of a tutorial explaining how to use [`perf`](http://www.brendangregg.com/perf.html), [`FlameGraph`](https://github.com/brendangregg/FlameGraph) and [`burn`](https://github.com/spiermar/burn#getting-started) to create the _json_ file expected by the visualization. Contact us and we'll publish it or show it to you.
+
 ### More Viewers?
-Contact us to tell us what you need! The backlog contains:
-- [**Flame Graphs**](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html) and [**differential-flame-graphs**](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html) for software performance
-- **Config CDE:** as graph like tensorboard
-- [**Vega**](https://vega.github.io/vega/)
+Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations.
 
 ## Dynamic visualizations
 You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will we able to choose what to display using sliders / select options:
