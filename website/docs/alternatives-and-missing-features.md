@@ -12,10 +12,10 @@ QA-Board works with other tools. It won't replace or provide:
 - **Monitoring & Deployement**: in this space solutions tend to be custom of industry specific. Get in touch if you see low-hanging fruits!
 - **Data Versionning**
 
-## Planned features
-- **1 vs N comparaisons** versus only pairs of versions.
+## Some planned features
 - **Pipelines / DAG**, needed for calibration/training->evaluation pipelines. *But stay tuned, we're working on that!*
-- **More Viewers**: [flamgraphs](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html), [vega](https://vega.github.io/vega/), links to open with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
+- **1 vs N comparaisons** versus only pairs of versions.
+- **More Viewers**: [vega/altair](https://vega.github.io/vega/), links to open with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
 - **Users** for login, and commenting on results.
 We also plan to introduct a number of smaller features
 

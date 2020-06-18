@@ -9,6 +9,7 @@ const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyV
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
 const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
+const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChunkName: "flame-graph-viewer" */));
 
 const OutputViewer = props_ => {
     const { type, output_ref, ...props } = props_;
@@ -32,6 +33,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       else if (type === 'text/html')
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      else if (type === 'flame/json')
+        viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <span>No viewer is defined for type: {type}</span>;
@@ -39,6 +42,8 @@ const OutputViewer = props_ => {
       const { path='' } = props_;
       if (path.endsWith('plotly.json')) {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (path.endsWith('flame.json')) {
+        viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {
