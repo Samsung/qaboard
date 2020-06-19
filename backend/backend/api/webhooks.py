@@ -120,12 +120,12 @@ def delete_batch(batch_id):
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
-
   # We get a handle on the Commit object related to our new output
   try:
+    hexsha = data.get('commit_sha', data['git_commit_sha'])
     ci_commit = CiCommit.get_or_create(
       session=db_session,
-      hexsha=data['git_commit_sha'],
+      hexsha=hexsha,
       project_id=data['project'],
     )
   except:
