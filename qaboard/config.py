@@ -182,6 +182,7 @@ is_ci = any([v in os.environ for v in ci_env_variables])
 user = getenvs(('USERNAME', 'USER', 'HOSTNAME', 'HOST'))
 
 if is_ci:
+    # This field is not used at the moment, possibly in the future we'll want to support other VCS like SVN
     commit_type = config.get('project', {}).get('type', 'git')
     # Different CI tools use different environment variables to tell us
     # what commit and branch we're running on
@@ -207,12 +208,20 @@ if is_ci:
     if commit_branch:
       commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '')
 
+    tag_env_variables = (
+        'CI_COMMIT_TAG',      # GitlabCI
+        'GIT_TAG_NAME',       # Jenkins git plugin
+        'CIRCLE_TAG',         # CircleCI
+        'TRAVIS_TAG',         # TravisCI
+        # Github Actions uses GITHUB_REF too
+    )
+    commit_tag = getenvs(tag_env_variables)
 else:
-    # we have no garantees about which version of the code we run on
-    # with git we could check if the repo is dirty though
-    commit_type = 'local'
-    commit_branch = None
+    commit_type = None
+    # If possible we'll complete the information later
     commit_id = None
+    commit_branch = None
+    commit_tag = None
 
 
 # TODO: refactor in git.py, consider calling git directly...
