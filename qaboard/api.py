@@ -102,7 +102,8 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, commit_id, config, ci_root
+  from .config import is_ci, config, ci_root
+  from .config import commit_id, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):
     return
@@ -111,16 +112,18 @@ def notify_qa_database(object_type='output', **kwargs):
   if not (is_ci or kwargs['share']):
     return
 
-  # some light custom serialization for Path objects
-  kwargs = serialize_paths(kwargs)
-
-  # we send updates to
   url = f"{api_prefix}/{object_type}/"
-
   data = {
     'job_type': 'ci' if is_ci else 'local',
-    'git_commit_sha': commit_id,
-    **kwargs,
+    'commit_sha': commit_id,
+    'commit_committer_name': commit_committer_name,
+    'commit_committer_email': commit_committer_email,
+    'commit_authored_datetime': commit_authored_datetime,
+    'commit_parents': commit_parents,
+    'commit_message': commit_message,
+    # send all the data, with some light custom serialization for Path objects
+    **serialize_paths(kwargs),
+    "config": serialize_paths(deepcopy(config)),
   }
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)

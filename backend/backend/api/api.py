@@ -184,10 +184,11 @@ def get_output_manifest(output_id):
 def api_ci_commit(commit_id=None):
   # TODO: clean...
   if request.method == 'POST':
+    hexsha = request.json.get('commit_sha', request.json['git_commit_sha']) if not commit_id else commit_id
     try:
       commit = CiCommit.get_or_create(
         session=db_session,
-        hexsha=request.json['git_commit_sha'] if not commit_id else commit_id,
+        hexsha=hexsha,
         project_id=request.json['project'],
       )
     except:
