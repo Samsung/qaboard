@@ -171,7 +171,7 @@ ci_dir = ci_root / root_qatools_config['project']['name'] if root_qatools_config
 
 # This flag identifies runs that happen within the CI or tuning experiments
 ci_env_variables = (
-    # Set by most CI tools (GitlabCI, CircleCI, TravisCI...) except Jenkins,
+    # Set by most CI tools (GitlabCI, CircleCI, TravisCI, Github Actions...) except Jenkins,
     # and by the web application during tuning runs
     'CI',
     # set by Jenkins' git plugin
@@ -187,23 +187,26 @@ if is_ci:
     # what commit and branch we're running on
     commit_sha_variables = (
         'CI_COMMIT_SHA', # GitlabCI
-        'GIT_COMMIT', # Jenkins, git plugin
-        'CIRCLE_SHA1', # CircleCI
+        'GIT_COMMIT',    # Jenkins, git plugin
+        'CIRCLE_SHA1',   # CircleCI
         'TRAVIS_COMMIT', # TravisCI
+        'GITHUB_SHA'     # Github Actions
     )
     commit_id = getenvs(commit_sha_variables)
 
     branch_env_variables = (
-        'CI_COMMIT_TAG', # GitlabCI, only when building tags
+        'CI_COMMIT_TAG',      # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
-        'GIT_BRANCH', # Jenkins
-        'gitlabBranch', # Jenkins gitlab plugin 
-        'CIRCLE_BRANCH', # CircleCI
-        'TRAVIS_BRANCH', # TravisCI
+        'GIT_BRANCH',         # Jenkins
+        'gitlabBranch',       # Jenkins gitlab plugin 
+        'CIRCLE_BRANCH',      # CircleCI
+        'TRAVIS_BRANCH',      # TravisCI
+        'GITHUB_REF'          # Github Actions
     )
     commit_branch = getenvs(branch_env_variables)
     if commit_branch:
-      commit_branch = commit_branch.replace('origin/', '')
+      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '')
+
 else:
     # we have no garantees about which version of the code we run on
     # with git we could check if the repo is dirty though
