@@ -134,7 +134,7 @@ def get(ctx, input_path, output_path, variable):
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
   except:
     pass
-  from .config import commit_rootproject_ci_dir, commit_ci_dir, commit_type, commit_branch, branch_ci_dir
+  from .config import commit_rootproject_ci_dir, commit_ci_dir, commit_branch, branch_ci_dir
   locals().update(globals())
   locals().update(ctx.obj)
   if variable in locals():

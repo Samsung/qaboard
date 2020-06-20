@@ -250,8 +250,8 @@ if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%aI', '%P', "%B"]
   commit_info = git_show("%n".join(fields), commit_id)
   fields_values = commit_info.split('\n', maxsplit=len(fields))
-  commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message = fields_values
-  commit_parents = commit_parents.split()
+  commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents_str, commit_message = fields_values
+  commit_parents = commit_parents_str.split()
 
 # This is where results should be saved
 commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit_id)

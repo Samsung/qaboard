@@ -2,13 +2,14 @@
 Utilities related to CI database: fetching results, saving results... 
 """
 import os
-from pathlib import Path, PurePosixPath
 import json
-import simplejson
+from copy import deepcopy
 from functools import lru_cache
 from urllib.parse import unquote
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Optional
 
+import simplejson
 import click
 
 from .config import config, commit_id, is_ci, available_metrics
@@ -102,13 +103,13 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, ci_root
-  from .config import commit_id, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
+  from .config import is_ci, is_in_git_repo, config, _metrics, ci_root
+  from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):
     return
 
-  # we only update the output database if we're in a CI run, or if the user used `qa --ci`
+  # we only update QA-Board if we're in a CI run, or if the user used `qa --ci`
   if not (is_ci or kwargs['share']):
     return
 
@@ -116,15 +117,22 @@ def notify_qa_database(object_type='output', **kwargs):
   data = {
     'job_type': 'ci' if is_ci else 'local',
     'commit_sha': commit_id,
+    # send all the data, with some light custom serialization for Path objects
+    **serialize_paths(kwargs),
+  }
+  if object_type != "output" and is_in_git_repo:
+    # Will help initialize/update the commit/batch in QA-Board
+    data.update({
+    'commit_branch': commit_branch,
+    'commit_tag': commit_tag,
     'commit_committer_name': commit_committer_name,
     'commit_committer_email': commit_committer_email,
     'commit_authored_datetime': commit_authored_datetime,
     'commit_parents': commit_parents,
     'commit_message': commit_message,
-    # send all the data, with some light custom serialization for Path objects
-    **serialize_paths(kwargs),
     "config": serialize_paths(deepcopy(config)),
-  }
+    "metrics": _metrics,
+    })
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)
