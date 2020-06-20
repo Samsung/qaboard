@@ -16,10 +16,10 @@ module.exports = {
 	  "specifying-configurations",
   	],
 	"Guides": [
-		"using-the-qa-cli",
-		"references-and-milestones",
 		"visualizations",
 		"batches-running-on-multiple-inputs",
+		"using-the-qa-cli",
+		"references-and-milestones",
 		{
 			type: 'category',
 			label: 'Tuning & Async Task Queues',
