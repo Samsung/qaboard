@@ -87,5 +87,5 @@ jobs:
       run: docker-compose build --build-arg BUILDKIT_INLINE_CACHE=1
     - name: Publish images
       run: |
-        echo ${{ secrets.GITHUB_TOKEN }} | docker login https://docker.pkg.github.com -u arthur-flam --password-stdin
+        echo ${{ secrets.DOCKERHUB_ACCESS_TOKEN }} | docker login --username arthurflam --password-stdin
         docker-compose push

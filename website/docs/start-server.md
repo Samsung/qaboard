@@ -16,7 +16,6 @@ The `qa` executable will need to send updates to a central server, that tracks a
 
 ## Starting the server
 1. You need [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
-2. *(optionnal)* If you have a github.com account, [being `docker login`'ed](https://help.github.com/en/packages/using-github-packages-with-your-projects-ecosystem/configuring-docker-for-use-with-github-packages#authenticating-with-a-personal-access-token) let's you pull pre-built images.
 2. To start the QA-Board server:
 ```bash
 git clone git@github.com:Samsung/qaboard.git

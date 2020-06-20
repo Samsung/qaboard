@@ -39,7 +39,7 @@ Users will get switches to toggle debug visualizations:
 ## Available file viewers
 QA-Board tries to guess the right image viewer depending on the file extension or a `type`
 
-Extenstions                                         | Type         | Viewer                                       |
+File                                                | Viewer Type  | Viewer                                       |
 ----------------------------------------------------|--------------|----------------------------------------------|
 `*.jpg*`, `*.png*`, `*.bmp*`, `*.tif*`, `*.pdf*`... |  `image/*`   | **Image**                                    |
 `*.plotly.json`                                     | `plotly/json`| **Plot.ly**                                  |
@@ -47,24 +47,28 @@ Extenstions                                         | Type         | Viewer     
 `*.html`                                            | `plain/html` | **HTML** (assumes trusted input..!)          |
 `*.mp4`                                             | `video/*`    | **Video** (synced)                           |
 `*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
-`</>`                                               | `pointcloud/txt` | **pointcloud** viewer (needs to be refactored, coupled to a specific internal project...) |
-`</>`                                               | `6dof/txt`       | **6DoF** viewer (needs to be refactored, coupled to a specific internal project...)      |
+                                                    | `pointcloud/txt` | **pointcloud** viewer (needs to be refactored, coupled to a specific internal project...) |
+                                                    | `6dof/txt`       | **6DoF** viewer (needs to be refactored, coupled to a specific internal project...)      |
 
 
 ### Image viewer
   * Supports all common image formats.
   * Fast and smooth zoom & pan, synced. Fast image streaming via [IIIF](https://iiif.io).
-  * Color tooltip.
   * Perceptual color difference.
-  * Automatic regions of interest.
+  * Color tooltip.
   * Image filters (exposure, contrast, gamma...).
   * Histograms per channel.
+  * Automatic regions of interest.
 
 
 <!-- <img alt="Image viewer" src={useBaseUrl('img/image-viewer.gif')} /> -->
 <!-- <img alt="Image viewer" src={useBaseUrl('img/image-perceptural-diff.png')} /> -->
 
 <img alt="Image viewer" src={useBaseUrl('img/image-viewer-autoroi.png')} />
+
+:::tip
+If your configurations or [input metadata](metadata-integration-external-databases) contain `roi: [{x, y, w, h, label}]`, those "regions of interest" will be displayed and easily selectable.
+:::
 
 
 <!-- http://qa:3000/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/051ee752a3aafa817b735bf34f7779dec9920387?reference=a4222720d3101049b3e43b458e2b8cd02470e65b&controls=%7B%22show%22%3A%7B%22Debug%20Image%22%3Afalse%2C%22CDE%20config%22%3Afalse%2C%22Video%22%3Afalse%2C%22BPC%20Directions%22%3Afalse%2C%22Remosaic%20RGB%22%3Afalse%2C%22HDR%20Merger%20LMS%20Weights%20Map%22%3Afalse%7D%2C%22diff%22%3Atrue%7D&batch=foveon_full&filter=Foveon_AFIT%2F61_SDQH_3_Nona_OutD_Person_FAR_1of800s_ISO100_5184x3792_GR.he&batch_ref=foveon_full&filter_ref= -->

@@ -66,9 +66,9 @@ services:
       - POSTGRES_DB=qaboard
 
   backend:
-    image: docker.pkg.github.com/samsung/qaboard/backend
+    image: arthurflam/qaboard:backend
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard/backend]
+      cache_from: [arthurflam/qaboard:backend]
       context: .
       dockerfile: backend/Dockerfile
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
@@ -89,9 +89,9 @@ services:
     - GITLAB_ACCESS_TOKEN
 
   frontend:
-    image: docker.pkg.github.com/samsung/qaboard/frontend
+    image: arthurflam/qaboard:frontend
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard/frontend]
+      cache_from: [arthurflam/qaboard:frontend]
       context: webapp
       shm_size: 4gb
     volumes:
@@ -101,9 +101,9 @@ services:
     - REACT_APP_QABOARD_HOST=http://localhost:5151
 
   website:
-    image: docker.pkg.github.com/samsung/qaboard/website
+    image: arthurflam/qaboard:website
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard/website]
+      cache_from: [arthurflam/qaboard:website]
       context: website
       shm_size: 4gb
       args:
@@ -140,9 +140,9 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: docker.pkg.github.com/samsung/qaboard/cantaloupe
+    image: arthurflam/qaboard:cantaloupe
     build:
-      cache_from: [docker.pkg.github.com/samsung/qaboard/cantaloupe]
+      cache_from: [arthurflam/qaboard:cantaloupe]
       context: ./services/cantaloupe
     expose:
     - "8182"
