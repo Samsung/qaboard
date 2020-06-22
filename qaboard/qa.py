@@ -493,7 +493,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         configuration_cli = None
       else:
         if not on_windows:
-          configuration_cli =  f"--configuration '{input_configuration_str}'"
+          configuration = input_configuration_str.replace("'", "'\"'\"'") # support single-quotes
+          configuration_cli =  f"--configuration '{configuration}'"
         else:
           from .compat import escaped_for_cli
           configuration_cli =  f'--configuration {escaped_for_cli(input_configuration_str)}'
