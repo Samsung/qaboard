@@ -33,6 +33,7 @@ var flameGraph = require('d3-flame-graph');
 // TODO: The animations could be smoother if we reused and updated the same d3 graph
 //       but we had prop sync issues and used key="$unique" to force recreating graphs...
 // TODO: Let's sync the search and zoom between the 2 viewers when showing both after/before
+// TODO: Hide zoomed-into frames, otherwise we can't explore deep stacks (max-height..)
 
 
 // We could also consider using
@@ -70,7 +71,7 @@ class FlameGraphComponent extends React.Component {
     this.chart = flameGraph.flamegraph()
                            .transitionDuration(250)
                            .width(1180)
-                           .height(400)
+                          //  .height(400)
                            .title(props.title)
                            .onClick(this.onClick)
                            .differential(props.differential ?? false)
@@ -267,17 +268,17 @@ class FlameGraphViewer extends React.PureComponent {
           value={!!data.ref ? comparaison : 'new'}
           style={{ marginBottom: '8px' }}
           options={[
-            {value: 'diff-what-did-happen',  label: 'What did happen'},
-            {value: 'diff-what-will-happen',  label: 'What will happen'},
-            {value: 'new',  label: 'After'},
-            {value: 'ref',  label: 'Before'},
+            {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored with improvement new vs ref)'},
+            {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from ref, colored with improvement new vs ref)'},
+            {value: 'new',  label: 'After (new)'},
+            {value: 'ref',  label: 'Before (ref)'},
             {value: 'both', label: 'After & Before'},
           ]}
         />
         <Popover hoverCloseDelay={500} interactionKind={"hover"} inheritDarkTheme portalClassName={Classes.DARK}>
           <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
           <div style={{ padding: '15px' }}>
-            <p>Read about <a rel="noopener noreferrer" href="http://www.brendangregg.com/flamegraphs.html"target="_blank">Frame Graphs</a></p>
+            <p>Read about <a rel="noopener noreferrer" href="http://www.brendangregg.com/flamegraphs.html"target="_blank">Flame Graphs</a></p>
             <p>And the <a rel="noopener noreferrer" href="http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html"target="_blank">Differential Flame Graphs</a> versions</p>
           </div>
         </Popover>
