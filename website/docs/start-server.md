@@ -21,7 +21,7 @@ The `qa` executable will need to send updates to a central server, that tracks a
 git clone git@github.com:Samsung/qaboard.git
 cd qaboard
 docker-compose up -d
-#=> the application is live at localhost:8080
+#=> the application is live at localhost:5151
 ```
 
 
@@ -44,7 +44,7 @@ If you want to install from a helm chart for Kubernetes, a CloudFormation config
 | ENV Variable           | Default | Usage                                            |
 -------------------------|-------- |--------------------------------------------------|
 | `GITLAB_ACCESS_TOKEN`  | _none_  | **Required** *for now*, to get info on git repos. Get it at https://$gitlab-server/profile/personal_access_tokens |
-| `QABOARD_PORT_HTTP`    | 80      | Port mapped to the app on the host               |
+| `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host               |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port           |
 | `JENKINS_USER_NAME`    | _none_  | Used to [trigger jenkins jobs](/docs/triggering-third-party-tool) ([how-to-get-it?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
