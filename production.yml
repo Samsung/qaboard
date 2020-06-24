@@ -3,7 +3,7 @@ version: "3.5"
 services:
   db:
     restart: always
-    volumes:
+    # volumes:
     # - /WHERE/TO/SAVE/BACKUPS:/backups
     # On-prem, it can be helpul to expose the database and use various analytics products
     # At Samsung we use Metabase to show a detailed dashboard of the storage used.

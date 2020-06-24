@@ -165,7 +165,7 @@ def init_optimization(optim_config_file, ctx):
 
     batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
     command = ' '.join([
-      'cd {}'
+      f'cd {subproject}'
       'qa',
       f"--label '{batch_label}'",
       f"--platform '{ctx.obj['platform']}'",
