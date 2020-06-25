@@ -45,9 +45,13 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
   #   (or use a checkpoint?)
 
   for iteration in range(optim_config['evaluations']):
+      click.secho(f"Starting iteration {iteration}", fg='blue')
       suggested = optimizer.ask()
+      click.secho(f"Computing objective", fg='blue')
       y = objective([*suggested, iteration])
+      click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
+      click.secho(f"Updating QA-Board", fg='blue')
 
       iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
       iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
@@ -61,7 +65,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
           'input_path': '|'.join(batches),
           # we want to show in the summary tab the best results for the tuning experiment
           # but in the exploration see the results per iteration....
-          "output_type": 'optim_iteration', # or... single ? don't show them in the UI
+          "input_type": 'optim_iteration', # or... single ? don't show them in the UI
           "is_pending": False,
           "is_failed": False,
           "metrics": {
@@ -78,6 +82,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
             "data": {
               "optimization": True,
               "iterations": iteration+1,
+              "last_iteration_label": iteration_batch_label,
             },
         },
       })
@@ -90,7 +95,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
       #    .func_vals [array]: function value for each iteration.
       #    .space [Space]: the optimization space.
       #    .specs [dict]: parameters passed to the function.
-      is_best = results.fun < results.func_vals[iteration]
+      is_best = results.func_vals[iteration] <= results.fun 
       if iteration==0 or is_best:
         click.secho(f'New best @iteration{iteration+1}: {y} at iteration {iteration+1}', fg='green')
         notify_qa_database(object_type='batch', **{
@@ -104,10 +109,12 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
           },
         })
         try:
+          click.secho(f'Creating plots', fg='blue')
           make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
         except:
           pass
       else:
+        # TODO: do it using an API call...? 1. get the batch ID 2. DELETE /api/v1/batch/<batch_id>/
         # We remove the results to make sure we don't waste disk space
         rmtree(iteration_batch_dir, ignore_errors=True)
 
@@ -165,7 +172,6 @@ def init_optimization(optim_config_file, ctx):
 
     batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
     command = ' '.join([
-      f'cd {subproject}'
       'qa',
       f"--label '{batch_label}'",
       f"--platform '{ctx.obj['platform']}'",
@@ -184,12 +190,13 @@ def init_optimization(optim_config_file, ctx):
       command = f"cd {subproject} && {command}"
 
     if not ctx.obj['dryrun']:
-      out = subprocess.run(
+      p = subprocess.run(
           command,
           shell=True,
           encoding="utf-8",
-          check=True,
       )
+      if p.returncode != 0:
+        click.secho(f'[ERROR ({p.returncode})] Check the logs in QA-Board to know what output failed', fg='red', bold=True)
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
@@ -344,20 +351,26 @@ def make_plots(results, dir):
   #   git pull origin master 
   # https://github.com/scikit-optimize/scikit-optimize/pull/675
   from skopt.plots import plot_convergence
+  click.secho(f'. plot_convergence', fg='blue')
   _ = plot_convergence(results)
   plt.savefig(dir/'plot_convergence.png')
 
-  from skopt.plots import plot_objective
-  _ = plot_objective(results)
-  plt.savefig(dir/'plot_objective.png')
+  # Those plots can be VERY slow.
+  # TODO: create them in the  background
+  # from skopt.plots import plot_objective
+  # click.secho(f'. plot_objective', fg='blue')
+  # _ = plot_objective(results)
+  # plt.savefig(dir/'plot_objective.png')
 
-  from skopt.plots import plot_regret
-  _ = plot_regret(results)
-  plt.savefig(dir/'plot_regret.png')
+  # from skopt.plots import plot_regret
+  # click.secho(f'. plot_regret', fg='blue')
+  # _ = plot_regret(results)
+  # plt.savefig(dir/'plot_regret.png')
 
-  from skopt.plots import plot_evaluations
-  _ = plot_evaluations(results)
-  plt.savefig(dir/'plot_evaluations.png')
+  # from skopt.plots import plot_evaluations
+  # click.secho(f'. plot_evaluations', fg='blue')
+  # _ = plot_evaluations(results)
+  # plt.savefig(dir/'plot_evaluations.png')
 
 
 

@@ -245,10 +245,11 @@ try:
 except:
     branch_ci_dir = Path()
 
-commit_committer_name: Optional[str]
-commit_committer_email: Optional[str]
-commit_authored_datetime: Optional[str]
-commit_message: Optional[str]
+commit_committer_name: Optional[str] = None
+commit_committer_email: Optional[str] = None
+commit_authored_datetime: Optional[str] = None
+commit_message: Optional[str] = None
+commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%aI', '%P', "%B"]
   try:
@@ -258,8 +259,7 @@ if commit_id and is_in_git_repo:
     commit_parents = commit_parents_str.split()
   except:
     # may fail when working on the first commit in a repo, like in our tests
-    commit_committer_name = commit_committer_email = commit_authored_datetime = commit_message = None
-    commit_parents = []
+    pass
 
 
 # This is where results should be saved

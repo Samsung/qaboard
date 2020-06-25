@@ -46,23 +46,36 @@ def update_batch():
     batch.data["commands"] = {**batch.data.get('commands', {}), **command}
     flag_modified(batch, "data")
 
-  is_best = 'best_iter' in batch_data and batch_data['best_iter'] != batch.data.get('best_iter')
-  if is_best:
-    # remove all non-optim_iteration results from the batch
-    batch.outputs = [o for o in batch.outputs if o.output_type=='optim_iteration']
+  # It's a `qa optimzize` experiment and there is a new best iteration 
+  if 'best_iter' in batch_data:
+    # we will save the outputs from the best iteration in the batch,
+    # so first we need to remove any previous best results  
+    for o in batch.outputs:
+      if o.output_type != 'optim_iteration':
+        o.delete(soft=False)
     db_session.add(batch)
     db_session.commit()
-    # make copy of all outputs in the best batch
-    best_batch = ci_commit.get_or_create_batch(f"{data['batch_label']}|iter{batch_data.get('best_iter')}")
+    # Then we move results from the best iteration in this batch
+    batch_batch_label = batch_data['last_iteration_label']
+    best_batch = ci_commit.get_or_create_batch(batch_batch_label)
     for o in best_batch.outputs:
-      o_copy = o.copy()
-      o_copy.output_dir_override = str(o.output_dir)
-      o_copy.batch = batch
-      db_session.add(o_copy)
+      o.output_dir_override = str(o.output_dir)
+      o.batch = batch
+      db_session.add(o)
+    db_session.commit()
+
+  # Delete old iterations
+  if batch_data.get('optimization'):
+    print('Deleting old iterations')
+    for b in ci_commit.batches:
+      if b.label.startswith(f"{data['batch_label']}|iter") and b.label != batch_data['last_iteration_label']:
+        print(f'Deleting {b.label}')
+        if b.label != batch_data['last_iteration_label']:
+          b.delete(db_session)
 
   db_session.add(batch)
   db_session.commit()
-  return jsonify({"status": "OK"})
+  return jsonify({"status": "OK", "id": batch.id})
 
 
 

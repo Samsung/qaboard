@@ -117,6 +117,7 @@ def notify_qa_database(object_type='output', **kwargs):
   data = {
     'job_type': 'ci' if is_ci else 'local',
     'commit_sha': commit_id,
+    'git_commit_sha': commit_id, # backward compat for now
     # send all the data, with some light custom serialization for Path objects
     **serialize_paths(kwargs),
   }
