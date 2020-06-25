@@ -45,9 +45,13 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
   #   (or use a checkpoint?)
 
   for iteration in range(optim_config['evaluations']):
+      click.secho(f"Starting iteration {iteration}", fg='blue')
       suggested = optimizer.ask()
+      click.secho(f"Computing objective", fg='blue')
       y = objective([*suggested, iteration])
+      click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
+      click.secho(f"Updating QA-Board", fg='blue')
 
       iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
       iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
