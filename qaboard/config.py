@@ -245,10 +245,10 @@ try:
 except:
     branch_ci_dir = Path()
 
-commit_committer_name: Optional[str]
-commit_committer_email: Optional[str]
-commit_authored_datetime: Optional[str]
-commit_message: Optional[str]
+commit_committer_name: Optional[str] = None
+commit_committer_email: Optional[str] = None
+commit_authored_datetime: Optional[str] = None
+commit_message: Optional[str] = None
 if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%aI', '%P', "%B"]
   try:
