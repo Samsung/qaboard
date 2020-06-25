@@ -249,6 +249,7 @@ commit_committer_name: Optional[str] = None
 commit_committer_email: Optional[str] = None
 commit_authored_datetime: Optional[str] = None
 commit_message: Optional[str] = None
+commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%aI', '%P', "%B"]
   try:
