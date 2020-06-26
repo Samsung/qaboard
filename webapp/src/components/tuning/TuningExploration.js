@@ -83,10 +83,11 @@ const Sensibility1DLines = ({
     },
     yaxis: {
       title: metric.label,
-      type: "log",
-      autotick: false,
-      dtick: 0.69897000433,
-      exponentformat: "SI",
+      // This would create a nice log scale
+      // autotick: false,
+      // type: "log",
+      // dtick: 0.69897000433,
+      // exponentformat: "SI",
       showgrid: false,
       zeroline: false,
       gridcolor: "rgb(255, 255, 255)",
@@ -664,11 +665,11 @@ class TuningExploration extends Component {
 
         {batch_data.optimization && <>
           <h4>Convergence</h4>
-          <img height={250} alt="not yet available" src={`${batch.output_dir_url}/plot_convergence.png`}/>
-          <h4>Parameters' importance</h4>
+          <img height={250} alt="not yet available" src={`${batch.output_dir_url}/plot_convergence.png?iter=${batch_data.best_iter}`}/>
+          {/* <h4>Parameters' importance</h4>
           <img alt="not yet available" src={`${batch.output_dir_url}/plot_objective.png`}/>
           <h4>How we sampled the search space</h4>
-          <img alt="not yet available" src={`${batch.output_dir_url}/plot_evaluations.png`}/>
+          <img alt="not yet available" src={`${batch.output_dir_url}/plot_evaluations.png`}/> */}
         </>}
 
 
