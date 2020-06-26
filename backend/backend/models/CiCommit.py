@@ -249,8 +249,7 @@ class CiCommit(Base):
         'commit_dir_url': str(self.commit_dir_url),
         'repo_commit_dir_url': str(self.repo_commit_dir_url),
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
-                    for b in self.batches
-                    if (with_batches is None and '|iter' not in b.label) or (with_batches is not None and b.label in with_batches)},
+                    for b in self.batches if not with_batches or b.label in with_batches},
     }
     if with_outputs:
       out["data"] = self.data
