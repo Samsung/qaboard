@@ -101,7 +101,7 @@ services:
     expose:
     - 3000
     volumes:
-    - metabase:/metabase-data
+    - metabase:/metabase.db
     depends_on:
     - db
     # https://www.metabase.com/docs/latest/operations-guide/environment-variables.html
