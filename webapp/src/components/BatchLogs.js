@@ -136,7 +136,6 @@ class OutputLog extends React.Component {
       <div>
         <OutputHeader
           project={this.props.project}
-          project_data={this.props.project_data}
           commit={this.props.commit}
           output={output}
           warning={output.reference_warning}
@@ -202,7 +201,6 @@ class BatchLogs extends React.PureComponent {
             .map(output => <OutputLog
               key={output.id}
               project={this.props.project}
-              project_data={this.props.project_data}
               commit={this.props.commit}
               output={output}
               dispatch={this.props.dispatch}
@@ -211,7 +209,6 @@ class BatchLogs extends React.PureComponent {
       {some_tuning_commands && <OutputLog
         key={batch.output_dir_url}
         project={this.props.project}
-        project_data={this.props.project_data}
         commit={this.props.commit}
         output={batch_mock_output}
         dispatch={this.props.dispatch}

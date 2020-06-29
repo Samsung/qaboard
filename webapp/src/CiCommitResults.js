@@ -161,9 +161,9 @@ class CiCommitResults extends Component {
   render() {
     const {
       project,
+      git,
       config,
       metrics,
-      info,
       ref_commit_id,
       new_commit_id,
       new_commit,
@@ -297,7 +297,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Summary</h2>
                   <MetricsSummary
                     project={project}
-                    project_data={info}
+                    metrics={metrics}
                     available_metrics={this.props.available_metrics}
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -310,7 +310,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
                   <CommitParameters
                     project={project}
-                    project_data={info}
+                    config={config}
                     new_commit={new_commit}
                     ref_commit={ref_commit}
                     history={this.props.history}
@@ -323,7 +323,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Groups of tests</h2>
                   <AddRecordingsForm
                     project={project}
-                    project_data={info}
+                    git={git}
                     commit={new_commit}
                   />
                 </Card>
@@ -340,7 +340,8 @@ class CiCommitResults extends Component {
                   <Card>
                     <TuningForm
                       project={project}
-                      project_data={info}
+                      config={config}
+                      metric={metrics}
                       commit={new_commit}
                     />
                   </Card>
@@ -377,7 +378,6 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Output logs</h2>
                   <BatchLogs
                     project={project}
-                    project_data={info}
                     commit={new_commit}
                     batch={new_batch}
                     batch_label={new_batch.label}
@@ -398,7 +398,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Outputs</h2>
                   <ExportPlugin
                     project={project}
-                    project_data={info}
+                    config={config}
                     new_commit_id={this.props.new_commit_id}
                     ref_commit_id={this.props.ref_commit_id}
                     selected_batch_new={this.props.selected_batch_new}
@@ -435,7 +435,6 @@ class CiCommitResults extends Component {
                   <OutputCardsList
                     type='bit_accuracy'
                     project={project}
-                    project_data={info}
                     config={config}
                     metrics={metrics}
                     new_commit={this.props.new_commit}
@@ -452,7 +451,7 @@ class CiCommitResults extends Component {
                   <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
                   <TuningExploration
                     project={project}
-                    project_data={info}
+                    metrics={metrics}
                     batch={new_batch}
                    />
                 </Card>
@@ -487,7 +486,7 @@ const mapStateToProps = (state, ownProps) => {
     	ref_batch,
     } = batchSelector(state)
 
-    let { info, config, metrics, selected_metrics } = configSelector(state)
+    let { git, config, metrics, selected_metrics } = configSelector(state)
     let { available_metrics } = metrics;
 
 
@@ -499,9 +498,9 @@ const mapStateToProps = (state, ownProps) => {
     return {
       params,
       project,
-      info,
       config,
       metrics,
+      git,
       available_metrics,
       selected_metrics,
       // selected commit
