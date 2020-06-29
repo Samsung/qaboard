@@ -246,9 +246,9 @@ try:
 except:
     branch_ci_dir = Path()
 
-commit_committer_name: str = user
+commit_committer_name: Optional[str] = user
 commit_committer_email: Optional[str] = None
-commit_authored_datetime: Optional[str] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+commit_authored_datetime = datetime.datetime.now(datetime.timezone.utc).isoformat()
 commit_message: Optional[str] = None
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
