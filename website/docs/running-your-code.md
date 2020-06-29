@@ -17,6 +17,11 @@ qa --share run --input path/to/your/input.file 'echo "{absolute_input_path} => {
 
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
 
+:::note
+Results are saved under *output/*. `--share`'d results are saved in */mnt/qaboard*. To change it, edit `ci_root` in `qaboard.yml`.
+:::
+
+
 ## Wrapping your code
 How does it work? When you `pip install` QA-Board with `pip`, you get the `qa` executable. `qa` opens *qaboard.yaml* and imports the python file specified by `project.entrypoint`. Then it runs your entrypoint's `run()` function with information about the current run: input, configuration, where outputs should be saved etc.
 

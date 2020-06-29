@@ -19,7 +19,7 @@ docker-compose -f docker-compose.yml -f development.yml exec backend bash
 Edit _development.yml_ as suits your needs to e.g. change connect to another database using `QABOARD_DB_HOST`.
 
 Consult also:
-- [Starting QA-Board Guide](https://samsung.github.io/qaboard/docs/start-server).
+- [Starting QA-Board Guide](https://samsung.github.io/qaboard/docs/deploy).
 - [Troubleshooting Guide](https://samsung.github.io/qaboard/docs/backend-admin/troubleshooting).
 - To learn how to restore from a backup, read the [upgrade guide](https://samsung.github.io/qaboard/docs/backend-admin/host-upgrades).
 

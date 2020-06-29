@@ -28,6 +28,10 @@ storage:
 
 `after:` supports human-readable values like *2weeks*, *1year*, *3months*...
 
+:::note
+**TODO** Right now we only clean data for repositories [that have an integration with Gitlab](/docs/project-init).
+:::
+
 ## Recovering lost data?
 Well, you won't be able to do that. What you should try to do is make everything **reproducable**.
 - Define your whole *environment as code*. Make sure your commits contain 100% of what is needed for your code to run. Tools you can use include `docker+Dockerfile`, etc.

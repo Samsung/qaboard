@@ -3,11 +3,11 @@ module.exports = {
   docs: {
     "QA-Board": [
 		"introduction",
-		"alternatives-and-missing-features",
+		"alternatives",
 	],
   	"Getting Started": [
 	  "installation",
-	  "start-server",
+	  "deploy",
       "project-init",
 	  "inputs",
 	  "running-your-code",

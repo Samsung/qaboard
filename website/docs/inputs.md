@@ -39,7 +39,7 @@ qa batch my-batch
 We'll cover [batches in more depth later](batches-running-on-multiple-inputs). By default, batches run in parallel locally, but you can easily setup an async task queue like [Celery](celery-integration) or [others](https://github.com/Samsung/qaboard/wiki/Adding-new-runners).
 :::
 
-## Identifying inputs (Recommended)
+## *(Optional)* Identifying inputs
 You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify your images as inputs.
 
 In [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
@@ -80,7 +80,7 @@ inputs:
   use_parent_folder: true
 ```
 
-## Handling multiple input types (Advanced)
+## *(Advanced)* Handling multiple input types
 Big projects sometimes need to distinguish different types of inputs, which will be processed with a different logic.
 
 ```yaml title="qaboard.yaml" {3-9}

@@ -1,17 +1,38 @@
 ---
-id: start-server
+id: deploy
 title: Starting a QA-Board server
-sidebar_label: Starting the Server
+sidebar_label: Server Bringup
 ---
-
-:::caution
-**For now** QA-Board expects that you use Gitlab. [We're working on removing that requirement](https://github.com/Samsung/qaboard/issues/1).  
-:::
-
-
 The `qa` executable will need to send updates to a central server, that tracks and displays results.
 
-> Please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues. 
+> Please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues. We're responsive.
+
+:::note Need a hosted version?
+We're considering offering a hosted solution to help you get started. If your're interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
+:::
+
+## Create a directory to store results 
+QA-Board expect that all clients can access a shared storage to save and read results.
+
+To get started quickly on a single server, just create a *local* folder, and worry about sharing it later: 
+
+```bash
+mkdir -p /mnt/qabaord
+chmod -R 777 /mnt/qabaord
+```
+
+:::tip
+If you want to use a different shared folder edit `services.backend.volumes` in `docker-compose.yml`.
+:::
+
+:::note Shared Storage?
+Later, read how to setup [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04) or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04). If you need fine-tuning read about [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in *docker-compose.yml*.
+:::
+
+:::note Working in the cloud?
+We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@gmail.com">Contact us</a> or [create an issue](https://github.com/samsung/qaboard/issues) it would help.
+:::
+
 
 
 ## Starting the server
@@ -31,19 +52,17 @@ To have the server restart automatically:
 docker-compose -f docker-compose.yml -f production.yml up -d
 ```
 
-:::note
-We're considering offering a hosted solution to help users get started. If your're interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
-:::
 
-If you want to install from a helm chart for Kubernetes, a CloudFormation configuration or Terraform, <a href="mailto:arthur.flam@gmail.com">get in touch</a>.
+> Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans? <a href="mailto:arthur.flam@gmail.com">Get in touch</a>.
 
 
 ## Environment variables
-> To configure your installation, you can edit an `.env` file (`A=B` on each line). You can also edit one of the `docker-compose` files (`docker-compose.yml`, `development.yml`, `production.yml`...): add `environment:` keys to `backend` service.
+> To configure your installation, you can either edit [an `.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) or `services.backend.environment` in one of the `docker-compose` files (*docker-compose.yml*, *development.yml*, *production.yml*...).
+
 
 | ENV Variable           | Default | Usage                                            |
 -------------------------|-------- |--------------------------------------------------|
-| `GITLAB_ACCESS_TOKEN`  | _none_  | **Required** *for now*, to get info on git repos. Get it at https://$gitlab-server/profile/personal_access_tokens |
+| `GITLAB_ACCESS_TOKEN`  | _none_  | Optional for some extra features. Get it at https://$gitlab-server/profile/personal_access_tokens |
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host               |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port           |

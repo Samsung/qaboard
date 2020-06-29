@@ -176,8 +176,8 @@ runners:
 
 # Your artifacts will be saved under this location.
 ci_root:
-  linux: /var/qaboard/data
-  windows: '//shared_storage/var/qaboard/data'
+  linux: /mnt/qaboard
+  windows: '//shared_storage/qaboard'
 
 
 ## Optionnal policy to delete old results

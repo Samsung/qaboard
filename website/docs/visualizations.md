@@ -109,7 +109,8 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 > We have a draft of a tutorial explaining how to use [`perf`](http://www.brendangregg.com/perf.html), [`FlameGraph`](https://github.com/brendangregg/FlameGraph) and [`burn`](https://github.com/spiermar/burn#getting-started) to create the _json_ file expected by the visualization. Contact us and we'll publish it or show it to you.
 
 ### More Viewers?
-Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations.
+Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
+
 
 ## Dynamic visualizations
 You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will we able to choose what to display using sliders / select options:

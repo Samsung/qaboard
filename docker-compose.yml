@@ -79,6 +79,7 @@ services:
     - "3000"
     volumes:
     - data:/var/qaboard
+    - /mnt/qaboard:/mnt/qaboard
     environment:
     - UWSGI_PROCESSES=2
     - QABOARD_DB_HOST

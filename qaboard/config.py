@@ -160,7 +160,7 @@ except KeyError:
   config_has_error = True
   if not ignore_config_errors:
     click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
-    click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /var/qaboard/data\n  windows: "\\\\shared_storage\\qaboard\\data"\n```', fg='red', err=True, dim=True)
+    click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /mnt/qaboard\n  windows: "\\\\shared_storage\\qaboard"\n```', fg='red', err=True, dim=True)
     ignore_config_errors = True
 if not ci_root.exists():
     click.secho(f'ERROR: The ci_root defined in qatools.yaml does not exist', fg='red', err=True)

@@ -6,10 +6,6 @@ sidebar_label: Features & Benefits
 
 **QA-Board** helps Algorithms/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
 
-> QA-Board is not officially released yet. We're busy making sure it works out of the box for you.
->
-> **Status: https://github.com/Samsung/qaboard/issues/1**
-
 ## Features
 - **Organize, View and Compare Results**, **Tuning/Optimization**
 - **Web-based,** with sharable URLs.
