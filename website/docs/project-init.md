@@ -9,9 +9,6 @@ Go at the root of your project's git repository and run:
 ```bash
 qa init
 #=> 🎉🎉🎉
-
-# If you get errors about not using a utf8 locale, you can likely: 
-#   export LC_ALL=C.utf8 LANG=C.utf8
 ```
 
 Along with previously existing files and directories, your root directory will now contain a structure similar to:
@@ -22,22 +19,22 @@ root-git-repository
 │  ├── main.py         # sample entrypoint that runs your code
 │  ├── batches.yaml    # examples of how to run multiple tests
 │  └── metrics.yaml    # examples of how to define KPIs
-└── qaboard.yaml       # ⚙️ QA-Board configuration
+└── qaboard.yaml       # configuration file ⚙️
 ```
 
-## [Optional] Gitlab Integration
+## *(Optional)* Gitlab Integration
 If you integrate with Gitlab, you'll be able to:
-- get direct links to your code
-- see user avatars
-- delete old results
-- access commits by their tag or branch names
-- wait for CI pipelines to end when checking if results changed vs the last version
+- Get direct links to your code
+- See user avatars
+- Delete old results
+- Access commits by their tag or branch names
+- Wait for CI pipelines to end when checking if results changed vs the last version
 
 :::note
-In the past Gitlab was required, and we'll work on enabling those features even if you use other git servers.  
+In the past Gitlab was required. We'll work on enabling those features even if you use other git servers.  
 :::
 
-### How to integrate with GitLab
+### How-to
 1. Be one of the project's Maintainers.
 2. Go to http://gitlab-srv/$YOUR_GROUP/PROJECT/settings/integrations.
 3. Add an integration with:
