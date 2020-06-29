@@ -121,19 +121,19 @@ def notify_qa_database(object_type='output', **kwargs):
     # send all the data, with some light custom serialization for Path objects
     **serialize_paths(kwargs),
   }
-  if object_type != "output" and is_in_git_repo:
-    # Will help initialize/update the commit/batch in QA-Board
-    data.update({
-    'commit_branch': commit_branch,
-    'commit_tag': commit_tag,
-    'commit_committer_name': commit_committer_name,
-    'commit_committer_email': commit_committer_email,
-    'commit_authored_datetime': commit_authored_datetime,
-    'commit_parents': commit_parents,
-    'commit_message': commit_message,
-    "config": serialize_paths(deepcopy(config)),
-    "metrics": _metrics,
-    })
+  # if object_type != "output"  # le'ts be wasteful to make init easier
+  # Will help initialize/update the commit/batch in QA-Board
+  data.update({
+  'commit_branch': commit_branch,
+  'commit_tag': commit_tag,
+  'commit_committer_name': commit_committer_name,
+  'commit_committer_email': commit_committer_email,
+  'commit_authored_datetime': commit_authored_datetime,
+  'commit_parents': commit_parents,
+  'commit_message': commit_message,
+  "config": serialize_paths(deepcopy(config)),
+  "metrics": _metrics,
+  })
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)
