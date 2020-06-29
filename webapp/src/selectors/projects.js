@@ -88,12 +88,6 @@ export const configSelector = createSelector([batchSelectorPreFilter, commitSele
   const commit_config = commit.data?.qatools_config;
   const project_config = project_data.data?.qatools_config || {};
 
-  // for debugging new visualization types
-  if (!!commit_config?.outputs?.visualizations) {
-    if (commit_config.outputs.visualizations.every(v => v.path !== "flame.json"))
-      commit_config.outputs.visualizations.unshift({ name: "Flame Graph", path: "flame.json" })
-  }
-
   const batch_metrics = batch.data?.qatools_metrics;
   const commit_metrics = commit.data?.qatools_metrics;
   const project_metrics = project_data.data?.qatools_metrics;
