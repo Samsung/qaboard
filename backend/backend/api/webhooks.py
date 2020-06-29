@@ -37,42 +37,51 @@ def update_batch():
     return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
+  # Clients can store any metadata in each batch.
+  # Currently it's used by `qa optimize` to store info on iterations
   if not batch.data:
     batch.data = {}
   batch_data = request.json.get('data', {})
+  # And each batch can have changes vs its commit's config and metrics.
+  # The use case is usually working locally with `qa --share` and
+  # seeing updated visualizations and metrics.
+  if "config" in data and data["config"] != ci_commit["qatools_config"]:
+    batch.data["config"] = data["config"]
+  if "metrics" in data and data["metrics"] != ci_commit["qatools_metrics"]:
+    batch.data["config"] = data["config"]
   batch.data = {**batch.data, **batch_data}
 
+  # Save info on each "qa batch" command in the batch, mainly to list them in logs
   command = request.json.get('command')
   if command:
     batch.data["commands"] = {**batch.data.get('commands', {}), **command}
     flag_modified(batch, "data")
 
-  # It's a `qa optimzize` experiment and there is a new best iteration 
-  if 'best_iter' in batch_data:
-    # we will save the outputs from the best iteration in the batch,
-    # so first we need to remove any previous best results  
-    for o in batch.outputs:
-      if o.output_type != 'optim_iteration':
-        o.delete(soft=False)
-    db_session.add(batch)
-    db_session.commit()
-    # Then we move results from the best iteration in this batch
-    batch_batch_label = batch_data['last_iteration_label']
-    best_batch = ci_commit.get_or_create_batch(batch_batch_label)
-    for o in best_batch.outputs:
-      o.output_dir_override = str(o.output_dir)
-      o.batch = batch
-      db_session.add(o)
-    db_session.commit()
-
-  # Delete old iterations
+  # It's a `qa optimzize` experiment
   if batch_data.get('optimization'):
-    print('Deleting old iterations')
-    for b in ci_commit.batches:
-      if b.label.startswith(f"{data['batch_label']}|iter") and b.label != batch_data['last_iteration_label']:
-        print(f'Deleting {b.label}')
-        if b.label != batch_data['last_iteration_label']:
-          b.delete(db_session)
+    if 'best_iter' in batch_data:
+      # we will save the outputs from the best iteration in the batch,
+      # so first we need to remove any previous best results
+      for o in batch.outputs:
+        if o.output_type != 'optim_iteration':
+          o.delete(soft=False)
+      db_session.add(batch)
+      db_session.commit()
+      # Move results from the best iteration in this batch
+      batch_batch_label = batch_data['last_iteration_label']
+      best_batch = ci_commit.get_or_create_batch(batch_batch_label)
+      for o in best_batch.outputs:
+        o.output_dir_override = str(o.output_dir)
+        o.batch = batch
+        db_session.add(o)
+      db_session.commit()
+
+      # Deleting old iterations
+      for b in ci_commit.batches:
+        if b.label.startswith(f"{data['batch_label']}|iter") and b.label != batch_data['last_iteration_label']:
+          print(f'Deleting {b.label}')
+          if b.label != batch_data['last_iteration_label']:
+            b.delete(db_session)
 
   db_session.add(batch)
   db_session.commit()
