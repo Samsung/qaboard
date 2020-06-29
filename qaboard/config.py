@@ -3,6 +3,7 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
+import datetime
 from itertools import chain
 from pathlib import Path, PurePosixPath
 from typing import Dict, Any, Tuple, List, Optional
@@ -245,9 +246,9 @@ try:
 except:
     branch_ci_dir = Path()
 
-commit_committer_name: Optional[str] = None
+commit_committer_name: str = user
 commit_committer_email: Optional[str] = None
-commit_authored_datetime: Optional[str] = None
+commit_authored_datetime: Optional[str] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 commit_message: Optional[str] = None
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:

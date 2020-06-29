@@ -182,7 +182,6 @@ def get_output_manifest(output_id):
 @app.route("/api/v1/commit/", methods=['GET', 'POST'])
 @app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
 def api_ci_commit(commit_id=None):
-  # TODO: clean...
   if request.method == 'POST':
     hexsha = request.json.get('commit_sha', request.json['git_commit_sha']) if not commit_id else commit_id
     try:
@@ -190,11 +189,15 @@ def api_ci_commit(commit_id=None):
         session=db_session,
         hexsha=hexsha,
         project_id=request.json['project'],
+        data=request.json,
       )
     except:
       return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
     if not commit.data:
       commit.data = {}
+    # Clients can store any metadata with each commit.
+    # We've been using it to store code quality metrics per subproject in our monorepo,
+    # Then we use other tools (e.g. metabase) to create dashboards.
     commit_data = request.json.get('data', {})
     commit.data = {**commit.data, **commit_data}
     flag_modified(commit, "data")
@@ -208,8 +211,6 @@ def api_ci_commit(commit_id=None):
   project_id = request.args['project']
   if not commit_id:
     commit_id = request.args.get('commit', None)
-
-  if not commit_id:
     try:
       project = Project.query.filter(Project.id==project_id).one()
       default_branch = project.data['qatools_config']['project']['reference_branch']
@@ -218,9 +219,9 @@ def api_ci_commit(commit_id=None):
     branch = request.args.get('branch', default_branch)
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch'))
     if not ci_commit:
-      return jsonify({'error': f'Sorry, we cant find any commit with results for this project on {branch}.'}), 404
+      return jsonify({'error': f'Sorry, we cant find any commit with results for the {project_id} on {branch}.'}), 404
   else:
-    try: # we try a commit from git
+    try:
       ci_commit = (db_session
                    .query(CiCommit)
                    .options(
@@ -233,22 +234,11 @@ def api_ci_commit(commit_id=None):
                    )
                    .one()
                   )
-    except MultipleResultsFound:
-      print(f'!!!!!!!!!!!!! Multiple results for commit {commit_id} @{project_id}')
-      ci_commit = (db_session
-                   .query(CiCommit)
-                   .options(
-                     joinedload(CiCommit.batches).
-                     joinedload(Batch.outputs)
-                    )
-                   .filter(
-                     CiCommit.project_id==project_id,
-                     CiCommit.hexsha.startswith(commit_id),
-                   )
-                   .first()
-                  )
     except NoResultFound:
       try:
+        # TODO: This is a valid use case for having read-rights to the repo,
+        #       we can identify a commit by the tag/branch
+        #       To replace this without read rights, we should listen for push events and build a database
         project = Project.query.filter(Project.id==project_id).one()
         commit = project.repo.tags[commit_id].commit
         try:
@@ -262,14 +252,12 @@ def api_ci_commit(commit_id=None):
         db_session.add(ci_commit)
         db_session.commit()
       except:
-        return jsonify({'error': 'Sorry, we could not find the commit in the cloned git repo.'}), 404
+        return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
     except BadName:
-      return jsonify({f'error': 'Sorry, we could not understand the commid ID {commid_id}.'}), 404
+      return jsonify({f'error': f'Sorry, we could not understand the commid ID {commit_id} for project {project_id}.'}), 404
     except Exception as e:
       raise(e)
       return jsonify({'error': 'Sorry, the request failed.'}), 500
-    # FIXME: we should add details about the outputs...
-    # FIXME: how do we get the reference commit?
 
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches
