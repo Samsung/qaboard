@@ -208,6 +208,9 @@ class AppNavbar extends Component {
             parseDate={str => new Date(Date.parse(str))}
             onChange={new_date_range => {
               const { project, aggregated_metrics, dispatch } = this.props;
+              let extended_date_range = [new_date_range[0], new_date_range[1]]
+              extended_date_range[0].setHours(0,0,0,0);
+              extended_date_range[1].setHours(23,59,59,999);
               const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
               const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
               dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))

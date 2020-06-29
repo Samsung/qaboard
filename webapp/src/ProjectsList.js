@@ -36,7 +36,7 @@ class LastCommitAt extends Component {
         <Tooltip content={date}>
           <span style={{ color: "#555"}}>latest {!!date_output ? "output" : "commit"} <Moment
             fromNow
-            {...!!date_output ? {utc: true} : {tz: "Asia/Jerusalem"}}
+            utc
             date={date}
           /></span>
         </Tooltip>

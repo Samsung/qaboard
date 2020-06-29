@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import styled from "styled-components";
 
 import Moment from "react-moment";
-import "moment-timezone";
 import { Tooltip, Classes } from "@blueprintjs/core";
 
 import { updateSelected } from "../actions/selected";

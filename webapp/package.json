@@ -31,7 +31,6 @@
     "lodash": "^4.17.15",
     "mathjs": "^6.6.1",
     "moment": "^2.24.0",
-    "moment-timezone": "^0.5.28",
     "monaco-editor": "^0.20.0",
     "monaco-editor-webpack-plugin": "^1.9.0",
     "openseadragon": "^2.4.2",

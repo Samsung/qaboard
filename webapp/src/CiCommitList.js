@@ -4,7 +4,6 @@ import { withRouter } from "react-router";
 import styled from "styled-components";
 
 import Moment from "react-moment";
-import "moment-timezone";
 
 import {
   Classes,
@@ -70,7 +69,10 @@ class CiCommitList extends React.Component {
 
   getData(props) {
     const { dispatch, project, date_range, aggregated_metrics, match } = props;
-    dispatch(fetchCommits(project, {...match.params}, date_range, aggregated_metrics))
+    const extended_date_range = [date_range[0], date_range[1]]
+    extended_date_range[0].setHours(0,0,0,0);
+    extended_date_range[1].setHours(23,59,59,999);
+    dispatch(fetchCommits(project, {...match.params}, extended_date_range, aggregated_metrics))
   }
 
   componentDidMount() {
@@ -113,10 +115,10 @@ class CiCommitList extends React.Component {
       {is_loaded && !is_loading && !error && !some_commits_loaded &&
       <NonIdealState
           title="Could not find a commit with results"
-          description={<span>Searched from{" "}
-            <strong><Moment fromNow date={date_range[0]} title={date_range[0]}/></strong>
+          description={<span>Searched {" "}
+            <strong>from <Moment fromNow date={date_range[0]} title={date_range[0]}/></strong>
             {" "}to{" "}
-            <strong><Moment fromNow date={date_range[1]} title={date_range[1]}/></strong>
+            {date_range[1] > new Date() ? "today" : <strong><Moment fromNow date={date_range[1]} title={date_range[1]}/></strong>}
           </span>}
           icon="search"
       />}
@@ -130,7 +132,6 @@ class CiCommitList extends React.Component {
             <h4 className={Classes.HEADING}>
               {(!!day && day !== "undefined") ? <><Moment
                 calendar={calendarStrings}
-                tz="Asia/Jerusalem"
                 date={day}
               />{" "}
               &#8212; {commits_by_day[day].length} commits</> : `${commits_by_day[day].length} commits`}

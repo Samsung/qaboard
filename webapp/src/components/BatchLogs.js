@@ -2,7 +2,6 @@ import React from "react";
 import { get } from "axios";
 
 import Moment from "react-moment";
-import "moment-timezone";
 import sanitizeHtml from 'sanitize-html';
 
 import {
