@@ -25,28 +25,28 @@ from ..models import latest_successful_commit
 
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
-timezone = pytz.timezone("Asia/Tel_Aviv")
+timezone = pytz.timezone("utc")
 
 
 @app.route("/api/v1/commits")
 @app.route("/api/v1/commits/")
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
-  project_id = request.args.get('project', 'dvs/psp_swip')
+  project_id = request.args['project']
 
   to_date_s = request.args.get('to', None)
   now_localized = timezone.localize(datetime.datetime.now())
 
   to_date = to_datetime(to_date_s) if to_date_s else now_localized
-  to_date = to_date + datetime.timedelta(hours=3) # fix timezones hahaha
+  # We only care about days, and this makes sure we smooth out TZ issues
+  # It's likely unnecessary...
+  to_date = to_date + datetime.timedelta(hours=3)
 
   from_date_s = request.args.get('from', None)
   from_date = to_datetime(from_date_s) if from_date_s else (now_localized - datetime.timedelta(days=4))
   ci_commits = (db_session
                   .query(func.max(CiCommit.authored_datetime))
                   .filter(CiCommit.project_id == project_id)
-                  # now all projects should have results for all commits, with some CI
-                  # .filter(CiCommit.batches.any())
                 )
   if branch:
     branch = branch.replace('origin/', '')
@@ -59,6 +59,8 @@ def get_commits(branch=None):
   if not latest_authored_datetime:
   	return jsonify([])
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
+  from_date = from_date - datetime.timedelta(hours=3) # timezones as above
+
 
   ci_commits = (db_session
                 .query(CiCommit)

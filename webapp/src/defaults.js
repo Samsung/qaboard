@@ -37,7 +37,13 @@ export const default_metrics = {
 	dashboard_metrics: []
 };
 
-export const default_date_range = () => [new Date(moment().subtract(3, "d")), new Date()]
+export const default_date_range = () => {
+	let date_range = [new Date(moment().subtract(3, "d")), new Date()]
+	date_range[0].setHours(0,0,0);
+	date_range[1].setHours(23,59,59);
+	return date_range;
+}
+
 
 export const default_commits_data = {
 	is_loaded: false,
