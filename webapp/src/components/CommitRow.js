@@ -265,7 +265,8 @@ class CommitRow extends React.Component {
     const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
     const git = (project_data.data || {}).git || {};
     const commit_url = `${git.web_url}/commit/${commit.id}`
-    let maybe_skeletton = !!commit.message ? null : Classes.SKELETON;
+    const has_data = !!commit?.authored_datetime
+    let maybe_skeletton = has_data ? null : Classes.SKELETON;
     return (
       <CommitRowWrapper className={className}>
         <Avatar
@@ -278,7 +279,7 @@ class CommitRow extends React.Component {
         <CommitDetails>
           <CommitContent style={{ maxWidth: "600px" }}>
             {tag}
-            <Message className={maybe_skeletton}>{commit.message || 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
+            <Message className={maybe_skeletton}>{has_data ? commit.message : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
             <div>
               <Tooltip>
                 <CommitShortId project={project} href={commit_url}>

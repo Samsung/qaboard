@@ -12,6 +12,7 @@ from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, Foreign
 from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.models import Base, Batch, Output
 from ..utils import get_users_per_name
@@ -32,14 +33,25 @@ class CiCommit(Base):
   project = relationship("Project", back_populates="ci_commits")
   __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
-  authored_datetime = Column(DateTime(timezone=True), index=True)
-  branch = Column(String(), index=True) # first added as.. we ignore tags?
-  committer_name = Column(String(), index=True)
-  message = Column(String())
-  parents = Column(JSON())
   data = Column(JSON(), default={})
 
+  authored_datetime = Column(DateTime(timezone=True), index=True)
+  committer_name = Column(String(), index=True)
+  message = Column(String())
+  # We use as branch the first branch that the commit was seen on, or the project's reference branch if it was used.
+  # TODO: we should also store the tags we witnessed the commit used with.
+  branch = Column(String(), index=True) # first added as.. we ignore tags?
+  # In the end there having a commit's parents is not all that useful for QA-Board:
+  # not all commits are used for runs: e.g. CI runs only on pushed commits, so
+  # that info is not enough to reconstruct the commit graph.
+  # Right now we don't display parents in the web application, so we also remove it from the API. 
+  # Instead of  JSON, we could use an Array of String instead, so that we can search for descendents. But do we really need it? 
+  parents = Column(JSON())
+
   commit_dir_override = Column(String())
+  # Right now we don't really use this field, it's always "git".
+  # The client uses "local" in case there is no git info, but
+  # even then it doesn't send the information!
   commit_type = Column(String(), default='git')
   
   batches = relationship("Batch",
@@ -73,7 +85,8 @@ class CiCommit(Base):
     """Returns the folder in all the data for this commit is stored."""
     if self.commit_dir_override is not None:
       return Path(self.commit_dir_override)
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name.replace(" ", " ")}__{self.hexsha[:8]}'
+    committer_name = self.committer_name if self.committer_name else "unknown"
+    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.hexsha[:8]}'
     out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
     if self.project.id_relative:
       return out / self.project.id_relative
@@ -86,7 +99,8 @@ class CiCommit(Base):
       # can we do something better?
       return Path(self.commit_dir_override.replace(str(self.project.id_relative), ""))
     else:
-      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{self.committer_name}__{self.hexsha[:8]}'
+      committer_name = self.committer_name if self.committer_name else "unknown"
+      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.hexsha[:8]}'
       return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
 
   @property
@@ -115,30 +129,15 @@ class CiCommit(Base):
 
 
 
-  def __init__(self, commit, *, project, branch=None, commit_type='git'):
+  def __init__(self, hexsha, *, project, branch=None, message=None, parents=None, authored_datetime=None, committer_name=None, commit_type='git'):
+    self.hexsha = hexsha
     self.project = project
-    if commit_type == 'git':
-      self.commit_type = 'git'
-    else:
-      self.commit_type = 'local'
-      if not branch: branch='<NA>'
-    self.hexsha = commit.hexsha
-    self.message = commit.message
-    self.parents = [c.hexsha for c in commit.parents]
-    if branch:
-      self.branch = branch
-    else: # a commit belong to many branches, so this is a guess..
-      self.branch = find_branch(commit.hexsha, self.project.repo)
-    self.authored_datetime = commit.authored_datetime
-    self.latest_output_datetime = commit.authored_datetime
-    self.committer_name = commit.committer.name
-
-
-  @property
-  def gitcommit(self):
-    if self.commit_type == 'git':
-      return self.project.repo.commit(self.hexsha)
-    raise NotImplementedError
+    self.branch = branch
+    self.parents = parents
+    self.authored_datetime = authored_datetime
+    self.committer_name = committer_name
+    self.commit_type = commit_type
+    self.latest_output_datetime = authored_datetime
 
 
   def delete(self, ignore=None, keep=None, dryrun=False):
@@ -181,7 +180,7 @@ class CiCommit(Base):
       self.deleted = True
 
   @staticmethod
-  def get_or_create(session, hexsha, project_id):
+  def get_or_create(session, hexsha, project_id, data=None):
     try:
       ci_commit =(session.query(CiCommit)
                          .filter(
@@ -189,32 +188,55 @@ class CiCommit(Base):
                            CiCommit.hexsha.startswith(hexsha),
                          )
                          .one())
-    except MultipleResultsFound:
-      print(f'!!!!!!!!!!!!! Multiple results for commit {hexsha} @{project_id}')
-      ci_commit =(session.query(CiCommit)
-                         .filter(
-                           CiCommit.project_id==project_id,
-                           CiCommit.hexsha.startswith(hexsha),
-                         )
-                         .first())
     except NoResultFound:
       try:
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)
-        try:
-          commit = project.repo.commit(hexsha)
-        except Exception as e:
-          error = f'[ERROR] Could not create a commit for {hexsha}. {e}'
-          print(error)
-          raise (ValueError, error)
+        if data.get("config"):
+          is_initialization = 'qatools_config' not in project.data
+          reference_branch = data["config"]['project'].get('reference_branch', 'master')
+          is_reference = data.get("commit_branch") == reference_branch
+          if is_initialization or is_reference:
+            # FIXME: We put in Project.data.git the content of
+            #       https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-events
+            # FIXME: We should really have Project.data.gitlab/github/...
+            if "git" not in project.data:
+              project.data["git"] = {}
+            if "path_with_namespace" not in project.data["git"] and "name" in data["config"].get("project", {}): # FIXME: it really should be Project.root
+              # FIXME: Doesn't support updates for now... again should have .id: int, name: str, root: str...
+              project.data["git"]["path_with_namespace"] = data["config"]["project"]["name"]
+            project.data.update({'qatools_config': data['config']})
+            if "metrics" in data:
+              project.data.update({'qatools_metrics': data["metrics"]})
+            flag_modified(project, "data")
+        else:
+          # For backward-compatibility we fallback to reading the data from the commit itself
+          # But in regular use QA-Board doesn't require read rights on repositories
+          try:
+            git_commit = project.repo.commit(hexsha)
+          except Exception as e:
+            error = f'[ERROR] Could not find information on commit {hexsha}. {e}'
+            print(error)
+            raise ValueError(error)
 
-        ci_commit = CiCommit(commit, project=project)
+
+        ci_commit = CiCommit(
+          hexsha,
+          project=project,
+          commit_type='git', # we don't use anything else
+          parents=data["commit_parents"] if "commit_parents" in data else [c.hexsha for c in git_commit.parents],
+          message=data["commit_message"] if "commit_message" in data else git_commit.message,
+          committer_name=data["commit_committer_name"] if "commit_committer_name" in data else git_commit.committer_name,
+          authored_datetime=data["commit_authored_datetime"] if "commit_authored_datetime" in data else git_commit.authored_datetime,
+          # commits belong to many branches, so this is a guess
+          branch=data["commit_branch"] if "commit_branch" in data else find_branch(hexsha, project.repo),
+        )
         session.add(ci_commit)
         session.commit()
       except ValueError:
         error = f'[ERROR] ValueError: could not create a commit for {hexsha}'
         print(error)
-        raise (ValueError, error)
+        raise ValueError(error)
     if not ci_commit.data:
       ci_commit.data = {}
     return ci_commit
@@ -222,7 +244,7 @@ class CiCommit(Base):
   def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):
     users_db = get_users_per_name("")
     committer_avatar_url = ''
-    if users_db:
+    if users_db and self.committer_name:
       name = self.committer_name.lower()
       if name in users_db:
         committer_avatar_url = users_db[name]['avatar_url']
@@ -235,9 +257,10 @@ class CiCommit(Base):
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
     out = {
         'id': self.hexsha,
-        'type': self.commit_type,
+        # 'type': self.commit_type,
         'branch': re.sub('origin/', '', self.branch),
-        'parents': [p for p in self.parents] if self.parents else [],
+        # Not used anywhere in the web application, and it's not all that useful (see earlier comment)
+        # 'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,
         'committer_name': self.committer_name,
         'committer_avatar_url': committer_avatar_url,
@@ -283,35 +306,3 @@ def latest_successful_commit(session, project_id, branch, batch_label=None, with
       if valid_outputs(ci_commit.get_or_create_batch(batch_label)):
         return ci_commit
 
-
-def parent_successful_commit(ci_commit, batch_label=None):
-  """Returns a commit's latest successful parent."""
-  # if we don't have a git repo,
-  # we try to find the previous commit on the same "branch"...
-  if not ci_commit.project.repo:
-    try:
-      query = CiCommit.query\
-                      .filter(
-                        CiCommit.authored_datetime < ci_commit.authored_datetime,
-                        CiCommit.branch == ci_commit.branch,
-                      )
-      for ci_commit in query:
-        if len(ci_commit.ci_batch.outputs) or (batch_label and len(ci_commit.get_or_create_batch(batch_label).outputs)):
-          return ci_commit
-    except:
-      return None
-
-  parent_ci_commit = None
-  # we arbitrarly pick the first git parent
-  parent_hexsha = ci_commit.gitcommit.parents[0]
-  while True:
-    try:
-      parent_ci_commit = CiCommit.query\
-                                 .filter(CiCommit.hexsha == parent_hexsha)\
-                                 .order_by(CiCommit.authored_datetime.desc())\
-                                 .one()
-    except:
-      return None
-    if len(ci_commit.ci_batch.outputs) or (batch_label and len(ci_commit.get_or_create_batch(batch_label).outputs)):
-      return parent_ci_commit
-    parent_hexsha = parent_ci_commit.gitcommit.parents[0]

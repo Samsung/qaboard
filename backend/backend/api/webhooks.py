@@ -31,6 +31,7 @@ def update_batch():
       session=db_session,
       hexsha=request.json['git_commit_sha'],
       project_id=request.json['project'],
+      data=data,
     )
   except:
     return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
@@ -133,13 +134,14 @@ def delete_batch(batch_id):
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
+  hexsha = data.get('commit_sha', data['git_commit_sha'])
   # We get a handle on the Commit object related to our new output
   try:
-    hexsha = data.get('commit_sha', data['git_commit_sha'])
     ci_commit = CiCommit.get_or_create(
       session=db_session,
       hexsha=hexsha,
       project_id=data['project'],
+      data=data,
     )
   except:
     return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']})."}), 404

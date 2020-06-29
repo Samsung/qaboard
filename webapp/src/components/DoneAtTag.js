@@ -17,20 +17,21 @@ const defaults = {
 class DoneAtTagUnstyled extends React.Component {
   render() {
     const { project, commit, className, style, dispatch } = this.props;
-    let maybe_skeletton = (!commit || !commit.authored_datetime) ? Classes.SKELETON : null; 
+    const has_data = !!commit?.authored_datetime
+    let maybe_skeletton = has_data ? null : Classes.SKELETON; 
     return (
       <span className={className} style={style}>
         <Tooltip>
-          <Moment className={maybe_skeletton} fromNow date={(!!commit && !!commit.authored_datetime) ? commit.authored_datetime : defaults.date} />
-          <Moment utc>{!!commit && commit.authored_datetime}</Moment>
+          <Moment className={maybe_skeletton} fromNow date={has_data ? commit.authored_datetime : defaults.date} />
+          <Moment utc>{commit?.authored_datetime}</Moment>
         </Tooltip>{" "}
         {" "}
         <Link
          className={maybe_skeletton}
-         to={`/${project}/committer/${!!commit && commit.committer_name}`}
+         to={`/${project}/committer/${commit?.committer_name}`}
          onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
         >
-          by {(!!commit && !!commit.committer_name) ? commit.committer_name : defaults.committer_name}
+          by {has_data ? commit.committer_name : defaults.committer_name}
         </Link>
       </span>
     );
