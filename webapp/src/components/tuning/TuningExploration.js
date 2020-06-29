@@ -485,8 +485,8 @@ class TuningExploration extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const project_qatools_metrics_curr = ((this.props.project_data || {}).data || {}).qatools_metrics;
-    const project_qatools_metrics_prev = ((prevProps.project_data || {}).data || {}).qatools_metrics;
+    const project_qatools_metrics_curr = this.props.metrics;
+    const project_qatools_metrics_prev = prevProps.metrics;
     if (project_qatools_metrics_curr !== project_qatools_metrics_prev) {
         this.setState(this.metrics_data(this.props))
     }
@@ -514,7 +514,7 @@ class TuningExploration extends Component {
 
   metrics_data(props) {
     const params = new URLSearchParams(props.location.search);
-  	const qatools_metrics = ((props.project_data || {}).data || {}).qatools_metrics || {}
+  	const qatools_metrics = this.props.metrics;
     const { main_metrics=[], available_metrics={}, default_metric="objective" } = qatools_metrics;
      
     let is_optimization_batch = ((props.batch || {}).data || {}).best_metrics !== undefined;

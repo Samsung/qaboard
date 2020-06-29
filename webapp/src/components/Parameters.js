@@ -122,15 +122,14 @@ class CommitParameters extends React.Component {
 
 
   render() {
-    const { new_commit, ref_commit } = this.props;
+    const { new_commit, ref_commit, config } = this.props;
     const { manifests, is_loaded, error } = this.state;
     const { show_all_files, expand_all, files_filter } = this.state;
 
     if (new_commit === null || new_commit === undefined)
     	return <span />;
 
-    const qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {};
-    const artifacts = Object.keys(qatools_config.artifacts || {})
+    const artifacts = Object.keys(config.artifacts || {})
 
     const help_text = <>
       <p>

@@ -97,7 +97,7 @@ class AddRecordingsForm extends Component {
   };
 
   render() {
-    const { project_data={}, commit } = this.props;
+    const { commit, config, git } = this.props;
     const { isLoaded, error, groups } = this.state;
     if (!isLoaded) return <Spinner />;
     if (error)
@@ -108,27 +108,23 @@ class AddRecordingsForm extends Component {
         />
       );
 
-    const qatools_config = (project_data.data || {}).qatools_config || {};
-    let qatools_inputs = qatools_config.inputs || {}
-    let commit_groups_files = qatools_inputs.batches || qatools_inputs.groups || [];
+    let commit_groups_files = config.inputs?.batches || config.inputs?.groups || []; // .groups for backward compat
     if (!Array.isArray(commit_groups_files))
       commit_groups_files = [commit_groups_files]
-
-    const git = (project_data.data || {}).git || {};
     return (
       <form onSubmit={this.onSubmit}>
         <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>
           <p>Tuning runs can use the custom groups below, <em>shared with all the project users</em>, or the defaults from:</p>
           <ul className={Classes.LIST}>
            {commit_groups_files.map(file => <React.Fragment key={file}>
-             <li><a href={`${git.web_url}/tree/${commit.id}/${file}`}>{file}</a></li>
+             <li><a href={`${git?.web_url}/tree/${commit.id}/${file}`}>{file}</a></li>
             </React.Fragment>)}
           </ul>
           <p><b>Tip:</b> The <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/defining-groups-of-tests`}>wiki</a> provides many examples to help get the syntax right.</p>
           <p>
-            <em>Paths are relative to <code>{(((qatools_config.inputs || {}) || {}).database || {}).windows}</code> by default.</em>
+            <em>Paths are relative to <code>{config.inputs?.database?.windows}</code> by default.</em>
             <CopyToClipboard
-              text={((qatools_config.inputs || {}).database || {}).windows}
+              text={config?.inputs?.database?.windows}
               style={{margin: '5px'}}
               onCopy={() => {
                 toaster.show({

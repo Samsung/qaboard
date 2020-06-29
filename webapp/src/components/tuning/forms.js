@@ -116,8 +116,8 @@ const combinations_info = (parameter_search, search_options, search_type) => {
 class TuningForm extends Component {
   constructor(props) {
     super(props);
-    let qatools_config = ((this.props.project_data || {}).data || {}).qatools_config || {}
-    let default_user = this.props.user || ((qatools_config.runners || qatools_config).lsf || {}).user;
+    const { config, metrics } = props
+    let default_user = this.props.user || (config.runners || config).lsf?.user;
 
     let search_type = this.props.search_type || "grid"
     let parameter_search = this.props.parameter_search ? this.props.parameter_search : templates["no tuning"];
@@ -142,7 +142,7 @@ class TuningForm extends Component {
       ...combinations_info(parameter_search, search_options, search_type),
       parameter_search_auto: this.props.parameter_search_auto
         ? this.props.parameter_search_auto
-        : templates['optimize'](qatools_config, this.props.project_data.data.qatools_metrics),
+        : templates['optimize'](config, metrics),
 
       user: this.props.user || default_user,
       android_device: "openstf",
@@ -306,8 +306,7 @@ class TuningForm extends Component {
   };
 
   render() {
-    const { project, project_data={} } = this.props;
-    let qatools_config = project_data.data?.qatools_config || {}
+    const { project, config, metrics } = this.props;
     const { search_type, search_options } = this.state;
     const { experiment_name, selected_group, selected_group_info } = this.state;
     const { user, platform, android_device } = this.state;
@@ -323,8 +322,8 @@ class TuningForm extends Component {
 
 
     // we should show different parameters for different runners: queues, user...
-    const lsf_runner = (qatools_config.runners?.lsf !== undefined || qatools_config.lsf !== undefined);
-    const any_runner_configured = !!qatools_config.lsf || Object.keys(qatools_config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
+    const lsf_runner = (config.runners?.lsf !== undefined || config.lsf !== undefined);
+    const any_runner_configured = !!config.lsf || Object.keys(config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
 
     const panel_manual = <>
       <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
@@ -388,7 +387,7 @@ class TuningForm extends Component {
    
 
     const panel_auto = <>
-      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](qatools_config, project_data.data.qatools_metrics) })}>Reset</Button>
+      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset</Button>
       <MonacoEditor
         height={250}
         language='yaml'
@@ -399,7 +398,7 @@ class TuningForm extends Component {
       />
     </>
 
-    const available_platforms = qatools_config.inputs?.platforms || []
+    const available_platforms = config.inputs?.platforms || []
 
     return <>
       {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
