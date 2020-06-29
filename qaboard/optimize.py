@@ -248,7 +248,7 @@ def make_reduce(options):
   Return a reduce/aggregation function used to aggregate many losses from different tests into a single number.
   We normalize by the number of outputs to make it more easily human-understandable.
   """
-  reduce_type =  options.get('reduce', 'l2')
+  reduce_type =  options.get('reduce', 'sum')
   if reduce_type == 'sum':
     return lambda x: sum(x) / len(x)
   if reduce_type == 'relu':
