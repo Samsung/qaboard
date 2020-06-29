@@ -16,12 +16,6 @@ from .config import git_server, qaboard_data_dir
 repos = Repos(git_server, qaboard_data_dir / 'git')
 
 
-# We could fetch the latest commits at startup
-# TODO: find which projects to pull using the latest commits in the database
-# from .git_utils import git_pull
-# default_repo = repos['dvs/psp_swip']
-# git_pull(default_repo)
-
 # Some magic to use sqlalchemy safely with Flask
 # http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/
 from backend.database import db_session, engine, Base

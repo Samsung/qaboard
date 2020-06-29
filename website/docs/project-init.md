@@ -40,9 +40,10 @@ In the past Gitlab was required. We'll work on enabling those features even if y
 :::
 
 ### How-to
-1. Be one of the project's Maintainers.
-2. Go to http://gitlab-srv/$YOUR_GROUP/PROJECT/settings/integrations.
-3. Add an integration with:
+1. Make sure you [started QA-Board with](/docs/deploy) a `GITLAB_HOST` and a `GITLAB_ACCESS_TOKEN` with `read_repository` scope.
+2. Be one of the project's Maintainers.
+3. Go to http://gitlab-srv/$YOUR_GROUP/PROJECT/settings/integrations.
+4. Add an integration with:
   * __URL:__ `http://localhost:5151/webhook/gitlab`. Replace localhost with your hostname if you setup any DNS/SSL..
   * __Secret token:__ *(leave the field empty)*
 

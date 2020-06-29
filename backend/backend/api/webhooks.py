@@ -45,10 +45,10 @@ def update_batch():
   # And each batch can have changes vs its commit's config and metrics.
   # The use case is usually working locally with `qa --share` and
   # seeing updated visualizations and metrics.
-  if "config" in data and data["config"] != ci_commit["qatools_config"]:
-    batch.data["config"] = data["config"]
-  if "metrics" in data and data["metrics"] != ci_commit["qatools_metrics"]:
-    batch.data["config"] = data["config"]
+  if "qaboard_config" in data and data["qaboard_config"] != ci_commit.data["qatools_config"]:
+    batch.data["config"] = data["qaboard_config"]
+  if "qaboard_metrics" in data and data["qaboard_metrics"] != ci_commit.data["qatools_metrics"]:
+    batch.data["qatools_config"] = data["qaboard_metrics"]
   batch.data = {**batch.data, **batch_data}
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs
@@ -227,7 +227,7 @@ def new_output_webhook():
 
 @app.route('/webhook/gitlab', methods=['GET', 'POST'])
 def gitlab_webhook():
-  """Gitlab calls this endpoint every push, it garantees we stay synced."""
+  """If Gitlab calls this endpoint every push, we get avatars and update our local copy of the repo."""
   # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
   data = json.loads(request.data)
   print(data, file=sys.stderr)

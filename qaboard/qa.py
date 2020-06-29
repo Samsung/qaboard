@@ -190,21 +190,13 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 
       start = time.time()
       cwd = os.getcwd() 
+      # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
+      if 'ENV' in ctx.obj['extra_parameters']:
+        ctx.obj['ENV'] = ctx.obj['extra_parameters']
+        del ctx.obj['extra_parameters']
+
       try:
-        # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
-        if 'ENV' in ctx.obj['extra_parameters']:
-          ctx.obj['ENV'] = ctx.obj['extra_parameters']
-          del ctx.obj['extra_parameters']
-
         runtime_metrics = entrypoint_module(config).run(ctx)
-        if not isinstance(runtime_metrics, dict):
-          click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
-          runtime_metrics = {'is_failed': True}
-
-        if not runtime_metrics:
-          runtime_metrics = {}
-        runtime_metrics['compute_time'] = time.time() - start
-
       except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
@@ -215,6 +207,14 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           print(f"ERROR: {e}")
         runtime_metrics = {'is_failed': True}
 
+      if not isinstance(runtime_metrics, dict):
+        click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
+        runtime_metrics = {'is_failed': True}
+
+      if not runtime_metrics:
+        runtime_metrics = {}
+      runtime_metrics['compute_time'] = time.time() - start
+
       # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
       if 'ENV' in ctx.obj:
         ctx.obj['extra_parameters'].update(ctx.obj['ENV'])
@@ -223,7 +223,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       # avoid issues if code in run() changes cwd
       if os.getcwd() != cwd:
         os.chdir(cwd)
-      metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess, save_manifests_in_database=save_manifests_in_database)
+      metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
       if not metrics:
         metrics = runtime_metrics
 
@@ -549,9 +549,9 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       qa_context=ctx.obj,
     )
 
-    from .gitlab import update_gitlab_status
+    from .gitlab import gitlab_token, update_gitlab_status
     always_update = getenvs(('QATOOLS_ALWAYS_UPDATE_GITLAB', 'QA_ALWAYS_UPDATE_GITLAB'))
-    if jobs and is_ci and (ctx.obj['batch_label']=='default' or always_update):
+    if gitlab_token and jobs and is_ci and (ctx.obj['batch_label']=='default' or always_update):
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success')
 
     if is_failed and not no_wait:

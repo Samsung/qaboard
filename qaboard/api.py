@@ -131,8 +131,8 @@ def notify_qa_database(object_type='output', **kwargs):
   'commit_authored_datetime': commit_authored_datetime,
   'commit_parents': commit_parents,
   'commit_message': commit_message,
-  "config": serialize_paths(deepcopy(config)),
-  "metrics": _metrics,
+  "qaboard_config": serialize_paths(deepcopy(config)),
+  "qaboard_metrics": _metrics,
   })
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)

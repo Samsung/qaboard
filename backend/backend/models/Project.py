@@ -131,8 +131,12 @@ def update_project(data, db_session):
   root_project = Project.get_or_create(session=db_session, id=root_project_id)
   update_project_data(root_project, data, db_session)
 
-  repo = repos[root_project_id]
-  git_pull(repo)
+  try:
+    repo = repos[root_project_id]
+    git_pull(repo)
+  except:
+    print(f"Could not fetch the git info for {root_project_id}")
+    return
 
   @lru_cache(maxsize=128)
   def parsed_content(commit_id, path):

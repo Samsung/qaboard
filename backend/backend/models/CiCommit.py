@@ -9,7 +9,7 @@ from pathlib import Path
 
 from requests.utils import quote
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
-from sqlalchemy import or_, UniqueConstraint
+from sqlalchemy import or_, UniqueConstraint, orm
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.orm.attributes import flag_modified
@@ -64,6 +64,10 @@ class CiCommit(Base):
   deleted = Column(Boolean(), default=False)
 
 
+  @orm.reconstructor
+  def init_on_load(self):
+    if not self.data:
+      self.data = {}
 
   def get_or_create_batch(self, label):
     matching_batches = [b for b in self.batches if b.label == label]
@@ -133,6 +137,7 @@ class CiCommit(Base):
     self.hexsha = hexsha
     self.project = project
     self.branch = branch
+    self.message = message
     self.parents = parents
     self.authored_datetime = authored_datetime
     self.committer_name = committer_name
@@ -192,9 +197,9 @@ class CiCommit(Base):
       try:
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)
-        if data.get("config"):
-          is_initialization = 'qatools_config' not in project.data
-          reference_branch = data["config"]['project'].get('reference_branch', 'master')
+        if data and data.get('qaboard_config'):
+          is_initialization = not project.data or 'qatools_config' not in data 
+          reference_branch = data["qaboard_config"]['project'].get('reference_branch', 'master')
           is_reference = data.get("commit_branch") == reference_branch
           if is_initialization or is_reference:
             # FIXME: We put in Project.data.git the content of
@@ -202,12 +207,12 @@ class CiCommit(Base):
             # FIXME: We should really have Project.data.gitlab/github/...
             if "git" not in project.data:
               project.data["git"] = {}
-            if "path_with_namespace" not in project.data["git"] and "name" in data["config"].get("project", {}): # FIXME: it really should be Project.root
+            if "path_with_namespace" not in project.data["git"] and "name" in data["qaboard_config"].get("project", {}): # FIXME: it really should be Project.root
               # FIXME: Doesn't support updates for now... again should have .id: int, name: str, root: str...
-              project.data["git"]["path_with_namespace"] = data["config"]["project"]["name"]
-            project.data.update({'qatools_config': data['config']})
-            if "metrics" in data:
-              project.data.update({'qatools_metrics': data["metrics"]})
+              project.data["git"]["path_with_namespace"] = data["qaboard_config"]["project"]["name"]
+            project.data.update({'qatools_config': data['qaboard_config']})
+            if "qaboard_metrics" in data:
+              project.data.update({'qatools_metrics': data["qaboard_metrics"]})
             flag_modified(project, "data")
         else:
           # For backward-compatibility we fallback to reading the data from the commit itself
@@ -219,17 +224,16 @@ class CiCommit(Base):
             print(error)
             raise ValueError(error)
 
-
         ci_commit = CiCommit(
           hexsha,
           project=project,
           commit_type='git', # we don't use anything else
-          parents=data["commit_parents"] if "commit_parents" in data else [c.hexsha for c in git_commit.parents],
-          message=data["commit_message"] if "commit_message" in data else git_commit.message,
-          committer_name=data["commit_committer_name"] if "commit_committer_name" in data else git_commit.committer_name,
-          authored_datetime=data["commit_authored_datetime"] if "commit_authored_datetime" in data else git_commit.authored_datetime,
+          parents=data["commit_parents"] if (data and "commit_parents" in data) else [c.hexsha for c in git_commit.parents],
+          message=data["commit_message"] if (data and "commit_message" in data) else git_commit.message,
+          committer_name=data["commit_committer_name"] if (data and "commit_committer_name" in data) else git_commit.committer.name,
+          authored_datetime=data["commit_authored_datetime"] if (data and "commit_authored_datetime" in data) else git_commit.authored_datetime,
           # commits belong to many branches, so this is a guess
-          branch=data["commit_branch"] if "commit_branch" in data else find_branch(hexsha, project.repo),
+          branch=data["commit_branch"] if (data and "commit_branch" in data) else find_branch(hexsha, project.repo),
         )
         session.add(ci_commit)
         session.commit()

@@ -22,7 +22,7 @@ chmod -R 777 /mnt/qabaord
 ```
 
 :::tip
-If you want to use a different shared folder edit `services.backend.volumes` in `docker-compose.yml`.
+If you want to use a different shared folder edit `services.backend.volumes` in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
 :::
 
 :::note Shared Storage?
@@ -60,18 +60,19 @@ docker-compose -f docker-compose.yml -f production.yml up -d
 > To configure your installation, you can either edit [an `.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) or `services.backend.environment` in one of the `docker-compose` files (*docker-compose.yml*, *development.yml*, *production.yml*...).
 
 
-| ENV Variable           | Default | Usage                                            |
--------------------------|-------- |--------------------------------------------------|
-| `GITLAB_ACCESS_TOKEN`  | _none_  | Optional for some extra features. Get it at https://$gitlab-server/profile/personal_access_tokens |
-| `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host               |
+| ENV Variable           | Default | Usage                                                |
+-------------------------|-------- |------------------------------------------------------|
+| `GITLAB_ACCESS_TOKEN`  | _none_  | Optional for some extra features. Get it with a `read_repository` scope at https://$gitlab-server/profile/personal_access_tokens |
+| `GITLAB_HOST`          | _none_  | e.g. *https://gitlab.com* or *http://my-gitlab-srv/* |
+| `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
-| `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port           |
+| `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
 | `JENKINS_USER_NAME`    | _none_  | Used to [trigger jenkins jobs](/docs/triggering-third-party-tool) ([how-to-get-it?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
-| `JENKINS_USER_TOKEN`   | _none_  |                                                  |
-| `JENKINS_USER_CRUMB`   | _none_  |                                                  |
-| `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server             |
-| `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                  |
-| `UWSGI_PROCESSS`       | 1       | default: 1g                                      |
+| `JENKINS_USER_TOKEN`   | _none_  |                                                      |
+| `JENKINS_USER_CRUMB`   | _none_  |                                                      |
+| `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
+| `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
+| `UWSGI_PROCESSS`       | 1       | default: 1g                                          |
 
 :::note
 In the future we plan to introduce a proper "secret" store, per user and per project.
