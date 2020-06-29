@@ -459,6 +459,9 @@ class OutputCard extends React.Component {
         let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
         const viewers = paths.map(
           (path, path_idx) => {
+            let new_available = path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[path])
+            if (!new_available)
+              return <span/>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
               {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
