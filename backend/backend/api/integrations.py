@@ -70,6 +70,9 @@ def gitlab_job():
   """
   Get information about a GitlabCI manual job.
   """
+  if "GITLAB_ACCESS_TOKEN" not in os.environ:
+    return jsonify({"error": f'Error: Missing GITLAB_ACCESS_TOKEN in environment variables'}), 500
+
   data = request.get_json()
   gitlab_api = f"{data['gitlab_host']}/api/v4"
   gitlab_headers = {
@@ -115,6 +118,8 @@ def gitlab_play_manual_job():
   """
   Trigger a GitlabCI manual job.
   """
+  if "GITLAB_ACCESS_TOKEN" not in os.environ:
+    return jsonify({"error": f'Error: Missing GITLAB_ACCESS_TOKEN in environment variables'}), 500
   data = request.get_json()
 
   gitlab_api = f"{data['gitlab_host']}/api/v4"

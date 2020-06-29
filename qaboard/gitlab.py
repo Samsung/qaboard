@@ -13,9 +13,6 @@ from .config import secrets
 # TODO: don't put credentials here...
 gitlab_host = os.getenv('GITLAB_HOST', secrets.get('GITLAB_HOST', 'https://gitlab.com'))
 gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN', secrets.get('GITLAB_ACCESS_TOKEN'))
-if not gitlab_token:
-  click.secho("WARNING: GITLAB_ACCESS_TOKEN is not defined.", fg='yellow', bold=True, err=True)
-  click.secho("         Please provide it as an environment variable: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html", fg='yellow', err=True)
 gitlab_headers = {
   'Private-Token': gitlab_token,
 }
@@ -23,14 +20,21 @@ gitlab_api = f"{gitlab_host}/api/v4"
 gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')
 
 
+def check_gitlab_token():
+  if not gitlab_token:
+    click.secho("WARNING: GITLAB_ACCESS_TOKEN is not defined.", fg='yellow', bold=True, err=True)
+    click.secho("         Please provide it as an environment variable: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html", fg='yellow', err=True)
+
 
 def ci_commit_data(commit_id):
+  check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}"
   r = requests.get(url, headers=gitlab_headers)
   r.raise_for_status()
   return r.json()
 
 def ci_commit_statuses(commit_id, **kwargs):
+  check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}/statuses"
   r = requests.get(url, headers=gitlab_headers, params=kwargs)
   r.raise_for_status()
@@ -39,6 +43,7 @@ def ci_commit_statuses(commit_id, **kwargs):
 
 
 def update_gitlab_status(commit_id, state='success'):
+  check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
   name = f"QA {subproject.name}" if subproject else 'QA'
   params = {
@@ -63,8 +68,10 @@ def update_gitlab_status(commit_id, state='success'):
 
 
 def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
-  from .git import git_parents
+  if not gitlab_token:
+    return commit_id
 
+  from .git import git_parents
   if max_parents_depth < 0:
     click.secho(f'Could not find a commit that passed CI', fg='red', bold=True, err=True)
     exit(1)
