@@ -10,8 +10,8 @@ import {
   Colors,
   Intent,
   Card,
-  Icon,
   Button,
+  Icon,
   Callout,
   Tooltip,
   NonIdealState,
@@ -126,8 +126,18 @@ class ProjectsList extends Component {
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>
-                    <Tooltip><Icon icon={projects[project_id].is_favorite ? "star" : "star-empty"} onClick={() => this.props.dispatch(updateFavorite(project_id, !!!projects[project_id].is_favorite)) } style={{color: Colors.GOLD5}}/><span>Pin on top of the list.</span></Tooltip>
-                    <a href={git.homepage}><Button icon="git-repo" minimal round text="code" style={{color: 'rgb(85, 85, 85)'}}/></a>
+                    <Tooltip>
+                      <Button
+                        minimal
+                        icon={<Icon
+                          icon={projects[project_id].is_favorite ? "star" : "star-empty"}
+                          onClick={() => this.props.dispatch(updateFavorite(project_id, !!!projects[project_id].is_favorite)) }
+                          style={{color: Colors.GOLD5}}
+                        />}
+                      />
+                      <span>Pin on top of the list.</span>
+                    </Tooltip>
+                    <a href={git.homepage} style={{textDecoration: "none"}}><Button icon="git-repo" minimal round text="Source" style={{color: 'rgb(85, 85, 85)'}}/></a>
                   </p>
                   <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
                   <p style={{marginBottom: '0px'}}><span style={{ color: "#555" }}>
