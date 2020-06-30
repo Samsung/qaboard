@@ -79,9 +79,6 @@ variables:
 
 deploy:staging:
   <<: *deploy
-  variables:
-    DOCKER_HOST: qa
-    CI_ENVIRONMENT_SLUG: ""
   environment:
     name: staging
     url: http://qa:9000
@@ -90,6 +87,9 @@ deploy:staging:
 
 deploy:production:
   <<: *deploy
+  variables:
+    DOCKER_HOST: qa
+    CI_ENVIRONMENT_SLUG: ""
   environment:
     name: production
     url: https://qa

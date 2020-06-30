@@ -74,7 +74,7 @@ def get_commit_batches_paths(project, commit_id):
     ci_commit = CiCommit.query.filter(
         CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
     ).one()
-    commit_config_inputs = ci_commit.data['qatools_config'].get('inputs', {})
+    commit_config_inputs = ci_commit.data.get('qatools_config', {}).get('inputs', {})
     commit_group_files = commit_config_inputs.get('batches', commit_config_inputs.get('groups', []))
     print(commit_group_files, file=sys.stderr)
     if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
@@ -112,9 +112,9 @@ def get_group():
           ).one()
       except NoResultFound:
           return jsonify("Sorry, the commit id was not found"), 404
-      qatools_config = ci_commit.data["qatools_config"]
+      qatools_config = ci_commit.data.get("qatools_config", {})
     else:
-      qatools_config = project.data["qatools_config"]
+      qatools_config = project.data.get("qatools_config", {})
 
 
     has_custom_iter_inputs = False
