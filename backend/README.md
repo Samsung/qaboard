@@ -33,10 +33,10 @@ Consult also:
 
 Flask helps us create an HTTP server. It exposes API endpoints defined in the [api/](api/) folder.
 - `api.py`: read/list data about projects/commits/outputs
-- `webhooks.py`: listens for (i) push notification from gitlab (ii) new results sent by `qatools`.
+- `webhooks.py`: listens for (i) push notification from gitlab (ii) new results sent by `qa`.
 - `tuning.py`: ask for new tuning runs, 
 
-`database.py` manages how we access our database, and connect to the git repository via `gitpython`.
+`database.py` manages how we access our database, and connects to the git repository via `gitpython`.
 
 
 ## Changing the database schemas

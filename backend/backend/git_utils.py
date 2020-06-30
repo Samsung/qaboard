@@ -1,3 +1,5 @@
+import os
+
 from git import Repo
 from git import RemoteProgress
 from git.exc import NoSuchPathError
@@ -16,18 +18,25 @@ class Repos():
     Return a git-python Repo object representing a clone
     of $QABOARD_GIT_SERVER/project_path at $QABOARD_DATA
 
-    project_path: the full git repository namespace, eg dvs/psp_swip
+    project_path: the full git repository namespace, eg group/repo
     """
+    if "GITLAB_ACCESS_TOKEN" not in os.environ:
+      raise ValueError(f'[ERROR] Please provide $GITLAB_ACCESS_TOKEN as environment variable')
+    if "GITLAB_HOST" not in os.environ:
+      raise ValueError(f'[ERROR] Please provide $GITLAB_HOST as environment variable')
+
     clone_location = str(self.clone_directory / project_path)
     try:
       repo = Repo(clone_location)
     except NoSuchPathError:
       try:
+        # At SIRC we rely on SSH keys, while in the OSS version we use access tokens
+        gitlab_uri = f'git@{self.git_server}:{project_path}',
         print(f'Cloning <{project_path}> to {self.clone_directory}')
         repo = Repo.clone_from(
           # for now we expect everything to be on gitlab-srv via http
-          f'git@{self.git_server}:{project_path}',
-          str(clone_location)
+          f"{gitlab_uri}{project_path}",
+          str(clone_location),
         )
       except Exception as e:
         print(f'[ERROR] Could not clone: {e}. Please set $QABOARD_DATA to a writable location and verify your network settings')

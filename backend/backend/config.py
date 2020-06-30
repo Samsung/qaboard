@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 # we clone our repositories locally here to access commit metadata
-git_server = os.getenv('QABOARD_GIT_SERVER', 'gitlab-srv')
+git_server = os.getenv('GITLAB_HOST', 'gitlab-srv')
 app_data_directory = Path(os.getenv('QABOARD_DATA', '/var/qaboard')).resolve()
 
 # shared network location where we save custom per-project groups
