@@ -342,7 +342,7 @@ class CiCommitResults extends Component {
                     <TuningForm
                       project={project}
                       config={config}
-                      metric={metrics}
+                      metrics={metrics}
                       commit={new_commit}
                     />
                   </Card>
