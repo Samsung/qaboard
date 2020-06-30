@@ -13,6 +13,7 @@ if __name__ == '__main__':
 ```
 
 """
+import os
 from functools import wraps
 import fnmatch
 from typing import Set
@@ -74,7 +75,7 @@ def run_tests() -> int:
     return_code = test()
     return return_code
       
-  return_codes = Parallel(n_jobs=-1, verbose=50)(delayed(run_test)(t) for t in test_funcs)
+  return_codes = Parallel(n_jobs=int(os.environ.get("QA_CI_HELPERS_N_JOBS", -1)), verbose=50)(delayed(run_test)(t) for t in test_funcs)
   if any((return_code is None for return_code in return_codes)):
     click.secho(f"WARNING: Your test should return a return code (success==0)", fg='yellow', bold=True)   
   return all((not return_code for return_code in return_codes))
