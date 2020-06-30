@@ -325,6 +325,7 @@ class CiCommitResults extends Component {
                     project={project}
                     git={git}
                     commit={new_commit}
+                    config={config}
                   />
                 </Card>
                </Section>}
