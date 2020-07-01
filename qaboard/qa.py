@@ -301,11 +301,8 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       copy(output_directory / 'manifest.inputs.json', full_input_path / 'manifest.inputs.json')
       copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
 
-  print('BEFORE')
   if not context.obj.get('offline') and not context.obj.get('dryrun'):
-    print('....')
     notify_qa_database(**context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
-  print('AFTER')
 
   return metrics
 
