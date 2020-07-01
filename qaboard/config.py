@@ -252,7 +252,7 @@ commit_authored_datetime = datetime.datetime.now(datetime.timezone.utc).isoforma
 commit_message: Optional[str] = None
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
-  fields = ['%cn', '%ce', '%aI', '%P', "%B"]
+  fields = ['%cn', '%ce', '%ai', '%P', "%B"]
   try:
     commit_info = git_show("%n".join(fields), commit_id)
     fields_values = commit_info.split('\n', maxsplit=len(fields))
