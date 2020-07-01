@@ -64,7 +64,7 @@ Symptom:
 Remove the IIIF image cache:
 ```bash
 # stop
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml down cantaloupe
+docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml stop cantaloupe
 # remove with the volumes
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml rm -v cantaloupe
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d cantaloupe
