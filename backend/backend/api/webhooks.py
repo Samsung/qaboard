@@ -45,10 +45,10 @@ def update_batch():
   # And each batch can have changes vs its commit's config and metrics.
   # The use case is usually working locally with `qa --share` and
   # seeing updated visualizations and metrics.
-  if "config" in data and data["config"] != ci_commit.data["qatools_config"]:
-    batch.data["config"] = data["config"]
-  if "metrics" in data and data["metrics"] != ci_commit.data["qatools_metrics"]:
-    batch.data["qatools_config"] = data["config"]
+  if "qaboard_config" in data and data["qaboard_config"] != ci_commit.data["qatools_config"]:
+    batch.data["config"] = data["qaboard_config"]
+  if "qaboard_metrics" in data and data["qaboard_metrics"] != ci_commit.data["qatools_metrics"]:
+    batch.data["qatools_config"] = data["qaboard_metrics"]
   batch.data = {**batch.data, **batch_data}
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs

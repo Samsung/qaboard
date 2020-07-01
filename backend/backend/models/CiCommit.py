@@ -197,9 +197,9 @@ class CiCommit(Base):
       try:
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)
-        if data and data.get('config'):
+        if data and data.get('qaboard_config'):
           is_initialization = not project.data or 'qatools_config' not in data 
-          reference_branch = data["config"]['project'].get('reference_branch', 'master')
+          reference_branch = data["qaboard_config"]['project'].get('reference_branch', 'master')
           is_reference = data.get("commit_branch") == reference_branch
           if is_initialization or is_reference:
             # FIXME: We put in Project.data.git the content of
@@ -207,12 +207,12 @@ class CiCommit(Base):
             # FIXME: We should really have Project.data.gitlab/github/...
             if "git" not in project.data:
               project.data["git"] = {}
-            if "path_with_namespace" not in project.data["git"] and "name" in data["config"].get("project", {}): # FIXME: it really should be Project.root
+            if "path_with_namespace" not in project.data["git"] and "name" in data["qaboard_config"].get("project", {}): # FIXME: it really should be Project.root
               # FIXME: Doesn't support updates for now... again should have .id: int, name: str, root: str...
-              project.data["git"]["path_with_namespace"] = data["config"]["project"]["name"]
-            project.data.update({'qatools_config': data['config']})
-            if "metrics" in data:
-              project.data.update({'qatools_metrics': data["metrics"]})
+              project.data["git"]["path_with_namespace"] = data["qaboard_config"]["project"]["name"]
+            project.data.update({'qatools_config': data['qaboard_config']})
+            if "qaboard_metrics" in data:
+              project.data.update({'qatools_metrics': data["qaboard_metrics"]})
             flag_modified(project, "data")
         else:
           # For backward-compatibility we fallback to reading the data from the commit itself
