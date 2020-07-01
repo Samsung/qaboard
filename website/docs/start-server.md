@@ -129,6 +129,9 @@ We run those 2 cron jobs:
 # https://samsung.github.io/qaboard/docs/deleting-old-data
 59 1 1 * * cd qaboard && docker-compose exec backend qaboard_clean
 
+# Weekly removal of old docker images, helps to avoid filling the disk on the host
+59 1 2 * * docker image prune --force
+
 # Restart the image server, somehow after a while they need it (need research...)
 0 4 * * * cd qaboard && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml stop cantaloupe && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml rm -v cantaloupe && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d cantaloupe
 
