@@ -46,8 +46,8 @@ class MultiSelectTags extends React.Component {
     const { output_new, output_ref } = this.props;
     const has_new = output_new !== undefined && output_new !== null;
     const has_ref = output_ref !== undefined && output_ref !== null;
-    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new !== output_new);
-    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref !== output_ref);
+    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new?.id !== output_new?.id);
+    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref?.id !== output_ref?.id);
     if (updated_new || updated_ref) {
       this.setState(this.defaultRoiGroups(this.props))
     }
