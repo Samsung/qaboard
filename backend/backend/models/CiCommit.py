@@ -137,10 +137,10 @@ class CiCommit(Base):
     self.hexsha = hexsha
     self.project = project
     self.branch = branch
-    self.message = message
+    self.message = message if message else '<NA>'
     self.parents = parents
     self.authored_datetime = authored_datetime
-    self.committer_name = committer_name
+    self.committer_name = committer_name if committer_name else 'unknown'
     self.commit_type = commit_type
     self.latest_output_datetime = authored_datetime
 
@@ -194,6 +194,7 @@ class CiCommit(Base):
                          )
                          .one())
     except NoResultFound:
+     # FIXME: if not cimplete hash. fallback git... ? or raise error? (then docs: ask full 32 hash..) or symetrics if hexsha.strtswith(query)
       try:
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)
@@ -235,6 +236,11 @@ class CiCommit(Base):
           # commits belong to many branches, so this is a guess
           branch=data["commit_branch"] if (data and "commit_branch" in data) else find_branch(hexsha, project.repo),
         )
+        if data and data.get('qaboard_config'):
+          ci_commit.data.update({'qatools_config': data['qaboard_config']})
+          if "qaboard_metrics" in data:
+            ci_commit.data.update({'qatools_metrics': data['qaboard_metrics']})
+          flag_modified(ci_commit, "data")
         session.add(ci_commit)
         session.commit()
       except ValueError:

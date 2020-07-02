@@ -152,8 +152,8 @@ def new_output_webhook():
       project_id=data['project'],
       data=data,
     )
-  except:
-    return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']})."}), 404
+  except Exception as e:
+    return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']}). {e}"}), 404
 
   ci_commit.project.latest_output_datetime = datetime.datetime.utcnow()
   ci_commit.latest_output_datetime = datetime.datetime.utcnow()
