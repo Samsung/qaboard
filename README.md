@@ -5,7 +5,6 @@
   
   <div align="center">Helps engineers share results, collaborate, and build better products.</div>
 </p>
-___
 
 <p align="center">
   <a href="https://spectrum.chat/qaboard"><img src="https://img.shields.io/badge/chat-spectrum-brightgreen" alt="qaboard-chat"/></a>
@@ -21,7 +20,7 @@ ___
 - **Integrations:** direct access from Git and CI tools, easily exportable results, API, links to the code, trigger gitlabCI/jenkins/webhooks...
 - **Agnostic** to your language/framework: run your existing code, write files, view them.
 
-> For screenshots check the [project's website](https://samsung.github.io/qaboard).
+> For screenshots check [our website](https://samsung.github.io/qaboard).
 
 ## Benefits
 QA-Board across many projects enables us to:
@@ -31,13 +30,12 @@ QA-Board across many projects enables us to:
 
 ## Getting Started
 [Read the docs!](https://samsung.github.io/qaboard/docs/installation) You will learn how to:
-- run a QA-Board server
-- install QA-Board's CLI wrapper
-- wrap your code with QA-Board
-- view output files and KPIs
-- ...and improve your integration with many guides: bit-accuracy, tuning, etc.
+- Start a QA-Board server
+- Wrap your code with QA-Board
+- View output files and KPIs
+- ...and setup parameter tuning, integrations with 3rd party tools, etc.
 
-If you want to learn about the code organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md)
+If you want to learn about the code's organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md)
 
 
 ## Feedback? Questions? Need Help? Found a bug?
