@@ -1,10 +1,18 @@
-# QA-Board
-**QA-Board** helps Algorithms/Software/QA engineers build great products with powerful *quality evaluation* and *collaboration* tools.
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/2649055/86829138-bb6aef00-c09c-11ea-8b59-78b7fc44ebcf.png" alt="QA-Board logo" width="260">
 
-[![qaboard-chat](https://img.shields.io/badge/chat-spectrum-brightgreen)](https://spectrum.chat/qaboard)
-[![PyPI](https://img.shields.io/pypi/v/qaboard)](https://pypi.org/project/qaboard/)
-[![Docs](https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square)](https://samsung.github.io/qaboard)
-[![CI](https://github.com/samsung/qaboard/workflows/CI/badge.svg)](https://github.com/samsung/qaboard/actions?query=workflow%3ACI)
+  <div align="center">Experiment tracking framework with advanced viewers.</div>
+  
+  <div align="center">Helps engineers share results, collaborate, and build better products.</div>
+</p>
+___
+
+<p align="center">
+  <a href="https://spectrum.chat/qaboard"><img src="https://img.shields.io/badge/chat-spectrum-brightgreen" alt="qaboard-chat"/></a>
+  <a href="https://pypi.org/project/qaboard/"><img src="https://img.shields.io/pypi/v/qaboard" alt="PyPI"/></a>
+  <a href="https://samsung.github.io/qaboard"><img src="https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square" alt="Docs"/></a>
+  <a href="https://github.com/samsung/qaboard/actions?query=workflow%3ACI"><img src="https://github.com/samsung/qaboard/workflows/CI/badge.svg" alt="CI"/></a>
+</p>
 
 ## Features
 - **Organize, View and Compare Results**, **Tuning/Optimization**
@@ -16,20 +24,10 @@
 > For screenshots check the [project's website](https://samsung.github.io/qaboard).
 
 ## Benefits
+QA-Board across many projects enables us to:
 - **Scale R&D:** enable engineers to achieve more and be more productive.
 - **Faster Time-to-Market:** collaboration across teams, workflow integration..
 - **Quality:** uncover issues earlier, KPIs, tuning, reporting...
-
-## Get in touch
-We are looking for feedback and insights from outside Samsung. This will help us set the direction for `qaboard`.
-
-We think you could be interested if have projects where:
-- unit tests are not enough (ML, operational research...), and a loss function doesn't tell the whole story. Maybe because...
-- there are performance / quality trade-offs, or different configurations of your code you need to compare (hardware design, mobile/embedded...).
-- you need advanced visualizations to make sense of results (statistics, image processing, 3d sensors, sensing and decision tasks...) and need tools to dive down into outputs.
-- lifecycles are complex, with many stakeholders (algo, hardware, software, QA, production...)
-
-> Contact arthur.flam@samsung.com
 
 ## Getting Started
 [Read the docs!](https://samsung.github.io/qaboard/docs/installation) You will learn how to:
@@ -41,7 +39,10 @@ We think you could be interested if have projects where:
 
 If you want to learn about the code organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## Questions? Need Help? Found a bug?
+
+## Feedback? Questions? Need Help? Found a bug?
+> Don't hesitate to get in touch! Contact arthur.flam@samsung.com, we'll be delighted to hear your insights.
+
 If you've got questions about setup, deploying, want to develop new features, or just want to chat with the developers, please feel free to [start a thread in our Spectrum community](https://spectrum.chat/qaboard)!
 
 Found a bug with QA-Board? Go ahead and [submit an issue](https://github.com/Samsung/qaboard/issues). And, of course, feel free to submit pull requests with bug fixes or changes to the `master` branch.
