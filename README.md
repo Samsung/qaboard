@@ -3,7 +3,7 @@
 
   <div align="center">Experiment tracking framework with advanced viewers.</div>
   
-  <div align="center">Helps engineers share results, collaborate, and build better products.</div>
+  <div align="center">Helps algo/ml/perf engineers share results, collaborate, and build better products.</div>
 </p>
 
 <p align="center">
