@@ -405,6 +405,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   command_id = str(uuid.uuid4()) # unique IDs for triggered runs makes it easier to wait/cancel them 
 
   os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run` 
+  os.environ['QA_BATCHES_FILES'] = f'{[str(b) for b in batches_files]}'
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
   if should_notify_qa_database:
