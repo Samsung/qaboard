@@ -238,6 +238,8 @@ class Output(Base):
       '[[ -f "../../../.envrc" ]] && source ../../../.envrc',
       command,
     ])
+    if not self.output_dir.exists():
+      self.output_dir.mkdir(parents=True)
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:
       f.write(script)
