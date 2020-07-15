@@ -29,6 +29,9 @@ require('./selection')
 require('./rgb')
 require('./filters')
 
+// Fix for https://github.com/openseadragon/openseadragon/issues/1683
+// ...but it disables transparency!
+OpenSeadragon.Tile.prototype._hasTransparencyChannel = () => false
 
 
 const openseadragon_config = {
