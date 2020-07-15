@@ -13,6 +13,7 @@ import time
 import datetime
 
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy import text
 from qaboard.utils import total_storage, save_outputs_manifest
 
 from backend.models import Output
@@ -49,13 +50,19 @@ def get_storage(output):
 def migrate():
   batch = []
   batch_size =         500
-  output_total = 1_700_000
+  print(f'TOTAL {db_session.query(Output).count()}')
+  output_total = db_session.query(Output).filter(text("(data->'storage') is null")).count()
   start_batch  = time.time()
+  print(f'without storage {output_total}')
+
   outputs = (db_session.query(Output)
+             .filter(text("(data->'storage') is null"))
              .yield_per(batch_size)
              .enable_eagerloads(False)
              .order_by(Output.created_date.desc())
+             .limit(20000)
   )
+  updated = 0
   for idx, o in enumerate(outputs):
       if o.is_pending:
         continue
@@ -65,6 +72,7 @@ def migrate():
       storage = get_storage(o)
       if storage is None:
         continue
+      updated += 1
       batch.append({
         "id": o.id,
         "data": {
@@ -85,10 +93,11 @@ def migrate():
   db_session.bulk_update_mappings(Output, batch)
   db_session.flush()
   db_session.commit()
+  return updated
 
 
-
-migrate()
+while migrate():
+  print('Still results to update...')
 
 exit(0)
 
