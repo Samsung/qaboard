@@ -27,7 +27,7 @@ export const toaster = Toaster.create();
 //   .state.status:
 //           Today we rely on
 //           - status.error / status.loading
-//           - status.job.web_url for logs
+//           - status.job.web_url for logs (or status.job.url for the queue URL before a "build" is assigned)
 //           - status.job.status for the icon
 //   .trigger()
 //           Makes an API call to trigger an action
@@ -82,7 +82,7 @@ class IntegrationsMenus extends React.Component {
             var params = integration.webhook;
           } else if (integration.gitlabCI) {
             url = '/api/v1/gitlab/job/play/';
-            const git = (project_data.data || {}).git || {};
+            const git = project_data.data?.git || {};
             if (!git.web_url) {
               this.setState({
                 integrations: {
@@ -167,8 +167,8 @@ class IntegrationsMenus extends React.Component {
  
     updateIntegrationStatuses = () => {
         const { project_data={}, commit={} } = this.props;
-        const commit_qatools_config = (commit.data || {}).qatools_config || {};
-        const project_qatools_config = (project_data.data || {}).qatools_config || {};
+        const commit_qatools_config = commit.data?.qatools_config || {};
+        const project_qatools_config = project_data.data?.qatools_config || {};
         const eval_templates_recusively = make_eval_templates_recursively(this.props)
         // let _integrations = debug_integrations; // FIXME comment-out
         const _integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
@@ -187,7 +187,7 @@ class IntegrationsMenus extends React.Component {
           const status = this.state.integrations[key(integration)] || {};
           if (status.loading)
             return
-          if (integration.jenkins && (status.job || {}).web_url === undefined)
+          if (integration.jenkins && status.job?.web_url === undefined && status.job?.url === undefined)
             return
           this.setState({
             integrations: {
@@ -202,7 +202,7 @@ class IntegrationsMenus extends React.Component {
            const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
            if (gitlabCI) {
             var req_url = '/api/v1/gitlab/job/';
-            const git = (project_data.data || {}).git || {};
+            const git = project_data.data?.git || {};
             if (!git.web_url) {
               this.setState({
                 integrations: {
@@ -221,13 +221,13 @@ class IntegrationsMenus extends React.Component {
               gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
               project_id: this.props.project,
               commit_id: commit.id,
-              job_id: (status.job || {}).id,
+              job_id: status.job?.id,
               ...gitlabCI,
             }
           } else if (jenkins) {
             req_url = '/api/v1/jenkins/build/';
             params = {
-              web_url: ((status || {}).job || {}).web_url,
+              ...status?.job, //.web_url, .url
             }
             // console.log(this.state.integrations[key(integration)])
           } else { // webhook
@@ -276,8 +276,8 @@ class IntegrationsMenus extends React.Component {
 
     render() {
         const { single_menu, project_data={}, commit={} } = this.props;
-        const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
-        const project_qatools_config = ((project_data || {}).data || {}).qatools_config || {};
+        const commit_qatools_config = commit?.data?.qatools_config || {};
+        const project_qatools_config = project_data?.data?.qatools_config || {};
         // let _integrations = debug_integrations; // FIXME comment-out
         const _integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
         let integrations = [...default_gitlab_integrations, ..._integrations]
@@ -315,12 +315,12 @@ class IntegrationsMenus extends React.Component {
                                       <Tag round icon="cross" intent="danger"/>
                                       <span>{JSON.stringify(status.error.message)}</span>
                                     </Tooltip>
-                                  : <JobTag job={(status || {}).job}/>
+                                  : <JobTag job={status?.job}/>
             return <MenuItem
               key={idx}
               tagName='div'
               shouldDismissPopover={false}
-              icon={( !!((status || {}).job || {}).web_url && status.job.status !== 'manual') ? 'repeat' : 'play'}
+              icon={( (!!status?.job?.web_url || !!status?.job?.url) && status.job.status !== 'manual') ? 'repeat' : 'play'}
               {...integration}
               gitlabCI={undefined}
               jenkins={undefined}
@@ -435,7 +435,7 @@ const JobTag = ({job}) => {
   }
   const { status, allow_failure } = job;
   return <Tooltip>
-    <a href={job.web_url} target="_blank"  rel="noopener noreferrer"><Tag
+    <a href={job.url || job.web_url} target="_blank"  rel="noopener noreferrer"><Tag
       round
       onClick={e => {e.stopPropagation()}}
       minimal
