@@ -176,11 +176,9 @@ def jenkins_build():
     }
   }
   data = request.get_json()
+  url = f"{data['web_url']}/api/json" if "web_url" in data else data['url']
   try:
-    r = requests.get(
-      f"{data['web_url']}/api/json",
-      **jenkins_credentials,
-    )
+    r = requests.get(url, **jenkins_credentials)
   except Exception as e:
     print(e)
     return jsonify({"error": f"ERROR: When reading build info: {e}"}), 500
@@ -258,6 +256,7 @@ def jenkins_build_trigger():
   build_queue_location = f"{r.headers['location']}/api/json"
   time.sleep(5) # jenkins quiet period
   sleep_total = 5
+  error = None
   web_url = None
   while not web_url and sleep_total < 30:
     try:
@@ -265,15 +264,23 @@ def jenkins_build_trigger():
         build_queue_location,
         **jenkins_credentials,
       )
-      web_url = r.json()['executable']['url']
-      print(r.json())
+      r.raise_for_status()
+      error = None
     except Exception as e:
-      print(e)
-      time.sleep(0.5)
-      sleep_total = sleep_total + 0.5
-  if not web_url:
-    return jsonify({"error": f"ERROR: When reading build queue info, no build URL given at: {build_queue_location}"}), 500
-  return jsonify({
-    "web_url": r.json()['executable']['url'],
+      error = str(e)
+    try:
+      web_url = r.json()['executable']['url']
+    except Exception as e:
+      print(r.json())
+      print(f"INFO: When reading build queue info, no build URL given at: {build_queue_location}. {e}")
+    time.sleep(0.5)
+    sleep_total = sleep_total + 0.5
+  if error:
+    return jsonify({"error": error}), 500
+  response = {
     "status": 'pending',
-  })
+    **r.json(),
+  }
+  if r.json().get('executable', {}).get('url'):
+    response['web_url'] = r.json()['executable']['url']
+  return jsonify(response)
