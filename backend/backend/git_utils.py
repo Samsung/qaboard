@@ -11,6 +11,8 @@ class Repos():
   def __init__(self, git_server, clone_directory):
     self._repos = {}
     self.git_server = git_server
+    if not self.git_server.endswith('/'):
+        self.git_server = self.git_server + '/'
     self.clone_directory = clone_directory
 
   def __getitem__(self, project_path):
@@ -30,9 +32,11 @@ class Repos():
       repo = Repo(clone_location)
     except NoSuchPathError:
       try:
-        # At SIRC we rely on SSH keys, while in the OSS version we use access tokens
-        gitlab_uri = f'git@{self.git_server}:{project_path}',
+        # TODO: use access token :)
+        # git clone http://oauth2:xxxxxxxxxxxxxxxxx@gitlab-srv/cde/cde-python
+        gitlab_uri = self.git_server.replace('://', f"://oauth2:{os.environ['GITLAB_ACCESS_TOKEN']}@")
         print(f'Cloning <{project_path}> to {self.clone_directory}')
+        # https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.clone_from
         repo = Repo.clone_from(
           # for now we expect everything to be on gitlab-srv via http
           f"{gitlab_uri}{project_path}",
