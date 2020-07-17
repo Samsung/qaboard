@@ -154,8 +154,9 @@ const match_query = pattern => {
   // console.log(positive_tokens, negative_tokens)
   // console.log(pattern, positive_regexps)
   return query => {
-    // console.log(query)
-    const searched = query.toLowerCase();
+    // console.log("query", query)
+    const searched = query.toLowerCase().replace(/(=+|: )/g, ":").replace(/"/g, "");
+    // console.log("searched", searched)
     if (negative_tokens.some(token => searched.includes(token)))
       return false;
     if (positive_tokens.length === 0)
@@ -194,6 +195,7 @@ const filter_batch = (batch, filter_values) => {
     let pending = output.is_pending ? 'pending running' : ''
     let searched = `${output.test_input_path} ${output.platform} ${configuration} ${metadata} ${extra_parameters} ${failed} ${pending}`;
     searched = searched.replace(/"/g, "")
+    // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);
       if (output.is_running)
