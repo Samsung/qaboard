@@ -151,6 +151,7 @@ class Output(Base):
     as_dict = {c: getattr(self, c) for c in cols}
     return {
         **as_dict,
+        'created_date': self.created_date.isoformat(),
         'output_dir_url': self.output_dir_url,
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),

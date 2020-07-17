@@ -4,6 +4,7 @@ import { InView } from 'react-intersection-observer'
 import { get, all, CancelToken, isCancel } from "axios";
 import { matchPath } from 'react-router'
 import pathToRegexp from 'path-to-regexp'
+import Moment from "react-moment";
 
 import styled from "styled-components";
 import {
@@ -102,10 +103,9 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
               <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
             </MenuItem>
           </>}
-          {!!output?.data?.storage && <>
-            <MenuDivider key={"Output-Info"} title="Output Info" />
-            <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />
-          </>}
+          <MenuDivider key={"Output-Info"} title="Output Info" />
+          <MenuItem key="created-date" text={<span title={output.created_date}><Moment fromNow utc>{output.created_date}</Moment></span>} icon="time" />
+          {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
         </Menu>
       </Popover>
       {!tags_first && tags}
