@@ -57,12 +57,13 @@ def migrate():
 
   outputs = (db_session.query(Output)
              .filter(text("(data->'storage') is null"))
+            #  .limit(20000)
              .yield_per(batch_size)
              .enable_eagerloads(False)
              .order_by(Output.created_date.desc())
-             .limit(20000)
   )
   updated = 0
+  now = time.time()
   for idx, o in enumerate(outputs):
       if o.is_pending:
         continue
