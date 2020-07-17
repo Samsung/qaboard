@@ -45,29 +45,38 @@ from .models import Project, CiCommit, Batch, Output
 now = datetime.datetime.utcnow()
 
 
-@click.command()
-@click.option('--project', 'project_id')
-@click.option('--dryrun', is_flag=True)
-@click.option('--restore-deleted-outputs', is_flag=True)
-@click.option('--verbose', is_flag=True)
-def clean(project_id, dryrun, restore_deleted_outputs, verbose):
-    projects = db_session.query(Project).all()
-    for project in projects:
-        if project_id and project.id != project_id:
-            continue
-        if project.id == 'LSC/Calibration':
-            continue # ask Rivka later when the policies are more flexible
 
-        secho(project.id, bold=True)
+@click.command()
+@click.option('--project', 'project_ids', help="Regular expressions to match projects", multiple=True)
+@click.option('--before', help="Overwrites what's defined in the project config. 1month, 3days..")
+@click.option('--can-delete-reference-branch', is_flag=True, help="Allows deleting results on the reference branch (e.g. master/develop). The latest commit will be kept.")
+@click.option('--dryrun', is_flag=True)
+@click.option('--verbose', is_flag=True)
+def clean(project_ids, before, can_delete_reference_branch, dryrun, verbose):
+    if before and not project_ids:
+        secho('[ERROR] when using --before you need to use --project', fg='red')
+        exit(1)
+
+    projects = db_session.query(Project)
+    for project in projects:
+        if project_ids and not any([re.match(project_id, project.id) for project_id in project_ids]):
+            continue
+        secho(project.id, fg='blue', bold=True)
+        if not project.repo:
+            secho(f'[WARNING] Could not clone/read the git repo for {project.id}', fg='yellow')
+            # return
+            continue
 
         gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
-        old_treshold = now - parse_time(gc_config.get('after', '1month'))
+        can_delete_reference_branch = can_delete_reference_branch or gc_config.get('can_delete_reference_branch')
+        before = gc_config.get('after', '1month') if not before else before
+        old_treshold = now - parse_time(before)
         secho(f"deleting data older than {old_treshold}", dim=True)
 
-        # protect milestones defined via qaboard.yaml
         project_config = project.data.get("qatools_config", {}).get("project", {})
+        reference_branch = project_config.get("reference_branch", "master")
         protected_refs = [
-            project_config.get("reference_branch", "master"),
+            reference_branch,
             *project_config.get("milestones", []),
         ]
         # users can write commits as milestones...
@@ -76,10 +85,13 @@ def clean(project_id, dryrun, restore_deleted_outputs, verbose):
                 return repo.commit(commit)
             except:
                 return None
+        # we will save the latest commit on the protected branches (FIXME: requires git access for now)
         protected_commit_milestones = [project.repo.commit(r).hexsha for r in protected_refs if get_commit(project.repo, r)]
         secho(f"  protected commit milestones: {protected_commit_milestones}", dim=True)
 
+        reference_branch = [reference_branch, f"origin/{reference_branch}"]
         protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
+
         secho(f"  protected branches: {protected_refs}", dim=True)
         # commits store as "branch" the first branch they were seen with. So they are never listed with tags.
         # we need to ask git for info on the milestones refs: what commit does it correspond to?
@@ -89,27 +101,14 @@ def clean(project_id, dryrun, restore_deleted_outputs, verbose):
 
         # protect milestones defined via the web application
         project_webapp_milestone_commits = [m['commit'] for m in project.data.get("milestones", {}).values()]
-        secho(f"  protected commits from webapp: {project_webapp_milestone_commits}", dim=True)
-
-        if restore_deleted_outputs:
-            commits = (
-                db_session.query(CiCommit)
-                .filter(CiCommit.project == project)
-                .filter(CiCommit.hexsha.in_(project_webapp_milestone_commits))
-                .all()
-            )
-            for c in commits:
-                print(c)
-                for b in c.batches:
-                    b.redo(only_deleted=True)
-            exit(0)
-
+        secho(f"  protected milestones: {project_webapp_milestone_commits}", dim=True)
+        # exit(0)
 
         commits = (
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
             .filter(CiCommit.deleted == False)
-            .filter(CiCommit.branch.notin_(protected_refs))
+            # we could check those rare occurences from python-land...
             .filter(CiCommit.hexsha.notin_(protected_commit_milestones))
             .filter(CiCommit.hexsha.notin_(protected_tags_commits))
             .filter(CiCommit.hexsha.notin_(project_webapp_milestone_commits))
@@ -117,24 +116,31 @@ def clean(project_id, dryrun, restore_deleted_outputs, verbose):
                 bool(CiCommit.latest_output_datetime) and CiCommit.latest_output_datetime < old_treshold,
                 not CiCommit.latest_output_datetime   and CiCommit.authored_datetime < old_treshold,
             ))
-            .all()
+            .order_by(CiCommit.authored_datetime.desc())
+            
         )
+        if not can_delete_reference_branch:
+            commits = commits.filter(CiCommit.branch.notin_(protected_refs))
 
-        # max_date = max(*[c.authored_datetime for c in list(commits)])
-        # print(max_date)
+        for commit in commits.all():
+            secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
+            outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
 
-        for commit in commits:
-            secho(str(commit), fg='cyan')
-            outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit == commit))
-            # secho(f"  Deleting outputs", fg='cyan', dim=True)
+            nb_outputs = 0
+            nb_outputs_deleted = 0
             for o in outputs:
-              if o.deleted: continue
+              nb_outputs += 1
+              if o.deleted:
+                  continue
+              nb_outputs_deleted += 1
               print(" ", o)
               try:
                 o.delete(dryrun=dryrun)  # ignore=['*.json', '*.txt'],
-                if not dryrun: db_session.add(o)
+                if not dryrun:
+                    db_session.add(o)
               except Exception as e:
                 print(e)
+                o.update_manifest()
 
             gc_config_artifacts = gc_config.get('artifacts', {})
             if gc_config_artifacts.get('delete') == True:
@@ -142,7 +148,11 @@ def clean(project_id, dryrun, restore_deleted_outputs, verbose):
                 commit.delete(keep=gc_config_artifacts.get('keep', []), dryrun=dryrun)
 
             if not dryrun:
-              db_session.add(commit)
+              if nb_outputs_deleted:
+                db_session.add(commit)
+              if not nb_outputs:
+                print(f"DELETE {commit}")
+                db_session.delete(commit)
               db_session.commit()
 
 
