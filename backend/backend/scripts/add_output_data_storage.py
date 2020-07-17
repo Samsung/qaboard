@@ -57,10 +57,10 @@ def migrate():
 
   outputs = (db_session.query(Output)
              .filter(text("(data->'storage') is null"))
-            #  .limit(20000)
+             .order_by(Output.created_date.desc())
+             .limit(100000)
              .yield_per(batch_size)
              .enable_eagerloads(False)
-             .order_by(Output.created_date.desc())
   )
   updated = 0
   now = time.time()
@@ -69,8 +69,13 @@ def migrate():
         continue
       if o.data.get('storage'):
         continue
+      if '/' in o.batch.ci_commit.hexsha:
+        continue
 
-      storage = get_storage(o)
+      try:
+        storage = get_storage(o)
+      except:
+        continue
       if storage is None:
         continue
       updated += 1
