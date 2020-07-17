@@ -26,7 +26,7 @@ services:
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     environment:
-    - GITLAB_HOST=gitlab-srv
+    - GITLAB_HOST=http://gitlab-srv
     - UWSGI_UID=arthurf
     - UWSGI_GID=uucp
     - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
