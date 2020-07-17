@@ -168,6 +168,7 @@ class CiCommitResults extends Component {
       new_commit_id,
       new_commit,
       ref_commit,
+      available_metrics,
       selected_metrics,
       new_batch,
       ref_batch,
@@ -186,7 +187,7 @@ class CiCommitResults extends Component {
       ) : null;
     let metricTableSelect = (
       <MultiSelect
-        items={Object.values(this.props.available_metrics)}
+        items={Object.values(available_metrics)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -298,7 +299,7 @@ class CiCommitResults extends Component {
                   <MetricsSummary
                     project={project}
                     metrics={metrics}
-                    available_metrics={this.props.available_metrics}
+                    available_metrics={available_metrics}
                     new_batch={new_batch}
                     ref_batch={ref_batch}
                   />
