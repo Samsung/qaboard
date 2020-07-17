@@ -45,7 +45,7 @@ class OutputCardsList extends React.Component {
               : (new_batch.filtered.outputs || [])
                 .map( id => [id, new_batch.outputs[id]])
                 .filter( ([id, output]) => output.output_type !== "optim_iteration")
-  
+
     return (
       <>
         {type === 'bit_accuracy' && <BitAccuracyForm
