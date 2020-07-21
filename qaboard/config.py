@@ -304,7 +304,7 @@ def get_default_database(input_settings):
   # All recordings used should be stored at the same location
   # We will refer to them by their relative path related to the "database"
   global ignore_config_errors
-  database = input_settings.get('database', {}).get(mount_flavor)
+  database = os.path.expandvars(str(input_settings.get('database', {}).get(mount_flavor)))
   if not database:
     database = "."
     if not ignore_config_errors:
