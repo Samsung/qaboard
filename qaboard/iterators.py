@@ -237,7 +237,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     run_context = copy(default_run_context)
-    run_context.database = Path(batch.get('database', {}).get('windows' if os.name=='nt' else 'linux', run_context.database))
+    run_context.database = Path(os.path.expandvars(str(batch.get('database', {}).get('windows' if os.name=='nt' else 'linux', run_context.database))))
     run_context.configurations = batch.get('configurations', batch.get('configuration', run_context.configurations))
     run_context.configurations = list(flatten(run_context.configurations))
     if 'platform' in batch:
@@ -299,7 +299,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           if location_configurations.get(runner):
             location_run_context.job_options = {**location_run_context.job_options, **location_configurations[runner]}
           if 'database' in location_configurations:
-            location_run_context.database = Path(location_configurations.get('database', {}).get('windows' if os.name=='nt' else 'linux'))
+            location_run_context.database = Path(os.path.expandvars(str(location_configurations.get('database', {}).get('windows' if os.name=='nt' else 'linux'))))
           if 'platform' in batch:
             location_run_context.platform = location_configurations['platform']
           location_inputs_settings = copy(inputs_settings)
