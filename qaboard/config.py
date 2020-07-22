@@ -264,7 +264,7 @@ if commit_id and is_in_git_repo:
 
 
 # This is where results should be saved
-commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit_id)
+commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit_id).resolve()
 commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit_rootproject_ci_dir
 
 # When running qatools from a folder in which we saved a commit's artifacts,
