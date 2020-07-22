@@ -122,6 +122,34 @@ class ExtraParametersTags extends React.Component {
 }
 
 
+
+const MismatchTag = ({text, explanation}) => {
+  return <div>
+    <Tooltip>
+    <Tag intent={Intent.WARNING} icon="not-equal-to" style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>{text}</Tag>
+      <div>
+        <h3>Comparing to reference:</h3>
+        <p>{explanation}</p>
+      </div>
+    </Tooltip>
+  </div>
+}
+
+const MismatchTags = ({mismatch}) => {
+  if (mismatch===null || mismatch===undefined)
+    return <span/>
+  const { test_input_path, configurations, platform, extra_parameters } = mismatch;
+  return <div>
+    {test_input_path  && <MismatchTag text="Input" explanation={test_input_path} />}
+    {configurations   && <MismatchTag text="Config" explanation={<ConfigurationsTags inverted configurations={configurations} />} />}
+    {platform         && <MismatchTag text="Platform" explanation={<PlatformTag inverted platform={platform} />} />}
+    {extra_parameters && <MismatchTag text="Tuning" explanation={Object.keys(extra_parameters).length > 0 ? <ExtraParametersTags inverted parameters={extra_parameters} /> : 'No tuning'} />}
+  </div>
+}
+
+
+
+
 class OutputTags extends React.Component {
   constructor(props) {
     super(props);
@@ -138,7 +166,7 @@ class OutputTags extends React.Component {
 
   render() {
     const { platform, configurations, output_dir_url, id } = this.props.output;
-    const { warning } = this.props;
+    const { mismatch } = this.props;
     return <span style={this.props.style}>
       <PlatformTag platform={platform} />
       <ConfigurationsTags configurations={configurations} />
@@ -218,12 +246,7 @@ class OutputTags extends React.Component {
         <span>Copy-to-Clipboard the Windows directory</span>
       </Tooltip>
 
-      {warning && (
-        <Tooltip>
-          <Tag intent={Intent.WARNING} icon="not-equal-to" style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>ref</Tag>
-          <span>{warning}</span>
-        </Tooltip>
-      )}
+      <MismatchTags mismatch={mismatch}/>
     </span>
   }
 }

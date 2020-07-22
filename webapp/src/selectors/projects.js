@@ -149,9 +149,9 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
   // we find the matching outputs once
   Object.values(new_batch.filtered.outputs).forEach(id => {
     const output = new_batch.outputs[id]
-    const { output_ref, warning } = matching_output({ output, batch: ref_batch });
+    const { output_ref, mismatch } = matching_output({ output, batch: ref_batch });
     output.reference_id = output_ref.id
-    output.reference_warning = warning
+    output.reference_mismatch = mismatch
   })
 
 
