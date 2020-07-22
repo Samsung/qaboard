@@ -140,11 +140,11 @@ const TableCompare = ({
         </thead>
         <tbody>
           {outputs.map(([id, output]) => {
-            let { reference_id, reference_warning } = output;
+            let { reference_id, reference_mismatch } = output;
             let output_ref = ref_batch.outputs[reference_id] || {}
             return (
               <Row key={id}>
-                <RowHeaderCell output={output} warning={reference_warning} />
+                <RowHeaderCell output={output} mismatch={reference_mismatch} />
                 {metrics_.map(m => (
                   <ColumnsMetricImprovement
                     key={m.key}
@@ -204,11 +204,11 @@ const TableKpi = ({
         </thead>
         <tbody>
           {outputs.map(([id, output]) => {
-            let { reference_id, reference_warning } = output;
+            let { reference_id, reference_mismatch } = output;
             let output_ref = ref_batch.outputs[reference_id] || {}
             return (
               <Row key={id}>
-                <RowHeaderCell output={output} warning={reference_warning} />
+                <RowHeaderCell output={output} mismatch={reference_mismatch} />
                 {metrics_.map(m => (
                   <Fragment key={m.key}>
                     <QualityCell metric={m} metrics={output.metrics} />

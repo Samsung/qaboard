@@ -137,7 +137,7 @@ class OutputLog extends React.Component {
           project={this.props.project}
           commit={this.props.commit}
           output={output}
-          warning={output.reference_warning}
+          mismatch={output.reference_mismatch}
           dispatch={this.props.dispatch}
           prefix={header_prefix}
           tags_first

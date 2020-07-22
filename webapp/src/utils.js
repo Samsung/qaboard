@@ -110,17 +110,13 @@ const matching_output = ({ output, batch }) => {
   let output_ref = matching_outputs[0] || empty_output;
   let ref_match_score = match_score(output_ref);
   let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
-
-  let warning = imperfect_match ? <div>
-    <h3>Comparing to</h3>
-    {((ref_match_score & 8) === 8) && <p>{output_ref.test_input_path}</p>}
-    {((ref_match_score & 4) === 4) && <p><ConfigurationsTags inverted configurations={output_ref.configurations} /></p>}
-    {((ref_match_score & 2) === 2) && <p><PlatformTag inverted platform={output_ref.platform} /></p>}
-    {((ref_match_score & 1) === 1) && <p>{Object.keys(output_ref.extra_parameters).length > 0
-      ? <ExtraParametersTags inverted parameters={output_ref.extra_parameters} />
-      : 'No tuning'}</p>}
-  </div> : null
-  return { output_ref, warning, imperfect_match };
+  let mismatch = imperfect_match ? {
+    test_input_path: ref_match_score & 8 ? output_ref.test_input_path : null,
+    configurations: ref_match_score & 4 ? output_ref.configurations : null,
+    platform: ref_match_score & 2 ? output_ref.platform : null,
+    extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
+  } : null;
+  return { output_ref, mismatch };
 };
 
 const safe_regex = s => {

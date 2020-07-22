@@ -523,7 +523,7 @@ class CommitsEvolutionPerTest extends React.Component {
       let hovered_commit_outputs = Object.values((hovered_commit.batches[hovered_label] || {}).outputs || {})
       let hovered_output = hovered_commit_outputs.filter(o => o.test_input_path === hovered_test_input_path && o.configurations === hovered_test_configurations)[0];
       let should_look_for_ref = !!hovered_output &&  !!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]
-      let { reference_id, reference_warning } = should_look_for_ref ? hovered_output : {}
+      let { reference_id, reference_mismatch } = should_look_for_ref ? hovered_output : {}
       let output_ref = should_look_for_ref ? (((hovered_commit_ref || {}).batches[hovered_label] || {}).outputs || {})[reference_id] : null
       let controls_extra = project_data.data.qatools_config.outputs.controls || []
       let visualizations = project_data.data.qatools_config.outputs.visualizations || project_data.data.qatools_config.outputs.detailed_views || []
@@ -588,7 +588,7 @@ class CommitsEvolutionPerTest extends React.Component {
                     commit={hovered_commit}
                     output_new={hovered_output}
                     output_ref={output_ref}
-                    warning={reference_warning}
+                    mismatch={reference_mismatch}
                     style={{ width: '1180px', height: '300px' }}
                     no_header={true}
                     dispatch={this.props.dispatch}
