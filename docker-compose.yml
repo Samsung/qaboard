@@ -132,6 +132,7 @@ services:
     ports:
     - ${QABOARD_PORT_HTTP:-5151}:80
     volumes:
+    - /mnt/qaboard:/mnt/qaboard
     - ./services/nginx:/tmp/etc/nginx:ro
     - frontend_builds:/builds:ro
     - website_builds:/docs:ro
@@ -149,10 +150,8 @@ services:
     - "8182"
     volumes:
     - cache_cantaloupe:/var/cache/cantaloupe
-    # INSECURE/FIXME: obviously it's not a great default, let's change it!
-    - /:/repository
+    - /mnt/qaboard:/repository/mnt/qaboard
     - /srv/cantaloupe
-    # FIXME: change max memory with env variable
     environment:
       CANTALOUPE_MEM_START: 1g
       CANTALOUPE_MEM_MAX: 2g
