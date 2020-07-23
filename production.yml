@@ -36,10 +36,7 @@ services:
       PGUSER: qaboard
       PGPASSWORD: password
       # when using NFS you often don't want to run as root
-      # AS_USER_NAME: username
-      # AS_USER_GROUP: groupname
-      # AS_USER_UID: user_uid
-      # AS_USER_GID: group_gid
+      AS_USER_NAME: ispq
       AS_USER_GROUP: wheel
       AS_USER_UID: "1411"
       AS_USER_GID: "10"
@@ -50,5 +47,4 @@ services:
     volumes:
     - ./services/db/backup:/etc/periodic/daily/backup:ro
     - /home/ispq/qaboard/database_backups:/backups
-    user: "1411:10"
 
