@@ -1,6 +1,6 @@
 #!/bin/sh
 # Creates a backup
-set -e
+set -ex
 
 if [ "$1" = "" ]; then
     backup=$(date -I).dump
@@ -8,7 +8,14 @@ else
     backup=$1
 fi
 
-pg_dump -Fc > "/backups/$backup"
+if [ -z ${AS_USER_NAME+x} ]; then
+  pg_dump -Fc > "/backups/$backup"
+else
+  # we should use gosu but it's nice to use the official image as-is
+  addgroup -S $AS_USER_GROUP group -g $AS_USER_GID        || true
+  adduser $AS_USER_NAME -u $AS_USER_UID -G $AS_USER_GROUP || true
+  su $AS_USER_NAME -c "pg_dump -Fc > '/backups/$backup'"
+fi
 
 # TODO:
 # - Remove backups older than X
