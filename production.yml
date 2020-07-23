@@ -37,7 +37,14 @@ services:
   #     PGDATABASE: qaboard
   #     PGUSER: qaboard
   #     PGPASSWORD: password
+  #     # when using NFS you often don't want to run as root
+  #     AS_USER_NAME: username
+  #     AS_USER_GROUP: groupname
+  #     AS_USER_UID: user_uid
+  #     AS_USER_GID: group_gid
   #   # https://busybox.net/downloads/BusyBox.html
+  #   # -f: foreground
+  #   # -d: log to stderr, 0 is the most verbose, default 8
   #   command: crond -f -l 0
   #   volumes:
   #   - ./services/db/backup:/etc/periodic/daily/backup:ro
