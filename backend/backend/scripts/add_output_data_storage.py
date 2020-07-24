@@ -50,31 +50,33 @@ def get_storage(output):
 def migrate():
   batch = []
   batch_size =         500
+  batch_size =         70000
   print(f'TOTAL {db_session.query(Output).count()}')
-  output_total = db_session.query(Output).filter(text("(data->'storage') is null")).count()
+  output_total = db_session.query(Output).filter(text("(data->'storage') is null")).filter(Output.is_pending==False).count()
   start_batch  = time.time()
   print(f'without storage {output_total}')
 
   outputs = (db_session.query(Output)
              .filter(text("(data->'storage') is null"))
+             .filter(Output.is_pending==False)
              .order_by(Output.created_date.desc())
-             .limit(100000)
-             .yield_per(batch_size)
+            #  .limit(10000)
+            #  .yield_per(batch_size)
              .enable_eagerloads(False)
   )
   updated = 0
   now = time.time()
   for idx, o in enumerate(outputs):
-      if o.is_pending:
-        continue
-      if o.data.get('storage'):
-        continue
-      if '/' in o.batch.ci_commit.hexsha:
-        continue
+      # print(o)
+      if o.data is None:
+        o.data = {}
+      # if '/' in o.batch.ci_commit.hexsha:
+      #   continue
 
       try:
         storage = get_storage(o)
-      except:
+      except Exception as e:
+        print("error", o, e)
         continue
       if storage is None:
         continue
@@ -86,7 +88,7 @@ def migrate():
           "storage": storage,
         }, 
       })
-      if idx % batch_size == 0:
+      if idx and idx % batch_size == 0:
           print(o)
           now = time.time()
           print(f"{idx/output_total:.1%} [{batch_size/(now - start_batch):.1f}/s] [est. total left {(now - start_batch) * ((output_total-idx)/batch_size) / 3600:.2f}h] [elapsed time: {now - start:.1f}s]")
@@ -94,6 +96,7 @@ def migrate():
           db_session.bulk_update_mappings(Output, batch)
           db_session.flush()
           batch = []
+          # break
 
   print(f"DONE, now committing configurations [elapsed time: {now - start:.1f}s]")
   db_session.bulk_update_mappings(Output, batch)
