@@ -519,7 +519,9 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, dim=True, err=True)
       import re
-      command = re.sub('^qa', 'python -m qaboard', command) # helps make sure we run the right thing when testing 
+      if 'QA_TESTING' in os.environ:
+        # we want to make sure we test the current code
+        command = re.sub('^qa', 'python -m qaboard', command) 
       if str(subproject) != '.':
         command = f"cd {subproject} && {command}"
 

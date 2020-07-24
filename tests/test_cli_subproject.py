@@ -7,6 +7,8 @@ import unittest
 import click
 from click.testing import CliRunner
 
+os.environ['QA_TESTING'] = 'true'
+
 # Missing:
 # - tests with --share
 # - tests with CI=ON CI_COMMIT=XXXXXX
