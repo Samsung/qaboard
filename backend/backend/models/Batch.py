@@ -25,7 +25,7 @@ class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow)
-  data = Column(JSON(), default={})
+  data = Column(JSON(), default=lambda: {})
 
   ci_commit_id = Column(Integer(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])

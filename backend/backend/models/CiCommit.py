@@ -33,7 +33,7 @@ class CiCommit(Base):
   project = relationship("Project", back_populates="ci_commits")
   __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
-  data = Column(JSON(), default={})
+  data = Column(JSON(), default=lambda: {})
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   committer_name = Column(String(), index=True)
@@ -102,10 +102,9 @@ class CiCommit(Base):
     if self.commit_dir_override is not None:
       # can we do something better?
       return Path(self.commit_dir_override.replace(str(self.project.id_relative), ""))
-    else:
-      committer_name = self.committer_name if self.committer_name else "unknown"
-      commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.hexsha[:8]}'
-      return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
+    committer_name = self.committer_name if self.committer_name else "unknown"
+    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.hexsha[:8]}'
+    return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
 
   @property
   def commit_dir_url(self):
@@ -194,7 +193,7 @@ class CiCommit(Base):
                          )
                          .one())
     except NoResultFound:
-     # FIXME: if not cimplete hash. fallback git... ? or raise error? (then docs: ask full 32 hash..) or symetrics if hexsha.strtswith(query)
+     # FIXME: if we have a short-hash, we should fail
       try:
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)

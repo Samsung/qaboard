@@ -43,7 +43,7 @@ class TestInput(Base):
     return self.path.split('/')[-1]
 
   # misc data
-  data = Column(JSON(), default={})
+  data = Column(JSON(), default=lambda: {})
 
 
   def __init__(self, database, path):
