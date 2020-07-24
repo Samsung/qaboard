@@ -95,6 +95,8 @@ services:
       cache_from: ["arthurflam/qaboard:frontend"]
       context: webapp
       shm_size: 4gb
+      args:
+        REACT_APP_QABOARD_DOCS_ROOT: "/"
     volumes:
     - frontend_builds:/builds
     # by default we assume you run the QA-Board on localhost, but will want to change this
