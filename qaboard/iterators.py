@@ -237,7 +237,6 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     run_context = copy(default_run_context)
-    run_context.database = Path(os.path.expandvars(str(batch.get('database', {}).get('windows' if os.name=='nt' else 'linux', run_context.database))))
     run_context.configurations = batch.get('configurations', batch.get('configuration', run_context.configurations))
     run_context.configurations = list(flatten(run_context.configurations))
     if 'platform' in batch:
@@ -249,9 +248,13 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     if 'type' in batch:
       run_context.type = batch['type']
       inputs_settings = get_settings(batch['type'], qatools_config)
+      from .config import get_default_database
+      run_context.database = get_default_database(inputs_settings)
     else:
       inputs_settings = copy(default_inputs_settings)
     inputs_settings.update(batch)
+
+    run_context.database = Path(os.path.expandvars(str(batch.get('database', {}).get('windows' if os.name=='nt' else 'linux', run_context.database))))
 
     if batch.get('matrix'):
       from sklearn.model_selection import ParameterGrid
