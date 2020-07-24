@@ -356,11 +356,14 @@ def sync(ctx, input_path, output_path):
     notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
 
-
+runners_config = config.get('runners', {})
+if 'default' in runners_config:
+  default_runner = runners_config['default']
+else:
+  task_runners = [r for r in runners_config if r not in ['default', 'local']]
+  default_runner = task_runners[0] if task_runners else 'local'
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {}) 
 local_config = config.get('runners', {}).get('local', {})
-# FIXME: change how we pick the default task runner
-# task_runners = [r for r in config.get('runners', {}).keys() if r not in ['default', 'local']]
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
@@ -372,7 +375,7 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--list', 'list_contexts', is_flag=True, help="Print as JSON details about each run we would do.")
 @click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
-@click.option('--runner', default=config.get('runners', {}).get('default', 'celery' if os.name!='nt' else 'local'), help="Run runs locally or using a task queue like Celery, LSF...")
+@click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
 @click.option('--local-concurrency', default=os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency')), type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
 @click.option('--lsf-threads', default=lsf_config.get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-memory', default=lsf_config.get('memory', 0), help="restrict memory (MB) to use. 0=no restriction")
