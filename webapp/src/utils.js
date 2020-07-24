@@ -1,13 +1,8 @@
-import React from "react";
-
 import { interpolateRainbow } from "d3-scale-chromatic";
-import md5 from "js-md5";
 import { median as mathjs_median } from "mathjs/number";
 import { levenshtein } from "./levenshtein";
+import md5 from "js-md5";
 
-import { ExtraParametersTags, ConfigurationsTags, PlatformTag } from './components/tags'
-
-// import math from '@mathjs';
 
 const calendarStrings = {
   lastDay: "[Yesterday]",
