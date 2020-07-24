@@ -39,6 +39,7 @@ services:
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
     - /data/asp_algorithms_data:/data/asp_algorithms_data
     - /stage/qa_data:/stage/qa_data
+    - /sim:/sim
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
     - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
@@ -68,6 +69,7 @@ services:
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
     - /data/asp_algorithms_data:/data/asp_algorithms_data
     - /stage/qa_data:/stage/qa_data
+    - /sim:/sim
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
     - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
