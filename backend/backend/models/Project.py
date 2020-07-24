@@ -27,7 +27,7 @@ from ..config import default_ci_directory
 class Project(Base):
   __tablename__ = 'projects'
   id = Column(String(), primary_key=True)
-  data = Column(JSON(), default={})
+  data = Column(JSON(), default=lambda: {})
   latest_output_datetime = Column(DateTime())
 
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
