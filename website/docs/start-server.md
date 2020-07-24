@@ -22,7 +22,7 @@ chmod -R 777 /mnt/qabaord
 ```
 
 :::tip
-If you want to use a different shared folder edit `services.backend.volumes` in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
+If you want to use a different shared folder replace */mnt/qaboard* with your path in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
 :::
 
 :::note Shared Storage?
@@ -43,6 +43,7 @@ We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@g
 ```bash
 git clone git@github.com:Samsung/qaboard.git
 cd qaboard
+docker-compose pull
 docker-compose up -d
 #=> the application is live at localhost:5151
 ```
