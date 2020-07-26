@@ -42,8 +42,7 @@ class TestInput(Base):
     """The path without .bin"""
     return self.path.split('/')[-1]
 
-  # misc data
-  data = Column(JSON(), default=lambda: {})
+  data = Column(JSON(), nullable=False, default=dict, server_default='{}')
 
 
   def __init__(self, database, path):
