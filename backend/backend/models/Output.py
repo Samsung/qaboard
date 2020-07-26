@@ -47,8 +47,8 @@ class Output(Base):
   test_input = relationship("TestInput", lazy='joined', back_populates="outputs")
 
   platform = Column(String())
-  configurations = Column(JSONB(), default=lambda: [])
-  extra_parameters = Column(JSONB(), default=lambda: {})
+  configurations = Column(JSONB(), nullable=False, default=list, server_default='[]')
+  extra_parameters = Column(JSONB(), nullable=False, default=dict, server_default='{}')
 
   # https://stackoverflow.com/questions/6626810/multiple-columns-index-when-using-the-declarative-orm-extension-of-sqlalchemy
   # CREATE INDEX CONCURRENTLY idx_outputs_config_params ON outputs (batch_id, test_input_id, configurations, extra_parameters, platform)
@@ -71,8 +71,8 @@ class Output(Base):
   is_running = Column(Boolean(), default=False) # a running ouput is still pending...
   is_failed = Column(Boolean(), default=False)
 
-  metrics = Column(JSON(), default=lambda: {})
-  data = Column(JSON(), default=lambda: {})
+  metrics = Column(JSON(), nullable=False, default=dict, server_default='{}')
+  data = Column(JSON(), nullable=False, default=dict, server_default='{}')
 
 
   def copy(self):

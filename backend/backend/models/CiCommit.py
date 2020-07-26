@@ -33,7 +33,7 @@ class CiCommit(Base):
   project = relationship("Project", back_populates="ci_commits")
   __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
-  data = Column(JSON(), default=lambda: {})
+  data = Column(JSON(), nullable=False, default=dict, server_default='{}')
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   committer_name = Column(String(), index=True)
@@ -142,6 +142,7 @@ class CiCommit(Base):
     self.committer_name = committer_name if committer_name else 'unknown'
     self.commit_type = commit_type
     self.latest_output_datetime = authored_datetime
+    self.data = {}
 
 
   def delete(self, ignore=None, keep=None, dryrun=False):
