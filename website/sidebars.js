@@ -58,7 +58,7 @@ module.exports = {
 	"Backend Admin": [
 		"backend-admin/troubleshooting",
 		"backend-admin/host-upgrades",
-		"backend-admin/getting-ssl-certiticates-from-it",
+		"backend-admin/getting-SSL-certiticates-from-IT",
 	]
 }
 }

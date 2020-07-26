@@ -1,5 +1,5 @@
 ---
-id: getting-ssl-certiticates-from-it
+id: getting-SSL-certiticates-from-IT
 sidebar_label: SSL Certificates
 title: Getting SSL certificates from IT
 ---
