@@ -27,7 +27,7 @@ var config = {
     description:
       'Visualize and compare algorithm results. Optimize parameters. Share results and track progress.',
   },
-
+  onBrokenLinks: 'log',
   themeConfig: {
     // announcementBar: {
     //   id: 'supportus',
