@@ -48,7 +48,7 @@ var config = {
       title: 'QA-Board',
       logo,
       hideOnScroll: true,
-      links: [
+      items: [
         {to: is_for_webapp ? '/introduction' : 'docs/introduction', label: 'Docs', position: 'left'},
         {
           href: 'https://github.com/Samsung/qaboard',
@@ -123,9 +123,9 @@ if (is_for_webapp) {
     url: 'https://qa', // Your website URL
     baseUrl: '/docs/', // Base URL for your project */
   }
-  config.presets[0][1].docs.routeBasePath = '';
+  config.presets[0][1].docs.routeBasePath = '/';
   config.presets[0][1].docs.editUrl = 'http://gitlab-srv/common-infrastructure/qaboard/edit/master/website';
-  console.log(config.presets[0][1].docs)
+  // console.log(config.presets[0][1].docs)
 } else {
   if (publish_github_samsung_private) {
     config = {

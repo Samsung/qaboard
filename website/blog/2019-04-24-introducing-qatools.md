@@ -20,7 +20,7 @@ Icon? Maybe ask samsung design. Chekc github how they do it....
 
 Check: CometML docs, polyaxon, MLflow, NNI microsoft
 
-![cool image](#)
+-[cool image](#)
 
 
 
