@@ -123,7 +123,7 @@ if (is_for_webapp) {
     url: 'https://qa', // Your website URL
     baseUrl: '/docs/', // Base URL for your project */
   }
-  config.presets[0][1].docs.routeBasePath = '/';
+  config.presets[0][1].docs.routeBasePath = '';
   config.presets[0][1].docs.editUrl = 'http://gitlab-srv/common-infrastructure/qaboard/edit/master/website';
   // console.log(config.presets[0][1].docs)
 } else {
