@@ -31,6 +31,10 @@ RUN yarn config set strict-ssl false
 COPY package.json yarn.lock ./
 RUN yarn install
 COPY . ./
+
+# On the website we have algolia for the search, but the baseURL (/qaboard) is different than
+# when running from the application (/docs). So we don't use algolia for the app...
+RUN yarn run swizzle docusaurus-lunr-search SearchBar
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
