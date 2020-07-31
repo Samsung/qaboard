@@ -10,7 +10,7 @@ types {
     application/rss+xml                   rss;
 
     text/mathml                           mml;
-    text/plain                            txt csv log pcd hex;
+    text/plain                            txt csv yaml log sh py pcd hex;
     text/vnd.sun.j2me.app-descriptor      jad;
     text/vnd.wap.wml                      wml;
     text/x-component                      htc;
