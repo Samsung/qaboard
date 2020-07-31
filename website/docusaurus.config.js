@@ -7,7 +7,6 @@ const logo = {
   alt: 'QA-Board Logo',
   // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
   src: 'img/twemoji_poodle.svg',
-  href: 'https://github.com/Samsung/qaboard',
 }
 
 var config = {
@@ -42,7 +41,7 @@ var config = {
     },
     footer: {
       logo,
-      copyright: "Made with ❤️ at Samsung. Apache 2.0 License. Build with Docusaurus.",
+      copyright: "Made with ❤️ at Samsung. Apache 2.0 License. Built with Docusaurus.",
     },
     navbar: {
       title: 'QA-Board',
@@ -68,20 +67,10 @@ var config = {
   },
 };
 
-if (publish_github_samsung_public) {
-  config.themeConfig.algolia = {
-    apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
-    indexName: 'samsung_qaboard',
-    algoliaOptions: {
-      // facetFilters: [`version:${versions[0]}`],
-    },
-  }
-}
 
 
 config = {
   ...config,
-  plugins: [require.resolve('docusaurus-lunr-search')],
   presets: [
     [
       '@docusaurus/preset-classic',
@@ -101,17 +90,29 @@ config = {
           path: 'docs',
           routeBasePath: 'docs',
           sidebarPath: require.resolve('./sidebars.js'),
-          // remarkPlugins: [admonitions],
+          editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/',
 
           // Show documentation's last contributor's name.
           // enableUpdateBy: true,
           // Show documentation's last update time.
-          // enableUpdateTime: true,
-        
+          // enableUpdateTime: true,        
         },
       },
     ],
   ],
+}
+
+
+if (publish_github_samsung_public) {
+  config.themeConfig.algolia = {
+    apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
+    indexName: 'samsung_qaboard',
+    algoliaOptions: {
+      // facetFilters: [`version:${versions[0]}`],
+    },
+  }
+} else {
+  config.plugins = [require.resolve('docusaurus-lunr-search')]
 }
 
 
@@ -124,8 +125,6 @@ if (is_for_webapp) {
     baseUrl: '/docs/', // Base URL for your project */
   }
   config.presets[0][1].docs.routeBasePath = '';
-  config.presets[0][1].docs.editUrl = 'http://gitlab-srv/common-infrastructure/qaboard/edit/master/website';
-  // console.log(config.presets[0][1].docs)
 } else {
   if (publish_github_samsung_private) {
     config = {
@@ -146,7 +145,6 @@ if (is_for_webapp) {
       organizationName: 'Samsung',
       projectName: 'qaboard',
     }
-    config.presets[0][1].docs.editUrl = 'https://github.com/Samsung/qaboard/edit/master/website/';
   }
 }
 

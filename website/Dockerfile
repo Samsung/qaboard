@@ -1,6 +1,18 @@
 FROM node:lts-alpine
 WORKDIR /website
 
+
+ENV PROXY_HOST=webproxy.transchip.com \
+    PROXY_PORT=8080 \
+    PROXY_PROTOCOL=http
+ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
+ENV HTTP_PROXY=$PROXY \
+    http_proxy=$PROXY \
+    HTTPS_PROXY=$PROXY \
+    https_proxy=$PROXY \
+    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
 RUN apk update && apk add --no-cache \
     # needed for node-gyp.. some do it with npm install in one layer
     # https://github.com/mhart/alpine-node/issues/27
@@ -11,6 +23,7 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 ENV PATH /app/node_modules/.bin:$PATH
+RUN yarn config set strict-ssl false
 
 # RUN npm install -g yarn
 
@@ -18,6 +31,10 @@ ENV PATH /app/node_modules/.bin:$PATH
 COPY package.json yarn.lock ./
 RUN yarn install
 COPY . ./
+
+# On the website we have algolia for the search, but the baseURL (/qaboard) is different than
+# when running from the application (/docs). So we don't use algolia for the app...
+RUN yarn run swizzle docusaurus-lunr-search SearchBar
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
