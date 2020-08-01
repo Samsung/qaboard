@@ -320,7 +320,13 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
   }
   if ((commit !== undefined) && (commit.branch !== undefined)){
     context.commit = commit
-    context.commit.branch_slug = slug(commit.branch)
+    if (commit.branch !== undefined)
+      context.commit.branch_slug = slug(commit.branch)
+    // backward compatibility
+    if (commit.artifacts_url !== undefined)
+      context.commit.commit_dir_url = commit.artifacts_url
+    if (commit.repo_artifacts_url !== undefined)
+      context.commit.repo_commit_dir_url = commit.repo_artifacts_url
   }
   
   return integration => {

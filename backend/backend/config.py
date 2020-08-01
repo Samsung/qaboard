@@ -9,5 +9,5 @@ qaboard_data_dir = Path(os.getenv('QABOARD_DATA_DIR', '/var/qaboard')).resolve()
 # Where we save custom per-project groups
 shared_data_directory = qaboard_data_dir / 'app_data'
 
-# Default location for project outputs and artifacts
-default_ci_directory = '/mnt/qaboard'
+default_outputs_root =   Path('/mnt/qaboard')
+default_artifacts_root = Path('/mnt/qaboard')

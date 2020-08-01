@@ -311,9 +311,9 @@ class CommitRow extends React.Component {
             <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
               <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
               <Menu>
-                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.commit_dir_url))}} />
-                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.commit_dir_url).slice(2))}} />
-                <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.commit_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.artifacts_url))}} />
+                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+                <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               </Menu>
             </Popover>
 

@@ -523,14 +523,8 @@ const debug_integrations = [
       text: 'EXE',
       icon: 'download',
       label: 'Windows',
-      href: '${commit.repo_commit_dir_url}/${project_parts.slice(-1)}/${project_parts[2]}/${subproject_parts[0]}/build/bin/',
+      href: '${commit.repo_artifacts_url}/${project_parts.slice(-1)}/${project_parts[2]}/${subproject_parts[0]}/build/bin/',
     },
-    // {
-    //   text: 'EXE',
-    //   icon: 'download',
-    //   label: 'Windows',
-    //   href: '${commit.commit_dir_url}/build/bin',
-    // },
     // {
     //   divider: true,
     //   title: 'Docs',

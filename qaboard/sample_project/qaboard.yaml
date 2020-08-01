@@ -173,11 +173,8 @@ runners:
     # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
     # You can also set: project, resources, priority
 
-
 # Your artifacts will be saved under this location.
-ci_root:
-  linux: /mnt/qaboard
-  windows: '//shared_storage/qaboard'
+storage: /mnt/qaboard
 
 
 ## Optionnal policy to delete old results

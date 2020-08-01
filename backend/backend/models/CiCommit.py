@@ -14,6 +14,9 @@ from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.orm.attributes import flag_modified
 
+from qaboard.conventions import get_commit_dirs
+from qaboard.api import dir_to_url
+
 from backend.models import Base, Batch, Output
 from ..utils import get_users_per_name
 from ..git_utils import find_branch
@@ -83,46 +86,48 @@ class CiCommit(Base):
   def authored_date(self):
     return self.authored_datetime.date()
 
-
   @property
-  def commit_dir(self):
-    """Returns the folder in all the data for this commit is stored."""
-    if self.commit_dir_override is not None:
-      return Path(self.commit_dir_override)
-    committer_name = self.committer_name if self.committer_name else "unknown"
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.hexsha[:8]}'
-    out = self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
+  def artifacts_dir(self) -> Path:
+    """Returns the folder in all the artifacts for this commit are stored."""
     if self.project.id_relative:
-      return out / self.project.id_relative
+      return self.repo_artifacts_dir / self.project.id_relative
     else:
-      return out
+      return self.repo_artifacts_dir
 
   @property
-  def repo_commit_dir(self):
-    if self.commit_dir_override is not None:
-      # can we do something better?
-      return Path(self.commit_dir_override.replace(str(self.project.id_relative), ""))
-    committer_name = self.committer_name if self.committer_name else "unknown"
-    commit_dir_name = f'{int(self.authored_datetime.timestamp())}__{committer_name}__{self.hexsha[:8]}'
-    return self.project.ci_directory / self.project.id_git / 'commits' / commit_dir_name
+  def repo_artifacts_dir(self) -> Path:
+    if self.commit_dir_override:
+      if self.project.id_relative:
+        return Path(self.commit_dir_override.replace(self.project.id_relative, ""))
+      else:
+        return Path(self.commit_dir_override)
+    return self.project.storage_roots['artifacts'] / get_commit_dirs(self)
 
   @property
-  def commit_dir_url(self):
-    """The URL at which the data about this commit is stored. It's convenient."""
-    if self.commit_dir_override is not None:
-      relative_path = self.commit_dir_override
-      return quote(f'/s{relative_path}')
-    return quote(f"/s{self.commit_dir}".replace("/home/arthurf/ci", ""))
+  def artifacts_url(self) -> str:
+    return dir_to_url(self.artifacts_dir)
+
+  @property
+  def repo_artifacts_url(self) -> str:
+    return dir_to_url(self.repo_artifacts_dir)
 
 
   @property
-  def repo_commit_dir_url(self):
-    """The URL at which the data about this commit is stored. It's convenient."""
-    if self.commit_dir_override is not None:
-      relative_path = self.commit_dir_override
-      return quote(f'/s{relative_path}')
-    return quote(f"/s{self.repo_commit_dir}")
+  def repo_outputs_dir(self):
+    return self.project.storage_roots['outputs'] / get_commit_dirs(self)
 
+  @property
+  def outputs_url(self) -> str:
+    return dir_to_url(self.outputs_dir)
+
+  @property
+  def outputs_dir(self):
+    # output dirs are now always saved, so we only call this to get output locations with usual conventions
+    # e.g. when starting new tuning runs
+    if self.project.id_relative:
+      return self.repo_outputs_dir / self.project.id_relative
+    else:
+      return self.repo_outputs_dir
 
 
   def __repr__(self):
@@ -151,7 +156,7 @@ class CiCommit(Base):
     NOTE: We don't touch batches/outputs, you have to deal with them yourself.
           See hard_delete() in api/webhooks.py and clean.py
     """
-    manifest_dir = self.commit_dir / 'manifests'
+    manifest_dir = self.artifacts_dir / 'manifests'
     delete_errors = False
     if manifest_dir.exists():
       for manifest in manifest_dir.iterdir():
@@ -171,13 +176,13 @@ class CiCommit(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
-          print(f'{self.commit_dir / file}')
+          print(f'{self.artifacts_dir / file}')
           if not dryrun:
             try:
-              (self.commit_dir / file).unlink()
+              (self.artifacts_dir / file).unlink()
             except:
               has_error = True
-              print(f"WARNING: Could not remove: {self.commit_dir / file}")
+              print(f"WARNING: Could not remove: {self.artifacts_dir / file}")
           if not has_error:
             manifest.unlink()
         delete_errors = delete_errors or has_error
@@ -279,8 +284,8 @@ class CiCommit(Base):
         'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,
         'deleted': self.deleted,
         "data": self.data if with_outputs else None,
-        'commit_dir_url': str(self.commit_dir_url),
-        'repo_commit_dir_url': str(self.repo_commit_dir_url),
+        'outputs_url': dir_to_url(self.outputs_dir),
+        'artifacts_url': self.artifacts_url,
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
                     for b in self.batches if not with_batches or b.label in with_batches},
     }

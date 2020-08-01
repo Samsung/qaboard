@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from qaboard.conventions import slugify, slugify_config, make_hash, serialize_config
 from qaboard.utils import save_outputs_manifest
+from qaboard.api import dir_to_url
 
 from backend.models import Base
 
@@ -121,8 +122,8 @@ class Output(Base):
   @property
   def output_dir_url(self):
     if self.output_dir_override is not None:
-      relative_path = self.output_dir_override.replace("/home/arthurf/ci/", "")
-      return quote(str(f'/s{relative_path}'))
+      relative_path = self.output_dir_override
+      return dir_to_url(relative_path)
     return f"{self.batch.output_dir_url}/{quote(str(self.output_folder))}" 
 
   def __repr__(self):
@@ -226,12 +227,13 @@ class Output(Base):
       'set -ex',
       # needed...
       f"export CI=true;",
-      f"export CI_COMMIT_SHA='{self.batch.ci_commit.hexsha}';",
-      f"export QATOOLS_CI_COMMIT_DIR='{self.batch.ci_commit.commit_dir}'",
+      f"export GIT_COMMIT='{self.batch.ci_commit.hexsha}';",
+      f"export QA_OUTPUTS_COMMIT='{self.batch.ci_commit.outputs_dir}'",
+      f"export QABOARD_TUNING=true;",
       f'export QA_BATCH_COMMAND_HIDE_LOGS=true'
       "",
       # get the env right
-      f'cd "{self.batch.ci_commit.commit_dir}"',
+      f'cd "{self.batch.ci_commit.artifacts_dir}"',
       # TODO: hum....
       '[[ -f ".envrc" ]] && source .envrc',
       '[[ -f "../.envrc" ]] && source ../.envrc',

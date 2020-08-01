@@ -30,7 +30,6 @@ For specific needs, you can also use `qa get` to output internal variables:
 ```bash
 qa --input my/input get output_directory
 qa get commit_id
-qa get ci_root
 # etc
 ```
 
@@ -59,8 +58,8 @@ curl -k "https://qa/api/v1/commits?project=my/project"
     "authored_datetime": "2019-04-30T09:05:09+00:00",
     "authored_date": "2019-04-30",
     "data": null,
-    "repo_commit_dir_url": "/s/commit/dir/url",
-    "commit_dir_url": "/s/commit/dir/url/maybe/subproject", //placeholder...
+    "repo_artifacts_url": "/s/commit/dir/url",
+    "artifacts_url": "/s/commit/dir/url/maybe/subproject", //placeholder...
     "batches": {
       "default": {
         "id": 19172,
@@ -109,8 +108,8 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=my/pr
       // --snip
      }
   }
-  "repo_commit_dir_url": "/s/commit/dir/url",
-  "commit_dir_url": "/s/commit/dir/url/maybe/subproject", //placeholder...
+  "repo_artifacts_url": "/s/commit/dir/url",
+  "artifacts_url": "/s/commit/dir/url/maybe/subproject", //placeholder...
   "batches": {
     "default": {
       "id": 19071,

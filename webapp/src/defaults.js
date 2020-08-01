@@ -60,7 +60,7 @@ export const default_qatools_config = {
 	lsf: {
 		user: 'ispq',
 	},
-	ci_root: {
+	storage: {
 		linux: '/home/arthurf/ci',
 	},
 	inputs: {

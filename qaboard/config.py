@@ -4,6 +4,7 @@ Provides a default QA configuration for the projects, by reading the configurati
 import os
 import sys
 import datetime
+from getpass import getuser
 from itertools import chain
 from pathlib import Path, PurePosixPath
 from typing import Dict, Any, Tuple, List, Optional
@@ -13,7 +14,7 @@ import click
 
 from .utils import getenvs
 from .git import git_head, git_show
-from .conventions import slugify, get_commit_ci_dir
+from .conventions import slugify, get_commit_dirs, location_from_spec
 from .iterators import flatten
 
 
@@ -24,8 +25,7 @@ config_has_error = False
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
 # When the code is imported we care less about warnings...
-ignore_config_errors = ignore_config_errors or sys.argv[0] != 'qa'
-
+ignore_config_errors = ignore_config_errors or not sys.argv[0].endswith('qa')
 
 def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
     """Returns the parsed content and paths of qaboard.yaml files that should be loaded for a (sub)project at the `path`.
@@ -66,7 +66,6 @@ if not qatools_configsxpaths:
         'Please read the tutorial or ask Arthur Flam for help:\n'
         'http://qa-docs/',
         dim=True, err=True)
-  ignore_config_errors = True
 
 
 def merge(src: Dict, dest: Dict) -> Dict:
@@ -96,6 +95,8 @@ if not qatools_config_paths:
   root_qatools = None
   project_dir = None
   root_qatools_config: Dict[str, Any] = {}
+  project = None
+  project_root = None
   subproject = Path(".")
 else:
   if len(qatools_config_paths)==1:
@@ -114,20 +115,18 @@ else:
       if not ignore_config_errors:
         click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
         click.secho(f"Changed from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}", fg='red')
-        ignore_config_errors = True
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
   # It's not something the user should change...
-  leaf_project_name = root_qatools_config['project']['name'] / subproject
-  uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], leaf_project_name]
+  project_root = Path(root_qatools_config['project']['name'])
+  project = project_root / subproject
+  uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], project]
   if uncoherent_name:
     config_has_error = True
     if not ignore_config_errors:
       click.secho(f"ERROR: Don't redefine <project.name> in ./qaboard.yaml", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
-      ignore_config_errors = True
-  config['project']['name'] = leaf_project_name.as_posix()
-
+  config['project']['name'] = project.as_posix()
 
 
 # It's useful to know what's the platform since code is often compiled a different locations.
@@ -139,35 +138,68 @@ on_linux = not on_windows
 on_vdi = 'HOST' in os.environ and os.environ['HOST'].endswith("vdi")
 on_lsf = 'HOST' in os.environ and (os.environ['HOST'].endswith("transchip.com") or os.environ['HOST'].startswith("planet"))
 
-# Mounts and file paths are usually different on linux and windows
-mount_flavor = 'windows' if on_windows else 'linux'
+
+# not _always_ right..
+platform = 'windows' if on_windows else 'linux'
+
+user = getuser()
 
 
-if on_windows:
-    platform = 'windows'
+def storage_roots(config: Dict, project: Path, subproject: Path, user=user) -> Tuple[Path, Path]: 
+  try:
+    if 'ci_root' in config:
+      click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
+      config['storage'] = config['ci_root']
+    config_storage = config.get('storage', {})
+    interpolation_vars = {"project": project, "subproject": subproject, "user": user}
+    artifacts_root = location_from_spec(config_storage.get('artifacts', config_storage), interpolation_vars)
+    outputs_root = location_from_spec(config_storage.get('outputs', config_storage), interpolation_vars)
+    if not artifacts_root or not outputs_root:
+      raise KeyError
+  except KeyError:
+    artifacts_root = Path()
+    outputs_root = Path()
+    config_has_error = True
+    if not ignore_config_errors:
+      click.secho('ERROR: Could not find the storage settings that define where outputs & artifacts are saved.', fg='red', err=True)
+      click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
+  return outputs_root, artifacts_root
+
+def mkdir(path: Path):
+  global config_has_error
+  if not path.exists():
+    try:
+      path.mkdir(parents=True)
+      click.secho(f'Created: {path}', fg='blue', err=True)
+    except:
+      config_has_error = True
+      if not ignore_config_errors:
+        click.secho(f'ERROR: The storage path does not exist: "{path}".', fg='red', err=True)
+
+
+outputs_root: Optional[Path]
+artifacts_root: Optional[Path]
+artifacts_project_root: Optional[Path]
+artifacts_project: Optional[Path]
+outputs_project_root: Optional[Path]
+outputs_project: Optional[Path]
+if root_qatools_config:
+  assert project
+  assert project_root
+  outputs_root, artifacts_root = storage_roots(config, project, subproject, user)
+  mkdir(outputs_root)
+  mkdir(artifacts_root)
+  artifacts_project_root = artifacts_root / project_root
+  artifacts_project = artifacts_root / project
+  outputs_project_root = outputs_root / project_root
+  outputs_project = outputs_root / project
 else:
-    # it could be "linux", but we stick to lsf for backward compatibility
-    platform = 'lsf'
-
-
-
-# Results are saved at a centralized location. This makes it easy to read results
-# either from the web application, or for local bit-accuracy tests.
-try:
-    ci_root = Path(os.environ.get('QA_CI_ROOT', config['ci_root'][mount_flavor]))
-except KeyError:
-  ci_root = Path() # just to let the execution continue...
-  config_has_error = True
-  if not ignore_config_errors:
-    click.secho(f'ERROR: Could not find the ci_root_directory, where results are saved, for {mount_flavor}', fg='red', err=True)
-    click.secho(f'Consider adding to qaboard.yaml:\n```\nci_root_directory:\n  linux: /mnt/qaboard\n  windows: "\\\\shared_storage\\qaboard"\n```', fg='red', err=True, dim=True)
-    ignore_config_errors = True
-if not ci_root.exists():
-    click.secho(f'ERROR: The ci_root defined in qatools.yaml does not exist', fg='red', err=True)
-    click.secho(f'"{ci_root}" needs to be writable.', fg='red', err=True, dim=True)
-    ignore_config_errors = True
-
-ci_dir = ci_root / root_qatools_config['project']['name'] if root_qatools_config else None
+  outputs_root = None
+  artifacts_root = None
+  artifacts_project_root = None
+  artifacts_project = None
+  outputs_project_root = None
+  outputs_project = None
 
 
 # This flag identifies runs that happen within the CI or tuning experiments
@@ -180,7 +212,6 @@ ci_env_variables = (
 )
 is_ci = any([v in os.environ for v in ci_env_variables])
 
-user = getenvs(('USERNAME', 'USER', 'HOSTNAME', 'HOST'))
 
 if is_ci:
     # This field is not used at the moment, possibly in the future we'll want to support other VCS like SVN
@@ -241,10 +272,10 @@ if not commit_id or not commit_branch:
       if not commit_id:
         commit_id = f'<local:{user}>'
 
-try:
-    branch_ci_dir = ci_dir / 'branches' / slugify(commit_branch)
-except:
-    branch_ci_dir = Path()
+if artifacts_project:
+    artifacts_branch = artifacts_project / 'branches' / slugify(commit_branch)
+else:
+    artifacts_branch = Path()
 
 commit_committer_name: Optional[str] = user
 commit_committer_email: Optional[str] = None
@@ -263,17 +294,33 @@ if commit_id and is_in_git_repo:
     pass
 
 
-# This is where results should be saved
-commit_rootproject_ci_dir = get_commit_ci_dir(ci_dir, commit_id).resolve()
-commit_ci_dir = commit_rootproject_ci_dir / subproject if subproject else commit_rootproject_ci_dir
+artifacts_commit_root: Optional[Path]
+artifacts_commit: Optional[Path]
+outputs_commit_root: Optional[Path]
+outputs_commit: Optional[Path]
+if root_qatools_config:
+  commit_dirs = get_commit_dirs(commit_id)
+  artifacts_commit_root = artifacts_project_root / commit_dirs
+  artifacts_commit      = artifacts_project_root / commit_dirs / subproject
+  outputs_commit_root   = outputs_project_root   / commit_dirs
+  outputs_commit        = outputs_project_root   / commit_dirs / subproject
+else:
+  artifacts_commit_root = None
+  artifacts_commit = None
+  outputs_commit_root = None
+  outputs_commit = None
 
-# When running qatools from a folder in which we saved a commit's artifacts,
-# we don't have any information about the git commit we're looking at.
-# Because of this, the web application that starts tuning runs will tell qatools what to
-# by setting both the QA_CI_COMMIT_DIR and CI_COMMIT_SHA environment variables
-if 'QA_CI_COMMIT_DIR' in os.environ:
-    commit_ci_dir = Path(os.environ['QA_CI_COMMIT_DIR'])
-    commit_rootproject_ci_dir = commit_ci_dir
+# backward compatibility for HW_ALG's runs. And tof/swip_tof's runs: has to exist
+commit_ci_dir = outputs_commit
+# backward compatibility for HW_ALG/tools/ci_tools/find_valid_build.py
+ci_dir = artifacts_project_root
+
+# When running qa from a folder with a commit's artifacts,
+# there is no information about the git commit, no .git/ folder.
+# During tuning/extra runs, QA-Board will provide this info using
+# the QA_OUTPUTS_COMMIT and GIT_COMMIT environment variables
+if 'QA_OUTPUTS_COMMIT' in os.environ:
+  outputs_commit = Path(os.environ['QA_OUTPUTS_COMMIT'])
 
 
 
@@ -305,14 +352,14 @@ def get_default_database(inputs_settings):
   # We will refer to them by their relative path related to the "database"
   global ignore_config_errors
   if 'type' in inputs_settings and inputs_settings['type'] in inputs_settings and 'database' in inputs_settings[inputs_settings['type']]:
-    database_settings = inputs_settings[inputs_settings['type']]['database']
+    database_spec = inputs_settings[inputs_settings['type']]['database']
   else:
-    database_settings = inputs_settings.get('database', {})
-  database = os.path.expandvars(str(database_settings.get(mount_flavor)))
+    database_spec = inputs_settings.get('database', {})
+  database = location_from_spec(database_spec)
   if not database:
     database = "."
     if not ignore_config_errors:
-      click.secho(f'WARNING: Could not find the default database location for {mount_flavor}, defaulting to "."', fg='yellow', err=True)
+      click.secho(f'WARNING: Could not find the default database location, defaulting to "."', fg='yellow', err=True)
       click.secho(f'Consider adding to qaboard.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
       ignore_config_errors = True
   return Path(database)
@@ -346,7 +393,7 @@ if metrics_file:
 
 
 
-# We want to allow any user to use the Gitlab API, stay backward compatible
+# We want to allow any user to use the Gitlab API, stay compatible with usage at Samsung 
 # ...and remove the credentials from the repo
 default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml')
 secrets_path = Path(config.get('secrets', default_secrets_path))

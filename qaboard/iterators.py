@@ -17,7 +17,7 @@ from typing import List, Union, Dict, Tuple, Iterator, cast
 import yaml
 import click
 
-from .conventions import make_hash, make_pretty_tuning_filename, get_settings
+from .conventions import make_hash, make_pretty_tuning_filename, get_settings, location_from_spec
 from .utils import input_metadata, entrypoint_module
 from .compat import cased_path
 from .run import RunContext
@@ -254,8 +254,9 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       inputs_settings = copy(default_inputs_settings)
     inputs_settings.update(batch)
 
-    run_context.database = Path(os.path.expandvars(str(batch.get('database', {}).get('windows' if os.name=='nt' else 'linux', run_context.database))))
-
+    batch_database = location_from_spec(batch.get('database', run_context.database))
+    if batch_database:
+      run_context.database = batch_database
     if batch.get('matrix'):
       from sklearn.model_selection import ParameterGrid
       for matrix in ParameterGrid(batch['matrix']):
@@ -302,7 +303,9 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           if location_configurations.get(runner):
             location_run_context.job_options = {**location_run_context.job_options, **location_configurations[runner]}
           if 'database' in location_configurations:
-            location_run_context.database = Path(os.path.expandvars(str(location_configurations.get('database', {}).get('windows' if os.name=='nt' else 'linux'))))
+            location_database = location_from_spec(location_configurations['database'])
+            if location_database:
+              location_run_context.database = location_database
           if 'platform' in batch:
             location_run_context.platform = location_configurations['platform']
           location_inputs_settings = copy(inputs_settings)

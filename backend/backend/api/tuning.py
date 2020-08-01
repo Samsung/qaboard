@@ -82,8 +82,8 @@ def get_commit_batches_paths(project, commit_id):
 
     # custom groups have priority over the commit's groups
     for group_file in commit_group_files:
-      if (ci_commit.repo_commit_dir / group_file).exists():
-        batches_paths.insert(0, ci_commit.repo_commit_dir / group_file)
+      if (ci_commit.repo_artifacts_dir / group_file).exists():
+        batches_paths.insert(0, ci_commit.repo_artifacts_dir / group_file)
     return batches_paths
   except NoResultFound:
     return []
@@ -119,14 +119,14 @@ def get_group():
 
     has_custom_iter_inputs = False
     # TODO: make it more robust in case of "from iters import *"
-    qatools_config['project']['entrypoint'] = ci_commit.repo_commit_dir / qatools_config['project']['entrypoint']
+    qatools_config['project']['entrypoint'] = ci_commit.repo_artifacts_dir / qatools_config['project']['entrypoint']
     if qatools_config['project']['entrypoint'].exists():
         with qatools_config['project']['entrypoint'].open() as f:
             entrypoint_source = f.read()
         has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
     # prpject fallback?
     if has_custom_iter_inputs:
-        cwd = ci_commit.commit_dir
+        cwd = ci_commit.artifacts_dir
         parent_including_cwd = [*list(reversed(list(cwd.parents))), cwd]
         envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
         cmd = ' '.join([
@@ -229,7 +229,7 @@ def start_tuning(hexsha):
     os.umask(prev_mask)
 
 
-    working_directory = ci_commit.commit_dir
+    working_directory = ci_commit.artifacts_dir
     print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
@@ -281,8 +281,10 @@ def start_tuning(hexsha):
         "",
         # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
         f"export CI=true",
-        f"export CI_COMMIT_SHA='{ci_commit.hexsha}'",
-        f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.commit_dir}'",
+        f"export QABOARD_TUNING=true",
+        f"export GIT_COMMIt='{ci_commit.hexsha}'",
+        # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
+        f"export QA_OUTPUTS_COMMIT='{ci_commit.commit_dir}'",
         "",
         batch_command,
         "",

@@ -31,7 +31,7 @@ from .config import config_has_error, ignore_config_errors
 from .config import subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
-from .config import commit_id, commit_ci_dir, root_qatools, commit_rootproject_ci_dir
+from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root, outputs_commit_root
 from .config import user, is_ci, on_windows
 
 
@@ -53,7 +53,7 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
   if config_has_error and not ignore_config_errors:
-    click.secho(f'Aborting: please first fix the configuration errrors in qaboard.yaml', fg='red', err=True, bold=True)
+    click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
     exit(1)
 
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
@@ -78,7 +78,8 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   ctx.obj['share'] = share
   ctx.obj['offline'] = offline
 
-  ctx.obj['commit_ci_dir'] = commit_ci_dir
+  ctx.obj['outputs_commit'] = outputs_commit
+  ctx.obj['artifacts_commit'] = artifacts_commit
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['raw_batch_label'] = label
@@ -104,7 +105,7 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(commit_ci_dir, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
+  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
 
   # For convenience, we allow users to change environment variables using {ENV: {VAR: value}}
   # in configurations or tuning parameters
@@ -134,7 +135,12 @@ def get(ctx, input_path, output_path, variable):
     output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
   except:
     pass
-  from .config import commit_rootproject_ci_dir, commit_ci_dir, commit_branch, branch_ci_dir
+  from .config import outputs_commit, commit_branch, artifacts_branch
+  # backward compatibility
+  if variable == "branch_ci_dir":
+    variable = "artifacts_branch"
+  if variable == "commit_ci_dir":
+    variable = "outputs_commit"
   locals().update(globals())
   locals().update(ctx.obj)
   if variable in locals():
@@ -453,7 +459,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     for tuning_file, tuning_hash, tuning_params in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
       if not prefix_outputs_path:
           prefix_output_dir = make_prefix_outputs_path(
-            commit_ci_dir,
+            outputs_commit,
             ctx.obj["batch_label"],
             run_context.platform,
             input_configuration_str,
@@ -461,7 +467,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
             ctx.obj['share']
           )
       else:
-          prefix_output_dir = commit_ci_dir / prefix_outputs_path
+          prefix_output_dir = outputs_commit / prefix_outputs_path
           if tuning_file:
               prefix_output_dir = prefix_output_dir / Path(tuning_file).stem
       run_context.output_dir = prefix_output_dir / run_context.rel_input_path.with_suffix('')
@@ -581,7 +587,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   from .utils import copy, file_info
   from .compat import cased_path
 
-  click.secho(f"Saving artifacts in: {commit_rootproject_ci_dir}", bold=True, underline=True)
+  click.secho(f"Saving artifacts in: {artifacts_commit}", bold=True, underline=True)
 
   artifacts = {}
 
@@ -615,7 +621,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
 
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
-    manifest_path = commit_ci_dir / 'manifests' / f'{artifact_name}.json'
+    manifest_path = artifacts_commit / 'manifests' / f'{artifact_name}.json'
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     if manifest_path.exists():
       with manifest_path.open() as f:
@@ -637,7 +643,10 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
         path = cased_path(path)
         if not path.is_file():
           continue
-        destination = (commit_rootproject_ci_dir / artifacts_path / path) if artifacts_path else (commit_rootproject_ci_dir / path)
+        if artifacts_path:
+          destination = artifacts_commit_root / artifacts_path / path
+        else:
+          destination = artifacts_commit_root / path
         if 'QA_VERBOSE_VERBOSE' in os.environ: print(destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           # when working on subprojects, the artifact might be copied already,
@@ -669,10 +678,9 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    from .config import is_ci
     from .bit_accuracy import is_bit_accurate
 
-    commit_dir = commit_ci_dir if is_ci else Path()
+    commit_dir = outputs_commit if is_ci else Path()
     all_bit_accurate = True
     nb_compared = 0
     for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
@@ -724,10 +732,10 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    from .config import is_in_git_repo, commit_branch, is_ci, ci_dir
+    from .config import is_in_git_repo, commit_branch, is_ci, outputs_project_root
     from .bit_accuracy import is_bit_accurate
     from .gitlab import lastest_successful_ci_commit
-    from .conventions import get_commit_ci_dir
+    from .conventions import get_commit_dirs
     from .git import latest_commit, git_show, git_parents
 
     if not is_in_git_repo:
@@ -748,7 +756,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
     click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
     
     # This where the new results are located
-    commit_dir = commit_rootproject_ci_dir if is_ci else Path()
+    commit_dir = outputs_commit_root if is_ci else Path()
 
     if not batches:
       output_directories = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
@@ -764,7 +772,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       # if the reference commit is pending or failed, we wait or maybe pick a parent
       reference_commit = lastest_successful_ci_commit(reference_commit)
       click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
-      reference_rootproject_ci_dir = get_commit_ci_dir(ci_dir, reference_commit)
+      reference_rootproject_ci_dir = outputs_project_root / get_commit_dirs(reference_commit)
       click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
       all_bit_accurate = True
       for o in output_directories:

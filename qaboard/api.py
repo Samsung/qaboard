@@ -5,7 +5,7 @@ import os
 import json
 from copy import deepcopy
 from functools import lru_cache
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Optional
 
@@ -34,13 +34,17 @@ api_prefix = f"{qaboard_url}/api/v1"
 
 
 
-def url_to_dir(url):
+def url_to_dir(url: str) -> Path:
   return Path(unquote(url)[2:])
+
+def dir_to_url(path: Path) -> str:
+  if not path.is_absolute():
+    raise ValueError(f"{path} is not absolute")
+  return quote(f"/s{path.as_posix()}")
 
 
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
-    from requests.utils import quote
     batch_label = ctx.obj["batch_label"]
     commit_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
@@ -103,7 +107,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, is_in_git_repo, config, _metrics, ci_root
+  from .config import is_ci, is_in_git_repo, config, _metrics
   from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):

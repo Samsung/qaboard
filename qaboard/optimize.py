@@ -15,7 +15,7 @@ import click
 import numpy as np
 
 from .api import NumpyEncoder, batch_info, notify_qa_database
-from .config import subproject, commit_id, commit_ci_dir, available_metrics, default_batches_files
+from .config import subproject, commit_id, outputs_commit, available_metrics, default_batches_files
 from .conventions import batch_dir
 from .utils import PathType
 
@@ -54,7 +54,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
       click.secho(f"Updating QA-Board", fg='blue')
 
       iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
-      iteration_batch_dir = batch_dir(commit_ci_dir, iteration_batch_label, True)
+      iteration_batch_dir = batch_dir(outputs_commit, iteration_batch_label, True)
       notify_qa_database(**{
         **ctx.obj,
         **{
@@ -110,7 +110,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
         })
         try:
           click.secho(f'Creating plots', fg='blue')
-          make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+          make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label'], tuning=True))
         except:
           pass
       else:
@@ -123,7 +123,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
     return
 
   # tuning plots are saved in the label directory
-  make_plots(results, batch_dir(commit_ci_dir, ctx.obj['batch_label'], tuning=True))
+  make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label'], tuning=True))
 
 
 

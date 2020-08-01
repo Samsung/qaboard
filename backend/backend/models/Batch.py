@@ -46,12 +46,12 @@ class Batch(Base):
 
   @property
   def output_dir(self):
-    return self.ci_commit.commit_dir / self.output_folder
+    return self.ci_commit.outputs_dir / self.output_folder
 
   @property
   @lru_cache()
   def output_dir_url(self):
-    return f"{self.ci_commit.commit_dir_url}/{quote(str(self.output_folder))}"
+    return f"{self.ci_commit.outputs_url}/{quote(str(self.output_folder))}"
 
   def metrics(self, metric, outputs=None):
     """Returns a list of results - for a chosen metric - over the commit's outputs.
