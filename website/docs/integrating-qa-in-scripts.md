@@ -30,7 +30,6 @@ For specific needs, you can also use `qa get` to output internal variables:
 ```bash
 qa --input my/input get output_directory
 qa get commit_id
-qa get ci_root
 # etc
 ```
 
@@ -59,8 +58,8 @@ curl -k "https://qa/api/v1/commits?project=tof/swip_tof" | jq
     "authored_datetime": "2019-04-30T09:05:09+00:00",
     "authored_date": "2019-04-30",
     "data": null,
-    "commit_dir_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9",
-    "repo_commit_dir_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9",
+    "artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9",
+    "repo_artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9",
     "batches": {
       "default": {
         "id": 19172,
@@ -109,8 +108,8 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
       // --snip
      }
   }
-  "commit_dir_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395",
-  "repo_commit_dir_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395",
+  "artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395",
+  "repo_artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395",
   "batches": {
     "default": {
       "id": 19071,

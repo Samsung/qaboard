@@ -165,7 +165,7 @@ def new_output_webhook():
   test_input = TestInput.get_or_create(
     db_session,
     path=test_input_path,
-    database=data.get('database', ci_commit.project.database),
+    database=data['database'],
   )
 
   # We save the basic information about our result
@@ -199,12 +199,8 @@ def new_output_webhook():
   if output.deleted:
     output.deleted = False
 
-  # We allow users to save their data in custom locations
-  # at the commit and output levels
-  if Path(data.get('commit_ci_dir', ci_commit.commit_dir)).resolve() != Path(ci_commit.commit_dir):
-    ci_commit.commit_dir_override = data.get('commit_ci_dir')
-  if Path(data.get('output_directory', output.output_dir)) != output.output_dir:
-    output.output_dir_override = data.get('output_directory')
+  ci_commit.commit_dir_override = data.get('artifacts_commit', data['commit_ci_dir'])
+  output.output_dir_override = data['output_directory']
 
   # We update the output's status
   output.is_running = data.get('is_running', False)

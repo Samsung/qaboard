@@ -7,13 +7,28 @@ import json
 import hashlib
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Union, Optional
 
 import yaml
 import click
 
 from .git import git_show
 
+
+
+def location_from_spec(spec: Union[str, Dict], interpolation_vars: Optional[Dict] = None) -> Path:
+  if isinstance(spec, dict):
+    # Mounts are often called differently on linux and windows
+    mount_flavor = 'windows' if os.name == 'nt' else 'linux'
+    if mount_flavor not in spec:
+      raise ValueError(f"Expected a key named {mount_flavor} in {spec}")
+    location = spec[mount_flavor]
+  else:
+    location = spec
+  location = os.path.expandvars(location)
+  if interpolation_vars:
+    location = location.format(**interpolation_vars)
+  return Path(location)
 
 
 def get_settings(inputs_type, config):
@@ -153,25 +168,37 @@ def make_hash(obj):
 
 
 
-def get_commit_ci_dir(ci_dir, commit):
-  if not commit or not ci_dir:
+def get_commit_dirs(commit):
+  # FIXME: change conventions
+  if not commit:
     return Path()
-  # commit is either a gipython commit, or a commit hexsha
-  if isinstance(commit, str):
+  if isinstance(commit, str): # commit hexsha
     try:
       authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
       dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
     except:
       return Path()    
   else:
-    dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
-  return ci_dir / 'commits' / dir_name
+    try:
+      # CiCommit from the backend
+      committer_name = commit.committer_name if commit.committer_name else "unknown"
+      dir_name = f'{int(commit.authored_datetime.timestamp())}__{committer_name}__{commit.hexsha[:8]}'
+    except:
+      # gitpython commit
+      dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
+  return Path('commits') / dir_name
 
 
-def batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci=False):
+# backward compatibility for the CI of HW_ALG (tools/ci_scripts/find_valid_build.py) and has to exist for tof/swip_tof's runs
+def get_commit_ci_dir(ci_dir, commit):
+  return ci_dir / get_commit_dirs(commit)
+
+
+
+def batch_dir(outputs_commit, batch_label, tuning, save_with_ci=False):
   from qaboard.config import is_ci, subproject
   batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
-  return commit_ci_dir / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
+  return outputs_commit / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
 
 
 def tuning_foldername(batch_label, tuning_parameters_hash):
@@ -186,9 +213,9 @@ def tuning_foldername(batch_label, tuning_parameters_hash):
   return parameters_folder 
 
 
-def make_prefix_outputs_path(commit_ci_dir, batch_label, platform, configuration, tuning, save_with_ci):
+def make_prefix_outputs_path(outputs_commit, batch_label, platform, configuration, tuning, save_with_ci):
   return (
-    batch_dir(commit_ci_dir, batch_label, tuning, save_with_ci) /
+    batch_dir(outputs_commit, batch_label, tuning, save_with_ci) /
     platform /
     slugify_config(configuration) /
     tuning_foldername(batch_label, hash_parameters(tuning))

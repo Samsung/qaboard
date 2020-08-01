@@ -22,7 +22,7 @@ from backend.models import Base, CiCommit
 # import backend.models as models
 from backend import repos
 from ..git_utils import git_pull
-from ..config import default_ci_directory
+from ..config import default_outputs_root, default_artifacts_root
 
 class Project(Base):
   __tablename__ = 'projects'
@@ -32,37 +32,39 @@ class Project(Base):
 
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
 
-  @property
-  def database(self):
-    try:
-      return Path(self.data['qatools_config']['inputs']['database']['linux'])
-    except:
-      return Path('/net/f2/algo_archive/')
 
   @property
-  def ci_directory(self):
+  def storage_roots(self):
     """
-    The root CI directory where we save artifacts and outputs for this project.
-    From there you can You should append the git repository's namespaced name (eg dvs/psp_swip) to get where results are saved.
+    The locations where we save outputs and artifacts for this project.
     """
+    id_git = self.id_git
+    from qaboard.config import storage_roots
+    outputs_root, artifacts_root = storage_roots(self.data.get('qatools_config', {}), Path(self.id), Path(self.id_relative))
     try:
-      return Path(self.data['qatools_config']['ci_root']['linux'])
+      from qaboard.config import storage_roots
+      outputs_root, artifacts_root = storage_roots(self.data.get('qatools_config', {}), Path(self.id), Path(self.id_relative))
     except:
-      return default_ci_directory
+      outputs_root = default_outputs_root
+      artifacts_root = default_artifacts_root
+    return {
+      "outputs": outputs_root / id_git,
+      "artifacts": artifacts_root / id_git,
+    }
 
   @property
-  def id_git(self):
+  def id_git(self) -> str:
     """
-    qatools can handle sub-projects. They share a git repo, but are based at different paths.
-    The `id_git` is the name of the repository in gitlab.
+    QA-Board can handle sub-projects. They share a git repo, but are based at different paths.
+    The `id_git` is the name of the repository.
     """
     return self.data.get('git', {}).get('path_with_namespace', self.id)
 
   @property
-  def id_relative(self):
+  def id_relative(self) -> str:
     """
-    qatools can handle sub-projects. They share a git repo, but are based at different paths.
-    The `id_relative` is where, relatie to the git repository's root.
+    QA-Board can handle sub-projects. They share a git repo, but are based at different paths.
+    The `id_relative` is the project's directory, relative to the repository root.
     """
     # FIXME: this could really by computed when the project is updated, or cached...
     if self.id == self.id_git:
@@ -88,8 +90,6 @@ class Project(Base):
       project = session.query(Project).filter_by(**kwargs).one()
     except NoResultFound:
       project = Project(**kwargs)
-      # session.add(project)
-      # session.commit()
     if not project.data:
       project.data = {}
     return project

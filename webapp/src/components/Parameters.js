@@ -46,18 +46,18 @@ class CommitParameters extends React.Component {
 
   fetchData(props, label) {
     const { new_commit, ref_commit } = props;
-    if (new_commit === undefined || new_commit === null || new_commit.commit_dir_url === undefined || new_commit.commit_dir_url === null)
+    if (new_commit === undefined || new_commit === null || new_commit.artifacts_url === undefined || new_commit.artifacts_url === null)
     	return;
 
     this.setState({is_loaded: false})
     let results = [];
     const should_get_all = label === undefined || label === null;
     if (should_get_all || label === 'new') {
-      results.push(['new', `${new_commit.commit_dir_url}/manifests/${this.state.artifact}.json`])
+      results.push(['new', `${new_commit.artifacts_url}/manifests/${this.state.artifact}.json`])
     }
     if (should_get_all || label === 'reference') {
-      if (!!ref_commit && !!ref_commit.commit_dir_url)
-        results.push(['reference', `${ref_commit.commit_dir_url}/manifests/${this.state.artifact}.json`])
+      if (!!ref_commit && !!ref_commit.artifacts_url)
+        results.push(['reference', `${ref_commit.artifacts_url}/manifests/${this.state.artifact}.json`])
     }
     const load_data = label => (response, error) => {
       let storage = 0
@@ -106,8 +106,8 @@ class CommitParameters extends React.Component {
   componentDidUpdate(prevProps, prevState) {
       const has_new = this.props.new_commit !== undefined && this.props.new_commit !== null;
       const has_ref = this.props.ref_commit !== undefined && this.props.ref_commit !== null;
-      let updated_new = has_new && (prevProps.new_commit === null || prevProps.new_commit === undefined || prevProps.new_commit.id !== this.props.new_commit.id || prevProps.new_commit.commit_dir_url !== this.props.new_commit.commit_dir_url);
-      let updated_ref = has_ref && (prevProps.ref_commit === null || prevProps.ref_commit === undefined || prevProps.ref_commit.id !== this.props.ref_commit.id || prevProps.ref_commit.commit_dir_url !== this.props.ref_commit.commit_dir_url);
+      let updated_new = has_new && (prevProps.new_commit === null || prevProps.new_commit === undefined || prevProps.new_commit.id !== this.props.new_commit.id || prevProps.new_commit.artifacts_url !== this.props.new_commit.artifacts_url);
+      let updated_ref = has_ref && (prevProps.ref_commit === null || prevProps.ref_commit === undefined || prevProps.ref_commit.id !== this.props.ref_commit.id || prevProps.ref_commit.artifacts_url !== this.props.ref_commit.artifacts_url);
       if (updated_new) {
         if (!!this.state.cancel_source.new)
           this.state.cancel_source.new.cancel();
@@ -154,8 +154,8 @@ class CommitParameters extends React.Component {
       <OutputViewer
         key="bit-accuracy"
         type="files/bit-accuracy"
-        output_new={{...fake_output, output_dir_url: new_commit.repo_commit_dir_url}}
-        output_ref={!!ref_commit && {...fake_output, output_dir_url: ref_commit.repo_commit_dir_url}}
+        output_new={{...fake_output, output_dir_url: new_commit.repo_artifacts_url}}
+        output_ref={!!ref_commit && {...fake_output, output_dir_url: ref_commit.repo_artifacts_url}}
         manifests={manifests}
         show_all_files={show_all_files}
         expand_all={expand_all}

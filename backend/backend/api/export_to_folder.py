@@ -173,7 +173,7 @@ def export_to_folder():
   # We save the links in a unique folder
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
   m = hashlib.md5(query_string.encode('utf-8')).hexdigest()
-  export_dir = new_commit.repo_commit_dir / 'share' / m[:8]
+  export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
   export_dir.mkdir(parents=True, exist_ok=True)
 
   output_refs = {}

@@ -170,8 +170,7 @@ runners:
     # You can also set: project, resources, priority
 
 
-# Your artifacts will be saved under this location.
-ci_root:
+storage:
   linux: /stage/algo_data/ci
   windows: '//netapp/algo_data/ci'
 
