@@ -61,6 +61,8 @@ def clean(project_ids, before, can_delete_reference_branch, dryrun, verbose):
     for project in projects:
         if project_ids and not any([re.match(project_id, project.id) for project_id in project_ids]):
             continue
+        if project.data.get("legacy"):
+            continue
         secho(project.id, fg='blue', bold=True)
         if not project.repo:
             secho(f'[WARNING] Could not clone/read the git repo for {project.id}', fg='yellow')
