@@ -87,7 +87,7 @@ class BatchStatusMessages extends React.Component {
 
   render() {
     const { batch } = this.props;
-    if (batch === null || batch === undefined  || batch.output_dir_url === undefined)
+    if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
       return <span></span>
 
     let local_batch_message = (batch.data && batch.data.type === 'local') && (

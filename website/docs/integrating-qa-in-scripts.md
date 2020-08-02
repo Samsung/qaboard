@@ -69,7 +69,7 @@ curl -k "https://qa/api/v1/commits?project=tof/swip_tof" | jq
         "data": {
           "type": "ci"
         },
-        "output_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9/output",
+        "batch_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9/output",
         "aggregated_metrics": {},
         "valid_outputs": 0,
         "pending_outputs": 0,
@@ -119,7 +119,7 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
       "data": {
         "type": "ci"
       },
-      "output_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395/output",
+      "batch_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395/output",
       "aggregated_metrics": {},
       "valid_outputs": 1,
       "pending_outputs": 2,
@@ -145,7 +145,7 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
           "data": {
             "ci": true
           },
-          "output_dir_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395/output/windows/base-2x5/Truly_LSC_DB/M01",
+          "batch_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395/output/windows/base-2x5/Truly_LSC_DB/M01",
           "test_input_database": "\\\\netapp\\QA-Data\\2X5",
           "test_input_path": "Truly_LSC_DB\\M01",
           "test_input_tags": []

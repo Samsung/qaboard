@@ -117,14 +117,8 @@ class Output(Base):
   def output_dir(self):
     if self.output_dir_override is not None:
       return Path(self.output_dir_override)
-    return self.batch.output_dir / self.output_folder
+    return self.batch.batch_dir / self.output_folder
 
-  @property
-  def output_dir_url(self):
-    if self.output_dir_override is not None:
-      relative_path = self.output_dir_override
-      return dir_to_url(relative_path)
-    return f"{self.batch.output_dir_url}/{quote(str(self.output_folder))}" 
 
   def __repr__(self):
     return (f"[Output "
@@ -153,7 +147,7 @@ class Output(Base):
     return {
         **as_dict,
         'created_date': self.created_date.isoformat(),
-        'output_dir_url': self.output_dir_url,
+        'output_dir_url': dir_to_url(self.output_dir),
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),
         'test_input_metadata': self.test_input.data['metadata'] if (self.test_input.data and 'metadata' in self.test_input.data) else {},

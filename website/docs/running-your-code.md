@@ -18,7 +18,7 @@ qa --share run --input path/to/your/input.file 'echo "{absolute_input_path} => {
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
 
 :::note
-Results are saved under *output/*. `--share`'d results are saved in */mnt/qaboard*. To change it, edit `ci_root` in `qaboard.yml`.
+Results are saved under *output/*. `--share`'d results are saved in */mnt/qaboard*. To change it, edit `storage` in `qaboard.yml`.
 :::
 
 

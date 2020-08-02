@@ -665,11 +665,11 @@ class TuningExploration extends Component {
 
         {batch_data.optimization && <>
           <h4>Convergence</h4>
-          <img height={250} alt="not yet available" src={`${batch.output_dir_url}/plot_convergence.png?iter=${batch_data.best_iter}`}/>
+          <img height={250} alt="not yet available" src={`${batch.batch_dir_url}/plot_convergence.png?iter=${batch_data.best_iter}`}/>
           {/* <h4>Parameters' importance</h4>
-          <img alt="not yet available" src={`${batch.output_dir_url}/plot_objective.png`}/>
+          <img alt="not yet available" src={`${batch.batch_dir_url}/plot_objective.png`}/>
           <h4>How we sampled the search space</h4>
-          <img alt="not yet available" src={`${batch.output_dir_url}/plot_evaluations.png`}/> */}
+          <img alt="not yet available" src={`${batch.batch_dir_url}/plot_evaluations.png`}/> */}
         </>}
 
 

@@ -37,6 +37,9 @@ def update_batch():
     return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
+  # prefix_output_dir for backward-compatibility
+  batch.batch_dir_override = data.get("batch_dir", data.get("prefix_output_dir"))
+
   # Clients can store any metadata in each batch.
   # Currently it's used by `qa optimize` to store info on iterations
   if not batch.data:
@@ -199,7 +202,8 @@ def new_output_webhook():
   if output.deleted:
     output.deleted = False
 
-  ci_commit.commit_dir_override = data.get('artifacts_commit', data['commit_ci_dir'])
+  # prefix_output_dir for backward-compatibility
+  ci_commit.commit_dir_override = data.get('artifacts_commit', data.get('commit_ci_dir'))
   output.output_dir_override = data['output_directory']
 
   # We update the output's status

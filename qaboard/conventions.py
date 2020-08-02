@@ -194,10 +194,13 @@ def get_commit_ci_dir(ci_dir, commit):
   return ci_dir / get_commit_dirs(commit)
 
 
+def batch_folder_name(label:str) -> Path:
+  return Path('output') if label == 'default' else Path('tuning') / slugify(label)
+
 
 def batch_dir(outputs_commit, batch_label, tuning, save_with_ci=False):
   from qaboard.config import is_ci, subproject
-  batch_folder = Path('output') if batch_label == 'default' else Path('tuning') / slugify(batch_label)
+  batch_folder = batch_folder_name(batch_label)
   return outputs_commit / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
 
 
@@ -213,7 +216,12 @@ def tuning_foldername(batch_label, tuning_parameters_hash):
   return parameters_folder 
 
 
-def make_prefix_outputs_path(outputs_commit, batch_label, platform, configuration, tuning, save_with_ci):
+
+
+def make_batch_dir(outputs_commit, batch_label, platform, configuration, tuning, save_with_ci):
+  return batch_dir(outputs_commit, batch_label, tuning, save_with_ci)
+
+def make_batch_conf_dir(outputs_commit, batch_label, platform, configuration, tuning, save_with_ci):
   return (
     batch_dir(outputs_commit, batch_label, tuning, save_with_ci) /
     platform /

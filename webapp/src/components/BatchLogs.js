@@ -176,7 +176,7 @@ class OutputLog extends React.Component {
 class BatchLogs extends React.PureComponent {
   render() {
     const { batch } = this.props;
-    if (batch === null || batch === undefined  || batch.output_dir_url === undefined)
+    if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
       return <span></span>
 
     let batch_mock_output = {
@@ -185,7 +185,7 @@ class BatchLogs extends React.PureComponent {
       is_running: false,
       extra_parameters: {},
       output_type: "batch",
-      output_dir_url: batch.output_dir_url,
+      output_dir_url: batch.batch_dir_url,
       test_input_metadata: batch.data,
       configurations: [],
     }
@@ -206,7 +206,7 @@ class BatchLogs extends React.PureComponent {
             />)}
       <h2 style={{marginTop: '25px'}} className={Classes.HEADING}>Batch logs: {title}</h2>
       {some_tuning_commands && <OutputLog
-        key={batch.output_dir_url}
+        key={batch.batch_dir_url}
         project={this.props.project}
         commit={this.props.commit}
         output={batch_mock_output}

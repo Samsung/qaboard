@@ -149,7 +149,7 @@ exit(0)
 for commit in commits.all():
   print(commit.hexsha)
   try:
-    project_id, hexsha = hexsha.split('/', maxsplit=1)
+    project_id, hexsha = commit.hexsha.split('/', maxsplit=1)
   except:
     pass
   if not hexsha:
