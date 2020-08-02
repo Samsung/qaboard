@@ -31,7 +31,7 @@ from .utils import PathType
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def optimize(ctx, batches, batches_files, config_file, forwarded_args):
-  ctx.obj['prefix_output_dir'].mkdir(parents=True, exist_ok=True)
+  ctx.obj['batch_dir'].mkdir(parents=True, exist_ok=True)
   ctx.obj['batches'] = batches
   ctx.obj['batches_files'] = batches_files
   ctx.obj['forwarded_args'] = forwarded_args
@@ -59,7 +59,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
         **ctx.obj,
         **{
           "extra_parameters": dim_mapping(suggested),
-          # TODO: we really should to tuning/platform in make_prefix_outputs_path
+          # TODO: we really should to tuning/platform in make_batch_conf_dir
           #       1. make change, 2. rename existing folders)
           "output_directory": iteration_batch_dir,
           'input_path': '|'.join(batches),

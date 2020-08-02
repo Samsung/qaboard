@@ -69,7 +69,7 @@ curl -k "https://qa/api/v1/commits?project=my/project"
         "data": {
           "type": "ci"
         },
-        "output_dir_url": "/s/some/directory/output",
+        "batch_dir_url": "/s/some/directory/output",
         "aggregated_metrics": {},
         "valid_outputs": 0,
         "pending_outputs": 0,
@@ -119,7 +119,7 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=my/pr
       "data": {
         "type": "ci"
       },
-      "output_dir_url": "/s/some/directory/output",
+      "batch_dir_url": "/s/some/directory/output",
       "aggregated_metrics": {},
       "valid_outputs": 1,
       "pending_outputs": 2,
@@ -145,7 +145,7 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=my/pr
           "data": {
             "ci": true
           },
-          "output_dir_url": "/s/some/directory/output",
+          "batch_dir_url": "/s/some/directory/output",
           "test_input_database": "/db/XX",
           "test_input_path": "LSC/M01",
           "test_input_tags": []

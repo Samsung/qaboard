@@ -15,7 +15,8 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
 
-from qaboard.conventions import slugify
+from qaboard.conventions import batch_folder_name
+from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
 
@@ -35,32 +36,21 @@ class Batch(Base):
 
   __table_args__ = (UniqueConstraint('ci_commit_id', 'label', name='_ci_commit__label'),)
 
+  batch_dir_override = Column(String())
+
   outputs = relationship("Output",
                          back_populates="batch",
                          cascade="all, delete-orphan"
                         )
 
-  @property
-  def output_folder(self):
-    return Path('output') if self.label == 'default' else Path('tuning') / slugify(self.label)
 
   @property
-  def output_dir(self):
-    return self.ci_commit.outputs_dir / self.output_folder
+  def batch_dir(self):
+    if self.batch_dir_override:
+      return Path(self.batch_dir_override)
+    else:
+      return self.ci_commit.outputs_dir / batch_folder_name(self.label)
 
-  @property
-  @lru_cache()
-  def output_dir_url(self):
-    return f"{self.ci_commit.outputs_url}/{quote(str(self.output_folder))}"
-
-  def metrics(self, metric, outputs=None):
-    """Returns a list of results - for a chosen metric - over the commit's outputs.
-    The optionnal `outputs` parameter makes it almost like a static method.
-    It helps with scope issues in the templates.
-    """
-    if not outputs:
-      outputs = self.outputs
-    return [getattr(o, metric) for o in outputs if hasattr(o, metric)]
 
   def to_dict(self, with_outputs=False, with_aggregation=None):
     metrics_to_aggregate  = with_aggregation if with_aggregation else {}
@@ -76,7 +66,7 @@ class Batch(Base):
         'label': self.label,
         'created_date': self.created_date.isoformat(),
         'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
-        'output_dir_url': self.output_dir_url,
+        'batch_dir_url': dir_to_url(self.batch_dir),
 
         'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
         'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),
@@ -141,7 +131,7 @@ class Batch(Base):
     session.commit()
 
 
-# TODO: refactored with proper SQL
+# TODO: refactor with proper SQL, or use triggers to keep updated
 def aggregated_metrics(outputs, metrics_to_aggregate):
   if not metrics_to_aggregate:
     return {}
@@ -157,7 +147,7 @@ def aggregated_metrics(outputs, metrics_to_aggregate):
     aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
     aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
     # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
-    # TODO: Use qatools to know if smaller_is_better
+    # TODO: Use metric metadata to know if smaller_is_better, or pass the info in metrics_to_aggregate 
     # aggregated[f'{metric}_threshold_bad'] = treshold
   # Remove NaN values
   return {k: v for k, v in aggregated.items() if v == v}

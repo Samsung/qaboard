@@ -294,10 +294,6 @@ if commit_id and is_in_git_repo:
     pass
 
 
-artifacts_commit_root: Optional[Path]
-artifacts_commit: Optional[Path]
-outputs_commit_root: Optional[Path]
-outputs_commit: Optional[Path]
 if root_qatools_config:
   commit_dirs = get_commit_dirs(commit_id)
   artifacts_commit_root = artifacts_project_root / commit_dirs
@@ -305,10 +301,10 @@ if root_qatools_config:
   outputs_commit_root   = outputs_project_root   / commit_dirs
   outputs_commit        = outputs_project_root   / commit_dirs / subproject
 else:
-  artifacts_commit_root = None
-  artifacts_commit = None
-  outputs_commit_root = None
-  outputs_commit = None
+  artifacts_commit_root = Path()
+  artifacts_commit = Path()
+  outputs_commit_root = Path()
+  outputs_commit = Path()
 
 # backward compatibility for HW_ALG's runs. And tof/swip_tof's runs: has to exist
 commit_ci_dir = outputs_commit

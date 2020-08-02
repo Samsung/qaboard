@@ -87,7 +87,7 @@ def get_commits(branch=None):
   else:
     only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
     if only_ci_batches:
-      with_batches = ['default', 'ci-android-rt', 'manual-android-rt']
+      with_batches = ['default']
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
   # from ..utils import profiled
   # with profiled():

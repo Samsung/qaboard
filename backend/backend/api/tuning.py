@@ -224,8 +224,8 @@ def start_tuning(hexsha):
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
     prev_mask = os.umask(000)
-    if not batch.output_dir.exists():
-        batch.output_dir.mkdir(exist_ok=True, parents=True)
+    if not batch.batch_dir.exists():
+        batch.batch_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
 
@@ -237,7 +237,7 @@ def start_tuning(hexsha):
     if do_optimize:
         # we write somewhere the optimzation search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
-        config_path = batch.output_dir / 'optim-config.yaml'
+        config_path = batch.batch_dir / 'optim-config.yaml'
         config_option = f"--config-file '{config_path}'"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
@@ -290,12 +290,12 @@ def start_tuning(hexsha):
         "",
     ])
     print(qa_batch_script)
-    qa_batch_path = batch.output_dir / f"qa_batch.sh"
+    qa_batch_path = batch.batch_dir / f"qa_batch.sh"
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
     batch.output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = ['bash', '-c', f'"{qa_batch_path}" &> "{batch.output_dir}/log.txt"']
+    cmd = ['bash', '-c', f'"{qa_batch_path}" &> "{batch.batch_dir}/log.txt"']
     print(cmd)
     try:
         out = subprocess.run(cmd, encoding='utf-8')

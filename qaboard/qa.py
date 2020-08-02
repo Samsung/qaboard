@@ -17,7 +17,7 @@ import click
 from .runners import runners, Job, JobGroup
 from .runners.lsf import LsfPriority
 
-from .conventions import batch_dir, make_prefix_outputs_path, make_hash
+from .conventions import batch_dir, batch_dir, make_batch_dir, make_batch_conf_dir, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, input_data, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
@@ -28,7 +28,7 @@ from .api import get_outputs, notify_qa_database, serialize_paths
 from .iterators import iter_inputs, iter_parameters
 
 from .config import config_has_error, ignore_config_errors
-from .config import subproject, config
+from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root, outputs_commit_root
@@ -71,7 +71,9 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   # it makes collaboration among mutliple users / automated tools so much easier...
   os.umask(0)
 
-  ctx.obj['project'] = config.get('project', {}).get('name')
+  ctx.obj['project'] = project
+  ctx.obj['project_root'] = project_root
+  ctx.obj['subproject'] = subproject
   ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
   ctx.obj['user'] = user
   ctx.obj['dryrun'] = dryrun
@@ -105,7 +107,8 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['prefix_output_dir'] = make_prefix_outputs_path(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
+  ctx.obj['batch_conf_dir'] = make_batch_conf_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
+  ctx.obj['batch_dir'] = make_batch_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
 
   # For convenience, we allow users to change environment variables using {ENV: {VAR: value}}
   # in configurations or tuning parameters
@@ -126,13 +129,13 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
 
 @qa.command()
 @click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
 @click.argument('variable')
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
   """Prints the value of the requested variable. Mostly useful for debug."""
   try:
-    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
+    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('') if not output_path else output_path
   except:
     pass
   from .config import outputs_commit, commit_branch, artifacts_branch
@@ -158,7 +161,7 @@ def get(ctx, input_path, output_path, variable):
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
 @click.option('--keep-previous', is_flag=True, help="Don't clean previous outputs before the run.")
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
 @click.option('--save-manifests-in-database', is_flag=True, help="Save the input and outputs manifests in the database.")
@@ -168,7 +171,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
     ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('') if not output_path else output_path
+    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('') if not output_path else output_path
 
     # Usually we want to remove any files already present in the output directory.
     # It avoids issues with remaining state... This said,
@@ -318,13 +321,13 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
   ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
   if not output_path:
-    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
+    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('')
   else:
     output_directory = output_path
   ctx.obj['output_directory'] =  output_directory
@@ -346,12 +349,12 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["prefix_output_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
   ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
   if not output_path:
-    output_directory = ctx.obj['prefix_output_dir'] / input_path.with_suffix('')
+    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('')
   else:
     output_directory = output_path
 
@@ -440,7 +443,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     # It would be nice to generate the CLI help depending on the runner that's choosen, then we could use
     # unprefixed options!
     "concurrency": local_concurrency,
-    "project": lsf_config.get('project', config.get("project", {}).get('name', 'qaboard')),
+    "project": lsf_config.get('project', str(project) if project else "qaboard"),
     "max_threads": lsf_threads,
     "max_memory": lsf_memory,
     'resources': lsf_resources,
@@ -458,7 +461,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     input_configuration_str = serialize_config(run_context.configurations)
     for tuning_file, tuning_hash, tuning_params in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
       if not prefix_outputs_path:
-          prefix_output_dir = make_prefix_outputs_path(
+          batch_conf_dir = make_batch_conf_dir(
             outputs_commit,
             ctx.obj["batch_label"],
             run_context.platform,
@@ -467,10 +470,10 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
             ctx.obj['share']
           )
       else:
-          prefix_output_dir = outputs_commit / prefix_outputs_path
+          batch_conf_dir = outputs_commit / prefix_outputs_path
           if tuning_file:
-              prefix_output_dir = prefix_output_dir / Path(tuning_file).stem
-      run_context.output_dir = prefix_output_dir / run_context.rel_input_path.with_suffix('')
+              batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
+      run_context.output_dir = batch_conf_dir / run_context.rel_input_path.with_suffix('')
       run_context.extra_parameters = tuning_params
       if list_output_dirs:
         print(run_context.output_dir)
@@ -693,9 +696,8 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
         # # reference_output_directory = run_context.input_path if run_context.input_path.is_folder() else run_context.input_path.parent
         exit(1)
 
-      prefix_output_dir = make_prefix_outputs_path(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
-      # print(prefix_output_dir)
-      input_is_bit_accurate = is_bit_accurate(commit_dir / prefix_output_dir, run_context.database, [run_context.rel_input_path])
+      batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
+      input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if not all_bit_accurate:
@@ -763,9 +765,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
     else:
       output_directories = []
       for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
-        prefix_output_dir = make_prefix_outputs_path(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
+        batch_conf_dir = make_batch_conf_dir(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
         input_path = run_context.input_path.relative_to(run_context.database)
-        output_directory = prefix_output_dir / input_path.with_suffix('')
+        output_directory = batch_conf_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
 
     for reference_commit in reference_commits:
@@ -782,7 +784,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"https://qa/{config['project']['name']}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy", fg='red')
+          click.secho(f"https://qa/{project.as_posix()}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy", fg='red')
       exit(1)
 
 from .optimize import optimize
