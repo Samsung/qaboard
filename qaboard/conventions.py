@@ -168,16 +168,18 @@ def make_hash(obj):
 
 
 
-def get_commit_dirs(commit):
+def get_commit_dirs(commit, subproject=None):
   # FIXME: change conventions
   if not commit:
-    return Path()
+    # when within an artifact directory, git show will fail, and Path() is the artifact dir for the subproject
+    return Path(str(Path().resolve()).replace(str(subproject), ""))
   if isinstance(commit, str): # commit hexsha
     try:
       authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
       dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
     except:
-      return Path()    
+      # when within an artifact directory, git show will fail, and Path() is the artifact dir for the subproject
+      return Path(str(Path().resolve()).replace(str(subproject), ""))
   else:
     try:
       # CiCommit from the backend
