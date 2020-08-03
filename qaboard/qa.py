@@ -82,6 +82,7 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
 
   ctx.obj['outputs_commit'] = outputs_commit
   ctx.obj['artifacts_commit'] = artifacts_commit
+  ctx.obj['ci_commit_dir'] = artifacts_commit # backward compat for some HW_ALG tests...
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['raw_batch_label'] = label
