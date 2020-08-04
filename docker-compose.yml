@@ -122,7 +122,10 @@ services:
   #     context: .
   #     dockerfile: services/nginx/Dockerfile
   proxy:
-    image: nginx:1.18
+    # we used to simply use nginx:latest
+    image: docker.pkg.github.com/samsung/qaboard/proxy
+    build:
+      context: services/nginx
     # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
     # TODO: template locations blocks for the mount, or find something... maybe include an optionnal file in the config?
     command: /bin/bash -c "rm -rf /etc/nginx && cp -r /tmp/etc/nginx /etc && envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec ${NGINX_BIN-nginx} -g 'daemon off;'"
