@@ -152,8 +152,10 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user=user) -> T
       config['storage'] = config['ci_root']
     config_storage = config.get('storage', {})
     interpolation_vars = {"project": project, "subproject": subproject, "user": user}
-    artifacts_root = location_from_spec(config_storage.get('artifacts', config_storage), interpolation_vars)
-    outputs_root = location_from_spec(config_storage.get('outputs', config_storage), interpolation_vars)
+    spec_artifacts = config_storage.get('artifacts', config_storage) if isinstance(config_storage, dict) else config_storage
+    spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage
+    artifacts_root = location_from_spec(spec_artifacts, interpolation_vars)
+    outputs_root = location_from_spec(spec_outputs, interpolation_vars)
     if not artifacts_root or not outputs_root:
       raise KeyError
   except KeyError:

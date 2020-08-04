@@ -64,7 +64,7 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   noop_command = 'get' in sys.argv or 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
     ctx.obj['previous_cwd'] = os.getcwd()
-    click.echo(click.style("Working	directory changed to: ", fg='cyan') + click.style(str(root_qatools), fg='cyan', bold=True), err=True)
+    click.echo(click.style("Working	directory changed to: ", fg='blue') + click.style(str(root_qatools), fg='blue', bold=True), err=True)
     os.chdir(root_qatools)
 
   # We want open permissions on outputs and artifacts
@@ -180,6 +180,17 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       import shutil
       shutil.rmtree(output_directory, ignore_errors=True)
     output_directory.mkdir(parents=True, exist_ok=True)
+
+    with (output_directory / 'run.json').open('w') as f:
+      # TODO: pass some RunContext ?
+      json.dump({
+        "database": str(ctx.obj['database']),
+        "input_path": str(ctx.obj['input_path']),
+        "input_type": ctx.obj['input_type'],
+        "configurations": ctx.obj['configurations'],
+        "extra_parameters": ctx.obj['extra_parameters'],
+        "platform": ctx.obj['platform'],
+      }, f, sort_keys=True, indent=2, separators=(',', ': '))
 
     # Without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
@@ -529,7 +540,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           forwarded_args_cli if forwarded_args_cli else None,
       ]
       command = ' '.join([arg for arg in args if arg is not None])
-      click.secho(command, dim=True, err=True)
+      click.secho(command, fg='cyan', err=True)
+      click.secho(f"   {run_context.output_dir if run_context.output_dir.is_absolute else run_context.output_dir.relative_to(subproject)}", fg='blue', err=True)
       import re
       if 'QA_TESTING' in os.environ:
         # we want to make sure we test the current code
