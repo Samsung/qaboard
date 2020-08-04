@@ -53,6 +53,7 @@ services:
     # backward compat
     - "5000:5000"
     - "5002:5002"
+    - "5003:8080"
     depends_on:
     - iiif-cde
     environment:
