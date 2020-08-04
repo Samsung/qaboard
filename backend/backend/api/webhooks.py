@@ -219,6 +219,7 @@ def new_output_webhook():
     output.metrics = metrics
     output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')
 
+  db_session.add(ci_commit)
   db_session.add(output)
   db_session.commit()
   return jsonify(output.to_dict())
