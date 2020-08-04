@@ -5,11 +5,11 @@ sidebar_label: Defining Pipelines / DAG
 ---
 
 :::caution Work-In-Progress
-Nothing here is implemented currently, it's at the API design stage.
+Nothing here is implemented available, it's at the API design stage. [[Link-to-issue]](https://github.com/Samsung/qaboard/issues/10).
 :::
 
 Currently QA-Board lacks expressivity for the common use-case of:
-1. Run CDE on some images
+1. Run an algo on some images
 2. Calibration
 3. Validation
 

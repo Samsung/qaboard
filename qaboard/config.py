@@ -148,7 +148,7 @@ user = getuser()
 def storage_roots(config: Dict, project: Path, subproject: Path, user=user) -> Tuple[Path, Path]: 
   try:
     if 'ci_root' in config:
-      click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
+      # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
       config['storage'] = config['ci_root']
     config_storage = config.get('storage', {})
     interpolation_vars = {"project": project, "subproject": subproject, "user": user}
@@ -295,7 +295,7 @@ if commit_id and is_in_git_repo:
 
 
 if root_qatools_config:
-  commit_dirs = get_commit_dirs(commit_id)
+  commit_dirs = get_commit_dirs(commit_id, subproject)
   artifacts_commit_root = artifacts_project_root / commit_dirs
   artifacts_commit      = artifacts_project_root / commit_dirs / subproject
   outputs_commit_root   = outputs_project_root   / commit_dirs

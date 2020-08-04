@@ -78,11 +78,13 @@ You can use some special variables in your strings with some `${VARIABLE}` templ
 - [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
 - **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
 - **Outputs** are saved under `commit.outputs_url`
-- `user` is the one defined in the tuning tab or the project's default. 
+- [etc](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js#L303)
 
 :::tip
 If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages. You can add a dummy `only: {branch}`.
 :::
+
+
 
 ## Styling the integrations
 Optionnaly you can style each menu item:
