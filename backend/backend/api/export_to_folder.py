@@ -18,7 +18,7 @@ from sqlalchemy.sql import label
 from qaboard.utils import copy
 from qaboard.conventions import deserialize_config, serialize_config
 from backend import app, db_session
-from ..models import Project, CiCommit, Batch, slugify_config
+from ..models import Project, CiCommit, Batch, slugify_hash
 
 
 # https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
@@ -249,7 +249,7 @@ def export_to_folder():
           c_prefix = serialize_config(common_data.get("configurations_prefix", 'placeholder-placeholder'))
           c_suffix = serialize_config(common_data.get("configurations_suffix", 'placeholder-placeholder'))
           return c.replace(c_prefix, '').replace(c_suffix, '')
-        stripped_config = slugify_config(strip_config(output.configuration))
+        stripped_config = slugify_hash(strip_config(output.configuration))
         # list of common SIRC-specific names
         stripped_config = stripped_config.replace('workspace-configurations-', '')
         if stripped_config:
@@ -264,7 +264,7 @@ def export_to_folder():
         # print('output.extra_parameters', output.extra_parameters)
         # print('tame(output.extra_parameters)', tame(output.extra_parameters))
         # print('p_new', p_new)
-        extra_parameters_label = slugify_config(str(p))
+        extra_parameters_label = slugify_hash(str(p))
         label_mappings['extra_parameters'][extra_parameters_label] = output.extra_parameters
         if p: labels.append(extra_parameters_label)
       stitch = lambda l: f"@{'@'.join(l)}" if l else ''

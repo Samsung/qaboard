@@ -18,7 +18,8 @@ class TestQaCli(unittest.TestCase):
   @classmethod
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
-    os.chdir(Path(__file__).resolve().parent.parent / 'qaboard/sample_project')
+    root_repo = Path(__file__).resolve().parent.parent
+    os.chdir(root_repo / 'qaboard/sample_project')
     # we create some files...
     os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
     database = str(Path())
@@ -33,7 +34,7 @@ class TestQaCli(unittest.TestCase):
       f.write(yaml.dump(images))
     os.environ['QA_DATABASE'] = database
     os.environ['QA_OFFLINE'] = 'true'
-    os.environ['QA_STORAGE'] = '/tmp'
+    os.environ['QA_STORAGE'] = str(root_repo.resolve())
 
   @classmethod
   def TearDownClass(self):
