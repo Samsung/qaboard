@@ -49,7 +49,7 @@ def get_settings(inputs_type, config):
 
 
 
-def slugify(s : str, maxlength=64):
+def slugify(s : str, maxlength=32):
   # lowercased and shortened to 63 bytes
   slug = s.lower()
   if maxlength:
@@ -63,13 +63,15 @@ def slugify(s : str, maxlength=64):
   slug = slug.strip('-') 
   return slug
 
-def slugify_config(s : str, maxlength=64):
-  """Slugiy a string like they do at Gitlab."""
-  # lowercased and shortened to 63 bytes
-  if len(s) < maxlength:
-    return slugify(s)
+def slugify_hash(s, maxlength=32):
+  if not isinstance(s, str):
+    s_to_slugify = json.dumps(s, sort_keys=True)
+  else:
+    s_to_slugify = s
+  if len(s_to_slugify) < maxlength:
+    return slugify(s_to_slugify)
   s_hash = make_hash(s)[:8]
-  return f"{s_hash}-{slugify(s[-(maxlength-8):], maxlength=None)}"
+  return f"{s_hash}-{slugify(s_to_slugify[-(maxlength-8):], maxlength=None)}"
 
 
 def deserialize_config(configuration: str) -> List:
@@ -168,27 +170,28 @@ def make_hash(obj):
 
 
 
-def get_commit_dirs(commit, subproject=None):
-  # FIXME: change conventions
+def get_commit_dirs(commit, repo_root: Optional[Path]=None) -> Path:
+  # If there is no git data we store outputs in the current working directory,
+  # or at the project root if using subprojects...
+  # FIXME: on Windows the trick of returning an absolute path and have some_path / get_commit_dirs()
+  #        be equal to get_commit_dirs() doesn't work...
   if not commit:
-    # when within an artifact directory, git show will fail, and Path() is the artifact dir for the subproject
-    return Path(str(Path().resolve()).replace(str(subproject), ""))
+    if repo_root is None:
+      raise ValueError("Not enough information about the commit to know where to store its data.")
+    return repo_root.resolve()
   if isinstance(commit, str): # commit hexsha
     try:
-      authored_date, author_name, commit_id = git_show(format='%at|%an|%H').split('|')
-      dir_name = f'{authored_date}__{author_name}__{commit_id[:8]}'
+      commit_id = git_show(format='%H')
     except:
-      # when within an artifact directory, git show will fail, and Path() is the artifact dir for the subproject
-      return Path(str(Path().resolve()).replace(str(subproject), ""))
+      if repo_root is None:
+        raise ValueError("Not enough information about the commit to know where to store its data.")
+      # if we run within an artifact directory, we're not in a git repo, so "git show" will fail.
+      return repo_root.resolve()
   else:
-    try:
-      # CiCommit from the backend
-      committer_name = commit.committer_name if commit.committer_name else "unknown"
-      dir_name = f'{int(commit.authored_datetime.timestamp())}__{committer_name}__{commit.hexsha[:8]}'
-    except:
-      # gitpython commit
-      dir_name = f'{commit.authored_date}__{commit.author.name}__{commit.hexsha[:8]}'
-  return Path('commits') / dir_name
+    commit_id = commit.hexsha
+  # git hex hashes are size 40. For us 16 should be plenty enough...
+  dir_name = f'{commit_id[:2]}/{commit_id[2:16]}'
+  return Path(dir_name)
 
 
 # backward compatibility for the CI of HW_ALG (tools/ci_scripts/find_valid_build.py) and has to exist for tof/swip_tof's runs
@@ -197,37 +200,23 @@ def get_commit_ci_dir(ci_dir, commit):
 
 
 def batch_folder_name(label:str) -> Path:
-  return Path('output') if label == 'default' else Path('tuning') / slugify(label)
+  return Path('output') if label == 'default' else Path('output') / slugify_hash(label)
 
 
-def batch_dir(outputs_commit, batch_label, tuning, save_with_ci=False):
+
+def batch_dir(outputs_commit, batch_label, save_with_ci=False):
   from qaboard.config import is_ci, subproject
   batch_folder = batch_folder_name(batch_label)
   return outputs_commit / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
 
+def make_batch_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
+  return batch_dir(outputs_commit, batch_label, save_with_ci)
 
-def tuning_foldername(batch_label, tuning_parameters_hash):
-  if batch_label != 'default':
-    if not tuning_parameters_hash:
-      param_hash = make_hash({})
-    else:
-      param_hash = tuning_parameters_hash
-    parameters_folder = Path(param_hash[:2]) / param_hash
-  else:
-    parameters_folder = ''
-  return parameters_folder 
-
-
-
-
-def make_batch_dir(outputs_commit, batch_label, platform, configuration, tuning, save_with_ci):
-  return batch_dir(outputs_commit, batch_label, tuning, save_with_ci)
-
-def make_batch_conf_dir(outputs_commit, batch_label, platform, configuration, tuning, save_with_ci):
+def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
+  full_configurations = [platform] if platform != 'linux' else []
+  full_configurations.extend([*configurations, extra_parameters])
   return (
-    batch_dir(outputs_commit, batch_label, tuning, save_with_ci) /
-    platform /
-    slugify_config(configuration) /
-    tuning_foldername(batch_label, hash_parameters(tuning))
+    batch_dir(outputs_commit, batch_label, save_with_ci) /
+    slugify_hash(full_configurations, maxlength=16)
   )
 

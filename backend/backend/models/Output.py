@@ -15,7 +15,7 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
-from qaboard.conventions import slugify, slugify_config, make_hash, serialize_config
+from qaboard.conventions import slugify, slugify_hash, make_hash, serialize_config
 from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
@@ -101,17 +101,9 @@ class Output(Base):
 
   @property
   def output_folder(self):
-    if self.batch.label != 'default':
-      parameters_s = json.dumps(self.extra_parameters, sort_keys=True)
-      parameters_hash = hashlib.md5(parameters_s.encode()).hexdigest()
-    else:
-      parameters_hash = ''
-    config_slug = slugify_config(self.configuration)
-    if config_slug:
-      return f'{self.platform}/{config_slug}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
-    else:
-      return f'{self.platform}/{parameters_hash[:2]}/{parameters_hash}/{self.test_input.output_folder}'
-    # return Path(self.platform) / slugify_config(self.configuration) / parameters_hash[:2] / parameters_hash / self.test_input.output_folder
+    full_configurations = [self.platform] if self.platform != 'linux' else []
+    full_configurations.extend([*self.configurations, self.extra_parameters])
+    return f'{slugify_hash(full_configurations, maxlength=16)}/{self.test_input.output_folder}'
 
   @property
   def output_dir(self):

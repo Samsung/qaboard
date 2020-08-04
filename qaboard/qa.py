@@ -107,8 +107,8 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
       else:
         ctx.obj['extra_parameters'] = json.load(f)
   # batch runs will override this since batches may have different configurations
-  ctx.obj['batch_conf_dir'] = make_batch_conf_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
-  ctx.obj['batch_dir'] = make_batch_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configuration'], ctx.obj['extra_parameters'] if tuning else tuning_filepath, share)
+  ctx.obj['batch_conf_dir'] = make_batch_conf_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configurations'], ctx.obj['extra_parameters'], share)
+  ctx.obj['batch_dir'] = make_batch_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configurations'], ctx.obj['extra_parameters'], share)
 
   # For convenience, we allow users to change environment variables using {ENV: {VAR: value}}
   # in configurations or tuning parameters
@@ -476,8 +476,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
             outputs_commit,
             ctx.obj["batch_label"],
             run_context.platform,
-            input_configuration_str,
-            tuning_file if tuning_params else None,
+            run_context.configurations,
+            tuning_params,
             ctx.obj['share']
           )
       else:
@@ -708,7 +708,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
         # # reference_output_directory = run_context.input_path if run_context.input_path.is_folder() else run_context.input_path.parent
         exit(1)
 
-      batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
+      batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
       input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
       all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
@@ -746,7 +746,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    from .config import is_in_git_repo, commit_branch, is_ci, outputs_project_root
+    from .config import is_in_git_repo, commit_branch, is_ci, outputs_project_root, repo_root
     from .bit_accuracy import is_bit_accurate
     from .gitlab import lastest_successful_ci_commit
     from .conventions import get_commit_dirs
@@ -777,7 +777,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
     else:
       output_directories = []
       for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
-        batch_conf_dir = make_batch_conf_dir(subproject, ctx.obj['batch_label'], ctx.obj["platform"], serialize_config(run_context.configurations), None, ctx.obj['share'])
+        batch_conf_dir = make_batch_conf_dir(subproject, ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj["extra_parameters"], ctx.obj['share'])
         input_path = run_context.input_path.relative_to(run_context.database)
         output_directory = batch_conf_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
@@ -786,7 +786,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       # if the reference commit is pending or failed, we wait or maybe pick a parent
       reference_commit = lastest_successful_ci_commit(reference_commit)
       click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
-      reference_rootproject_ci_dir = outputs_project_root / get_commit_dirs(reference_commit)
+      reference_rootproject_ci_dir = outputs_project_root / get_commit_dirs(reference_commit, repo_root)
       click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
       all_bit_accurate = True
       for o in output_directories:

@@ -259,7 +259,7 @@ else:
 
 
 # TODO: refactor in git.py, consider calling git directly...
-repo_root = Path(os.environ.get('QA_REPO', str(root_qatools)))
+repo_root = Path(os.environ.get('QA_REPO', str(root_qatools if root_qatools else Path())))
 is_in_git_repo = False
 for d in (repo_root, *list(repo_root.parents)):
   if (d / '.git').is_dir():
@@ -297,7 +297,9 @@ if commit_id and is_in_git_repo:
 
 
 if root_qatools_config:
-  commit_dirs = get_commit_dirs(commit_id, subproject)
+  assert artifacts_project_root
+  assert outputs_project_root
+  commit_dirs = get_commit_dirs(commit_id, repo_root)
   artifacts_commit_root = artifacts_project_root / commit_dirs
   artifacts_commit      = artifacts_project_root / commit_dirs / subproject
   outputs_commit_root   = outputs_project_root   / commit_dirs

@@ -54,7 +54,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
       click.secho(f"Updating QA-Board", fg='blue')
 
       iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
-      iteration_batch_dir = batch_dir(outputs_commit, iteration_batch_label, True)
+      iteration_batch_dir = batch_dir(outputs_commit, iteration_batch_label)
       notify_qa_database(**{
         **ctx.obj,
         **{
@@ -110,7 +110,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
         })
         try:
           click.secho(f'Creating plots', fg='blue')
-          make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label'], tuning=True))
+          make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
         except:
           pass
       else:
@@ -123,7 +123,7 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
     return
 
   # tuning plots are saved in the label directory
-  make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label'], tuning=True))
+  make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
 
 
 
