@@ -1,6 +1,6 @@
 {
-  "short_name": "QA SIRC",
-  "name": "QA tools for SIRC's projects",
+  "short_name": "QA-Board",
+  "name": "QA-Board",
   "icons": [
     {
       "src": "favicon.ico",

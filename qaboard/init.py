@@ -1,5 +1,5 @@
 """
-Initialize a qatools repository
+Initialize a QA-Board project
 ```
 qa init
 ```

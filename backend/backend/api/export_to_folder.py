@@ -102,7 +102,7 @@ def compatible(o1, o2):
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
     return False
 
-# Note: already defined in qatools.tuning, but raises instead of returning None
+# Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
   """
   Return the output from from a given batch that looks most similar to a given output.

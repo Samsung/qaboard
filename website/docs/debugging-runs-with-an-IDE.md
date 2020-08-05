@@ -12,8 +12,7 @@ Edit your "debug configurations" like this:
 - **Parameters:** CLI parameters for `qa`: **`run -i images/A.jpg`**.
 - **Working directory:** Check it’s defined as the directory with *qaboard.yaml*. If this directory happens to have a subfolder named "qaboard", use it.
 
-
-![pyCharm setup](/img/pycharm-debugging-setup.png)
+<img alt="pyCharm setup" src={useBaseUrl('img/pycharm-debugg.png')} />
 
 > In some cases you'll also need to define as environment variables `LC_ALL=en_US.utf8 LANG=en_US.utf8`
 
@@ -22,10 +21,10 @@ To configure debugging, the editor opens a file called *launch.json*. You want t
 
 ```json
 {
-  "name": "qatools",
+  "name": "qaboard",
   "type": "python",
   "request": "launch",
-  "module": "qatools",
+  "module": "qaboard",
   "args": [
     "--", // needed...
     "--help",
@@ -36,10 +35,10 @@ To configure debugging, the editor opens a file called *launch.json*. You want t
 ```json
 {
   "--",
-  "--inputs-database",
+  "--database",
   ".",
   "run",
-  "--input-path",
+  "--input",
   "tv/tv_GW1_9296x256_REMOSAIC_V1_FULL_X_HP_PDA1",
 }
 ```

@@ -1,5 +1,5 @@
 """
-Misc utilities useful for qatools 
+Misc utilities 
 """
 import os
 import re

@@ -120,8 +120,9 @@ objective:
   #   ...
 
   # target:
-  #   # The target metrics used in the loss function can be chosen...
-  #   # ...either (default) using the quality target you defined in the qatools config
+  #   # The target metric value used in the loss function can be chosen
+  #   # either, by default, using the target defined in your metrics configuration
+  #   # (Refer to https://samsung.github.io/qaboard/docs/computing-quantitative-metrics)
   #   # eg ${metrics.default_metric && metrics.available_metrics[metrics.default_metric] && metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
   #   # Or from a specific git revision: 
   #   branch: ${config.project.reference_branch}  # a git branch/tag

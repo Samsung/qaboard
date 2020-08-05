@@ -1,5 +1,5 @@
 """
-The naming conventions about where qatools saves results.
+The conventions about where QA-Board stores results.
 """
 import os
 import re

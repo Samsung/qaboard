@@ -58,10 +58,10 @@ export const default_qatools_config = {
 		reference_branch: 'develop',
 	},
 	lsf: {
-		user: 'ispq',
+		user: 'root',
 	},
 	storage: {
-		linux: '/home/arthurf/ci',
+		linux: '/mnt/qaboard',
 	},
 	inputs: {
 		configuration: 'base',
