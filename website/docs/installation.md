@@ -7,7 +7,7 @@ sidebar_label: Installation
 To use QA-Board you need to install its CLI client. It runs your code and syncs with a run-tracking server.
 
 ```bash
-pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qatools
+pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard
 # If you have SSL/certificates/trust errors, use --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org
 # If you have timeouts, not authorized, proxy errors, or "this is not a git repo error", use --proxy http://dlp2-wcg01:8080 # in case of proxy issues (TIMEOUT error) in case of SSL/proxy issues
 
