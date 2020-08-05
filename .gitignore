@@ -3,9 +3,11 @@ build_qadocs/
 log.lsf.txt
 log.txt
 ssl/
+commits/
 
 image.batches.yaml
 iter.batches.yaml
+sub.batches.yaml
 
 *.png
 *.jpg

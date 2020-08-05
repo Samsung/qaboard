@@ -511,7 +511,7 @@ const debug_integrations = [
           'Jenkins-Crumb': 'c762b20d61bd34c5fd8e49ad6637a8a1',
         },
         params: {
-          token: 'qatools',
+          token: 'qaboard',
           project_name: 'CIS',
           branch: '${commit.branch}',
           cause: 'Triggered via the QA app'

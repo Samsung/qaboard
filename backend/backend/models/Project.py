@@ -188,13 +188,13 @@ def update_project(data, db_session):
       qatools_config = qaboard.merge(config, qatools_config)
     qatools_config['project']['name'] = project_id
 
-    # We store qatools's configuration twice: at the project level and at the commit level
+    # We store the QA-Board configuration twice: at the project level and at the commit level
     # - Commit-level info is important to let users easily tweak the outputs and metrics
     #   they want to see when working on their branches 
     ci_commit.data.update({'qatools_config': qatools_config})
     # - Project-level information is used as a default or when showing in the UI list of commits
     #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
-    #   This said, we also update project-level data when it's the first time we get a qatools config for a project
+    #   This said, we also update project-level data when it's the first time we get a QA-Board config for a project
     is_initialization = 'qatools_config' not in project.data
     reference_branch = qatools_config['project'].get('reference_branch', 'master')
     is_reference = branch == reference_branch

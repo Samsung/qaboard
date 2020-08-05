@@ -1,5 +1,5 @@
 """
-Sample implementation of a CLI wrapper using qatools.
+Sample implementation of a CLI wrapper with QA-Board.
 """
 import sys
 import subprocess

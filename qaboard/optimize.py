@@ -1,10 +1,3 @@
-"""
-Notice: This file is unmaintained at the moment, and likely broken.
-Not much is needed to bring it back to life!
-
-> If needed contact Arthur Flam, arthur.flam@samsung.com
-> and it will happen.
-"""
 import subprocess
 from functools import lru_cache
 import yaml
@@ -286,7 +279,7 @@ def matching_output(output_reference, outputs):
 
 def batch_objective(batch_label, config_objective):
   this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
-  # We can compare to KPI quality target defined using qatools
+  # We can compare to KPI quality target defined
   if 'target' in config_objective and config_objective['target']:
     target = config_objective['target']
     use_default_targets = not 'id' in target and not 'branch' in target
