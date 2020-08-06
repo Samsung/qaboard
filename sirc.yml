@@ -87,7 +87,7 @@ services:
         group: uucp
         gid: 10
     volumes:
-    - /opt/dockermounts/stage/algo_data:/repository
+      - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
     environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
