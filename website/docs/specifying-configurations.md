@@ -13,101 +13,109 @@ You will want to run code on the same inputs with different configuration. Depen
 - read configuration from files
 - etc.
 
-There is a huge variety of configuration formats and needs. Hence, QA-Board is not very opiniated. The `run()` function will provide a **list of configurations**, which are are free to interpret however you please.
-
-:::tip
-Access configurations using `context.obj['configurations']`. It defaults to `[]`, or the value of `inputs.configurations` in *qaboard.yaml*.
-:::
+There is a huge variety of configuration formats and needs. Hence, QA-Board is not very opiniated. The `run(context)` function will provide a list of configurations in `context.configs`. Configurations defaults to `[]`, or to the value of `inputs.configs` in *qaboard.yaml*.
 
 ## Specifying configurations
 You can specify configurations on the CLI:
 
 ```bash
-qa --configuration low-power run --input my/test
-#=> ctx.obj['configuration'] = ['low-power']
-qa --configuration base:delta run --input my/test
-#=> ctx.obj['configuration'] = ['base', 'delta']
+qa --config low-power run --input my/test
+#=> ctx.configs = ['low-power']
+qa --config base:delta run --input my/test
+#=> ctx.configs = ['base', 'delta']
 
-# Note: The ":"-separated syntax will be replaced by just giving multiple --configuration flags.
-#       Users usually run batches, and rarely write `qa run` commands by hand.
+qa --config base --config delta run --input my/test
+#=> ctx.configs = ['base', 'delta']
 ```
 
-If you use batches:
+Users often use batches to make it easier:
 
 ```yaml {5-7} title="qa/batches.yaml"
 my-batch:
   inputs:
   - A.jpg
-  configurations:
+  configs:
   - base
   - delta
 
 # $ qa batch my-batch
-# => qa --configuration base:delta run A.jpg
-# => qa --configuration base:delta run B.jpg
+# => qa --config base:delta run A.jpg
+# => qa --config base:delta run B.jpg
 ```
 
 ## Common meaning for configurations
-While QA-Board is not opiniated, projects usually consider that each configuration in `ctx.obj["configurations"]` is meant to be merged with ones before. Using "delta"/"cascading"/"partial" configurations is easy to work with.
-standardize on setups like:
+QA-Board is not opiniated. Projects usually consider that each configuration in `ctx.configs` is meant to be merged with ones before:
 
 ```yaml
-# ctx.obj['configuration'] as YAML:
-configurations:
+configs:
 - base                     # load from a file, e.g. ./configs/{base}.yaml, kept in source control
-- /abs/path/to/config.yaml # read from absolute paths for convenience
+- /abs/path/to/config.yaml # overwrite with info from an absolute path
 - key: value               # give directly parameters...
-- section:                 # don't be shy to structure parameters!
+- section:
     key2: value2
 ```
 
 You are free to pick different conventions.
 
-:::note API Design
-Today the API provides tuning parameters via `extra_parameters`, as a dict... In the future we may simply append it to ctx.obj['configurations'], to let users transparently do tuning. 
+:::tip
+Many project just want to use "parameters" and don't need an array of "delta/cascading/incremental" configs... To make it easier QA-Board also provides `context.params`, a merge of all the `dict`s in `context.configs`.
 :::
 
 ### Use-case #1: Running Python code
+If you don't have a lot of parameters you can do something like:
 ```python title="qa/main.py"
 from pathlib import Path
 import yaml
 
-def run():
+def run(context):
+    return your_code(
+        input=context.input_path,
+        output=context.output_dir,
+        parameters=context.params,
+    )
+```
+
+But if you deal with long config files, consider using `str`s in `context.configs` to specify files to be loaded:
+
+```python title="qa/main.py"
+def run(context):
     parameters = {}
-    for c in context.obj["configurations"]:
+    for c in context.configs:
       if isinstance(c, str): # Load from a file.
-         # Supports absolute paths for free
-         config_path = Path('configurations') / c if not c.exists() else c
+         # Supports absolute paths and paths relative to "./configs"
+         config_path = Path('configs') / c if not c.exists() else c
          with config_path.open() as f:
              new_parameters = yaml.load(f)
       if isinstance(c, dict):
-          new_parameters = c 
-    # Maybe you will prefer deep-merges
-    parameters.update(new_parameters)
-    if context.obj["extra_parameters"]:
-        parameters.update(context.obj["extra_parameters"])
+          new_parameters = c
+      parameters.update(new_parameters) 
 
     return my_custom_run(
-        input=context.obj["absolute_input_path"],
-        output=context.obj["output_directory"],
+        input=context.input_path,
+        output=context.output_dir,
         parameters=parameters
     )
 ```
 
 ### Use-case #2: Running an executable
-It could work as before with
+It could work as before with:
+
 ```python "qa/main.py"
-    # --snip--
-    config_path = context.obj["output_directory"] / "config.yaml" 
+import json
+
+def run(context):
+    config_path = context.output_dir / "config.json" 
     with config_path.open('w') as f:
-        yaml.dump(parameters, f)
+        json.dump(context.params, f)
 
     # --snip--
     command = [
-        # ...
+        'build/executable',
+        "--input", str(context.input_path),
+        "--output", str(context.output_dir),
         '--configuration', str(config_path),
-        # ...
     ]
 ```
 
-You could also parse the dicts to add CLI parameters... Whatever works for you!
+## "Magic" configurations
+- **Environment variables:**: if `context.params` has a key named `ENV` with e.g. `{"ENV": {"key": "value"}}`, then before the run `key=value` will be applied as environment variable.

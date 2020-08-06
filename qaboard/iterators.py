@@ -237,7 +237,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     run_context = copy(default_run_context)
-    run_context.configurations = batch.get('configurations', batch.get('configuration', run_context.configurations))
+    run_context.configurations = batch.get('configs', batch.get('configurations', batch.get('configuration', run_context.configurations)))
     run_context.configurations = list(flatten(run_context.configurations))
     if 'platform' in batch:
       run_context.platform = batch['platform']
@@ -261,7 +261,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       from sklearn.model_selection import ParameterGrid
       for matrix in ParameterGrid(batch['matrix']):
         batch_ = copy(batch)
-        for key in ['matrix', 'configuration', 'configurations', 'platform']:
+        for key in ['matrix', 'configuration', 'configurations', 'configs', 'platform']:
           if key in batch:
             del batch_[key]
         matrix_run_context = copy(run_context)
@@ -271,8 +271,10 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           matrix_run_context.configurations = matrix['configuration']
         if 'configurations' in matrix:
           matrix_run_context.configurations = matrix['configurations']
+        if 'configs' in matrix:
+          matrix_run_context.configurations = matrix['configs']
         for param, value in matrix.items():
-          if param in ['configuration', 'configurations', 'platform']:
+          if param in ['configuration', 'configurations', 'configs', 'platform']:
             continue
           matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, '${matrix.%s}' % param, value)
         yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
@@ -316,10 +318,10 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           for k in ['type', 'database', runner, 'platform', 'glob', 'globs', 'use_parent_folder']:
             if k in location_configurations:
               del location_configurations[k]
-          if location_configurations and 'configurations' not in location_configurations and 'configurations' not in location_configurations:
+          if location_configurations and 'configs' not in location_configurations and 'configurations' not in location_configurations and 'configurations' not in location_configurations:
             location_run_context.configurations = [*location_run_context.configurations, location_configurations]
           else:
-            patch_config = location_configurations.get('configurations', location_configurations.get('configuration', []))
+            patch_config = location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', [])))
             location_run_context.configurations = [*location_run_context.configurations, *patch_config]
         elif isinstance(location_configurations, list):
           location_run_context.configurations = [*location_run_context.configurations, *list(flatten(location_configurations))]

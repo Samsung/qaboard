@@ -40,7 +40,7 @@ qa --dryrun batch my-batch
 ```
 
 :::note
-For `qa --dryrun run`, you are expected to handle `if context.obj["dryrun"]: ...` yourself in `run()`. The use-case is usually printing how you would call an executable, for debugging.
+For `qa --dryrun run`, you are expected to handle `if context.dryrun: ...` yourself in `run()`. The use-case is usually printing how you would call an executable, for debugging.
 :::
 
 ## `qa --label my-label`
