@@ -48,7 +48,7 @@ inputs:
 
   # Your code runs on an inputs + a list of configurations (default: empty list).
   # You are free to give any meaning to your configurations. In the wild we see setups like:
-  # configurations:       # each element provides a partial config, merged with earlier ones
+  # configs:       # each element provides a partial config, merged with earlier ones
   # - base                # read config/{base}.yaml
   # - /path/to/delta.yaml # read from absolute paths for convenience
   # - key: value          # give directly parameters...

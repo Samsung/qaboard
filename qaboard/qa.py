@@ -14,12 +14,13 @@ import datetime
 
 import click
 
+from .run import RunContext
 from .runners import runners, Job, JobGroup
 from .runners.lsf import LsfPriority
 
 from .conventions import batch_dir, batch_dir, make_batch_dir, make_batch_conf_dir, make_hash
 from .conventions import serialize_config, deserialize_config, get_settings
-from .utils import PathType, entrypoint_module, input_data, load_tuning_search
+from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams
 from .utils import getenvs
@@ -39,7 +40,7 @@ from .config import user, is_ci, on_windows
 @click.group()
 @click.pass_context
 @click.option('--platform', default=default_platform)
-@click.option('--configuration', '-c', help="Will be passed to the run function")
+@click.option('--configuration', '--config', '-c', 'configurations', multiple=True, help="Will be passed to the run function")
 @click.option('--label', '-l', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
 @click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
@@ -48,7 +49,7 @@ from .config import user, is_ci, on_windows
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
-def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
+def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
@@ -91,7 +92,10 @@ def qa(ctx, platform, configuration, label, tuning, tuning_filepath, dryrun, sha
   ctx.obj['input_type'] = input_type
   ctx.obj['inputs_settings'] = get_settings(input_type, config)
   ctx.obj['database'] = database if database else get_default_database(ctx.obj['inputs_settings'])
-  ctx.obj['configuration'] = configuration if configuration else get_default_configuration(ctx.obj['inputs_settings'])
+  # configuration singular is for backward compatibility to a time where there was a single str config
+  ctx.obj['configuration'] = ':'.join(configurations) if configurations else get_default_configuration(ctx.obj['inputs_settings'])
+  # we should refactor the str configuration away completly, and do a much simpler parsing, like
+  #   deserialize_config = lambda configurations: return [maybe_json_loads(c) for c in configurations]
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
   if tuning:
@@ -170,53 +174,45 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
-    ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('') if not output_path else output_path
+    run_context = RunContext.from_click_run_context(ctx, config)
 
     # Usually we want to remove any files already present in the output directory.
     # It avoids issues with remaining state... This said,
     # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
     if not keep_previous:
       import shutil
-      shutil.rmtree(output_directory, ignore_errors=True)
-    output_directory.mkdir(parents=True, exist_ok=True)
+      shutil.rmtree(run_context.output_dir, ignore_errors=True)
+    run_context.output_dir.mkdir(parents=True, exist_ok=True)
 
-    with (output_directory / 'run.json').open('w') as f:
-      # TODO: pass some RunContext ?
+    with (run_context.output_dir / 'run.json').open('w') as f:
       json.dump({
-        "database": str(ctx.obj['database']),
-        "input_path": str(ctx.obj['input_path']),
-        "input_type": ctx.obj['input_type'],
-        "configurations": ctx.obj['configurations'],
-        "extra_parameters": ctx.obj['extra_parameters'],
-        "platform": ctx.obj['platform'],
+        "database": str(run_context.database),
+        "input_path": str(run_context.rel_input_path),
+        "input_type": run_context.type,
+        "configurations": run_context.configurations,
+        "extra_parameters": run_context.extra_parameters,
+        "platform": run_context.platform,
       }, f, sort_keys=True, indent=2, separators=(',', ': '))
 
     # Without this, we can only log runs from `qa batch`, on linux, via LSF
     # this redirect is not 100% perfect, we don't get stdout from C calls
     # if not 'LSB_JOBID' in os.environ: # When using LSF, we usally already have incremental logs
-    with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
+    with redirect_std_streams(run_context.output_dir / 'log.txt', color=ctx.obj['color']):
       # Help reproduce qa runs with something copy-pastable in the logs
       if is_ci:
         from shlex import quote
         click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
-      click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
+      click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
       print_url(ctx)
 
-      ctx.obj['output_directory'] = output_directory.resolve()
-      ctx.obj['forwarded_args'] = forwarded_args
       if not ctx.obj['offline']:
           notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
 
       start = time.time()
       cwd = os.getcwd() 
-      # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
-      if 'ENV' in ctx.obj['extra_parameters']:
-        ctx.obj['ENV'] = ctx.obj['extra_parameters']
-        del ctx.obj['extra_parameters']
 
       try:
-        runtime_metrics = entrypoint_module(config).run(ctx)
+        runtime_metrics = entrypoint_module(config).run(run_context)
       except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
@@ -235,15 +231,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         runtime_metrics = {}
       runtime_metrics['compute_time'] = time.time() - start
 
-      # TODO: remove, it's only there for backward compatibility with HW_ALG tuning 
-      if 'ENV' in ctx.obj:
-        ctx.obj['extra_parameters'].update(ctx.obj['ENV'])
-        del ctx.obj['ENV']
-
       # avoid issues if code in run() changes cwd
       if os.getcwd() != cwd:
         os.chdir(cwd)
-      metrics = postprocess_(runtime_metrics, ctx, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
+
+      metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
       if not metrics:
         metrics = runtime_metrics
 
@@ -255,9 +247,10 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         click.secho(str(metrics), fg='green')
 
 
-def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_database=False):
+def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
   """Computes computes various success metrics and outputs."""
-  output_directory = context.obj['output_directory']
+  from .utils import file_info
+
   try:
     if not skip:
       try:
@@ -265,7 +258,7 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
       except:
         metrics = runtime_metrics
       else: 
-        metrics = entrypoint_postprocess(runtime_metrics, context)
+        metrics = entrypoint_postprocess(runtime_metrics, run_context)
     else:
       metrics = runtime_metrics 
   except:
@@ -281,21 +274,19 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
     click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
     metrics['is_failed'] = False
 
-  if (output_directory / 'metrics.json').exists():
-    with (output_directory / 'metrics.json').open('r') as f:
+  if (run_context.output_dir / 'metrics.json').exists():
+    with (run_context.output_dir / 'metrics.json').open('r') as f:
       previous_metrics = json.load(f)
       metrics = {
         **previous_metrics,
         **metrics,
       }
-  with (output_directory / 'metrics.json').open('w') as f:
+  with (run_context.output_dir / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
 
-  from .utils import file_info
   # To help identify if input files change, we compute and save some metadata.
-  full_input_path = (context.obj['database'] / context.obj['input_path'])
   if is_ci or save_manifests_in_database:
-    manifest_inputs = context.obj.get('manifest-inputs', [full_input_path])
+    manifest_inputs = run_context.obj.get('manifest-inputs', [run_context.input_path])
     input_files = {}
     for manifest_input in manifest_inputs:
       manifest_input = Path(manifest_input)
@@ -303,25 +294,25 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
         input_files.update({path.as_posix(): file_info(path, config=config) for path in manifest_input.rglob('*') if path.is_file()})
       elif manifest_input.is_file():
         input_files.update({manifest_input.as_posix(): file_info(manifest_input, config=config)})
-    with (output_directory / 'manifest.inputs.json').open('w') as f:
+    with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
       json.dump(input_files, f, indent=2)
 
-  outputs_manifest = save_outputs_manifest(output_directory, config=config)
+  outputs_manifest = save_outputs_manifest(run_context.output_dir, config=config)
   output_data = {
     'storage': total_storage(outputs_manifest),
   }
 
 
   if save_manifests_in_database:
-    if full_input_path.is_file():
+    if run_context.input_path.is_file():
       click.secho('WARNING: saving the manifests in the database is only implemented for inputs that are *folders*.', fg='yellow', err=True)
     else:
       from .utils import copy
-      copy(output_directory / 'manifest.inputs.json', full_input_path / 'manifest.inputs.json')
-      copy(output_directory / 'manifest.outputs.json', full_input_path / 'manifest.outputs.json')
+      copy(run_context.output_dir / 'manifest.inputs.json', run_context.input_path / 'manifest.inputs.json')
+      copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
 
-  if not context.obj.get('offline') and not context.obj.get('dryrun'):
-    notify_qa_database(**context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
+  if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+    notify_qa_database(**run_context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
 
   return metrics
 
@@ -336,17 +327,11 @@ def postprocess_(runtime_metrics, context, skip=False, save_manifests_in_databas
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
-  ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-  if not output_path:
-    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('')
-  else:
-    output_directory = output_path
-  ctx.obj['output_directory'] =  output_directory
-  ctx.obj['forwarded_args'] = forwarded_args
-  with redirect_std_streams(output_directory / 'log.txt', color=ctx.obj['color']):
-    click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(output_directory), fg='cyan', bold=True), err=True)
+  run_context = RunContext.from_click_run_context(ctx, config)
+  with redirect_std_streams(run_context.output_dir / 'log.txt', color=ctx.obj['color']):
+    click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
     print_url(ctx)
-    metrics = postprocess_({}, ctx)
+    metrics = postprocess_({}, run_context)
     if metrics['is_failed']:
       click.secho('[ERROR] The run has failed.', fg='red', err=True, bold=True)
       click.secho(str(metrics), fg='red')
@@ -363,18 +348,13 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
-  ctx.obj.update(input_data(ctx.obj['database'], input_path, config))
-  if not output_path:
-    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('')
-  else:
-    output_directory = output_path
-
-  if (output_directory/'metrics.json').exists():
-    with (output_directory/'metrics.json').open('r') as f:
+  run_context = RunContext.from_click_run_context(ctx, config)
+  if (run_context.output_dir / 'metrics.json').exists():
+    with (run_context.output_dir / 'metrics.json').open('r') as f:
       metrics = json.load(f)
-    ctx.obj['output_directory'] =  output_directory
     notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
+
 
 runners_config = config.get('runners', {})
 if 'default' in runners_config:
@@ -449,19 +429,22 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   default_runner_options = {
     "type": runner,
     "command_id": command_id,
-    # This is a "merged" list of options, each runner sorts it out...
-    # Having --runner-X prefixes makes it all a mess, but still the help text is useful
-    # It would be nice to generate the CLI help depending on the runner that's choosen, then we could use
-    # unprefixed options!
-    "concurrency": local_concurrency,
-    "project": lsf_config.get('project', str(project) if project else "qaboard"),
-    "max_threads": lsf_threads,
-    "max_memory": lsf_memory,
-    'resources': lsf_resources,
-    "queue": lsf_queue,
-    "fast_queue": lsf_fast_queue,
-    "user": ctx.obj['user'],
   }
+  # Each runner should add what it cares about...
+  # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
+  # TODO: It would be nice to generate the CLI help depending on the runner that's choosen, then we could use
+  if runner == 'lsf':
+    default_runner_options.update({
+      "project": lsf_config.get('project', str(project) if project else "qaboard"),
+      "max_threads": lsf_threads,
+      "max_memory": lsf_memory,
+      'resources': lsf_resources,
+      "queue": lsf_queue,
+      "fast_queue": lsf_fast_queue,
+      "user": ctx.obj['user'],
+    })
+  if runner == "local":
+    default_runner_options["concurrency"] = local_concurrency
   if runner == 'local' or runner == 'celery':
     default_runner_options["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
 
@@ -485,7 +468,10 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           if tuning_file:
               batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
       run_context.output_dir = batch_conf_dir / run_context.rel_input_path.with_suffix('')
-      run_context.extra_parameters = tuning_params
+      if forwarded_args:
+        run_context.extra_parameters["forwarded_args"] = forwarded_args
+      run_context.extra_parameters.update(tuning_params)
+
       if list_output_dirs:
         print(run_context.output_dir)
         break
@@ -510,12 +496,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           forwarded_args_cli = ' '.join(f"'{a}'" for a in forwarded_args)
         else:
           from .compat import escaped_for_cli
-           # FIXME: may not work...
           forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
 
       if input_configuration_str == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
       else:
+        # We can't use --config, or "-c A -c B" until we ensure all clients updated a version supporting it
         if not on_windows:
           configuration = input_configuration_str.replace("'", "'\"'\"'") # support single-quotes
           configuration_cli =  f"--configuration '{configuration}'"

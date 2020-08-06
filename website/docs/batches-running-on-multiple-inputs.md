@@ -44,30 +44,30 @@ Let's look at examples from one of Samsung's projects to illustrate how configur
 
 ```yaml {2-3}
 using-a-custom-configuration:
-  configurations:
+  configs:
   - base
   inputs:
   - Bayer/A.dng
   - Bayer/B.dng
-# => configurations == ["base"]
+# => configs == ["base"]
 # => the code would load base/config.cde
 ```
 
 ```yaml {2-4}
-multiple-configurations:
-  configurations:
+multiple-configs:
+  configs:
     - base
     - low-light
   inputs:
   - Bayer/A.dng
   - Bayer/B.dng
-#=> configurations == ["base", "low-light"]
+#=> configs == ["base", "low-light"]
 #=> we merge 2 CDE configs 
 ```
 
 ```yaml {2-8}
-configurations-can-be-complex-objects:
-  configurations:
+configs-can-be-complex-objects:
+  configs:
     - base
     - low-light
     - cde:
@@ -77,22 +77,22 @@ configurations-can-be-complex-objects:
   inputs:
   - Bayer/A.dng
   - Bayer/B.dng
-# configurations == ["base", "low-light", {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
+# configs == ["base", "low-light", {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
 # => Here we use the "cde" config parameter to pass CLI arguments to CDE.
 ```
 
 ```yaml {5,7-10}
 each-input-can-have-its-own-configuration:
-  configurations:
+  configs:
     - base
   inputs:
   - Bayer/A.dng:
-    #=> configurations == ["base"]
+    #=> configs == ["base"]
   - Bayer/B.dng:
       - low-light
       - cde:
         - "-DD"
-    #=> configurations == ["base", "low-light", {"cde": ["-DD"]}]
+    #=> configs == ["base", "low-light", {"cde": ["-DD"]}]
 ```
 
 ## Matrix batches
@@ -103,7 +103,7 @@ multiple-configs:
   inputs:
   - a.raw
   matrix:
-    configurations:
+    configs:
       -
           - base
           - tuning
@@ -127,7 +127,7 @@ my-batch-multiple-configs:
   - image.raw
   matrix:
     version: [1, 2]
-  configurations:
+  configs:
     - base-v${matrix.version}
 
 # => will run with [base-v1] and [base-v2]
@@ -142,7 +142,7 @@ my-batch-multiple-values:
   matrix:
     threshold: [1, 2, 3, 4]
     mode: ["a", "b"]
-  configurations:
+  configs:
     - base
     - block.threshold: $matrix.threshold
     - block.mode: $matrix.mode
@@ -177,14 +177,14 @@ For convenience you can define YAML anchors for common configurations
   - partial
 
 hdr:
-  configurations:
+  configs:
     - *base
     - hdr
   inputs:
     - A
     - B
     - C
-#=> configurations == ["base", "partial", "hdr"]
+#=> configs == ["base", "partial", "hdr"]
 ```
 
 :::note
@@ -210,13 +210,13 @@ Sometimes you want to mix and match reusabe definitions of configs and inputs. Y
     - F
 
 .HDR: &HDR
-  configurations:
+  configs:
     - *base
     - hdr_base
     - hdr_motion
 
 .HDR-disabled: &HDR-disabled
-  configurations:
+  configs:
     - *base
 
 hdr:

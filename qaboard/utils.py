@@ -8,6 +8,7 @@ import json
 import shutil
 import traceback
 from pathlib import Path
+from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
 from typing import Optional, Dict, List, Iterable, Tuple
@@ -17,6 +18,20 @@ import click
 from click._compat import isatty, strip_ansi
 
 
+def merge(src: Dict, dest: Dict) -> Dict:
+    """Deep merge dicts"""
+    # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
+    if src:
+      for key, value in src.items():
+        if isinstance(value, dict):
+          node = dest.setdefault(key, {})
+          merge(value, node)
+        elif value:
+          # "super" is a reserved keyword
+          if isinstance(value, list) and "super" in value:
+            value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
+          dest[key] = value
+    return dest
 
 
 def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
@@ -159,23 +174,6 @@ def input_metadata(absolute_input_path, database, input_path, config):
   else:
     metadata = {}
   return metadata
-
-def input_data(database, input_path, config):
-    if input_path.is_absolute():
-      # TODO: possibly allow this? it's only important to join paths and
-      #       not make mistakes like output_dir = prefix_dir / input_path
-      click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
-      click.secho(f'We except you to split "{input_path}" into a "database" and a relative path.', fg='red')
-      exit(1)
-    absolute_input_path = (database / input_path).resolve()
-    if not absolute_input_path.exists():
-      click.secho(f"[ERROR] {absolute_input_path} cannot be found", fg='red')
-      exit(1)
-    return {
-      "input_path": input_path,
-      "absolute_input_path": absolute_input_path,
-      "input_metadata": input_metadata(absolute_input_path, database, input_path, config)
-    }
 
 
 

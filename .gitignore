@@ -4,6 +4,7 @@ log.lsf.txt
 log.txt
 ssl/
 commits/
+user/
 
 image.batches.yaml
 iter.batches.yaml

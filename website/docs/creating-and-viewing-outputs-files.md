@@ -5,7 +5,7 @@ title: Creating and viewing outputs files
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-1. Write anything in `ctx.obj["output_directory"]`: text, images, logs, pointclouds...
+1. Write anything in `context.output_dir`: text, images, logs, pointclouds...
 2. View in the web interface a list of all those files in the "Output Files" tab!
 3. Click on a file to open it:
 

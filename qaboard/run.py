@@ -6,6 +6,7 @@ from typing import List, Dict, Optional, Union, Any
 import click
 
 from .conventions import serialize_config
+from .utils import merge, input_metadata
 
 
 @dataclass
@@ -22,6 +23,9 @@ class RunContext():
 
     configurations: List[Any]   # list of "configurations", meaning is user-defined 
     extra_parameters: Dict[str, Any] = field(default_factory=dict)  # used for tuning
+
+    input_metadata: Dict = field(default_factory=dict)
+    click_context: Optional[click.Context] = None
 
     # If we're in a batch, how we want the job to be executed by an async job runner
     # TODO: At some point we may prefer to give users tuning parameters via "configurations" only,
@@ -41,14 +45,24 @@ class RunContext():
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""
-        return self.input_path.relative_to(self.database)
+        if self.database:
+            return self.input_path.relative_to(self.database)
+        else:
+            return self.input_path.relative_to(self.database)
 
     @property
     def output_directory(self):
         return self.output_dir
 
     def asdict(self):
-      return asdict(self)
+      self_dict = asdict(self)
+      # this method is used for qa batch --list, before we can any idea about those members,
+      # so they'll all be empty because uniniialized.. better not show them
+      del self_dict['input_metadata']
+      del self_dict['click_context']
+      self_dict['rel_input_path'] = self.rel_input_path
+      return self_dict
+
 
 
     def ran(self):
@@ -67,17 +81,89 @@ class RunContext():
               click.secho(f'ERROR: Failed run! Could not find {metrics_path}', fg='red', err=True)
           return True
 
+    @staticmethod
+    def from_click_run_context(ctx, config):
+        if ctx.params['input_path'].is_absolute():
+            click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
+            click.secho(f'Please split "{ctx.params["input_path"]}" into a "database" (even "/") and a relative path.', fg='red')
+            # Helps make it easy to join without trouble (some_path / input_path) != input_path ...
+            # We could do something like below,
+            #   database, *input_path_parts = ctx.params['input_path'].parts
+            #   input_path = Path(*input_path_parts)
+            # Or even allow database=NULL in the database?
+            # If you touch this, also touch iterators.py:_iter_inputs
+            exit(1)
+        else:
+            database = ctx.obj['database']
+            input_path = ctx.params['input_path']
+        if not database.is_absolute():
+            database = database.resolve()
+            # we don't want it to make its way to the QA-Board database
+            # so we don't update obj but it's not ideal...
+        input_path_absolute = (database / input_path).resolve()
+        if not input_path_absolute.exists():
+            click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
+            exit(1)
 
-    # For backward compatibility
+        if not ctx.params.get('output_path'):
+            output_dir = ctx.obj['batch_conf_dir'] / input_path.with_suffix('')
+        else:
+            output_dir = ctx.params.get('output_path')
+
+        # Forwarded CLI arguments, e.g.: qa run -i image.jpg --args-for-wrapped-code
+        extra_parameters = {}
+        if ctx.params.get('forwarded_args'):
+            extra_parameters["forwarded_args"] = ctx.params["forwarded_args"]
+        extra_parameters.update(ctx.obj["extra_parameters"])
+        ctx.obj["extra_parameters"] = extra_parameters
+        run_context = RunContext(
+            input_path=input_path_absolute,
+            database=database,
+            input_metadata=input_metadata(input_path_absolute, database, input_path, config),
+            configurations=ctx.obj["configurations"],
+            extra_parameters=extra_parameters,
+            platform=ctx.obj["platform"],
+            output_dir=output_dir,
+            type=ctx.obj['input_type'],
+            click_context=ctx,
+        )
+
+        # for backward compatibilty we need obj to behave nicely as the run_context...
+        # it's also what we send to the API for now...
+        ctx.obj["output_directory"] = run_context.output_dir
+        ctx.obj["input_metadata"] = run_context.input_metadata
+        ctx.obj["absolute_input_path"] = run_context.input_path
+        ctx.obj["input_path"] = run_context.rel_input_path
+        return run_context
+
+    @property
+    def dryrun(self):
+        return self.click_context.obj['dryrun']
+
+    @property
+    def forwarded_args(self):
+        return self.params.get("forwarded_args", [])
+
+
+    @property
+    def configs(self):
+        yield from (*self.configurations, self.extra_parameters)
+
+    @property
+    def params(self):
+        # TODO: cache it in sef._parameters? but needs to ensure sync..
+        parameters = {}
+        for c in self.configs:
+            if isinstance(c, dict):
+                parameters = merge(c, parameters)
+        return parameters
+
+    # For backward compatibility and creative use to pass data around...
     @property
     def obj(self):
-        return {
-            **asdict(self),
-            "output_directory": self.output_dir, 
-            "input_path": self.rel_input_path,
-            "absolute_input_path": self.input_path,
-            "configuration": serialize_config(self.configurations),
-            # TODO: If we do the change above, we need something like...
-            # "configurations": self.configurations[:-1] if self.tuning else self.configurations,
-            # "extra_parameters": self.configurations[-1] if self.tuning else {}
-        }
+        # for now we use .obj to send data to the API
+        # to ensure users can edit the metadata in run() and see it reflected...
+        if self.click_context:
+            self.click_context.obj['input_metadata'] = self.input_metadata
+        return self.click_context.obj
+

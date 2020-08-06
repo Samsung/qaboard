@@ -63,7 +63,7 @@ class TestQaCliSubproject(unittest.TestCase):
     self.qa = qa_
 
   def test_sub_run(self):
-    result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"')
     assert result.exit_code == 0
     assert 'a.jpg =>' in result.output
     assert "'is_failed': False" in result.output
@@ -96,14 +96,14 @@ class TestQaCliSubproject(unittest.TestCase):
     assert result.exit_code == 0
 
   def test_sub_runner_local(self):
-    result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
     # print('stdout:', result.stdout)
     # print('stderr:', result.stderr)
     assert result.exit_code == 0
 
   @unittest.skip("Not tested in the OSS version yet")
   def test_sub_runner_lsf(self):
-    result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'sub.batches.yaml', 'images', '--runner=lsf', 'echo "{input_path} => {output_dir}"')
     assert result.exit_code == 0
 
 

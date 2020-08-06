@@ -69,7 +69,7 @@ class TestQaCli(unittest.TestCase):
     assert 'Usage:' in result.output
 
   def test_run(self):
-    result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"')
     assert result.exit_code == 0
     assert 'a.jpg =>' in result.output
     assert "'is_failed': False" in result.output
@@ -101,12 +101,12 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
 
   def test_runner_local(self):
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
     # we test with --share, but really being offline is a problem here..
-    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
@@ -114,11 +114,11 @@ class TestQaCli(unittest.TestCase):
 
   @unittest.skip("Not tested in the OSS version yet")
   def test_runner_lsf(self):
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{input_path} => {output_dir}"')
     assert result.exit_code == 0
     # we also test subprojects
     os.chdir('subproject')
-    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{absolute_input_path} => {output_directory}"')
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
 
   @unittest.skip("FIXME: decide what to do by default with artifacts in the OSS version")
   def test_save_artifacts(self):
@@ -159,7 +159,7 @@ class TestQaCli(unittest.TestCase):
       # SIGINT, results passed back via channel/queue  
       def background():
           Timer(2, lambda: kill(getpid(), SIGINT)).start()
-          result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{absolute_input_path} => {output_directory}"')
+          result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{input_path} => {output_dir}"')
           q.put(('exit_code', result.exit_code))
           q.put(('output', result.output))
       p = Process(target=background)

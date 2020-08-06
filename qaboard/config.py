@@ -5,14 +5,13 @@ import os
 import sys
 import datetime
 from getpass import getuser
-from itertools import chain
 from pathlib import Path, PurePosixPath
 from typing import Dict, Any, Tuple, List, Optional
 
 import yaml
 import click
 
-from .utils import getenvs
+from .utils import merge, getenvs
 from .git import git_head, git_show
 from .conventions import slugify, get_commit_dirs, location_from_spec
 from .iterators import flatten
@@ -66,22 +65,6 @@ if not qatools_configsxpaths:
         'Please read the tutorial or ask Arthur Flam for help:\n'
         'http://qa-docs/',
         dim=True, err=True)
-
-
-def merge(src: Dict, dest: Dict) -> Dict:
-    """Deep merge QA-Board configuration files"""
-    # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
-    if src:
-      for key, value in src.items():
-        if isinstance(value, dict):
-          node = dest.setdefault(key, {})
-          merge(value, node)
-        elif value:
-          # "super" is a reserved keyword
-          if isinstance(value, list) and "super" in value:
-            value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
-          dest[key] = value
-    return dest
 
 
 # take care not to mutate the root config, as its project.name is the git repo name
@@ -341,9 +324,9 @@ config_inputs_types = config_inputs.get('types', {})
 default_input_type = config_inputs_types.get('default', 'default')
 
 
-def get_default_configuration(input_settings):
+def get_default_configuration(input_settings) -> str:
   from .conventions import serialize_config
-  default_configuration = input_settings.get('configurations', input_settings.get('configuration', []))
+  default_configuration = input_settings.get('configs', input_settings.get('configurations', input_settings.get('configuration', [])))
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
 

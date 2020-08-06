@@ -8,10 +8,10 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 QA-Board works as a CLI wrapper for your code. As a default to get started, it runs commands you provide as extra arguments: 
 
 ```bash
-qa run --input path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
+qa run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
 #=> runs this echo command with useful info
 
-qa --share run --input path/to/your/input.file 'echo "{absolute_input_path} => {output_directory}"'
+qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
 #=> View logs in the web interface! It should print the URL
 ```
 
@@ -49,18 +49,13 @@ Below are the most common ways users wrap their code. Identify what works for yo
 from pathlib import  Path
 
 def run(context):
-  # Assuming your code is at *src/my_code.py*...
-  sys.path.append(str(Path(__file__).parent.parent))
-  from src.my_code import MyRun
-
-  # People commonly wrap their code within Classes/functions...
-  metrics = MyRun(
-      input=context.obj['absolute_input_path'],
-      output=context.obj['output_directory'],
-      # The next page will show you to supply configurations
+  metrics = your_code(
+      input=context.input_path,
+      output=context.output_dir,
+      # The next page will show you to supply configurations via context.params
       params={"hard-coded": "values"}, 
-  ).run()
-  metrics['is_failed'] = False # True if your code raises an exception
+  )
+  metrics['is_failed'] = False
   return metrics
 ```
 
@@ -70,29 +65,22 @@ def run(context):
 ```python title="qa/main.py"
 import os
 import sys
-from pathlib import Path
 
-def binary_path():
-    """Find and return the path of the executable. It's often different on Windows/Linux..."""
-    if os.environ.get('PROJECT_BINARY'): # Overwrite location via ENV variables
-        return Path(os.environ['PROJECT_BINARY'])
-    if sys.platform == 'win32':
-        return Path("build/x64/my_binary.exe")
-    else:  # Easy support for build types: Release/Debug/Coverage/ASAN...
-        return Path(f"build/{os.environ.get('PROJECT_BUILD_TYPE', 'Release')}/my_binary")
-
-def run():
+def run(context):
     command = [
-        f'{binary_path()}',
-        "--input", str(context.obj["absolute_input_path"]),
-        "--output", str(context.obj["output_directory"]),
-        context.obj["output_directory"]
+        'build/executable',
+        "--input", str(context.input_path),
+        "--output", str(context.output_dir),
+        # if you call e.g. "qa run -i some_input --forwarded args", you can do:
+        *context.forwarded_args,
     ]
     process = subprocess.run(
         command,
-        check=True,  # will raise an exception on exit code != 0
+        capture_output=True,
     )
-    return {"is_failed": False}
+    print(process.stdout)
+    print(process.stderr)
+    return {"is_failed": process.returncode != 0}
 ```
 
 :::tip
@@ -117,18 +105,18 @@ database
 
 ```python title="qa/main.py"
 def run(context):
-    if context.obj["input_type"] == 'benchmark':
+    if context.type == 'benchmark':
         import shutil
         # Next page you will learn how you can provided configurations/parameters to the run.
-        benchmark = context.obj['configurations'][0]['benchmark']
+        benchmark = context.params['benchmark']
         # Find the benchmark results...
-        benchmark_outputs = context.obj['database'] / benchmark context.obj['input_path'].parent / context.obj['input_path'].stem
+        benchmark_outputs = context.database / benchmark context.input_path.parent / context.input_path.stem
         # To copy the result image only
-        os.copy(str(benchmark_outputs / 'output.jpg'), str(context.obj['output_directory'])
+        os.copy(str(benchmark_outputs / 'output.jpg'), str(context.output_dir])
         # To copy the whole directory
         shutil.copytree(
             str(benchmark_outputs),
-            str(context.obj['output_directory'],
+            str(context.output_dir),
             dirs_exist_ok=True, # python>=3.8, otherwise just call `cp -R` to do it yourself...
         )
     # Otherwise run your code, that create *output.jpg*
@@ -159,31 +147,32 @@ Yes, the API is ugly, it will change before the open-source release and we're op
 
 | **What**              |                                               |
 |-----------------------|-----------------------------------------------|
-| `absolute_input_path` | $database / $input_path                       |
 | `database`            | path to the database                          |
-| `input_path`          | path of the test, relative to the database    |
-| `input_type`          | input type                                    |
+| `rel_input_path`      | input relative to the database                |
+| `input_path`          | $database / $rel_input_path                   |
+| `type`                | input type                                    |
 | `input_metadata`      | if relevant, input metadata (more info later) |
 
 | **How**            |                                                                                          |
 |--------------------|------------------------------------------------------------------------------------------|
-| `configurations`   | array of strings or dicts. *You* decide how to interpret  it!                            |
-| `extra_parameters` | When doing tuning, a dict of `key:values` that should override specific algo parameters. |
+| `configs`          | Many algorithms need some notion of "incremental/delta/cascading configs". *Array* of strings or dicts or whatever. *You* decide how to interpret it.                                                                     |
+| `params`           | `dict` with all the above `configs` of type `dict` deep merged. It's often all you need!.|
 | `platform`         | Usually the host (linux/windows), but can be overwritten as part of your custom logic    |
-| `forwarded_args`   | Extra CLI flags provided to qa. Usually used for debugging.                              |
+| `forwarded_args`   | Extra CLI flags. Usually used for debugging. Also available in `params`.                 |
+| `configurations`   | (advanced): Array of strings or dicts, but without tuning extra parameters like `configs`.           |
+| `extra_parameters` | (advanced): When doing tuning via QA-Board or using extra CLI forwarded arguments, a dict of `key:values`. |
+
 
 | **Where**           |                                            |
 |---------------------|--------------------------------------------|
-| `output_directory`  | where your code should save its outputs    |
+| `output_dir`        | where your code should save its outputs    |
 
-## Accessing the QA-Board configuration from the entrypoint (Reference)
-```python
-from qaboard.config import config
-config['project']['name']
-#
-# etc
-```
-
+## Accessing the QA-Board configuration
 :::note Work in Progress
 A full reference for `from qaboard.config import ...` will arrive in the docs!
 :::
+
+```python
+from qaboard.config import project, config, ...
+```
+
