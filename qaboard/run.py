@@ -163,6 +163,18 @@ class RunContext():
     def obj(self):
         # for now we use .obj to send data to the API
         # to ensure users can edit the metadata in run() and see it reflected...
-        self.click_context.obj['input_metadata'] = self.input_metadata
-        return self.click_context.obj
+        if self.click_context:
+            self.click_context.obj['input_metadata'] = self.input_metadata
+            _obj = self.click_context.obj
+            _obj["forwarded_args"] = self.forwarded_args
+            return _obj
+        else:
+            return {
+                **self.asdict(),
+                "rel_input_path": self.rel_input_path,
+                "input_path": self.rel_input_path,
+                "output_directory": self.output_dir,
+                "forwarded_args": self.forwarded_args,
+                "configuration": serialize_config(self.configurations),
+            }
 
