@@ -1,4 +1,4 @@
-FROM node:lts-alpine
+FROM node:lts
 WORKDIR /website
 
 
@@ -13,14 +13,7 @@ ENV HTTP_PROXY=$PROXY \
     NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
-RUN apk update && apk add --no-cache \
-    # needed for node-gyp.. some do it with npm install in one layer
-    # https://github.com/mhart/alpine-node/issues/27
-    # https://github.com/nodejs/docker-node/issues/384
-    # https://github.com/nodejs/docker-node/issues/282
-    g++ make python \
-    rsync \
-    && rm -rf /var/cache/apk/*
+RUN apt-get update -qq && apt-get install -y --no-install-recommends rsync
 
 ENV PATH /app/node_modules/.bin:$PATH
 RUN yarn config set strict-ssl false

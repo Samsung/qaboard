@@ -1,17 +1,9 @@
-FROM node:lts-alpine
+FROM node:lts
 WORKDIR /webapp
 
 
 
-RUN apk update && apk add --no-cache \
-    # needed for node-gyp.. some do it with npm install in one layer
-    # https://github.com/mhart/alpine-node/issues/27
-    # https://github.com/nodejs/docker-node/issues/384
-    # https://github.com/nodejs/docker-node/issues/282
-    g++ make python \
-    rsync \
-    && rm -rf /var/cache/apk/*
-
+RUN apt update -qq && apt-get install -y --no-install-recommends rsync
 
 ENV PATH /app/node_modules/.bin:$PATH
 
