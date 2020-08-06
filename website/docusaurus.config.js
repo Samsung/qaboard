@@ -24,10 +24,11 @@ var config = {
   favicon: 'img/favicon/favicon-32x32.png',
   customFields: {
     description:
-      'Visualize and compare algorithm results. Optimize parameters. Share results and track progress.',
+      "Algorithm engineering is hard enough. Don't waste time with logistics.",
   },
   onBrokenLinks: 'log',
   themeConfig: {
+    image: "img/share.jpg",
     // announcementBar: {
     //   id: 'supportus',
     //   backgroundColor: '',

@@ -1,18 +1,6 @@
 FROM node:lts
 WORKDIR /website
 
-
-ENV PROXY_HOST=webproxy.transchip.com \
-    PROXY_PORT=8080 \
-    PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-
 RUN apt-get update -qq && apt-get install -y --no-install-recommends rsync
 
 ENV PATH /app/node_modules/.bin:$PATH
