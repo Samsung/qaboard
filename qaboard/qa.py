@@ -260,7 +260,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       except:
         metrics = runtime_metrics
       else: 
-        metrics = entrypoint_postprocess(runtime_metrics, context)
+        metrics = entrypoint_postprocess(runtime_metrics, run_context)
     else:
       metrics = runtime_metrics 
   except:

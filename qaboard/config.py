@@ -5,7 +5,6 @@ import os
 import sys
 import datetime
 from getpass import getuser
-from itertools import chain
 from pathlib import Path, PurePosixPath
 from typing import Dict, Any, Tuple, List, Optional, Union
 

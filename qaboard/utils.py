@@ -8,6 +8,7 @@ import json
 import shutil
 import traceback
 from pathlib import Path
+from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
 from typing import Optional, Dict, List, Iterable, Tuple
