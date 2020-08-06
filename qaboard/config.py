@@ -6,7 +6,7 @@ import sys
 import datetime
 from getpass import getuser
 from pathlib import Path, PurePosixPath
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any, Tuple, List, Optional, Union
 
 import yaml
 import click
@@ -133,7 +133,7 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user=user) -> T
     if 'ci_root' in config:
       # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
       config['storage'] = config['ci_root']
-    config_storage = os.environ.get('QA_STORAGE', config.get('storage', {}))
+    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE', config.get('storage', {}))
     interpolation_vars = {"project": project, "subproject": subproject, "user": user}
     spec_artifacts = config_storage.get('artifacts', config_storage) if isinstance(config_storage, dict) else config_storage
     spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage

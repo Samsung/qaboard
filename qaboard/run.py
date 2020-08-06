@@ -165,5 +165,13 @@ class RunContext():
         # to ensure users can edit the metadata in run() and see it reflected...
         if self.click_context:
             self.click_context.obj['input_metadata'] = self.input_metadata
-        return self.click_context.obj
-
+            return self.click_context.obj
+        else:
+            return {
+                **self.asdict(),
+                "rel_input_path": self.rel_input_path,
+                "input_path": self.rel_input_path,
+                "output_directory": self.output_dir,
+                "forwarded_args": self.forwarded_args,
+                "configuration": serialize_config(self.configurations),
+            }

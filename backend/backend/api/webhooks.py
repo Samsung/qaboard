@@ -162,9 +162,9 @@ def new_output_webhook():
   ci_commit.latest_output_datetime = datetime.datetime.utcnow()
 
   # We make sure the Test on which we ran exists in the database 
-  test_input_path = data.get('input_path')
+  test_input_path = data.get('rel_input_path', data.get('input_path'))
   if not test_input_path:
-    return jsonify({"error": "the input path was not provided"}, 400)
+    return jsonify({"error": "the input path was not provided"}), 400
   test_input = TestInput.get_or_create(
     db_session,
     path=test_input_path,

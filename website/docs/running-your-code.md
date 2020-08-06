@@ -18,7 +18,7 @@ qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_di
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
 
 :::note
-Results are saved under *output/*. `--share`'d results are saved in */mnt/qaboard*. To change it, edit `storage` in `qaboard.yml`.
+Results are saved under *output/*. `--share`'d results are saved in */mnt/qaboard*. To change it, edit `storage` in `qaboard.yaml`.
 :::
 
 
@@ -104,9 +104,10 @@ database
 ```
 
 ```python title="qa/main.py"
+import shutil
+
 def run(context):
     if context.type == 'benchmark':
-        import shutil
         # Next page you will learn how you can provided configurations/parameters to the run.
         benchmark = context.params['benchmark']
         # Find the benchmark results...
@@ -141,9 +142,6 @@ From the QA-Board web application, you can set the benchark as a "milestone", to
 
 
 ## Useful `context` properties (Reference)
-:::note
-Yes, the API is ugly, it will change before the open-source release and we're open to suggestions!
-:::
 
 | **What**              |                                               |
 |-----------------------|-----------------------------------------------|
