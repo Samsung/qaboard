@@ -8,7 +8,7 @@ import click
 import numpy as np
 
 from .api import NumpyEncoder, batch_info, notify_qa_database
-from .config import subproject, commit_id, outputs_commit, available_metrics, default_batches_files
+from .config import subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType
 
@@ -167,12 +167,14 @@ def init_optimization(optim_config_file, ctx):
     command = ' '.join([
       'qa',
       f"--label '{batch_label}'",
-      f"--platform '{ctx.obj['platform']}'",
-      f"--configuration '{ctx.obj['configuration']}'",
+      f'--share' if ctx.obj["share"] else '',
+      f'--offline' if ctx.obj['offline'] else '',
+      f'--platform "{ctx.obj["platform"]}"' if ctx.obj['platform'] != default_platform else '',
+      f"--configuration '{ctx.obj['configuration']}'" if ctx.params.get('configurations') else '',
       f"--tuning '{json.dumps(params, sort_keys=True, cls=NumpyEncoder)}'",
       'batch',
       ' '.join([f'--batches-file "{b}"' for b in ctx.obj["batches_files"]]),
-      ' '.join([f'--batch "{b}"' for b in ctx.obj["batches"]]),
+      ' '.join([f'"{b}"' for b in ctx.obj["batches"]]),
       # we notably forward --batch
       ' '.join(ctx.obj["forwarded_args"]),
     ])
