@@ -87,9 +87,9 @@ def filter_outputs(query, outputs):
     searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {input_metadata} {failed} {pending}".replace('"', '').lower()
     # print(searched)
     # not using output.test_input_tags.join() like in the JS
-    if any([t in searched for t in negative_tokens]):
+    if any([re.search(t, searched) for t in negative_tokens]):
       return False
-    found = all([t in searched for t in positive_tokens])
+    found = all([re.search(t, searched) for t in positive_tokens])
     # print(found)
     return (not positive_tokens or found)
   outputs = [o for o in outputs if match(o)]
