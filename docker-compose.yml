@@ -106,8 +106,6 @@ services:
     build:
       context: website
       shm_size: 4gb
-      args:
-        REACT_APP_QABOARD_DOCS_ROOT: "/"
     volumes:
     - website_builds:/builds
   
