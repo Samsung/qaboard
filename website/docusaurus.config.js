@@ -29,12 +29,12 @@ var config = {
   onBrokenLinks: 'log',
   themeConfig: {
     image: "img/share.jpg",
-    // announcementBar: {
-    //   id: 'supportus',
-    //   backgroundColor: '',
-    //   textColor: '',
-    //   content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
-    // },
+    announcementBar: {
+      id: 'supportus',
+      backgroundColor: '#1064d3',
+      textColor: 'white',
+      content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
+    },
     prism: {
       additionalLanguages: ['nginx'],
       theme: require('prism-react-renderer/themes/github'),
