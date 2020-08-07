@@ -50,8 +50,7 @@ function Home() {
 
   return (
     <Layout
-      title={siteConfig.title}
-      description={siteConfig.tagline}
+      description={siteConfig.tagline.replace("<br/>", " ")}
     >
       <header className={classnames('hero hero--primary', styles.heroBanner)}>
         <div className="container">
