@@ -42,15 +42,17 @@ def ci_commit_statuses(commit_id, **kwargs):
 
 
 
-def update_gitlab_status(commit_id, state='success'):
+def update_gitlab_status(commit_id, state, label, description):
   check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
   name = f"QA {subproject.name}" if subproject else 'QA'
+  if label != "default":
+    name += f" | {label}"
   params = {
     "state": state,
     "name": name,
     "target_url": f"https://qa/{config['project']['name']}/commit/{commit_id}",
-    "description": "CI results",
+    "description": description,
     # "ref": commit_branch,
   }
   try:
