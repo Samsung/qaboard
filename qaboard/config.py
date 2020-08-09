@@ -298,7 +298,7 @@ else:
   outputs_commit = Path()
 
 # backward compatibility for HW_ALG's runs. And tof/swip_tof's runs: has to exist
-commit_ci_dir = outputs_commit
+commit_ci_dir = artifacts_commit  # used for PRODUCT_DIR
 # backward compatibility for HW_ALG/tools/ci_tools/find_valid_build.py
 ci_dir = artifacts_project_root
 
