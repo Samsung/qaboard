@@ -1,7 +1,6 @@
 import React, { Fragment } from "react";
 import styled from "styled-components";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
-import { format } from "mathjs/number";
 import {
   Classes,
   Intent,
@@ -13,13 +12,8 @@ import {
 
 import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
+import { metric_formatter, percent_formatter } from "./metrics"
 
-const metric_formatter = v => format(v, {precision: 3})
-const percent_formatter = new Intl.NumberFormat("en-US", {
-  style: "decimal",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0
-});
 
 
 const Row = styled.tr`
@@ -66,7 +60,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       <Tooltip>
-        <span>{metric_formatter(delta)} ({percent_formatter.format(100 * delta_relative)}%)</span>
+        <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>
         <ul>
           <li><strong>New:</strong> {metrics_new[metric.key] * metric.scale}{metric.suffix}</li>
           <li><strong>Reference:</strong> {metrics_ref[metric.key] * metric.scale}{metric.suffix}</li>
@@ -90,7 +84,7 @@ const QualityCell = ({ metric, metrics }) => {
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       <Tooltip>
-       <span>{metric_formatter(value * metric.scale)}</span>
+       <span>{metric_formatter(value * metric.scale, metric)}</span>
        <span>{value * metric.scale}{metric.suffix}</span>
       </Tooltip>
     </td>
@@ -184,7 +178,7 @@ const TableKpi = ({
             <th />
             {metrics_.map(m => (
               <th colSpan={2} key={m.key}>
-                <Tooltip><span>{m.short_label}</span><span>{m.label}</span></Tooltip> {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>[{!!m.target ? metric_formatter(m.target * m.scale) : ''}{m.suffix}]</span>}
+                <Tooltip><span>{m.short_label}</span><span>{m.label}</span></Tooltip> {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>[{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]</span>}
               </th>
             ))}
           </tr>

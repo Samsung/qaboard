@@ -30,7 +30,11 @@ const color_a = "rgba(255, 157, 0, .4)";
 const color_ref_a = "rgba(55, 126, 184, .4)";
 const colors_a = [color_a, color_ref_a];
 
-const metric_formatter = v => format(v, {precision: 3})
+const metric_formatter = (value, metric) => {
+  // 3 significant digits by default
+  // https://mathjs.org/docs/reference/functions/format.html
+  return format(value, {precision: metric?.precision ?? 3})
+}
 const percent_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
   minimumFractionDigits: 0,
@@ -41,7 +45,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
   let formatted_valued = (
     <span>
       {metric_info.short_label}:{" "}
-      <strong>{metric_formatter(metric_info.scale * metrics_new[metric_info.key])}{metric_info.suffix}
+      <strong>{metric_formatter(metric_info.scale * metrics_new[metric_info.key], metric_info)}{metric_info.suffix}
       </strong>
     </span>
   );
@@ -504,10 +508,10 @@ class MetricsSummary extends Component {
         {selected_metrics.map((m, idx) => {
           let new_values = outputs_new
             .map(o => o.metrics[m.key])
-            .filter(x => x !== undefined)
+            .filter(x => x !== undefined && typeof x !== 'string' )
             .map(o => 1 * o);
           if (new_values.length === 0) return <Fragment key={idx} />;
-          let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null);
+          let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null && typeof v !== 'string');
           let new_med = median(new_values);
           let ref_med = median(ref_values);
           let new_pc_good = m.smaller_is_better
@@ -543,7 +547,7 @@ class MetricsSummary extends Component {
               <MetricTile>
                 <Tooltip>
                   <h3 className={Classes.HEADING}>
-                    {metric_formatter(m.scale * new_med)}{m.suffix}
+                    {metric_formatter(m.scale * new_med, m)}{m.suffix}
                     <span style={{ color: "#ccc" }}> median</span>
                   </h3>
                     <span>{m.scale * new_med}{m.suffix}</span>
@@ -562,7 +566,7 @@ class MetricsSummary extends Component {
                   {ref_values.length > 0 && <MetricTile>
                     <Tooltip>
                       <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter(m.scale * ref_med)}{m.suffix}
+                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
                       </h3>
                       <span>{m.scale * ref_med}{m.suffix}</span>
                     </Tooltip>
@@ -606,4 +610,11 @@ class MetricsSummary extends Component {
   }
 }
 
-export { HistogramComparaison, MetricsSummary, MetricTag, MetricsTags };
+export {
+  HistogramComparaison,
+  MetricsSummary,
+  MetricTag,
+  MetricsTags,
+  metric_formatter,
+  percent_formatter,
+};
