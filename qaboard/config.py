@@ -338,7 +338,10 @@ def get_default_database(inputs_settings):
     database_spec = inputs_settings[inputs_settings['type']]['database']
   else:
     database_spec = inputs_settings.get('database', {})
-  database = location_from_spec(database_spec)
+  try:
+    database = location_from_spec(database_spec)
+  except:
+    database = Path("/")
   if not database:
     database = "."
     if not ignore_config_errors:

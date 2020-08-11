@@ -469,7 +469,9 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
               batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
       run_context.output_dir = batch_conf_dir / run_context.rel_input_path.with_suffix('')
       if forwarded_args:
-        run_context.extra_parameters["forwarded_args"] = forwarded_args
+        run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
+        if run_forwarded_args:
+          run_context.extra_parameters["forwarded_args"] = run_forwarded_args
       run_context.extra_parameters.update(tuning_params)
 
       if list_output_dirs:

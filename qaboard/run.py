@@ -84,23 +84,20 @@ class RunContext():
     @staticmethod
     def from_click_run_context(ctx, config):
         if ctx.params['input_path'].is_absolute():
-            click.secho(f"[ERROR] Inputs are only allowed to be relative paths.", fg='red', bold=True)
-            click.secho(f'Please split "{ctx.params["input_path"]}" into a "database" (even "/") and a relative path.', fg='red')
-            # Helps make it easy to join without trouble (some_path / input_path) != input_path ...
-            # We could do something like below,
-            #   database, *input_path_parts = ctx.params['input_path'].parts
-            #   input_path = Path(*input_path_parts)
-            # Or even allow database=NULL in the database?
-            # If you touch this, also touch iterators.py:_iter_inputs
-            exit(1)
+            database_str, *input_path_parts = ctx.params['input_path'].parts
+            database = Path(database_str)
+            input_path = Path(*input_path_parts)
+            ctx.obj["database"] = database
         else:
             database = ctx.obj['database']
             input_path = ctx.params['input_path']
         if not database.is_absolute():
             database = database.resolve()
-            # we don't want it to make its way to the QA-Board database
-            # so we don't update obj but it's not ideal...
+            # we don't want the absolute path to make its way to the QA-Board database
+            # so we don't update obj later on.
         input_path_absolute = (database / input_path).resolve()
+        # we don't want people using ../ in the input causing issues 
+        # assert input_path_absolute > database
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
             exit(1)
