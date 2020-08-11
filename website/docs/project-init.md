@@ -1,6 +1,6 @@
 ---
 id: project-init
-sidebar_label: Project Initial Setup
+sidebar_label: Project Setup
 title: Adding QA-Board to your project
 ---
 
@@ -15,28 +15,25 @@ Along with previously existing files and directories, your root directory will n
 
 ```
 root-git-repository
-├── qa
-│  ├── main.py         # sample entrypoint that runs your code
-│  ├── batches.yaml    # examples of how to run multiple tests
-│  └── metrics.yaml    # examples of how to define KPIs
-└── qaboard.yaml       # configuration file ⚙️
+├── qaboard.yaml       # configuration
+└── qa
+   ├── main.py         # sample entrypoint that runs your code
+   ├── batches.yaml    # examples of how to run multiple tests
+   └── metrics.yaml    # examples of how to define KPIs
 ```
-
-:::tip
-If you decide to use a non-default location to save results, edit `ci_root` in `qaboard.yaml`.
-:::
 
 
 ## *(Optional)* Gitlab Integration
 If you integrate with Gitlab, you'll be able to:
+- Update GitlabCI with your runs' statuses
 - Get direct links to your code
-- See user avatars
+- See users' avatars
 - Delete old results
 - Access commits by their tag or branch names
 - Wait for CI pipelines to end when checking if results changed vs the last version
 
 :::note
-In the past Gitlab was required. We'll work on enabling those features even if you use other git servers.  
+In the past Gitlab was required. We'll work on enabling those features for e.g. Github.  
 :::
 
 ### How-to

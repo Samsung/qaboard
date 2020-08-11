@@ -3,12 +3,13 @@ id: deploy
 title: Starting a QA-Board server
 sidebar_label: Server Bringup
 ---
-The `qa` executable will need to send updates to a central server, that tracks and displays results.
-
-> Please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues. We're responsive.
+QA-Board's run-wrapper, `qa`, will sync with a central server, that tracks and displays results.
 
 :::note Need a hosted version?
 We're considering offering a hosted solution to help you get started. If your're interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
+
+Until then, please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues starting a server. We're responsive.
+
 :::
 
 ## Create a directory to store results 
@@ -22,7 +23,7 @@ chmod -R 777 /mnt/qabaord
 ```
 
 :::tip
-If you want to use a different shared folder replace */mnt/qaboard* with your path in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
+If you want to use a different folder, replace */mnt/qaboard* with your path in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
 :::
 
 :::note Shared Storage?
@@ -43,6 +44,7 @@ We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@g
 ```bash
 git clone git@github.com:Samsung/qaboard.git
 cd qaboard
+
 docker-compose pull
 docker-compose up -d
 #=> the application is live at localhost:5151
@@ -55,11 +57,11 @@ To have the server restart automatically:
 docker-compose -f docker-compose.yml -f production.yml up -d
 ```
 
+:::note
+Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans? <a href="mailto:arthur.flam@gmail.com">Get in touch</a>.
+:::
 
-> Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans? <a href="mailto:arthur.flam@gmail.com">Get in touch</a>.
-
-
-## Environment variables
+## (Optional) Environment variables
 > To configure your installation, you can either edit [an `.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) or `services.backend.environment` in one of the `docker-compose` files (*docker-compose.yml*, *development.yml*, *production.yml*...).
 
 
@@ -86,7 +88,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 > For development, consult the READMEs for the [backend](https://github.com/Samsung/qaboard/tree/master/backend) and the [frontend](https://github.com/Samsung/qaboard/tree/master/webapp).
 
 
-## For "production"
+## (Optional) For "production"
 ### Backups
 In *production.yml* you can uncomment the `cron-backup-db` service to enable daily backups, and replace `/WHERE/TO/SAVE/BACKUPS` with a (backup'ed!)location on the host.
 
@@ -124,7 +126,7 @@ server {
 }
 ```
 
-## Cleanup
+## (Optional) Cleanup
 We run those cron jobs:
 ```cron
 # Weekly cleanup of old results

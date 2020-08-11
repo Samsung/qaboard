@@ -9,10 +9,10 @@ QA-Board works as a CLI wrapper for your code. As a default to get started, it r
 
 ```bash
 qa run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
-#=> runs this echo command with useful info
+#=> prints "/database/path/to/your/input.file  => output/dir"
 
 qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
-#=> View logs in the web interface! It should print the URL
+#=> prints an URL to view logs in the web interface
 ```
 
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
@@ -33,7 +33,7 @@ Many users want to separate algorithm runs and postprocessing. To make this flow
 
 ## What should your wrapper do?
 The main assumption is that your code
-- Write *"qualitative"* files in the `output_directory`
+- Write *"qualitative"* files in the `output_dir`
 - Returns *"quantitative"* metrics/KPIs.
 
 The `run()` function receives as argument a [`context` object whose properties](#reference-useful-context-properties) tell us **how** you should run **what**, and **where** outputs are expected to be saved.
@@ -63,8 +63,7 @@ def run(context):
 `QA-Board` assumes you already built your code.     
 
 ```python title="qa/main.py"
-import os
-import sys
+import subprocess
 
 def run(context):
     command = [
@@ -104,6 +103,7 @@ database
 ```
 
 ```python title="qa/main.py"
+import os
 import shutil
 
 def run(context):
@@ -164,6 +164,10 @@ From the QA-Board web application, you can set the benchark as a "milestone", to
 | **Where**           |                                            |
 |---------------------|--------------------------------------------|
 | `output_dir`        | where your code should save its outputs    |
+
+:::tip
+You can use `context.obj` to store arbitrary data.
+:::
 
 ## Accessing the QA-Board configuration
 :::note Work in Progress

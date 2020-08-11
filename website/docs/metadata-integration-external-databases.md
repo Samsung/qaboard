@@ -8,11 +8,23 @@ Input metadata are useful to:
 - **Filter** and **group** inputs
 - Decide **what metrics to compute** on your outputs
 
+> QA-Board will forward metadata to your `run(ctx)` function as `ctx.input_metadata`.
 
-To enable metadata support in QA-Board, implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
+### Creating metadata
+To enable metadata support in QA-Board, you have 2 options:
 
-```python title="qa/main.py (qaboard.yaml: project.entrypoint)"
+1. Fill the metadata as part of your `run`:
+
+```python title="qa/main.py"
+def run(context):
+  context.input_metadata = {}
+```
+
+2. Implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
+
+```python title="qa/main.py"
 import yaml
+
 def metadata(absolute_input_path, database, input_path):
   metadata_file = absolute_input_path.with_suffix('.metadata.yaml')
   if not metadata_file.exists():
@@ -29,7 +41,6 @@ If you define `metadata.label` it will be used in the UI instead of the input pa
 QA-Board will compares runs with different input if they have the same `metadata.id`. A common use-case is comparing images from different sensors taken in the same conditions.
 :::
 
-QA-Board will forward metadata to your `run()` function as `ctx.input_metadata`.
 
 
 ### Using metadata to filter batches of inputs
@@ -54,7 +65,9 @@ qa batch inputs-filtered-using-metadata
 ```
 
 ## Integrating with external input databases
-Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
+Inputs are not always existing files. In some cases you will want to use a "proper" database to organize them. If your inputs are the names of unit tests, you'll list them with something like `gtest_project --gtest_list_tests`.
+
+To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
 
 ```python title="qa/main.py"
 def iter_inputs(path, database, only, exclude, inputs_settings):
@@ -69,7 +82,3 @@ def iter_inputs(path, database, only, exclude, inputs_settings):
 # Note: path=None should match all inputs in the database
 # Note: inputs_settings is a dict with information on how inputs should be found: file globs, use_parent, or anything else you put in qaboard.yaml's inputs.
 ```
-
-:::note
-Currently, you still have to write a `metadata()` function for `run()` to receive the metadata or for QA-Board to use them in the UI.
-:::

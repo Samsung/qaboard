@@ -1,10 +1,10 @@
 ---
 id: installation
-title: Installing QA-Board's CLI
-sidebar_label: Installation
+title: Installing QA-Board's client
+sidebar_label: Client Installation
 ---
 
-To use QA-Board you need to install its CLI client. It runs your code and syncs with a run-tracking server.
+You need to install QA-Board's CLI client: `qa`. It wraps and runs your code.
 
 ```bash
 pip install --upgrade qaboard
