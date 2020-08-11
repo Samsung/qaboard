@@ -9,10 +9,9 @@ tags: [qualityOps, engineering]
 # image: https://example.com/image.png
 ---
 
-We are happy to introduce [QA-Board](samsung.github.io/qaboard), a run-tracker with advanced visualizations for algorithm and software engineers.
+We are happy to introduce [QA-Board](samsung.github.io/qaboard) ([source](https://github.com/samsung/qaboard)), a run-tracker with advanced visualizations for algorithm and software engineers.
 
 <!--truncate-->
-
 
 <p align="center">
   <img alt="QA-Board logo" width={400} src="https://user-images.githubusercontent.com/2649055/86829138-bb6aef00-c09c-11ea-8b59-78b7fc44ebcf.png"/>
@@ -34,25 +33,28 @@ While it's very convenient at first, very soon keeping track of versions or comp
 ## QA-Board's story
 Our business unit develops IP for image sensors. What was a closely-knit 15 person team became a 250-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (over 108MP!), capable of AI and packed with innovative features.
 
-> [We're hiring](https://samsung-careers.co.il/) - our goal is to become the 1st image sensor manufacturer worldwide.
+> [We're hiring at Samsung's Israel R&D](https://samsung-careers.co.il/) - our goal is to become the 1st image sensor manufacturer worldwide.
 
-As we were experiencing growing pains in our development processes, we set up a team to change the way we work. What we emphasized were software-engineering best practices, infrastructure, reproducibility, and our mission to improve cross-team collaboration.
+As we were experiencing growing pains in our development processes, we set up an infratructure team to change the way we work. What we emphasized were software-engineering best practices, infrastructure, reproducibility, and our mission to improve cross-team collaboration.
 
-As part of our work on algorithms for our [innovative DVS sensor](http://rpg.ifi.uzh.ch/docs/CVPR19workshop/CVPRW19_Eric_Ryu_Samsung.pdf), I had created what became QA-Board. When I joined this new team we expanded QA-Board's scope.
+As part of our work on algorithms for our [innovative DVS sensor](http://rpg.ifi.uzh.ch/docs/CVPR19workshop/CVPRW19_Eric_Ryu_Samsung.pdf), I had created what became QA-Board. When I joined this new infrastructure team we expanded QA-Board's scope.
 
 ## Use-Cases
 QA-Board has become a key collaborative tool. Our main use-cases are:
 - **Sharing** links with all the info (command, output files, logs...).
 - **Work-from-home**: engineers can share 108MP+ images thanks to the [IIIF protocol](https://github.com/IIIF/awesome-iiif).
-- **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html) and track metrics for regressions.
 - **Integration**: links to and from git repositories and their Continuous Integration. From QA-Board, users can [directly access](https://samsung.github.io/qaboard/docs/triggering-third-party-tools) build artifacts, trigger automated jobs, and when needed they can build dashboards or scripts they query QA-Board's API.
 - **Visualizations**: everything can be compared, and thanks to the [many different types of visualizations](https://samsung.github.io/qaboard/docs/visualizations) (images/plots/text/html/video...), users can easily create the reports they need.
 - **Tuning**: QA-Board distributes runs to our cluster. Users can easily start tuning experiments that enable feature flags or tweak parameters. We've integrated [scikit-optimize](https://scikit-optimize.github.io/) for black-box optimization.
 - **Regression**: users can check the progress on various metrics, and when needed, identify which commit caused a regression.
+- **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html) and track metrics for regressions.
 
-> If you are looking for screenshots, go to the [home page](https://samsung.github.io/qaboard/), or read this presentation:
+> Here are some screenshots:
 
-> TODO SLIDESHARE
+<figure class="video-container">
+  <iframe src="//www.slideshare.net/slideshow/embed_code/key/C3QrOdYHrRyB7d?startSlide=7" width="595" height="485" frameborder="0" marginwidth="0" marginheight="0" scrolling="no" style={{border: "1px solid #CCC", borderWidth: "1px", marginBottom: "5px", maxWidth: "100%"}} allowfullscreen></iframe>
+</figure>
+
 
 ## What's next?
 Our goal is to make QA-Board the best general-purpose run-tracker. We want to see it used for performance optimization, algorithm development, model comparaisons in operational research, web page performance tracking...
