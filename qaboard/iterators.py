@@ -133,7 +133,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
   if path and Path(path).is_absolute():
     database, *path_parts =  path.parts
-    path = Path(*input_path_parts)
+    path = Path(*path_parts)
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
     try:

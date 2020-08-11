@@ -96,14 +96,15 @@ class RunContext():
             # we don't want the absolute path to make its way to the QA-Board database
             # so we don't update obj later on.
         input_path_absolute = (database / input_path).resolve()
-        # we don't want people using ../ in the input causing issues 
-        # assert input_path_absolute > database
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
             exit(1)
 
         if not ctx.params.get('output_path'):
+            assert input_path_absolute.relative_to(database)
             output_dir = ctx.obj['batch_conf_dir'] / input_path.with_suffix('')
+            # we don't want people using ../ in the input causing issues 
+            assert output_dir.resolve().relative_to(ctx.obj['batch_conf_dir'].resolve())
         else:
             output_dir = ctx.params.get('output_path')
 
@@ -144,7 +145,7 @@ class RunContext():
 
     @property
     def configs(self):
-        yield from (*self.configurations, self.extra_parameters)
+        return [*self.configurations, self.extra_parameters]
 
     @property
     def params(self):
