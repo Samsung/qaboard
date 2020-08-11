@@ -31,9 +31,9 @@ While it's very convenient at first, very soon keeping track of versions or comp
 
 
 ## QA-Board's story
-Our business unit develops IP for image sensors. What was a closely-knit 15 person team became a 250-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (over 108MP!), capable of AI and packed with innovative features.
+Our business unit develops IP for image sensors. What was a closely-knit 15 person team became a 250-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (200MP and beyond), capable of AI and packed with innovative features, including cutting-edge image processing IPs.
 
-> [We're hiring at Samsung's Israel R&D](https://samsung-careers.co.il/) - our goal is to become the 1st image sensor manufacturer worldwide.
+> [We're hiring at Samsung's Israel R&D Center](https://samsung-careers.co.il/) - our goal is to become the 1st image sensor manufacturer worldwide.
 
 As we were experiencing growing pains in our development processes, we set up an infratructure team to change the way we work. What we emphasized were software-engineering best practices, infrastructure, reproducibility, and our mission to improve cross-team collaboration.
 
