@@ -56,7 +56,7 @@ def print_url(ctx, status="starting"):
     batch_label = ctx.obj["batch_label"]
     # FIXME: use the same port at SIRC for the API/web, and don't hardcode...
     qaboard_url = "https://qa"
-    commit_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+    commit_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
       if status == "starting":
         click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
