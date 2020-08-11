@@ -30,8 +30,10 @@ available_metrics:
     smaller_is_better: true  # default: true
     target: 0.01             # plots in the UI will compare KPIs versus a target if given
     # when displaying results in the UI, you often want to change units
-    # scale: 100
-    # suffix: '%'
+    # suffix: ''   # e.g. "%"...
+    # scale: 1     # e.g. 100 to convert [0-1] to percents...
+    # by default we try to show 3 significant digits, but you can change it with
+    # precision: 3
 ```
 
 If it all goes well you get:
