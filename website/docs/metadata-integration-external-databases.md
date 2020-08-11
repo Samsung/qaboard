@@ -54,7 +54,9 @@ qa batch inputs-filtered-using-metadata
 ```
 
 ## Integrating with external input databases
-Instead of relying on walking on the filesystem, you can use an external database to organize your inputs. To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
+Inputs are not always existing files. In some cases you will want to use a "proper" database to organize them. If your inputs are the names of unit tests, you'll list them with something like `gtest_project --gtest_list_tests`.
+
+To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
 
 ```python title="qa/main.py"
 def iter_inputs(path, database, only, exclude, inputs_settings):

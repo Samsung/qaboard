@@ -1,23 +1,44 @@
 ---
 id: inputs
-sidebar_label: Inputs
-title: Input files
+sidebar_label: From Inputs to Outputs
+title: From Inputs to Outputs
 ---
-Algorithms turn inputs into outputs. *What are your inputs?* They can be image files, folders containing images...
 
-> For QA-Board, an input is a **path**, split into "**$database** / **$input**".
+## What is a run?
+QA-Board will run:
+- your code on **inputs** with a given **configuration**
+- and expect **outputs files** along with **metrics**.
 
-1. In *qaboard.yaml*, define your default database `inputs.database` (it defaults to `/` or `C://`)
-2. Try to run:
+Depending on your domain, those will be different. Here are some examples:
+
+
+| Domain                 | Input            | Configuration         | Output                             | Metric                            |
+|------------------------|------------------|-----------------------|------------------------------------|-----------------------------------|
+| **Image processing**   | image            | feature flag & params | transformed image, debug data...   | SNR, sharpness, color accuracy... |
+| **Cloud server choice**| integration test | instance type     |                                    | cost, throughput...               |
+| **Machine learning**   | database/sample  | hyperparameters       | convergence plots / individual results| loss                           |
+|**Optimization research**| problem         | model type, solver    | solution                           | cost, runtime...                  |
+|**Software performance**| unit test        | feature flag, platform| `perf` recordings, benchmark histograms| runtime, memory, latency, IPC, throughput...|
+
+## How QA-Board looks for inputs
+To make things simple, QA-Board expects that your inputs are existing **paths**.
+
+:::note
+It is also possible to use external databases not just files. Or use a list of unit tests...  If you need it, [read this](metadata-integration-external-databases).
+:::
+
+
+Try to run:
 
 ```bash
-qa run --input relatve/path/to/your/input.file 
+qa run --input /dev/random
 #=> it should invite you to run *your* code
 ```
 
-:::note
-It is also possible to use external input databases not just files. If you need it, [read this](metadata-integration-external-databases).
+:::tip
+Relative paths will be searched relative to the "database". The default is `/` (or `C://` on Windows), and you can change it in *qaboard.yaml* (`inputs.database`).  
 :::
+
 
 ## Batches of inputs
 To run on batches of multiple inputs, use `qa batch my-batch`, where **my-batch** is defined in:
@@ -40,7 +61,7 @@ We'll cover [batches in more depth later](batches-running-on-multiple-inputs). B
 :::
 
 ## *(Optional)* Identifying inputs
-You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify your images as inputs.
+You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify those images as inputs.
 
 In [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
 

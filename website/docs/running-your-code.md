@@ -9,10 +9,10 @@ QA-Board works as a CLI wrapper for your code. As a default to get started, it r
 
 ```bash
 qa run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
-#=> runs this echo command with useful info
+#=> prints "/database/path/to/your/input.file  => output/dir"
 
 qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
-#=> View logs in the web interface! It should print the URL
+#=> prints an URL to view logs in the web interface
 ```
 
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
