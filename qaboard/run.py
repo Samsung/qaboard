@@ -87,13 +87,14 @@ class RunContext():
             database_str, *input_path_parts = ctx.params['input_path'].parts
             database = Path(database_str)
             input_path = Path(*input_path_parts)
+            ctx.obj["database"] = database
         else:
             database = ctx.obj['database']
             input_path = ctx.params['input_path']
         if not database.is_absolute():
             database = database.resolve()
-            # we don't want it to make its way to the QA-Board database
-            # so we don't update obj but it's not ideal...
+            # we don't want the absolute path to make its way to the QA-Board database
+            # so we don't update obj later on.
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
@@ -131,7 +132,6 @@ class RunContext():
         ctx.obj["input_metadata"] = run_context.input_metadata
         ctx.obj["absolute_input_path"] = run_context.input_path
         ctx.obj["input_path"] = run_context.rel_input_path
-        ctx.obj["database"] = run_context.database
         return run_context
 
     @property
