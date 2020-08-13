@@ -46,12 +46,14 @@ def update_gitlab_status(commit_id, state, label, description):
   check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
   name = f"QA {subproject.name}" if subproject else 'QA'
+  target_url = f"https://qa/{config['project']['name']}/commit/{commit_id}"
   if label != "default":
     name += f" | {label}"
+    target_url += f"&batch={label}"
   params = {
     "state": state,
     "name": name,
-    "target_url": f"https://qa/{config['project']['name']}/commit/{commit_id}",
+    "target_url": target_url,
     "description": description,
     # "ref": commit_branch,
   }
