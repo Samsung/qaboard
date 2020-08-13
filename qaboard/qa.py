@@ -359,7 +359,7 @@ def sync(ctx, input_path, output_path):
     click.secho(str(metrics), fg='green')      
 
 
-runners_config = config.get('runners', {})
+runners_config = config.get('lsf', config.get('runners', {}))
 if 'default' in runners_config:
   default_runner = runners_config['default']
 else:
