@@ -363,6 +363,10 @@ else:
   task_runners = [r for r in runners_config if r not in ['default', 'local']]
   default_runner = task_runners[0] if task_runners else 'local'
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {}) 
+if 'lsf' in config:
+  default_runner = 'lsf'
+if default_runner ==  'lsf' and os.name=='nt':
+  default_runner = 'local'
 local_config = config.get('runners', {}).get('local', {})
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,

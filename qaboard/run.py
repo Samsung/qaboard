@@ -170,6 +170,7 @@ class RunContext():
                 "rel_input_path": self.rel_input_path,
                 "input_path": self.rel_input_path,
                 "output_directory": self.output_dir,
+                "output_dir": self.output_dir,
                 "forwarded_args": self.forwarded_args,
                 "configuration": serialize_config(self.configurations),
             }
