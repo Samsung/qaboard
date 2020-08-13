@@ -359,15 +359,17 @@ def sync(ctx, input_path, output_path):
     click.secho(str(metrics), fg='green')      
 
 
-runners_config = config.get('lsf', config.get('runners', {}))
+lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {}) 
+runners_config = config.get('runners', {})
 if 'default' in runners_config:
   default_runner = runners_config['default']
 else:
   task_runners = [r for r in runners_config if r not in ['default', 'local']]
   default_runner = task_runners[0] if task_runners else 'local'
+if 'lsf' in config:
+  default_runner = 'lsf'
 if default_runner ==  'lsf' and os.name=='nt':
   default_runner = 'local'
-lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {}) 
 local_config = config.get('runners', {}).get('local', {})
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
