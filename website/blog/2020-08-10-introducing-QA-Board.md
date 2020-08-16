@@ -31,11 +31,11 @@ While it's very convenient at first, very soon keeping track of versions or comp
 
 
 ## QA-Board's story
-Our business unit develops IP for image sensors. What was a closely-knit 15 person team became a 250-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (200MP and beyond), capable of AI and packed with innovative features, including cutting-edge image processing IPs.
+Our business unit develops IP for image sensors. What was a closely-knit 15 person team became a an over-300-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (200MP and beyond), capable of AI and packed with innovative features, including cutting-edge image processing IPs.
 
 > [We're hiring at Samsung's Israel R&D Center](https://samsung-careers.co.il/) - our goal is to become the 1st image sensor manufacturer worldwide.
 
-As we were experiencing growing pains in our development processes, we set up an infratructure team to change the way we work. What we emphasized were software-engineering best practices, infrastructure, reproducibility, and our mission to improve cross-team collaboration.
+As we were experiencing growing pains in our development processes, we set up an infrastructure team to change the way we work. What we emphasized were software-engineering best practices, tooling, reproducibility, and our mission to improve cross-team collaboration.
 
 As part of our work on algorithms for our [innovative DVS sensor](http://rpg.ifi.uzh.ch/docs/CVPR19workshop/CVPRW19_Eric_Ryu_Samsung.pdf), I had created what became QA-Board. When I joined this new infrastructure team we expanded QA-Board's scope.
 
@@ -45,7 +45,7 @@ QA-Board has become a key collaborative tool. Our main use-cases are:
 - **Work-from-home**: engineers can share 108MP+ images thanks to the [IIIF protocol](https://github.com/IIIF/awesome-iiif).
 - **Integration**: links to and from git repositories and their Continuous Integration. From QA-Board, users can [directly access](https://samsung.github.io/qaboard/docs/triggering-third-party-tools) build artifacts, trigger automated jobs, and when needed they can build dashboards or scripts they query QA-Board's API.
 - **Visualizations**: everything can be compared, and thanks to the [many different types of visualizations](https://samsung.github.io/qaboard/docs/visualizations) (images/plots/text/html/video...), users can easily create the reports they need.
-- **Tuning**: QA-Board distributes runs to our cluster. Users can easily start tuning experiments that enable feature flags or tweak parameters. We've integrated [scikit-optimize](https://scikit-optimize.github.io/) for black-box optimization.
+- **Tuning**: QA-Board [distributes runs](https://samsung.github.io/qaboard/docs/celery-integration) to our cluster. Users can easily start tuning experiments that enable feature flags or tweak parameters. We've integrated [scikit-optimize](https://scikit-optimize.github.io/) for black-box optimization.
 - **Regression**: users can check the progress on various metrics, and when needed, identify which commit caused a regression.
 - **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html) and track metrics for regressions.
 
