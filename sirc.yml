@@ -14,7 +14,7 @@ services:
     expose:
     - "80"
     volumes:
-    - /opt/dockermounts/stage/algo_data:/var/www/localhost/images
+    - /opt/dockermounts/stage/algo_data:/var/www/localhost/images/stage/algo_data
 
   db:
     ports:
