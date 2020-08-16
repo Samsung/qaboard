@@ -92,7 +92,7 @@ services:
       - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
       - /algo/CIS/outputs:/repository/algo/CIS/outputs
       - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
-      environment:
+    environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
   
