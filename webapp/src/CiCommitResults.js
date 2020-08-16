@@ -357,6 +357,7 @@ class CiCommitResults extends Component {
                       new_batch={new_batch}
                       ref_batch={ref_batch}
                       metrics={selected_metrics}
+                      available_metrics={available_metrics}
                       input={metricTableSelect}
                     />
                 </Card>
@@ -370,6 +371,7 @@ class CiCommitResults extends Component {
                       new_batch={new_batch}
                       ref_batch={ref_batch}
                       metrics={selected_metrics}
+                      available_metrics={available_metrics}
                       input={metricTableSelect}
                     />
                 </Card>

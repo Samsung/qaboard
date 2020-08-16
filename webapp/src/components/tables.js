@@ -95,6 +95,7 @@ const TableCompare = ({
   new_batch,
   ref_batch,
   metrics,
+  available_metrics,
   input,
   labels
 }) => {
@@ -105,7 +106,7 @@ const TableCompare = ({
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration");
 
-  const metrics_ = metrics.filter(m => outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
+  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => m !== undefined && outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
       {input}
@@ -160,6 +161,7 @@ const TableKpi = ({
   new_batch,  
   ref_batch,
   metrics,
+  available_metrics,
   input,
   labels
 }) => {
@@ -168,7 +170,7 @@ const TableKpi = ({
   const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration");
-  const metrics_ = metrics.filter(m => outputs.some(([id, o])  => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
+  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => m !== undefined && outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
       {input}
