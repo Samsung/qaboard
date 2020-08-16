@@ -1,6 +1,6 @@
 import { createSelector } from 'reselect'
 
-import { filter_batch, matching_output } from "../utils";
+import { filter_batch, matching_output, metrics_fill_defaults } from "../utils";
 import {
   default_project,
   default_selected,
@@ -84,7 +84,7 @@ const batchSelectorPreFilter = createSelector([selectedSelector, commitSelector]
 
 
 export const configSelector = createSelector([batchSelectorPreFilter, commitSelector, projectDataSelector, selectedSelector], ({ new_batch: batch }, { new_commit: commit = {} }, project_data, selected) => {
-  const batch_config = batch.data?.qatools_config;
+  const batch_config = batch.data?.config;
   const commit_config = commit.data?.qatools_config;
   const project_config = project_data.data?.qatools_config || {};
 
@@ -93,9 +93,14 @@ export const configSelector = createSelector([batchSelectorPreFilter, commitSele
   const project_metrics = project_data.data?.qatools_metrics;
   const metrics = batch_metrics || commit_metrics || project_metrics || {};
 
+  if (project_metrics !== undefined) {
+    project_metrics.available_metrics = metrics_fill_defaults(project_metrics.available_metrics)
+    project_metrics.main_metrics = (project_metrics.main_metrics || []).filter(m => !!project_metrics.available_metrics[m]);
+  }
+  metrics.available_metrics = metrics_fill_defaults(metrics.available_metrics)
+  metrics.main_metrics = (metrics.main_metrics || []).filter(m => !!metrics.available_metrics[m]);
 
-  let available_metrics = metrics.available_metrics || {}
-  let selected_metrics = selected.selected_metrics || (metrics.main_metrics || []).map(k => available_metrics[k])
+  let selected_metrics = selected.selected_metrics || metrics.main_metrics
   // TODO: filter summary/main/.. metrics, only keep those that are defined
   return {
     git: project_data.data?.git,
