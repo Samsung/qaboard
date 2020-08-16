@@ -53,7 +53,11 @@ def run(context):
     shell=True,
     cwd=context.output_dir,
     encoding='utf-8',
+    # to get real-time logs and capture them we need to work more
+    capture_output=True,
   )
+  print(process.stdout)
+  print(process.stderr)
   if process.returncode != 0:
     return {"is_failed": True, "returncode": process.returncode}
   return {"is_failed": False}
