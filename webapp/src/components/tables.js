@@ -200,7 +200,7 @@ const TableKpi = ({
         <tbody>
           {outputs.map(([id, output]) => {
             let { reference_id, reference_mismatch } = output;
-            let output_ref = ref_batch.outputs[reference_id] || {}
+            let output_ref = ref_batch.outputs[reference_id] || {metrics: {}}
             return (
               <Row key={id}>
                 <RowHeaderCell output={output} mismatch={reference_mismatch} />
