@@ -18,7 +18,7 @@ class Repos():
   def __getitem__(self, project_path):
     """
     Return a git-python Repo object representing a clone
-    of $QABOARD_GIT_SERVER/project_path at $QABOARD_DATA
+    of $QABOARD_GIT_SERVER/project_path at $QABOARD_DATA_DIR
 
     project_path: the full git repository namespace, eg group/repo
     """
@@ -42,7 +42,7 @@ class Repos():
           str(clone_location),
         )
       except Exception as e:
-        print(f'[ERROR] Could not clone: {e}. Please set $QABOARD_DATA to a writable location and verify your network settings')
+        print(f'[ERROR] Could not clone: {e}. Please set $QABOARD_DATA_DIR to a writable location and verify your network settings')
         raise(e)
     self._repos[project_path] = repo
     return self._repos[project_path]

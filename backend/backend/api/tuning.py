@@ -19,7 +19,7 @@ from qaboard.conventions import deserialize_config
 
 from backend import app, db_session
 from ..models import CiCommit, Project
-from ..config import shared_data_directory
+from ..config import qaboard_data_shared_dir
 
 
 def get_groups_path(project_id, name="extra-batches"):
@@ -27,7 +27,7 @@ def get_groups_path(project_id, name="extra-batches"):
     Return the path of the file where we save the groups of tests we defined for a project.
     Creates it if it does not exist yet.
     """
-    path = shared_data_directory / project_id / f"{name}.yml"
+    path = qaboard_data_shared_dir / project_id / f"{name}.yml"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
