@@ -12,6 +12,7 @@ from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound
 
+from qaboard.conventions import slugify_hash
 from backend.models import Base
 
 
@@ -35,7 +36,11 @@ class TestInput(Base):
   @property
   def output_folder(self):
     """returns test path without any extension"""
-    return Path(self.path).with_suffix('')
+    input_dir = Path(self.path).with_suffix('')
+    if len(input_dir.as_posix()) > 90:
+        input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=90))
+    return input_dir
+
 
   @property
   def filename(self):

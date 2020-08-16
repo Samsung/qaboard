@@ -46,7 +46,7 @@ def run(context):
     return {"is_failed": False}
 
   if context.dryrun:
-    return
+    return {"is_failed": False}
 
   process = subprocess.run(
     command,
