@@ -204,13 +204,6 @@ class CiCommit(Base):
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)
         if data and data.get('qaboard_config'):
-          if data and data.get('project_root'):
-            if not ci_commit.data:
-              ci_commit.data = {}
-            if not ci_commit.data.get('git'):
-              ci_commit.data['git'] = {}
-            ci_commit.data['git'].update({"path_with_namespace": data['project_root']})
-            flag_modified(ci_commit, "data")
           is_initialization = not project.data or 'qatools_config' not in data 
           reference_branch = data["qaboard_config"]['project'].get('reference_branch', 'master')
           is_reference = data.get("commit_branch") == reference_branch
@@ -248,6 +241,14 @@ class CiCommit(Base):
           # commits belong to many branches, so this is a guess
           branch=data["commit_branch"] if (data and "commit_branch" in data) else find_branch(hexsha, project.repo),
         )
+        if data and data.get('project_root'):
+          if not ci_commit.data:
+            ci_commit.data = {}
+          if not ci_commit.data.get('git'):
+            ci_commit.data['git'] = {}
+          ci_commit.data['git'].update({"path_with_namespace": data['project_root']})
+          flag_modified(ci_commit, "data")
+
         if data and data.get('qaboard_config'):
           ci_commit.data.update({'qatools_config': data['qaboard_config']})
           if "qaboard_metrics" in data:
