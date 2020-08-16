@@ -12,8 +12,8 @@ app = Flask(__name__)
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
-from .config import git_server, app_data_directory
-repos = Repos(git_server, app_data_directory)
+from .config import git_server, qaboard_data_git_dir
+repos = Repos(git_server, qaboard_data_git_dir)
 
 
 # Some magic to use sqlalchemy safely with Flask
