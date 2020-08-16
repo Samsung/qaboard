@@ -171,9 +171,11 @@ class RunContext():
             return {
                 **self.asdict(),
                 "rel_input_path": self.rel_input_path,
+                # the API expects it to be relative for now... let's fix this when possible
                 "input_path": self.rel_input_path,
+                # backward compatibility with
                 "output_directory": self.output_dir,
-                "output_dir": self.output_dir,
                 "forwarded_args": self.forwarded_args,
+                # backward compatibility with very old projects
                 "configuration": serialize_config(self.configurations),
             }

@@ -404,8 +404,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
         click.secho(f'Use either `qa batch BATCH`, or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
         exit(1)
-    batches, *forwarded_args = forwarded_args
-    batches = [batches]
+    single_batch, *forwarded_args = forwarded_args
+    batches = [Path(single_batch)]
 
   print_url(ctx)
   existing_outputs = get_outputs(ctx.obj)
@@ -471,7 +471,11 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           batch_conf_dir = outputs_commit / prefix_outputs_path
           if tuning_file:
               batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
-      run_context.output_dir = batch_conf_dir / run_context.rel_input_path.with_suffix('')
+      from qaboard.conventions import slugify_hash
+      input_dir = run_context.rel_input_path.with_suffix('')
+      if len(input_dir.as_posix()) > 90:
+          input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=90))
+      run_context.output_dir = batch_conf_dir / input_dir
       if forwarded_args:
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:

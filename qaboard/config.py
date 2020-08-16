@@ -369,10 +369,11 @@ if metrics_file:
     with metrics_file_path.open(errors="surrogateescape") as f:
       try:
         _metrics = yaml.load(f, Loader=yaml.SafeLoader)
-      except:
+      except Exception as e:
         config_has_error = True
         if not ignore_config_errors:
           click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
+          click.secho(f'{e}', fg='red', err=True)
           ignore_config_errors = True
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
