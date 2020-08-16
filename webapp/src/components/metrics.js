@@ -34,6 +34,12 @@ const metric_formatter = (value, metric) => {
   // 3 significant digits by default
   // https://mathjs.org/docs/reference/functions/format.html
   return format(value, {precision: metric?.precision ?? 3})
+  // This doesn't support scientific notation.. but above there
+  // are not thousant separators... ^^
+  // return value.toLocaleString({
+  //   minimumSignificantDigits: metric?.precision ?? 3,
+  //   maximumSignificantDigits: metric?.precision ?? 3,
+  // })
 }
 const percent_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",

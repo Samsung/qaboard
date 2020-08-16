@@ -60,7 +60,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       <Tooltip>
-        <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>
+        {delta === 0 ? "=" : <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>}
         <ul>
           <li><strong>New:</strong> {metrics_new[metric.key] * metric.scale}{metric.suffix}</li>
           <li><strong>Reference:</strong> {metrics_ref[metric.key] * metric.scale}{metric.suffix}</li>
@@ -70,22 +70,21 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   );
 };
 
-const QualityCell = ({ metric, metrics }) => {
+const QualityCell = ({ metric_info, metric, metric_ref }) => {
   if (
-    metrics === undefined ||
-    metrics[metric.key] === undefined ||
-    metrics[metric.key] === null
+    metric_info === undefined ||
+    metric === undefined || metric === null
   )
     return <td></td>;
-  let value = metrics[metric.key];
-  const delta_relative = !!metric.target ? (metric.target - value) / (metric.target + 0.000001) : 0;
-  let quality = metric.smaller_is_better ? (0.5 + delta_relative/2) : (0.5 - delta_relative/2);
+  const delta_relative = !!metric_info.target ? (metric_info.target - metric) / (metric_info.target + 0.000001) : 0;
+  let quality = metric_info.smaller_is_better ? (0.5 + delta_relative/2) : (0.5 - delta_relative/2);
   quality = Math.max(Math.min(quality, 0.9), 0.08)
+  // className={Classes.MONOSPACE_TEXT} ?
   return (
     <td style={{ background: interpolateRdYlGn(quality) }}>
       <Tooltip>
-       <span>{metric_formatter(value * metric.scale, metric)}</span>
-       <span>{value * metric.scale}{metric.suffix}</span>
+       <span>{metric_ref === metric ? '=' : metric_formatter(metric * metric_info.scale, metric_info)}</span>
+       <span>{metric * metric_info.scale}{metric_info.suffix}</span>
       </Tooltip>
     </td>
   );
@@ -95,6 +94,7 @@ const TableCompare = ({
   new_batch,
   ref_batch,
   metrics,
+  available_metrics,
   input,
   labels
 }) => {
@@ -105,7 +105,7 @@ const TableCompare = ({
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration");
 
-  const metrics_ = metrics.filter(m => outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
+  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => m !== undefined && outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
       {input}
@@ -114,7 +114,7 @@ const TableCompare = ({
           <tr>
             <th />
             {metrics_.map(m => (
-              <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 rgba(16, 22, 26, 0.15);"}}>
+              <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 rgba(16, 22, 26, 0.15)"}}>
                 {m.short_label} {m.suffix.length > 0 && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
               </th>
             ))}
@@ -122,7 +122,7 @@ const TableCompare = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} tests
+                {outputs.length} runs
               </span>
             </th>
             {metrics_.map(m => (
@@ -160,6 +160,7 @@ const TableKpi = ({
   new_batch,  
   ref_batch,
   metrics,
+  available_metrics,
   input,
   labels
 }) => {
@@ -168,7 +169,7 @@ const TableKpi = ({
   const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration");
-  const metrics_ = metrics.filter(m => outputs.some(([id, o])  => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
+  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => m !== undefined && outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
   return (
     <Section>
       {input}
@@ -185,7 +186,7 @@ const TableKpi = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} tests
+                {outputs.length} runs
               </span>
             </th>
             {metrics_.map(m => (
@@ -205,8 +206,8 @@ const TableKpi = ({
                 <RowHeaderCell output={output} mismatch={reference_mismatch} />
                 {metrics_.map(m => (
                   <Fragment key={m.key}>
-                    <QualityCell metric={m} metrics={output.metrics} />
-                    <QualityCell metric={m} metrics={output_ref.metrics} />
+                    <QualityCell metric_info={m} metric={output.metrics[m.key]} />
+                    <QualityCell metric_info={m} metric={output_ref.metrics[m.key]} metric_ref={output.metrics[m.key]}/>
                   </Fragment>
                 ))}
               </Row>

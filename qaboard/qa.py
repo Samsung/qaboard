@@ -405,7 +405,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         click.secho(f'Use either `qa batch BATCH`, or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
         exit(1)
     single_batch, *forwarded_args = forwarded_args
-    batches = [Path(single_batch)]
+    batches = [single_batch]
 
   print_url(ctx)
   existing_outputs = get_outputs(ctx.obj)

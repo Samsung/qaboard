@@ -355,6 +355,27 @@ const slug = text => {
     .replace(/^-+|-+$/g, '');     // Remove excess '-' from both sides of a string
 }
 
+const metrics_fill_defaults = available_metrics => {
+  Object.entries(available_metrics || {}).forEach( ([key, m])  => {
+    m.key = key
+    m.label = m.label || key
+    m.short_label = m.short_label || m.label || key
+    m.scale = m.scale  || 1.0
+    m.suffix = m.suffix || ''
+    if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
+      m.smaller_is_better = true;
+    } else {
+      if (typeof m.smaller_is_better === "string") {
+        m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
+      }
+    }
+    if (key.startsWith('.')) {
+      delete available_metrics[key]
+    }
+  })
+  return available_metrics || {}
+}
+
 
 export {
   average,
@@ -373,4 +394,5 @@ export {
   plotly_palette,
   linux_to_windows,
   make_eval_templates_recursively,
+  metrics_fill_defaults,
 };

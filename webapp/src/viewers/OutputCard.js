@@ -469,7 +469,7 @@ class OutputCard extends React.Component {
                 key={`${idx}-${path_idx}`}
                 id={`${idx}-${path_idx}`}
                 output_new={output_new}
-                output_ref={(ref_available && show_ref_if_available) ? output_ref : undefined}
+                output_ref={(ref_available && show_ref_if_available && output_ref.id !== output_new.id) ? output_ref : undefined}
                 manifests={this.state.manifests}
                 {...view}
                 path={path}
@@ -505,7 +505,7 @@ class OutputCard extends React.Component {
             selected_metrics={main_metrics}
             available_metrics={available_metrics}
             metrics_new={output_new.metrics ? output_new.metrics : {}}
-            metrics_ref={output_ref && output_ref.metrics ? output_ref.metrics : {}}
+            metrics_ref={output_ref && output_ref.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
           />}
           {viewers}
         </>

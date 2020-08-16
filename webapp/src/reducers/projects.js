@@ -10,6 +10,8 @@ import {
 } from '../actions/constants'
 import { default_project_id, default_project } from "../defaults"
 
+import { metrics_fill_defaults } from "../utils"
+
 
 function update_project(state = default_project, data) {
   /*
@@ -34,29 +36,8 @@ function update_project(state = default_project, data) {
   console.log('WARNING: replaced the visualizations for debugging!')
   */
   if (data.data?.qatools_metrics) {
-    let available_metrics = JSON.parse(JSON.stringify(data.data.qatools_metrics.available_metrics  || {}));
-    Object.entries(available_metrics).forEach( ([key, m])  => {
-      m.key = key
-      m.label = m.label || key
-      m.short_label = m.short_label || m.label || key
-      m.scale = m.scale  || 1.0
-      m.suffix = m.suffix || ''
-      if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
-        m.smaller_is_better = true;
-      } else {
-        if (typeof m.smaller_is_better === "string") {
-          m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
-        }
-      }
-      if (key.startsWith('.')) {
-        delete available_metrics[key]
-      }
-      if (key.startsWith('.')) {
-        delete available_metrics[key]
-      }
-    })
-    data.data.qatools_metrics.available_metrics = available_metrics;
-    data.data.qatools_metrics.main_metrics = (data.data.qatools_metrics.main_metrics || []).filter(m => !!available_metrics[m]);
+    data.data.qatools_metrics.available_metrics = metrics_fill_defaults(data.data.qatools_metrics.available_metrics  || {});
+    data.data.qatools_metrics.main_metrics = (data.data.qatools_metrics.main_metrics || []).filter(m => !!data.data.qatools_metrics.available_metrics[m]);
   }
   return {
     ...state,

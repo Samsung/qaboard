@@ -12,6 +12,8 @@ import {
   default_selected,
 } from "../defaults"
 
+import { metrics_fill_defaults } from "../utils"
+
 
 function selected(state = {
   // we select a default project based on the current URL
@@ -77,59 +79,9 @@ function commits(state = {}, action) {
         }
       }
     case UPDATE_COMMIT:
-      // FIXME: error handling as action.error
-      /*
-      // // A quick debug tool
-      const debug_views = [
-          //{
-            //name: 'Frames',
-            // type: 'image/bmp',
-            // path: ':frame/output.bmp',
-            // path: '(.*)/output.bmp',
-            //display: 'single',
-            // display: 'all',
-          //},
-          {
-            name: 'Files',
-            type: 'text/plain',
-            path: ':frame/(.*.txt)',
-            // path: '(.*.txt)',
-            default_hidden: false,
-          },
-          {
-            name: 'Debug',
-            type: 'image/bmp',
-            path: '(.*.bmp|.*.hex|.*.raw)',
-            // path: '(.*.txt)',
-            default_hidden: false,
-          }
-
-      ]
-      console.log(action)
-      action.data.data.qatools_config.outputs.visualizations = debug_views;
-      console.log('WARNING: replaced the visualizations for debugging!')
-      */
       if ((action.data.data || {}).qatools_metrics) {
-        let available_metrics = JSON.parse(JSON.stringify(action.data.data.qatools_metrics.available_metrics  || {}));
-        Object.entries(available_metrics).forEach( ([key, m])  => {
-          m.key = key
-          m.label = m.label || key
-          m.short_label = m.short_label || m.label || key
-          m.scale = m.scale  || 1.0
-          m.suffix = m.suffix || ''
-          if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
-            m.smaller_is_better = true;
-          } else {
-            if (typeof m.smaller_is_better === "string") {
-              m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
-            }
-          }
-          if (key.startsWith('.')) {
-            delete available_metrics[key]
-          }
-        })
-        action.data.data.qatools_metrics.available_metrics = available_metrics;
-        action.data.data.qatools_metrics.main_metrics = action.data.data.qatools_metrics.main_metrics.filter(m => !!available_metrics[m]);
+        action.data.data.qatools_metrics.available_metrics = metrics_fill_defaults(action.data.data.qatools_metrics.available_metrics);
+        action.data.data.qatools_metrics.main_metrics = action.data.data.qatools_metrics.main_metrics.filter(m => !!action.data.data.qatools_metrics.available_metrics[m]);
       }
       return {
         ...state,
