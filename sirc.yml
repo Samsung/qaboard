@@ -1,10 +1,6 @@
 version: "3.5"
-
-# We may need to setup DNS for some 
-    # for the migration
-    # dns: 127.0.0.53
-    # dns_search: transchip.com
-    # jensirc: 106.199.20.60
+# dns: 127.0.0.53
+# dns_search: transchip.com
 
 services:
   iiif-cde:
@@ -15,6 +11,7 @@ services:
     - "80"
     volumes:
     - /opt/dockermounts/stage/algo_data:/var/www/localhost/images/stage/algo_data
+    - /algo/CIS/outputs:/var/www/localhost/images/algo/CIS/outputs
 
   db:
     ports:
@@ -46,6 +43,8 @@ services:
     - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
     - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
     - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
+    - /algo/CIS/outputs:/algo/CIS/outputs
+    - /algo/CIS_artifacts:/algo/CIS_artifacts
 
   proxy:
     ports:
@@ -77,6 +76,8 @@ services:
     - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
     - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
     - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
+    - /algo/CIS/outputs:/algo/CIS/outputs
+    - /algo/CIS_artifacts:/algo/CIS_artifacts
 
   cantaloupe:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
@@ -89,7 +90,9 @@ services:
         gid: 10
     volumes:
       - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
-    environment:
+      - /algo/CIS/outputs:/repository/algo/CIS/outputs
+      - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
+      environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
   
