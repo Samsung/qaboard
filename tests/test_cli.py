@@ -73,6 +73,10 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
     assert 'a.jpg =>' in result.output
     assert "'is_failed': False" in result.output
+    result = self.qa('run', '-i', '/dev/null', 'echo "{input_path} => {output_dir}"')
+    assert result.exit_code == 0
+    assert '/dev/null =>' in result.output
+    assert "'is_failed': False" in result.output
 
   def test_get(self):
     result = self.qa('get', 'commit_id')
@@ -80,6 +84,8 @@ class TestQaCli(unittest.TestCase):
 
   def test_batch(self):
     result = self.qa('--dryrun', 'batch', 'cli_tests')
+    assert result.exit_code == 0
+    result = self.qa('--dryrun', 'batch', '/dev/null')
     assert result.exit_code == 0
 
   def test_batch_list(self):

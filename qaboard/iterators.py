@@ -85,7 +85,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       return
 
   if not globs:
-    yield from input_paths
+    yield from ((i, database) for i in input_paths)
     return
 
   nb_inputs = 0
@@ -106,7 +106,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
               if match(metadata, exclude): continue
             if match(os.path.basename(i), exclude): continue
         nb_inputs += 1
-        yield i
+        yield i, database
 
   #     if only:
   #       inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
@@ -141,7 +141,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
       iter_inputs = entrypoint_module_.iter_inputs(path, database, only, exclude, inputs_settings)
       # we filter twice just in case
       iter_inputs_filtered = (i for i in iter_inputs if (not only or match(i["metadata"], only)) and (not exclude or not match(i["metadata"], exclude)))
-      yield from (i["absolute_input_path"] for i in iter_inputs_filtered)
+      yield from ( (i["input_path"], i["database"]) for i in iter_inputs_filtered)
       # we really could send a batch update to /our/ database here with all the metadata?
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -212,7 +212,7 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_da
       # Maybe we asked recordings from a location...
       if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
-      yield from (replace(run_context, input_path=i) for i in inputs_iter)
+      yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
     else:
       yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
 
@@ -283,7 +283,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     locations = batch.get('inputs', batch.get('tests'))
     if not locations:
       inputs_iter = _iter_inputs(None, run_context.database, inputs_settings, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'))
-      yield from (replace(run_context, input_path=i) for i in inputs_iter)
+      yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
       return
 
     # We also allow each input to have its settings...
@@ -329,7 +329,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           location_run_context.configurations =  [*location_run_context.configurations, location_configurations]
       if debug: click.secho(str(location_run_context.database / location), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(location, location_run_context.database, location_inputs_settings, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'))
-      yield from (replace(location_run_context, input_path=i) for i in inputs_iter)
+      yield from (replace(location_run_context, input_path=i, database=d) for i, d in inputs_iter)
 
 
 
