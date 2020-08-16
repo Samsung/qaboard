@@ -36,7 +36,7 @@ api_prefix = f"{qaboard_url}/api/v1"
 # For now we use http, until we deal with cert trust issues
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
 api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
-api_port = os.getenv('QATOOLS_DB_PORT', '5000')
+api_port = os.getenv('QATOOLS_DB_PORT', '80')
 api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
