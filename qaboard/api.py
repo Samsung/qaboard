@@ -171,9 +171,7 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
-    print('BEFORE')
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
-    print('AFTER')
     if 'QATOOLS_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     r.raise_for_status()
