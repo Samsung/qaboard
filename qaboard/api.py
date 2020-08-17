@@ -36,7 +36,7 @@ api_prefix = f"{qaboard_url}/api/v1"
 # For now we use http, until we deal with cert trust issues
 api_protocol = os.getenv('QATOOLS_DB_PROTOCOL', 'http')
 api_host = os.getenv('QATOOLS_DB_HOST', 'qa')
-api_port = os.getenv('QATOOLS_DB_PORT', '80')
+api_port = os.getenv('QATOOLS_DB_PORT', '5000') # can't access 80 from LSF..
 api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
@@ -171,7 +171,9 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
+    print('BEFORE')
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
+    print('AFTER')
     if 'QATOOLS_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     r.raise_for_status()
