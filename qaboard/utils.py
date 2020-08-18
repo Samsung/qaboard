@@ -26,7 +26,7 @@ def merge(src: Dict, dest: Dict) -> Dict:
         if isinstance(value, dict):
           node = dest.setdefault(key, {})
           merge(value, node)
-        elif value:
+        else:
           # "super" is a reserved keyword
           if isinstance(value, list) and "super" in value:
             value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
