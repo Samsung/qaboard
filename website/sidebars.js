@@ -24,6 +24,7 @@ module.exports = {
                 items: [
                     "celery-integration",
                     "lsf-integration",
+                    "local-multiprocessing",
                 ],
             },
             {
