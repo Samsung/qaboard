@@ -87,7 +87,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
             }}
             style={{ color: 'inherit' }}
           >
-            {has_label ? output.test_input_metadata.label : output.test_input_path}
+            {has_label ? output.test_input_metadata.label : `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`}
           </Link>
         </span>
         <Menu>
@@ -469,7 +469,7 @@ class OutputCard extends React.Component {
                 key={`${idx}-${path_idx}`}
                 id={`${idx}-${path_idx}`}
                 output_new={output_new}
-                output_ref={(ref_available && show_ref_if_available && output_ref.id !== output_new.id) ? output_ref : undefined}
+                output_ref={(ref_available && show_ref_if_available && output_ref?.id !== output_new?.id) ? output_ref : undefined}
                 manifests={this.state.manifests}
                 {...view}
                 path={path}

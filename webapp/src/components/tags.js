@@ -252,4 +252,4 @@ class OutputTags extends React.Component {
 }
 
 
-export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, OutputTags, style_skeleton };
+export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, style_skeleton };
