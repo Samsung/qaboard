@@ -11,7 +11,7 @@ import {
 } from "@blueprintjs/core";
 
 import { Section } from "./layout";
-import { PlatformTag, ConfigurationsTags, ExtraParametersTags } from './tags'
+import { PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter } from "./metrics"
 
 
@@ -23,18 +23,14 @@ const Row = styled.tr`
   }
 `
 
-const RowHeaderCell = ({ output, warning }) => {
+const RowHeaderCell = ({ output }) => {
+  let test_input = output.test_input_metadata?.label ?? `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
   return (
     <th scope="row">
-      {output.test_input_path} <ExtraParametersTags parameters={output.extra_parameters} />
+      {test_input} <ExtraParametersTags parameters={output.extra_parameters} />
       <PlatformTag platform={output.platform}/>
-      <ConfigurationsTags configurations={output.configurations}/>      
-      {warning && (
-        <Tooltip>
-          <Tag intent={Intent.WARNING} icon="not-equal-to">ref</Tag>
-          <span>{warning}</span>
-        </Tooltip>
-      )}
+      <ConfigurationsTags configurations={output.configurations}/>
+      <MismatchTags mismatch={output.reference_mismatch}/>
       {output.is_failed && <Tag style={{marginLeft: '5px'}} intent={Intent.DANGER}>Failed</Tag>}
     </th>
   );

@@ -49,7 +49,7 @@ def update_gitlab_status(commit_id, state, label, description):
   target_url = f"https://qa/{config['project']['name']}/commit/{commit_id}"
   if label != "default":
     name += f" | {label}"
-    target_url += f"&batch={label}"
+    target_url += f"?batch={label}"
   params = {
     "state": state,
     "name": name,
