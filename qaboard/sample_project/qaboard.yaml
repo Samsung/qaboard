@@ -118,7 +118,7 @@ outputs:
 
 
 # Bit accuray tests will look for files matching those glob patterns
-bit_accuracy:
+bit_accuracy: {}
   # In order to compare file hashes/sizes between Linux and Windows, text files need to have end of lines normalized.
   # If you provide a list of patterns for plaintext files, the rest will be considered binary
   # plaintext:
