@@ -257,9 +257,11 @@ if not commit_id or not commit_branch:
       if not commit_id:
         commit_id = f'<local:{user}>'
 
-if artifacts_project:
-    artifacts_branch = artifacts_project / 'branches' / slugify(commit_branch)
+if artifacts_project_root:
+    artifacts_branch_root = artifacts_project_root / 'branches' / slugify(commit_branch)
+    artifacts_branch = artifacts_branch_root / subproject
 else:
+    artifacts_branch_root = Path()
     artifacts_branch = Path()
 
 commit_committer_name: Optional[str] = user

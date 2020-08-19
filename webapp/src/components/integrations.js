@@ -449,7 +449,6 @@ const JobTag = ({job}) => {
 
 export { IntegrationsMenus };
 
-// For debugging
 /*eslint no-template-curly-in-string: "off"*/
 const default_gitlab_integrations = [
     {
@@ -465,87 +464,3 @@ const default_gitlab_integrations = [
       only: "${branch}" // won't be displayed in per-commit pages
     }, 
 ]
-
-/*
-const debug_integrations = [
-    {
-      divider: true,
-      title: 'Build',
-    },
-    {
-      text: 'Play Gitlab Manual Job',
-      gitlabCI: {
-        job_name: "tuning",
-        project_id: "LSC/Calibration",
-        // job_name: "chart-report",
-        // commit_id: "9ce4c8a6",
-        // project_id: "tof/swip_tof",
-      }
-    },
-    {
-      text: 'Jenkins build',
-      jenkins: {
-        build_url: "http://jensirc:8080/job/CDE_Project_Static",
-        params: {
-          project_name: "CIS",
-          branch: "${commit.branch}",
-          commit: '${commit.id}',
-        }
-      }
-    },
-    {
-      text: 'Windows',
-      icon: 'build',
-      // when triggered, gives a way to check the status
-      //status: {
-      //  // ? maybe sh
-      //}
-      webhook: {
-        url: 'http://jensirc:8080/job/CDE_Project_DLL/buildWithParameters',
-        method: 'post',
-        auth: {
-          username: 'arthurf',
-          password: '11089462c1273c2e5dc3f2746f03578bc5',
-        },
-        headers: {
-          'Jenkins-Crumb': 'c762b20d61bd34c5fd8e49ad6637a8a1',
-        },
-        params: {
-          token: 'qaboard',
-          project_name: 'CIS',
-          branch: '${commit.branch}',
-          cause: 'Triggered via the QA app'
-        }
-        // success: {**webhook_others, matches: /200: OK/ }
-      }
-    },
-    {
-      text: 'EXE',
-      icon: 'download',
-      label: 'Windows',
-      href: '${commit.repo_artifacts_url}/${project_parts.slice(-1)}/${project_parts[2]}/${subproject_parts[0]}/build/bin/',
-    },
-    // {
-    //   divider: true,
-    //   title: 'Docs',
-    // },
-    // {
-    //   text: 'Generate',
-    //   icon: 'build',
-    // },
-    // {
-    //   text: 'View',
-    //   icon: 'book',
-    //   label: 'link',
-    //   href: 'http://example.com/docs',
-    // },
-    // {
-    //   divider: true,
-    // },
-    // {
-    //   text: 'Publish',
-    //   intent: 'warning',
-    //   icon: 'upload',
-    // },
-]
-*/
