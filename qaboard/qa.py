@@ -483,6 +483,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:
           run_context.extra_parameters = {"forwarded_args": run_forwarded_args, **tuning_params}
+        else:
+          run_context.extra_parameters = tuning_params
       else:
         run_context.extra_parameters = tuning_params
 
