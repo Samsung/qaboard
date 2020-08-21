@@ -223,12 +223,14 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           print(f"ERROR: {e}")
         runtime_metrics = {'is_failed': True}
 
+      if not runtime_metrics:
+        click.secho(f'[WARNING] Your `run` function should return a dict with a least {"is_failed": False}', fg='yellow')
+        runtime_metrics = {"is_failed": False}
+
       if not isinstance(runtime_metrics, dict):
         click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
         runtime_metrics = {'is_failed': True}
 
-      if not runtime_metrics:
-        runtime_metrics = {}
       runtime_metrics['compute_time'] = time.time() - start
 
       # avoid issues if code in run() changes cwd
