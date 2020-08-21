@@ -148,7 +148,11 @@ class RunContext():
 
     @property
     def configs(self):
-        return [*self.configurations, self.extra_parameters]
+        _extra_parameters = self.extra_parameters
+        if _extra_parameters:
+            return [*self.configurations, self.extra_parameters]
+        else:
+            return self.configurations
 
     @property
     def params(self):
