@@ -31,7 +31,7 @@ While it's very convenient at first, very soon keeping track of versions or comp
 
 
 ## QA-Board's story
-Our business unit develops IP for image sensors. What was a closely-knit 15 person team became a an over-300-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (200MP and beyond), capable of AI and packed with innovative features, including cutting-edge image processing IPs.
+Our business unit develops IP for image sensors. What was a closely-knit 15 person team became an over-300-person organization. The complexity and pace of our projects kept growing. As you may know, Samsung is now working on image sensors with groundbreaking resolution (200MP and beyond), capable of AI and packed with innovative features, including cutting-edge image processing IPs.
 
 > [We're hiring at Samsung's Israel R&D Center](https://samsung-careers.co.il/) - our goal is to become the 1st image sensor manufacturer worldwide.
 
@@ -68,4 +68,4 @@ Join our [issue tracker](https://github.com/Samsung/qaboard/issues) to report bu
 :::
 
 ## How to get started using QA-Board?
-[Head over to the docs](https://samsung.github.io/qaboard/docs/installation). If you run into issues contact us: we'll help you.
+[Head over to the docs](https://samsung.github.io/qaboard/docs/deploy). If you run into issues contact us: we'll help you.

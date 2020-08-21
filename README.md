@@ -33,7 +33,7 @@ QA-Board across many projects enables us to:
 - **Quality:** uncover issues earlier, KPIs, tuning, reporting...
 
 ## Getting Started
-[Read the docs!](https://samsung.github.io/qaboard/docs/installation) You will learn how to:
+[Read the docs!](https://samsung.github.io/qaboard/docs/introduction) You will learn how to:
 - Start a QA-Board server
 - Wrap your code with QA-Board
 - View output files and KPIs
