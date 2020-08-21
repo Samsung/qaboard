@@ -48,22 +48,31 @@ def run(context):
   if context.dryrun:
     return {"is_failed": False}
 
-  process = subprocess.run(
+  # We do extra work to capture real-time logs and print it ourselves
+  # otherwise it won't show in both STDOUT and the captured log.txt file
+  # https://stackoverflow.com/questions/803265/getting-realtime-output-using-subprocess
+  process = subprocess.Popen(
     command,
     shell=True,
     cwd=context.output_dir,
     encoding='utf-8',
-    # to get real-time logs and capture them we need to work more
-    capture_output=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    bufsize=1,
+    errors='replace',
   )
-  print(process.stdout)
-  print(process.stderr)
-  if process.returncode != 0:
-    return {"is_failed": True, "returncode": process.returncode}
+  while True:
+      line = process.stdout.readline()
+      if line == '' and process.poll() is not None:
+          break
+      if line:
+          print(line.strip(), flush=True)
+  returncode = process.poll()
+  if returncode != 0:
+    return {"is_failed": True, "returncode": returncode}
   return {"is_failed": False}
 
-  click.secho("TODO: Create plots/graphs...", fg='cyan', bold=True)
-  click.secho("TODO: Return metrics...", fg='cyan', bold=True)
+  click.secho("Edit qa/main.py: create plots/graphs, return metrics...", fg='cyan', bold=True)
   return {"is_failed": False}
 
 
