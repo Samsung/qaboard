@@ -363,7 +363,7 @@ const SuccessBar = ({ success_frac }) => (
 class MetricsSummary extends Component {
   constructor(props) {
     super(props);
-    const { available_metrics={}, summary_metrics=[] } = this.props.metrics;
+    const { available_metrics={}, summary_metrics=[] } = props.metrics || {};
     const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
     let selected_metrics = props.selected_metrics || default_selected_metrics;
     this.state = {

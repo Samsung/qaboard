@@ -291,7 +291,7 @@ class CiCommit(Base):
         'authored_date': self.authored_date.isoformat(),
         'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,
         'deleted': self.deleted,
-        "data": self.data if with_outputs else None,
+        "data": self.data,
         'outputs_url': dir_to_url(self.outputs_dir),
         'artifacts_url': self.artifacts_url,
         'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)

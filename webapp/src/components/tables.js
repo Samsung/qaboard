@@ -89,8 +89,8 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
 const TableCompare = ({
   new_batch,
   ref_batch,
-  metrics,
-  available_metrics,
+  metrics=[],
+  available_metrics={},
   input,
   labels
 }) => {
@@ -155,8 +155,8 @@ const TableCompare = ({
 const TableKpi = ({
   new_batch,  
   ref_batch,
-  metrics,
-  available_metrics,
+  metrics=[],
+  available_metrics={},
   input,
   labels
 }) => {

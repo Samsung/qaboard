@@ -19,11 +19,13 @@ import {
 import { updateSelected } from "./actions/selected";
 import { fetchBranches, fetchCommits } from './actions/projects'
 import { CommitNavbar } from "./components/CommitNavbar";
+import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 
 import {
 	projectSelector,
 	projectDataSelector,
 	commitsDataSelector,
+	commitsSelector,
 	branchesSelector,
 	selectedSelector,
   commitSelector,
@@ -112,6 +114,12 @@ class AppNavbar extends Component {
     }
   };
 
+  update_selected_batches = event => {
+    const { project } = this.props;
+    let label = event.target.value
+    this.props.dispatch(updateSelected(project, { selected_batch_new: label, selected_batch_ref: label }))    
+  }
+
   componentDidMount() {
     this.maybeFetchBranches({force_fetch: true});
   }
@@ -175,7 +183,7 @@ class AppNavbar extends Component {
 
     const is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
     const is_project_branch_home = this.props.match.path === "/:project_id+/commits/:name+"
-    const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel/');
+    const is_dashboard = this.props.match.path.startsWith('/:project_id+/history/');
 
     // let is_committer = !!match.params.committer;
     // let is_branch = !!match.params.name;
@@ -211,7 +219,7 @@ class AppNavbar extends Component {
               let extended_date_range = [new_date_range[0], new_date_range[1]]
               extended_date_range[0].setHours(0,0,0,0);
               extended_date_range[1].setHours(23,59,59,999);
-              const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
+              const is_dashboard = this.props.match.path.startsWith('/:project_id+/history');
               const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
               dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))
             }}
@@ -226,7 +234,7 @@ class AppNavbar extends Component {
                           let extended_date_range = [date_range[0], date_range[1]]
                           extended_date_range[0].setHours(0,0,0,0);
                           extended_date_range[1].setHours(23,59,59,999);
-                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/time-travel');
+                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/history');
                           const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
                           dispatch(fetchCommits(project, {...this.props.match.params}, extended_date_range, aggregated_metrics, options))
                         }
@@ -236,7 +244,12 @@ class AppNavbar extends Component {
           {this.props.is_loading && <div style={{marginLeft: '15px'}}><Spinner size={Spinner.SIZE_SMALL} /></div>}
         </NavbarGroup>
         <NavbarGroup align="right">
-
+          {is_dashboard && <SelectBatchesNav
+            commit={new_commit}
+            batch={new_batch}
+            onChange={this.update_selected_batches}
+            hide_counts
+          />}
           {(is_project_home || is_project_branch_home) &&
               <Suggest
                 query={selected.search}
@@ -284,12 +297,8 @@ const mapStateToProps = (state, ownProps) => {
 
   let project = projectSelector(state)
   let project_data = projectDataSelector(state)
-
   let commits_data = commitsDataSelector(state)
-  // let commits = commitsSelector(state)
-
   let selected = selectedSelector(state)
-
   let { new_commit, ref_commit } = commitSelector(state)
   let {
     selected_batch_new,
@@ -299,12 +308,24 @@ const mapStateToProps = (state, ownProps) => {
     ref_batch_filtered,
   } = batchSelector(state)
 
-  let selected_views = selected.selected_views || ( (((project_data.data || {}).qatools_config || {}).outputs || {}).default_tab_details || 'summary')
+  const commits = commitsSelector(state)
+  let is_branch = !!ownProps.match.params.name;
+  let some_commits_loaded = !!commits && commits.length > 0;
+  let project_data_ = (is_branch && some_commits_loaded && commits[0]) || project_data
+  let project_metrics = project_data_.data?.qatools_metrics || {};
+  let aggregated_metrics = {};
+  (project_metrics.main_metrics || []).forEach(m => {
+    aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
+  });
+
+
+  let selected_views = selected.selected_views || project_data.data?.qatools_config?.outputs?.default_tab_details || 'summary'
 
   return {
     is_home,
     project,
     project_data,
+    aggregated_metrics,
 
     branches: branchesSelector(state),
     is_loading_branches: project_data.branches_loading,

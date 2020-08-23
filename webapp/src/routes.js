@@ -49,13 +49,13 @@ export const routes = [
     navbar: AppNavbar,
   },
   {
-    path: "/:project_id+/time-travel/:name+",
+    path: "/:project_id+/history/:name+",
     main: Dashboard,
     sider: AppSider,
     navbar: AppNavbar,
   },
   {
-    path: "/:project_id+/time-travel",
+    path: "/:project_id+/history",
     main: Dashboard,
     sider: AppSider,
     navbar: AppNavbar,

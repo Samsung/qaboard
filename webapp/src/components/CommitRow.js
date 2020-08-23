@@ -62,7 +62,7 @@ const has_outputs_in_batch = label => commit => {
 
 class CommitResults extends React.Component {
   render() {
-    const { project, project_data={}, commit, dispatch } = this.props;
+    const { project, project_data={}, commit, dispatch, default_batch="default" } = this.props;
 
     let incomplete_data = commit.message === undefined || commit.message === null;
     if (incomplete_data)
@@ -73,8 +73,8 @@ class CommitResults extends React.Component {
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label, batch]) => label )
-    let valid_outputs_not_in_default_batch = (!has_outputs_in_batch('default')(commit) && batches_with_results.length>0)
-    let ci_batch_label = valid_outputs_not_in_default_batch ? batches_with_results[0] : 'default'
+    let valid_outputs_not_in_default_batch = (!has_outputs_in_batch(default_batch)(commit) && batches_with_results.length>0)
+    let ci_batch_label = valid_outputs_not_in_default_batch ? batches_with_results[0] : default_batch
     let ci_batch =  commit.batches[ci_batch_label];
 
     if (
@@ -334,7 +334,7 @@ class CommitRow extends React.Component {
             </div>
           </CommitContent>
 
-          <CommitResultsStyled project={project} dispatch={dispatch} project_data={project_data} commit={commit} />
+          <CommitResultsStyled project={project} dispatch={dispatch} project_data={project_data} commit={commit} default_batch={this.props.default_batch}/>
         </CommitDetails>
       </CommitRowWrapper>
     );

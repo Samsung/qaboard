@@ -99,9 +99,9 @@ class ProjectSideCommitList extends React.Component {
 
 	render() {
     const { project, project_data={}, commit={}, match } = this.props;
-    let qatools_config = (project_data.data || {}).qatools_config || {};
-    let reference_branch = (qatools_config.project || {}).reference_branch;
-    const git = (project_data.data || {}).git || {};
+    let qatools_config = project_data.data?.qatools_config || {};
+    let reference_branch = qatools_config.project?.reference_branch;
+    const git = project_data.data?.git || {};
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+";
     let is_committer = !!match.params.committer;
@@ -120,7 +120,7 @@ class ProjectSideCommitList extends React.Component {
       }
       {!is_committer && <>
         <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-        <MenuItem href={`/${project}/time-travel/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
+        <MenuItem href={`/${project}/history/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
         <MenuDivider />
         <IntegrationsMenus single_menu project={project} project_data={project_data} branch={is_branch ? match.params.name : reference_branch} commit={commit} user={this.props.tuning_user} />
         </>}
@@ -138,7 +138,7 @@ class ProjectSideResults extends React.Component {
 
 	render() {
     const { project, project_data={}, commit, batch } = this.props;
-    const git = (project_data.data || {}).git || {};
+    const git = project_data.data?.git || {};
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
     let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
@@ -197,7 +197,7 @@ class AppSider extends React.Component {
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
-        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/time-travel/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
+        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
         {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.batch} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
       </ul>
     </Sider>

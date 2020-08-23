@@ -53,7 +53,7 @@ class Dashboard extends React.Component {
 
   componentDidMount() {
     let name = this.props.project.split('/').slice(-1)[0];
-    document.title = `TimeTravel - ${name}`;
+    document.title = `History - ${name}`;
     this.fetchCommits();
   }
 
@@ -65,7 +65,7 @@ class Dashboard extends React.Component {
   fetchCommits() {
     const { match, project, selected_batch_new, dispatch, aggregation_metrics } = this.props;
     const extra_params = {
-      only_ci_batches: selected_batch_new === 'default',
+      // only_ci_batches: selected_batch_new === 'default',
       with_outputs: true,
     }
     dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params))
@@ -123,7 +123,6 @@ class Dashboard extends React.Component {
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
   } 
 
-
   render() {
     const { project_data, project, commits, available_metrics, output_filter } = this.props;
     const { is_loaded, is_loading, error  } = this.props;
@@ -174,7 +173,7 @@ class Dashboard extends React.Component {
             <h2 className={Classes.HEADING}>Performance over time</h2>
             <CommitsEvolution
               project={project}
-              project_data={project_data}              
+              project_data={project_data}
               commits={commits}
               shown_batches={[this.props.selected_batch_new]}
               new_commit={new_commit}
@@ -303,13 +302,14 @@ const mapStateToProps = (state, ownProps) => {
       ref_batch,
     } = batchSelector(state)
 
-
     let commits_data = commitsDataSelector(state)
     let commits = commitsSelector(state)
 
     let { project_config, project_metrics } = configSelector(state)
 
-    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = project_metrics
+    let some_commits_loaded = !!commits && commits.length > 0;
+    let metrics = (some_commits_loaded && commits[0]).data?.qatools_metrics || project_metrics || {}
+    const { available_metrics, default_metric, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = metrics
     let aggregation_metrics = {};
     (dashboard_metrics || main_metrics || []).filter(m => available_metrics[m] !== undefined)
     .forEach(m => {
