@@ -93,13 +93,12 @@ class CiCommitList extends React.Component {
     let is_branch = !!match.params.name;
 
     let some_commits_loaded = !!commits && commits.length > 0;
-
     let show_metrics_over_time = (is_loaded || some_commits_loaded) && !error && is_branch;
     let qa_report = show_metrics_over_time && <Section>
       <Card>
         <CommitsEvolution
           project={project}
-          project_data={project_data}
+          project_data={(is_branch && some_commits_loaded && commits[0]) || project_data}
           commits={commits}
           per_output_granularity={false}
           dispatch={this.props.dispatch}
@@ -162,15 +161,19 @@ const commit_search = c => {
 const mapStateToProps = (state, ownProps) => {
     const project = projectSelector(state)
     const project_data = projectDataSelector(state)
-
-    let project_metrics = (project_data.data || {}).qatools_metrics || {};
-    let aggregated_metrics = {};
-    (project_metrics.main_metrics || []).forEach(
-      m => (aggregated_metrics[m] = project_metrics.available_metrics[m].target)
-    );
-
     const commits_data = commitsDataSelector(state)
     const commits = commitsSelector(state)
+
+    let is_branch = !!ownProps.match.params.name;
+    let some_commits_loaded = !!commits && commits.length > 0;
+    let project_data_ = (is_branch && some_commits_loaded && commits[0]) || project_data
+    let project_metrics = project_data_.data?.qatools_metrics || {};
+
+    let aggregated_metrics = {};
+    (project_metrics.main_metrics || []).forEach(m => {
+      aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
+    });
+
 
     const { search } = selectedSelector(state)
     let matcher = match_query(search)

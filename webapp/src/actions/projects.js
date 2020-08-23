@@ -10,6 +10,7 @@ import {
   UPDATE_FAVORITE,
   UPDATE_MILESTONES,
 } from "./constants";
+import { metrics_fill_defaults } from "../utils"
 
 
 export const updateProjects = (projects, error) => ({
@@ -56,7 +57,7 @@ export const updateBranches = (project, branches, error) => ({
 })
 
 
-export const fetchCommits = (project, branch, date_range, aggregation_metrics, extra_params) => {
+export const fetchCommits = (project, branch, date_range, aggregation_metrics, extra_params, fetch_once) => {
   return dispatch => {
     dispatch({ type: FETCH_COMMITS, project, branch, date_range })
     var url
@@ -78,6 +79,15 @@ export const fetchCommits = (project, branch, date_range, aggregation_metrics, e
     })
       .then(response => {
         dispatch({ type: UPDATE_COMMITS, project, branch, commits: response.data })
+        if (!!branch.name && response.data && response.data.length > 0 && !fetch_once) {
+          const latest_commit = response.data[0]
+          const available_metrics = metrics_fill_defaults(latest_commit.data.qatools_metrics.available_metrics);
+          let aggregated_metrics = {};
+          (latest_commit.data.qatools_metrics.main_metrics.main_metrics || []).forEach(m => {
+            aggregated_metrics[m] = available_metrics[m].target ?? 0
+          });
+          fetchCommits(project, branch, date_range, aggregated_metrics, extra_params, false)
+        }
       })
       .catch(error => {
         dispatch({ type: UPDATE_COMMITS, project, branch, error, commits: [] })

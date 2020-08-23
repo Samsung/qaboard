@@ -28,7 +28,7 @@ export const commitsDataSelector = createSelector([projectSelector, projectDataS
 })
 
 
-const has_batches = c => Object.keys(c.batches).length > 0;
+const has_batches = c => Object.keys(c.batches || {}).length > 0;
 export const commitsSelector = createSelector([commitsDataSelector, state => state.commits], (commits_data, commits) => {
   let out = commits_data.ids.map(id => commits[id] || { id, batches: {} })
   if (out.some(has_batches))

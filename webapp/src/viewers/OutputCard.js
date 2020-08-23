@@ -65,7 +65,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
     style={{marginLeft: '5px', marginRight: '5px'}}
   />
 
-  const input_over_time_url = `/${project}/time-travel/${!!commit ? commit.branch : ''}${window.location.search}`
+  const input_over_time_url = `/${project}/history/${!!commit ? commit.branch : ''}${window.location.search}`
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}   

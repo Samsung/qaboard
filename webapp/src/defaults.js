@@ -9,8 +9,8 @@ const route_paths = [
 	"/:project_id+/commits",
 	"/:project_id+/commit/:commit+",
 	"/:project_id+/commit",
-	"/:project_id+/time-travel/:branch+",
-	"/:project_id+/time-travel",
+	"/:project_id+/history/:branch+",
+	"/:project_id+/history",
 	"/:project_id+",
 ];
 

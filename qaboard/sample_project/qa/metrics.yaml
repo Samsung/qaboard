@@ -30,11 +30,11 @@ summary_metrics:
 main_metrics:
   - is_failed
 
-# In the history/time-travel/dashboard, only those metrics will be available in the plot showing results over time
+# In the history view, only those metrics will be available in the plot showing results over time
 # [OPTIONNAL]: defaults to the summary_metrics
 # dashboard_evolution_metrics:
 #   - is_failed
-# In the history/time-travel/dashboard views, only those metrics will be shown in the summary histograms
+# In the history view, only those metrics will be shown in the summary histograms
 # [OPTIONNAL]: defaults to the summary_metrics
 # dashboard_metrics:
 #   - is_failed

@@ -45,11 +45,10 @@ let default_layout = {
   hoverinfo: "y",
   hoverlabel: {
     namelength: -1
-  }
-  // showlegend: false,
-  // legend: {
-  //   "orientation": "h"
-  // },
+  },
+  legend: {
+    "y": 0.01,
+  },
 };
 
 
@@ -107,7 +106,7 @@ const update_output_counts_in_batches = (commit, output_filter) => {
 class CommitsEvolutionPerTest extends React.Component {
   constructor(props) {
     super(props);
-    const project_qatools_config = ((props.project_data || {}).data || {}).qatools_config;
+    const project_qatools_config = props.project_data?.data?.qatools_config;
     this.state = {
       layout: {},
       traces: [],
@@ -209,18 +208,13 @@ class CommitsEvolutionPerTest extends React.Component {
 
     let color_line = {
       default: Colors.BLUE3,
-      "ci-android-rt": Colors.ORANGE3,
-      "manual-android-rt": Colors.ORANGE4
+      // "ci-android-rt": Colors.ORANGE3,
+      // "manual-android-rt": Colors.ORANGE4
     };
     let color_marker = {
       default: Colors.BLUE2,
-      "ci-android-rt": Colors.ORANGE2,
-      "manual-android-rt": Colors.ORANGE3
-    };
-    let name = {
-      default: "Linux (LSF)",
-      "ci-android-rt": "Real-time (Android, CI)",
-      "manual-android-rt": "Real-time (Android, manual tests)"
+      // "ci-android-rt": Colors.ORANGE2,
+      // "manual-android-rt": Colors.ORANGE3
     };
 
     // TODO: remove outliers
@@ -246,7 +240,6 @@ class CommitsEvolutionPerTest extends React.Component {
                       `${metric.key}_${shown_aggregation}`
                     ]
                 )
-
           } else {
             let aggregation_func = shown_aggregation === 'median' ? median : average;
             y = commits_with_batch
@@ -256,15 +249,13 @@ class CommitsEvolutionPerTest extends React.Component {
                   .map(outputs => outputs.map(o=> o.metrics[metric.key]) )
                   .map(values => aggregation_func(values) )
           }
-
+          // remove NaN
+          y = y.map(x => (x === undefined || x === null || isNaN(x)) ? null : x)
           // clamp ouliers
-          y = y.map(x =>
-                    x === undefined || x === null || isNaN(x)
-                      ? null
-                      : (!!metric.target && x < 20 * metric.target) ? x * metric.scale : 20 * metric.target * metric.scale
-          )
+          // if (metric.target !== undefined )
+          //   y = y.map(x => ( (x-metric.target / metric.target) < 20 ) ? x * metric.scale : 20 * metric.target * metric.scale
           let trace = {
-            name: `${name[label]} ${
+            name: `${label === "default" ? "CI" : label} ${
               shown_metrics.length > 1 ? metric.label : ""
             }`,
             type: "scatter",
@@ -412,18 +403,17 @@ class CommitsEvolutionPerTest extends React.Component {
       hovered_commit=new_commit,
       hovered_commit_ref=ref_commit,
     } = this.state;
-
-    let metric = available_metrics[metrics[0]];
+    let metric = available_metrics[metrics[0]] || {};
     let threshold = metric.target * metric.scale;
     let layout = {
       ...default_layout,
       ...this.state.layout, // save eg the zoom
-      height: !!aggregation ? 150 : 250,
+      height: !!aggregation ? 180 : 250,
       shapes: [],
     };
     layout.yaxis.ticksuffix = metric.suffix || '';
     layout.yaxis.showticksuffix = 'last';
-    layout.yaxis.type = metric.plot_scale || 'log'
+    layout.yaxis.type = metric.plot_scale || 'linear'
     if (!relative && !!threshold)
       layout.shapes.push({
           type: "line",
@@ -521,12 +511,12 @@ class CommitsEvolutionPerTest extends React.Component {
 
     if (!!hovered_commit) {
       let hovered_commit_outputs = Object.values((hovered_commit.batches[hovered_label] || {}).outputs || {})
-      let hovered_output = hovered_commit_outputs.filter(o => o.test_input_path === hovered_test_input_path && o.configurations === hovered_test_configurations)[0];
-      let should_look_for_ref = !!hovered_output &&  !!hovered_commit_ref && !!hovered_commit_ref.batches[hovered_label]
-      let { reference_id, reference_mismatch } = should_look_for_ref ? hovered_output : {}
-      let output_ref = should_look_for_ref ? (((hovered_commit_ref || {}).batches[hovered_label] || {}).outputs || {})[reference_id] : null
-      let controls_extra = project_data.data.qatools_config.outputs.controls || []
-      let visualizations = project_data.data.qatools_config.outputs.visualizations || project_data.data.qatools_config.outputs.detailed_views || []
+      let hovered_test_configurations_str = JSON.stringify(hovered_test_configurations)
+      let hovered_output = hovered_commit_outputs.filter(o => o.test_input_path === hovered_test_input_path && o.configurations_str === hovered_test_configurations_str)[0];
+      let { reference_id, reference_mismatch } = hovered_output || {};
+      let output_ref = reference_id ? (hovered_commit_ref?.batches[hovered_label]?.outputs[reference_id]) : undefined
+      let controls_extra = project_data.data?.qatools_config?.outputs?.controls || []
+      let visualizations = project_data.data?.qatools_config?.outputs?.visualizations || project_data.data?.qatools_config?.outputs?.detailed_views || []
       let maybe_diff = visualizations.some(v => is_image(v)) && <Switch
           key='diff'
           intent={Intent.WARNING}
@@ -561,13 +551,12 @@ class CommitsEvolutionPerTest extends React.Component {
                  />
         })}
       </>
-
       var legend = <div style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}>
         {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
             {hovered_test_input_path} @{JSON.stringify(hovered_test_configurations)}
         </Tag>}
-        {(!!hovered_label && hovered_label !== "default") && <Tag style={{ marginLeft: "15px" }}>{hovered_label}</Tag>}
         <CommitRow
+          default_batch={hovered_label}
           commit={hovered_commit}
           project={this.props.project}
           project_data={project_data}
@@ -575,16 +564,18 @@ class CommitsEvolutionPerTest extends React.Component {
           tag={<Tag style={{marginRight: '8px'}} intent={Intent.WARNING}>New</Tag>}
         />
         {!!hovered_commit_ref && <div><CommitRow
+                    default_batch={hovered_label}
                     commit={hovered_commit_ref}
                     project={this.props.project}
                     project_data={project_data}
                     toaster={toaster}
                     tag={<Tag style={{marginRight: '8px'}} intent={Intent.PRIMARY}>Reference</Tag>}
         /></div>}
-        <div style={{display: 'flex', flex: '0 0 auto'}}>{controls}</div>
+        {!!!this.props.aggregation && <div style={{display: 'flex', flex: '0 0 auto'}}>{controls}</div>}
         {!!hovered_output && <OutputCard
                     project={project}
-                    project_data={project_data}
+                    config={project_data.data?.qatools_config}
+                    metrics={project_data.data?.qatools_metrics}
                     commit={hovered_commit}
                     output_new={hovered_output}
                     output_ref={output_ref}
@@ -636,7 +627,7 @@ class CommitsEvolution extends Component {
   constructor(props) {
     super(props);
     const params = new URLSearchParams(window.location.search);
-    const { main_metrics=[], default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
+    const { main_metrics=[], default_metric } = this.props.project_data?.data?.qatools_metrics || {};
     this.state = {
       select_metrics: this.props.select_metrics || main_metrics,
       selected_metric: params.get("selected_metric") || default_metric,
@@ -682,7 +673,7 @@ class CommitsEvolution extends Component {
   }
 
   render() {
-    const { project, project_data, commits, new_commit, ref_commit, style, default_breakdown_per_test, output_filter, per_output_granularity } = this.props;
+    const { project, project_data, commits=[], new_commit, ref_commit, style, default_breakdown_per_test, output_filter, per_output_granularity } = this.props;
     const offer_breakdown_per_test = default_breakdown_per_test !== undefined && default_breakdown_per_test !== null;
     const {
       selected_metric,
@@ -694,7 +685,7 @@ class CommitsEvolution extends Component {
     const { select_metrics } = this.state;
 
     const { available_metrics={}, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
-
+    const shown_batches = this.props.shown_batches || Object.keys(commits[0]?.batches || {}) || ['default']
     if (!default_metric)
       return <div>To see metrics over time, <a href={process.env.REACT_APP_QABOARD_DOCS_ROOT}>define your project's metrics</a>.</div>;
 
@@ -703,7 +694,7 @@ class CommitsEvolution extends Component {
         <FormGroup inline>
           <HTMLSelect
             id="select-metric"
-            defaultValue={default_metric}
+            defaultValue={selected_metric}
             onChange={this.update("selected_metric")}
             minimal
           >
@@ -756,7 +747,7 @@ class CommitsEvolution extends Component {
             commits={commits}
             new_commit={new_commit}
             ref_commit={ref_commit}
-            shown_batches={this.props.shown_batches || ['default']}
+            shown_batches={shown_batches}
             metrics={!!selected_metric ? [selected_metric] : []}
             output_filter={output_filter}
             aggregation={breakdown_per_test ? null : selected_aggregation}
