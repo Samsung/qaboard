@@ -224,7 +224,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         runtime_metrics = {'is_failed': True}
 
       if not runtime_metrics:
-        click.secho(f'[WARNING] Your `run` function should return a dict with a least {"is_failed": False}', fg='yellow')
+        click.secho('[WARNING] Your `run` function should return a dict with a least {"is_failed": False}', fg='yellow')
         runtime_metrics = {"is_failed": False}
 
       if not isinstance(runtime_metrics, dict):
