@@ -207,7 +207,7 @@ def batch_folder_name(label:str) -> Path:
 def batch_dir(outputs_commit, batch_label, save_with_ci=False):
   from qaboard.config import is_ci, subproject
   batch_folder = batch_folder_name(batch_label)
-  return outputs_commit / batch_folder if (is_ci or save_with_ci) else subproject / batch_folder
+  return outputs_commit / batch_folder if (is_ci or save_with_ci) else subproject.resolve() / batch_folder
 
 def make_batch_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
   return batch_dir(outputs_commit, batch_label, save_with_ci)
