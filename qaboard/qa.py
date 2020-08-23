@@ -358,6 +358,23 @@ def sync(ctx, input_path, output_path):
     click.secho(str(metrics), fg='green')      
 
 
+@qa.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.pass_context
+@click.option('--output-id', 'output_id', help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
+def wait(ctx, output_id):
+  from .api import get_output 
+  while True:
+    output = get_output(output_id)
+    click.secho("...waiting")      
+    if output["is_pending"]:
+        time.sleep(5)
+        continue
+    break
+    exit(0 if not output["is_failed"] else 1)
+
+
 runners_config = config.get('runners', {})
 if 'default' in runners_config:
   default_runner = runners_config['default']
@@ -377,7 +394,7 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
-@click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are send to LSF, otherwise waits for completion")
+@click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are sent, otherwise waits for completion.")
 @click.option('--list', 'list_contexts', is_flag=True, help="Print as JSON details about each run we would do.")
 @click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
@@ -389,11 +406,12 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue', lsf_config.get('queue')), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
-@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already results, whether to do run/postprocess/sync/skip")
+@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-use results) / skip")
+@click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / continue (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, prefix_outputs_path, forwarded_args):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_threads, lsf_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
@@ -499,9 +517,11 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       is_pending = matching_existing_output['is_pending'] if matching_existing_output else False
       is_failed = matching_existing_output['is_failed'] if matching_existing_output else run_context.is_failed()
       ran_before = True if matching_existing_output else run_context.ran()
-      should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before) 
+      should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before)
       if not should_run and action_on_existing=='skip':
         continue
+      if is_pending and action_on_pending == 'skip':
+          continue
 
       if not forwarded_args:
         forwarded_args_cli = None
@@ -554,7 +574,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       run_context.job_options['command_id'] = command_id
       job = Job(run_context)
 
-      if should_notify_qa_database:
+      if should_notify_qa_database and not is_pending:
         # TODO: accumulate and send all at once to avoid 100s of requests?
         db_output = notify_qa_database(**{
           **ctx.obj,
@@ -563,9 +583,16 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         })
         if db_output: # Note: the ID is already in the matching job above
           job.id = db_output["id"]
-
+      if is_pending:
+        wait_command = f"qa wait --output-id {matching_existing_output['id']}"
+        if action_on_pending=="sync":
+          job.id = matching_existing_output['id']
+          job.run_context.command = wait_command
+        elif action_on_pending=="wait":
+          job.run_context.command = f"{wait_command} || {job.run_context.command}"
+        else:
+          assert action_on_pending=="continue"
       jobs.append(job)
-
 
   if list_contexts:
     print(json.dumps([serialize_paths(j.run_context.asdict()) for j in jobs], indent=2))
