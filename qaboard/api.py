@@ -196,9 +196,7 @@ def batch_info(reference, batch, is_branch=False):
   url = f'{api_prefix}/commit/{commit_id}'
   r = requests.get(url, params=params)
   if 'batches' not in r.json():
-  	click.secho(f'WARNING: We could not get the results for the "{batch}" batch {reference}', fg='yellow', bold=True, err=True)
-  	click.secho(r.url, fg='yellow', err=True)
-  	raise ValueError(f'We could not get the results for {batch}')
+    raise ValueError(f'We could not get the results for {batch} batch {reference}')
   return r.json()['batches'][batch]
 
 
