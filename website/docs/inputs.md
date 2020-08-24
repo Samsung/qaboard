@@ -15,10 +15,13 @@ Depending on your domain, those will be different. Here are some examples:
 | Domain                 | Input            | Configuration         | Output                             | Metric                            |
 |------------------------|------------------|-----------------------|------------------------------------|-----------------------------------|
 | **Image processing**   | image            | feature flag & params | transformed image, debug data...   | SNR, sharpness, color accuracy... |
-| **Cloud server choice**| integration test | instance type     |                                    | cost, throughput...               |
+| **Cloud server choice**| integration test | instance type         |                                    | cost, throughput...               |
 | **Machine learning**   | database/sample  | hyperparameters       | convergence plots / individual results| loss                           |
 |**Optimization research**| problem         | model type, solver    | solution                           | cost, runtime...                  |
 |**Software performance**| unit test        | feature flag, platform| `perf` recordings, benchmark histograms| runtime, memory, latency, IPC, throughput...|
+|**Hardware/driver perf**| hardware/unit-test | [sysbench config](https://github.com/arthur-flam/sysbench-qaboard)    | latency histogram                           | ops/s, runtime...                  |
+
+
 
 ## How QA-Board looks for inputs
 To make things simple, QA-Board expects that your inputs are existing **paths**.

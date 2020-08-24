@@ -47,7 +47,7 @@ QA-Board has become a key collaborative tool. Our main use-cases are:
 - **Visualizations**: everything can be compared, and thanks to the [many different types of visualizations](https://samsung.github.io/qaboard/docs/visualizations) (images/plots/text/html/video...), users can easily create the reports they need.
 - **Tuning**: QA-Board [distributes runs](https://samsung.github.io/qaboard/docs/celery-integration) to our cluster. Users can easily start tuning experiments that enable feature flags or tweak parameters. We've integrated [scikit-optimize](https://scikit-optimize.github.io/) for black-box optimization.
 - **Regression**: users can check the progress on various metrics, and when needed, identify which commit caused a regression.
-- **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html) and track metrics for regressions.
+- **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html), [benchmark drivers](https://github.com/arthur-flam/sysbench-qaboard), and track metrics for regressions.
 
 > Here are some screenshots:
 
