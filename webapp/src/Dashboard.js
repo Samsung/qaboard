@@ -63,9 +63,8 @@ class Dashboard extends React.Component {
   }
 
   fetchCommits() {
-    const { match, project, selected_batch_new, dispatch, aggregation_metrics } = this.props;
+    const { match, project, dispatch, aggregation_metrics } = this.props;
     const extra_params = {
-      // only_ci_batches: selected_batch_new === 'default',
       with_outputs: true,
     }
     dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params))
