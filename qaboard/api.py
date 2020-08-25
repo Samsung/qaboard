@@ -105,6 +105,10 @@ def serialize_path(path):
     except:
       pass
     try:
+      value = (Path('/algo') / path.relative_to('\\\\netapp\\raid\\algo'))
+    except:
+      pass
+    try:
       value = (Path('/stage/algo-datasets') / path.relative_to('\\\\f2\\algo-datasets'))
     except:
       pass
