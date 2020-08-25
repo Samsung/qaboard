@@ -315,8 +315,9 @@ const mapStateToProps = (state, ownProps) => {
   let project_metrics = project_data_.data?.qatools_metrics || {};
   let aggregated_metrics = {};
   (project_metrics.main_metrics || []).forEach(m => {
-    aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
-  });
+    if (project_metrics.available_metrics[m] !== undefined)
+      aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
+});
 
 
   let selected_views = selected.selected_views || project_data.data?.qatools_config?.outputs?.default_tab_details || 'summary'

@@ -171,7 +171,8 @@ const mapStateToProps = (state, ownProps) => {
 
     let aggregated_metrics = {};
     (project_metrics.main_metrics || []).forEach(m => {
-      aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
+      if (project_metrics.available_metrics[m] !== undefined)
+        aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
     });
 
 
