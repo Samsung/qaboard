@@ -57,7 +57,7 @@ const StatusTag = ({output, style}) => {
 
 class PlatformTag extends React.Component {
   render() {
-    if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'lsf') return <span />
+    if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'linux') return <span />
     return <Tag round minimal={!this.props.inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{this.props.platform}</Tag>
   }
 }
