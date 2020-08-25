@@ -121,12 +121,7 @@ on_linux = not on_windows
 on_vdi = 'HOST' in os.environ and os.environ['HOST'].endswith("vdi")
 on_lsf = 'HOST' in os.environ and (os.environ['HOST'].endswith("transchip.com") or os.environ['HOST'].startswith("planet"))
 
-
-if on_windows:
-  platform = 'windows'
-else:
-  # it could be "linux", but we stick to lsf for backward compatibility
-  platform = 'lsf'
+platform = 'windows' if on_windows else 'linux'
 
 
 user = getuser()
