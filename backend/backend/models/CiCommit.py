@@ -98,7 +98,7 @@ class CiCommit(Base):
   def repo_artifacts_dir(self) -> Path:
     if self.commit_dir_override:
       if self.project.id_relative:
-        repo_artifacts_dir = re.sub(f'{self.project.id_relative}^', '', self.commit_dir_override)
+        repo_artifacts_dir = re.sub(f'{self.project.id_relative}$', '', self.commit_dir_override)
         return Path(repo_artifacts_dir)
       else:
         return Path(self.commit_dir_override)
