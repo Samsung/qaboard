@@ -16,6 +16,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
 import qaboard
+from qaboard.config import storage_roots
 
 # "from X import Y" can cause circular import errors..
 from backend.models import Base, CiCommit  
@@ -39,10 +40,8 @@ class Project(Base):
     The locations where we save outputs and artifacts for this project.
     """
     id_git = self.id_git
-    from qaboard.config import storage_roots
     outputs_root, artifacts_root = storage_roots(self.data.get('qatools_config', {}), Path(self.id), Path(self.id_relative))
     try:
-      from qaboard.config import storage_roots
       outputs_root, artifacts_root = storage_roots(self.data.get('qatools_config', {}), Path(self.id), Path(self.id_relative))
     except:
       outputs_root = default_outputs_root

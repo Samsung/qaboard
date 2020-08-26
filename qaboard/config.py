@@ -126,7 +126,9 @@ platform = 'windows' if on_windows else 'linux'
 user = getuser()
 
 
-def storage_roots(config: Dict, project: Path, subproject: Path, user=user) -> Tuple[Path, Path]: 
+def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path]: 
+  # we do compute it twice, but it gives us some flexibility
+  user = getuser()
   try:
     if 'ci_root' in config:
       # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
@@ -169,7 +171,7 @@ outputs_project: Optional[Path]
 if root_qatools_config:
   assert project
   assert project_root
-  outputs_root, artifacts_root = storage_roots(config, project, subproject, user)
+  outputs_root, artifacts_root = storage_roots(config, project, subproject)
   mkdir(outputs_root)
   mkdir(artifacts_root)
   artifacts_project_root = artifacts_root / project_root
