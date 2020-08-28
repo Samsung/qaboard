@@ -104,7 +104,7 @@ with open('graph.plotly.json', 'w') as f:
 ### Flame Graphs
 We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.html) and integrated Martin Spier's [`d3-flame-graph`](https://github.com/spiermar/d3-flame-graph). At a glance, you can check where you code spends its CPU cycles, and use [differential flame graphs]((http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)) to debug regressions.
 
-<img alt="Text/diff viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
+<img alt="flame graphs viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
 
 > We have a draft of a tutorial explaining how to use [`perf`](http://www.brendangregg.com/perf.html), [`FlameGraph`](https://github.com/brendangregg/FlameGraph) and [`burn`](https://github.com/spiermar/burn#getting-started) to create the _json_ file expected by the visualization. Contact us and we'll publish it or show it to you.
 
