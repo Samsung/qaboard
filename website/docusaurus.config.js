@@ -56,11 +56,16 @@ var config = {
           label: 'Source',
         },
         {
+          href: 'https://samsung.github.io/qaboard/blog',
+          position: 'left',
+          label: 'Blog',
+        },
+        {
           href: 'https://github.com/Samsung/qaboard',
           position: 'right',
           className: 'header-github-link',
           'aria-label': 'GitHub repository',
-        },
+        }
       ],
     },
     // removes "active" color on parent sidebar categories :|
