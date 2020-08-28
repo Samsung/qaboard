@@ -106,7 +106,7 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 
 <img alt="flame graphs viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
 
-> We have a draft of a tutorial explaining how to use [`perf`](http://www.brendangregg.com/perf.html), [`FlameGraph`](https://github.com/brendangregg/FlameGraph) and [`burn`](https://github.com/spiermar/burn#getting-started) to create the _json_ file expected by the visualization. Contact us and we'll publish it or show it to you.
+> For a tutorial [read our blog post](https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs).
 
 ### More Viewers?
 Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
