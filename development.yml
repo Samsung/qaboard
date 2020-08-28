@@ -33,7 +33,7 @@ services:
     # Start a flask debug server instead of the full uwsgi
     working_dir: /qaboard/backend
     command: flask run --host 0.0.0.0 --with-threads --port 5152
-    user: "11611:11"
+    user: "11611:10"
     ports:
     - 5152:5152
     #   logging:
