@@ -144,7 +144,7 @@ def get(ctx, input_path, output_path, variable):
     output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('') if not output_path else output_path
   except:
     pass
-  from .config import outputs_commit, commit_branch, artifacts_branch_root
+  from .config import outputs_commit, commit_branch, artifacts_branch, artifacts_branch_root
   # backward compatibility
   if variable == "branch_ci_dir":
     variable = "artifacts_branch_root"
