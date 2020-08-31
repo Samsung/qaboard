@@ -368,10 +368,15 @@ def sync(ctx, input_path, output_path):
 @click.pass_context
 @click.option('--output-id', 'output_id', help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
 def wait(ctx, output_id):
-  from .api import get_output 
+  from .api import get_output
+  first = True
   while True:
     output = get_output(output_id)
-    click.secho("...waiting")      
+    if first:
+      click.secho("...waiting for previously started pending run. To run directly, use qa batch --action-on-pending=run")
+    else:
+      first = False
+      click.secho("...waiting")
     if output["is_pending"]:
         time.sleep(5)
         continue
@@ -411,7 +416,7 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-use results) / skip")
-@click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / continue (run as usual, can cause races)")
+@click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -595,7 +600,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         elif action_on_pending=="wait":
           job.run_context.command = f"{wait_command} || {job.run_context.command}"
         else:
-          assert action_on_pending=="continue"
+          assert action_on_pending=="run"
       jobs.append(job)
 
   if list_contexts:
