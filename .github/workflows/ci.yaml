@@ -68,11 +68,11 @@ jobs:
     - name: Check running containers
       run: docker ps -a
     - name: Check logs
-      run: docker-compose logs
+      run: sleep 10 && docker-compose logs
     - name: Smoke Test @app
       run: curl -s --retry 10 --retry-connrefused http://localhost:5151/
-    - name: Smoke Test @api
-      run: curl -s --retry 10 --retry-connrefused http://localhost:5151/api/v1/projects
+    - name: sleep 10 && Smoke Test @api
+      run: sleep 10 && curl -s --retry 10 --retry-connrefused http://localhost:5151/api/v1/projects
 
   publish-docker-images:
     runs-on: ubuntu-latest
