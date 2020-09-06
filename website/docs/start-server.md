@@ -36,7 +36,9 @@ Use file-base storage like [AWS EFS](https://aws.amazon.com/en/efs/) or [GCP Fil
 We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@gmail.com">Contact us</a> or [create an issue](https://github.com/samsung/qaboard/issues) if it would help.
 :::
 
-
+:::tip At SIRC
+To resolve auto-mount issues causing "too many levels of symbolic links", run `./at-sirc-before-up.py`.
+:::
 
 ## Starting the server
 1. You need [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
@@ -46,8 +48,8 @@ We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@g
 git clone git@github.com:Samsung/qaboard.git
 cd qaboard
 
-docker-compose pull
-docker-compose up -d
+docker-compose -f docker-compose.yml -f sirc.yml pull
+docker-compose -f docker-compose.yml -f sirc.yml up -d
 #=> the application is live at localhost:8080
 ```
 
@@ -56,7 +58,7 @@ To have the server restart automatically:
 
 At SIRC:
 ```bash
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
 ```
 
 :::note
