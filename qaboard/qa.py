@@ -605,7 +605,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     )
 
     from .gitlab import gitlab_token, update_gitlab_status
-    if gitlab_token and jobs and is_ci:
+    if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
       update_gitlab_status(commit_id, 'failed' if is_failed else 'success', ctx.obj["batch_label"], f"{len(jobs)} results")
 
     if is_failed and not no_wait:
