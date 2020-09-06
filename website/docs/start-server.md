@@ -53,7 +53,6 @@ docker-compose up -d
 # cloud services often require you to add the ports you need to an allow-list.
 ```
 
-
 To have the server restart automatically:
 
 ```bash
