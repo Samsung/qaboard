@@ -3,19 +3,19 @@ id: deploy
 title: Starting a QA-Board server
 sidebar_label: Server Bringup
 ---
-QA-Board's run-wrapper, `qa`, will sync with a central server, that tracks and displays results.
+QA-Board's run-wrapper, `qa`, will sync with a central server that tracks and displays results.
 
 :::note Need a hosted version?
-We're considering offering a hosted solution to help you get started. If your're interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
+We're considering offering a hosted solution to help you get started. If you are interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
 
 Until then, please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues starting a server. We're responsive.
 
 :::
 
 ## Create a directory to store results 
-QA-Board expect that all clients can access a shared storage to save and read results.
+QA-Board expects that all clients can access a shared storage to save and read results.
 
-To get started quickly on a single server, just create a *local* folder, and worry about sharing it later: 
+To get started quickly on a single server, create a *local* folder. Worry about sharing it later: 
 
 ```bash
 mkdir -p /mnt/qabaord
@@ -41,18 +41,16 @@ To resolve auto-mount issues causing "too many levels of symbolic links", run `.
 :::
 
 ## Starting the server
-1. You need [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
-2. *(optionnal)* If you have a github.com account, [being `docker login`'ed](https://help.github.com/en/packages/using-github-packages-with-your-projects-ecosystem/configuring-docker-for-use-with-github-packages#authenticating-with-a-personal-access-token) let's you pull pre-built images.
+1. You need Linux, [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
 2. To start the QA-Board server:
 ```bash
-git clone git@github.com:Samsung/qaboard.git
+git clone https://github.com/Samsung/qaboard.git
 cd qaboard
 
 docker-compose -f docker-compose.yml -f sirc.yml pull
 docker-compose -f docker-compose.yml -f sirc.yml up -d
 #=> the application is live at localhost:8080
 ```
-
 
 To have the server restart automatically:
 
