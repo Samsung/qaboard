@@ -445,7 +445,7 @@ class OutputCard extends React.Component {
         if (!(view.display === 'viewer') && view_options.length > 0) {
           if (view.display === undefined || view.display === 'single') {
             const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.selected[0]])
-            var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))]
+            var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))].map(p => decodeURIComponent(p))
             // Note: before we had a path with / and other characters, and now it's url encoded
           } else if (view.display === 'all') {
             paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
