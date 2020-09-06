@@ -16,7 +16,7 @@ README = README_md.read_text(encoding='utf-8')
 
 setup(
   name='qaboard',
-  version="0.8.12", # __version__ needs to be updated in qaboard/__init__.py as well
+  version="0.8.13", # __version__ needs to be updated in qaboard/__init__.py as well
   license="Apache-2.0",
 
   url="https://github.com/Samsung/qaboard",
