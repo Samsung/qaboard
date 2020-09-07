@@ -58,7 +58,7 @@
     "reselect": "^4.0.0",
     "sanitize-html": "^1.22.1",
     "styled-components": "^4.4.1",
-    "three": "^0.106.2",
+    "three": "^0.118.3",
     "typescript": "^3.7.3"
   },
   "scripts": {
