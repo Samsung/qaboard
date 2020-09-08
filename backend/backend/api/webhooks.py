@@ -140,6 +140,28 @@ def delete_batch(batch_id):
   return {"status": "OK"}
 
 
+@app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches', methods=['DELETE'])
+@app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches/', methods=['DELETE'])
+@app.route('/api/v1/commit/<commit_id>/batches', methods=['DELETE'])
+@app.route('/api/v1/commit/<commit_id>/batches/', methods=['DELETE'])
+def delete_commit(commit_id, project_id=None):
+  try:
+    ci_commits = CiCommit.query.filter(CiCommit.hexsha == commit_id)
+    if project_id:
+      ci_commits = ci_commits.filter(CiCommit.project_id == project_id)
+    ci_commits = ci_commits.all()
+  except Exception as e:
+    return f"404 ERROR {e}: {commit_id} in {project_id}", 404
+  for ci_commit in ci_commits:
+    for batch in ci_commit.batches:
+      stop_status = batch.stop()
+      if "error" in stop_status:
+        return jsonify(stop_status), 500
+      batch.delete(session=db_session)
+      return {"status": "OK"}
+
+
+
 
 @app.route('/api/v1/output', methods=['POST'])
 @app.route('/api/v1/output/', methods=['POST'])
