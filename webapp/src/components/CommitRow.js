@@ -1,6 +1,7 @@
 import React, { Fragment } from "react";
 import { Link } from "react-router-dom";
 import { connect } from 'react-redux'
+import axios from "axios";
 
 import styled from "styled-components";
 import { format } from "mathjs/number";
@@ -14,11 +15,13 @@ import {
   Tooltip,
   Tag,
   Menu,
+  MenuDivider,
   MenuItem,
   Popover,
 } from "@blueprintjs/core";
 
 import { updateSelected } from "../actions/selected";
+import { fetchCommit } from "../actions/commit";
 
 import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
@@ -106,9 +109,6 @@ class CommitResults extends React.Component {
     const formatter = v => format(v, {precision: 3})
     let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
 
-    let has_android_manual_batch = has_outputs_in_batch("manual-android-rt")(commit);
-    let has_android_batch = has_outputs_in_batch("ci-android-rt")(commit);
-
     const { available_metrics={}, default_metric } = (project_data.data || {}).qatools_metrics || {};
     const default_metric_info = available_metrics[default_metric] || {};
 
@@ -164,24 +164,6 @@ class CommitResults extends React.Component {
             </div>
           </Tooltip>
         )}
-        {has_android_manual_batch && (
-          <Tag
-            intent={Intent.SUCCESS}
-            minimal
-            style={{ marginRight: "4px" }}
-          >
-            {commit.batches["manual-android-rt"].valid_outputs} @android:manual
-          </Tag>
-        )}
-        {has_android_batch && (
-          <Tag
-            intent={Intent.SUCCESS}
-            minimal
-            style={{ marginRight: "4px" }}
-          >
-            {commit.batches["ci-android-rt"].valid_outputs} @android:ci
-          </Tag>
-        )}
         {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
           to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
@@ -193,7 +175,7 @@ class CommitResults extends React.Component {
         </Link>}
         {ci_batch.valid_outputs > 0 && ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== undefined  &&
             <Fragment>
-              <Tag minimal style={{ marginRight: "4px" }}>
+              {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== ci_batch.aggregated_metrics[`${default_metric_info.key}_average`] && <Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
                   {formatter(
                     default_metric_info.scale *
@@ -204,7 +186,7 @@ class CommitResults extends React.Component {
                   {default_metric_info.suffix}
                 </strong>{" "}
                 median{" "}
-              </Tag>
+              </Tag>}
               <Tag style={{ marginRight: "4px" }} minimal>
                 <strong>
                   {formatter(
@@ -217,7 +199,7 @@ class CommitResults extends React.Component {
                 </strong>{" "}
                 avg {default_metric_info.short_label}
               </Tag>
-              {Object.keys(ci_batch.aggregated_metrics).length > 0 && <Tooltip modifiers>
+              {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip modifiers>
                 <Tag minimal round>...</Tag>
                 <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
@@ -261,9 +243,22 @@ const CommitShortId = styled.a`
 `;
 
 class CommitRow extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      waiting: false,
+    };
+  }
+
+  refresh = () => {
+    const { project, commit, dispatch } = this.props;
+    dispatch(fetchCommit({project, id: commit.id}))
+  }
+
   render() {
     const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
     const git = (project_data.data || {}).git || {};
+    const is_subproject = git.path_with_namespace !== project;
     const commit_url = `${git.web_url}/commit/${commit.id}`
     const has_data = !!commit?.authored_datetime
     let maybe_skeletton = has_data ? null : Classes.SKELETON;
@@ -299,7 +294,7 @@ class CommitRow extends React.Component {
                 >
                   <Icon
                     style={{marginLeft: '4px', marginRight: '4px'}}
-                    title="Copy to clipboard"
+                    title="Copy hash to clipboard"
                     intent={Intent.PRIMARY}
                     iconSize={Icon.SIZE_SMALL}
                     icon="duplicate"
@@ -314,6 +309,54 @@ class CommitRow extends React.Component {
                 <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.artifacts_url))}} />
                 <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
                 <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+                <MenuDivider title="Manage"/>
+                <MenuItem
+                  text="Delete All Runs"
+                  icon="trash"
+                  intent={Intent.DANGER}
+                  disabled={this.state.waiting}
+                  className={Classes.TEXT_MUTED}
+                  minimal
+                  onClick={() => {
+                    this.setState({waiting: true})
+                    toaster.show({message: "Delete requested."});
+                    axios.delete(`/api/v1/commit/${project}/${commit.id}/batches/`)
+                      .then(response => {
+                        this.setState({waiting: false})
+                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.PRIMARY});
+                        this.refresh()
+                      })
+                      .catch(error => {
+                        this.setState({waiting: false });
+                        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                        this.refresh()    
+                      });
+                  }}
+                />
+                {is_subproject && <MenuItem
+                  text="Delete All Runs (in all subprojects!)"
+                  icon="trash"
+                  intent={Intent.DANGER}
+                  disabled={this.state.waiting}
+                  className={Classes.TEXT_MUTED}
+                  minimal
+                  onClick={() => {
+                    this.setState({waiting: true})
+                    toaster.show({message: "Delete requested."});
+                    axios.delete(`/api/v1/commit/${commit.id}/batches/`)
+                      .then(response => {
+                        this.setState({waiting: false})
+                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.PRIMARY});
+                        this.refresh()
+                      })
+                      .catch(error => {
+                        this.setState({waiting: false });
+                        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                        this.refresh()    
+                      });
+                  }}
+                />}
+
               </Menu>
             </Popover>
 

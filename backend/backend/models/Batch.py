@@ -99,6 +99,10 @@ class Batch(Base):
       output.redo()
 
   def stop(self):
+    if not any([o.is_pending for o in self.outputs]):
+      return {}
+
+    # TODO: it's a bit overkill to stop everything, and may even yield errors...
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?
     errors = []
     for command_id, command in self.data.get('commands', {}).items():
