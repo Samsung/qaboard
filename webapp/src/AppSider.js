@@ -17,6 +17,7 @@ import {
 
 import { Avatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
+import { MilestonesMenu } from "./components/milestones"
 
 import {
   selectedSelector,
@@ -27,6 +28,7 @@ import {
 	batchSelector,
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
+import { fetchCommit } from "./actions/commit";
 import { project_avatar_style } from "./utils"
 
 
@@ -97,11 +99,27 @@ class ProjectSideCommitList extends React.Component {
     dispatch(updateSelected(project, {branch, committer: null}))
   }
 
-	render() {
+  selectMilestone = milestone => {
+    const { project, history, dispatch } = this.props;
+    dispatch(fetchCommit({project, id: milestone.commit}));
+    dispatch(updateSelected(project, {
+      'new_commit_id': milestone.commit,
+      'selected_batch_new': milestone.batch,
+      'filter_batch_new': milestone.filter,
+    }))
+  };
+
+  render() {
     const { project, project_data={}, commit={}, match } = this.props;
     let qatools_config = project_data.data?.qatools_config || {};
     let reference_branch = qatools_config.project?.reference_branch;
     const git = project_data.data?.git || {};
+
+    // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
+    const qatools_milestones_array = qatools_config?.project?.milestones || []
+    const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
+    const shared_milestones = project_data?.data?.milestones || {}
+    const private_milestones = project_data.milestones || {}
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+";
     let is_committer = !!match.params.committer;
@@ -123,6 +141,22 @@ class ProjectSideCommitList extends React.Component {
         <MenuItem href={`/${project}/history/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
         <MenuDivider />
         <IntegrationsMenus single_menu project={project} project_data={project_data} branch={is_branch ? match.params.name : reference_branch} commit={commit} user={this.props.tuning_user} />
+        <MenuItem
+          text="Milestones"
+          icon="star"
+          defaultIsOpen
+          popoverProps={{
+            usePortal: true,
+            portalClassName: "limit-overflow",
+            hoverCloseDelay: 8000,
+            transitionDuration: 800,
+          }}
+        >
+          <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
+          {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
+          <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
+          <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
+        </MenuItem>
         </>}
     </>
 	  }

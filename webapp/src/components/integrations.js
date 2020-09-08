@@ -327,7 +327,7 @@ class IntegrationsMenus extends React.Component {
               label={label}
               onClick={this.trigger(integration)}
               disabled={disabled}
-              />
+            />
           }
 
           let show_status = !!status && !!status.statusText

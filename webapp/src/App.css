@@ -12,3 +12,8 @@ body {
 span.bp3-popover-wrapper {
   vertical-align: baseline !important;
 }
+
+.limit-overflow .bp3-transition-container {
+  max-height: 500px;
+  overflow-y: scroll;
+}

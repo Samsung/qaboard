@@ -19,10 +19,14 @@ export const updateSelected = (project, selected, url_search) => {
   if (!!selected) {
     // Update the URL path and query
     var pathname = window.location.pathname; 
-    if (!!selected && !!selected.new_commit_id && selected.new_commit_id !== '' && window.location.pathname.includes('commit') && !window.location.pathname.includes('commits') && !window.location.pathname.includes('history')) {
-      let pathname_parts = window.location.pathname.split('/')
-      pathname_parts[pathname_parts.length-1] = selected.new_commit_id;
-      pathname = pathname_parts.join('/')
+    if (!!selected && !!selected.new_commit_id && selected.new_commit_id !== '') {
+      if (window.location.pathname.includes('commit') && !window.location.pathname.includes('commits') && !window.location.pathname.includes('history')) {
+        let pathname_parts = window.location.pathname.split('/')
+        pathname_parts[pathname_parts.length-1] = selected.new_commit_id;
+        pathname = pathname_parts.join('/')
+      } else if (!window.location.pathname.includes('commits') && !window.location.pathname.includes('history') ) {
+        pathname = `/${project}/commit/${selected.new_commit_id}`
+      }
     }
     // FIXME: when we update the branch, we should also update the URL correctly if it's for dashboard/commit list
 

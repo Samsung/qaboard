@@ -127,13 +127,13 @@ class CommitNavbar extends React.Component {
 
   render() {
     const { project, project_data, commits, commit, batch, selected, type, dispatch, update } = this.props;
-    const qatools_config = (((project_data || {}).data || {}).qatools_config)
-    const reference_branch = (((qatools_config || {}).project || {}).reference_branch) || 'master';
+    const qatools_config = project_data?.data?.qatools_config
+    const reference_branch = qatools_config?.project?.reference_branch || 'master';
 
     // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
-    const qatools_milestones_array = (((qatools_config || {}).project || {}).milestones || [])
+    const qatools_milestones_array = qatools_config?.project?.milestones || []
     const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
-    const shared_milestones = ((project_data || {}).data || {}).milestones || {}
+    const shared_milestones = project_data?.data?.milestones || {}
     const private_milestones = project_data.milestones || {}
 
     const milestones_menu = <Menu style={{maxHeight: '500px', overflowY: 'scroll'}}>
