@@ -30,7 +30,7 @@ qa --config base --config delta run --input my/test
 
 Users often use batches to make it easier:
 
-```yaml {5-7} title="qa/batches.yaml"
+```yaml {5-6} title="qa/batches.yaml"
 my-batch:
   inputs:
   - A.jpg
