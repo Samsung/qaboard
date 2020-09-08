@@ -92,9 +92,10 @@ class RunContext():
             database = ctx.obj['database']
             input_path = ctx.params['input_path']
         
+        database_is_absolute = database.is_absolute()
         # we resolve all the time to handle users that ask for both //db and /db
         database = database.resolve()
-        if database.is_absolute():
+        if database_is_absolute:
             # for relative database paths we don't want an absolute path ending up in the QA-Board database...
             # note that right now .obj is the info that will get send there
             ctx.obj["database"] = database
