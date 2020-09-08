@@ -153,6 +153,9 @@ def delete_commit(commit_id, project_id=None):
   except Exception as e:
     return f"404 ERROR {e}: {commit_id} in {project_id}", 404
   for ci_commit in ci_commits:
+    if ci_commit.hexsha in ci_commit.project.milestone_commits:
+      return f"403 ERROR: Cannot delete milestones", 403
+    return "OK"
     for batch in ci_commit.batches:
       stop_status = batch.stop()
       if "error" in stop_status:

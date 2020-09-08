@@ -83,6 +83,46 @@ class Project(Base):
 
 
 
+  @property
+  def protected_refs(self):
+    # git references that are explicitely protected from deletion in qaboard.yaml
+    project_config = self.data.get("qatools_config", {}).get("project", {})
+    reference_branch = project_config.get("reference_branch", "master")
+    return [
+        reference_branch,
+        *project_config.get("milestones", []),
+    ]
+
+  @property
+  def milestone_commits(self):
+    # users can write commits as milestones...
+    def get_git_commit(repo, commit):
+        try:
+            return repo.commit(commit)
+        except:
+            return None
+    # we will save the latest commit on the protected branches
+    # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
+    protected_commit_milestones = [self.repo.commit(r).hexsha for r in self.protected_refs if get_git_commit(self.repo, r)]
+    # secho(f"  protected commit milestones: {protected_commit_milestones}", dim=True)
+
+    protected_refs = self.protected_refs
+    protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
+    # secho(f"  protected branches: {protected_refs}", dim=True)
+
+    # commits store as "branch" the first branch they were seen with. So they are never listed with tags.
+    # we need to ask git for info on the milestones refs: what commit does it correspond to?
+    # FIXME: we should store tags too somehow!
+    repo_tags = {t.tag.tag for t in self.repo.tags if t.tag} if self.repo else set()
+    protected_tags_commits = [self.repo.tags[m].commit.hexsha for m in protected_refs if m in repo_tags]
+    # secho(f"  protected commits from tags: {protected_tags_commits}", dim=True)       
+
+    # protect milestones defined via the web application
+    project_webapp_milestone_commits = [m['commit'] for m in self.data.get("milestones", {}).values()]
+    # secho(f"  protected milestones: {project_webapp_milestone_commits}", dim=True)
+    return [*protected_commit_milestones, *protected_tags_commits, *project_webapp_milestone_commits]
+
+
   @staticmethod
   def get_or_create(session, **kwargs):
     try:

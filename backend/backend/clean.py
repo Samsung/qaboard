@@ -73,45 +73,12 @@ def clean(project_ids, before, can_delete_reference_branch, dryrun, verbose):
         old_treshold = now - parse_time(before)
         secho(f"deleting data older than {old_treshold}", dim=True)
 
-        project_config = project.data.get("qatools_config", {}).get("project", {})
-        reference_branch = project_config.get("reference_branch", "master")
-        protected_refs = [
-            reference_branch,
-            *project_config.get("milestones", []),
-        ]
-        # users can write commits as milestones...
-        def get_commit(repo, commit):
-            try:
-                return repo.commit(commit)
-            except:
-                return None
-        # we will save the latest commit on the protected branches (FIXME: requires git access for now)
-        protected_commit_milestones = [project.repo.commit(r).hexsha for r in protected_refs if get_commit(project.repo, r)]
-        secho(f"  protected commit milestones: {protected_commit_milestones}", dim=True)
-
-        reference_branch = [reference_branch, f"origin/{reference_branch}"]
-        protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
-
-        secho(f"  protected branches: {protected_refs}", dim=True)
-        # commits store as "branch" the first branch they were seen with. So they are never listed with tags.
-        # we need to ask git for info on the milestones refs: what commit does it correspond to?
-        repo_tags = [t.tag.tag for t in project.repo.tags if t.tag]
-        protected_tags_commits = [project.repo.tags[m].commit.hexsha for m in protected_refs if m in repo_tags]
-        secho(f"  protected commits from tags: {protected_tags_commits}", dim=True)       
-
-        # protect milestones defined via the web application
-        project_webapp_milestone_commits = [m['commit'] for m in project.data.get("milestones", {}).values()]
-        secho(f"  protected milestones: {project_webapp_milestone_commits}", dim=True)
-        # exit(0)
-
         commits = (
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
             .filter(CiCommit.deleted == False)
             # we could check those rare occurences from python-land...
-            .filter(CiCommit.hexsha.notin_(protected_commit_milestones))
-            .filter(CiCommit.hexsha.notin_(protected_tags_commits))
-            .filter(CiCommit.hexsha.notin_(project_webapp_milestone_commits))
+            .filter(CiCommit.hexsha.notin_(project.milestone_commits))
             .filter(or_(
                 bool(CiCommit.latest_output_datetime) and CiCommit.latest_output_datetime < old_treshold,
                 not CiCommit.latest_output_datetime   and CiCommit.authored_datetime < old_treshold,
@@ -120,7 +87,7 @@ def clean(project_ids, before, can_delete_reference_branch, dryrun, verbose):
             
         )
         if not can_delete_reference_branch:
-            commits = commits.filter(CiCommit.branch.notin_(protected_refs))
+            commits = commits.filter(CiCommit.branch.notin_(project.protected_refs))
 
         for commit in commits.all():
             secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
