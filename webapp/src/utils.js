@@ -260,7 +260,7 @@ const linux_to_windows = path => {
     .replace('/stage/algo_archive', '//mars/__stage__/algo_archive')
     .replace('//stage', '//netapp')
     .replace('/stage', '//netapp')
-    .replace('/algo', '//mars/raid/algo')
+    .replace('/algo/', '//mars/raid/algo/')
     .replace('__stage__', 'stage')
   // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
   //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
