@@ -94,6 +94,9 @@ class CiCommitList extends React.Component {
 
     let some_commits_loaded = !!commits && commits.length > 0;
     let show_metrics_over_time = (is_loaded || some_commits_loaded) && !error && is_branch;
+    if (is_branch && some_commits_loaded && !!project_data.data && !!commits[0].data) {
+      commits[0].data.git = project_data.data.git
+    }
     let qa_report = show_metrics_over_time && <Section>
       <Card>
         <CommitsEvolution
