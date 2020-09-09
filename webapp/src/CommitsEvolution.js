@@ -684,7 +684,7 @@ class CommitsEvolution extends Component {
     } = this.state;
     const { select_metrics } = this.state;
 
-    const { available_metrics={}, default_metric} = ((this.props.project_data || {}).data || {}).qatools_metrics || {};
+    const { available_metrics={}, default_metric} = this.props.project_data?.data?.qatools_metrics || {};
     const shown_batches = this.props.shown_batches || Object.keys(commits[0]?.batches || {}) || ['default']
     if (!default_metric)
       return <div>To see metrics over time, <a href={process.env.REACT_APP_QABOARD_DOCS_ROOT}>define your project's metrics</a>.</div>;
@@ -699,8 +699,8 @@ class CommitsEvolution extends Component {
             minimal
           >
             {select_metrics.map(m => (
-              <option key={available_metrics[m].key} value={m}>
-                {available_metrics[m].label}
+              <option key={available_metrics[m]?.key} value={m}>
+                {available_metrics[m]?.label}
               </option>
             ))}
           </HTMLSelect>
