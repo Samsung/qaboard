@@ -293,7 +293,12 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     for manifest_input in manifest_inputs:
       manifest_input = Path(manifest_input)
       if manifest_input.is_dir():
-        input_files.update({path.as_posix(): file_info(path, config=config) for path in manifest_input.rglob('*') if path.is_file()})
+        for idx, path in enumerate(manifest_input.rglob('*')):
+          if idx >= 200:
+            break
+          if not path.is_file():
+            continue
+          input_files[path.as_posix()] = file_info(path, config=config)
       elif manifest_input.is_file():
         input_files.update({manifest_input.as_posix(): file_info(manifest_input, config=config)})
     with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
