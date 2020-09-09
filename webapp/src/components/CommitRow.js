@@ -71,7 +71,7 @@ class CommitResults extends React.Component {
     if (incomplete_data)
       return <span></span>
 
-    const git = (project_data.data || {}).git || {};
+    const git = project_data.data?.git || {};
     const gitlab_commit_url = `${git.web_url}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
@@ -257,9 +257,12 @@ class CommitRow extends React.Component {
 
   render() {
     const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
-    const git = (project_data.data || {}).git || {};
+    console.log(project_data)
+    const git = project_data.data?.git || {};
     const is_subproject = git.path_with_namespace !== project;
+    console.log(git)
     const commit_url = `${git.web_url}/commit/${commit.id}`
+    console.log(commit_url)
     const has_data = !!commit?.authored_datetime
     let maybe_skeletton = has_data ? null : Classes.SKELETON;
     return (
