@@ -43,7 +43,12 @@ api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
 def url_to_dir(url: str) -> Path:
-  return Path(unquote(url)[2:])
+  path = unquote(url)[2:]
+  if os.name == 'nt':
+    # TODO: same for all the network locations 
+    path = path.replace(r'/algo/', r'//mars/raid/algo/')
+  return Path(path)  
+
 
 def dir_to_url(path: Path) -> str:
   if not path.is_absolute():
@@ -105,7 +110,7 @@ def serialize_path(path):
     except:
       pass
     try:
-      value = (Path('/algo') / path.relative_to('\\\\netapp\\raid\\algo'))
+      value = (Path('/algo') / path.relative_to('\\\\mars\\raid\\algo'))
     except:
       pass
     try:
