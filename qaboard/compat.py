@@ -77,17 +77,17 @@ def escaped_for_cli(string):
     return 
 
 mappings = (
-  (r'\\netapp\algo_data\', r'/stage/algo_data/'),
-  (r'\\netapp2\algo_data\', r'/stage/algo_data/'),
-  (r'\\f2\algo_archive\', r'/stage/algo_archive/'),
-  (r'\\mars\stage\jenkins_ws\', r'/stage/jenkins_ws/'),
-  (r'\\mars\stage\algo_jenkins_ws\', r'/stage/algo_jenkins_ws/'),
-  (r'\\mars\raid\algo\', r'/algo/'),
-  (r'\\mars\raid\', r'/raid'),
-  (r'\\mars\stage\algo_db\', r'/stage/algo_db/'),
-  (r'\\netapp\raid\users\', r'/home/'),
-  (r'\\netapp\\QA-Data\', r'/stage/qa_data/'),
-  (r'\\f2\\algo-datasets\', r'/stage/algo-datasets/'),
+  ('\\\\netapp\\algo_data\\', '/stage/algo_data/'),
+  ('\\\\netapp2\\algo_data\\', '/stage/algo_data/'),
+  ('\\\\f2\\algo_archive\\', '/stage/algo_archive/'),
+  ('\\\\mars\\stage\\jenkins_ws\\', '/stage/jenkins_ws/'),
+  ('\\\\mars\\stage\\algo_jenkins_ws\\', '/stage/algo_jenkins_ws/'),
+  ('\\\\mars\\raid\\algo\\', '/algo/'),
+  ('\\\\mars\\raid\\', '/raid'),
+  ('\\\\mars\\stage\\algo_db\\', '/stage/algo_db/'),
+  ('\\\\netapp\\raid\\users\\', '/home/'),
+  ('\\\\netapp\\QA-Data\\', '/stage/qa_data/'),
+  ('\\\\f2\\algo-datasets\\', '/stage/algo-datasets/'),
 )
 
 
