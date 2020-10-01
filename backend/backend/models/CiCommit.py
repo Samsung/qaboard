@@ -159,6 +159,7 @@ class CiCommit(Base):
     """
     manifest_dir = self.artifacts_dir / 'manifests'
     delete_errors = False
+    nb_deleted = 0
     if manifest_dir.exists():
       for manifest in manifest_dir.iterdir():
         if keep and manifest in keep:
@@ -177,17 +178,28 @@ class CiCommit(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
-          print(f'{self.artifacts_dir / file}')
+          file_to_delete = self.artifacts_dir / file
+          print(str(file_to_delete))
+          # raise ValueError
           if not dryrun:
             try:
-              (self.artifacts_dir / file).unlink()
+              if file_to_delete.exists():
+                file_to_delete.unlink()
+                nb_deleted += 1
             except:
               has_error = True
-              print(f"WARNING: Could not remove: {self.artifacts_dir / file}")
-          if not has_error:
+              print(f"WARNING: Could not remove: {file_to_delete}")
+              # raise ValueError
+        if not has_error:
+          try: # FIXME: umask 0 when writing the manifest file!
             manifest.unlink()
+          except:
+            pass
         delete_errors = delete_errors or has_error
-    if not delete_errors:
+    else:
+      print(f"[{self.authored_datetime}] nothing in {self.artifacts_dir}")
+      # os.system("rm -rf build work")
+    if not delete_errors and nb_deleted:
       self.deleted = True
 
   @staticmethod
