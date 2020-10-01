@@ -208,6 +208,7 @@ class Output(Base):
       '--no-wait',
       "--lsf-memory 12000", # TODO: not hardcoded?
       '--action-on-existing=run',
+      '--action-on-pending=run',
       # '--list',
       f'"{self.test_input.path}"',
     ])
@@ -223,11 +224,12 @@ class Output(Base):
       "",
       # get the env right
       f'cd "{self.batch.ci_commit.artifacts_dir}"',
-      # TODO: hum....
+      'set +ex',
       '[[ -f ".envrc" ]] && source .envrc',
       '[[ -f "../.envrc" ]] && source ../.envrc',
       '[[ -f "../../.envrc" ]] && source ../../.envrc',
       '[[ -f "../../../.envrc" ]] && source ../../../.envrc',
+      'set -ex',
       command,
     ])
     if not self.output_dir.exists():
@@ -235,10 +237,10 @@ class Output(Base):
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:
       f.write(script)
-    print(script)
+    # print(script)
     print(f'"{script_path}"')
     import os
-    os.system(f'ssh arthurf@arthurf-vdi \'bash "{script_path}"\'')
+    os.system(f'ssh ispq@ispq-vdi \'bash "{script_path}"\'')
 
 
   def delete(self, soft=True, ignore=None, dryrun=False):
