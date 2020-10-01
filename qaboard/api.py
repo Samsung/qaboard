@@ -35,6 +35,7 @@ api_prefix = f"{qaboard_url}/api/v1"
 
 
 def url_to_dir(url: str) -> Path:
+  from .compat import linux_to_windows
   path = unquote(url)[2:]
   if os.name == 'nt':
     # TODO: same for all the network locations 
@@ -80,7 +81,7 @@ class NumpyEncoder(simplejson.JSONEncoder):
 
 def serialize_path(path):
   from .config import on_windows
-  from .compat import linux_to_windows_path
+  from .compat import windows_to_linux_path
   value = path
   if on_windows:
     try:
