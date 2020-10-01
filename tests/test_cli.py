@@ -58,7 +58,10 @@ class TestQaCli(unittest.TestCase):
       if result.exit_code:
         print("EXIT CODE:", result.exit_code)
         print('stdout:', result.stdout)
-        print('stderr:', result.stderr)
+        try:
+          print('stderr:', result.stderr)
+        except:
+          pass
       return result
     self.qa = qa_
 

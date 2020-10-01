@@ -245,7 +245,7 @@ else:
 repo_root = Path(os.environ.get('QA_REPO', str(root_qatools if root_qatools else Path())))
 is_in_git_repo = False
 for d in (repo_root, *list(repo_root.parents)):
-  if (d / '.git').is_dir():
+  if (d / '.git').exists():
     is_in_git_repo = True
     repo_root = d
 if not commit_id or not commit_branch:

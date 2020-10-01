@@ -77,8 +77,11 @@ def latest_commit(reference: str) -> str:
 
 
 def git_head(repo_root : Path) -> Tuple[str, str]:
-  """Return the git ref and sha for the HEAD""" 
-  with (repo_root / '.git' / 'HEAD').open() as f:
+  """Return the git ref and sha for the HEAD"""
+  git_dir = repo_root / '.git'
+  if git_dir.is_file(): # support git worktree
+    git_dir= Path(git_dir.read_text().split()[1])
+  with (git_dir / 'HEAD').open() as f:
     head_data = f.read().strip()
     if head_data.startswith('ref: refs/heads/'):
       commit_branch = head_data[16:]
