@@ -43,7 +43,11 @@ api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
 def url_to_dir(url: str) -> Path:
-  return Path(unquote(url)[2:])
+  path = unquote(url)[2:]
+  if os.name == 'nt':
+    path = linux_to_windows(path)
+  return Path(path)  
+
 
 def dir_to_url(path: Path) -> str:
   if not path.is_absolute():
