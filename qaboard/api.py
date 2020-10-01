@@ -43,6 +43,7 @@ api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 
 def url_to_dir(url: str) -> Path:
+  from .compat import linux_to_windows
   path = unquote(url)[2:]
   if os.name == 'nt':
     path = linux_to_windows(path)
