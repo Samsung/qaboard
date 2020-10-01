@@ -713,7 +713,25 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
         json.dump(manifest, f)
     if nb_files > 0:
       click.secho(f"{nb_files} files copied")
-    # if the commit was deleted, this notification will mark it as good again 
+
+  if os.name == "nt" and not ctx.obj['dryrun']:
+    # [Samsung-SIRC specific]
+    try:
+      # Windows does not set file permissions correctly on the shared storage,
+      # it does not respect umask 0: files are not world-writable.
+      # Trying to each_file.chmod(0o777) does not work either
+      # The only option is to make the call from linux.
+      # We could save a list of paths and chmod them with their parent directories...
+      # but to make things faster to code, we just "ssh linux chmod everything"
+      # from qaboard.compat import windows_to_linux_path
+      # # We can assume SSH to be present on Windows10
+      # ssh = f"ssh -i \\\\networkdrive\\home\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
+      # chmod = f'{ssh} {user}@{user}-srv \'chmod -R 777 "{windows_to_linux_path(artifacts_commit)}"\''
+      # os.system(chmod)
+    except Exception as e:
+      print(f'WARNING: {e}')
+
+  # if the commit was deleted, this notification will mark it as good again 
   notify_qa_database(object_type='commit', **ctx.obj)
 
 

@@ -35,7 +35,12 @@ api_prefix = f"{qaboard_url}/api/v1"
 
 
 def url_to_dir(url: str) -> Path:
-  return Path(unquote(url)[2:])
+  path = unquote(url)[2:]
+  if os.name == 'nt':
+    # TODO: same for all the network locations 
+    path = path.replace(r'/algo/', r'//mars/raid/algo/')
+  return Path(path)  
+
 
 def dir_to_url(path: Path) -> str:
   if not path.is_absolute():
@@ -75,18 +80,16 @@ class NumpyEncoder(simplejson.JSONEncoder):
 
 def serialize_path(path):
   from .config import on_windows
+  from .compat import linux_to_windows_path
+  value = path
   if on_windows:
-    value = path
-    # we support mount names that are different on windows and linux
-    try: # FIXME: make it configurable in a better way...
-      value = (Path('/mnt/datasets') / path.relative_to('\\\\F\\datasets'))
+    try:
+      value = windows_to_linux_path(path)
     except:
       pass
     # The server expects to receive paths that are linux-style
     if issubclass(type(value), Path):
       value = value.as_posix()
-  else:
-  	value = path
   return str(value)
 
 
@@ -104,7 +107,6 @@ def serialize_paths(data):
 
 def notify_qa_database(object_type='output', **kwargs):
   """
-  Updating the QA database.
   """
   import requests
   from .config import is_ci, is_in_git_repo, config, _metrics

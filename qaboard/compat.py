@@ -76,3 +76,27 @@ def escaped_for_cli(string):
   else:
     return 
 
+mappings = (
+  (r'\\networkdrive\somewhere', r'/mnt/somewhere'),
+  # ...
+)
+
+
+def windows_to_linux(path : str) -> str:
+  for path_windows, path_linux in mappings:
+    if path.startswith(path_windows):
+      path = path.replace(path_windows, path_linux)
+  return path.replace('\\', '/')
+
+def linux_to_windows(path : str) -> str:
+  for path_windows, path_linux in mappings:
+    if path.startswith(path_linux):
+      path = path.replace(path_linux, path_windows)
+  return path.replace('/', '\\')
+
+
+def windows_to_linux_path(path : Path) -> Path:
+  return Path(windows_to_linux(str(path)))
+
+def linux_to_windows_path(path : Path) -> Path:
+  return Path(linux_to_windows(str(path)))

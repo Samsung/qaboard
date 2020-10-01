@@ -50,9 +50,10 @@ now = datetime.datetime.utcnow()
 @click.option('--project', 'project_ids', help="Regular expressions to match projects", multiple=True)
 @click.option('--before', help="Overwrites what's defined in the project config. 1month, 3days..")
 @click.option('--can-delete-reference-branch', is_flag=True, help="Allows deleting results on the reference branch (e.g. master/develop). The latest commit will be kept.")
+@click.option('--can-delete-artifacts', is_flag=True, help="Allows deleting artifacts.")
 @click.option('--dryrun', is_flag=True)
 @click.option('--verbose', is_flag=True)
-def clean(project_ids, before, can_delete_reference_branch, dryrun, verbose):
+def clean(project_ids, before, can_delete_reference_branch, can_delete_artifacts, dryrun, verbose):
     if before and not project_ids:
         secho('[ERROR] when using --before you need to use --project', fg='red')
         exit(1)
@@ -107,10 +108,13 @@ def clean(project_ids, before, can_delete_reference_branch, dryrun, verbose):
                     db_session.add(o)
               except Exception as e:
                 print(e)
-                o.update_manifest()
-
+                raise e
+                try:
+                    o.update_manifest()
+                except:
+                    pass
             gc_config_artifacts = gc_config.get('artifacts', {})
-            if gc_config_artifacts.get('delete') == True:
+            if gc_config_artifacts.get('delete') == True or can_delete_artifacts:
                 secho(f"  Deleting artifacts", fg='cyan', dim=True)
                 commit.delete(keep=gc_config_artifacts.get('keep', []), dryrun=dryrun)
 
