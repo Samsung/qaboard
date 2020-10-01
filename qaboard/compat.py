@@ -76,3 +76,36 @@ def escaped_for_cli(string):
   else:
     return 
 
+mappings = (
+  (r'\\netapp\algo_data', r'/stage/algo_data'),
+  (r'\\netapp2\algo_data', r'/stage/algo_data'),
+  (r'\\f2\algo_archive', r'/stage/algo_archive'),
+  (r'\\mars\stage\jenkins_ws', r'/stage/jenkins_ws'),
+  (r'\\mars\stage\algo_jenkins_ws', r'/stage/algo_jenkins_ws'),
+  (r'\\mars\raid\algo', r'/algo'),
+  (r'\\mars\raid', r'/raid'),
+  (r'\\mars\stage\algo_db', r'/stage/algo_db'),
+  (r'\\netapp\raid\users', r'/home'),
+  (r'\\netapp\\QA-Data', r'/stage/qa_data'),
+  (r'\\f2\\algo-datasets', r'/stage/algo-datasets'),
+)
+
+
+def windows_to_linux(path : str) -> str:
+  for path_windows, path_linux in mappings:
+    if path.startswith(path_windows):
+      path = path.replace(path_windows, path_linux)
+  return path.replace('\\', '/')
+
+def linux_to_windows(path : str) -> str:
+  for path_windows, path_linux in mappings:
+    if path.startswith(path_linux):
+      path = path.replace(path_linux, path_windows)
+  return path.replace('/', '\\')
+
+
+def windows_to_linux_path(path : Path) -> Path:
+  return Path(windows_to_linux(str(path)))
+
+def linux_to_windows_path(path : Path) -> Path:
+  return Path(linux_to_windows(str(path)))
