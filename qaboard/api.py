@@ -90,7 +90,7 @@ class NumpyEncoder(simplejson.JSONEncoder):
 
 def serialize_path(path):
   from .config import on_windows
-  from .compat import linux_to_windows_path
+  from .compat import windows_to_linux_path
   value = path
   if on_windows:
     try:
