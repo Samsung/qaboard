@@ -186,7 +186,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 
     with (run_context.output_dir / 'run.json').open('w') as f:
       json.dump({
-        "database": str(run_context.database),
+        # run_context.database is always made absolute, we keep it relative if given so
+        "database": str(ctx.obj["database"]), 
         "input_path": str(run_context.rel_input_path),
         "input_type": run_context.type,
         "configurations": run_context.configurations,
