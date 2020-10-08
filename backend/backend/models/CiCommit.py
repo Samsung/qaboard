@@ -4,6 +4,7 @@ A version of the code on which we ran SLAM performance test.
 import re
 import json
 import fnmatch
+import subprocess
 from hashlib import md5
 from pathlib import Path
 
@@ -151,12 +152,25 @@ class CiCommit(Base):
     self.data = {}
 
 
+  def save_artifact(self):
+    # note: it won't restore binaries, users are expected to redo their CI on their own
+    import tempfile
+    import git
+    from ..git_utils import git_pull
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      tmp_dir_path = Path(tmp_dir)
+      git_pull(self.project.repo)
+      self.project.repo.git.worktree("add", tmp_dir_path, self.hexsha)
+      tmp_repo = git.Repo(tmp_dir_path)
+      subprocess.run(['qa', 'save-artifacts'], cwd=tmp_dir_path / self.project.id_relative)
+
   def delete(self, ignore=None, keep=None, dryrun=False):
     """
     Delete the commit's artifacts, and mark it as delete.
     NOTE: We don't touch batches/outputs, you have to deal with them yourself.
           See hard_delete() in api/webhooks.py and clean.py
     """
+    print(self.artifacts_dir)
     manifest_dir = self.artifacts_dir / 'manifests'
     delete_errors = False
     nb_deleted = 0
