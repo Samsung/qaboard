@@ -18,7 +18,7 @@ import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
 import { MetricsSummary } from "./components/metrics";
-import { CommitsWarningMessages, BatchStatusMessages } from "./components/messages";
+import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
 import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
@@ -173,13 +173,15 @@ class CiCommitResults extends Component {
       new_batch,
       ref_batch,
       selected_views,
+      dispatch,
+      history,
     } = this.props;
 
-    var warning_messages = <CommitsWarningMessages
-                            commits={{
-                              [new_commit_id]: new_commit,
-                              [ref_commit_id]: ref_commit
-                            }} />;
+    var warning_messages = <CommitWarningMessages
+                            project={project}
+                            commit={new_commit}
+                            dispatch={dispatch}
+                           />;
 
     let clearButton =
       selected_metrics.length > 0 ? (
@@ -261,7 +263,7 @@ class CiCommitResults extends Component {
                   Sort by {param} ({new_batch.extra_parameters[param].size})
                 </option>            
             )}
-            {Object.values(this.props.available_metrics).map(
+            {Object.values(available_metrics).map(
               m => (
                 <option key={m.key} value={m.key}>
                   Sort by {m.label}
@@ -290,7 +292,7 @@ class CiCommitResults extends Component {
             <>
               <Section key="filters">
                 {warning_messages}
-                <BatchStatusMessages batch={new_batch} />
+                <BatchStatusMessages project={project} commit={new_commit} batch={new_batch} dispatch={dispatch} />
               </Section>
 
               {selected_views.includes('summary') && <Section>
@@ -314,7 +316,7 @@ class CiCommitResults extends Component {
                     config={config}
                     new_commit={new_commit}
                     ref_commit={ref_commit}
-                    history={this.props.history}
+                    history={history}
                   />
                 </Card>
                </Section>}
@@ -385,7 +387,7 @@ class CiCommitResults extends Component {
                     commit={new_commit}
                     batch={new_batch}
                     batch_label={new_batch.label}
-                    dispatch={this.props.dispatch}
+                    dispatch={dispatch}
                   />
                </Section>}
 
@@ -403,8 +405,8 @@ class CiCommitResults extends Component {
                   <ExportPlugin
                     project={project}
                     config={config}
-                    new_commit_id={this.props.new_commit_id}
-                    ref_commit_id={this.props.ref_commit_id}
+                    new_commit_id={new_commit_id}
+                    ref_commit_id={ref_commit_id}
                     selected_batch_new={this.props.selected_batch_new}
                     selected_batch_ref={this.props.selected_batch_ref}
                     filter_batch_new={this.props.filter_batch_new}
@@ -414,12 +416,12 @@ class CiCommitResults extends Component {
                     project={project}
                     config={config}
                     metrics={metrics}
-                    new_commit={this.props.new_commit}
+                    new_commit={new_commit}
                     new_batch={new_batch}
                     ref_batch={ref_batch}
                     controls={this.state.controls}
-                    history={this.props.history}
-                    dispatch={this.props.dispatch}
+                    history={history}
+                    dispatch={dispatch}
                   />
               </Section>)}
 
@@ -429,8 +431,8 @@ class CiCommitResults extends Component {
                   <ExportPlugin
                     project={project}
                     config={config}
-                    new_commit_id={this.props.new_commit_id}
-                    ref_commit_id={this.props.ref_commit_id}
+                    new_commit_id={new_commit_id}
+                    ref_commit_id={ref_commit_id}
                     selected_batch_new={this.props.selected_batch_new}
                     selected_batch_ref={this.props.selected_batch_ref}
                     filter_batch_new={this.props.filter_batch_new}
@@ -441,12 +443,12 @@ class CiCommitResults extends Component {
                     project={project}
                     config={config}
                     metrics={metrics}
-                    new_commit={this.props.new_commit}
+                    new_commit={new_commit}
                     new_batch={new_batch}
                     ref_batch={ref_batch}
                     controls={this.state.controls}
-                    history={this.props.history}
-                    dispatch={this.props.dispatch}
+                    history={history}
+                    dispatch={dispatch}
                   />
                </Section>}
 

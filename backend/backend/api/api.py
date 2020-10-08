@@ -267,3 +267,22 @@ def api_ci_commit(commit_id=None):
   response = make_response(ujson.dumps(ci_commit.to_dict(with_aggregation, with_batches=with_batches, with_outputs=True)))
   response.headers['Content-Type'] = 'application/json'
   return response
+
+
+@app.route("/api/v1/commit/save-artifacts/", methods=['POST'])
+@app.route("/api/v1/commit/save-artifacts", methods=['POST'])
+def commit_save_artifacts():
+  hexsha = request.json.get('hexsha')
+  try:
+    ci_commit = CiCommit.get_or_create(
+      session=db_session,
+      hexsha=hexsha,
+      project_id=request.json['project'],
+    )
+  except:
+    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({hexsha})", 404
+  ci_commit.save_artifact()
+  ci_commit.deleted = False
+  db_session.add(ci_commit)
+  db_session.commit()
+  return 'OK'

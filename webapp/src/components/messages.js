@@ -11,18 +11,73 @@ import {
   Toaster,
 } from "@blueprintjs/core";
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
+import { fetchCommit } from "../actions/commit";
 
 const toaster = Toaster.create();
 
-const CommitsWarningMessages = ({commits}) => {
-	let some_ids_not_correct = Object.keys(commits).some(id => id===null)
-	if (some_ids_not_correct)
-		return <NonIdealState
-      title="No commit selected"
-      description="Please first select a commit."
-      icon="folder-open"
-    />;
-  return <span></span>
+
+
+class CommitWarningMessages extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      waiting: false,
+    };
+  }
+  
+  refresh = () => {
+    const { project, commit, dispatch } = this.props;
+    dispatch(fetchCommit({project, id: commit.id}))
+  }
+
+  restore_artifacts() {
+    const { commit, project } = this.props;
+    if (commit === undefined || commit === null) return;
+    this.setState({waiting: true})
+    toaster.show({message: "Restoring artifacts..."});
+    post(`/api/v1/commit/save-artifacts/`, {hexsha: commit.id, project})
+      .then(response => {
+        this.setState({waiting: false})
+        toaster.show({message: `Restore artifacts.`, intent: Intent.PRIMARY});
+        this.refresh()
+        setTimeout(this.refresh,  1*1000)
+        setTimeout(this.refresh,  5*1000)
+        setTimeout(this.refresh, 10*1000)
+})
+      .catch(error => {
+        this.setState({waiting: false });
+        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+        this.refresh()
+      });
+
+  }
+  
+  render() {
+    const commit = this.props.commit;
+    if (commit?.id===null) {
+      return <NonIdealState
+        title="No commit selected"
+        description="Please first select a commit."
+        icon="folder-open"
+      />;
+    }
+    if (commit?.deleted) {
+      return <Callout
+          icon="trash"
+          title={`This commit's artifacts have been deleted!`}
+        >
+          <p>We can restore the artifacts for you, but you'll likely need to rebuild too..!</p>
+          <Button
+            icon="redo"
+            text="Restore Artifacts"
+            minimal
+            disabled={!!this.state.waiting}
+            onClick={() => this.restore_artifacts(commit)}
+          />
+      </Callout>
+    } 
+    return <span></span>
+  }
 }
 
 
@@ -66,6 +121,14 @@ class BatchStatusMessages extends React.Component {
     });
   }
 
+  refresh = () => {
+    const { project, commit, dispatch } = this.props;
+    dispatch(fetchCommit({project, id: commit.id}))
+    this.refresh()
+    setTimeout(this.refresh,  1*1000)
+    setTimeout(this.refresh,  5*1000)
+    setTimeout(this.refresh, 10*1000)
+}
 
   redo_batch(batch) {
     if (batch === undefined || batch === null) return;
@@ -76,7 +139,10 @@ class BatchStatusMessages extends React.Component {
         this.setState({waiting_redo: false})
         toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
         this.refresh()
-      })
+        setTimeout(this.refresh,  1*1000)
+        setTimeout(this.refresh,  5*1000)
+        setTimeout(this.refresh, 10*1000)
+})
       .catch(error => {
         this.setState({waiting_redo: false });
         toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
@@ -163,9 +229,9 @@ class BatchStatusMessages extends React.Component {
       >
         <Button
           icon="redo"
-          text="Redo deleted outputs"
+          text={`Redo Deleted Outputs${this.props.commit?.deleted ? '. Requires artifacts.' : ''}`}
           minimal
-          disabled={!!this.state.waiting_stop}
+          disabled={!!this.state.waiting_redo || this.props.commit?.deleted}
           onClick={() => this.redo_batch(batch)}
         />
       </Callout>
@@ -188,4 +254,4 @@ class BatchStatusMessages extends React.Component {
 
 
 
-export { CommitsWarningMessages, BatchStatusMessages }
+export { CommitWarningMessages, BatchStatusMessages }
