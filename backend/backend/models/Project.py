@@ -1,6 +1,7 @@
 """
 Describes a project
 """
+import re
 import sys
 import json
 import yaml
@@ -57,7 +58,13 @@ class Project(Base):
     QA-Board can handle sub-projects. They share a git repo, but are based at different paths.
     The `id_git` is the name of the repository.
     """
-    return self.data.get('git', {}).get('path_with_namespace', self.id)
+    gitlab_id_git = self.data.get('git', {}).get('path_with_namespace', None)
+    if gitlab_id_git: # if the project is not linked to gitlab it will cause issues
+      return gitlab_id_git
+    else:
+      # we assume 2 hierarchical layer max.... FIXME: it should saved as a fixed property of the project!
+      match = re.search('([^/]+/[^/]+).*', self.id)
+      return match.groups(0)[0]
 
   @property
   def id_relative(self) -> str:
