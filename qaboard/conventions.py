@@ -21,7 +21,7 @@ def location_from_spec(spec: Union[str, Dict], interpolation_vars: Optional[Dict
     # Mounts are often called differently on linux and windows
     mount_flavor = 'windows' if os.name == 'nt' else 'linux'
     if mount_flavor not in spec:
-      raise ValueError(f"Expected a key named {mount_flavor} in {spec}")
+      raise ValueError(f"Expected a key named {mount_flavor} in {spec}. Vars:{interpolation_vars}")
     location = spec[mount_flavor]
   else:
     location = spec
