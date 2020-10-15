@@ -83,6 +83,7 @@ mappings = (
   ('\\\\mars\\stage\\jenkins_ws\\', '/stage/jenkins_ws/'),
   ('\\\\mars\\stage\\algo_jenkins_ws\\', '/stage/algo_jenkins_ws/'),
   ('\\\\mars\\raid\\algo\\', '/algo/'),
+  ('\\\\mars\\algo\\', '/algo/'),
   ('\\\\mars\\raid\\', '/raid'),
   ('\\\\mars\\stage\\algo_db\\', '/stage/algo_db/'),
   ('\\\\netapp\\raid\\users\\', '/home/'),
