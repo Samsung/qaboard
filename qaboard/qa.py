@@ -623,9 +623,9 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
 @qa.command()
 # Do we want this? we could simply use groups not defined in qatools.yaml:artifacts as paths
-@click.option('--file', '-f', 'files', multiple=True, help="Save spcific files instead of artifacts indicated by yaml file")
+@click.option('--file', '-f', 'files', multiple=True, help="Save specific files instead of artifacts indicated by yaml file")
 @click.option('--exclude', 'excluded_groups', multiple=True, help="Exclude specific artifact groups")
-# Do we use this? let's deprecate and remove
+# Do we use this? yes in the API, but let's deprecate and remove for other uses...
 @click.option('--out', '-o', 'artifacts_path', default='', help="Path to save artifacts in case of specified files")
 @click.argument('groups', nargs=-1, type=click.UNPROCESSED, default=None)
 @click.pass_context
@@ -717,6 +717,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
 
   if os.name == "nt" and not ctx.obj['dryrun']:
     # [Samsung-SIRC specific]
+    print("... Fixing linux file permissions")
     try:
       # Windows does not set file permissions correctly on the shared storage,
       # it does not respect umask 0: files are not world-writable.
@@ -728,6 +729,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       # # We can assume SSH to be present on Windows10
       # ssh = f"ssh -i \\\\networkdrive\\home\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
       # chmod = f'{ssh} {user}@{user}-srv \'chmod -R 777 "{windows_to_linux_path(artifacts_commit)}"\''
+      # print(chmod)
       # os.system(chmod)
     except Exception as e:
       print(f'WARNING: {e}')
