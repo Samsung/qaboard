@@ -79,12 +79,11 @@ def update_batch():
         db_session.add(o)
       db_session.commit()
 
-      # Deleting old iterations
       for b in ci_commit.batches:
         if b.label.startswith(f"{data['batch_label']}|iter") and b.label != batch_data['last_iteration_label']:
-          print(f'Deleting {b.label}')
+          print(f'Deleting previous iteration {b.label}')
           if b.label != batch_data['last_iteration_label']:
-            b.delete(db_session)
+            db_session.delete(b)
 
   db_session.add(batch)
   db_session.commit()
