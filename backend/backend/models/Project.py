@@ -63,8 +63,12 @@ class Project(Base):
       return gitlab_id_git
     else:
       # we assume 2 hierarchical layer max.... FIXME: it should saved as a fixed property of the project!
-      match = re.search('([^/]+/[^/]+).*', self.id)
-      return match.groups(0)[0]
+      try:
+        match = re.search('([^/]+/[^/]+).*', self.id)
+        return match.groups(0)[0]
+      except:
+        return self.id
+
 
   @property
   def id_relative(self) -> str:
