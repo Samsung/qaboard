@@ -43,8 +43,8 @@ services:
     # - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
     # - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
     # - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
-    - /sim:/sim
-    - /algo:/algo
+    - /sim:/sim:shared
+    - /algo:/algo:shared
 
   proxy:
     ports:
@@ -61,7 +61,7 @@ services:
     - QABOARD_PORT_HTTP=80
     volumes:
     - /home/arthurf/qaboard/services/nginx/ssl/dvs/dvs.key:/ssl/cert.key
-    - /home/arthurf/qaboard/services/nginx/ssl/dvs/dvs.pem:/ssl/cert.pem    
+    - /home/arthurf/qaboard/services/nginx/ssl/dvs/dvs.pem:/ssl/cert.pem
     - ./services/nginx/passwd:/etc/passwd
     - /opt/dockermounts/home:/home
     - /opt/dockermounts/raid:/raid
@@ -72,8 +72,7 @@ services:
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
-    - /sim:/sim
-    - /algo:/algo
+    - /algo:/algo:shared
 
   cantaloupe:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
