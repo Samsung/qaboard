@@ -49,8 +49,7 @@ const openseadragon_config = {
   smoothTileEdgesMinZoom: 1000000,
 
   showNavigator: true,
-  // for now, manually: cp -r node_modules/Openseadragon/build/Openseadragon /stage/algo_data/ci/
-  prefixUrl: "/s/stage/algo_data/ci/openseadragon/images/",
+  prefixUrl: "/openseadragon/",
 
   crossOriginPolicy: 'Anonymous',
   ajaxWithCredentials: false,
