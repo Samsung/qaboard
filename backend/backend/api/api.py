@@ -274,15 +274,24 @@ def api_ci_commit(commit_id=None):
 def commit_save_artifacts():
   hexsha = request.json.get('hexsha')
   try:
-    ci_commit = CiCommit.get_or_create(
-      session=db_session,
-      hexsha=hexsha,
-      project_id=request.json['project'],
-    )
+      ci_commits = (db_session
+                   .query(CiCommit)
+                   .filter(
+                     CiCommit.hexsha == hexsha,
+                   )
+                  )
   except:
     return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({hexsha})", 404
-  ci_commit.save_artifact()
-  ci_commit.deleted = False
-  db_session.add(ci_commit)
-  db_session.commit()
+  for ci_commit in ci_commits.all():
+    if not request.json['project'].startswith(ci_commit.project_id):
+      print(f'skip {ci_commit.project_id}')
+      continue
+    print(f"[save-artifacts] {ci_commit}")
+    # FIXME: in the clean crontab we remove commits without runs
+    # if we rely on artifacts from a subproject without runs, it will cause issues... 
+    # we should use the git info to find the qatools.yaml
+    ci_commit.save_artifacts()
+    ci_commit.deleted = False
+    db_session.add(ci_commit)
+    db_session.commit()
   return 'OK'

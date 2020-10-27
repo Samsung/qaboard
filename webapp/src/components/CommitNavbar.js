@@ -281,7 +281,7 @@ class CommitNavbar extends React.Component {
                 text="Redo Deleted Outputs"
                 intent={Intent.WARNING}
                 minimal
-                disabled={this.state.waiting}
+                disabled={this.state.waiting || commit?.deleted}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Redo of deleted outputs requested."});
@@ -302,7 +302,7 @@ class CommitNavbar extends React.Component {
                 text="Redo All Outputs"
                 intent={Intent.WARNING}
                 minimal
-                disabled={this.state.waiting}
+                disabled={this.state.waiting || commit?.deleted}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Redo requested."});
