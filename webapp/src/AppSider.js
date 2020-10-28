@@ -100,7 +100,7 @@ class ProjectSideCommitList extends React.Component {
   }
 
   selectMilestone = milestone => {
-    const { project, history, dispatch } = this.props;
+    const { project, dispatch } = this.props;
     dispatch(fetchCommit({project, id: milestone.commit}));
     dispatch(updateSelected(project, {
       'new_commit_id': milestone.commit,
