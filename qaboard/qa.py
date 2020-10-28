@@ -731,6 +731,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       # chmod = f'{ssh} {user}@{user}-srv \'chmod -R 777 "{windows_to_linux_path(artifacts_commit)}"\''
       # print(chmod)
       # os.system(chmod)
+      pass
     except Exception as e:
       print(f'WARNING: {e}')
 
