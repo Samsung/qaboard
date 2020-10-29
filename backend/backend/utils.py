@@ -95,3 +95,12 @@ def profiled():
     ps.print_stats(35)
     ps.print_callers(35)
     print(s.getvalue(), file=sys.stderr)
+
+
+def rm_empty_parents(path: Path):
+  for parent in path.parents:
+    is_empty = not any(parent.iterdir())
+    if is_empty:
+      parent.rmdir()
+    else:
+      break

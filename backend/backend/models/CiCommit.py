@@ -19,7 +19,7 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
-from ..utils import get_users_per_name
+from ..utils import get_users_per_name, rm_empty_parents
 from ..git_utils import find_branch
 
 
@@ -152,7 +152,7 @@ class CiCommit(Base):
     self.data = {}
 
 
-  def save_artifact(self):
+  def save_artifacts(self):
     # note: it won't restore binaries, users are expected to redo their CI on their own
     import tempfile
     import git
@@ -162,7 +162,10 @@ class CiCommit(Base):
       git_pull(self.project.repo)
       self.project.repo.git.worktree("add", tmp_dir_path, self.hexsha)
       tmp_repo = git.Repo(tmp_dir_path)
-      subprocess.run(['qa', 'save-artifacts'], cwd=tmp_dir_path / self.project.id_relative)
+      if self.commit_dir_override:
+        subprocess.run(['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)], cwd=tmp_dir_path / self.project.id_relative)
+      else:
+        subprocess.run(['qa', 'save-artifacts'], cwd=tmp_dir_path / self.project.id_relative)
 
   def delete(self, ignore=None, keep=None, dryrun=False):
     """
@@ -170,15 +173,17 @@ class CiCommit(Base):
     NOTE: We don't touch batches/outputs, you have to deal with them yourself.
           See hard_delete() in api/webhooks.py and clean.py
     """
-    print(self.artifacts_dir)
+    # print(self.artifacts_dir)
     manifest_dir = self.artifacts_dir / 'manifests'
     delete_errors = False
+    nb_manifests = 0
     nb_deleted = 0
     if manifest_dir.exists():
       for manifest in manifest_dir.iterdir():
+        nb_manifests += 1
         if keep and manifest in keep:
           continue
-        print(f'  ...delete artifacts: {manifest.name}')
+        print(f'  ...deleting artifacts: {manifest.name}')
         has_error = False 
         try:
           with manifest.open() as f:
@@ -199,6 +204,7 @@ class CiCommit(Base):
             try:
               if file_to_delete.exists():
                 file_to_delete.unlink()
+                rm_empty_parents(file_to_delete)
                 nb_deleted += 1
             except:
               has_error = True
@@ -210,9 +216,13 @@ class CiCommit(Base):
           except:
             pass
         delete_errors = delete_errors or has_error
-    else:
-      print(f"[{self.authored_datetime}] nothing in {self.artifacts_dir}")
-      # os.system("rm -rf build work")
+    if not nb_manifests:
+      print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
+      p = subprocess.run(f'rm -rf "{self.artifacts_dir}"', shell=True)
+      rm_empty_parents(self.artifacts_dir)
+      nb_deleted = 1 if p.returncode == 0 else 0
+      print("nb_deleted", nb_deleted)
+
     if not delete_errors and nb_deleted:
       self.deleted = True
 
