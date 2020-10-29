@@ -240,7 +240,7 @@ class Output(Base):
     # print(script)
     print(f'"{script_path}"')
     import os
-    os.system(f'ssh ispq@ispq-vdi \'bash "{script_path}"\'')
+    os.system(f'bash "{script_path}"')
 
 
   def delete(self, soft=True, ignore=None, dryrun=False):
