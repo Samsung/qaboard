@@ -250,29 +250,33 @@ class Output(Base):
     For a full hard delete, you'll also want to `session.delete(output)`
     """
     output_dir = self.output_dir
-    if output_dir.exists():
-      if not soft:
-        from shutil import rmtree
-        rmtree(output_dir)
-      else:
-        # FIXME: If a run crashes, or in case of network issues, the manifests may not be updated...
-        manifest_path = output_dir / 'manifest.outputs.json'
-        if manifest_path.exists():
-          with manifest_path.open() as f:
-            files = json.load(f)
-          for file in files.keys():
-            if file in ['manifest.outputs.json', 'manifest.inputs.json']:
-              continue
-            if ignore:
-              if any([fnmatch.fnmatch(file, i) for i in ignore]):
-                continue
-            print(f'{output_dir / file}')
-            if not dryrun:
-              try:
-                (output_dir / file).unlink()
-              except: # already deleted?
-                print(f"WARNING: Could not remove: {output_dir / file}")
+    if not output_dir.exists():
       self.deleted = True
+      print("Empty output dir")
+      return
+
+    if not soft:
+      from shutil import rmtree
+      rmtree(output_dir)
+    else:
+      # If a run crashes, or in case of network issues, the manifests may not be updated...
+      manifest_path = output_dir / 'manifest.outputs.json'
+      if manifest_path.exists():
+        with manifest_path.open() as f:
+          files = json.load(f)
+        for file in files.keys():
+          if file in ['manifest.outputs.json', 'manifest.inputs.json']:
+            continue
+          if ignore:
+            if any([fnmatch.fnmatch(file, i) for i in ignore]):
+              continue
+          print(f'{output_dir / file}')
+          if not dryrun:
+            try:
+              (output_dir / file).unlink()
+            except: # already deleted?
+              print(f"WARNING: Could not remove: {output_dir / file}")
+    self.deleted = True
 
 
   def update_manifest(self, compute_hashes=True):
