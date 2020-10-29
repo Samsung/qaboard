@@ -3,7 +3,8 @@
 
 [tool.poetry]
 name = "backend"
-version = "0.2.0"
+# name = "qaboard" # used to be backend, poetry issues..
+version = "0.3.0"
 description = "Backend for QA-Board"
 authors = ["Arthur Flam <arthur.flam@samsung.com>"]
 license="Apache-2.0"
@@ -28,7 +29,7 @@ numpy = "=>1.17.3" # (needed by pandas - just we ensure python3.8 compat)
 scikit-image = "*" # image processing for auto-regions of interest
 uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
-qaboard = { path = "..", optional = true }
+qaboard = { path = "..", optional = true, develop = true }
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]
