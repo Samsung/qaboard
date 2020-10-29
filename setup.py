@@ -32,7 +32,7 @@ setup(
     "License :: OSI Approved :: Apache Software License",
     "Environment :: Console",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Quality Assurance",
