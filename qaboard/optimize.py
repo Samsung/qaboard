@@ -195,7 +195,7 @@ def init_optimization(optim_config_file, ctx):
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
-    return batch_objective(batch_label, optim_config['objective'])
+    return batch_objective(commit_id, batch_label, optim_config['objective'])
 
   # For the full list of options, refer to:
   # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
@@ -279,7 +279,7 @@ def matching_output(output_reference, outputs):
 
 
 
-def batch_objective(batch_label, config_objective):
+def batch_objective(commit_id, batch_label, config_objective):
   this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
   # We can compare to KPI quality target defined
   if 'target' in config_objective and config_objective['target']:
