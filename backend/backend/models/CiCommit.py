@@ -134,7 +134,7 @@ class CiCommit(Base):
 
   def __repr__(self):
     outputs = f"ci_batch.outputs={len(self.ci_batch.outputs)}" if len(self.ci_batch.outputs) else ''
-    branch = re.sub('origin/', '', self.branch)
+    branch = re.sub('origin/', '', self.branch) if self.branch else 'None'
     return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha[:8]}' branch='{branch}' {outputs}>"
 
 
