@@ -1,4 +1,3 @@
-
 services/
 build/
 dist/
@@ -7,7 +6,7 @@ website/
 data*
 data/
 *.sock
-*.egg-info/,
+*.egg-info/
 */__pycache__/
 .git/
 */node_modules/
