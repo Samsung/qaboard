@@ -56,7 +56,7 @@
     "redux-persist": "^6.0.0",
     "redux-thunk": "^2.3.0",
     "reselect": "^4.0.0",
-    "sanitize-html": "^1.22.1",
+    "sanitize-html": "^2.0.0",
     "styled-components": "^4.4.1",
     "three": "^0.106.2",
     "typescript": "^3.7.3"
