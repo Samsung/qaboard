@@ -559,7 +559,10 @@ class ImgViewer extends React.PureComponent {
         </div>
     </Popover>;
 
-    const single_image_width = Math.floor((width - 10) / (diff ? 3 : 2));
+    const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
+    const available_width = this.props.fullscreen ? (has_reference ? vw : 2*vw) : width
+
+    const single_image_width = Math.floor((available_width - 10) / (diff ? 3 : 2));
     const single_image_height = !!image_height ? Math.floor(image_height / image_width * single_image_width) : 0
     const flex = { flex: '0 0 auto' }
     const single_image_size = {
@@ -567,8 +570,8 @@ class ImgViewer extends React.PureComponent {
       height: `${single_image_height}px`,
     }
     const histogram_size_tight = {
-      width: `${(width - 10) / 2 * 0.9}px`,
-      height: `${image_height / image_width * (width - 10) / 2}px`,
+      width: `${(available_width - 10) / 2 * 0.9}px`,
+      height: `${image_height / image_width * (available_width - 10) / 2}px`,
     }
 
     const switch_label = <Tag interactive rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
@@ -599,8 +602,8 @@ class ImgViewer extends React.PureComponent {
 
 
     const histo_layout = {
-      width: (width - 10) / 2 * 0.9,
-      height: (image_height / image_width * (width - 10) / 2) * 0.9,
+      width: (available_width - 10) / 2 * 0.9,
+      height: (image_height / image_width * (available_width - 10) / 2) * 0.9,
       autosize: false,
       traceorder: 'reversed+grouped',
       barmode: 'overlay',
@@ -722,41 +725,5 @@ class ImgViewer extends React.PureComponent {
 
 }
 
-
-
-
-// https://github.com/Openseadragon/Openseadragon/issues/1376
-// var tileLoadedHandler = function(eventSource, item, user) {
-//     viewer_new.removeHandler('tile-loaded', tileLoadedHandler);
-//     var imageBounds =viewer_new.world.getItemAt(0).getBounds();
-//     viewer_new.viewport.fitBounds(imageBounds, true);
-// };
-// viewer_new.addHandler('tile-loaded', tileLoadedHandler);
-// viewer_new.addHandler('full-screen', function(a){
-//     console.log('full-screen-new')
-//     console.log(a)
-//     if(a.fullScreen == true) {
-//         viewer_new.autoResize = true;
-//     } else {
-//         setTimeout(function () {
-//             window.addEventListener('resize', maintainZoom);
-//             viewer_new.autoResize = false;
-//         }, 400);
-//     }
-// });
-// viewer_ref.addHandler('full-screen',function(a){
-//     if(a.fullScreen == true){
-//         viewer_ref.autoResize = true;
-//     } else {
-//         setTimeout(function () {
-//             window.addEventListener('resize', maintainZoom);
-//             viewer_ref.autoResize = false;
-//         }, 400);
-//     }
-// })
-
-// viewer.addHandler("page", data => {
-//   this.setState({shown_image: data.page===0 ? "New" : "Reference"})
-// });
 
 export default ImgViewer;
