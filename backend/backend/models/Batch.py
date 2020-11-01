@@ -1,8 +1,7 @@
 """
-Represents SLAM runs belonging to the same commit.
+Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
-import re
 import datetime
 import json
 import subprocess

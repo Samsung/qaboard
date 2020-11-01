@@ -8,7 +8,6 @@ import json
 import datetime
 import itertools
 import subprocess
-from pathlib import Path
 
 import yaml
 from flask import request, jsonify
