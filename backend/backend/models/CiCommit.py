@@ -133,9 +133,8 @@ class CiCommit(Base):
 
 
   def __repr__(self):
-    outputs = f"ci_batch.outputs={len(self.ci_batch.outputs)}" if len(self.ci_batch.outputs) else ''
     branch = re.sub('origin/', '', self.branch) if self.branch else 'None'
-    return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha[:8]}' branch='{branch}' {outputs}>"
+    return f"<CiCommit project='{self.project.id}' hexsha='{self.hexsha[:8]}' branch='{branch}' batches={len(self.batches)}>"
 
 
 
@@ -331,8 +330,12 @@ class CiCommit(Base):
         "data": self.data,
         'outputs_url': dir_to_url(self.outputs_dir),
         'artifacts_url': self.artifacts_url,
-        'batches': {b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
-                    for b in self.batches if not with_batches or b.label in with_batches},
+        'repo_artifacts_url': self.repo_artifacts_url,
+        'batches': {
+          b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
+          for b in self.batches
+          if not with_batches or b.label in with_batches
+        },
     }
     if with_outputs:
       out["data"] = self.data
