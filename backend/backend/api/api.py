@@ -55,17 +55,20 @@ def get_commits(branch=None):
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
   from_date = from_date - datetime.timedelta(hours=3) # timezones as above
 
-
-  ci_commits = (db_session
-                .query(CiCommit)
-                .options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
-                .filter(
-                  CiCommit.authored_datetime >= from_date,
-                  CiCommit.authored_datetime <= to_date,
-                  CiCommit.project_id == project_id,
-                )
-                .order_by(CiCommit.authored_datetime.desc())
-               )
+  with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
+  ci_commits = db_session.query(CiCommit)
+  if True: # with_outputs: do this when we pre-aggregated counts of Outputs per status...
+    ci_commits = ci_commits.options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
+  else:
+    ci_commits = ci_commits.options(selectinload(CiCommit.batches))
+  ci_commits = (ci_commits
+    .filter(
+      CiCommit.authored_datetime >= from_date,
+      CiCommit.authored_datetime <= to_date,
+      CiCommit.project_id == project_id,
+    )
+    .order_by(CiCommit.authored_datetime.desc())
+  )
 
   if committer_name:
     ci_commits = ci_commits.filter_by(committer_name=committer_name)
@@ -85,12 +88,12 @@ def get_commits(branch=None):
     only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
     if only_ci_batches:
       with_batches = ['default']
-  with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
   # from ..utils import profiled
-  # with profiled():
   serializable_commits = []
+  # with profiled():
   for c in ci_commits:
-    # print(c)
+    if not c.batches:
+      continue
     serializable_commits.append(c.to_dict(
       with_aggregation=metrics_to_aggregate,
       with_batches=with_batches,
