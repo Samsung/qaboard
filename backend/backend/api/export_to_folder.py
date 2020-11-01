@@ -12,11 +12,10 @@ from requests.utils import quote
 from flask import request, jsonify, make_response
 from sqlalchemy import func, and_, asc, or_
 from sqlalchemy.orm import joinedload
-from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql import label
 
 from qaboard.utils import copy
-from qaboard.conventions import deserialize_config, serialize_config
+from qaboard.conventions import serialize_config
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_hash
 
