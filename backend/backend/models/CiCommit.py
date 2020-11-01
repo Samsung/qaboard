@@ -314,6 +314,8 @@ class CiCommit(Base):
       else:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
+    repo_artifacts_url = self.repo_artifacts_url
+    artifacts_url = self.artifacts_url
     out = {
         'id': self.hexsha,
         # 'type': self.commit_type,
@@ -329,10 +331,10 @@ class CiCommit(Base):
         'deleted': self.deleted,
         "data": self.data,
         'outputs_url': dir_to_url(self.outputs_dir),
-        'artifacts_url': self.artifacts_url,
-        'repo_artifacts_url': self.repo_artifacts_url,
-        'commit_dir_url': self.artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
-        'repo_commit_dir_url': self.repo_artifacts_url, # idem
+        'artifacts_url': artifacts_url,
+        'repo_artifacts_url': repo_artifacts_url,
+        'commit_dir_url': artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
+        'repo_commit_dir_url': repo_artifacts_url, # idem
         'batches': {
           b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
           for b in self.batches
