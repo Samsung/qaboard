@@ -41,9 +41,9 @@ class Project(Base):
     The locations where we save outputs and artifacts for this project.
     """
     id_git = self.id_git
-    outputs_root, artifacts_root = storage_roots(self.data.get('qatools_config', {}), Path(self.id), Path(self.id_relative))
+    qaboard_config = self.data.get('qatools_config', {})
     try:
-      outputs_root, artifacts_root = storage_roots(self.data.get('qatools_config', {}), Path(self.id), Path(self.id_relative))
+      outputs_root, artifacts_root = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative))
     except:
       outputs_root = default_outputs_root
       artifacts_root = default_artifacts_root

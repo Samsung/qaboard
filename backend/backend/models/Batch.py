@@ -56,9 +56,23 @@ class Batch(Base):
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
-      # we don't even supply a key, to make it easier for the JS code to
-      # just update the batch properties when it get the full version  
       outputs = {}
+    valid_outputs = 0
+    pending_outputs = 0
+    running_outputs = 0
+    failed_outputs = 0
+    deleted_outputs = 0
+    for o in self.outputs:
+      if not o.is_failed and not o.is_pending:
+        valid_outputs += 1
+      if o.is_pending:
+        pending_outputs += 1
+      if o.is_running:
+        running_outputs += 1
+      if o.is_failed:
+        failed_outputs += 1
+      if o.deleted:
+        deleted_outputs += 1
     return {
         'id': self.id,
         'commit_id': self.ci_commit.hexsha,
@@ -68,11 +82,11 @@ class Batch(Base):
         'batch_dir_url': dir_to_url(self.batch_dir),
 
         'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
-        'valid_outputs': len([o for o in self.outputs if not o.is_failed and not o.is_pending]),
-        'pending_outputs': len([o for o in self.outputs if o.is_pending]),
-        'running_outputs': len([o for o in self.outputs if o.is_running]),
-        'failed_outputs': len([o for o in self.outputs if o.is_failed]),
-        'deleted_outputs': len([o for o in self.outputs if o.deleted]),
+        'valid_outputs': valid_outputs,
+        'pending_outputs': pending_outputs,
+        'running_outputs': running_outputs,
+        'failed_outputs': failed_outputs,
+        'deleted_outputs': deleted_outputs,
         **outputs,
     }
 
