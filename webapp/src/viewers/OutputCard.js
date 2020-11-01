@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { Link } from "react-router-dom";
 import { InView } from 'react-intersection-observer'
 import { get, all, CancelToken, isCancel } from "axios";
 import { matchPath } from 'react-router'
 import pathToRegexp from 'path-to-regexp'
 import Moment from "react-moment";
+import { FullScreen, useFullScreenHandle } from "react-full-screen";
 
 import styled from "styled-components";
 import {
@@ -50,6 +51,21 @@ const SlimCard = styled(Card)`
   padding: 5px !important;
   overflow: "auto";
 `;
+
+const FullScreenableSlimCard = props => {
+  const handle = useFullScreenHandle();
+  const reportChange = useCallback((state, handle) => {
+    props.updateFullscreen(state)
+  }, [handle]);
+  return <SlimCard className={props.className} style={props.style}>
+    <div style={{position: "relative"}}>
+      <Tag title="Enter Full Screen" style={{position: "absolute", right: "0px", top: "0px"}} icon="fullscreen" interactive minimal onClick={handle.enter}/>
+    </div>
+    <FullScreen handle={handle} onChange={reportChange}>
+      {props.children}
+    </FullScreen>
+  </SlimCard>
+}
 
 
 
@@ -133,6 +149,7 @@ class OutputCard extends React.Component {
       // we delay fetching the output manifest and rendering the viewers
       // until the card comes into view
       viewable: false || props.viewable,
+      fullscreen: false,
       // the output manifest lists all files created by the run
       manifests: {},
       is_loaded: false,
@@ -232,6 +249,9 @@ class OutputCard extends React.Component {
     this.setState({viewable: true}, this.fetchData);
   }
 
+  updateFullscreen = fullscreen => {
+    this.setState({fullscreen});
+  }
 
   componentDidUpdate(prevProps, prevState) {
     if (!this.state.viewable)
@@ -386,8 +406,8 @@ class OutputCard extends React.Component {
       return <span />
 
     const style = {
-      ...((config.outputs || {}).style || {}),
-      ...this.props.style,
+      ...(config?.outputs?.style || {}),
+      ...(this.props.style || {}),
     }
 
 
@@ -396,14 +416,12 @@ class OutputCard extends React.Component {
       content = <span />;
     } else {
       const { main_metrics, available_metrics } = this.props.metrics;
-      var controls = this.props.controls || {};
-
-      // layout should be plotly-like. You could also pass down a props named style.
-      var views = [...((config.outputs || {}).visualizations || []), ...((config.outputs || {}).detailed_views || [])]; // we allow both for some leeway with half updated projects
 
       // we display the input for each option before the first visualization that uses it
       let already_shown_options = {}
 
+      var controls = this.props.controls || {};
+      var views = config.outputs?.visualizations || [];
       let viewers = views.map((view, idx) => {
         let hidden = view.default_hidden === true && !(!!controls.show && controls.show[view.name] === true)
         if (hidden)
@@ -475,6 +493,7 @@ class OutputCard extends React.Component {
                 path={path}
                 {...controls}
                 style={{ ...style, ...view.style }}
+                fullscreen={this.state.fullscreen}
                 config={config}
               />
           </div>})
@@ -526,7 +545,7 @@ class OutputCard extends React.Component {
     // console.log(this.state.manifests)
 
     return <div style={container_style}>
-      <SlimCard className="output-card" style={maybe_style_skeleton}>
+      <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={maybe_style_skeleton}>
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
 
@@ -550,7 +569,7 @@ class OutputCard extends React.Component {
           <span key="viewable"></span>
         </InView>}
         {(is_loaded || has_output_new) && content}
-      </SlimCard>
+      </FullScreenableSlimCard>
     </div>
   }
 }
