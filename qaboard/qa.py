@@ -728,7 +728,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       # from qaboard.compat import windows_to_linux_path
       # # We can assume SSH to be present on Windows10
       # ssh = f"ssh -i \\\\networkdrive\\home\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
-      # chmod = f'{ssh} {user}@{user}-srv \'chmod -R 777 "{windows_to_linux_path(artifacts_commit)}"\''
+      # chmod = f'{ssh} {user}@{user}-srv \'chmod -R 777 "{windows_to_linux_path(artifacts_commit).as_posix()}"\''
       # print(chmod)
       # os.system(chmod)
       pass
