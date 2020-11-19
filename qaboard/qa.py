@@ -176,12 +176,14 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     """
     run_context = RunContext.from_click_run_context(ctx, config)
 
-    # Usually we want to remove any files already present in the output directory.
-    # It avoids issues with remaining state... This said,
-    # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
-    if not keep_previous:
-      import shutil
-      shutil.rmtree(run_context.output_dir, ignore_errors=True)
+    if run_context.output_dir.exists():
+      # Usually we want to remove any files already present in the output directory.
+      # It avoids issues with remaining state... This said,
+      # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
+      if not (keep_previous or 'QABOARD_RUN_KEEP' in os.environ):
+        # TODO: check in the database the status of the run?
+        import shutil
+        shutil.rmtree(run_context.output_dir, ignore_errors=True)
     run_context.output_dir.mkdir(parents=True, exist_ok=True)
 
     with (run_context.output_dir / 'run.json').open('w') as f:
@@ -321,6 +323,10 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     notify_qa_database(**run_context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
+
+  if os.name == "nt" and not run_context.obj.get('dryrun') and (run_context.obj.get('share') or is_ci):
+    from qaboard.compat import fix_linux_permissions
+    fix_linux_permissions(run_context.output_dir)
 
   return metrics
 
@@ -716,24 +722,8 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       click.secho(f"{nb_files} files copied")
 
   if os.name == "nt" and not ctx.obj['dryrun']:
-    # [Samsung-SIRC specific]
-    print("... Fixing linux file permissions")
-    try:
-      # Windows does not set file permissions correctly on the shared storage,
-      # it does not respect umask 0: files are not world-writable.
-      # Trying to each_file.chmod(0o777) does not work either
-      # The only option is to make the call from linux.
-      # We could save a list of paths and chmod them with their parent directories...
-      # but to make things faster to code, we just "ssh linux chmod everything"
-      # from qaboard.compat import windows_to_linux_path
-      # # We can assume SSH to be present on Windows10
-      # ssh = f"ssh -i \\\\networkdrive\\home\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
-      # chmod = f'{ssh} {user}@{user}-srv \'chmod -R 777 "{windows_to_linux_path(artifacts_commit).as_posix()}"\''
-      # print(chmod)
-      # os.system(chmod)
-      pass
-    except Exception as e:
-      print(f'WARNING: {e}')
+    from qaboard.compat import fix_linux_permissions
+    fix_linux_permissions(artifacts_commit)
 
   # if the commit was deleted, this notification will mark it as good again 
   notify_qa_database(object_type='commit', **ctx.obj)
