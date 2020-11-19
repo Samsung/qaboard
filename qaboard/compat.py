@@ -100,3 +100,28 @@ def windows_to_linux_path(path : Path) -> Path:
 
 def linux_to_windows_path(path : Path) -> Path:
   return Path(linux_to_windows(str(path)))
+
+
+def fix_linux_permissions(path: Path):
+  """
+  This function is meant to be only used from Samsung SIRC.
+
+  Windows does not set file permissions correctly on the shared storage,
+  it does not respect umask 0: files are not world-writable.
+  Trying to each_file.chmod(0o777) does not work either
+  The only option is to make the call from linux.
+  We could save a list of paths and chmod them with their parent directories...
+  but to make things faster to code, we just "ssh linux chmod everything"
+  We can assume SSH to be present on Windows10
+  """
+  return
+  from getpass import getuser
+  click.secho("... Fixing linux file permissions", err=True)
+  try:
+    user = getuser()
+    ssh = f"ssh -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
+    chmod = f'{ssh} {user}@{user}-vdi \'chmod -R 777 "{windows_to_linux_path(path).as_posix()}"\''
+    click.secho(chmod, err=True)
+    os.system(chmod)
+  except Exception as e:
+    click.secho(f'WARNING: {e}', err=True)
