@@ -305,13 +305,21 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
           input_files[path.as_posix()] = file_info(path, config=config)
       elif manifest_input.is_file():
         input_files.update({manifest_input.as_posix(): file_info(manifest_input, config=config)})
-    with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
-      json.dump(input_files, f, indent=2)
+    try:
+      with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
+        json.dump(input_files, f, indent=2)
+    except Exception as e:
+      click.secho(f'WARNING: When writing the input manifest:', fg="yellow", bold=True, err=True)
+      click.secho(str(e), fg="yellow", err=True)
 
-  outputs_manifest = save_outputs_manifest(run_context.output_dir, config=config)
-  output_data = {
-    'storage': total_storage(outputs_manifest),
-  }
+  try:
+    outputs_manifest = save_outputs_manifest(run_context.output_dir, config=config)
+    output_data = {
+      'storage': total_storage(outputs_manifest),
+    }
+  except Exception as e:
+    click.secho(f'WARNING: When writing the output manifest:', fg="yellow", bold=True, err=True)
+    click.secho(str(e), fg="yellow", err=True)
 
 
   if save_manifests_in_database:
