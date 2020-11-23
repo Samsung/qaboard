@@ -319,6 +319,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       'storage': total_storage(outputs_manifest),
     }
   except Exception as e:
+    output_data = {}
     click.secho(f'WARNING: When writing the output manifest:', fg="yellow", bold=True, err=True)
     click.secho(str(e), fg="yellow", err=True)
 
