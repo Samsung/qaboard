@@ -135,6 +135,8 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
     database_str, *path_parts =  Path(path).parts
     path = Path(*path_parts)
     database = Path(database_str)
+  if database.is_absolute(): # normalization to avoid common issues where users ask for "//some/path" instead of "/some/path"
+    database = database.resolve()
   entrypoint_module_ = entrypoint_module(qatools_config)
   if hasattr(entrypoint_module_, 'iter_inputs'):
     try:

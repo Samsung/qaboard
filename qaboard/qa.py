@@ -3,14 +3,15 @@
 CLI tool to runs various tasks related to QA.
 """
 import os
-import time
-from pathlib import Path
+import re
 import sys
-import traceback
 import json
-import yaml
+import time
 import uuid
+import yaml
 import datetime
+import traceback
+from pathlib import Path
 
 import click
 
@@ -562,7 +563,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           f'--share' if ctx.obj["share"] else None,
           f'--offline' if ctx.obj['offline'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
-          f'--platform "{run_context.platform}"' if run_context.platform != default_platform else None, # TODO: make it customizable in batches
+          f'--platform "{run_context.platform}"' if run_context.platform != default_platform else None,
           f'--type "{run_context.type}"' if run_context.type != default_input_type else None,
           f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
@@ -575,7 +576,6 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       command = ' '.join([arg for arg in args if arg is not None])
       click.secho(command, fg='cyan', err=True)
       click.secho(f"   {run_context.output_dir if run_context.output_dir.is_absolute else run_context.output_dir.relative_to(subproject)}", fg='blue', err=True)
-      import re
       if 'QA_TESTING' in os.environ:
         # we want to make sure we test the current code
         command = re.sub('^qa', 'python -m qaboard', command) 
