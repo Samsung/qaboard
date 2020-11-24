@@ -126,15 +126,18 @@ platform = 'windows' if on_windows else 'linux'
 user = getuser()
 
 
-def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path]: 
-  # we do compute it twice, but it gives us some flexibility
-  user = getuser()
+def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path]:
+  # useful when migration results to a new default location
+  if 'QABOARD_NO_CACHE_USER' in os.environ:
+    user_ = getuser()
+  else:
+    user_ = user
   try:
     if 'ci_root' in config:
       # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
       config['storage'] = config['ci_root']
     config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE', config.get('storage', {}))
-    interpolation_vars = {"project": project, "subproject": subproject, "user": user}
+    interpolation_vars = {"project": project, "subproject": subproject, "user": user_}
     spec_artifacts = config_storage.get('artifacts', config_storage) if isinstance(config_storage, dict) else config_storage
     spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage
     artifacts_root = location_from_spec(spec_artifacts, interpolation_vars)
