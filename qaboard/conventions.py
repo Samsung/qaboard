@@ -181,7 +181,7 @@ def get_commit_dirs(commit, repo_root: Optional[Path]=None) -> Path:
     return repo_root.resolve()
   if isinstance(commit, str): # commit hexsha
     try:
-      commit_id = git_show(format='%H')
+      commit_id = git_show(format='%H', reference=commit)
     except:
       if repo_root is None:
         raise ValueError("Not enough information about the commit to know where to store its data.")
