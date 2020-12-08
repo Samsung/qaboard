@@ -24,6 +24,9 @@ def shutdown_session(exception=None):
     db_session.remove()
 
 import backend.api.api
+import backend.api.commit
+import backend.api.batch
+import backend.api.outputs
 import backend.api.webhooks
 import backend.api.integrations
 import backend.api.tuning
