@@ -56,7 +56,7 @@ variables:
 .deploy: &deploy
   stage: deploy
   script:
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
+    - ssh $DOCKER_HOST "bash -c \"cd $(pwd) && source .envrc && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
 
 deploy:production:
   <<: *deploy
