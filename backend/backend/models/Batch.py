@@ -24,7 +24,7 @@ from backend.models import Base, Output
 class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow)
+  created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
   data = Column(JSON(), nullable=False, default=dict, server_default='{}')
 
   ci_commit_id = Column(Integer(), ForeignKey('ci_commits.id'), index=True)
