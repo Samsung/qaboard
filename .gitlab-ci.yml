@@ -75,7 +75,7 @@ variables:
     DOCKER_HOST: alginfra1
     COMPOSE_PROJECT_NAME: $CI_ENVIRONMENT_SLUG
   script:
-    - ssh qa "bash -c \"cd $(pwd) && source .envrc && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
+    - ssh $DOCKER_HOST "bash -c \"cd $(pwd) && source .envrc && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
 
 deploy:staging:
   <<: *deploy
