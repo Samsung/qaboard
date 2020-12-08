@@ -1,6 +1,7 @@
 """
 Describes an Output from `qa run`.
 """
+import os
 import re
 import datetime
 import hashlib
@@ -257,6 +258,7 @@ class Output(Base):
 
     if not soft:
       from shutil import rmtree
+      print(output_dir)
       rmtree(output_dir)
     else:
       # If a run crashes, or in case of network issues, the manifests may not be updated...
@@ -281,6 +283,7 @@ class Output(Base):
 
   def update_manifest(self, compute_hashes=True):
     qatools_config = self.batch.ci_commit.project.data.get('qatools_config', {})
+    os.umask(0)
     return save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
 
   def update_metrics(self, filepath=None):
