@@ -10,8 +10,9 @@ services:
     expose:
     - "80"
     volumes:
-    - /opt/dockermounts/stage/algo_data:/var/www/localhost/images/stage/algo_data
-    - /algo/CIS/outputs:/var/www/localhost/images/algo/CIS/outputs
+    - /opt/dockermounts/stage:/var/www/localhost/images/stage
+    - /algo:/var/www/localhost/images/algo
+    - /data:/var/www/localhost/images/data
 
   db:
     ports:
@@ -37,7 +38,6 @@ services:
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
     - /data/asp_algorithms_data:/data/asp_algorithms_data
     - /stage/qa_data:/stage/qa_data
-    - /sim:/sim
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
     # - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
@@ -45,6 +45,7 @@ services:
     # - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
     - /sim:/sim:shared
     - /algo:/algo:shared
+    - /data:/data:shared
 
   proxy:
     ports:
@@ -73,6 +74,8 @@ services:
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
     - /algo:/algo:shared
+    - /sim:/sim:shared
+    - /data:/data:shared
 
   cantaloupe:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
