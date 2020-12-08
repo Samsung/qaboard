@@ -44,7 +44,8 @@ class Project(Base):
     qaboard_config = self.data.get('qatools_config', {})
     try:
       outputs_root, artifacts_root = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative))
-    except:
+    except Exception as e:
+      print(e)
       outputs_root = default_outputs_root
       artifacts_root = default_artifacts_root
     return {
@@ -220,6 +221,7 @@ def update_project(data, db_session):
         session=db_session,
         hexsha=commit_id,
         project_id=project_id,
+        data={"commit_branch": branch},
       )
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
