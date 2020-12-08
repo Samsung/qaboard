@@ -41,10 +41,9 @@ class OutputCardsList extends React.Component {
       expand_all,
       select_debug,
     }
-    const outputs = (new_batch === undefined || new_batch === null || new_batch.filtered === undefined) ? []
-              : (new_batch.filtered.outputs || [])
-                .map( id => [id, new_batch.outputs[id]])
-                .filter( ([id, output]) => output.output_type !== "optim_iteration")
+    const outputs = (new_batch?.filtered?.outputs || [])
+                    .map( id => [id, new_batch.outputs[id]])
+                    .filter( ([id, output]) => output.output_type !== "optim_iteration")
 
     return (
       <>
