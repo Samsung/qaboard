@@ -77,8 +77,8 @@ def get_commits(branch=None):
 
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  if project_id.startswith("CDE-Users/HW_ALG"): # too many results to be fast...
-    with_aggregation = {}
+  if not branch and project_id.startswith("CDE-Users/HW_ALG"): # too many results to be fast...
+    metrics_to_aggregate = {}
 
   with_batches = None
   batch = request.args.get('batch', None)
