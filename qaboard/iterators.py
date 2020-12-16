@@ -8,7 +8,7 @@ import json
 import numbers
 import fnmatch
 import traceback
-from copy import copy
+from copy import deepcopy
 from pathlib import Path
 from itertools import chain
 from dataclasses import replace
@@ -194,7 +194,7 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_da
   if not default_inputs_settings:
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
   else:
-    inputs_settings = copy(default_inputs_settings)
+    inputs_settings = deepcopy(default_inputs_settings)
   run_context = RunContext(
     input_path=Path(),
     database=default_database,
@@ -237,7 +237,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     if batch is None:
       return
 
-    run_context = copy(default_run_context)
+    run_context = deepcopy(default_run_context)
     run_context.configurations = batch.get('configs', batch.get('configurations', batch.get('configuration', run_context.configurations)))
     run_context.configurations = list(flatten(run_context.configurations))
     if 'platform' in batch:
@@ -252,7 +252,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       from .config import get_default_database
       run_context.database = get_default_database(inputs_settings)
     else:
-      inputs_settings = copy(default_inputs_settings)
+      inputs_settings = deepcopy(default_inputs_settings)
     inputs_settings.update(batch)
 
     batch_database = location_from_spec(batch.get('database', run_context.database))
@@ -261,11 +261,11 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     if batch.get('matrix'):
       from sklearn.model_selection import ParameterGrid
       for matrix in ParameterGrid(batch['matrix']):
-        batch_ = copy(batch)
+        batch_ = deepcopy(batch)
         for key in ['matrix', 'configuration', 'configurations', 'configs', 'platform']:
           if key in batch:
             del batch_[key]
-        matrix_run_context = copy(run_context)
+        matrix_run_context = deepcopy(run_context)
         if 'platform' in matrix:
           matrix_run_context.platform = matrix['platform']
         matrix_config = None
@@ -305,7 +305,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       locations = locations_as_dict
 
     for location, location_configurations in locations.items():
-      location_run_context = copy(run_context)
+      location_run_context = deepcopy(run_context)
       location_inputs_settings = inputs_settings
       if location_configurations:
         if isinstance(location_configurations, dict):
@@ -317,7 +317,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
               location_run_context.database = location_database
           if 'platform' in batch:
             location_run_context.platform = location_configurations['platform']
-          location_inputs_settings = copy(inputs_settings)
+          location_inputs_settings = deepcopy(inputs_settings)
           if 'type' in location_configurations:
             location_run_context.type = location_configurations['type']
             location_inputs_settings = get_settings(location_run_context.type, qatools_config)
