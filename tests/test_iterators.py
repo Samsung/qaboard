@@ -131,6 +131,11 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(len(batches), 1)
     self.assertEqual(batches[0].configurations, ['base', 'calibration'])
 
+    batches = get_batch('matrix-configurations-and-per-input-with-base')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['basebase', 'base'])
+    self.assertEqual(batches[1].configurations, ['basebase', 'base', 'delta'])
+
     batches = get_batch('matrix-many')
     self.assertEqual(len(batches), 8)
 
@@ -226,6 +231,20 @@ matrix-configurations-and-per-input:
     a.txt: calibration
   matrix:
     configurations: [[base]]
+
+matrix-configurations-and-per-input-with-base:
+  configs:
+  - basebase
+  inputs:
+  - a.txt
+  matrix:
+    configurations:
+    - 
+        - base
+    -
+         - base
+         - delta
+
 
 matrix-many:
   inputs:
