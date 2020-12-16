@@ -268,12 +268,18 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         matrix_run_context = copy(run_context)
         if 'platform' in matrix:
           matrix_run_context.platform = matrix['platform']
+        matrix_config = None
         if 'configuration' in matrix:
-          matrix_run_context.configurations = matrix['configuration']
+          matrix_config = matrix['configuration']
         if 'configurations' in matrix:
-          matrix_run_context.configurations = matrix['configurations']
+          matrix_config = matrix['configurations']
         if 'configs' in matrix:
-          matrix_run_context.configurations = matrix['configs']
+          matrix_config = matrix['configs']
+        if matrix_config:
+          if matrix_run_context.configurations:
+            matrix_run_context.configurations.append(matrix_config)
+          else:
+            matrix_run_context.configurations = matrix_config
         for param, value in matrix.items():
           if param in ['configuration', 'configurations', 'configs', 'platform']:
             continue
