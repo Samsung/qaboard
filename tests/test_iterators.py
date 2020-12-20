@@ -117,6 +117,9 @@ class TestIterators(unittest.TestCase):
     batches = get_batch('my-alias')
     self.assertEqual(len(batches), 2)
 
+    batches = get_batch('expand-lists-to-work-well-with-aliases')
+    self.assertEqual(batches[0].configurations, ['base', 'delta1', 'delta2'])
+
     # batches-can-be-paths
     batches = get_batch('../cli_tests/dir')
     self.assertEqual(len(batches), 1)
@@ -210,6 +213,13 @@ each-input-can-have-its-own-configuration:
       - cde:
         - "-DD"
     #=> configurations == ["base", "low-light", {"cde": ["-DD"]}]
+
+expand-lists-to-work-well-with-aliases:
+  configurations:
+    - base
+    - [delta1, delta2]
+  inputs:
+  - a.txt:
 
 aliases:
   my-alias:
