@@ -97,7 +97,10 @@ def redo_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
-  status = batch.redo(only_deleted=data.get('only_deleted', False))
+  status = batch.redo(
+    only_failed=data.get('only_failed', False),
+    only_deleted=data.get('only_deleted', False),
+  )
   return '{"status": "OK"}'
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
