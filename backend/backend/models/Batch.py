@@ -105,12 +105,14 @@ class Batch(Base):
     db_session.add(self)
     db_session.commit()
 
-  def redo(self, only_deleted=False):
+  def redo(self, only_failed=False, only_deleted=False):
     # in case it was deleted without QA-Board being made aware
     if not self.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
       self.ci_commit.save_artifacts()
     for output in self.outputs:
+      if only_failed and not output.is_failed:
+        continue
       if only_deleted and not output.deleted:
         continue
       output.redo()
