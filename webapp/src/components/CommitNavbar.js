@@ -297,6 +297,27 @@ class CommitNavbar extends React.Component {
                     });
                 }}
               />}
+              {batch.deleted_outputs > 0 && <MenuItem
+                icon="redo"
+                text="Redo Failed Outputs"
+                intent={Intent.WARNING}
+                minimal
+                disabled={this.state.waiting || commit?.deleted}
+                onClick={() => {
+                  this.setState({waiting: true})
+                  toaster.show({message: "Redo of failed outputs requested."});
+                  axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
+                    .then(response => {
+                      this.setState({waiting: false})
+                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      this.refresh()
+                    })
+                    .catch(error => {
+                      this.setState({waiting: false });
+                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                    });
+                }}
+              />}
               <MenuItem
                 icon="redo"
                 text="Redo All Outputs"
