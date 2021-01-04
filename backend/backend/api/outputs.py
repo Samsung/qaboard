@@ -104,6 +104,8 @@ def new_output_webhook():
 
   # prefix_output_dir for backward-compatibility
   ci_commit.commit_dir_override = data.get('artifacts_commit', data.get('commit_ci_dir'))
+  if not ci_commit.commit_dir_override.startswith('/'): # or "some-protocol://" 
+    ci_commit.commit_dir_override = None # just ignore...
   output.output_dir_override = data['output_directory']
 
   # We update the output's status
