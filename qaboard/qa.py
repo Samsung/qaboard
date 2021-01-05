@@ -809,6 +809,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
       reference_commits = git_parents(commit_id)
     else:
+      if "origin" not in reference:
+        reference = f"origin/{reference}"
       click.secho(f'Comparing bit-accuracy versus the latest remote commit of {reference}', fg='cyan', bold=True, err=True)
       reference_commits = [latest_commit(reference)]
 
