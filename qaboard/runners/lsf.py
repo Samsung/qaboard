@@ -84,7 +84,7 @@ class LsfRunner(BaseRunner):
     # We want a unique job name, with the same prefix as other related jobs
     # so that's it's easy to list/kill them together
     job_prefix = f"{self.run_context.job_options['command_id'][:8]}/"
-    output_dir_slug = re.sub(r"[^A-Za-z0-9/_]", "-", self.output_dir) if self.output_dir else ''
+    output_dir_slug = re.sub(r"[^A-Za-z0-9/_]", "-", str(self.output_dir)) if self.output_dir else ''
     return f"{job_prefix}{output_dir_slug}"
 
 
