@@ -32,6 +32,8 @@ def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
 
 def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10) -> Iterator[Union[str, List[str], Tuple[str, ...]]]:
   # TODO: Expose an API that -> Iterator[str], after all the recursive calls.
+  if names is None:
+    return []
   if not depth:
     yield from chain.from_iterable(names)
   if isinstance(names, tuple) or isinstance(names, list):
