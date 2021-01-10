@@ -3,7 +3,7 @@
   "license": "Apache-2.0",
   "private": true,
   "version": "0.1.0",
-  "proxy": "http://qa:5001",
+  "proxy": "http://qa:5001", 
   "dependencies": {
     "@blueprintjs/core": "^3.35.0",
     "@blueprintjs/datetime": "^3.19.3",
