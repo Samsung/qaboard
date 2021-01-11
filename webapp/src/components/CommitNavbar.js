@@ -297,7 +297,7 @@ class CommitNavbar extends React.Component {
                     });
                 }}
               />}
-              {batch.deleted_outputs > 0 && <MenuItem
+              {batch.failed_outputs > 0 && <MenuItem
                 icon="redo"
                 text="Redo Failed Outputs"
                 intent={Intent.WARNING}
