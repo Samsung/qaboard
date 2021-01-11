@@ -113,7 +113,7 @@ Tell us what you need! The next we'll implement is likely [**vega**](https://veg
 
 
 ## Dynamic visualizations
-You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will we able to choose what to display using sliders / select options:
+You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will be able to choose what to display using sliders / select options:
 
 <img alt="Viewing each frame of a movie" src={useBaseUrl('img/dynamic-outputs.gif')} />
 
