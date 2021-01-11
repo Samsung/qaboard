@@ -36,7 +36,6 @@ services:
     - /opt/dockermounts/stage:/stage
     - /opt/dockermounts/home:/raid/users
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
-    - /data/asp_algorithms_data:/data/asp_algorithms_data
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
@@ -46,6 +45,9 @@ services:
     - /sim:/sim:shared
     - /algo:/algo:shared
     - /data:/data:shared
+    # we use a shared location to avoid using ~10G of local storage
+    # but root can't write to it, so it's painful..
+    # - /algo/ws/ispq/qaboard_data/_data:/var/qaboard
 
   proxy:
     ports:
@@ -69,7 +71,6 @@ services:
     - /opt/dockermounts/stage:/stage
     - /opt/dockermounts/home:/raid/users
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
-    - /data/asp_algorithms_data:/data/asp_algorithms_data
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
@@ -90,6 +91,7 @@ services:
       - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
       - /algo/CIS/outputs:/repository/algo/CIS/outputs
       - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
+      - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
     environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
