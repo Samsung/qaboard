@@ -427,7 +427,7 @@ class TuningForm extends Component {
         label="Batch of inputs+configurations:"
         intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
         helperText={<>
-          {tests.length > 0 ? <Popover inheritDarkTheme portalClassName={Classes.DARK} position="right" hoverCloseDelay={300} interactionKind={"hover"}>
+          {tests.length > 0 && <Popover inheritDarkTheme portalClassName={Classes.DARK} position="right" hoverCloseDelay={300} interactionKind={"hover"}>
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
             <div style={{padding: '10px'}}>
               <ul style={{maxWidth: "1200px", maxHeight: "800px", overflow: "auto"}} >
@@ -441,12 +441,11 @@ class TuningForm extends Component {
               </li>)}
               </ul>
             </div>
-          </Popover>
-          : <span>
-              {message && <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>}
+          </Popover>}
+          {message && <span>
+               <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>}
               To know your options, go to the "Tests" tab.
-            </span>
-          }
+          </span>}
           {this.state.selected_group_info_loading && <Icon icon="time"/>}
         </>}
         labelFor="selected-group"
