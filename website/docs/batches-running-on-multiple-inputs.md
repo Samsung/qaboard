@@ -37,7 +37,7 @@ you-can-override-the-default-database:
 
 ## Specifying test configurations
 :::important Reminder
-Make sure you read [the section on configurations](identifying-inputs-files)
+Make sure you read [the section on configurations](specifying-configurations)
 :::
 
 Let's look at examples from the `HW_ALG` project to illustrate how configurations can be given:
