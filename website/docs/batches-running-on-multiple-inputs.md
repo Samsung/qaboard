@@ -37,7 +37,7 @@ you-can-override-the-default-database:
 
 ## Specifying test configurations
 :::important Reminder
-Make sure you read [the section on configurations](identifying-inputs-files)
+Make sure you read [the section on configurations](specifying-configurations)
 :::
 
 Let's look at examples from one of Samsung's projects to illustrate how configurations can be given. In short, each image is processed by a tool named "CDE". We need to feed it config files and CLI arguments.
