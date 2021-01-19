@@ -754,8 +754,18 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
         exit(1)
 
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
-      input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
-      all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+      if f"/{user}/" in str(commit_dir):
+        commit_dir = Path(str(commit_dir).replace(user, '*'))
+        start, *end = commit_dir.parts
+        start, end = Path(start), str(Path(*end))
+        commit_dirs = start.glob(end)
+        for commit_dir in commit_dirs:
+          print(commit_dir)
+          input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
+          all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+      else:
+        input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
+        all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if not all_bit_accurate:
       click.secho("\nError: you are not bit-accurate versus the manifest.", fg='red', underline=True, bold=True)
@@ -834,10 +844,21 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       reference_commit = lastest_successful_ci_commit(reference_commit)
       click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
       reference_rootproject_ci_dir = outputs_project_root / get_commit_dirs(reference_commit, repo_root)
-      click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
-      all_bit_accurate = True
-      for o in output_directories:
-        all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
+      if f"/{user}/" in str(reference_rootproject_ci_dir):
+        reference_rootproject_ci_dir_ = Path(str(reference_rootproject_ci_dir).replace(user, '*'))
+        start, *end = reference_rootproject_ci_dir_.parts
+        start, end = Path(start), str(Path(*end))
+        reference_rootproject_ci_dirs = start.glob(end)
+        all_bit_accurate = True
+        for reference_rootproject_ci_dir in reference_rootproject_ci_dirs:
+          click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+          for o in output_directories:
+            all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
+      else:
+        click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+        all_bit_accurate = True
+        for o in output_directories:
+          all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:
