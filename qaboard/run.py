@@ -107,8 +107,8 @@ class RunContext():
         if not ctx.params.get('output_path'):
             assert input_path_absolute.relative_to(database)
             input_dir = input_path.with_suffix('')
-            if len(input_dir.as_posix()) > 90:
-                input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=90))
+            if len(input_dir.as_posix()) > 70:
+                input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
             output_dir = ctx.obj['batch_conf_dir'] / input_dir
             # we don't want people using ../ in the input causing issues 
             assert output_dir.resolve().relative_to(ctx.obj['batch_conf_dir'].resolve())

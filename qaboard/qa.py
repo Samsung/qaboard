@@ -506,8 +506,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
               batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
       from qaboard.conventions import slugify_hash
       input_dir = run_context.rel_input_path.with_suffix('')
-      if len(input_dir.as_posix()) > 90:
-          input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=90))
+      if len(input_dir.as_posix()) > 70:
+          input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
       run_context.output_dir = batch_conf_dir / input_dir
       if forwarded_args:
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
