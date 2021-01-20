@@ -13,6 +13,14 @@ import {
   Navbar,
   Icon,
   Tooltip,
+  H5,
+  FormGroup,
+  InputGroup,
+  TextArea,
+  Button,
+  AnchorButton,
+  Dialog,
+  Toaster,
 } from "@blueprintjs/core";
 
 import { Avatar } from "./components/avatars";
@@ -25,7 +33,7 @@ import {
   projectDataSelector,
   commitSelector,
   latestCommitSelector,
-	batchSelector,
+  batchSelector,
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 import { fetchCommit } from "./actions/commit";
@@ -60,14 +68,107 @@ const Sider = styled.div`
     }
 `
 
+import { post } from "axios";
+const toaster = Toaster.create();
+
+class SideLogin extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      autoFocus: true,
+      canEscapeKeyClose: true,
+      canOutsideClickClose: true,
+      enforceFocus: true,
+      isOpen: false,
+      usePortal: true,
+    };
+
+    this.handleSubmit = this.handleSubmit.bind(this);
+  }
+
+  handleSubmit(event) {
+    event.preventDefault();
+    const data = new FormData(event.target);
+    
+    // fetch('/api/form-submit-url', {
+    //   method: 'POST',
+    //   body: data,
+    // });
+
+
+    console.log(data)
+
+    post("/api/v1/user/signup/", data)
+      .then(response => {
+        console.log(response.data)
+      })
+      .catch(error => {
+        toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
+      })
+  }
+
+
+  render() {
+    let is_logged = true
+    if (is_logged){
+      // return <MenuItem text="Log in" icon="log-in" onClick={this.loginPopup}/>
+    }
+    else{
+      // return <MenuItem text="Log out" icon="log-out" onClick={this.loginPopup}/>
+    }
+ 
+    return <>
+      <MenuItem text="Log in" icon="log-in" onClick={this.handleOpen}/>
+      <Dialog
+          /*className={this.props.data.themeName}*/
+          /*icon="log-in"*/
+          onClose={this.handleClose}
+          /*title="Log in"*/
+          {...this.state}
+      >
+          <div className={Classes.DIALOG_BODY}>
+              <p>
+                  <strong>
+                      Data integration is the seminal problem of the digital age. For over ten years, we’ve
+                      helped the world’s premier organizations rise to the challenge.
+                  </strong>
+              </p>
+              <p>Start the revolution. Unleash the power of data integration with Palantir Foundry.</p>
+
+              <form onSubmit={this.handleSubmit}>
+                <label htmlFor="username">Enter username</label>
+                <input id="username" name="username" type="text" />
+
+                <label htmlFor="email">Enter your email</label>
+                <input id="email" name="email" type="email" />
+
+                <button>Send data!</button>
+              </form>
+
+          </div>
+          <div className={Classes.DIALOG_FOOTER}>
+              <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+                  <Tooltip content="This button is hooked up to close the dialog.">
+                    <Button large={true} intent={Intent.PRIMARY} onClick={this.handleClose}>Log In</Button>
+                  </Tooltip>
+              </div>
+          </div>
+      </Dialog>
+    </>
+  }
+  
+  handleOpen = () => this.setState({ isOpen: true });
+
+  handleClose = () => this.setState({ isOpen: false });
+}
 
 class ProjectSideAvatar extends React.Component {
   toHome = () => {
     const { dispatch, project } = this.props;
-  	dispatch(updateSelected(project, {branch: null, committer: null}))
+    dispatch(updateSelected(project, {branch: null, committer: null}))
   }
 
-	render() {
+  render() {
     const { project, project_data={} } = this.props;
     const git = (project_data.data || {}).git || {};
     let project_name = project.split('/').slice(-1)[0];
@@ -82,14 +183,14 @@ class ProjectSideAvatar extends React.Component {
       <>
         <Avatar
           src={avatar_url}
-	        alt={project_name}
+          alt={project_name}
           img_style={avatar_style}
-	      />
+        />
         {project_name}
       </>
     </Link></span>
 
-	}
+  }
 }
 
 class ProjectSideCommitList extends React.Component {
@@ -132,7 +233,7 @@ class ProjectSideCommitList extends React.Component {
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
     let code_url = subproject.length > 0 ? `${git.web_url}/tree/${is_branch ? match.params.name : reference_branch}/${subproject}` : git.web_url;
-		return <>
+    return <>
       {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
                         : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
       }
@@ -159,10 +260,10 @@ class ProjectSideCommitList extends React.Component {
         </MenuItem>
         </>}
     </>
-	  }
+    }
 }
         // {false && <MenuItem icon="locate" text="Metrics"/>}
-  		  // {false && <MenuItem icon="info-sign" text="Settings"/>}
+        // {false && <MenuItem icon="info-sign" text="Settings"/>}
 
 
 class ProjectSideResults extends React.Component {
@@ -170,7 +271,7 @@ class ProjectSideResults extends React.Component {
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
   } 
 
-	render() {
+  render() {
     const { project, project_data={}, commit, batch } = this.props;
     const git = project_data.data?.git || {};
     let project_repo = git.path_with_namespace || '';
@@ -212,7 +313,7 @@ class ProjectSideResults extends React.Component {
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} text="Tuning Analysis" onClick={this.set('selected_views', 'optimization')}/>
     </>
-	}
+  }
 }
 
 
@@ -222,13 +323,15 @@ class AppSider extends React.Component {
   render() {
     return <Sider className={`${Classes.DARK} ${Classes.NAVBAR}`} style={{padding: '0px!important', overflowX: 'hidden', overflowY: 'auto'}}>
       <ul className={Classes.LARGE} style={{'listStyle': 'none', padding: '0px'}}>
-      	<Navbar.Heading style={{paddingLeft: '15px', display: 'flex', 'justifyContent': 'space-around'}}>
-      		<Link style={{ color: "#fff" }}  to="/">
+        <Navbar.Heading style={{paddingLeft: '15px', display: 'flex', 'justifyContent': 'space-around'}}>
+          <Link style={{ color: "#fff" }}  to="/">
               <b>QA-Board</b>
           </Link>
           <Tooltip><a href={process.env.REACT_APP_QABOARD_DOCS_ROOT} rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Click to see the docs!</span></Tooltip>
-      	</Navbar.Heading>
+        </Navbar.Heading>
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
+        <SideLogin />
+        <Divider style={{marginBottom: '10px', marginTop: '10px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
         {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
