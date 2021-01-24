@@ -15,20 +15,25 @@ def signup_post():
   password = request.form.get('password')
   print(email, name,password)
   
-  name = 'qaboard'
+  # name = 'qaboard'
   password = 'password'
   
-  # return "nothing" #DEBUG
-  # user = User.query.filter_by(email=email).first() # if this returns a user, then the email already exists in database
+  return "nothing" #DEBUG
+  user = User.query.filter_by(email=email).first() # if this returns a user, then the email already exists in database
 
-  # if user: # if a user is found, we want to redirect back to signup page so user can try again
-  #   flash('Email address already exists')
-  #   return redirect(url_for('auth.signup'))
+  if user: # if a user is found, we want to redirect back to signup page so user can try again
+    print("user exist")
+    # flash('Email address already exists')
+    return f"403 ERROR:\nEmail address already exists", 403
+    # return redirect(url_for('auth.signup'))
 
   # create a new user with the form data. Hash the password so the plaintext version isn't saved.
-  new_user = User(email=email, name=name, password=generate_password_hash(password, method='sha256'))
+  new_user = User(email=email, user_name=name, password=generate_password_hash(password, method='sha256'))
 
   # add the new user to the database
   db_session.add(new_user)
   db_session.commit()
-  return redirect(url_for('auth.login'))
+  print("created new user")
+  return jsonify({"status": "OK", "id": new_user.id})
+  # return redirect(url_for('auth.login'))
+  
