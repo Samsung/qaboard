@@ -15,5 +15,5 @@ class User(Base):
   id = Column(Integer, primary_key=True) # primary keys are required by SQLAlchemy
   email = Column(String(100), unique=True)
   password = Column(String(100))
-  username = Column(String(1000), unique=True)
+  user_name = Column(String(1000), unique=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)

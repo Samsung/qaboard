@@ -123,36 +123,24 @@ class SideLogin extends React.Component {
           /*className={this.props.data.themeName}*/
           /*icon="log-in"*/
           onClose={this.handleClose}
-          /*title="Log in"*/
+          // title="Log Into QA-Board"
+          style={{ width: "396px" }}
           {...this.state}
       >
+        <form onSubmit={this.handleSubmit}>
           <div className={Classes.DIALOG_BODY}>
-              <p>
-                  <strong>
-                      Data integration is the seminal problem of the digital age. For over ten years, we’ve
-                      helped the world’s premier organizations rise to the challenge.
-                  </strong>
-              </p>
-              <p>Start the revolution. Unleash the power of data integration with Palantir Foundry.</p>
-
-              <form onSubmit={this.handleSubmit}>
-                <label htmlFor="username">Enter username</label>
-                <input id="username" name="username" type="text" />
-
-                <label htmlFor="email">Enter your email</label>
-                <input id="email" name="email" type="email" />
-
-                <button>Send data!</button>
-              </form>
-
+            <div style={{padding: "16px 0 16px 0"}}>
+              <p style={{textAlign: "center", fontSize: "large"}}>Log Into QA-Board</p>
+            </div>
+            <InputGroup id="username" name="username" type="text" placeholder="User Name" large={true} style={{margin: "6px"}}/>
+            <InputGroup id="password" name="password" type="password" placeholder="Password" large={true} style={{margin: "6px"}}/>
+            <Button type="submit" large={true} intent={Intent.PRIMARY} fill={true} style={{margin: "6px"}} /*onClick={this.handleClose}*/><b>Log In</b></Button>
           </div>
           <div className={Classes.DIALOG_FOOTER}>
-              <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-                  <Tooltip content="This button is hooked up to close the dialog.">
-                    <Button large={true} intent={Intent.PRIMARY} onClick={this.handleClose}>Log In</Button>
-                  </Tooltip>
-              </div>
+            <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+            </div>
           </div>
+        </form>
       </Dialog>
     </>
   }
