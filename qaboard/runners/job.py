@@ -95,25 +95,27 @@ class JobGroup():
     # it happens often when users use a lot of memory and some task queue manager gets angry 
     jobs_with_pending_outputs = []
     for job in self.jobs:
-      # we still fallback to the server-less check, in case it was down during part of the runs...
+      # we still fallback to the server-less check, in case the server was down during part of the runs...
       if job.run_context.output_dir not in outputdir_to_qaboard_output:
         is_failed = is_failed or job.run_context.is_failed(verbose=True)
       else:
         job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
         assert job.qaboard_output
-        is_failed = is_failed or job.qaboard_output["is_failed"] 
+        is_failed = is_failed or job.qaboard_output["is_failed"]
         if job.qaboard_output['is_pending']:
           jobs_with_pending_outputs.append(job)
 
     for j in jobs_with_pending_outputs:
+      print("[INFO] Job status was 'pending':", j, j.run_context)
+      job_is_failed = job.run_context.is_failed(verbose=True)
+      is_failed = is_failed or job_is_failed
       notify_qa_database(**{
         **(qa_context if qa_context else {}),
         **j.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
         "is_pending": False,
-        "is_failed": True, # we know something went wrong
+        "is_failed": job_is_failed,
       })
     return is_failed
-
 
   # Currently called onlt by the backend when it tries to stop a `qa batch` command
   # Sadly it only knows about the command_id, not jobs....
