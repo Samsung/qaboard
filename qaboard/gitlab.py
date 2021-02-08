@@ -42,11 +42,9 @@ def ci_commit_statuses(commit_id, **kwargs):
 
 
 
-def update_gitlab_status(state, name, target_url, description, my_commit_id = None):
-  if my_commit_id == None:
-    my_commit_id = commit_id
+def update_gitlab_status(state, name, target_url, description, commit_id=commit_id):
   check_gitlab_token()
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{my_commit_id}"
+  url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
   params = {
     "state": state,
     "name": name,
