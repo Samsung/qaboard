@@ -626,7 +626,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         name += f" | {label}"
         target_url += f"?batch={label}"
       update_gitlab_status(
-        status='failed' if is_failed else 'success',
+        state='failed' if is_failed else 'success',
         name=name,
         target_url=target_url,
         description=f"{len(jobs)} results",
