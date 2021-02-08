@@ -27,7 +27,6 @@ from .utils import redirect_std_streams
 from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths
-from .api import qaboard_url
 from .iterators import iter_inputs, iter_parameters
 
 from .config import config_has_error, ignore_config_errors
@@ -618,6 +617,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     )
 
     from .gitlab import gitlab_token, update_gitlab_status
+    from .api import qaboard_url
     if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
       name = f"QA {subproject.name}" if subproject else 'QA'
       target_url = f"https://{qaboard_url}/{config['project']['name']}/commit/{commit_id}"
@@ -625,7 +625,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       if label != "default":
         name += f" | {label}"
         target_url += f"?batch={label}"
-      update_gitlab_status( 'failed' if is_failed else 'success', name, target_url, f"{len(jobs)} results")
+      update_gitlab_status(
+        status='failed' if is_failed else 'success',
+        name=name,
+        target_url=target_url,
+        description=f"{len(jobs)} results",
+      )
 
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity
