@@ -634,8 +634,20 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     )
 
     from .gitlab import gitlab_token, update_gitlab_status
+    from .api import qaboard_url
     if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
-      update_gitlab_status(commit_id, 'failed' if is_failed else 'success', ctx.obj["batch_label"], f"{len(jobs)} results")
+      name = f"QA {subproject.name}" if subproject else 'QA'
+      target_url = f"https://{qaboard_url}/{config['project']['name']}/commit/{commit_id}"
+      label = ctx.obj["batch_label"]
+      if label != "default":
+        name += f" | {label}"
+        target_url += f"?batch={label}"
+      update_gitlab_status(
+        state='failed' if is_failed else 'success',
+        name=name,
+        target_url=target_url,
+        description=f"{len(jobs)} results",
+      )
 
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity

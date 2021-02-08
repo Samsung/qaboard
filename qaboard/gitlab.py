@@ -5,7 +5,7 @@ import requests
 import click
 
 from urllib.parse import quote
-from .config import config, root_qatools_config, subproject, commit_branch
+from .config import config, root_qatools_config, subproject, commit_branch, commit_id
 from .config import secrets
 
 # TODO: read root_qatools_config['project']['url']
@@ -42,14 +42,9 @@ def ci_commit_statuses(commit_id, **kwargs):
 
 
 
-def update_gitlab_status(commit_id, state, label, description):
+def update_gitlab_status(state, name, target_url, description, commit_id=commit_id):
   check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
-  name = f"QA {subproject.name}" if subproject else 'QA'
-  target_url = f"https://qa/{config['project']['name']}/commit/{commit_id}"
-  if label != "default":
-    name += f" | {label}"
-    target_url += f"?batch={label}"
   params = {
     "state": state,
     "name": name,
