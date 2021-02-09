@@ -620,7 +620,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     from .api import qaboard_url
     if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
       name = f"QA {subproject.name}" if subproject else 'QA'
-      target_url = f"https://{qaboard_url}/{config['project']['name']}/commit/{commit_id}"
+      target_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id}"
       label = ctx.obj["batch_label"]
       if label != "default":
         name += f" | {label}"
