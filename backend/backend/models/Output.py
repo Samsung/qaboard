@@ -224,6 +224,8 @@ class Output(Base):
       f'export QA_BATCH_COMMAND_HIDE_LOGS=true'
       "",
       # get the env right
+      f'umask 0',
+      f'mkdir -p "{self.batch.ci_commit.artifacts_dir}"',
       f'cd "{self.batch.ci_commit.artifacts_dir}"',
       'set +ex',
       '[[ -f ".envrc" ]] && source .envrc',
@@ -272,6 +274,8 @@ class Output(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
+          if not (output_dir / file).exists():
+            continue
           print(f'{output_dir / file}')
           if not dryrun:
             try:
