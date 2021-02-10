@@ -772,7 +772,6 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
         start, end = Path(start), str(Path(*end))
         commit_dirs = start.glob(end)
         for commit_dir in commit_dirs:
-          print(commit_dir)
           input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
           all_bit_accurate = all_bit_accurate and input_is_bit_accurate
       else:
