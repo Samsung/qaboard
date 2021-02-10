@@ -120,7 +120,8 @@ def fix_linux_permissions(path: Path):
   try:
     user = getuser()
     ssh = f"ssh -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
-    chmod = f'{ssh} {user}@{user}-vdi \'chmod -R 777 "{windows_to_linux_path(path).as_posix()}"\''
+    hostname = f"{user}-vdi" if user != "sircdevops" else "jenkins10-srv"
+    chmod = f'{ssh} {user}@{hostname} \'chmod -R 777 "{windows_to_linux_path(path).as_posix()}"\''
     click.secho(chmod, err=True)
     os.system(chmod)
   except Exception as e:
