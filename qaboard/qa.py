@@ -830,11 +830,17 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
       reference_commits = git_parents(commit_id)
     else:
+      # ideally we should do something smarter...
+      # https://stackoverflow.com/questions/18222634/given-a-git-refname-can-i-detect-whether-its-a-hash-tag-or-branch
       if "origin" not in reference:
-        reference = f"origin/{reference}"
-      click.secho(f'Comparing bit-accuracy versus the latest remote commit of {reference}', fg='cyan', bold=True, err=True)
-      reference_commits = [latest_commit(reference)]
-
+        origin_reference = f"origin/{reference}"
+      origin_latest_commit = latest_commit(origin_reference)
+      if origin_latest_commit != origin_reference: # it was a commit
+        click.secho(f'Comparing bit-accuracy versus the latest remote commit of {origin_reference}', fg='cyan', bold=True, err=True)
+        reference_commits = [origin_latest_commit]
+      else:
+        click.secho(f'Comparing bit-accuracy versus {reference}', fg='cyan', bold=True, err=True)
+        reference_commits = [reference]
     click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
     
     # This where the new results are located
@@ -846,7 +852,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       output_directories = []
       for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
         batch_conf_dir = make_batch_conf_dir(subproject, ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj["extra_parameters"], ctx.obj['share'])
-        input_path = run_context.input_path.relative_to(run_context.database)
+        if batch_conf_dir.is_absolute:
+          batch_conf_dir = batch_conf_dir.relative_to(Path().resolve())
+        input_path = run_context.rel_input_path
         output_directory = batch_conf_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
 

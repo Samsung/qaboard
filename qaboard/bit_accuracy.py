@@ -84,7 +84,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
       if not fnmatch.fnmatch(file_1_str, pattern):
         continue
       file_1 = Path(file_1_str)
-      if any(fnmatch.fnmatch(file_1.name, i) for i in ignore):
+      if any(fnmatch.fnmatch(file_1, f"{i}*") for i in ignore):
         continue
       if file_1_str in manifest_2:
         is_same = meta_1['md5'] == manifest_2[file_1_str]['md5']
