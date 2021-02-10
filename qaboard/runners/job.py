@@ -105,13 +105,13 @@ class JobGroup():
         if job.qaboard_output['is_pending']:
           jobs_with_pending_outputs.append(job)
 
-    for j in jobs_with_pending_outputs:
-      print("[INFO] Job status was 'pending':", j, j.run_context)
+    for job in jobs_with_pending_outputs:
+      print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
       job_is_failed = job.run_context.is_failed(verbose=True)
       is_failed = is_failed or job_is_failed
       notify_qa_database(**{
         **(qa_context if qa_context else {}),
-        **j.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
+        **job.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
         "is_pending": False,
         "is_failed": job_is_failed,
       })
