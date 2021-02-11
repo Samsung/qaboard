@@ -852,8 +852,12 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       output_directories = []
       for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
         batch_conf_dir = make_batch_conf_dir(subproject, ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj["extra_parameters"], ctx.obj['share'])
-        if batch_conf_dir.is_absolute:
-          batch_conf_dir = batch_conf_dir.relative_to(Path().resolve())
+        if batch_conf_dir.is_absolute():
+          try:
+            batch_conf_dir = batch_conf_dir.relative_to(Path().resolve())
+          except:
+            print("TODO: fix this...")
+            pass
         input_path = run_context.rel_input_path
         output_directory = batch_conf_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
