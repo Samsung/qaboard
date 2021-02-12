@@ -1,10 +1,7 @@
-from flask import Flask
 from flask_login import UserMixin
 from backend.models import Base
 import datetime
-from sqlalchemy import ForeignKey, Integer, String, DateTime, Boolean, JSON
-from sqlalchemy import UniqueConstraint, Column
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
 
 
 class User(Base, UserMixin):
