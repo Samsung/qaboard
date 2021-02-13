@@ -7,6 +7,7 @@ from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from backend import app, db_session
 from ..models import User
+from ..config import ldap_server, ldap_distinguished_name, ldap_password
 
 login_manager = LoginManager(app)
 
@@ -126,10 +127,9 @@ def ldap_auth(username, password):
     "invalid_username": False,
     "is_ldap": True,
   }
-  ldap_connect = ldap.initialize('ldap://dc04.transchip.com')
-  distinguishedName = "cn=Ldap Query,OU=IT,OU=SIRC Users,DC=transchip,DC=com"
+  ldap_connect = ldap.initialize(ldap_server)
   ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
-  ldap_connect.simple_bind_s(distinguishedName, "LQstc009")
+  ldap_connect.simple_bind_s(ldap_distinguished_name, ldap_password)
   # check if the user exists
   certificate = ldap_connect.search_s(
     "dc=transchip,dc=com",
