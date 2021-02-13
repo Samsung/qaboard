@@ -2,10 +2,8 @@ import React from "react";
 import { post, get } from "axios";
 import {
   Classes,
-  Divider,
   Intent,
   MenuItem,
-  MenuDivider,
   Icon,
   Tooltip,
   InputGroup,
@@ -17,7 +15,7 @@ import {
 const toaster = Toaster.create();
 
 
-class SideAuth extends React.Component {
+class Auth extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -36,7 +34,6 @@ class SideAuth extends React.Component {
   getAuth() {
     get("/api/v1/user/get-auth/")
     .then(response => {
-      console.log(response.data)
       const {
         is_authenticated,
         user_id,
@@ -82,22 +79,21 @@ class SideAuth extends React.Component {
       is_authenticated,
     } = this.state;
 
-    const item = is_authenticated ? <SideUserMenu getAuth={this.getAuth} {...this.state}/> : <SideLogin getAuth={this.getAuth} {...this.state}/>
+    const app_sider = this.props.appSider;
+
+    const display = is_authenticated ? <UserMenu getAuth={this.getAuth} {...this.state}/> : <Login getAuth={this.getAuth} appSider={app_sider} {...this.state}/>
 
     return <>
-      {item}
+      {display}
     </>
   }
-
 }
 
 
-class SideUserMenu extends React.Component {
+class UserMenu extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {
-
-    };
+    this.state = {};
 
     this.handleLogOut = this.handleLogOut.bind(this);
   }
@@ -105,7 +101,6 @@ class SideUserMenu extends React.Component {
   handleLogOut = display_name => {
     post("/api/v1/user/logout/")
       .then(response => {
-        console.log(response.data)
         if(response.status == 200){
           this.props.getAuth()
           toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 });
@@ -147,13 +142,10 @@ class SideUserMenu extends React.Component {
         </MenuItem>
     </>
   }
-  
-  handleOpen = () => this.setState({ isOpen: true });
-  handleClose = () => this.setState({ isOpen: false });
 }
 
 
-class SideLogin extends React.Component {
+class Login extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -177,8 +169,6 @@ class SideLogin extends React.Component {
 
       post("/api/v1/user/auth/", data)
       .then(response => {
-        console.log(response.data)
-        console.log(response)
         if(response.status == 200){
           this.props.getAuth()
           this.handleClose()
@@ -209,14 +199,27 @@ class SideLogin extends React.Component {
       invalid_username,
       invalid_password,
     } = this.state;
-    const warning_sign = <Icon icon="warning-sign" iconSize={Icon.SIZE_LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
-    let warning = {
+    const warning_sign = <>
+      <Tooltip content="Try your windows credentials" position="right" intent={Intent.DANGER} hoverCloseDelay={2000}>
+          <Icon icon="warning-sign" iconSize={Icon.SIZE_LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
+      </Tooltip>
+      </>
+    const warning = {
       rightElement: warning_sign,
       intent: Intent.DANGER,
     };
 
+    const key_state = {
+      text: "Log in",
+      onClick: this.handleOpen,
+    };
+
+    const key = this.props.appSider ?
+      <MenuItem icon="log-in" {...key_state}/> :
+      <Button className={Classes.MINIMAL} icon={<Icon icon="log-in" color="#106ba3"/>} style={{color : "#0d4975"}} {...key_state}/>
+
     return <>
-      <MenuItem text="Log in" icon="log-in" onClick={this.handleOpen}/>
+      {key}
       <Dialog
           icon="log-in"
           title="Log Into QA-Board"
@@ -250,8 +253,9 @@ class SideLogin extends React.Component {
     </>
   }
   
-  handleOpen = () => this.setState({ isOpen: true });
+  handleOpen = () => this.setState({ isOpen: true , invalid_username : false, invalid_password : false});
   handleClose = () => this.setState({ isOpen: false });
 }
 
-export { SideAuth };
+
+export { Auth };

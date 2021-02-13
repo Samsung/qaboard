@@ -18,7 +18,7 @@ import {
 import { Avatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
-import { SideAuth } from "./components/authentication/Auth"
+import { Auth } from "./components/authentication/Auth"
 
 import {
   selectedSelector,
@@ -229,7 +229,7 @@ class AppSider extends React.Component {
           <Tooltip><a href={process.env.REACT_APP_QABOARD_DOCS_ROOT} rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Click to see the docs!</span></Tooltip>
         </Navbar.Heading>
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
-        <SideAuth />
+        <Auth appSider={true} />
         <Divider style={{marginBottom: '10px', marginTop: '10px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
