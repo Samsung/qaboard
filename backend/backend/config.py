@@ -14,3 +14,7 @@ qaboard_data_git_dir = Path(os.environ.get("QABOARD_DATA_GIT_DIR", qaboard_data_
 default_storage_root = Path('/mnt/qaboard')
 default_outputs_root = default_storage_root
 default_artifacts_root = default_storage_root
+
+ldap_server = 'ldap://dc04.transchip.com'
+ldap_distinguished_name = "cn=Ldap Query,OU=IT,OU=SIRC Users,DC=transchip,DC=com"
+ldap_password = "LQstc009"
