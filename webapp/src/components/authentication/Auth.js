@@ -14,7 +14,6 @@ import {
 
 const toaster = Toaster.create();
 
-
 class Auth extends React.Component {
   constructor(props) {
     super(props);
