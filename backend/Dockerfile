@@ -43,6 +43,7 @@ RUN apt-get update && apt-get install -y gnupg2 && \
 # https://www.psycopg.org/docs/install.html#install-from-source
 # https://www.psycopg.org/docs/faq.html#faq-compile
 RUN apt-get update && apt-get install -y libpq-dev gcc
+RUN apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev -y
 
 
 # If we want uwsgi's routing support
@@ -68,6 +69,7 @@ COPY backend/pyproject.toml backend/poetry.lock ./
 # https://github.com/python-poetry/poetry/issues/1579
 # https://github.com/python-poetry/poetry/issues/214 
 RUN poetry config virtualenvs.create false
+RUN poetry update
 RUN poetry install --no-root
 ENV QA_NO_CHECK_FOR_UPDATES=1
 
@@ -88,6 +90,7 @@ WORKDIR /qaboard
 # this way the install below would not install any 3rd parties :| 
 WORKDIR /qaboard/backend
 COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
+RUN poetry update
 RUN poetry install --extras qaboard
 
 
