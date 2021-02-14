@@ -26,7 +26,10 @@ RUN apt-get update -qq \
 # https://www.psycopg.org/docs/install.html#install-from-source
 # https://www.psycopg.org/docs/faq.html#faq-compile
 RUN apt-get update \
+    # postgresql and toolchain
     && apt-get install -y libpq-dev gcc \
+    # login packages
+    && apt-get install -y libsasl2-dev libldap2-dev libssl-dev \
     && apt-get clean
 
 
@@ -53,6 +56,7 @@ COPY backend/pyproject.toml backend/poetry.lock ./
 # https://github.com/python-poetry/poetry/issues/1579
 # https://github.com/python-poetry/poetry/issues/214 
 RUN poetry config virtualenvs.create false
+RUN poetry update
 RUN poetry install --no-root
 ENV QA_NO_CHECK_FOR_UPDATES=1
 
@@ -73,6 +77,7 @@ WORKDIR /qaboard
 # this way the install below would not install any 3rd parties :| 
 WORKDIR /qaboard/backend
 COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
+RUN poetry update
 RUN poetry install --extras qaboard
 
 
