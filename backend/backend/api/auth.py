@@ -11,10 +11,7 @@ from ..config import ldap_server, ldap_distinguished_name, ldap_password
 
 login_manager = LoginManager(app)
 
-@login_manager.user_loader
-def load_user(user_id):
-  return User.query.get(user_id)
-
+############################## HTTP Requests ##################################
 
 @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup_post():
@@ -27,23 +24,7 @@ def signup_post():
   if not new_user:
     print("signup_post: Email address or User Name already exists:", name, email)
     return f"403 Email address or User Name already exists", 403
-
   return jsonify({"status": "OK", "id": new_user.id})
-
-
-def signup_db(user_name, forename, surname, email, is_ldap, password=None):
-  user_db = User.query.filter_by(user_name=user_name).first() # if this returns a user, then the user_name already exists in database
-  if not user_db and password:
-    # create a new user. Hash the password so the plaintext version isn't saved.
-    password = generate_password_hash(password, method='sha256')
-    new_user = User(user_name=user_name, forename=forename, surname=surname, email=email, is_ldap=is_ldap, password=password)
-    # add the new user to the database
-    db_session.add(new_user)
-    db_session.commit()
-    print("signup_db: Created new user:", new_user)
-    return new_user
-
-  return False
 
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
@@ -72,6 +53,59 @@ def auth_post():
   login_user(user_db)
   print("auth_post: Login success:", username)
   return jsonify({"status": "OK", "full_name": res["full_name"], "user_name": res["user_name"]})
+
+
+@app.route('/api/v1/user/get-auth/', methods=['GET'])
+def get_authenticated_user_post():
+  if current_user.is_authenticated:
+    return jsonify({
+      "status": "OK",
+      "is_authenticated": current_user.is_authenticated,
+      "is_anonymous": current_user.is_anonymous,
+      "is_active": current_user.is_active,
+      "user_id": current_user.id,
+      "user_name": current_user.user_name,
+      "forename": current_user.forename,
+      "surname": current_user.surname,
+      "email": current_user.email,
+      "is_ldap": current_user.is_ldap
+      })
+
+  # No authenticated user found -> will return "is_authenticated": false
+  return jsonify({
+    "status": "OK",
+    "is_authenticated": current_user.is_authenticated,
+    "is_anonymous": current_user.is_anonymous,
+    "is_active": current_user.is_active,
+    })
+
+
+@app.route('/api/v1/user/logout/', methods=['POST'])
+def logout_post():
+  if current_user.is_authenticated:
+    logout_user()
+  return jsonify({"status": "OK"})
+
+################################ Methods ######################################
+
+@login_manager.user_loader
+def load_user(user_id):
+  return User.query.get(user_id)
+
+
+def signup_db(user_name, forename, surname, email, is_ldap, password=None):
+  user_db = User.query.filter_by(user_name=user_name).first() # if this returns a user, then the user_name already exists in database
+  if not user_db and password:
+    # create a new user. Hash the password so the plaintext version isn't saved.
+    password = generate_password_hash(password, method='sha256')
+    new_user = User(user_name=user_name, forename=forename, surname=surname, email=email, is_ldap=is_ldap, password=password)
+    # add the new user to the database
+    db_session.add(new_user)
+    db_session.commit()
+    print("signup_db: Created new user:", new_user)
+    return new_user
+
+  return False
 
 
 def auth(username, password):
@@ -175,34 +209,3 @@ def ldap_auth(username, password):
 
   return res
 
-
-@app.route('/api/v1/user/get-auth/', methods=['GET'])
-def get_authenticated_user_post():
-  if current_user.is_authenticated:
-    return jsonify({
-      "status": "OK",
-      "is_authenticated": current_user.is_authenticated,
-      "is_anonymous": current_user.is_anonymous,
-      "is_active": current_user.is_active,
-      "user_id": current_user.id,
-      "user_name": current_user.user_name,
-      "forename": current_user.forename,
-      "surname": current_user.surname,
-      "email": current_user.email,
-      "is_ldap": current_user.is_ldap
-      })
-
-  # No authenticated user found -> will return "is_authenticated": false
-  return jsonify({
-    "status": "OK",
-    "is_authenticated": current_user.is_authenticated,
-    "is_anonymous": current_user.is_anonymous,
-    "is_active": current_user.is_active,
-    })
-
-
-@app.route('/api/v1/user/logout/', methods=['POST'])
-def logout_post():
-  if current_user.is_authenticated:
-    logout_user()
-  return jsonify({"status": "OK"})
