@@ -1,13 +1,13 @@
 """
 Authentication for qaboard users and LDAP.
 """
+import os
 import ldap
 from flask import request, jsonify
 from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from backend import app, db_session
 from ..models import User
-from ..config import ldap_server, ldap_distinguished_name, ldap_password
 
 login_manager = LoginManager(app)
 
@@ -65,8 +65,7 @@ def get_authenticated_user_post():
       "is_active": current_user.is_active,
       "user_id": current_user.id,
       "user_name": current_user.user_name,
-      "forename": current_user.forename,
-      "surname": current_user.surname,
+      "full_name": current_user.full_name,
       "email": current_user.email,
       "is_ldap": current_user.is_ldap
       })
@@ -93,12 +92,13 @@ def load_user(user_id):
   return User.query.get(user_id)
 
 
-def signup_db(user_name, forename, surname, email, is_ldap, password=None):
+def signup_db(user_name, full_name, email, is_ldap, password=None):
   user_db = User.query.filter_by(user_name=user_name).first() # if this returns a user, then the user_name already exists in database
-  if not user_db and password:
-    # create a new user. Hash the password so the plaintext version isn't saved.
-    password = generate_password_hash(password, method='sha256')
-    new_user = User(user_name=user_name, forename=forename, surname=surname, email=email, is_ldap=is_ldap, password=password)
+
+  if not user_db: # create a new user.
+    if password: # Hash the password (for non-ldap) so the plaintext version isn't saved.
+      password = generate_password_hash(password, method='sha256')
+    new_user = User(user_name=user_name, full_name=full_name, email=email, is_ldap=is_ldap, password=password)
     # add the new user to the database
     db_session.add(new_user)
     db_session.commit()
@@ -144,7 +144,7 @@ def local_auth(username, password):
 
   else:
     # if the above check passes, then we know the user has the right credentials
-    res["full_name"] = f"{user_db.forename} {user_db.surname}" if (user_db.forename and user_db.surname) else None
+    res["full_name"] = f"{user_db.full_name}" if user_db.full_name else None
     res["user_name"] = f"{user_db.user_name}"
     res["mail"] = f"{user_db.email}"
 
@@ -161,6 +161,9 @@ def ldap_auth(username, password):
     "invalid_username": False,
     "is_ldap": True,
   }
+  ldap_server = os.getenv('QA_LDAP_HOST', '')
+  ldap_distinguished_name = str(os.getenv('QA_LDAP_USER', ''))
+  ldap_password = os.getenv('QA_LDAP_PASSWORD', '')
   ldap_connect = ldap.initialize(ldap_server)
   ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
   ldap_connect.simple_bind_s(ldap_distinguished_name, ldap_password)
@@ -198,14 +201,8 @@ def ldap_auth(username, password):
   ldap_connect.unbind_s()
 
   if res["login_success"]:
-    name_list = str(res["full_name"]).split()
-    forename = ""
-    surname = ""
-    if name_list:
-      forename = name_list[0]
-      surname = name_list[1]
     # if user doesn't exists in the database, add it.
-    signup_db(user_name=username, forename=forename, surname=surname, email=res["mail"], is_ldap=res["is_ldap"])
+    signup_db(user_name=username, full_name=res["full_name"], email=res["mail"], is_ldap=res["is_ldap"])
 
   return res
 

@@ -21,8 +21,7 @@ class Auth extends React.Component {
       is_authenticated: false,
       user_id: '',
       user_name: '',
-      forename: '',
-      surname: '',
+      full_name: '',
       email : '',
       is_ldap : false,
     };
@@ -37,8 +36,7 @@ class Auth extends React.Component {
         is_authenticated,
         user_id,
         user_name,
-        forename,
-        surname,
+        full_name,
         email ,
         is_ldap,
       } = response.data;
@@ -47,8 +45,7 @@ class Auth extends React.Component {
         is_authenticated,
         user_id,
         user_name,
-        forename,
-        surname,
+        full_name,
         email ,
         is_ldap
       });
@@ -114,11 +111,10 @@ class UserMenu extends React.Component {
   render() {
     const {
       user_name,
-      forename,
-      surname,
+      full_name,
     } = this.props;
 
-    const display_name = forename && surname ? `${forename} ${surname}` : user_name
+    const display_name = full_name || user_name
 
     return <>
         <MenuItem
