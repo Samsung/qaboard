@@ -208,6 +208,7 @@ class Output(Base):
       f'--label "{self.batch.label}"',
       f"--configuration '{self.configuration}'",
       f"--database '{self.test_input.database}'",
+      f"--type '{self.output_type}'",
       f"--tuning '{extra_parameters}'",
       'batch',
       '--no-wait',
