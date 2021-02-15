@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import json
 import fnmatch
+import subprocess
 from pathlib import Path
 
 from requests.utils import quote
@@ -212,10 +213,9 @@ class Output(Base):
       f"--tuning '{extra_parameters}'",
       'batch',
       '--no-wait',
-      "--lsf-memory 12000", # TODO: not hardcoded?
+      "--lsf-memory 12000", # TODO: read the proper parameters from .batch.data["commands"]
       '--action-on-existing=run',
       '--action-on-pending=run',
-      # '--list',
       f'"{self.test_input.path}"',
     ])
     script = '\n'.join([
@@ -242,13 +242,14 @@ class Output(Base):
     ])
     if not self.output_dir.exists():
       self.output_dir.mkdir(parents=True)
+    logs_path = self.output_dir / 'redo.log'
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:
       f.write(script)
-    # print(script)
     print(f'"{script_path}"')
-    import os
-    os.system(f'bash "{script_path}"')
+    p = subprocess.run(f'bash "{script_path}" > "{logs_path}" 2>&1', shell=True)
+    success = p.returncode == 0
+    return success
 
 
   def delete(self, soft=True, ignore=None, dryrun=False):
