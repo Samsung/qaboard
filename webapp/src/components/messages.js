@@ -121,7 +121,6 @@ class BatchStatusMessages extends React.Component {
   refresh = (refresh_again=true) => {
     const { project, commit, dispatch } = this.props;
     dispatch(fetchCommit({project, id: commit.id}))
-    this.refresh(false)
     if (refresh_again) {
       setTimeout(() => this.refresh(false),  1*1000)
       setTimeout(() => this.refresh(false),  5*1000)
