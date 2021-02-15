@@ -60,11 +60,15 @@ qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
   config_has_error = True
   if not ignore_config_errors:
-    click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
-    click.secho(
-        'Please read the tutorial or ask Arthur Flam for help:\n'
-        'http://qa-docs/',
-        dim=True, err=True)
+    click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.', fg='red', err=True)
+    if 'QABOARD_TUNING' not in os.environ:
+      click.secho('       If you are starting a new project, run `qatools init`.', fg='red', err=True)
+    else:
+      click.secho(f'       It seems "artifacts" are missing. To save them:', fg='red', err=True)
+      click.secho(f'       1. cd your/project', fg='red', err=True)
+      click.secho(f'       2. git checkout {os.environ.get("GIT_COMMIT", "your-commit")}', fg='red', err=True)
+      click.secho(f'       3. # build whatever is needed', fg='red', err=True)
+      click.secho(f'       4. qa save-artifacts', fg='red', err=True)
 
 
 # take care not to mutate the root config, as its project.name is the git repo name
