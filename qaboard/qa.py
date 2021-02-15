@@ -700,7 +700,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       manifest = {} 
 
     nb_files = 0
-    globs = artifact_config.get('glob')
+    globs = artifact_config.get('globs', artifact_config.get('glob', []))
     if not isinstance(globs, list):
       globs = [globs]
 
