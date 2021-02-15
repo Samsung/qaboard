@@ -40,9 +40,6 @@ class CommitWarningMessages extends React.Component {
         this.setState({waiting: false})
         toaster.show({message: `Restore artifacts.`, intent: Intent.PRIMARY});
         this.refresh()
-        setTimeout(this.refresh,  1*1000)
-        setTimeout(this.refresh,  5*1000)
-        setTimeout(this.refresh, 10*1000)
 })
       .catch(error => {
         this.setState({waiting: false });
@@ -121,13 +118,15 @@ class BatchStatusMessages extends React.Component {
     });
   }
 
-  refresh = () => {
+  refresh = (refresh_again=true) => {
     const { project, commit, dispatch } = this.props;
     dispatch(fetchCommit({project, id: commit.id}))
-    this.refresh()
-    setTimeout(this.refresh,  1*1000)
-    setTimeout(this.refresh,  5*1000)
-    setTimeout(this.refresh, 10*1000)
+    this.refresh(false)
+    if (refresh_again) {
+      setTimeout(() => this.refresh(false),  1*1000)
+      setTimeout(() => this.refresh(false),  5*1000)
+      setTimeout(() => this.refresh(false), 10*1000)  
+    }
 }
 
   redo_batch(batch) {
@@ -139,9 +138,6 @@ class BatchStatusMessages extends React.Component {
         this.setState({waiting_redo: false})
         toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
         this.refresh()
-        setTimeout(this.refresh,  1*1000)
-        setTimeout(this.refresh,  5*1000)
-        setTimeout(this.refresh, 10*1000)
 })
       .catch(error => {
         this.setState({waiting_redo: false });
