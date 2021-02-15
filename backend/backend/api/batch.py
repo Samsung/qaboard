@@ -97,11 +97,14 @@ def redo_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
-  status = batch.redo(
+  success = batch.redo(
     only_failed=data.get('only_failed', False),
     only_deleted=data.get('only_deleted', False),
   )
-  return '{"status": "OK"}'
+  if success:
+    return '{"status": "OK"}'
+  else:
+    return jsonify({"status": "Some runs failed to start. Check the 'redo.log' files in the output directories to know more."}), 500
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
 @app.route('/api/v1/batch/rename/', methods=['POST'])

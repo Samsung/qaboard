@@ -141,7 +141,7 @@ class BatchStatusMessages extends React.Component {
 })
       .catch(error => {
         this.setState({waiting_redo: false });
-        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+        toaster.show({message: JSON.stringify(error.response ?? error), intent: Intent.DANGER});
         this.refresh()
       });
   }
