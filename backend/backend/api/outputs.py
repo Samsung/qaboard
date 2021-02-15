@@ -96,7 +96,8 @@ def new_output_webhook():
                                         )
   output.output_type = data.get('input_type', '')
 
-  output.data = data.get('data', {})
+  output.data = data.get('data', {}) # e.g. storage
+  output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
   if output.deleted:
