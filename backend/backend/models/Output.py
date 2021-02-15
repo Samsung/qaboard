@@ -13,7 +13,7 @@ from requests.utils import quote
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
+from sqlalchemy import text, and_, Integer, String, Float, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
 from qaboard.conventions import slugify, slugify_hash, make_hash, serialize_config
@@ -57,6 +57,10 @@ class Output(Base):
   # CREATE INDEX CONCURRENTLY idx_outputs_configurations ON outputs (configurations)
   # CREATE INDEX CONCURRENTLY idx_outputs_extra_parameters ON outputs (extra_parameters)
   __table_args__ = (
+    # https://stackoverflow.com/questions/30885846/how-to-create-jsonb-index-using-gin-on-sqlalchemy
+    # https://www.postgresql.org/docs/8.3/indexes-opclass.html
+    # CREATE INDEX idx_outputs_data_user ON outputs((data -> 'user'));
+    Index('idx_outputs_data_user', text("(data->'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
     # we can't create an btree index on everything because JSON values can be big
     # https://github.com/doorkeeper-gem/doorkeeper/wiki/How-to-fix-PostgreSQL-error-on-index-row-size
@@ -221,7 +225,7 @@ class Output(Base):
       f"export GIT_COMMIT='{self.batch.ci_commit.hexsha}';",
       f"export QA_OUTPUTS_COMMIT='{self.batch.ci_commit.outputs_dir}'",
       f"export QABOARD_TUNING=true;",
-      f'export QA_BATCH_COMMAND_HIDE_LOGS=true'
+      f'export QA_BATCH_COMMAND_HIDE_LOGS=true',
       "",
       # get the env right
       f'umask 0',
