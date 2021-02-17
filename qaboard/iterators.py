@@ -274,14 +274,14 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         if 'platform' in matrix:
           matrix_run_context.platform = matrix['platform']
         matrix_config = None
-        if 'configuration' in matrix:
-          matrix_config = matrix['configuration']
-        if 'configurations' in matrix:
-          matrix_config = matrix['configurations']
-        if 'configs' in matrix:
-          matrix_config = matrix['configs']
+        for k in ['configuration', 'configurations', 'configs']:
+          if k in matrix:
+            matrix_config = matrix[k]
         if matrix_config:
-          if matrix_run_context.configurations:
+          # if no config is specified in the batch, but the matrix defined some
+          # them we want to replace the default config, not append to it
+          run_context_uses_default_config = not any([k in batch for k in ['configs', 'configurations', 'configuration']])
+          if matrix_run_context.configurations and not run_context_uses_default_config:
             matrix_run_context.configurations.append(matrix_config)
           else:
             matrix_run_context.configurations = matrix_config
