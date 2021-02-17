@@ -257,7 +257,11 @@ for d in (repo_root, *list(repo_root.parents)):
     repo_root = d
 if not commit_id or not commit_branch:
     if is_in_git_repo:
-      commit_branch, commit_id = git_head(repo_root)
+      commit_branch_, commit_id_ = git_head(repo_root)
+      if not commit_id:
+        commit_id = commit_id_
+      if not commit_branch:
+        commit_branch = commit_branch_
     else:
       if not commit_branch:
         commit_branch = f'<local:{user}>'
