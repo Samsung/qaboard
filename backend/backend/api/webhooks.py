@@ -27,15 +27,17 @@ def delete_commit(commit_id, project_id=None):
   except Exception as e:
     return f"404 ERROR {e}: {commit_id} in {project_id}", 404
   for ci_commit in ci_commits:
+    print("DELETING", ci_commit)
     if ci_commit.hexsha in ci_commit.project.milestone_commits:
       return f"403 ERROR: Cannot delete milestones", 403
-    return "OK"
     for batch in ci_commit.batches:
+      print(f" > {batch}")
       stop_status = batch.stop()
       if "error" in stop_status:
         return jsonify(stop_status), 500
       batch.delete(session=db_session)
-      return {"status": "OK"}
+    return {"status": "OK"}
+  return f"404 ERROR: Cannot find commit", 404
 
 
 
