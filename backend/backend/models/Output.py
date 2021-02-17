@@ -3,10 +3,10 @@ Describes an Output from `qa run`.
 """
 import os
 import re
-import datetime
-import hashlib
 import json
+import hashlib
 import fnmatch
+import datetime
 import subprocess
 from pathlib import Path
 
@@ -242,7 +242,7 @@ class Output(Base):
     ])
     if not self.output_dir.exists():
       self.output_dir.mkdir(parents=True)
-    logs_path = self.output_dir / 'redo.log'
+    logs_path = self.output_dir / 'log.txt'
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:
       f.write(script)
