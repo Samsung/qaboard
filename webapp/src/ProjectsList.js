@@ -174,7 +174,7 @@ class ProjectsList extends Component {
             </NavbarGroup>
             <NavbarGroup align={Alignment.RIGHT}>
                 <NavbarDivider />
-                <Auth/>
+                <Auth dispatch={this.props.dispatch}/>
             </NavbarGroup>
         </Navbar>
         {/* <Callout intent={Intent.PRIMARY}>
