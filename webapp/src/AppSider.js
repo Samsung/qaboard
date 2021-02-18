@@ -61,6 +61,7 @@ const Sider = styled.div`
     }
 `
 
+
 class ProjectSideAvatar extends React.Component {
   toHome = () => {
     const { dispatch, project } = this.props;
@@ -229,7 +230,7 @@ class AppSider extends React.Component {
           <Tooltip><a href={process.env.REACT_APP_QABOARD_DOCS_ROOT} rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Click to see the docs!</span></Tooltip>
         </Navbar.Heading>
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
-        <Auth appSider={true} />
+        <Auth appSider={true} dispatch={this.props.dispatch}/>
         <Divider style={{marginBottom: '10px', marginTop: '10px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 

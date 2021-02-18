@@ -11,6 +11,7 @@ import {
   Dialog,
   Toaster,
 } from "@blueprintjs/core";
+import { logIn, logOut } from '../../actions/users'
 
 const toaster = Toaster.create();
 
@@ -18,6 +19,7 @@ class Auth extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
+      is_loading: true,
       is_authenticated: false,
       user_id: '',
       user_name: '',
@@ -47,15 +49,22 @@ class Auth extends React.Component {
         user_name,
         full_name,
         email ,
-        is_ldap
+        is_ldap,
+        is_loading: false,
       });
+
+      if (is_authenticated) {
+        this.props.dispatch(logIn(user_name))
+      }
+      else {
+        this.props.dispatch(logOut())
+      }
     })
     .catch(error => {
       toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 })
       console.log(error.response)
     })
   }
-
 
   componentDidMount() {
     // check against session cookie?
@@ -72,15 +81,18 @@ class Auth extends React.Component {
 
   render() {
     const {
+      is_loading,
       is_authenticated,
     } = this.state;
 
     const app_sider = this.props.appSider;
-
-    const display = is_authenticated ? <UserMenu getAuth={this.getAuth} {...this.state}/> : <Login getAuth={this.getAuth} appSider={app_sider} {...this.state}/>
+    const loading = <Button loading={true}/>
+    const display = is_authenticated ?
+                    <UserMenu getAuth={this.getAuth} {...this.state}/> : 
+                    <Login getAuth={this.getAuth} appSider={app_sider} {...this.state}/>
 
     return <>
-      {display}
+      {is_loading? loading : display}
     </>
   }
 }
@@ -162,30 +174,30 @@ class Login extends React.Component {
     const data = new FormData(event.target);
     this.setState({is_loading: true});
 
-      post("/api/v1/user/auth/", data)
-      .then(response => {
-        if(response.status == 200){
-          this.props.getAuth()
-          this.handleClose()
-          const display_name = response.data.full_name || response.data.user_name
-          toaster.show({ message: `Welcome, ${display_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-        }
-      })
-      .catch(error => {
-        const {
-          invalid_username,
-          invalid_password,
-        } = error.response.data;
+    post("/api/v1/user/auth/", data)
+    .then(response => {
+      if(response.status == 200){
+        this.props.getAuth()
+        this.handleClose()
+        const display_name = response.data.full_name || response.data.user_name
+        toaster.show({ message: `Welcome, ${display_name}`, intent: Intent.SUCCESS, timeout: 3000 });
+      }
+    })
+    .catch(error => {
+      const {
+        invalid_username,
+        invalid_password,
+      } = error.response.data;
 
-        this.setState({
-          invalid_username,
-          invalid_password,
-          is_loading: false,
-        });
+      this.setState({
+        invalid_username,
+        invalid_password,
+        is_loading: false,
+      });
 
-        toaster.show({ message: `${error}. ${error.response.data.error}`, intent: Intent.DANGER, timeout: 5000 , allowHtml: true })
-        console.log(error.response)
-      })
+      toaster.show({ message: `${error}. ${error.response.data.error}`, intent: Intent.DANGER, timeout: 5000 , allowHtml: true })
+      console.log(error.response)
+    })
   }
 
 
@@ -248,7 +260,7 @@ class Login extends React.Component {
     </>
   }
   
-  handleOpen = () => this.setState({ isOpen: true , invalid_username : false, invalid_password : false});
+  handleOpen = () => this.setState({ isOpen: true , invalid_username: false, invalid_password: false, is_loading: false});
   handleClose = () => this.setState({ isOpen: false });
 }
 

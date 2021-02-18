@@ -11,6 +11,7 @@ import {
   default_project_id,
   default_selected,
 } from "../defaults"
+import { loggedReducer } from './users'
 
 import { metrics_fill_defaults } from "../utils"
 
@@ -105,6 +106,8 @@ const rootReducer = combineReducers({
   commits,
   selected,
   tuning,
+  user: loggedReducer,
+
 })
 
 
