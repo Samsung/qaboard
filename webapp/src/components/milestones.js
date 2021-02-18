@@ -30,8 +30,8 @@ const toaster = Toaster.create();
 
 
 const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
-  const has_milestones = Object.keys(milestones).length > 0;
-  const milestones_menu_items = has_milestones
+	const has_milestones = Object.keys(milestones).length > 0;
+	const milestones_menu_items = has_milestones
       ? (Object.values(milestones)
           .sort( (m0, m1) => new Date(m1.date) - new Date(m0.date))
          || [])
@@ -96,13 +96,13 @@ class CommitMilestoneEditor extends React.Component {
 
   render() {
     const {
-      is_shared,
-      label,
-      previous_milestone,
-      notes,
-      overwrite_milestone,
-      show_alert_remove,
-      show_alert_overwrite,
+    	is_shared,
+    	label,
+    	previous_milestone,
+    	notes,
+    	overwrite_milestone,
+    	show_alert_remove,
+    	show_alert_overwrite,
     } = this.state;
     const milestone_type = this.getMilestoneType();
     const icon = milestone_type === 'none' ? 'star-empty' : (milestone_type === 'shared' ? 'crown' : 'star');
@@ -189,7 +189,7 @@ class CommitMilestoneEditor extends React.Component {
   getMilestoneType = () => {
     const { commit, project, project_data, batch } = this.props;
     if (commit === undefined || commit === null ||
-        project=== undefined || project=== null  )
+    	  project=== undefined || project=== null  )
         return 'none'
     const key = milestone_key(project, commit, batch)
     const shared_milestones = ((project_data || {}).data || {}).milestones || {}
@@ -197,7 +197,7 @@ class CommitMilestoneEditor extends React.Component {
       return 'shared';
     const private_milestones = project_data.milestones || {}
     if (key in private_milestones)
-      return 'private';
+    	return 'private';
     return 'none';
   }
 
