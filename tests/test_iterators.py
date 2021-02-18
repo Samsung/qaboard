@@ -111,6 +111,11 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(batches[0].configurations, ['base'])
     self.assertEqual(batches[1].configurations, ['base', 'low-light', {"cde": ["-DD"]}])
 
+    batches = get_batch('each-input-can-have-its-own-configuration-and-appear-twice')
+    self.assertEqual(batches[0].configurations, ['base', {"crop": "A"}])
+    self.assertEqual(batches[1].configurations, ['base', {"crop": "B"}])
+    self.assertEqual(batches[2].configurations, ['base', {"crop": "C"}])
+
     batches = get_batch('you-can-override-globs')
     self.assertEqual(len(batches), 1)
 
@@ -213,6 +218,18 @@ each-input-can-have-its-own-configuration:
       - cde:
         - "-DD"
     #=> configurations == ["base", "low-light", {"cde": ["-DD"]}]
+
+each-input-can-have-its-own-configuration-and-appear-twice:
+  configurations:
+    - base
+  inputs:
+  - a.txt: {crop: A}
+    #=> configurations == ["base", {"crop": ["A"]}]
+  - a.txt: {crop: B}
+    #=> configurations == ["base", {"crop": ["B"]}]
+  - [a.txt, {crop: C}]
+    #=> configurations == ["base", {"crop": ["C"]}]
+
 
 expand-lists-to-work-well-with-aliases:
   configurations:

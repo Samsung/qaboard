@@ -299,17 +299,23 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     # We also allow each input to have its settings...
-    if isinstance(locations, list):
-      locations_as_dict: Dict = {}
+    if isinstance(locations, dict): # {inputA: config, inputB: config}
+      locations_and_configs = [(location, config) for location, config in locations.items()]
+    if isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
+      locations_and_configs = []
       for l in locations:
-        if l in locations:
-          if not isinstance(l, dict):
-            locations_as_dict[l] = None
-          else:
-            locations_as_dict.update(l)
-      locations = locations_as_dict
+        if isinstance(l, str):
+          locations_and_configs.append((l, None))
+        elif isinstance(l, list):
+          location, *location_configurations = l
+          locations_and_configs.append((location, location_configurations))
+        elif isinstance(l, dict):
+          for location, location_configurations in l.items():
+            locations_and_configs.append((location, location_configurations))
+        else:
+          raise ValueError
 
-    for location, location_configurations in locations.items():
+    for location, location_configurations in locations_and_configs:
       location_run_context = deepcopy(run_context)
       location_inputs_settings = inputs_settings
       if location_configurations:
