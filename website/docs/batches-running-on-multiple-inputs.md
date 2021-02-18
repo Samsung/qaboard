@@ -93,6 +93,18 @@ each-input-can-have-its-own-configuration:
       - cde:
         - "-DD"
     #=> configs == ["base", "low-light", {"cde": ["-DD"]}]
+
+
+each-input-can-have-its-own-configuration-and-appear-twice:
+  configurations:
+    - base
+  inputs:
+  - a.txt: {crop: A}
+    #=> configurations == ["base", {"crop": ["A"]}]
+  - a.txt: {crop: B}
+    #=> configurations == ["base", {"crop": ["B"]}]
+  - [a.txt, {crop: C}]
+    #=> configurations == ["base", {"crop": ["C"]}]
 ```
 
 ## Matrix batches
@@ -144,8 +156,8 @@ my-batch-multiple-values:
     mode: ["a", "b"]
   configs:
     - base
-    - block.threshold: $matrix.threshold
-    - block.mode: $matrix.mode
+    - block.threshold: ${matrix.threshold}
+    - block.mode: ${matrix.mode}
 
 # => will start 8 runs run with
 #     [base, block.threshold: 1, block.mode: a
