@@ -110,7 +110,9 @@ def signup_db(user_name, full_name, email, is_ldap, password=None):
 
 def auth(username, password):
   user_db = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
-  if not user_db or user_db.is_ldap:
+  is_ldap = os.getenv('QA_LDAP_ENABLED', '')
+
+  if is_ldap and (not user_db or user_db.is_ldap):
     res = ldap_auth(username, password)
   else:
     res = local_auth(username, password)
