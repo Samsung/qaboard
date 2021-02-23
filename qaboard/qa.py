@@ -87,7 +87,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['raw_batch_label'] = label
-  ctx.obj['batch_label'] = label if not share else f"@{user}| {label}"
+  ctx.obj['batch_label'] = label if (not share or is_ci) else f"@{user}| {label}"
   ctx.obj['platform'] = platform
 
   ctx.obj['input_type'] = input_type
