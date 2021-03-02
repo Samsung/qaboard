@@ -50,10 +50,8 @@ setup(
     'simplejson',
     'pyyaml',      # YAML reader
     'joblib',      # Parallelism for dummies
-    # Used only for parameter sampling. Depends on numpy/scipy.
-    # TODO: To make installation faster, especially on windows
-    #       we should remove this dependency and implement what we need ourselves.
     'sklearn',
+    'scikit-optimize',
   ],
 
   extras_require={
@@ -63,9 +61,6 @@ setup(
       'mypy',   # type hint checks
       # 'black' # TODO: formatter 
     ],
-    # Optional needed only for `qa optimize` - `pip install qaboard[optimize]`
-    # Since its CLI usage is not straightforward, it's best kept at an optionnal dependency
-    'optimize':  ["scikit-optimize>=0.7.2"], # we need https://github.com/scikit-optimize/scikit-optimize/pull/806
   },
 
   entry_points={
