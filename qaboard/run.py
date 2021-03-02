@@ -74,11 +74,14 @@ class RunContext():
           with metrics_path.open() as f:
             is_failed = json.load(f).get('is_failed', True)
             if verbose and is_failed:
-                click.secho(f"ERROR: Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+                click.secho(f"[ERROR] Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
             return is_failed
       else:
           if verbose:
-              click.secho(f'ERROR: Failed run! Could not find {metrics_path}', fg='red', err=True)
+            if not self.output_dir.exists():
+              click.secho(f'[ERROR] Failed run! The ouput directory does not exist. It usually implies that your disk/quota is full. ({output_dir})', fg='red', err=True)
+            else:
+              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}', fg='red', err=True)
           return True
 
     @staticmethod
