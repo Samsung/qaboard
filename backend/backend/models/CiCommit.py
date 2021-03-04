@@ -19,7 +19,8 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
-from ..utils import get_users_per_name, rm_empty_parents
+from ..utils import get_users_per_name
+from ..fs_utils import rm_empty_parents, rmtree
 from ..git_utils import find_branch
 
 
@@ -202,7 +203,7 @@ class CiCommit(Base):
           if not dryrun:
             try:
               if file_to_delete.exists():
-                file_to_delete.unlink()
+                rmtree(file_to_delete)
                 rm_empty_parents(file_to_delete)
                 nb_deleted += 1
             except:
@@ -211,13 +212,13 @@ class CiCommit(Base):
               # raise ValueError
         if not has_error:
           try: # FIXME: umask 0 when writing the manifest file!
-            manifest.unlink()
+            rmtree(manifest)
           except:
             pass
         delete_errors = delete_errors or has_error
     if not nb_manifests:
       print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
-      p = subprocess.run(f'rm -rf "{self.artifacts_dir}"', shell=True)
+      rmtree(self.artifacts_dir)
       rm_empty_parents(self.artifacts_dir)
       nb_deleted = 1 if p.returncode == 0 else 0
       print("nb_deleted", nb_deleted)
