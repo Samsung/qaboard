@@ -654,7 +654,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   from .utils import copy, file_info
   from .compat import cased_path
 
-  click.secho(f"Saving artifacts in: {artifacts_commit}", bold=True, underline=True)
+  click.secho(f"Saving artifacts in: {artifacts_commit if not artifacts_path else artifacts_path}", bold=True, underline=True)
 
   artifacts = {}
 
