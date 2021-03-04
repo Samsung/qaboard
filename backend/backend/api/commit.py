@@ -124,7 +124,8 @@ def commit_save_artifacts():
     # if we rely on artifacts from a subproject without runs, it will cause issues... 
     # we should use the git info to find the qatools.yaml
     ci_commit.save_artifacts()
-    ci_commit.deleted = False
-    db_session.add(ci_commit)
-    db_session.commit()
+    if ci_commit.deleted:
+      ci_commit.deleted = False
+      db_session.add(ci_commit)
+      db_session.commit()
   return 'OK'
