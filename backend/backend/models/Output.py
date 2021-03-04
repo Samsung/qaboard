@@ -217,6 +217,7 @@ class Output(Base):
       '--action-on-existing=run',
       '--action-on-pending=run',
       f'"{self.test_input.path}"',
+      # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
     script = '\n'.join([
       '#!/bin/bash',
