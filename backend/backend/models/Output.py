@@ -42,7 +42,7 @@ class Output(Base):
   # It is easier if there is a centralized way of storing results, but
   # we let people override this to use disk with different quotas
   # or even random folder (like for the CIS projects) 
-  output_dir_override = Column(String())
+  output_dir_override = Column(String(), index=True)
   #### What we ran
   # Different output types (slam/6dof, cis/siemens...) are visualized differently
   output_type = Column(String())
