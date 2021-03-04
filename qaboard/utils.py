@@ -269,20 +269,22 @@ def md5_hex(path):
 
 
 
-
-def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
-  """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
+def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
   def should_be_in_manifest(path):
     # avoid logs with timestamps and temporary NFS files
     return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
-  output_files = {
+  return {
     path.relative_to(output_directory).as_posix(): file_info(path, config=config, compute_hashes=compute_hashes)
     for path in output_directory.rglob('*')
     if should_be_in_manifest(path)
   }
+
+def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+  """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
+  manifest = outputs_manifest(output_directory, config, compute_hashes)
   with (output_directory / 'manifest.outputs.json').open('w') as f:
-    json.dump(output_files, f, indent=2)
-  return output_files
+    json.dump(manifest, f, indent=2)
+  return manifest
 
 
 def total_storage(manifest):
