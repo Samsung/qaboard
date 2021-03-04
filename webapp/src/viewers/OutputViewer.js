@@ -46,6 +46,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (path.endsWith('mp4') || path.endsWith('webp')) {
+        viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       }
