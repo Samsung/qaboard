@@ -313,6 +313,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           for location, location_configurations in l.items():
             locations_and_configs.append((location, location_configurations))
         else:
+          click.secho(f'ERROR: Could not understand the inputs in the batch ({locations_and_configs}).', fg='red', err=True)
           raise ValueError
 
     for location, location_configurations in locations_and_configs:
