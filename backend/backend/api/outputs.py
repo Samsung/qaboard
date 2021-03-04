@@ -5,6 +5,7 @@ from flask import request, jsonify, redirect
 from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.conventions import deserialize_config
+from qaboard.api import dir_to_url
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
@@ -32,12 +33,16 @@ def crud_output(output_id):
 @app.route("/api/v1/output/<output_id>/manifest/", methods=['GET'])
 def get_output_manifest(output_id):
   output = Output.query.filter(Output.id==output_id).one()
-  if output.is_running or request.args.get('refresh'):
+  manifest_path = output.output_dir / "manifest.outputs.json"
+  if output.is_running or request.args.get('refresh') or not manifest_path.exists():
     manifest = output.update_manifest(compute_hashes=False)
     return jsonify(manifest)
   else:
-    return redirect(f"{output.output_dir_url}/manifest.outputs.json", code=302)
-    
+    return redirect(dir_to_url(manifest_path), code=302)
+
+
+
+
 
 
 
