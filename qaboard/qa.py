@@ -689,7 +689,12 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
     manifest_path = artifacts_commit / 'manifests' / f'{artifact_name}.json'
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+      manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+      click.secho(f"ERROR: {e}", fg='red')
+      click.secho(f"We could not create one the folders required to save the artifacts..", fg='red', dim=True)
+      exit(1)
     if manifest_path.exists():
       with manifest_path.open() as f:
         try:
