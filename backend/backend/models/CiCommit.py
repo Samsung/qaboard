@@ -152,7 +152,8 @@ class CiCommit(Base):
 
 
   def save_artifacts(self):
-    # note: it won't restore binaries, users are expected to redo their CI on their own
+    # Restores the artifacts that are defined in the source code 
+    # It won't restore binaries, users are expected to redo their CI on their own
     import tempfile
     import git
     from ..git_utils import git_pull
@@ -161,10 +162,9 @@ class CiCommit(Base):
       git_pull(self.project.repo)
       self.project.repo.git.worktree("add", tmp_dir_path, self.hexsha)
       tmp_repo = git.Repo(tmp_dir_path)
-      if self.commit_dir_override:
-        subprocess.run(['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)], cwd=tmp_dir_path / self.project.id_relative)
-      else:
-        subprocess.run(['qa', 'save-artifacts'], cwd=tmp_dir_path / self.project.id_relative)
+      command = ['qa', 'save-artifacts', '--out', str(self.artifacts_dir)]
+      print(command)
+      subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
 
   def delete(self, ignore=None, keep=None, dryrun=False):
     """
