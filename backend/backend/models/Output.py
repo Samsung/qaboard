@@ -22,6 +22,7 @@ from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
 from backend.models import Base
+from backend.fs_utils import rmtree
 
 
 
@@ -266,7 +267,6 @@ class Output(Base):
       return
 
     if not soft:
-      from shutil import rmtree
       print(output_dir)
       rmtree(output_dir)
     else:
@@ -281,14 +281,12 @@ class Output(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
-          if not (output_dir / file).exists():
+          output_file = output_dir / file
+          if not output_file.exists():
             continue
-          print(f'{output_dir / file}')
+          print(f'{output_file}')
           if not dryrun:
-            try:
-              (output_dir / file).unlink()
-            except: # already deleted?
-              print(f"WARNING: Could not remove: {output_dir / file}")
+            rmtree(output_dir)
     self.deleted = True
 
 
