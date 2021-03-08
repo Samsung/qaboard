@@ -1,5 +1,5 @@
 import React from "react";
-import { get, CancelToken } from "axios"
+import { get, CancelToken, isCancel } from "axios"
 import {
   Classes,
   Colors,
@@ -15,7 +15,7 @@ import pixelmatch from './pixelmatch';
 // import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
 // import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
 
-import { ColorTooltip, CoordTooltip } from './tooltip';
+import { ColorTooltip, CoordTooltip, RawDataTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
@@ -110,11 +110,13 @@ class ImgViewer extends React.PureComponent {
       ready: false,
       first_image: "new",
       width: Math.floor(parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, ''))),
-      height: 217, // default 4/3 ratio
-      diff_threshold: 0.05,
-      color: {},
-      hide_labels: false,
       cancel_source: CancelToken.source(),
+      height: 217, // default 4/3 ratio
+      hide_labels: false,
+      diff_threshold: 0.05,
+      color: {}, // rgb values as displayed on the screen
+      pixel_value: {}, // pixel values from the raw image
+      pixel_cancel_source: null,
     }
   }
 
@@ -215,6 +217,8 @@ class ImgViewer extends React.PureComponent {
   componentWillUnmount() {
     if (!!this.state.cancel_source.token)
       this.state.cancel_source.cancel();
+    if (!!this.state.pixel_cancel_source && !!this.state.pixel_cancel_source.token)
+      this.state.pixel_cancel_source.cancel();
     if (!!this.UnregisterZoomSync)
       this.UnregisterZoomSync()
     if (!!this.UnregisterZoomSync)
@@ -244,7 +248,7 @@ class ImgViewer extends React.PureComponent {
 
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image })
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })
         .then(res => {
           this.setState({ loaded: true })
           // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -517,28 +521,67 @@ class ImgViewer extends React.PureComponent {
     viewer_ref.imagefilters({ sync_key: this.props.path });
   }
 
+  getPixelValue({x, y, image_url_new, image_url_ref}) {
+    // TODO: show value: hex, rgb, raw... display (remove from info) with small image
+    // TODO: check range xy, color...
+    // TODO: client debounce
+    // TODO: if not fast enough: server keep image data... (if multiprocess? could fill the server memory)
+    if (!!this.state.pixel_cancel_source)
+      this.state.pixel_cancel_source.cancel();
+    const source = CancelToken.source()
+    this.setState({ pixel_cancel_source: source })
+    const params = {
+      x: Math.round(x),
+      y: Math.round(y),
+      image_url_new,
+      image_url_ref,
+    }
+    get("/api/v1/output/image/pixel", {params, cancelToken: source.token})
+    .then(res => {
+      this.setState({ pixel_value: res.data })
+    })
+    .catch(thrown => {
+      console.log(thrown)
+      if (isCancel(thrown)) {
+        console.log('Request canceled', thrown.message);
+      }
+    })
+  }
+
   InitMouseTracker() {
     const { viewer_new, viewer_ref } = this;
     var rgb_new = viewer_new.rgb({
       onCanvasHover: color_new => {
         if (!!!color_new.viewportCoordinates)
           return
-        const { x, y } = color_new.viewportCoordinates
         let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
+        const image_url_new = `${this.props.output_new.output_dir_url}/${this.props.path}`
         if (has_reference) {
-          const color_ref = rgb_ref.getValueAt(x, y)
+          const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
           this.setState({ color_ref })
+          var image_url_ref = `${this.props.output_ref.output_dir_url}/${this.props.path}`
         }
         this.setState({ color_new })
+        this.getPixelValue({
+          x: color_new.imageCoordinates.x,
+          y: color_new.imageCoordinates.y,
+          image_url_new,
+          image_url_ref,
+        })
       }
     });
     var rgb_ref = viewer_ref.rgb({
       onCanvasHover: color_ref => {
         if (!!!color_ref.viewportCoordinates)
           return
-        const { x, y } = color_ref.viewportCoordinates
-        const color_new = rgb_new.getValueAt(x, y)
+        const color_new = rgb_new.getValueAt(color_ref.viewportCoordinates.x, color_ref.viewportCoordinates.y)
         this.setState({ color_new, color_ref })
+        this.getPixelValue({
+          x: color_ref.imageCoordinates.x,
+          y: color_ref.imageCoordinates.y,
+          image_url_new,
+          image_url_ref,
+        })
       }
     });
   }
@@ -675,8 +718,7 @@ class ImgViewer extends React.PureComponent {
           </Tooltip>
           <CoordTooltip color={this.state.color_new} />
           {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
-          <ColorTooltip color={first_image === 'new' ? this.state.color_new : this.state.color_ref} />
-          <ColorTooltip color={first_image === 'new' ? this.state.color_ref : this.state.color_new} />
+            y={this.state.y}
           {label && (label || path)}
         </span>
       </>}

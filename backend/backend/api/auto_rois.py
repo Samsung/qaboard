@@ -19,6 +19,16 @@ from qaboard.api import url_to_dir
 from backend import app
 from ..models import Output
 
+@app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
+def get_pixel():
+  x = int(request.args['x'])-1
+  y = int(request.args['y'])-1
+  image_path = url_to_dir(request.args['image_url'])
+  image, meta = read_image(Path(image_path))
+  return jsonify({
+    "value": image[y,x].tolist(),
+    "meta": meta,
+  })
 
 
 @app.route("/api/v1/output/diff/image", methods=['GET', 'POST'])
