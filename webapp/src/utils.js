@@ -246,6 +246,25 @@ const project_avatar_style = project_id => {
 };
 
 
+const default_git_hostname = "http://gitlab-srv" // TODO: "https://gitlab.com" in the OSS version
+const git_hostname = qaboard_config => {
+  const project_url = qaboard_config?.project?.url
+  // const project_url = "git@gitlab-srv:svt/te-testing.git"      //=> gitlab-srv
+  // const project_url = "git@gitlab-srv:8080:svt/te-testing.git" //=> gitlab-srv:8080
+  // const project_url = "https://gitlab-srv/svt/te-testing.git"  //=> gitlab-srv
+  let hostname = null
+  if (project_url) {
+    let match = project_url.match(/@([^/:]+(:[0-9]+)?)[:/]/)
+    if (match)
+      hostname = `http://${match[1]}` // TODO: https for open-source version...
+    match = project_url.match(/(https?:\/\/[^/:]+(:[0-9]+)?\/)/)
+    if (match)
+      hostname = match[1]
+  }
+  return hostname
+
+}
+
 // FIXME: make it part of a global user/project/instance configuration
 const linux_to_windows = path => {
   if (path === undefined || path === null)
@@ -392,6 +411,8 @@ export {
   project_avatar_style,
   hash_color,
   plotly_palette,
+  git_hostname,
+  default_git_hostname,
   linux_to_windows,
   make_eval_templates_recursively,
   metrics_fill_defaults,
