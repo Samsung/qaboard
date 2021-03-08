@@ -15,7 +15,7 @@ import pixelmatch from './pixelmatch';
 // import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
 // import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
 
-import { ColorTooltip, CoordTooltip, RawDataTooltip } from './tooltip';
+import { ColorTooltip, CoordTooltip } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
@@ -115,8 +115,8 @@ class ImgViewer extends React.PureComponent {
       hide_labels: false,
       diff_threshold: 0.05,
       color: {}, // rgb values as displayed on the screen
-      pixel_value: {}, // pixel values from the raw image
-      pixel_cancel_source: null,
+      x: null, // hover xy from in real image coordinates
+      y: null,
     }
   }
 
@@ -139,8 +139,6 @@ class ImgViewer extends React.PureComponent {
       window.addEventListener("keypress", this.keyboard, { passive: true });
     }).catch(error => { console.log("Init Error:", error) })
   }
-
-
 
   InitZoomSync() {
     if (!!this.UnregisterZoomSync)
@@ -217,8 +215,6 @@ class ImgViewer extends React.PureComponent {
   componentWillUnmount() {
     if (!!this.state.cancel_source.token)
       this.state.cancel_source.cancel();
-    if (!!this.state.pixel_cancel_source && !!this.state.pixel_cancel_source.token)
-      this.state.pixel_cancel_source.cancel();
     if (!!this.UnregisterZoomSync)
       this.UnregisterZoomSync()
     if (!!this.UnregisterZoomSync)
@@ -521,33 +517,6 @@ class ImgViewer extends React.PureComponent {
     viewer_ref.imagefilters({ sync_key: this.props.path });
   }
 
-  getPixelValue({x, y, image_url_new, image_url_ref}) {
-    // TODO: show value: hex, rgb, raw... display (remove from info) with small image
-    // TODO: check range xy, color...
-    // TODO: client debounce
-    // TODO: if not fast enough: server keep image data... (if multiprocess? could fill the server memory)
-    if (!!this.state.pixel_cancel_source)
-      this.state.pixel_cancel_source.cancel();
-    const source = CancelToken.source()
-    this.setState({ pixel_cancel_source: source })
-    const params = {
-      x: Math.round(x),
-      y: Math.round(y),
-      image_url_new,
-      image_url_ref,
-    }
-    get("/api/v1/output/image/pixel", {params, cancelToken: source.token})
-    .then(res => {
-      this.setState({ pixel_value: res.data })
-    })
-    .catch(thrown => {
-      console.log(thrown)
-      if (isCancel(thrown)) {
-        console.log('Request canceled', thrown.message);
-      }
-    })
-  }
-
   InitMouseTracker() {
     const { viewer_new, viewer_ref } = this;
     var rgb_new = viewer_new.rgb({
@@ -555,18 +524,16 @@ class ImgViewer extends React.PureComponent {
         if (!!!color_new.viewportCoordinates)
           return
         let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
-        const image_url_new = `${this.props.output_new.output_dir_url}/${this.props.path}`
         if (has_reference) {
           const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
-          this.setState({ color_ref })
-          var image_url_ref = `${this.props.output_ref.output_dir_url}/${this.props.path}`
+          this.setState({
+            color_ref,
+          })
         }
-        this.setState({ color_new })
-        this.getPixelValue({
-          x: color_new.imageCoordinates.x,
-          y: color_new.imageCoordinates.y,
-          image_url_new,
-          image_url_ref,
+        this.setState({
+          x: color_new.imageCoordinates?.x,
+          y: color_new.imageCoordinates?.y,
+          color_new,
         })
       }
     });
@@ -575,12 +542,11 @@ class ImgViewer extends React.PureComponent {
         if (!!!color_ref.viewportCoordinates)
           return
         const color_new = rgb_new.getValueAt(color_ref.viewportCoordinates.x, color_ref.viewportCoordinates.y)
-        this.setState({ color_new, color_ref })
-        this.getPixelValue({
+        this.setState({
           x: color_ref.imageCoordinates.x,
           y: color_ref.imageCoordinates.y,
-          image_url_new,
-          image_url_ref,
+          color_new,
+          color_ref,
         })
       }
     });
@@ -709,16 +675,26 @@ class ImgViewer extends React.PureComponent {
             qatools_config={this.props.qatools_config}
           />}
         <span>
-          <Tooltip>
+          <CoordTooltip x={this.state.x} y={this.state.y} />
+          {this.show_histogram && <Tooltip>
             <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
             <ul>
-              <li>This image is not the real image! It's JPEG compressed (100-quality).</li>
               <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
             </ul>
-          </Tooltip>
-          <CoordTooltip color={this.state.color_new} />
+          </Tooltip>}
           {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
+          <ColorTooltip
+            x={this.state.x}
             y={this.state.y}
+            color={first_image === 'new' ? this.state.color_new : this.state.color_ref}
+            image_url={first_image === 'new' ? `${this.props.output_new.output_dir_url}/${this.props.path}` : `${this.props.output_ref?.output_dir_url}/${this.props.path}`}
+          />
+          {has_reference && <ColorTooltip
+            x={this.state.x}
+            y={this.state.y}
+            color={first_image === 'new' ? this.state.color_ref : this.state.color_new}
+            image_url={first_image === 'new' ? `${this.props.output_ref?.output_dir_url}/${this.props.path}` : `${this.props.output_new.output_dir_url}/${this.props.path}`}
+          />}
           {label && (label || path)}
         </span>
       </>}
