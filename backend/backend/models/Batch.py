@@ -147,12 +147,14 @@ class Batch(Base):
     Hard delete the batch and all related outputs.
     Note: You should call .stop() before
     """
+    still_has_outputs = False
     for output in self.outputs:
       if only_failed and not output.is_failed:
+        still_has_outputs = True
         continue
       output.delete(soft=False)
       session.delete(output)
-    if not only_failed:
+    if not still_has_outputs:
       session.delete(self)
     session.commit()
 
