@@ -23,10 +23,32 @@ const formatting = {
 }
 
 const margin = {marginLeft: '10px'};
-const colorFormat = color => color.toString().padStart('x', 3)
 
-const ColorTooltip = ({color, x, y, image_url}) => {
+const Tooltips = ({x, y, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref}) => {
     const [base, setBase] = useState('dec');
+    return <div
+                onClick={() => setBase(base === 'dec' ? 'hex' : 'dec')}
+            >
+                <CoordTooltip x={x} x={y}/>
+                <ColorTooltip
+                    x={x}
+                    y={y}
+                    color={first_image === 'new' ? color_new : color_ref}
+                    image_url={first_image === 'new' ? image_url_new : image_url_ref}
+                    base={base}
+                />
+                {has_reference && <ColorTooltip
+                    x={x}
+                    y={y}
+                    color={first_image === 'new' ? color_ref : color_new}
+                    image_url={first_image === 'new' ? image_url_ref : image_url_new}
+                    base={base}
+                />}
+
+    </div>
+}
+
+const ColorTooltip = ({color, x, y, image_url, base}) => {
     // we try to show the pixel data from the real image
     const [cancel_source, setCancelSource] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -74,12 +96,9 @@ const ColorTooltip = ({color, x, y, image_url}) => {
     if (color === undefined || color === null)
         return <span/>
     const { r, g, b } = color;
-    const color_diplayed = `RGB-display(${colorFormat(r)}, ${colorFormat(g)}, ${colorFormat(b)})`;
-    
+
     const { value=[], meta={} } = pixel || {}
     const type = meta.mode ?? meta.imageType ?? 'data'
-    // const color_raw = `${type}(${value.join(', ')})`;
-    // const color_hex = `${type}(${value.map(v => `0x${v.toString(16).padStart('x', 3)}`).join(', ')})`;
     const hide_diplay = value.length === 3 && value[0] === r && value[1] === g && value[2] === b
 
     const prefix = <span className={Classes.TEXT_MUTED}>{formatting[base].prefix}</span>
@@ -88,7 +107,6 @@ const ColorTooltip = ({color, x, y, image_url}) => {
         {!!pixel && <>
             <Tooltip>
                 <code
-                    onClick={() => setBase(base === 'dec' ? 'hex' : 'dec')}
                     className={loading ? Classes.TEXT_MUTED: undefined}
                     style={margin}
                 >
@@ -102,7 +120,9 @@ const ColorTooltip = ({color, x, y, image_url}) => {
             </Tooltip>}
         </>}
         {!hide_diplay && <Tooltip>
-            <code style={margin}>{color_diplayed}</code>
+            <code style={margin}>
+                RGB-display({[r, g, b].map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
+            </code>
             <li>Those values are what's displayed on your screen at this pixel</li>
         </Tooltip>}
     </span>
@@ -121,4 +141,4 @@ const CoordTooltip = ({x, y}) => {
 
 
 
-export { ColorTooltip, CoordTooltip };
+export { Tooltips };
