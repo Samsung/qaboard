@@ -15,7 +15,7 @@ import pixelmatch from './pixelmatch';
 // import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
 // import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
 
-import { ColorTooltip, CoordTooltip } from './tooltip';
+import { Tooltips } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
@@ -675,7 +675,6 @@ class ImgViewer extends React.PureComponent {
             qatools_config={this.props.qatools_config}
           />}
         <span>
-          <CoordTooltip x={this.state.x} y={this.state.y} />
           {this.show_histogram && <Tooltip>
             <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
             <ul>
@@ -683,18 +682,16 @@ class ImgViewer extends React.PureComponent {
             </ul>
           </Tooltip>}
           {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
-          <ColorTooltip
+          <Tooltips
             x={this.state.x}
             y={this.state.y}
-            color={first_image === 'new' ? this.state.color_new : this.state.color_ref}
-            image_url={first_image === 'new' ? `${this.props.output_new.output_dir_url}/${this.props.path}` : `${this.props.output_ref?.output_dir_url}/${this.props.path}`}
+            color_new={this.state.color_new}
+            color_ref={this.state.color_ref}
+            image_url_new={`${this.props.output_new.output_dir_url}/${this.props.path}`}
+            image_url_ref={`${this.props.output_ref?.output_dir_url}/${this.props.path}`}
+            has_reference={has_reference}
+            first_image={first_image}
           />
-          {has_reference && <ColorTooltip
-            x={this.state.x}
-            y={this.state.y}
-            color={first_image === 'new' ? this.state.color_ref : this.state.color_new}
-            image_url={first_image === 'new' ? `${this.props.output_ref?.output_dir_url}/${this.props.path}` : `${this.props.output_new.output_dir_url}/${this.props.path}`}
-          />}
           {label && (label || path)}
         </span>
       </>}
