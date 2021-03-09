@@ -1,7 +1,7 @@
 import json
 import datetime
 
-from flask import request, jsonify, redirect
+from flask import request, jsonify, redirect, make_response
 from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.conventions import deserialize_config
@@ -38,7 +38,13 @@ def get_output_manifest(output_id):
     manifest = output.update_manifest(compute_hashes=False)
     return jsonify(manifest)
   else:
-    return redirect(dir_to_url(manifest_path), code=302)
+    # FIXME: in dev it will return http://backend/ and break the frontend who cannot connect
+    #        in 2021 it seems the spec allow returning relative urls...
+    #        Maybe we should return the manifest content instead...
+    # return redirect(dir_to_url(manifest_path), code=302)
+    response = make_response(manifest_path.read_text())
+    response.headers['Content-Type'] = 'application/json'
+    return response
 
 
 

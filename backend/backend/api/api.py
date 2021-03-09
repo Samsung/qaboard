@@ -16,6 +16,7 @@ from sqlalchemy.sql import label
 
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
+from ..utils import profiled
 
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
@@ -88,10 +89,9 @@ def get_commits(branch=None):
     only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
     if only_ci_batches:
       with_batches = ['default']
-  # from ..utils import profiled
   serializable_commits = []
   # with profiled():
-  for c in ci_commits:
+  for c in ci_commits.limit(1000):
     if not c.batches:
       continue
     serializable_commits.append(c.to_dict(
