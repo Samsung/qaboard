@@ -10,6 +10,7 @@ import sys
 import pickle
 import shutil
 import tempfile
+import traceback
 import subprocess
 from pathlib import Path
 
@@ -28,6 +29,7 @@ def rmtree(path: Path) -> int:
         path.unlink()
       else:
         path.rmdir()
+      return 1
   except:
       # Already deleted?
       if not path.exists():
