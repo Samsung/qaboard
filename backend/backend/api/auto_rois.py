@@ -5,6 +5,7 @@ Create a pdf report of rois comparison.
 from pathlib import Path
 import time  # for Debugging purpose
 from math import sqrt, ceil
+from functools import lru_cache
 
 import numpy as np
 from skimage import io
@@ -19,12 +20,25 @@ from qaboard.api import url_to_dir
 from backend import app
 from ..models import Output
 
+
+@lru_cache(maxsize=2)
+def cached_read_image(image_path):
+  """
+  We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
+  Since the frontend may request 5-10pixel values per second, we need some form of caching.
+  We can't cache too many images since each process has its own cache... and because of this there may be misses....
+  TODO: better cache: write to disk the images in a read-friendly format
+  TODO: better cache: save 256x256 thumbnails of numpy arrays, to make hover around a pixel very fast
+  """
+  image, meta = read_image(image_path)
+  return image, meta
+
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
 def get_pixel():
   x = int(request.args['x'])-1
   y = int(request.args['y'])-1
   image_path = url_to_dir(request.args['image_url'])
-  image, meta = read_image(Path(image_path))
+  image, meta = cached_read_image(Path(image_path))
   return jsonify({
     "value": image[y,x].tolist(),
     "meta": meta,
