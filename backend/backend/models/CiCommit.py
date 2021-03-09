@@ -218,10 +218,8 @@ class CiCommit(Base):
         delete_errors = delete_errors or has_error
     if not nb_manifests:
       print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
-      rmtree(self.artifacts_dir)
+      nb_deleted = rmtree(self.artifacts_dir)
       rm_empty_parents(self.artifacts_dir)
-      nb_deleted = 1 if p.returncode == 0 else 0
-      print("nb_deleted", nb_deleted)
 
     if not delete_errors and nb_deleted:
       self.deleted = True
