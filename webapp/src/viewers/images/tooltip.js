@@ -5,6 +5,7 @@ import { debounce } from "lodash";
 import {
     Tag,
     Classes,
+    Colors,
     Icon,
     Tooltip,
 } from "@blueprintjs/core";
@@ -88,7 +89,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                 }
             }
             fetchData();
-        }, 100),
+        }, 200),
         []
     );
     useEffect(() => _debounce(x, y, image_url), [x, y, image_url]);
@@ -105,26 +106,30 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
     return <span style={margin}>
         <Tag style={{background: color, ...margin}} round></Tag>
         {!!pixel && <>
-            <Tooltip>
-                <code
-                    className={loading ? Classes.TEXT_MUTED: undefined}
-                    style={margin}
-                >
-                    {type}({value.map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
-                </code>
-                <p>Click to toggle hex/decimal numbers</p>
-            </Tooltip>
+            <code
+                className={loading ? Classes.TEXT_MUTED: undefined}
+                style={margin}
+            >
+                {type}({value.map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
+            </code>
             {error && <Tooltip>
                 <Icon icon="warning-sign" intent="danger"/>
                 <p>{JSON.stringify(error)}</p>
             </Tooltip>}
         </>}
-        {!hide_diplay && <Tooltip>
+        {!hide_diplay && <>
             <code style={margin}>
                 RGB-display({[r, g, b].map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
             </code>
-            <li>Those values are what's displayed on your screen at this pixel</li>
-        </Tooltip>}
+            <Tooltip style={{marginLeft: '5px'}}>
+                <Icon icon="info-sign" style={{color: Colors.GRAY5}}/>
+                <ul>
+                    <li>The <code>RGB-display</code> values are what's displayed on your screen at this pixel.</li>
+                    <li>The {type} values are the "raw" pixel values at the selected pixel location. .</li>
+                    <li>Click to toggle hex/decimal numbers</li>
+                </ul>
+            </Tooltip>
+        </>}
     </span>
 }
 

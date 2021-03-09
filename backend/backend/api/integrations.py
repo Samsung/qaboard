@@ -33,6 +33,18 @@ from backend import app
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# TODO: proxy requests for images hosted on gitlab
+@app.route("/api/v1/gitlab/proxy")
+def proxy_gitlab():
+  # 2. make the call to gitlab
+  # 3. get the gitlab auth from config
+  # 4. make the auth work..!
+  #    https://docs.gitlab.com/ce/api/#session-cookie
+  #    we have to be..
+  # curl  --header "Private-Token: ${GITLAB_ACCESS_TOKEN}" http://gitlab-srv/uploads/-/system/project/avatar/608/Samsung-Galaxy-S10-Moniker-Change.jpg\?width\=64
+  # requests.get('')
+  # return r.content, r.status_code
+  return "OK"
 
 @app.route("/api/v1/webhook/proxy", methods=['POST'])
 @app.route("/api/v1/webhook/proxy/", methods=['POST'])
