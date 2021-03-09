@@ -79,7 +79,7 @@ class RunContext():
       else:
           if verbose:
             if not self.output_dir.exists():
-              click.secho(f'[ERROR] Failed run! The ouput directory does not exist. It usually implies that your disk/quota is full. ({output_dir})', fg='red', err=True)
+              click.secho(f'[ERROR] Failed run! The ouput directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
             else:
               click.secho(f'[ERROR] Failed run! Could not find {metrics_path}', fg='red', err=True)
           return True
