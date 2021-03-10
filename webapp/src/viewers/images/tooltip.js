@@ -30,7 +30,7 @@ const Tooltips = ({x, y, has_reference, first_image, image_url_new, image_url_re
     return <div
                 onClick={() => setBase(base === 'dec' ? 'hex' : 'dec')}
             >
-                <CoordTooltip x={x} x={y}/>
+                <CoordTooltip x={x} y={y}/>
                 <ColorTooltip
                     x={x}
                     y={y}
@@ -125,7 +125,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                 <Icon icon="info-sign" style={{color: Colors.GRAY5}}/>
                 <ul>
                     <li>The <code>RGB-display</code> values are what's displayed on your screen at this pixel.</li>
-                    <li>The {type} values are the "raw" pixel values at the selected pixel location. .</li>
+                    <li>The {type} values are the "real" pixel values at the selected pixel location.</li>
                     <li>Click to toggle hex/decimal numbers</li>
                 </ul>
             </Tooltip>
