@@ -73,7 +73,6 @@ def memmapped_read_image(image_path):
     fp[:] = image[:]
     fp.flush() # write to disk
     if under_uwsgi:
-      # worst case the 1st requests will write multiple times that file...
       uwsgi.unlock()
     return fp, meta
   else:
