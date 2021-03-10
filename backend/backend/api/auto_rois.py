@@ -54,7 +54,7 @@ def clear_memmapped_cache_dir():
     file_infos.sort(key=lambda f: -f.stat().st_mtime)
     print(file_infos)
     for file_info in file_infos[32:]:
-        file_data.unlink()
+        file_info.unlink()
         file_info.with_suffix('.dat').unlink()
 
 def memmapped_read_image(image_path):
