@@ -28,17 +28,79 @@ def cached_read_image(image_path):
   Since the frontend may request 5-10pixel values per second, we need some form of caching.
   We can't cache too many images since each process has its own cache... and because of this there may be misses....
   TODO: better cache: write to disk the images in a read-friendly format
+        https://numpy.org/doc/stable/reference/generated/numpy.memmap.html
   TODO: better cache: save 256x256 thumbnails of numpy arrays, to make hover around a pixel very fast
   """
   image, meta = read_image(image_path)
   return image, meta
+
+
+# TODO: - add locking when working with flask
+#         import threading # Lock, Semaphore
+#       - check locking works ok with uwsgi
+try:
+  import uwsgi
+  under_uwsgi = True
+except:
+  under_uwsgi = False
+
+import json
+import time
+import hashlib
+
+from backend.config import qaboard_data_dir
+image_cache_dir = qaboard_data_dir / 'cache' / 'images'
+image_cache_dir = Path('/algo/qa_db/image_cache') # TODO: remove for the open-source version
+image_cache_dir.mkdir(exist_ok=True, parents=True)
+
+def clear_memmapped_cache_dir():
+    # keep only last 32 images
+    file_infos = list(image_cache_dir.glob('*.json'))
+    file_infos.sort(key=lambda f: -f.stat().st_mtime)
+    print(file_infos)
+    for file_info in file_infos[32:]:
+        file_data.unlink()
+        file_info.with_suffix('.dat').unlink()
+
+def memmapped_read_image(image_path):
+  key = f"{image_path}-{image_path.stat().st_mtime}"
+  hash = hashlib.sha1(key.encode()).hexdigest()
+  image_cache_data = image_cache_dir / f"{hash}.dat"
+  image_cache_info = image_cache_dir / f"{hash}.json"
+  if not (image_cache_data.exists() and image_cache_info.exists()):
+    if under_uwsgi:
+      # worst case the 1st requests will write multiple times that file...
+      uwsgi.lock()
+    image, meta = read_image(image_path)
+    with image_cache_info.open('w') as fmeta:
+      json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
+    fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
+    fp[:] = image[:]
+    fp.flush() # write to disk
+    if under_uwsgi:
+      # worst case the 1st requests will write multiple times that file...
+      uwsgi.unlock()
+    return fp, meta
+  else:
+    if hash.endswith('0'): # 1/16 chance... is it too often?
+      clear_memmapped_cache_dir()
+
+    with image_cache_info.open() as f:
+      info = json.load(f)
+    fp = np.memmap(image_cache_data, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
+    return fp, info['meta']
+
+
 
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
 def get_pixel():
   x = int(request.args['x'])-1
   y = int(request.args['y'])-1
   image_path = url_to_dir(request.args['image_url'])
-  image, meta = cached_read_image(Path(image_path))
+  # we have very big images in custom formats, so we can't just read them each time
+  # we have 2 flavours of caching...
+  image, meta = memmapped_read_image(Path(image_path))
+  # image, meta = cached_read_image(Path(image_path))
   return jsonify({
     "value": image[y,x].tolist(),
     "meta": meta,
