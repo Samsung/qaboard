@@ -24,12 +24,7 @@ from ..models import Output
 @lru_cache(maxsize=2)
 def cached_read_image(image_path):
   """
-  We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
-  Since the frontend may request 5-10pixel values per second, we need some form of caching.
-  We can't cache too many images since each process has its own cache... and because of this there may be misses....
-  TODO: better cache: write to disk the images in a read-friendly format
-        https://numpy.org/doc/stable/reference/generated/numpy.memmap.html
-  TODO: better cache: save 256x256 thumbnails of numpy arrays, to make hover around a pixel very fast
+  Simple LRU cache - the downside is that our images are huge so with 8 workers each saving 2 image, each 300MB, it's bad...
   """
   image, meta = read_image(image_path)
   return image, meta
@@ -94,11 +89,12 @@ def memmapped_read_image(image_path):
 
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
 def get_pixel():
+  
   x = int(request.args['x'])-1
   y = int(request.args['y'])-1
   image_path = url_to_dir(request.args['image_url'])
-  # we have very big images in custom formats, so we can't just read them each time
-  # we have 2 flavours of caching...
+  # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
+  # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
   image, meta = memmapped_read_image(Path(image_path))
   # image, meta = cached_read_image(Path(image_path))
   return jsonify({
