@@ -20,18 +20,19 @@ click = "*"             # build CLI tools easily
 flask = "*"             # HTTP server
 flask_cors = "*"        # (not used?)
 flask_login = "*"       # Authentication
+python-ldap = "*"       # Authentication
 sqlalchemy = "*"        # ORM
 sqlalchemy_utils = "*"
-alembic = "*"           # Schema migrations
-psycopg2 = "*"          # postgresql driver
-ujson = "*"             # fast json lib
-pandas = "*"            # stats
-numpy = "=>1.17.3"      # (needed by pandas - just we ensure python3.8 compat)
-scikit-image = "*"      # image processing for auto-regions of interest
-uwsgi = "*"             # server
-uwsgitop = "*"          # top for uwsgi
-python-ldap = "*"       # Authentication
-qaboard = { path = "..", optional = true, develop = true }
+alembic = "*"      # Schema migrations
+psycopg2 = "*"     # postgresql driver
+ujson = "*"        # fast json lib
+pandas = "*"       # stats
+numpy = "=>1.17.3" # (needed by pandas - just we ensure python3.8 compat)
+scikit-image = "*" # image processing for auto-regions of interest
+uwsgi = "*"        # server
+uwsgitop = "*"     # top for uwsgi
+qaboard = { path = "..", optional = true } #, develop = true }
+scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]
