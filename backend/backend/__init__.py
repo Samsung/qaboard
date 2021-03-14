@@ -39,3 +39,8 @@ import backend.api.milestones
 CORS(app)
 
 Base.metadata.create_all(engine)
+
+# Avoids errors
+#   > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) lost synchronization with server: got message type " "
+# https://docs.sqlalchemy.org/en/13/core/pooling.html#pooling-multiprocessing
+engine.dispose()
