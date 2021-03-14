@@ -33,7 +33,8 @@ numpy = "=>1.17.3" # (needed by pandas - just we ensure python3.8 compat)
 scikit-image = "*" # image processing for auto-regions of interest
 uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
-qaboard = { path = "..", optional = true, develop = true }
+qaboard = { path = "..", optional = true } #, develop = true }
+scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]
