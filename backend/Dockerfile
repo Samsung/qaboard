@@ -86,7 +86,7 @@ CMD ["/qaboard/backend/init.sh"]
 
 # Where we keep a cache of application data (e.g. git clones)
 VOLUME /var/qaboard
-
+RUN mkdir -p /var/qaboard && chmod -R 777 /var/qaboard
 
 
 # TODO:
