@@ -55,10 +55,10 @@ image_cache_dir = Path('/algo/qa_db/image_cache') # TODO: remove for the open-so
 image_cache_dir.mkdir(exist_ok=True, parents=True)
 
 def clear_memmapped_cache_dir():
-    # keep only last 32 images
+    cache_size = 20
     file_data = list(image_cache_dir.glob('*.dat'))
     file_data.sort(key=lambda f: -f.stat().st_mtime) # oldest last
-    for file in file_data[24:]:
+    for file in file_data[cache_size:]:
         print(f"RM {file}")
         file.unlink()
         file_info = file.with_suffix('.json')
