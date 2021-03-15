@@ -208,7 +208,8 @@ def migrate_output(output):
     after_dir = Path(str(after_dir).replace('/stage/algo_data/ci/CDE-Users/HW_ALG', '/algo/HM2P'))
   if '/HEX/' in str(after_dir):
     after_dir = Path(str(after_dir).replace('/HEX/', '/HP2/'))
-  if match := re.search("PSP_2x/tests/products/([0-9A-Za-z]+)/output", str(after_dir)):
+  match = re.search("PSP_2x/tests/products/([0-9A-Za-z]+)/output", str(after_dir))
+  if match:
     product = match.groups(0)[0]
     if product == 'ASP51':
       product = "ASPv5"
