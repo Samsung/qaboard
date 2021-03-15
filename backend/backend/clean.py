@@ -33,8 +33,11 @@ Notes:
 """
 import re
 import sys
+import json
 import datetime
 import subprocess
+from pwd import getpwnam
+from pathlib import Path
 
 import click
 from click import secho
@@ -55,9 +58,6 @@ def clean_untracked_hwalg_artifacts():
     """
     WARNING: don't run this unless you know what you are doing
     """
-    import json
-    from pwd import getpwnam
-    from pathlib import Path
     from .git_utils import git_pull
     cache_path = Path('cache.milestones.json')
     if cache_path.exists():
