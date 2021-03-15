@@ -80,7 +80,7 @@ def memmapped_read_image(image_path):
     # print(f'READ')
     with image_cache_info.open('w') as fmeta:
       json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
-    fp = np.memmap(image_c  ache_data, dtype=image.dtype, mode='w+', shape=image.shape)
+    fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
     fp[:] = image[:]
     fp.flush() # write to disk
     # print(f'WRITE')
