@@ -64,5 +64,4 @@ services:
     command: crond -f -d 0
     volumes:
     - ./services/db/backup:/etc/periodic/daily/backup:ro
-    - /home/ispq/qaboard/database_backups:/backups
-
+    - /home/ispq/qaboard_data_prod/database_backups:/backups

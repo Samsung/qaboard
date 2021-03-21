@@ -146,7 +146,7 @@ We run those cron jobs:
 0 4 * * * cd qaboard && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml restart iiif-cde
 
 # To resolve auto-mount issues causing "too many levels of symbolic links"
-@reboot /home/arthurf/qaboard/at-sirc-before-up.py.
+@reboot /home/ispq/qaboard_prod/at-sirc-before-up.py.
 ```
 
 :::note
