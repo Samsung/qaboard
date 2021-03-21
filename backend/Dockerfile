@@ -44,6 +44,8 @@ RUN apt-get update && apt-get install -y gnupg2 && \
 # https://www.psycopg.org/docs/faq.html#faq-compile
 RUN apt-get update && apt-get install -y libpq-dev gcc
 
+# At SIRC we need to be able to turn into any user to delete their output files
+RUN apt-get update && apt-get install -y sudo
 
 # If we want uwsgi's routing support
 # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
