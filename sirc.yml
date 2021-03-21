@@ -60,8 +60,8 @@ services:
     - NGINX_USER=ispq
     # - QABOARD_PORT_HTTP=80
     volumes:
-    - /home/ispq/qaboard/services/nginx/ssl/qa/qa.key:/ssl/cert.key
-    - /home/ispq/qaboard/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
+    - /home/ispq/qaboard_prod/services/nginx/ssl/qa/qa.key:/ssl/cert.key
+    - /home/ispq/qaboard_prod/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
     - ./services/nginx/passwd:/etc/passwd
     - /opt/dockermounts/home:/home
     - /opt/dockermounts/raid:/raid
