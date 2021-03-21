@@ -15,20 +15,7 @@ Usage:
 3. You'll run the gen_parallel_migration.py in the end...
 
 -- how much left to migrate?
-select
-	to_char(sum((data->>'storage')::text::numeric/1000000000), '9999999999999.99') as storage_GB,
-	count(*) as nb
-from outputs
-where
- data->'migrated' is null
- and outputs.created_date < now() - '14 days' :: interval
- and "output_dir_override" is not null
- and ("output_dir_override" like '/stage/algo_data/ci/CDE-Users/HW_ALG/%/CIS/output%')
- -- and ("output_dir_override" like '/algo/CIS%')
-limit 10;
-
-
-
+SQL STORAGE
 select
     projects.id,
 	to_char(sum((outputs.data->>'storage')::text::numeric/1000000000), '9999999999999.99') as storage_GB,
@@ -38,15 +25,17 @@ from outputs
   left join ci_commits on ci_commits.id=batches.ci_commit_id
   left join projects   on projects.id=ci_commits.project_id
 where
- outputs.data->'migrated' is null
- and outputs.created_date < now() - '14 days' :: interval
- and "output_dir_override" is not null
- and outputs.deleted=false
+ -- outputs.data->'migrated' is null
+ "output_dir_override" is not null
+ -- and outputs.created_date < now() - '14 days'::interval
+ -- and outputs.deleted=false
  and ("output_dir_override" not like '/algo%')
  -- and ("output_dir_override" like '/stage/algo_data/ci/CDE-Users/HW_ALG/%/KITT_ISP/output%')
  -- and ("output_dir_override" like '/stage/algo_data/ci/CDE-Users/HW_ALG/%/KITT_ISP/output%' or "output_dir_override" like '/algo/KITT_ISP%')
- and projects.data->>'legacy' is null
+ -- and projects.data->>'legacy' is null
+ and (projects.id like '%HW%' or projects.id like '%dvs%' or projects.id like '%tof%')
 group by projects.id;
+--limit 10;
 
 
 -- 2 264 674  at 23:30
