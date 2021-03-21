@@ -10,9 +10,10 @@ services:
     expose:
     - "80"
     volumes:
-    - /opt/dockermounts/stage:/var/www/localhost/images/stage
+    - /stage:/var/www/localhost/images/stage
     - /algo:/var/www/localhost/images/algo
     - /data:/var/www/localhost/images/data
+    - /opt/dockermounts/home:/var/www/localhost/images/home
 
   db:
     ports:
@@ -71,6 +72,7 @@ services:
     - /opt/dockermounts/stage:/stage
     - /opt/dockermounts/home:/raid/users
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
+    - /opt/dockermounts/stage/algo_archive:/stage/algo_archive
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /net/f2/algo_archive:/stage/algo_archive
