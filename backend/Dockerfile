@@ -32,6 +32,8 @@ RUN apt-get update \
     && apt-get install -y libsasl2-dev libldap2-dev libssl-dev \
     && apt-get clean
 
+# At SIRC we need to be able to turn into any user to delete their output files
+RUN apt-get update && apt-get install -y sudo
 
 # If we want uwsgi's routing support
 # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
