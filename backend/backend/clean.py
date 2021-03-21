@@ -36,7 +36,6 @@ import sys
 import json
 import datetime
 import subprocess
-from pwd import getpwnam
 from pathlib import Path
 
 import click
@@ -109,10 +108,6 @@ def clean_untracked_hwalg_artifacts():
         is_old = created_datetime < now.astimezone() - parse_time('3weeks')
         if is_old and not any([c.startswith(commit.hexsha) for c in milestone_commits]):
             print('DELETE', artifact_dir, created_datetime)
-            try:
-                open_permissions(artifact_dir)
-            except:
-                pass
             ci_commit = CiCommit(
                 hexsha=hexsha,
                 project=hwalg,
@@ -210,10 +205,6 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
               nb_outputs_deleted += 1
               print(" ", o)
               try:
-                # try:
-                #     open_permissions(o.output_dir)
-                # except:
-                #     pass
                 o.delete(dryrun=dryrun)  # ignore=['*.json', '*.txt'],
                 if not dryrun:
                     db_session.add(o)
@@ -269,16 +260,6 @@ def parse_time(time_str):
     time_params = {name: float(param) for name, param in groupdict.items() if param}
     return datetime.timedelta(**time_params)
 
-
-def open_permissions(path):
-    owner = path.owner()
-    # FIXME: wrap the whole ssh arg with ''
-    if owner == 'sircdevops':
-        subprocess.run(f'ssh sircdevops@sircdevops-vdi chmod -R 777 "{path}"', shell=True, check=True)
-    else:
-        pwname = getpwnam(owner)
-        owner = f"{pwname.pw_uid}:{pwname.pw_uid}" # TODO: need passwd up to date..
-        subprocess.run(f'ssh arthurf-vdi drun --cpu --skip_resources -v "{path}:{path}" --no-lsf -v /home/arthurf/gosu-i386:/usr/local/bin/gosu:ro ubuntu:trusty gosu {owner} chmod -R 777 "{path}"', shell=True, check=True)
 
 if __name__ == '__main__':
     clean()
