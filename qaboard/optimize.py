@@ -45,7 +45,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
       if parallel_param_sampling == 1:
         suggested = optimizer.ask()
       else:
-        suggested = optimizer.ask(n_points=4)
+        suggested = optimizer.ask(n_points=parallel_param_sampling)
       # print("suggested", suggested)
       click.secho(f"Computing objective", fg='blue')
       if parallel_param_sampling == 1:
