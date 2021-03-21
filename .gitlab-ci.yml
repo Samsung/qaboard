@@ -74,22 +74,28 @@ variables:
   variables:
     DOCKER_HOST: alginfra1
     COMPOSE_PROJECT_NAME: $CI_ENVIRONMENT_SLUG
-  script:
-    - ssh $DOCKER_HOST "bash -c \"cd $(pwd) && source .envrc && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
+  # script:
+  #   - ssh $DOCKER_HOST "bash -c \"cd $(pwd) && source .envrc && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
 
-deploy:staging:
-  <<: *deploy
-  environment:
-    name: staging
-    url: http://qa:9000
-  only:
-  - master
+# deploy:staging:
+#   <<: *deploy
+#   environment:
+#     name: staging
+#     url: http://qa:9000
+#   only:
+#   - master
 
+# Assuming you
+# - cloned at /home/ispq/qabaord
+# - filled .env with the jenkins/gitlab tokens
+# - put the SSL keys in services/nginx/ssl/qa
 deploy:production:
-  <<: *deploy
+  # <<: *deploy
   variables:
     DOCKER_HOST: qa
     CI_ENVIRONMENT_SLUG: ""
+  script:
+    - ssh $DOCKER_HOST "bash -c \"cd /home/ispq/qaboard_prod && source .envrc && git pull && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
   environment:
     name: production
     url: https://qa
