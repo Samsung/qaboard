@@ -39,6 +39,7 @@ services:
   # # docker-compose run /etc/periodic/daily/backup
   # cron-backup-db:
   #   image: postgres:12-alpine
+  #   restart: always
   #   depends_on:
   #     - db
   #   environment:
@@ -55,7 +56,7 @@ services:
   #   # https://busybox.net/downloads/BusyBox.html
   #   # -f: foreground
   #   # -d: log to stderr, 0 is the most verbose, default 8
-  #   command: crond -f -l 0
+  #   command: crond -f -d 0
   #   volumes:
   #   - ./services/db/backup:/etc/periodic/daily/backup:ro
   #   - /WHERE/TO/SAVE/BACKUPS:/backups
