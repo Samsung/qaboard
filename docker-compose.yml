@@ -82,6 +82,7 @@ services:
     - /mnt/qaboard:/mnt/qaboard
     environment:
     - UWSGI_PROCESSES=2
+    - UWSGI_LISTEN_QUEUE_SIZE=100
     - QABOARD_DB_HOST
     - QABOARD_DB_PORT
     - JENKINS_USER_NAME
