@@ -166,7 +166,7 @@ runners:
     # It helps get faster feeback about which outputs are pending
     fast_queue: alg_isp_q
     # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
-    # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # max_memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
     # You can also set: project, resources, priority
 
 
