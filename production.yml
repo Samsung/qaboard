@@ -37,6 +37,7 @@ services:
   # docker-compose run /etc/periodic/daily/backup
   cron-backup-db:
     image: postgres:12-alpine
+    restart: always
     depends_on:
       - db
     environment:
