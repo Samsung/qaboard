@@ -106,8 +106,9 @@ class JobGroup():
           jobs_with_pending_outputs.append(job)
 
     for job in jobs_with_pending_outputs:
-      print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
       job_is_failed = job.run_context.is_failed(verbose=True)
+      if not job_is_failed:
+        print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
       is_failed = is_failed or job_is_failed
       notify_qa_database(**{
         **(qa_context if qa_context else {}),
