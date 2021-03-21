@@ -44,4 +44,7 @@ Base.metadata.create_all(engine)
 # Avoids errors
 #   > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) lost synchronization with server: got message type " "
 # https://docs.sqlalchemy.org/en/13/core/pooling.html#pooling-multiprocessing
+# https://stackoverflow.com/questions/43648075/uwsgi-flask-sqlalchemy-intermittent-postgresql-errors-with-warning-there-is-al
+# https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
+# https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
 engine.dispose()
