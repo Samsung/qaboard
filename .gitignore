@@ -1,5 +1,6 @@
 migration/
 cache.*.json
+user-quotas.json
 build/
 build_qadocs/
 log.lsf.txt
