@@ -122,6 +122,7 @@ def as_user(user, f, *args, **kwargs):
 # def open_permissions(path):
 #     owner = path.owner()
 #     # FIXME: wrap the whole ssh arg with ''
+#     # assuming you can SSH...
 #     if owner == 'sircdevops':
 #         subprocess.run(f'ssh sircdevops@sircdevops-vdi chmod -R 777 "{path}"', shell=True, check=True)
 #     else:

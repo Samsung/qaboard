@@ -5,6 +5,7 @@ import re
 import os
 import sys
 import json
+import getpass
 import datetime
 import itertools
 import subprocess
@@ -328,24 +329,28 @@ def start_tuning(hexsha):
         f.write(start_script)
 
     # Wraps and execute the script that starts the batch
-    # We need to be ispq in order to have access to bsub_su
-    cmd = " ".join(
-        [
-            # there is only C.utf8 on our container, but it is not available on LSF
-            "LC_ALL=en_US.utf8 LANG=en_US.utf8",
-            "ssh",
-            # quiet to avoid the welcome banner
-            "-q",
-            # ask, and force a TTY, otherwise bsub->su will complain
-            "-tt",
-            # make sure we OK the server key during the first-connection
-            "-o StrictHostKeyChecking=no",
-            # ispq is the only user that can use bsub_su, an alias for sudo -i -u {0} {1:}.
-            "-i /home/arthurf/.ssh/ispq.id_rsa",
-            "ispq@ispq-vdi",
-            f'\'bash "{start_path}"\'',
-        ]
-    )
+    current_user = getpass.getuser()
+    if current_user != 'ispq':
+        # We need to be ispq in order to have access to bsub_su
+        cmd = " ".join(
+            [
+                # there is only C.utf8 on our container, but it is not available on LSF
+                "LC_ALL=en_US.utf8 LANG=en_US.utf8",
+                "ssh",
+                # quiet to avoid the welcome banner
+                "-q",
+                # ask, and force a TTY, otherwise bsub->su will complain
+                "-tt",
+                # make sure we OK the server key during the first-connection
+                "-o StrictHostKeyChecking=no",
+                # ispq is the only user that can use bsub_su, an alias for sudo -i -u {0} {1:}.
+                "-i /home/arthurf/.ssh/ispq.id_rsa",
+                "ispq@ispq-vdi",
+                f'\'bash "{start_path}"\'',
+            ]
+        )
+    else:
+        cmd = f"LC_ALL=en_US.utf8 LANG=en_US.utf8 bash '{start_path}'"
     print(cmd)
 
     try:
