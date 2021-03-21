@@ -80,6 +80,7 @@ Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans?
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
 | `UWSGI_PROCESSS`       | 1       | default: 1g                                          |
+| `UWSGI_UID_CAN_SUDO`   | _none_  | if set, the uwsgi user can sudo                      |
 
 :::note
 In the future we plan to introduce a proper "secret" store, per user and per project.
