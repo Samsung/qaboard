@@ -14,7 +14,14 @@ services:
   backend:
     restart: always
     environment:
+    # To use values beyond 128, read
+    # https://stackoverflow.com/a/36452474/5993501
+    # https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#the-listen-queue
+    # https://stackoverflow.com/questions/43243483/docker-container-increase-listen-queue-size-beyond-128
+    # https://serverfault.com/questions/271380/how-can-i-increase-the-value-of-somaxconn
+    - UWSGI_LISTEN_QUEUE_SIZE=1024
     - UWSGI_PROCESSES=8
+    - UWSGI_STATS=true
     # leave an unbound port open, useful for debugging 
     ports:
     - ${QABOARD_PORT_DEBUG:-5152}:3001
