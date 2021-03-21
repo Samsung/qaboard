@@ -53,11 +53,7 @@ services:
   proxy:
     ports:
     - ${QABOARD_PORT_HTTPS:-443}:443
-    - 80:5003
-    # backward compat
-    - "5000:5000"
-    - "5002:5002"
-    - "5003:8080"
+    - ${QABOARD_PROXY_PORT_HTTP:-80}:5003
     depends_on:
     - iiif-cde
     environment:
