@@ -1,13 +1,15 @@
-import subprocess
-from functools import lru_cache
+import sys
 import yaml
 import json
+import subprocess
+from functools import lru_cache
 
 import requests
 import click
 import numpy as np
+from joblib import Parallel, delayed
 
-from .api import NumpyEncoder, batch_info, notify_qa_database
+from .api import NumpyEncoder, batch_info, notify_qa_database, print_url
 from .config import subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType
@@ -21,13 +23,15 @@ from .utils import PathType
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
+@click.option('--parallel-param-sampling', type=int, default=1, help="Parallel paramater sampling.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def optimize(ctx, batches, batches_files, config_file, forwarded_args):
+def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
   ctx.obj['batch_dir'].mkdir(parents=True, exist_ok=True)
   ctx.obj['batches'] = batches
   ctx.obj['batches_files'] = batches_files
   ctx.obj['forwarded_args'] = forwarded_args
+  print_url(ctx)
 
   from shutil import rmtree
   from .api import aggregated_metrics
@@ -36,14 +40,22 @@ def optimize(ctx, batches, batches_files, config_file, forwarded_args):
   # TODO: warm-start
   #   load and "tell" existing results (if there are any)
   #   (or use a checkpoint?)
-
   for iteration in range(optim_config['evaluations']):
       click.secho(f"Starting iteration {iteration}", fg='blue')
-      suggested = optimizer.ask()
+      if parallel_param_sampling == 1:
+        suggested = optimizer.ask()
+      else:
+        suggested = optimizer.ask(n_points=4)
+      # print("suggested", suggested)
       click.secho(f"Computing objective", fg='blue')
-      y = objective([*suggested, iteration])
+      if parallel_param_sampling == 1:
+        y = objective([*suggested, iteration])
+      else:
+        y = Parallel(n_jobs=len(suggested))(delayed(objective)(v) for v in suggested)
+      # print(f"y={y}", suggested)
       click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
+      # print("results", results)
       click.secho(f"Updating QA-Board", fg='blue')
 
       iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
@@ -163,7 +175,7 @@ def init_optimization(optim_config_file, ctx):
     # From the UI we will want to see the iteration as a metric
     del params["iteration"]
 
-    batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
+    batch_label = f"{ctx.obj['raw_batch_label']}|iter{opt_params['iteration']+1}"
     command = ' '.join([
       'qa',
       f"--label '{batch_label}'",
