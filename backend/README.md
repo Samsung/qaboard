@@ -2,10 +2,23 @@
 QA-Board's backend built as a [flask](https://flask.pocoo.org) application. It exposes an HTTP API used to read/write all the metadata on QA-Board's runs.
 
 ## How to start a development backend
+1. First get the code:
 ```bash
 git clone git@gitlab-srv:common-infrastructure/qaboard.git
 cd qaboard
+```
+
+2. If you want to run a frontend, [go to the README](../webapp/README.md) and without docker run `npm install`.
+
+3. Edit at the top-level of the repository _development.yml_, and replace `arthurf` with your user.
+
+4. Start the server:
+
+```bash
 docker-compose -f docker-compose.yml -f development.yml up  -d 
+
+# for more build logs
+export BUILDKIT_PROGRESS=plain
 ```
 
 > **Tip:** If you called `npm install` in the *webapp/*, (see the [README](../webapp)), a frontend connected to the dev backend will also be up on port 3000.
@@ -23,6 +36,10 @@ Consult also:
 - [Troubleshooting Guide](https://samsung.github.io/qaboard/docs/backend-admin/troubleshooting).
 - To learn how to restore from a backup, read the [upgrade guide](https://samsung.github.io/qaboard/docs/backend-admin/host-upgrades).
 
+At SIRC:
+```bash
+sudo sysctl -w net.core.somaxconn=65536
+```
 
 ## Overview
 [sqlalchemy](http://docs.sqlalchemy.org/en/latest/orm/tutorial.html) maps our classes (defined in [/models](models/)) to database tables:

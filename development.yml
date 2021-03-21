@@ -33,6 +33,13 @@ services:
     # To use it, comment out, as well as frontent:environment below
     working_dir: /qaboard/backend
     command: flask run --host 0.0.0.0 --with-threads --port 5152
+    # in same cases (NFS+squash-root), it can be useful to be a usual sudoer user...
+    # user: "11611:10"
+    # command: >
+    #   bash -c "
+    #   echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+    #   && su user -c 'flask run --host 0.0.0.0 --with-threads --port 5152'
+    #   "
     ports:
     - 5152:5152
     #   logging:
