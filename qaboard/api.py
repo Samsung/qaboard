@@ -131,15 +131,15 @@ def notify_qa_database(object_type='output', **kwargs):
   # if object_type != "output"  # le'ts be wasteful to make init easier
   # Will help initialize/update the commit/batch in QA-Board
   data.update({
-  'commit_branch': commit_branch,
-  'commit_tag': commit_tag,
-  'commit_committer_name': commit_committer_name,
-  'commit_committer_email': commit_committer_email,
-  'commit_authored_datetime': commit_authored_datetime,
-  'commit_parents': commit_parents,
-  'commit_message': commit_message,
-  "qaboard_config": serialize_paths(deepcopy(config)),
-  "qaboard_metrics": _metrics,
+    'commit_branch': commit_branch,
+    'commit_tag': commit_tag,
+    'commit_committer_name': commit_committer_name,
+    'commit_committer_email': commit_committer_email,
+    'commit_authored_datetime': commit_authored_datetime,
+    'commit_parents': commit_parents,
+    'commit_message': commit_message,
+    "qaboard_config": serialize_paths(deepcopy(config)),
+    "qaboard_metrics": _metrics,
   })
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
@@ -159,10 +159,14 @@ def notify_qa_database(object_type='output', **kwargs):
   except Exception as e:
     click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
     click.secho(url, fg='yellow', err=True)
+    data = json.loads(data)
+    del data['qaboard_config']
+    del data['qaboard_metrics']
+    del data['inputs_settings']
     click.secho(str(data), fg='yellow', err=True)
     try:
       click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
-      click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
+      # click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
     except:
       pass
