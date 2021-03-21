@@ -62,16 +62,16 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
     manifest_1 = json.load(f)
   with manifest_path_2.open() as f:
     manifest_2 = json.load(f)
-  # print(manifest_1)
-  # print(manifest_2)
-  # print(set(manifest_1.keys()) & set(manifest_2.keys()))
+  # print("manifest_1", manifest_1)
+  # print("manifest_2", manifest_2)
+  # print("manifest inter:", set(manifest_1.keys()) & set(manifest_2.keys()))
 
   if not patterns:
     patterns = ['*']
   if not ignore:
     ignore = []
 
-  # print(patterns)
+  print("patterns", patterns)
 
   mismatch = set()  # not the same
   match = set()     # the same
