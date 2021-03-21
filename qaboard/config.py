@@ -277,8 +277,8 @@ else:
 
 commit_committer_name: Optional[str] = user
 commit_committer_email: Optional[str] = None
-commit_authored_datetime = datetime.datetime.now(datetime.timezone.utc).isoformat()
-commit_message: Optional[str] = None
+commit_authored_datetime = os.environ.get("GIT_AUTHORED_DATETIME", datetime.datetime.now(datetime.timezone.utc).isoformat())
+commit_message: Optional[str] = os.environ.get("GIT_MESSAGE")
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%aI', '%P', "%B"]
