@@ -48,7 +48,7 @@ services:
       PGPASSWORD: password
       # when using NFS you often don't want to run as root
       AS_USER_NAME: ispq
-      AS_USER_GROUP: wheel
+      AS_USER_GROUP: uucp
       AS_USER_UID: "1411"
       AS_USER_GID: "10"
     # https://busybox.net/downloads/BusyBox.html
