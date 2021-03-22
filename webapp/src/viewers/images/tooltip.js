@@ -125,7 +125,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
             >
                 {type}({value.map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
             </code>
-            {(data_on_wrong_pixel && !loading && !error) && <Icon intent="warning" title="move to refresh" icon="hand"></Icon>}
+            {(data_on_wrong_pixel && !loading && !error) && <Icon style={{color: Colors.GRAY5}} title="move to refresh" icon="hand"></Icon>}
             {error && <Tooltip>
                 <Icon icon="warning-sign" intent="danger"/>
                 <p>{JSON.stringify(error?.message || error )}</p>
