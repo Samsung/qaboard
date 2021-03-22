@@ -133,7 +133,8 @@ We run those cron jobs:
 ```cron
 # Weekly cleanup of old results
 # https://samsung.github.io/qaboard/docs/deleting-old-data
-59 1 1 * * cd qaboard && docker-compose exec backend qaboard_clean
+59 1 1 * * cd qaboard && docker-compose exec -T backend qaboard_clean
+# https://github.com/docker/compose/issues/3352
 
 # Weekly removal of old docker images, helps to avoid filling the disk on the host
 59 1 2 * * docker image prune --force
@@ -149,6 +150,6 @@ We run those cron jobs:
 @reboot /home/ispq/qaboard_prod/at-sirc-before-up.py.
 ```
 
-:::note
-It would be cleaner to run those crontabs within `docker-compose`... (pull requests welcome :smile:)
+:::tip
+Check `qaboard_clean --help` to implement complex cleanup strategies.
 :::
