@@ -350,7 +350,7 @@ def start_tuning(hexsha):
             ]
         )
     else:
-        cmd = f"LC_ALL=en_US.utf8 LANG=en_US.utf8 bash '{start_path}'"
+        cmd = start_path}
     print(cmd)
 
     try:
