@@ -17,7 +17,7 @@ services:
 
   db:
     ports:
-      - "5432:5432"
+      - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
     volumes:
     - /home/ispq/qaboard_data_prod/database_backups:/backups
       
