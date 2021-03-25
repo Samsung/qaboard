@@ -60,11 +60,15 @@ qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
   config_has_error = True
   if not ignore_config_errors:
-    click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.\nDid you run `qatools init` ?', fg='red', err=True)
-    click.secho(
-        'Please read the tutorial or ask Arthur Flam for help:\n'
-        'http://qa-docs/',
-        dim=True, err=True)
+    click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.', fg='red', err=True)
+    if 'QABOARD_TUNING' not in os.environ:
+      click.secho('       If you are starting a new project, run `qatools init`.', fg='red', err=True)
+    else:
+      click.secho(f'       It seems "artifacts" are missing. To save them:', fg='red', err=True)
+      click.secho(f'       1. cd your/project', fg='red', err=True)
+      click.secho(f'       2. git checkout {os.environ.get("GIT_COMMIT", "your-commit")}', fg='red', err=True)
+      click.secho(f'       3. # build whatever is needed', fg='red', err=True)
+      click.secho(f'       4. qa save-artifacts', fg='red', err=True)
 
 
 # take care not to mutate the root config, as its project.name is the git repo name
@@ -257,7 +261,11 @@ for d in (repo_root, *list(repo_root.parents)):
     repo_root = d
 if not commit_id or not commit_branch:
     if is_in_git_repo:
-      commit_branch, commit_id = git_head(repo_root)
+      commit_branch_, commit_id_ = git_head(repo_root)
+      if not commit_id:
+        commit_id = commit_id_
+      if not commit_branch:
+        commit_branch = commit_branch_
     else:
       if not commit_branch:
         commit_branch = f'<local:{user}>'
@@ -273,8 +281,8 @@ else:
 
 commit_committer_name: Optional[str] = user
 commit_committer_email: Optional[str] = None
-commit_authored_datetime = datetime.datetime.now(datetime.timezone.utc).isoformat()
-commit_message: Optional[str] = None
+commit_authored_datetime = os.environ.get("GIT_AUTHORED_DATETIME", datetime.datetime.now(datetime.timezone.utc).isoformat())
+commit_message: Optional[str] = os.environ.get("GIT_MESSAGE")
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%ai', '%P', "%B"]

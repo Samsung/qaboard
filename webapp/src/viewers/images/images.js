@@ -1,5 +1,5 @@
 import React from "react";
-import { get, CancelToken } from "axios"
+import { get, CancelToken, isCancel } from "axios"
 import {
   Classes,
   Colors,
@@ -15,7 +15,7 @@ import pixelmatch from './pixelmatch';
 // import { lossFunctionFromString } from "./jeri/src/layers/Layer.ts"
 // import ImageLayer from "./jeri/src/layers/ImageLayer.ts"
 
-import { ColorTooltip, CoordTooltip } from './tooltip';
+import { Tooltips } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
@@ -110,11 +110,13 @@ class ImgViewer extends React.PureComponent {
       ready: false,
       first_image: "new",
       width: Math.floor(parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, ''))),
-      height: 217, // default 4/3 ratio
-      diff_threshold: 0.05,
-      color: {},
-      hide_labels: false,
       cancel_source: CancelToken.source(),
+      height: 217, // default 4/3 ratio
+      hide_labels: false,
+      diff_threshold: 0.05,
+      color: {}, // rgb values as displayed on the screen
+      x: null, // hover xy from in real image coordinates
+      y: null,
     }
   }
 
@@ -137,8 +139,6 @@ class ImgViewer extends React.PureComponent {
       window.addEventListener("keypress", this.keyboard, { passive: true });
     }).catch(error => { console.log("Init Error:", error) })
   }
-
-
 
   InitZoomSync() {
     if (!!this.UnregisterZoomSync)
@@ -244,7 +244,7 @@ class ImgViewer extends React.PureComponent {
 
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.image })
+      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })
         .then(res => {
           this.setState({ loaded: true })
           // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -523,22 +523,31 @@ class ImgViewer extends React.PureComponent {
       onCanvasHover: color_new => {
         if (!!!color_new.viewportCoordinates)
           return
-        const { x, y } = color_new.viewportCoordinates
         let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
         if (has_reference) {
-          const color_ref = rgb_ref.getValueAt(x, y)
-          this.setState({ color_ref })
+          const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
+          this.setState({
+            color_ref,
+          })
         }
-        this.setState({ color_new })
+        this.setState({
+          x: color_new.imageCoordinates?.x,
+          y: color_new.imageCoordinates?.y,
+          color_new,
+        })
       }
     });
     var rgb_ref = viewer_ref.rgb({
       onCanvasHover: color_ref => {
         if (!!!color_ref.viewportCoordinates)
           return
-        const { x, y } = color_ref.viewportCoordinates
-        const color_new = rgb_new.getValueAt(x, y)
-        this.setState({ color_new, color_ref })
+        const color_new = rgb_new.getValueAt(color_ref.viewportCoordinates.x, color_ref.viewportCoordinates.y)
+        this.setState({
+          x: color_ref.imageCoordinates.x,
+          y: color_ref.imageCoordinates.y,
+          color_new,
+          color_ref,
+        })
       }
     });
   }
@@ -666,17 +675,23 @@ class ImgViewer extends React.PureComponent {
             qatools_config={this.props.qatools_config}
           />}
         <span>
-          <Tooltip>
+          {this.show_histogram && <Tooltip>
             <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
             <ul>
-              <li>This image is not the real image! It's JPEG compressed (100-quality).</li>
               <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
             </ul>
-          </Tooltip>
-          <CoordTooltip color={this.state.color_new} />
+          </Tooltip>}
           {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
-          <ColorTooltip color={first_image === 'new' ? this.state.color_new : this.state.color_ref} />
-          <ColorTooltip color={first_image === 'new' ? this.state.color_ref : this.state.color_new} />
+          <Tooltips
+            x={this.state.x}
+            y={this.state.y}
+            color_new={this.state.color_new}
+            color_ref={this.state.color_ref}
+            image_url_new={`${this.props.output_new.output_dir_url}/${this.props.path}`}
+            image_url_ref={`${this.props.output_ref?.output_dir_url}/${this.props.path}`}
+            has_reference={has_reference}
+            first_image={first_image}
+          />
           {label && (label || path)}
         </span>
       </>}

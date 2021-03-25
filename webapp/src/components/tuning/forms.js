@@ -505,7 +505,7 @@ class TuningForm extends Component {
 
       <FormGroup
         helperText={!user ? "Please provide a user in the input below"
-                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : undefined)}
+                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "No inputs found in the batch you asked to use" : undefined))}
         intent={(!user || this.state.experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
       >
       <Button

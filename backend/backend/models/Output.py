@@ -3,17 +3,18 @@ Describes an Output from `qa run`.
 """
 import os
 import re
-import datetime
-import hashlib
 import json
+import hashlib
 import fnmatch
+import datetime
+import subprocess
 from pathlib import Path
 
 from requests.utils import quote
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import and_, Integer, String, Float, Boolean, DateTime, JSON
+from sqlalchemy import text, and_, Integer, String, Float, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
 from qaboard.conventions import slugify, slugify_hash, make_hash, serialize_config
@@ -21,6 +22,7 @@ from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
 from backend.models import Base
+from backend.fs_utils import rmtree
 
 
 
@@ -41,7 +43,7 @@ class Output(Base):
   # It is easier if there is a centralized way of storing results, but
   # we let people override this to use disk with different quotas
   # or even random folder (like for the CIS projects) 
-  output_dir_override = Column(String())
+  output_dir_override = Column(String(), index=True)
   #### What we ran
   # Different output types (slam/6dof, cis/siemens...) are visualized differently
   output_type = Column(String())
@@ -57,6 +59,10 @@ class Output(Base):
   # CREATE INDEX CONCURRENTLY idx_outputs_configurations ON outputs (configurations)
   # CREATE INDEX CONCURRENTLY idx_outputs_extra_parameters ON outputs (extra_parameters)
   __table_args__ = (
+    # https://stackoverflow.com/questions/30885846/how-to-create-jsonb-index-using-gin-on-sqlalchemy
+    # https://www.postgresql.org/docs/8.3/indexes-opclass.html
+    # CREATE INDEX idx_outputs_data_user ON outputs((data -> 'user'));
+    Index('idx_outputs_data_user', text("(data->'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
     # we can't create an btree index on everything because JSON values can be big
     # https://github.com/doorkeeper-gem/doorkeeper/wiki/How-to-fix-PostgreSQL-error-on-index-row-size
@@ -204,14 +210,15 @@ class Output(Base):
       f'--label "{self.batch.label}"',
       f"--configuration '{self.configuration}'",
       f"--database '{self.test_input.database}'",
+      f"--type '{self.output_type}'",
       f"--tuning '{extra_parameters}'",
       'batch',
       '--no-wait',
-      "--lsf-memory 12000", # TODO: not hardcoded?
+      "--lsf-memory 12000", # TODO: read the proper parameters from .batch.data["commands"]
       '--action-on-existing=run',
       '--action-on-pending=run',
-      # '--list',
       f'"{self.test_input.path}"',
+      # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
     script = '\n'.join([
       '#!/bin/bash',
@@ -223,9 +230,11 @@ class Output(Base):
       # backward compatibility with previous qa versions, remove later...
       f"export QATOOLS_CI_COMMIT_DIR='{self.batch.ci_commit.outputs_dir}'",
       f"export QABOARD_TUNING=true;",
-      f'export QA_BATCH_COMMAND_HIDE_LOGS=true'
+      f'export QA_BATCH_COMMAND_HIDE_LOGS=true',
       "",
       # get the env right
+      f'umask 0',
+      f'mkdir -p "{self.batch.ci_commit.artifacts_dir}"',
       f'cd "{self.batch.ci_commit.artifacts_dir}"',
       'set +ex',
       '[[ -f ".envrc" ]] && source .envrc',
@@ -237,13 +246,15 @@ class Output(Base):
     ])
     if not self.output_dir.exists():
       self.output_dir.mkdir(parents=True)
+    logs_path = self.output_dir / 'log.txt'
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:
       f.write(script)
-    # print(script)
     print(f'"{script_path}"')
     import os
-    os.system(f'ssh ispq@ispq-vdi \'bash "{script_path}"\'')
+    p = subprocess.run(f'ssh ispq@ispq-vdi \'bash "{script_path}"\' > "{logs_path}" 2>&1', shell=True)
+    success = p.returncode == 0
+    return success
 
 
   def delete(self, soft=True, ignore=None, dryrun=False):
@@ -259,7 +270,6 @@ class Output(Base):
       return
 
     if not soft:
-      from shutil import rmtree
       print(output_dir)
       rmtree(output_dir)
     else:
@@ -274,12 +284,12 @@ class Output(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
-          print(f'{output_dir / file}')
+          output_file = output_dir / file
+          if not output_file.exists():
+            continue
+          print(f'{output_file}')
           if not dryrun:
-            try:
-              (output_dir / file).unlink()
-            except: # already deleted?
-              print(f"WARNING: Could not remove: {output_dir / file}")
+            rmtree(output_dir)
     self.deleted = True
 
 

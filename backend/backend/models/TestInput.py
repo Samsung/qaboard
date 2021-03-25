@@ -37,8 +37,8 @@ class TestInput(Base):
   def output_folder(self):
     """returns test path without any extension"""
     input_dir = Path(self.path).with_suffix('')
-    if len(input_dir.as_posix()) > 90:
-        input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=90))
+    if len(input_dir.as_posix()) > 70:
+        input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
     return input_dir
 
 

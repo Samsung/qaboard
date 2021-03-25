@@ -1,10 +1,11 @@
 import json
 import datetime
 
-from flask import request, jsonify, redirect
+from flask import request, jsonify, redirect, make_response
 from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.conventions import deserialize_config
+from qaboard.api import dir_to_url
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
@@ -32,12 +33,22 @@ def crud_output(output_id):
 @app.route("/api/v1/output/<output_id>/manifest/", methods=['GET'])
 def get_output_manifest(output_id):
   output = Output.query.filter(Output.id==output_id).one()
-  if output.is_running or request.args.get('refresh'):
+  manifest_path = output.output_dir / "manifest.outputs.json"
+  if output.is_running or request.args.get('refresh') or not manifest_path.exists():
     manifest = output.update_manifest(compute_hashes=False)
     return jsonify(manifest)
   else:
-    return redirect(f"{output.output_dir_url}/manifest.outputs.json", code=302)
-    
+    # FIXME: in dev it will return http://backend/ and break the frontend who cannot connect
+    #        in 2021 it seems the spec allow returning relative urls...
+    #        Maybe we should return the manifest content instead...
+    # return redirect(dir_to_url(manifest_path), code=302)
+    response = make_response(manifest_path.read_text())
+    response.headers['Content-Type'] = 'application/json'
+    return response
+
+
+
+
 
 
 
@@ -96,7 +107,8 @@ def new_output_webhook():
                                         )
   output.output_type = data.get('input_type', '')
 
-  output.data = data.get('data', {})
+  output.data = data.get('data', {}) # e.g. storage
+  output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
   if output.deleted:

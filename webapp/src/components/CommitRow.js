@@ -27,6 +27,7 @@ import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { shortId, pretty_label, linux_to_windows } from "../utils";
+import { git_hostname, default_git_hostname } from "../utils"
 
 const CommitDetails = styled.div`
   display: flex;
@@ -72,6 +73,8 @@ class CommitResults extends React.Component {
       return <span></span>
 
     const git = project_data.data?.git || {};
+    const project_git_hostname = git_hostname(project_data.data?.qatools_config) ?? default_git_hostname
+    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
     const gitlab_commit_url = `${git.web_url}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
@@ -257,12 +260,11 @@ class CommitRow extends React.Component {
 
   render() {
     const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
-    console.log(project_data)
     const git = project_data.data?.git || {};
+    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
+    git.web_url = git.web_url ?? gitlab_host_with_config ?? `${project_git_hostname}/${git.path_with_namespace}`
     const is_subproject = git.path_with_namespace !== project;
-    console.log(git)
     const commit_url = `${git.web_url}/commit/${commit.id}`
-    console.log(commit_url)
     const has_data = !!commit?.authored_datetime
     let maybe_skeletton = has_data ? null : Classes.SKELETON;
     return (

@@ -30,8 +30,7 @@ import {
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 import { fetchCommit } from "./actions/commit";
-import { project_avatar_style } from "./utils"
-
+import { git_hostname, default_git_hostname, project_avatar_style } from "./utils"
 
 export const sider_width = '166px';
 
@@ -70,13 +69,16 @@ class ProjectSideAvatar extends React.Component {
 
   render() {
     const { project, project_data={} } = this.props;
-    const git = (project_data.data || {}).git || {};
+    const git = project_data.data?.git || {};
     let project_name = project.split('/').slice(-1)[0];
     const is_subproject = git.path_with_namespace !== project;
-    const has_custom_avatar = !!(((project_data.data || {}).qatools_config || {}).project || {}).avatar_url
+    const has_custom_avatar = !!project_data.data?.qatools_config?.project?.avatar_url
     const should_tweak_image = is_subproject && !has_custom_avatar;
     const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-    const gitlab_host = (git.web_url || 'https://gitlab.com/').split('/').slice(0,3).join('/')
+
+    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
+    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
+    const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
     const avatar_url = !!git.avatar_url ? (git.avatar_url.startsWith('http') ? git.avatar_url : `${gitlab_host}${git.avatar_url}`) : null
     return <span className={Classes.MENU_ITEM} style={{fontWeight: '200', minWidth: sider_width, marginBottom: '20px'}}>
     <Link onClick={this.toHome} className={Classes.FILL} to={`/${project}`} style={{color: 'inherit'}}>
@@ -132,6 +134,9 @@ class ProjectSideCommitList extends React.Component {
     } 
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
+
+    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
+    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
     let code_url = subproject.length > 0 ? `${git.web_url}/tree/${is_branch ? match.params.name : reference_branch}/${subproject}` : git.web_url;
     return <>
       {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
@@ -177,15 +182,16 @@ class ProjectSideResults extends React.Component {
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
     let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
-    let code_url = `${git.web_url || ''}/${commit_code_sufffix}`
+
+    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
+    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
+    let code_url = `${git.web_url}/${commit_code_sufffix}`
 
     // we can only do tuning for projects whose database is outside the repo
     // otherwise we would need to checkout the repo and manage access...
     const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
     const project_qatools_config = (project_data.data || {}).qatools_config || {};
     const qatools_config = commit_qatools_config || project_qatools_config || {};
-    const disable_tuning = !!qatools_config.inputs && !!qatools_config.inputs.database && !!qatools_config.inputs.database.linux &&
-                           !qatools_config.inputs.database.linux.startsWith('/');
 
     const has_optim = batch.data?.optimization === true;
     const active = view => this.props.selected_views.includes(view);
@@ -208,7 +214,7 @@ class ProjectSideResults extends React.Component {
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
-      <MenuItem intent={Intent.PRIMARY} disabled={disable_tuning} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
+      <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} text="Tuning Analysis" onClick={this.set('selected_views', 'optimization')}/>

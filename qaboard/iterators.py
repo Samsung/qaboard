@@ -84,6 +84,9 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       raise ValueError 
     else:
       click.secho(f'WARNING: No inputs found for the batch "{path}"', fg='yellow', err=True)
+      if 'QABOARD_TUNING' in os.environ and not database.is_absolute():
+        click.secho('         You look for your input inside the project directory, but we cannot find them...', fg='red', err=True)
+        click.secho('         Make sure that (1) your inputs are declared as artifacts, and (2) you called `qa save-artifacts`.', fg='red', err=True)
       return
 
   if not globs:
@@ -271,14 +274,14 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         if 'platform' in matrix:
           matrix_run_context.platform = matrix['platform']
         matrix_config = None
-        if 'configuration' in matrix:
-          matrix_config = matrix['configuration']
-        if 'configurations' in matrix:
-          matrix_config = matrix['configurations']
-        if 'configs' in matrix:
-          matrix_config = matrix['configs']
+        for k in ['configuration', 'configurations', 'configs']:
+          if k in matrix:
+            matrix_config = matrix[k]
         if matrix_config:
-          if matrix_run_context.configurations:
+          # if no config is specified in the batch, but the matrix defined some
+          # them we want to replace the default config, not append to it
+          run_context_uses_default_config = not any([k in batch for k in ['configs', 'configurations', 'configuration']])
+          if matrix_run_context.configurations and not run_context_uses_default_config:
             matrix_run_context.configurations.append(matrix_config)
           else:
             matrix_run_context.configurations = matrix_config
@@ -296,17 +299,24 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     # We also allow each input to have its settings...
-    if isinstance(locations, list):
-      locations_as_dict: Dict = {}
+    if isinstance(locations, dict): # {inputA: config, inputB: config}
+      locations_and_configs = [(location, config) for location, config in locations.items()]
+    if isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
+      locations_and_configs = []
       for l in locations:
-        if l in locations:
-          if not isinstance(l, dict):
-            locations_as_dict[l] = None
-          else:
-            locations_as_dict.update(l)
-      locations = locations_as_dict
+        if isinstance(l, str):
+          locations_and_configs.append((l, None))
+        elif isinstance(l, list):
+          location, *location_configurations = l
+          locations_and_configs.append((location, location_configurations))
+        elif isinstance(l, dict):
+          for location, location_configurations in l.items():
+            locations_and_configs.append((location, location_configurations))
+        else:
+          click.secho(f'ERROR: Could not understand the inputs in the batch ({locations_and_configs}).', fg='red', err=True)
+          raise ValueError
 
-    for location, location_configurations in locations.items():
+    for location, location_configurations in locations_and_configs:
       location_run_context = deepcopy(run_context)
       location_inputs_settings = inputs_settings
       if location_configurations:

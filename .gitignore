@@ -1,3 +1,6 @@
+migration/
+cache.*.json
+user-quotas.json
 build/
 build_qadocs/
 log.lsf.txt
@@ -5,6 +8,7 @@ log.txt
 ssl/
 commits/
 user/
+drafts/
 
 image.batches.yaml
 iter.batches.yaml

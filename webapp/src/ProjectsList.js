@@ -30,6 +30,7 @@ import { Auth } from "./components/authentication/Auth"
 import { fetchProjects, updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
 import { project_avatar_style } from "./utils"
+import { git_hostname, default_git_hostname } from "./utils"
 
 
 class LastCommitAt extends Component {
@@ -99,7 +100,9 @@ class ProjectsList extends Component {
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
-            const gitlab_host = (git.web_url || 'https://gitlab.com/').split('/').slice(0,3).join('/')
+            const project_git_hostname = git_hostname(data.qatools_config) ?? default_git_hostname
+            git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
+            const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
             const avatar_url = qatools_config_project.avatar_url || 
                                !!git.avatar_url ? (git.avatar_url.startsWith('http')
                                                   ? git.avatar_url
@@ -144,7 +147,7 @@ class ProjectsList extends Component {
                       />
                       <span>Pin on top of the list.</span>
                     </Tooltip>
-                    <a href={git.homepage} style={{textDecoration: "none"}}><Button icon="git-repo" minimal round text="Source" style={{color: 'rgb(85, 85, 85)'}}/></a>
+                    <a href={git.web_url} style={{textDecoration: "none"}}><Button icon="git-repo" minimal round text="Source" style={{color: 'rgb(85, 85, 85)'}}/></a>
                   </p>
                   <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
                   <p style={{marginBottom: '0px'}}><span style={{ color: "#555" }}>

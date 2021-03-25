@@ -106,6 +106,7 @@ class Batch(Base):
     db_session.commit()
 
   def redo(self, only_failed=False, only_deleted=False):
+    success = True
     # in case it was deleted without QA-Board being made aware
     if not self.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
@@ -115,7 +116,9 @@ class Batch(Base):
         continue
       if only_deleted and not output.deleted:
         continue
-      output.redo()
+      output_success = output.redo()
+      success = success and output_success
+    return success
 
   def stop(self):
     if not any([o.is_pending for o in self.outputs]):
@@ -144,12 +147,14 @@ class Batch(Base):
     Hard delete the batch and all related outputs.
     Note: You should call .stop() before
     """
+    still_has_outputs = False
     for output in self.outputs:
       if only_failed and not output.is_failed:
+        still_has_outputs = True
         continue
       output.delete(soft=False)
       session.delete(output)
-    if not only_failed:
+    if not still_has_outputs:
       session.delete(self)
     session.commit()
 

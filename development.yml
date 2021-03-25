@@ -22,6 +22,7 @@ services:
     volumes:
     - ./qaboard:/qaboard/qaboard
     - ./backend:/qaboard/backend
+    - ./setup.py:/qaboard/setup.py
     environment:
     # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
@@ -32,10 +33,21 @@ services:
     - QABOARD_DB_HOST=qa
     # Start a flask debug server instead of the full uwsgi
     working_dir: /qaboard/backend
-    command: flask run --host 0.0.0.0 --with-threads --port 5152
-    user: "11611:10"
+    # With what's just below, everything works except being able to delete files owned by other users
+    # We wish we could do this, then remove sudo from the dockerfile, and use this command...
+    # command: flask run --host 0.0.0.0 --with-threads --port 5152
+    # user: "11611:10"
+    # cap_add:
+    #   - SETUID
+    #   - SETGID
+    # But non-root users don't gain capabilities...
+    command: >
+      bash -c "
+      echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+      && su arthurf -c 'flask run --host 0.0.0.0 --with-threads --port 5152'
+      "
     ports:
-    - 5152:5152
+    - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
     #   logging:
     #     driver: none
 
@@ -58,7 +70,7 @@ services:
     - REACT_APP_QABOARD_HOST=http://proxy
     command: npm start
     ports:
-    - 3000:3000
+    - "${QABOARD_DEV_FRONTEND_PORT:-3000}:3000"
     depends_on:
     - proxy
     - backend

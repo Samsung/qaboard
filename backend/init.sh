@@ -9,6 +9,15 @@ chmod 777 /var/qaboard
 cd /qaboard/backend/backend
 alembic upgrade head || alembic downgrade head || alembic stamp head
 
+
+# At SIRC we need to be able to turn into any user to delete their output files
+if [ -z ${UWSGI_UID+x} ]; then
+  echo "not-needed"
+else
+  echo "$UWSGI_UID ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+fi
+
+
 # Start the server
 cd /qaboard/backend
-uwsgi --ini /qaboard/backend/uwsgi.ini
+uwsgi --listen $UWSGI_LISTEN_QUEUE_SIZE --ini /qaboard/backend/uwsgi.ini

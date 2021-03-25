@@ -19,7 +19,7 @@ ls -lht /WHERE/BACKUPS/ARE/SAVED/ | head
 # copy the latest somewhere to make sure nothing can go wrong
 cp /WHERE/BACKUPS/ARE/SAVED/latest.dump .
 
-# At SIRC backups are under /home/ispq/qaboard/database_backups
+# At SIRC backups are under /home/ispq/qaboard_data_prod/database_backups
 ```
 
 ## Stop the server and create a backup 

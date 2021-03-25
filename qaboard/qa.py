@@ -89,7 +89,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # Note: to support multiple databases per project,
   # either use / as database, or somehow we need to hash the db in the output path. 
   ctx.obj['raw_batch_label'] = label
-  ctx.obj['batch_label'] = label if not share else f"@{user}| {label}"
+  ctx.obj['batch_label'] = label if (not share or is_ci) else f"@{user}| {label}"
   ctx.obj['platform'] = platform
 
   ctx.obj['input_type'] = input_type
@@ -431,7 +431,7 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
 @click.option('--local-concurrency', default=os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency')), type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
 @click.option('--lsf-threads', default=lsf_config.get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
-@click.option('--lsf-memory', default=lsf_config.get('memory', 0), help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--lsf-memory', default=lsf_config.get('max_memory', lsf_config.get('memory', 0)), help="restrict memory (MB) to use. 0=no restriction")
 @click.option('--lsf-queue', default=lsf_config.get('queue'), help="LSF queue (-q)")
 @click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue', lsf_config.get('queue')), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
@@ -523,8 +523,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
               batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
       from qaboard.conventions import slugify_hash
       input_dir = run_context.rel_input_path.with_suffix('')
-      if len(input_dir.as_posix()) > 90:
-          input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=90))
+      if len(input_dir.as_posix()) > 70:
+          input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
       run_context.output_dir = batch_conf_dir / input_dir
       if forwarded_args:
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
@@ -635,7 +635,18 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
     from .gitlab import gitlab_token, update_gitlab_status
     if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
-      update_gitlab_status(commit_id, 'failed' if is_failed else 'success', ctx.obj["batch_label"], f"{len(jobs)} results")
+      name = f"QA {subproject.name}" if subproject else 'QA'
+      target_url = f"https://qa/{config['project']['name']}/commit/{commit_id}"
+      label = ctx.obj["batch_label"]
+      if label != "default":
+        name += f" | {label}"
+        target_url += f"?batch={label}"
+      update_gitlab_status(
+        state='failed' if is_failed else 'success',
+        name=name,
+        target_url=target_url,
+        description=f"{len(jobs)} results",
+      )
 
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity
@@ -659,7 +670,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   from .utils import copy, file_info
   from .compat import cased_path
 
-  click.secho(f"Saving artifacts in: {artifacts_commit}", bold=True, underline=True)
+  click.secho(f"Saving artifacts in: {artifacts_commit if not artifacts_path else artifacts_path}", bold=True, underline=True)
 
   artifacts = {}
 
@@ -694,7 +705,14 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
     manifest_path = artifacts_commit / 'manifests' / f'{artifact_name}.json'
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+      manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+      click.secho(f"ERROR: {e}", fg='red')
+      click.secho(f"We could not create one the folders required to save the artifacts..", fg='red', dim=True)
+      click.secho(f"The disk could be full, or just the quota for the current user...", fg='red', dim=True)
+      click.secho(f"> Contact Alg-Infra@transchip.com", fg='blue')
+      exit(1)
     if manifest_path.exists():
       with manifest_path.open() as f:
         try:
@@ -705,7 +723,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       manifest = {} 
 
     nb_files = 0
-    globs = artifact_config.get('glob')
+    globs = artifact_config.get('globs', artifact_config.get('glob', []))
     if not isinstance(globs, list):
       globs = [globs]
 
@@ -772,8 +790,17 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files):
         exit(1)
 
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
-      input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
-      all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+      if f"/{user}/" in str(commit_dir):
+        commit_dir = Path(str(commit_dir).replace(user, '*'))
+        start, *end = commit_dir.parts
+        start, end = Path(start), str(Path(*end))
+        commit_dirs = start.glob(end)
+        for commit_dir in commit_dirs:
+          input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
+          all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+      else:
+        input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path])
+        all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if not all_bit_accurate:
       click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
@@ -827,11 +854,17 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
       reference_commits = git_parents(commit_id)
     else:
+      # ideally we should do something smarter...
+      # https://stackoverflow.com/questions/18222634/given-a-git-refname-can-i-detect-whether-its-a-hash-tag-or-branch
       if "origin" not in reference:
-        reference = f"origin/{reference}"
-      click.secho(f'Comparing bit-accuracy versus the latest remote commit of {reference}', fg='cyan', bold=True, err=True)
-      reference_commits = [latest_commit(reference)]
-
+        origin_reference = f"origin/{reference}"
+      origin_latest_commit = latest_commit(origin_reference)
+      if origin_latest_commit != origin_reference: # it was a commit
+        click.secho(f'Comparing bit-accuracy versus the latest remote commit of {origin_reference}', fg='cyan', bold=True, err=True)
+        reference_commits = [origin_latest_commit]
+      else:
+        click.secho(f'Comparing bit-accuracy versus {reference}', fg='cyan', bold=True, err=True)
+        reference_commits = [reference]
     click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
     
     # This where the new results are located
@@ -843,7 +876,13 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       output_directories = []
       for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
         batch_conf_dir = make_batch_conf_dir(subproject, ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj["extra_parameters"], ctx.obj['share'])
-        input_path = run_context.input_path.relative_to(run_context.database)
+        if batch_conf_dir.is_absolute():
+          try:
+            batch_conf_dir = batch_conf_dir.relative_to(Path().resolve())
+          except:
+            print("TODO: fix this...")
+            pass
+        input_path = run_context.rel_input_path
         output_directory = batch_conf_dir / input_path.with_suffix('')
         output_directories.append(output_directory)
 
@@ -852,10 +891,21 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, reference_platfor
       reference_commit = lastest_successful_ci_commit(reference_commit)
       click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
       reference_rootproject_ci_dir = outputs_project_root / get_commit_dirs(reference_commit, repo_root)
-      click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
-      all_bit_accurate = True
-      for o in output_directories:
-        all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
+      if f"/{user}/" in str(reference_rootproject_ci_dir):
+        reference_rootproject_ci_dir_ = Path(str(reference_rootproject_ci_dir).replace(user, '*'))
+        start, *end = reference_rootproject_ci_dir_.parts
+        start, end = Path(start), str(Path(*end))
+        reference_rootproject_ci_dirs = start.glob(end)
+        all_bit_accurate = True
+        for reference_rootproject_ci_dir in reference_rootproject_ci_dirs:
+          click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+          for o in output_directories:
+            all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
+      else:
+        click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
+        all_bit_accurate = True
+        for o in output_directories:
+          all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], reference_platform) and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:

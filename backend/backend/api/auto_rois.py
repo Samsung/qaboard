@@ -5,6 +5,7 @@ Create a pdf report of rois comparison.
 from pathlib import Path
 import time  # for Debugging purpose
 from math import sqrt, ceil
+from functools import lru_cache
 
 import numpy as np
 from skimage.color import deltaE_cie76, rgb2lab, rgb2yiq
@@ -14,11 +15,95 @@ from skimage.feature import blob_dog # blob_log, blob_doh
 from requests.utils import unquote
 from flask import request, jsonify
 
-from cde.image import read_image
+from cde.image import read_image, ImageType
 from qaboard.api import url_to_dir 
 from backend import app
 from ..models import Output
 
+
+@lru_cache(maxsize=2)
+def cached_read_image(image_path):
+  """
+  Simple LRU cache - the downside is that our images are huge so with 8 workers each saving 2 image, each 300MB, it's bad...
+  """
+  image, meta = read_image(image_path)
+  return image, meta
+
+
+# TODO: - add locking when working with flask
+#         import threading # Lock, Semaphore
+#       - check locking works ok with uwsgi
+try:
+  import uwsgi
+  under_uwsgi = True
+except:
+  under_uwsgi = False
+
+import json
+import time
+import hashlib
+
+from backend.config import qaboard_data_dir
+image_cache_dir = qaboard_data_dir / 'cache' / 'images'
+image_cache_dir = Path('/algo/qa_db/image_cache') # TODO: remove for the open-source version
+image_cache_dir.mkdir(exist_ok=True, parents=True)
+
+def clear_memmapped_cache_dir():
+    cache_size = 20
+    file_data = list(image_cache_dir.glob('*.dat'))
+    file_data.sort(key=lambda f: -f.stat().st_mtime) # oldest last
+    for file in file_data[cache_size:]:
+        print(f"RM {file}")
+        file.unlink()
+        file_info = file.with_suffix('.json')
+        if file_info.exists():
+          file_info.unlink()
+
+def memmapped_read_image(image_path):
+  key = f"{image_path}-{image_path.stat().st_mtime}"
+  hash = hashlib.sha1(key.encode()).hexdigest()
+  image_cache_data = image_cache_dir / f"{hash}.dat"
+  image_cache_info = image_cache_dir / f"{hash}.json"
+  if not (image_cache_data.exists() and image_cache_info.exists()):
+    clear_memmapped_cache_dir()
+    # if under_uwsgi:
+    #   # worst case the 1st requests will write multiple times that file...
+    #   uwsgi.lock()
+    # print(f'MISS {image_path}')
+    image, meta = read_image(image_path)
+    # print(f'READ')
+    with image_cache_info.open('w') as fmeta:
+      json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
+    fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
+    fp[:] = image[:]
+    fp.flush() # write to disk
+    # print(f'WRITE')
+    # if under_uwsgi:
+    #   uwsgi.unlock()
+    return fp, meta
+  else:
+    # print(f'HIT {hash}')
+    with image_cache_info.open() as f:
+      info = json.load(f)
+    fp = np.memmap(image_cache_data, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
+    return fp, info['meta']
+
+
+@app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
+def get_pixel():
+  x = int(request.args['x'])-1
+  y = int(request.args['y'])-1
+  image_path = url_to_dir(request.args['image_url'])
+  # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
+  # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
+  image, meta = memmapped_read_image(Path(image_path))
+  # image, meta = cached_read_image(Path(image_path))
+  if isinstance(meta, ImageType):
+    meta = {"mode": meta.id}
+  return jsonify({
+    "value": image[y,x].tolist(),
+    "meta": meta,
+  })
 
 
 @app.route("/api/v1/output/diff/image", methods=['GET', 'POST'])

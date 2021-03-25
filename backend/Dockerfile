@@ -45,6 +45,8 @@ RUN apt-get update && apt-get install -y gnupg2 && \
 RUN apt-get update && apt-get install -y libpq-dev gcc
 RUN apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev -y
 
+# At SIRC we need to be able to turn into any user to delete their output files
+RUN apt-get update && apt-get install -y sudo
 
 # If we want uwsgi's routing support
 # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
@@ -109,7 +111,7 @@ CMD ["/qaboard/backend/init.sh"]
 
 # Where we keep a cache of application data (e.g. git clones)
 VOLUME /var/qaboard
-
+RUN mkdir -p /var/qaboard && chmod -R 777 /var/qaboard
 
 
 # TODO:

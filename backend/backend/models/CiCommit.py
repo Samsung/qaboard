@@ -19,7 +19,8 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
-from ..utils import get_users_per_name, rm_empty_parents
+from ..utils import get_users_per_name
+from ..fs_utils import rm_empty_parents, rmtree
 from ..git_utils import find_branch
 
 
@@ -152,7 +153,8 @@ class CiCommit(Base):
 
 
   def save_artifacts(self):
-    # note: it won't restore binaries, users are expected to redo their CI on their own
+    # Restores the artifacts that are defined in the source code 
+    # It won't restore binaries, users are expected to redo their CI on their own
     import tempfile
     import git
     from ..git_utils import git_pull
@@ -161,10 +163,9 @@ class CiCommit(Base):
       git_pull(self.project.repo)
       self.project.repo.git.worktree("add", tmp_dir_path, self.hexsha)
       tmp_repo = git.Repo(tmp_dir_path)
-      if self.commit_dir_override:
-        subprocess.run(['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)], cwd=tmp_dir_path / self.project.id_relative)
-      else:
-        subprocess.run(['qa', 'save-artifacts'], cwd=tmp_dir_path / self.project.id_relative)
+      command = ['qa', 'save-artifacts', '--out', str(self.artifacts_dir)]
+      print(command)
+      subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
 
   def delete(self, ignore=None, keep=None, dryrun=False):
     """
@@ -202,7 +203,7 @@ class CiCommit(Base):
           if not dryrun:
             try:
               if file_to_delete.exists():
-                file_to_delete.unlink()
+                rmtree(file_to_delete)
                 rm_empty_parents(file_to_delete)
                 nb_deleted += 1
             except:
@@ -211,16 +212,14 @@ class CiCommit(Base):
               # raise ValueError
         if not has_error:
           try: # FIXME: umask 0 when writing the manifest file!
-            manifest.unlink()
+            rmtree(manifest)
           except:
             pass
         delete_errors = delete_errors or has_error
     if not nb_manifests:
       print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
-      p = subprocess.run(f'rm -rf "{self.artifacts_dir}"', shell=True)
+      nb_deleted = rmtree(self.artifacts_dir)
       rm_empty_parents(self.artifacts_dir)
-      nb_deleted = 1 if p.returncode == 0 else 0
-      print("nb_deleted", nb_deleted)
 
     if not delete_errors and nb_deleted:
       self.deleted = True

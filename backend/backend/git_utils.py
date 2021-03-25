@@ -4,6 +4,7 @@ from git import Repo
 from git import RemoteProgress
 from git.exc import NoSuchPathError
 
+from .fs_utils import as_user
 
 class Repos():
   """Holds data for multiple repositories."""

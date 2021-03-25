@@ -1,8 +1,10 @@
 import os
 import requests
 
+# the script assumes you'll work in a git working directory exactly at
+repo_path = "/home/ispq" # under "/CDE-Users/HW_ALG"
 
-r = requests.get('http://qa:5002/api/v1/projects')
+r = requests.get('http://qa/api/v1/projects')
 projects = r.json()
 for project, data in projects.items():
     if 'product' not in project:
@@ -15,7 +17,7 @@ for project, data in projects.items():
         commit = m['commit']
         print('>', commit)
         # continue
-        os.chdir(f'/home/arthurf/{project}')
+        os.chdir(f'{repo_path}/{project}')
         os.system(f"git checkout {commit}")
         # exit(0)
         # if not workppace
