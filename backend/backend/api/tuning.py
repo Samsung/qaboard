@@ -350,7 +350,7 @@ def start_tuning(hexsha):
             ]
         )
     else:
-        cmd = start_path}
+        cmd = start_path
     print(cmd)
 
     try:
