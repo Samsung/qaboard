@@ -151,7 +151,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         secho('[ERROR] when using --before you need to use --project', fg='red')
         exit(1)
 
-    projects = db_session.query(Project).filter(Project.id == 'CDE-Users/HW_ALG/CIS')
+    projects = db_session.query(Project) #.filter(Project.id == 'CDE-Users/HW_ALG/CIS')
     for project in projects:
         if project.data.get("legacy"):
             continue
@@ -210,7 +210,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                     db_session.add(o)
               except Exception as e:
                 print(e)
-                # raise e
+                raise e
                 try:
                     o.update_manifest()
                 except:
