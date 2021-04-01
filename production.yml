@@ -2,6 +2,7 @@ version: "3.5"
 
 services:
   db:
+    shm_size: 1g
     restart: always
     # volumes:
     # - /WHERE/TO/SAVE/BACKUPS:/backups
