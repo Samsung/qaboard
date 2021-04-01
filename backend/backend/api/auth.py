@@ -2,77 +2,90 @@
 Authentication for qaboard users and LDAP.
 """
 import os
+
 import ldap
 from flask import request, jsonify
 from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+
 from backend import app, db_session
 from ..models import User
 
+
+ldap_enabled = os.getenv('QABOARD_LDAP_ENABLED') 
+if ldap_enabled:
+  # Server hostname (including port)
+  ldap_host = os.environ['QABOARD_LDAP_HOST']
+  # Server port, usually 389 or 636 if SSL is used.
+  ldap_port = os.environ.get('QABOARD_LDAP_PORT', 389)
+  # Search base for users. (Will not be searched recursively)
+  ldap_user_base = os.environ['QABOARD_LDAP_USER_BASE']
+  # The Distinguished Name to bind as, this user will be used to lookup information about other users.
+  ldap_bind_dn = os.environ['QABOARD_LDAP_BIND_DN']
+  # The password to bind with for the lookup user.
+  ldap_password = os.environ['QABOARD_LDAP_PASSWORD']
+  # "User lookup filter, the placeholder {login} will be replaced by the user supplied login. (e.g. `(&(objectClass=inetOrgPerson)(|(uid={login})(mail={login})))`, or `(&(objectClass=user)(|(sAMAccountName={login})))`)
+  ldap_user_filter = os.environ['QABOARD_LDAP_USER_FILTER']
+  # User attributes
+  ldap_attr_email = os.environ.get('QABOARD_LDAP_ATTRIBUTE_EMAIL', "mail")
+  ldap_attr_common_name = os.environ.get('QABOARD_LDAP_ATTRIBUTE_COMMON_NAME', "cn")
+
+
 login_manager = LoginManager(app)
 
-############################## HTTP Requests ##################################
 
 @app.route('/api/v1/user/signup/', methods=['POST'])
-def signup_post():
-  email = request.form.get('email')
-  name = request.form.get('username')
-  password = request.form.get('password')
-
-  # create a new user with the form data. Hash the password so the plaintext version isn't saved.
-  new_user = signup_db(email=email, user_name=name, password=password)
-  if not new_user:
-    print("signup_post: Email address or User Name already exists:", name, email)
-    return f"403 Email address or User Name already exists", 403
-  return jsonify({"status": "OK", "id": new_user.id})
+def signup():
+  try:
+    create_user({
+      "email": request.form.get('email'),
+      "user_name": request.form.get('user_name'),
+      "password": request.form.get('password'),
+    }):
+  except Exception as e:
+    print(f"[signup] Error when creating new user with {request.form}: {e}")
+    return f"ERROR: The email or user name already exists", 403
+  return jsonify({"id": new_user.id}) # FIXME: return more info ?
 
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
 def auth_post():
-  '''Login method'''
-  invalid_username = False
-  invalid_password = False
-
   if current_user.is_authenticated:
     logout_user()
-  if not request.form.get('username') or not request.form.get('password'):
-    return jsonify({'error': 'Wrong user name or password.',
-                        'invalid_username': invalid_username,
-                        'invalid_password': invalid_password}), 403
+  username = request.form['username']
+  password = request.form['password']
+  user_info = auth(username, password)
+  if not user_info["login_success"]:
+    print(f"[auth] Failed Login @{username}")
+    return jsonify({"error": user_info["error"]}), 403
 
-  username = request.form.get('username')
-  password = request.form.get('password')
-  res = auth(username, password)
-  if not res["login_success"]:
-    print("auth_post: Login Failed:", username)
-    return jsonify({'error': 'Wrong user name or password.', 
-                    'invalid_username': res["invalid_username"], 
-                    'invalid_password': res["invalid_password"]}), 403
-
-  user_db = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
-  login_user(user_db)
-  print("auth_post: Login success:", username)
-  return jsonify({"status": "OK", "full_name": res["full_name"], "user_name": res["user_name"]})
+  user = User.query.filter_by(user_name=username).one()
+  login_user(user)
+  print(f"[auth] Login @{username}")
+  return jsonify(user_info)
 
 
-@app.route('/api/v1/user/get-auth/', methods=['GET'])
-def get_authenticated_user_post():
-  if current_user.is_authenticated:
-    return jsonify({
-      "status": "OK",
-      "is_authenticated": current_user.is_authenticated,
-      "is_anonymous": current_user.is_anonymous,
-      "is_active": current_user.is_active,
+@app.route('/api/v1/user/me/', methods=['GET'])
+def get_current_user():
+  # https://flask-login.readthedocs.io/en/latest/#your-user-class
+  is_authenticated = current_user.is_authenticated
+  info = {
+    "is_authenticated": is_authenticated,
+    "is_anonymous": current_user.is_anonymous,
+    "is_active": current_user.is_active,
+  }
+  if is_authenticated:
+    info.update({
       "user_id": current_user.id,
       "user_name": current_user.user_name,
       "full_name": current_user.full_name,
       "email": current_user.email,
-      "is_ldap": current_user.is_ldap
-      })
+      "is_ldap": current_user.is_ldap,
+    })
+  return jsonify(info)
 
   # No authenticated user found -> will return "is_authenticated": false
   return jsonify({
-    "status": "OK",
     "is_authenticated": current_user.is_authenticated,
     "is_anonymous": current_user.is_anonymous,
     "is_active": current_user.is_active,
@@ -80,100 +93,79 @@ def get_authenticated_user_post():
 
 
 @app.route('/api/v1/user/logout/', methods=['POST'])
-def logout_post():
+def logout():
   if current_user.is_authenticated:
     logout_user()
   return jsonify({"status": "OK"})
 
-################################ Methods ######################################
 
 @login_manager.user_loader
 def load_user(user_id):
   return User.query.get(user_id)
 
-
-def signup_db(user_name, full_name, email, is_ldap, password=None):
-  user_db = User.query.filter_by(user_name=user_name).first() # if this returns a user, then the user_name already exists in database
-
-  if not user_db: # create a new user.
-    if password: # Hash the password (for non-ldap) so the plaintext version isn't saved.
-      password = generate_password_hash(password, method='sha256')
-    new_user = User(user_name=user_name, full_name=full_name, email=email, is_ldap=is_ldap, password=password)
-    # add the new user to the database
-    db_session.add(new_user)
-    db_session.commit()
-    print("signup_db: Created new user:", new_user)
-    return new_user
-
-  return False
+def create_user(info):
+  user = User(
+    user_name=info["user_name"],
+    full_name=info["full_name"],
+    email=info["email"],
+    is_ldap=info["is_ldap"],
+    # TODO: use a slower hash, currently the default is pbkdf2:sha256
+    # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
+    password= generate_password_hash(info["password"]) if "password" in info else None,
+  )
+  db_session.add(user)
+  db_session.commit()
+  print(f"Created {user}")
+  return user
 
 
 def auth(username, password):
-  user_db = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
-  is_ldap = os.getenv('QA_LDAP_ENABLED', '')
-
-  if is_ldap and (not user_db or user_db.is_ldap):
-    res = ldap_auth(username, password)
+  user = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
+  # FIXME: check we render the error field in JS, not invalid_passord=True..
+  if ldap_enabled and (not user or user.is_ldap):
+    return auth_ldap(username, password)
   else:
-    res = local_auth(username, password)
-  return res
+    return auth_local(username, password)
 
 
-def local_auth(username, password):
-  res = {
-    "login_success": True,
-    "full_name": "",
-    "user_name": "",
-    "mail": "",
-    "invalid_password": False,
-    "invalid_username": False,
+def auth_local(username, password):
+  info = {
+    "username": username,
     "is_ldap": False,
+    "login_success": False,
   }
-
-  user_db = User.query.filter_by(user_name=username).first()
-  # check if the user actually exists
-  if not user_db:
-    res["invalid_username"] = True
-    res["invalid_password"] = True
-    res["login_success"] = False
-    # print("Username does not exist:", username)
-
-  # take the user-supplied password, hash it, and compare it to the hashed password in the database
-  elif not check_password_hash(user_db.password, password):
-    res["invalid_password"] = True
-    res["login_success"] = False
-    # print("Invalid Password")
-
+  user = User.query.filter_by(user_name=username).one_or_none()
+  if not user:
+    info["error"] = "invalid-username"
+  elif not check_password_hash(user.password, password):
+    info["error"] = "invalid-password"
   else:
-    # if the above check passes, then we know the user has the right credentials
-    res["full_name"] = f"{user_db.full_name}" if user_db.full_name else None
-    res["user_name"] = f"{user_db.user_name}"
-    res["mail"] = f"{user_db.email}"
+    info["full_name"] = user.full_name
+    info["user_name"] = user.user_name
+    info["email"] = user.email
+    # FIXME: check the JS does not use "mail"
+  return info
 
-  return res
-
-
-def ldap_auth(username, password):
-  res = {
-    "login_success": True, 
-    "full_name": "",
-    "user_name": "",
-    "mail": "",
-    "invalid_password": False,
-    "invalid_username": False,
+def auth_ldap(username, password):
+  if not ldap_enabled:
+    raise Exception("LDAP is not enabled")
+  user_info = {
+    "user_name": username,
     "is_ldap": True,
+    "login_success": False,
   }
-  ldap_server = os.getenv('QA_LDAP_HOST', '')
-  ldap_distinguished_name = str(os.getenv('QA_LDAP_USER', ''))
-  ldap_password = os.getenv('QA_LDAP_PASSWORD', '')
-  ldap_connect = ldap.initialize(ldap_server)
+  # TODO: support for secure LDAP
+  ldap_uri = ldap_host if not ldap_port else f"{ldap_host}:{ldap_port}"
+  ldap_connect = ldap.initialize()
   ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
-  ldap_connect.simple_bind_s(ldap_distinguished_name, ldap_password)
+  ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
+
   # check if the user exists
+  ldap_search = lda_filter.replace("{login}", username)
   certificate = ldap_connect.search_s(
-    "dc=transchip,dc=com",
+    ldap_user_base,
     ldap.SCOPE_SUBTREE, 
-    f"uid={username}", 
+    ldap_search, 
     ['distinguishedName'],
   )[0][0]
 
@@ -183,28 +175,24 @@ def ldap_auth(username, password):
       ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
       ldap_connect.simple_bind_s(certificate, password) 
       details = ldap_connect.search_s(
-        "dc=transchip,dc=com",
+        ldap_user_base,
         ldap.SCOPE_SUBTREE, 
-        f"uid={username}", 
-        ['cn', 'mail'],
+        ldap_search,
+        [ldap_attr_common_name, 'mail'],
       )
-
-      res["full_name"] = str(details[0][1]["cn"][0], 'utf-8')
-      res["mail"] = str(details[0][1]["mail"][0], 'utf-8')
-      res["user_name"] = str(username)
+      user_ldap = details[0][1]
+      user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
+      user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
     except ldap.INVALID_CREDENTIALS:
-      # print("Invalid Password")
-      res["login_success"] = False
-      res["invalid_password"] = True
+      user_info["error"] = "invalid-password"
   else:
-    # print("Username does not exist!")
-    res["login_success"] = False
-    res["invalid_username"] = True
+    user_info["login_success"] = False
+    user_info["error"] = "invalid-username"
   ldap_connect.unbind_s()
 
-  if res["login_success"]:
-    # if user doesn't exists in the database, add it.
-    signup_db(user_name=username, full_name=res["full_name"], email=res["mail"], is_ldap=res["is_ldap"])
-
-  return res
+  if user_info["login_success"]:
+    user = User.query.filter_by(user_name=user_name).one_or_none()
+    if not user:
+      create_user(user_info)
+  return user_info
 
