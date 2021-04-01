@@ -74,9 +74,7 @@ Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans?
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
-| `JENKINS_USER_NAME`    | _none_  | Used to [trigger jenkins jobs](/docs/triggering-third-party-tool) ([how-to-get-it?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
-| `JENKINS_USER_TOKEN`   | _none_  |                                                      |
-| `JENKINS_USER_CRUMB`   | _none_  |                                                      |
+| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
 | `UWSGI_PROCESSS`       | 1       | default: 1g                                          |
