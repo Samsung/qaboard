@@ -78,7 +78,8 @@ services:
 
   cantaloupe:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
-    user: ispq
+    user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
+    # user: ispq
     build:
       args:
         user: ispq
