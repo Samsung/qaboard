@@ -330,8 +330,8 @@ def start_tuning(hexsha):
 
     # Wraps and execute the script that starts the batch
     current_user = getpass.getuser()
-    if current_user != 'ispq' and False:
-        # We need to be ispq in order to have access to bsub_su
+    if True: # current_user != 'ispq':
+        # We need to be ispq on its VDI in order to have access to bsub_su
         cmd = " ".join(
             [
                 # there is only C.utf8 on our container, but it is not available on LSF
@@ -344,12 +344,13 @@ def start_tuning(hexsha):
                 # make sure we OK the server key during the first-connection
                 "-o StrictHostKeyChecking=no",
                 # ispq is the only user that can use bsub_su, an alias for sudo -i -u {0} {1:}.
-                "-i /home/arthurf/.ssh/ispq.id_rsa",
+                # "-i /some/id_rsa",
                 "ispq@ispq-vdi",
                 f'\'bash "{start_path}"\'',
             ]
         )
     else:
+        # but bsub_su is not in the container! :|
         cmd = f"bash '{start_path}'"
     print(cmd)
 
