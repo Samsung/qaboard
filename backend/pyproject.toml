@@ -23,7 +23,8 @@ gitpython = "*"         # manipulate git repositories
 click = "*"             # build CLI tools easily
 flask = "*"             # HTTP server
 flask_cors = "*"        # (not used?)
-flask_login = "*"       # Authentication
+flask_login = "*"       # Authentication Flows
+python-ldap = "*"       # Authentication with LDAP
 sqlalchemy = "*"        # ORM
 sqlalchemy_utils = "*"
 alembic = "*"      # Schema migrations
@@ -36,7 +37,6 @@ uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
 qaboard = { path = "..", optional = true } #, develop = true }
 scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
-python-ldap = "*"     # Authentication
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]
