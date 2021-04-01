@@ -48,7 +48,7 @@ services:
   #     - db
   #   environment:
   #     # https://www.postgresql.org/docs/9.3/libpq-envars.html
-  #     PGHOST: db
+  #     PGHOST: ${PGHOST:-db}
   #     PGDATABASE: qaboard
   #     PGUSER: qaboard
   #     PGPASSWORD: password
@@ -64,3 +64,4 @@ services:
   #   volumes:
   #   - ./services/db/backup:/etc/periodic/daily/backup:ro
   #   - /WHERE/TO/SAVE/BACKUPS:/backups
+
