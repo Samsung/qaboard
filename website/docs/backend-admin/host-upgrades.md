@@ -53,7 +53,7 @@ In case of issues, recover from a backup:
 ```bash
 # disconnect clients
 docker-compose -f docker-compose.yml -f production.yml stop
-# we need the database to create a backup
+# we need the database to restore a backup
 docker-compose -f docker-compose.yml -f production.yml up -d db
 
 # now restore
