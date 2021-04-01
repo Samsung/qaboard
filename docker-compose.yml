@@ -81,6 +81,7 @@ services:
     - data:/var/qaboard
     - /mnt/qaboard:/mnt/qaboard
     environment:
+    - SECRET_KEY
     - UWSGI_PROCESSES=2
     - UWSGI_LISTEN_QUEUE_SIZE=100
     - QABOARD_DB_HOST

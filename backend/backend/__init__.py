@@ -6,9 +6,9 @@ from flask import Flask
 from flask_cors import CORS
 app = Flask(__name__)
 
-# This would be needed to use flask's sessions (e.g. display flash messages after redirects...)
-# However we never used this feature as (1) the backend is stateless and (2) the client uses an API, now generated views. 
-app.secret_key = os.environ.get('QABOARD_FLASK_SECRET_KEY', 'xxxxxxxxxxx')
+# This key will be used to sign session cookies
+# To generate a key: python -c 'import os; print(os.urandom(16))'
+app.secret_key = os.environ.get('SECRET_KEY', 'please-generate-your-own-secret-key')
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
