@@ -32,7 +32,7 @@ class Auth extends React.Component {
   }
 
   getAuth() {
-    get("/api/v1/user/get-auth/")
+    get("/api/v1/user/me/")
     .then(response => {
       const {
         is_authenticated,
@@ -161,8 +161,7 @@ class Login extends React.Component {
       enforceFocus: true,
       isOpen: false,
       usePortal: true,
-      invalid_username : false,
-      invalid_password : false,
+      error : null,
       is_loading: false,
     };
 
@@ -176,36 +175,25 @@ class Login extends React.Component {
 
     post("/api/v1/user/auth/", data)
     .then(response => {
-      if(response.status == 200){
-        this.props.getAuth()
-        this.handleClose()
-        const display_name = response.data.full_name || response.data.user_name
-        toaster.show({ message: `Welcome, ${display_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-      }
+      this.props.getAuth()
+      this.handleClose()
+      const display_name = response.data.full_name ?? response.data.user_name
+      toaster.show({ message: `Welcome, ${display_name}`, intent: Intent.SUCCESS, timeout: 3000 });
     })
     .catch(error => {
-      const {
-        invalid_username,
-        invalid_password,
-      } = error.response.data;
-
+      let error_msg = error.response?.data?.error ?? "unknown-error"
       this.setState({
-        invalid_username,
-        invalid_password,
+        error: error_msg,
         is_loading: false,
       });
-
-      toaster.show({ message: `${error}. ${error.response.data.error}`, intent: Intent.DANGER, timeout: 5000 , allowHtml: true })
+      toaster.show({ message: `ERROR: ${error_msg}`, intent: Intent.DANGER, timeout: 5000 })
       console.log(error.response)
     })
   }
 
 
   render() {
-    const {
-      invalid_username,
-      invalid_password,
-    } = this.state;
+    const { error } = this.state;
     const warning_sign = <>
       <Tooltip content="Try your windows credentials" position="right" intent={Intent.DANGER} hoverCloseDelay={2000}>
           <Icon icon="warning-sign" iconSize={Icon.SIZE_LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
@@ -240,15 +228,17 @@ class Login extends React.Component {
               <p style={{textAlign: "center", fontSize: "large"}}>Log Into QA-Board</p>
             </div> */}
             <div style={{padding: "6px"}}>
-              <InputGroup id="username" name="username" type="text" placeholder="User Name" autoFocus={true} large={true}  {...invalid_username && warning}/>
-              {invalid_username && <div style={{color: "#f02849", margin: "8px"}}>The user name you’ve entered doesn’t match any account.</div>}
+              <InputGroup id="username" name="username" type="text" placeholder="User Name" autoFocus large  {...(error === "invalid-username" && warning)}/>
+              {error === "invalid-username" && <div style={{color: "#f02849", margin: "8px"}}>The user name you’ve entered doesn’t match any account.</div>}
             </div>
             <div style={{padding: "6px"}}>
-              <InputGroup id="password" name="password" type="password" placeholder="Password" large={true} {...invalid_password && warning}/>
-              {invalid_password && <div style={{color: "#f02849", margin: "8px"}}>The password you’ve entered is incorrect.</div>}
+              <InputGroup id="password" name="password" type="password" placeholder="Password" large {...(error === "invalid-password" && warning)}/>
+              {error === "invalid-password" && <div style={{color: "#f02849", margin: "8px"}}>The password you’ve entered is incorrect.</div>}
             </div>
             <div style={{padding: "6px"}} >
-              <Button type="submit" large={true} intent={Intent.PRIMARY} fill={true} loading={this.state.is_loading}><b>Log In</b></Button>
+              <Button type="submit" large intent={Intent.PRIMARY} fill loading={this.state.is_loading}>
+                <b>Log In</b>
+              </Button>
             </div>
           </div>
           <div className={Classes.DIALOG_FOOTER}>
@@ -260,7 +250,7 @@ class Login extends React.Component {
     </>
   }
   
-  handleOpen = () => this.setState({ isOpen: true , invalid_username: false, invalid_password: false, is_loading: false});
+  handleOpen = () => this.setState({ isOpen: true , error: null, is_loading: false});
   handleClose = () => this.setState({ isOpen: false });
 }
 
