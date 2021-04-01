@@ -330,7 +330,7 @@ def start_tuning(hexsha):
 
     # Wraps and execute the script that starts the batch
     current_user = getpass.getuser()
-    if current_user != 'ispq':
+    if current_user != 'ispq' and False:
         # We need to be ispq in order to have access to bsub_su
         cmd = " ".join(
             [
