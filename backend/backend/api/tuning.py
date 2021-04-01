@@ -350,7 +350,7 @@ def start_tuning(hexsha):
             ]
         )
     else:
-        cmd = str(start_path)
+        cmd = f"bash '{start_path}'"
     print(cmd)
 
     try:
