@@ -91,6 +91,7 @@ variables:
 # - put the SSL keys in services/nginx/ssl/qa
 deploy:production:
   # <<: *deploy
+  stage: deploy
   variables:
     DOCKER_HOST: qa
     CI_ENVIRONMENT_SLUG: ""
