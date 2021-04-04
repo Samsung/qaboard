@@ -55,7 +55,8 @@ services:
     - ${QABOARD_PORT_HTTPS:-443}:443
     - ${QABOARD_PROXY_PORT_HTTP:-80}:5003
     # backward compat, from LSF accessing port 80 doesn't always work...
-    - ${QABOARD_EXTRA_SIRC_PORT:-5000}:5000
+    - ${QABOARD_EXTRA_SIRC_PORT_1:-5000}:5000
+    - ${QABOARD_EXTRA_SIRC_PORT_2:-5002}:5002
     depends_on:
     - iiif-cde
     environment:
