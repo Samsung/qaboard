@@ -44,7 +44,7 @@ def rmtree(path: Path) -> int:
             as_user(f"{stat.st_uid}:{stat.st_gid}", rmtree, path)
             return 1
           except: # as a fallback, we can try to use sudo...
-            command = ["sudo", "python", __file__, f"{stat.st_uid}:{stat.st_gid}", str(path)]
+            command = ["sudo", "-tt", "python", __file__, f"{stat.st_uid}:{stat.st_gid}", str(path)]
             print(command)
             subprocess.run(command, check=True)
             return 1
@@ -83,20 +83,20 @@ def as_user(user, f, *args, **kwargs):
         uid = pwnam.pw_uid
         gid = pwnam.pw_gid
 
-        os.setegid(gid)
-        os.seteuid(uid)
-        # print(user, os.geteuid(), os.getegid())
-        print("as:", user)
-        # print("f:", f)
-        # print("args:", args)
-        # print("kargs:", kwargs)
-        try:
-          result = f(*args, **kwargs)
-        except Exception as e:
-          result = e
-        # print("result:", result)
-        pickle.dump(result, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
-        # print("from child:", tf.name, Path(tf.name).read_bytes())
+      os.setegid(gid)
+      os.seteuid(uid)
+      # print(user, os.geteuid(), os.getegid())
+      print("as:", user)
+      # print("f:", f)
+      # print("args:", args)
+      # print("kargs:", kwargs)
+      try:
+        result = f(*args, **kwargs)
+      except Exception as e:
+        result = e
+      # print("result:", result)
+      pickle.dump(result, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
+      # print("from child:", tf.name, Path(tf.name).read_bytes())
     except Exception as e:
       print(f"ERROR in child process: {e}")
       traceback.print_exc(file=sys.stdout)
