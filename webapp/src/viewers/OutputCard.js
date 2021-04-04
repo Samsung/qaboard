@@ -74,6 +74,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
   const has_label = has_metadata && !!output.test_input_metadata.label
   const tags = <OutputTags
     output={output}
+    project={project}
     output_ref={output_ref}
     mismatch={output.reference_mismatch}
     dispatch={dispatch}
