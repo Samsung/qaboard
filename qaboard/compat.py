@@ -22,6 +22,7 @@ def ensure_cli_backward_compatibility():
         ('--return-prefix-outputs-path', '--list-output-dirs'),
         ('--ci', '--share'),
         ('--dry-run', '--dryrun'),
+        ('--lsf-memory', '--lsf-max-memory'),
         ('--group', '--batch'),
         ('--groups-file', '--batches-file'),
         ('--no-qa-database', '--offline'),

@@ -205,6 +205,21 @@ class Output(Base):
 
   def redo(self):
     extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
+    job_options = self.data.get("job_options", {})
+    job_options_cli = ""
+    if not job_options:
+      # for backward compatibility, it's a good defaut at SIRC
+      job_options_cli = "--lsf-max-memory 20000"
+    elif job_options['type'] == "lsf":
+      # TODO: support other runners... maybe create an ad-hoc functions in their classes...
+      if 'queue' in job_options:
+        job_options_cli += f"--lsf-queue '{job_options['queue']}'"
+      if 'max_memory' in job_options and job_options['max_memory'] != 0:
+        job_options_cli += f"--lsf-max-memory '{job_options['max_memory']}'"
+      if 'resources' in job_options and job_options['resources']:
+        job_options_cli += f"--lsf-resources '{job_options['resources']}'"
+      if 'max_threads' in job_options and job_options['max_threads'] != 0:
+        job_options_cli += f"--lsf-threads '{job_options['max_threads']}'"
     command = ' '.join([
       'qa',
       f'--label "{self.batch.label}"',
@@ -214,7 +229,7 @@ class Output(Base):
       f"--tuning '{extra_parameters}'",
       'batch',
       '--no-wait',
-      "--lsf-memory 12000", # TODO: read the proper parameters from .batch.data["commands"]
+      job_options_cli,
       '--action-on-existing=run',
       '--action-on-pending=run',
       f'"{self.test_input.path}"',
