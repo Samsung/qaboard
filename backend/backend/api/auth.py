@@ -84,13 +84,6 @@ def get_current_user():
     })
   return jsonify(info)
 
-  # No authenticated user found -> will return "is_authenticated": false
-  return jsonify({
-    "is_authenticated": current_user.is_authenticated,
-    "is_anonymous": current_user.is_anonymous,
-    "is_active": current_user.is_active,
-    })
-
 
 @app.route('/api/v1/user/logout/', methods=['POST'])
 def logout():
@@ -140,27 +133,29 @@ def auth_local(username, password):
   elif not check_password_hash(user.password, password):
     info["error"] = "invalid-password"
   else:
+    info["login_success"] = True
+    info["id"] = user.id
     info["full_name"] = user.full_name
     info["user_name"] = user.user_name
     info["email"] = user.email
   return info
 
-def auth_ldap(username, password):
+def auth_ldap(user_name, password):
   if not ldap_enabled:
     raise Exception("LDAP is not enabled")
   user_info = {
-    "user_name": username,
+    "user_name": user_name,
     "is_ldap": True,
     "login_success": False,
   }
   # TODO: support for secure LDAP
-  ldap_uri = ldap_host if not ldap_port else f"{ldap_host}:{ldap_port}"
-  ldap_connect = ldap.initialize()
+  ldap_uri = f"ldap://{ldap_host}" if not ldap_port else f"ldap://{ldap_host}:{ldap_port}"
+  ldap_connect = ldap.initialize(ldap_uri)
   ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
   ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
 
   # check if the user exists
-  ldap_search = lda_filter.replace("{login}", username)
+  ldap_search = ldap_user_filter.replace("{login}", user_name)
   certificate = ldap_connect.search_s(
     ldap_user_base,
     ldap.SCOPE_SUBTREE, 
@@ -180,12 +175,12 @@ def auth_ldap(username, password):
         [ldap_attr_common_name, 'mail'],
       )
       user_ldap = details[0][1]
+      user_info["login_success"] = True
       user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
       user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
-    except ldap.INVALID_CREDENTIALS:
+    except (ldap.INVALID_CREDENTIALS, ldap.OPERATIONS_ERROR):
       user_info["error"] = "invalid-password"
   else:
-    user_info["login_success"] = False
     user_info["error"] = "invalid-username"
   ldap_connect.unbind_s()
 
@@ -193,5 +188,6 @@ def auth_ldap(username, password):
     user = User.query.filter_by(user_name=user_name).one_or_none()
     if not user:
       create_user(user_info)
+    user_info["id"] = user.id
   return user_info
 
