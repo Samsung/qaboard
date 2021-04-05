@@ -143,7 +143,6 @@ def auth_local(username, password):
     info["full_name"] = user.full_name
     info["user_name"] = user.user_name
     info["email"] = user.email
-    # FIXME: check the JS does not use "mail"
   return info
 
 def auth_ldap(username, password):
