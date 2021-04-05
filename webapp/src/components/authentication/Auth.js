@@ -15,9 +15,6 @@ import {
 import { login, logout } from '../../actions/users'
 
 // TODO:
-// - connect  auth to the store, get user from there
-// - check the flow
-// - start-server.md add LDAP
 // - sign-up ?
 
 const toaster = Toaster.create();
@@ -54,35 +51,14 @@ class AuthButton extends React.Component {
       this.checkAuth()
   }
 
-  render() {
-    if (this.state.loading)
-      return <Button loading={true}/>
-
-    console.log("user", this.props.user)
-    return this.props.user?.is_authenticated ?
-              <UserMenu user={this.props.user}/> 
-            : <LoginButton
-                user={this.props.user}
-                dispatch={this.props.dispatch}
-                appSider={this.props.appSider}
-              />
-  }
-}
-
-
-class UserMenu extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {};
-
-    this.handleLogOut = this.handleLogOut.bind(this);
-  }
-
-  handleLogOut = display_name => {
+  logout = () => {
+    const { user_name, full_name } = this.props.user;
+    const display_name = full_name ?? user_name
+    this.props.dispatch(logout())
     post("/api/v1/user/logout/")
       .then(response => {
         if(response.status == 200){
-          this.props.getAuth()
+          // this.props.getAuth()
           toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 });
         }
       })
@@ -93,8 +69,34 @@ class UserMenu extends React.Component {
   }
 
   render() {
-    const { user_name, full_name } = this.props.user;
-    const display_name = full_name ?? user_name
+    if (this.state.loading)
+      return <Button loading={true}/>
+
+    console.log("user", this.props.user)
+    return this.props.user?.is_authenticated ?
+              <UserMenu
+                user={this.props.user}
+                logout={this.logout}
+              />
+            : <LoginButton
+                user={this.props.user}
+                dispatch={this.props.dispatch}
+                logout={this.logout}
+                appSider={this.props.appSider}
+              />
+  }
+}
+
+
+class UserMenu extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {};
+  }
+
+
+
+  render() {
     return <>
         <MenuItem
           text={<Icon icon="user"iconSize={Icon.SIZE_LARGE}/>}
@@ -111,7 +113,7 @@ class UserMenu extends React.Component {
           <MenuItem
             text={"Log Out"}
             icon={"log-out"}
-            onClick={() => this.handleLogOut(display_name)}
+            onClick={this.props.logout}
           />
         </MenuItem>
     </>
@@ -174,16 +176,13 @@ class LoginButton extends React.Component {
       intent: Intent.DANGER,
     };
 
-    const key_state = {
-      onClick: this.handleOpen,
-    };
 
     const login_button = this.props.appSider ?
-      <MenuItem icon="log-in" text="Login" {...key_state}/> :
-      <Button intent={Intent.PRIMARY} icon={<Icon icon="log-in" color="#fff"/>} style={{color : "#fff"}} text="Login" {...key_state}/>
+      <MenuItem icon="log-in" text="Login" onClick={this.handleOpen}/> :
+      <Button intent={Intent.PRIMARY} icon={<Icon icon="log-in" color="#fff"/>} style={{color : "#fff"}} text="Login" onClick={this.handleOpen}/>
     const logout_button = this.props.appSider ?
-      <MenuItem icon="log-out" {...key_state} text="Logout"/> :
-      <Button icon={<Icon icon="log-out" color="#fff"/>} style={{color : "#fff"}} {...key_state} text="Logout"/>
+      <MenuItem icon="log-out" text="Logout" onClick={this.props.logout}/> :
+      <Button icon={<Icon icon="log-out" color="#fff"/>} style={{color : "#fff"}} onClick={this.props.logout} text="Logout"/>
     return <>
       {!this.props.user.is_logged ? login_button : logout_button}
       <Dialog
