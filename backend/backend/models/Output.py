@@ -214,7 +214,7 @@ class Output(Base):
       f"--tuning '{extra_parameters}'",
       'batch',
       '--no-wait',
-      "--lsf-memory 12000", # TODO: read the proper parameters from .batch.data["commands"]
+      "--lsf-memory 20000", # TODO: read the proper parameters from the .batch.data["commands"]
       '--action-on-existing=run',
       '--action-on-pending=run',
       f'"{self.test_input.path}"',
