@@ -40,13 +40,14 @@ def rmtree(path: Path) -> int:
       # since we don't have access to the real NFS root, we need to su as the owner of each file
       stat = path.stat()
       try:
-          # the user running the server needs SETUID/SETGID capabilities
-          as_user(f"{stat.st_uid}:{stat.st_gid}", rmtree, path)
-          return 1
-          # we could also make use of sudo
-          # command = ["sudo", "python", __file__, f"{stat.st_uid}:{stat.st_gid}", str(path)]
-          # print(command)
-          # subprocess.run(command, check=True)
+          try: # the user running the server needs SETUID/SETGID capabilities
+            as_user(f"{stat.st_uid}:{stat.st_gid}", rmtree, path)
+            return 1
+          except: # as a fallback, we can try to use sudo...
+            command = ["sudo", "-tt", "python", __file__, f"{stat.st_uid}:{stat.st_gid}", str(path)]
+            print(command)
+            subprocess.run(command, check=True)
+            return 1
       except Exception as e:
         message = f"ERROR {e}: Could not remove: {path}"
         print(message)
@@ -70,37 +71,37 @@ def as_user(user, f, *args, **kwargs):
   Path(tf.name).chmod(0o777)
   pid = os.fork()
   if pid == 0:
-    if ":" in user:
-      uid, gid = user.split(':')
-      uid = int(uid)
-      gid = int(gid)
-    else:
-      pwnam = pwd.getpwnam(user)
-      assert user == pwnam.pw_name
-      uid = pwnam.pw_uid
-      gid = pwnam.pw_gid
-
     # child - do the work and exit
     try:
-        os.setegid(gid)
-        os.seteuid(uid)
-        # print(user, os.geteuid(), os.getegid())
-        print("as:", user)
-        # print("f:", f)
-        # print("args:", args)
-        # print("kargs:", kwargs)
-        try:
-          result = f(*args, **kwargs)
-        except Exception as e:
-          result = e
-        # print("result:", result)
-        pickle.dump(result, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
-        # print("from child:", tf.name, Path(tf.name).read_bytes())
+      if ":" in user:
+        uid, gid = user.split(':')
+        uid = int(uid)
+        gid = int(gid)
+      else:
+        pwnam = pwd.getpwnam(user)
+        assert user == pwnam.pw_name
+        uid = pwnam.pw_uid
+        gid = pwnam.pw_gid
+
+      os.setegid(gid)
+      os.seteuid(uid)
+      # print(user, os.geteuid(), os.getegid())
+      print("as:", user)
+      # print("f:", f)
+      # print("args:", args)
+      # print("kargs:", kwargs)
+      try:
+        result = f(*args, **kwargs)
+      except Exception as e:
+        result = e
+      # print("result:", result)
+      pickle.dump(result, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
+      # print("from child:", tf.name, Path(tf.name).read_bytes())
     except Exception as e:
       print(f"ERROR in child process: {e}")
       traceback.print_exc(file=sys.stdout)
     finally:
-        os._exit(0)
+      os._exit(0)
   # parent - wait for the child to do its work and keep going as root
   pid, status = os.waitpid(pid, 0)
   # print(pid, status)

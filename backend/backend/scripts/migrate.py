@@ -111,6 +111,8 @@ project = os.environ["MIGRATION_PROJECT"] if "MIGRATION_PROJECT" in os.environ e
 project_name = project.split('/')[-1]
 if "ALG_GEN" in project:
   project_name = "CIS"
+if "tof/" in project:
+  project_name = "TOF"
 dryrun = '--dry-run' in sys.argv
 
 # Progress will be printed every batch/100
@@ -167,7 +169,7 @@ def move_files(before_dir: Path, after_dir: Path, output: Output):
       exit(1)
 
 
-
+users = {'sircdevops': '111778:10'}
 users_with_max_quota = set()
 
 def migrate_output(output):
@@ -218,11 +220,13 @@ def migrate_output(output):
     after_dir = Path(str(after_dir).replace('/home/yotama/ci', '/algo/DVS'))
   if '/stage/algo_data/ci/dvs' in str(after_dir):
     after_dir = Path(str(after_dir).replace('/stage/algo_data/ci', '/algo/DVS'))
+  if '/stage/algo_data/ToF/Git_CI_output' in str(after_dir):
+    after_dir = Path(str(after_dir).replace('/stage/algo_data/ToF/Git_CI_output', '/algo/TOF/archive'))
 
   # click.secho(str(output))
   click.secho(f"{output.id} {'[deleted]' if output.deleted else ''}")
   click.secho(f"  ♻ {before_dir}", dim=True)
-  if '/algo' not in str(after_dir):
+  if '/algo/' not in str(after_dir):
     print(after_dir)
     exit(0)
 
@@ -233,11 +237,11 @@ def migrate_output(output):
   if 'storage' not in output.data:
     print("missing storage...")
     try:
-      exists = as_user("sircdevops", lambda: output.output_dir.exists())
+      exists = as_user(users["sircdevops"], lambda: output.output_dir.exists())
       if not exists:
         storage = 0
       else:
-        owner = as_user("sircdevops", lambda: output.output_dir.owner())
+        owner = as_user(users["sircdevops"], lambda: output.output_dir.owner())
         # print(f"> {owner}")
         # owner = output.output_dir.owner()
         # print("output_dir owner:", owner)
@@ -246,7 +250,7 @@ def migrate_output(output):
       print(e)
       exit(0)
       try:
-        storage = as_user('sircdevops', get_storage, output)
+        storage = as_user(users["sircdevops"], get_storage, output)
       except:
         click.secho(f"  .. ERROR permission issue...", dim=True)
         return
@@ -265,12 +269,18 @@ def migrate_output(output):
 
   # ldapsearch -t -L -H ldap://REDACTED_LDAP_HOST -b 'REDACTED_LDAP_BASE' -D "cn=Ldap Query,ou=IT,ou=SIRC Users,REDACTED_LDAP_BASE" -x -w REDACTED_LDAP_PASSWORD -s sub "(memberOf=CN=Sensor_Algorithms,OU=Groups,OU=SIRC Users,DC=transchip,DC=com)" | grep 'sAMAccountName:'
   fillers = ["dima","oded","guy","itail","arielo","haim","igal","galb","yahavs","erand","arthurf","royy","shahafd","rivkae","amichaya","shais","taeerw","royp","matand","davidn","nimrodn","eitanl","matanh","mandyr","talb","eliavm","noar","barakd","itamarp","yoavpi","shaharj","talf","elady","dannyz","yardenr","mayav","bena","eilamg","nitsanr","ronenk","org","adirm","yoramf","ilyar","naomis","ronyg","assafb","alon","adamo","rafir","vladimird","buzzm","noal","lenag","chenr","nadavo","amitkad","orens","omera","sivanm","liranh","raziela"]
+  if 'TOF' in str(after_dir):
+    fillers = ["galb", "tofq", "matand", "shais", "taeerw", "royy", "ronyg", "mayav", "elad", "idang"]
   def new_owner_info():
     random.shuffle(fillers)
     for user in [username, *fillers]:
       if user in users_with_max_quota:
         continue
-      quota = fetch_quota(user, project_name)
+      try:
+        quota = fetch_quota(user, project_name)
+      except:
+        click.secho(f"[WARNING] could not get quota for {user}", fg='yellow')
+        continue
       print(user, "?", quota['used']/1024/1024)
       if quota['used'] > quota['limit'] * 0.79:
         click.secho(f"  😭 {user} full quota", dim=True)
@@ -295,7 +305,7 @@ def migrate_output(output):
     as_user(username, move_files, before_dir, after_dir, output)
   except Exception as e:
     try: # TODO: try to find as which user to retry...
-      as_user('sircdevops', move_files, before_dir, after_dir, output)
+      as_user(users["sircdevops"], move_files, before_dir, after_dir, output)
     except Exception as e:
       print(f"  ERROR: {e}")
       traceback.print_exc(file=sys.stdout)

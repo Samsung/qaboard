@@ -61,6 +61,9 @@ services:
     ports:
     - ${QABOARD_PORT_HTTPS:-443}:443
     - ${QABOARD_PROXY_PORT_HTTP:-80}:5003
+    # backward compat, from LSF accessing port 80 doesn't always work...
+    - ${QABOARD_EXTRA_SIRC_PORT_1:-5000}:5000
+    - ${QABOARD_EXTRA_SIRC_PORT_2:-5002}:5002
     depends_on:
     - iiif-cde
     environment:
@@ -85,7 +88,8 @@ services:
 
   cantaloupe:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
-    user: ispq
+    user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
+    # user: ispq
     build:
       args:
         user: ispq

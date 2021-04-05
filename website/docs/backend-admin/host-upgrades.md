@@ -54,8 +54,8 @@ In case of issues, recover from a backup:
 ```bash
 # disconnect clients
 docker-compose -f docker-compose.yml -f production.yml -f sirc.yml stop
-# we need the database to create a backup
-docker-compose -f docker-compose.yml -f production.yml up -f sirc.yml -d db
+# we need the database to restore a backup
+docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d db
 
 # now restore
 docker-compose -f docker-compose.yml -f production.yml -f sirc.yml exec --user 1411:10 db /opt/restore /backups/before-upgrade.dump

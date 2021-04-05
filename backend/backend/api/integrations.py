@@ -4,6 +4,8 @@ Backend API for the integrations features.
 import os
 import re
 import time
+import json
+from urllib.parse import urlparse
 
 from flask import request, jsonify, make_response
 import requests
@@ -178,17 +180,19 @@ def jenkins_build():
   """
   Get the status of a Jenkins build.
   """
-  jenkins_credentials = {
-    "auth": HTTPBasicAuth(
-      os.environ['JENKINS_USER_NAME'],
-      os.environ['JENKINS_USER_TOKEN'],
-    ),
-    "headers": {
-      "Jenkins-Crumb": os.environ['JENKINS_USER_CRUMB'],
-    }
-  }
   data = request.get_json()
   url = f"{data['web_url']}/api/json" if "web_url" in data else data['url']
+  hostname = urlparse(url).hostname
+  credentials = json.loads(os.environ['JENKINS_AUTH'])[hostname]
+  jenkins_credentials = {
+    "auth": HTTPBasicAuth(
+      credentials['user'],
+      credentials['token'],
+    ),
+    "headers": {
+      "Jenkins-Crumb": credentials['crumb'],
+    }
+  }
   try:
     r = requests.get(url, **jenkins_credentials)
   except Exception as e:
@@ -234,19 +238,20 @@ def jenkins_build_trigger():
   """
   Trigger a Jenkins build.
   """
-
   data = request.get_json()
-  jenkins_credentials = {
-    "auth": HTTPBasicAuth(
-      os.environ['JENKINS_USER_NAME'],
-      os.environ['JENKINS_USER_TOKEN'],
-    ),
-    "headers": {
-      "Jenkins-Crumb": os.environ['JENKINS_USER_CRUMB'],
-    }
-  }
   if 'build_url' not in data:
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
+  hostname = urlparse(data['build_url']).hostname
+  credentials = json.loads(os.environ['JENKINS_AUTH'])[hostname]
+  jenkins_credentials = {
+    "auth": HTTPBasicAuth(
+      credentials['user'],
+      credentials['token'],
+    ),
+    "headers": {
+      "Jenkins-Crumb": credentials['crumb'],
+    }
+  }
   build_url = re.sub("/$", "", data['build_url'])
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
@@ -264,7 +269,7 @@ def jenkins_build_trigger():
       print(e)
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
-  
+
   build_queue_location = f"{r.headers['location']}/api/json"
   time.sleep(5) # jenkins quiet period
   sleep_total = 5

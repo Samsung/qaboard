@@ -91,11 +91,12 @@ variables:
 # - put the SSL keys in services/nginx/ssl/qa
 deploy:production:
   # <<: *deploy
+  stage: deploy
   variables:
     DOCKER_HOST: qa
     CI_ENVIRONMENT_SLUG: ""
   script:
-    - ssh $DOCKER_HOST "bash -c \"cd /home/ispq/qaboard_prod && source .envrc && git pull && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
+    - ssh $DOCKER_HOST "bash -c \"cd /home/ispq/qaboard_prod && source .envrc && git reset --hard && git pull && ./at-sirc-before-up.py && docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build\""
   environment:
     name: production
     url: https://qa

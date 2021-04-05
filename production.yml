@@ -2,6 +2,7 @@ version: "3.5"
 
 services:
   db:
+    shm_size: 1g
     restart: always
     # On-prem, it can be helpul to expose the database and use various analytics products
     # At Samsung we use Metabase to show a detailed dashboard of the storage used.
@@ -49,7 +50,7 @@ services:
       - db
     environment:
       # https://www.postgresql.org/docs/9.3/libpq-envars.html
-      PGHOST: db
+      PGHOST: ${PGHOST:-db}
       PGDATABASE: qaboard
       PGUSER: qaboard
       PGPASSWORD: password
