@@ -41,7 +41,7 @@ def signup():
       "email": request.form.get('email'),
       "user_name": request.form.get('user_name'),
       "password": request.form.get('password'),
-    }):
+    })
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
     return f"ERROR: The email or user name already exists", 403
