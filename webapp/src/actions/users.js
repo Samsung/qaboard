@@ -4,16 +4,13 @@ import {
 } from '../actions/constants'
 
 
-export const logIn = (user_name) => {
+export const login = (user) => {
   return {
     type: LOG_IN,
-    payload: { user_name, is_logged: true },
+    user,
   };
 };
 
-export const logOut = () => {
-  return {
-    type: LOG_OUT,
-    payload: { user_name: null, is_logged: false },
-  };
+export const logout = () => {
+  return {type: LOG_OUT};
 };

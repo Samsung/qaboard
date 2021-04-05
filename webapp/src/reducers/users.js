@@ -4,16 +4,24 @@ import {
 } from '../actions/constants'
 
 
-export const loggedReducer = (state = {is_logged: false, user_name: ''}, action) => {
-  var new_state;
+const user_logged_out_state = {
+  is_logged: false,
+  user_id: null,
+  user_name: null,
+  full_name: null,
+  email: null,
+}
+
+export const loggedReducer = (state = {...user_logged_out_state}, action) => {
   switch (action.type) {
     case LOG_IN:
-    case LOG_OUT:
-      new_state = {
+      return {
         ...state,
-        ...action.payload,
-      };
-      return new_state
+        is_logged: true,
+        ...action.user,
+      }
+    case LOG_OUT:
+      return {...user_logged_out_state}
     default:
       return state
     }
