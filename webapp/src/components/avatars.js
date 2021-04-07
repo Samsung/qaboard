@@ -67,10 +67,11 @@ class CommitAvatar extends React.PureComponent {
   render() {
     const { commit, size } = this.props;
     let maybe_skeleton = (!commit || !commit.committer_name) ? Classes.SKELETON : null;
+    let avatar_url = !!commit?.committer_avatar_url ? encodeURI(`/api/v1/gitlab/proxy?url=${commit?.committer_avatar_url}`) : null
     return <Avatar
       href={!!commit && !!commit.committer_name && `/committer/${commit.committer_name}`}
       alt={!!commit ? commit.committer_name : ''}
-      src={!!commit && commit.committer_avatar_url}
+      src={avatar_url}
       className={maybe_skeleton}    
       style={this.props.style}
       size={size}

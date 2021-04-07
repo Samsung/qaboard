@@ -74,7 +74,9 @@ Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans?
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
-| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
+| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-| `GITLAB_AUTH`         | _none_  | Credentials used to forward private project avatars from Gitlab. The format is a JSON string looking like `{"hostname": {"user": "username", "password": "xxxxx", "type": "user"}}`. `type` is optionnal and can also be `ldap_user`. Asking for a password is not great but [the API is not sufficient](https://docs.gitlab.com/ce/api/#session-cookie)... You can use `"http": true` if needed. |
+third-party-tools#example-jenkins-integration-via-webhooks))               |
+| `QABOARD_LDAP_ENABLED`   | _none_  | If set to `true` LDAP is enabled                   |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
 | `UWSGI_PROCESSS`       | 1       | default: 1g                                          |

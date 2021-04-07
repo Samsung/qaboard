@@ -101,12 +101,10 @@ class ProjectsList extends Component {
             const project_git_hostname = git_hostname(data.qatools_config) ?? default_git_hostname
             git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
             const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
-            const avatar_url = qatools_config_project.avatar_url || 
-                               !!git.avatar_url ? (git.avatar_url.startsWith('http')
-                                                  ? git.avatar_url
-                                                  : `${gitlab_host}${git.avatar_url}`)
-                                                : null
-
+            let avatar_url = qatools_config_project.avatar_url ?? git.avatar_url
+            if (!!avatar_url && avatar_url.startsWith(gitlab_host)) {
+              avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
+            }
             const is_subproject = git.path_with_namespace !== project_id;
             const has_custom_avatar = !!((data.qatools_config || {}).project || {}).avatar_url
             const should_tweak_image = is_subproject && !has_custom_avatar;
