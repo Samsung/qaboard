@@ -337,7 +337,7 @@ class IntegrationsMenus extends React.Component {
 
           const badge = integration.src && <img
             alt={integration.alt || key(integration)}
-            src={integration.src}
+            src={encodeURI(`/api/v1/gitlab/proxy?url=${integration.src}`)}
           />        
           if (badge) {
             var right_label = integration.icon && <Icon icon={integration.icon}/>
@@ -457,7 +457,7 @@ const default_gitlab_integrations = [
     {
       href: "${git.web_url}/commits/${branch}",
       alt: "Build status",
-      src: "${git.web_url}/badges/${branch}/build.svg",
+      src: "${git.web_url}/badges/${branch}/pipeline.svg",
       only: "${branch}" // won't be displayed in per-commit pages
     },
     {
