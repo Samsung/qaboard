@@ -25,6 +25,7 @@ const persistConfig = {
   whitelist: [
     'projects',
     'tuning',
+    'user',
     // we may not want to store any of the commit.$id.batches.outputs.
     // TODO: look into
     // https://github.com/rt2zz/redux-persist

@@ -15,3 +15,6 @@ export const UPDATE_TUNING_FORM = 'UPDATE_TUNING_FORM'
 
 export const UPDATE_FAVORITE = 'UPDATE_FAVORITE'
 export const UPDATE_MILESTONES = 'UPDATE_MILESTONES'
+
+export const LOG_IN = 'LOG_IN'
+export const LOG_OUT = 'LOG_OUT'

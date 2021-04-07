@@ -10,7 +10,7 @@ cd qaboard
 
 2. If you want to run a frontend, [go to the README](../webapp/README.md) and without docker run `npm install`.
 
-3. Edit at the top-level of the repository _development.yml_, and replace `arthurf` with your user.
+3. Edit at the top-level of the repository _development.yml_, and replace `arthurf` with your user. Edit _services/backend/passwd_ and add a line with  your user, looking like `arthurf:*:11611:10:Arthur Flam:/home/arthurf:/bin/tcsh`. You can get  it  with `getent passwd | grep arthurf`.
 
 4. Start the server:
 

@@ -30,6 +30,13 @@ services:
     - UWSGI_GID=uucp
     - QABOARD_DATA_SHARED_DIR=/home/ispq/qaboard/shared
     - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 bsub_su {user} -I {bsub_command}'
+    - QABOARD_LDAP_ENABLED=true
+    - QABOARD_LDAP_USER_BASE=REDACTED_LDAP_BASE
+    - QABOARD_LDAP_BIND_DN=cn=Ldap Query,ou=IT,ou=SIRC Users,REDACTED_LDAP_BASE
+    - QABOARD_LDAP_PASSWORD=REDACTED_LDAP_PASSWORD
+    - QABOARD_LDAP_HOST=REDACTED_LDAP_HOST
+    - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
+
     volumes:
     - ./services/backend/passwd:/etc/passwd
     - /opt/dockermounts/home:/home

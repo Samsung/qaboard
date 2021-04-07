@@ -43,6 +43,7 @@ RUN apt-get update && apt-get install -y gnupg2 && \
 # https://www.psycopg.org/docs/install.html#install-from-source
 # https://www.psycopg.org/docs/faq.html#faq-compile
 RUN apt-get update && apt-get install -y libpq-dev gcc
+RUN apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev -y
 
 # At SIRC we need to be able to turn into any user to delete their output files
 RUN apt-get update && apt-get install -y sudo
