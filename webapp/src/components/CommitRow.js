@@ -267,10 +267,15 @@ class CommitRow extends React.Component {
     const commit_url = `${git.web_url}/commit/${commit.id}`
     const has_data = !!commit?.authored_datetime
     let maybe_skeletton = has_data ? null : Classes.SKELETON;
+    let avatar_url = commit?.committer_avatar_url
+    const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
+    if (!!avatar_url && avatar_url.startsWith(gitlab_host)) {
+      avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
+    }
     return (
       <CommitRowWrapper className={className}>
         <Avatar
-          src={!!commit.committer_avatar_url ? commit.committer_avatar_url : null}
+          src={avatar_url}
           href={!!commit.committer_name ? `/${project}/committer/${commit.committer_name}` : null}
           onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
           alt={commit.committer_name || commit.id || '?'}
