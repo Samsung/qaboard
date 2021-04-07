@@ -14,39 +14,100 @@ from requests.utils import quote
 from requests.auth import HTTPBasicAuth
 
 from backend import app
-
-
-# FIXME: Currently we rely on environment variables for the gitlab/jenkins credentials
-#        We only allow 1 single instance of each, with a single auth.
-# TODO: - Short term, we can at least read from os.environ["QABOARD_SECRETS"]=/etc/qaboard_secrets.json
-#         {
-#            secrets: [
-#              {
-#                 "host": "http://jensirc:8080",
-#                 "auth": ("user", "token"),
-#                 "headers": {"Jenkins-User-Crumb": "xxxxxxx"}
-#              },
-#              ...
-#            ]
-#         }
-# TODO: - Longer-term, we should use a centralized per user/project secret store
+from ..config import qaboard_data_dir
 
 # We love our proxies
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# TODO: proxy requests for images hosted on gitlab
+
+
+# TODO: Currently all users/projects share gitlab/jenkins credentials.
+#       Longer-term, we should use a centralized per user/project secret store
+
+
+
+
+def gitlab_session_cookie(hostname, user, password, user_type="user"):
+    """
+    There is not way to get a session cookie via the gitlab API, but we need them....
+    Beware this function is likely fragile and may break with future gitlab updates.
+    user_type: can be "user" for gitlab default users, or ldap_user with LDAP. There are likely other valid options...
+    """
+    # https://stackoverflow.com/questions/47948887/login-to-gitlab-with-username-and-password-using-curl
+    with requests.Session() as s:
+        s = requests.Session()
+        # curl for the login page to get a session cookie and the sources with the auth tokens
+        r = s.get(f'{hostname}/users/sign_in')
+        matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
+        print(matches)
+        matches = [m for m in matches if m[0] == user_type]
+        try:
+            user_type, action, authenticity_token = matches[0]
+        except:
+            print(r.text)
+            print(f"Error with the gitlab login form. {matches}")
+        login_url = f"{hostname}{action}"
+        # print(user_type, login_url, user, password, authenticity_token)
+        r = s.post(
+            login_url,
+            data={
+                "username": user,
+                "password": password,
+                "authenticity_token": authenticity_token,
+            },
+        )
+        print(r)
+        # print(r.text)
+        # print(r.headers)
+        return s.cookies['_gitlab_session']
+
+
+gitlab_credentials = json.loads(os.environ.get('GITLAB_AUTH', '{}'))
+# At startup we try to get session cookies for the gitlab hosts we have auth for.
+# We use them to proxy e.g. image requests. 
+# They we will be cached in 
+gitlab_cookies_path = qaboard_data_dir / "gitlab_cookies.json"
+try: # file not found, corrupt format...
+  with gitlab_cookies_path.open() as f:
+    gitlab_cookies = json.load(f)
+except:
+  gitlab_cookies = {}
+refresh_cookies = False
+for hostname, auth in gitlab_credentials.items():
+  if hostname in gitlab_cookies and not refresh_cookies:
+    continue
+  print("Getting gitlab cookie for", hostname)
+  url = f"https://{hostname}" if not auth.get('http') else f"http://{hostname}"
+  gitlab_cookies[hostname] = gitlab_session_cookie(
+    url, auth['user'], auth['password'], auth.get('type', 'user')
+  )
+  # write updates
+  with gitlab_cookies_path.open('w') as f:
+    json.dump(gitlab_cookies, f)
+
+
+# TODO: get password for gitlab-adm to avoid any auth and password changes
+# TODO: if expired, renew the token...
 @app.route("/api/v1/gitlab/proxy")
 def proxy_gitlab():
-  # 2. make the call to gitlab
-  # 3. get the gitlab auth from config
-  # 4. make the auth work..!
-  #    https://docs.gitlab.com/ce/api/#session-cookie
-  #    we have to be..
-  # curl  --header "Private-Token: ${GITLAB_ACCESS_TOKEN}" http://gitlab-srv/uploads/-/system/project/avatar/608/Samsung-Galaxy-S10-Moniker-Change.jpg\?width\=64
-  # requests.get('')
-  # return r.content, r.status_code
-  return "OK"
+  url = request.args['url']
+  hostname = urlparse(url).hostname
+  if hostname in gitlab_cookies:
+    cookies = {'_gitlab_session': gitlab_cookies[hostname]}
+  else:
+    cookies = {}
+  # print(url)
+  r = requests.get(url, cookies=cookies)
+  session = Session()
+  resp = make_response(r.content, r.status_code)
+  for k, v in r.headers.items():
+    resp.headers.set(k, v)
+  return resp
+  # print(r)
+  # print(r.text)
+  # print(r.headers)
+  return r.content, r.status_code
 
 @app.route("/api/v1/webhook/proxy", methods=['POST'])
 @app.route("/api/v1/webhook/proxy/", methods=['POST'])
