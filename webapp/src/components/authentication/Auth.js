@@ -16,6 +16,7 @@ import { login, logout } from '../../actions/users'
 
 // TODO:
 // - sign-up ?
+// - move login/logout to the action
 
 const toaster = Toaster.create();
 
@@ -178,7 +179,7 @@ class LoginButton extends React.Component {
 
 
     const login_button = this.props.appSider ?
-      <MenuItem icon="log-in" text="Login" onClick={this.handleOpen}/> :
+      <MenuItem icon="log-in" text="Login" intent={Intent.PRIMARY} onClick={this.handleOpen}/> :
       <Button intent={Intent.PRIMARY} icon={<Icon icon="log-in" color="#fff"/>} style={{color : "#fff"}} text="Login" onClick={this.handleOpen}/>
     const logout_button = this.props.appSider ?
       <MenuItem icon="log-out" text="Logout" onClick={this.props.logout}/> :
