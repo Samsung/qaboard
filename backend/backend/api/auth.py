@@ -37,7 +37,7 @@ login_manager = LoginManager(app)
 @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
   try:
-    create_user({
+    user = create_user({
       "email": request.form.get('email'),
       "user_name": request.form.get('user_name'),
       "password": request.form.get('password'),
@@ -45,7 +45,7 @@ def signup():
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
     return f"ERROR: The email or user name already exists", 403
-  return jsonify({"id": new_user.id}) # FIXME: return more info ?
+  return jsonify({"id": user.id}) # FIXME: return more info ?
 
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
