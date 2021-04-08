@@ -187,7 +187,7 @@ def auth_ldap(user_name, password):
   if user_info["login_success"]:
     user = User.query.filter_by(user_name=user_name).one_or_none()
     if not user:
-      create_user(user_info)
+      user = create_user(user_info)
     user_info["id"] = user.id
   return user_info
 
