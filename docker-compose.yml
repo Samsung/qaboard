@@ -87,6 +87,7 @@ services:
     - QABOARD_DB_HOST
     - QABOARD_DB_PORT
     - JENKINS_AUTH
+    - GITLAB_AUTH
     - GITLAB_ACCESS_TOKEN
 
   frontend:
