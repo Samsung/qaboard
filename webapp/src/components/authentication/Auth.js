@@ -73,7 +73,6 @@ class AuthButton extends React.Component {
     if (this.state.loading)
       return <Button loading={true}/>
 
-    console.log("user", this.props.user)
     return this.props.user?.is_authenticated ?
               <UserMenu
                 user={this.props.user}
