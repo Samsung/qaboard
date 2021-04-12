@@ -197,6 +197,9 @@ def start_tuning(hexsha):
     project_id = request.args["project"]
     data = request.get_json()
 
+    # TODO: use the logged-in user
+    user = data['user']
+
     try:
         ci_commit = CiCommit.query.filter(
             CiCommit.project_id == project_id,
@@ -289,7 +292,7 @@ def start_tuning(hexsha):
             f"\nexport CI=true;\n",
             f"\nexport GIT_COMMIT='{ci_commit.hexsha}';\n",
             f"export QABOARD_TUNING=true;\n\n",
-            f"export QA_OUTPUTS_COMMIT='{ci_commit.outputs_dir}';\n\n",
+            f"export QA_OUTPUTS_COMMIT='{ci_commit.outputs_dir.replace('/ispq/', f'/{user}/')}';\n\n",
             # backward compatibility
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.outputs_dir}';\n\n",
             batch_command,
@@ -302,11 +305,6 @@ def start_tuning(hexsha):
 
     qatools_config = ci_commit.project.data["qatools_config"]
     lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
-    default_user = lsf_config.get('user')
-    user = data.get('user', default_user)
-    if not user:
-        return jsonify("You must provide a user as whom to run the tuning experiment."), 403
-
     queue = lsf_config.get("fast_queue", lsf_config['queue'])
     #     - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
     # print("QA_RUNNERS_LSF_BRIDGE", os.environ['QA_RUNNERS_LSF_BRIDGE'])
