@@ -71,7 +71,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
   if not ignore:
     ignore = []
 
-  print("patterns", patterns)
+  # print("patterns", patterns)
 
   mismatch = set()  # not the same
   match = set()     # the same
