@@ -14,6 +14,7 @@ services:
     - /algo:/var/www/localhost/images/algo
     - /data:/var/www/localhost/images/data
     - /opt/dockermounts/home:/var/www/localhost/images/home
+    - /sim:/var/www/localhost/images/sim:shared
 
   db:
     ports:
@@ -101,6 +102,7 @@ services:
       - /algo/CIS/outputs:/repository/algo/CIS/outputs
       - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
       - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
+      - /sim:/repository/sim:shared
     environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
