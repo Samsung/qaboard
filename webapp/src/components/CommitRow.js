@@ -262,7 +262,7 @@ class CommitRow extends React.Component {
     const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
     const git = project_data.data?.git || {};
     const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? gitlab_host_with_config ?? `${project_git_hostname}/${git.path_with_namespace}`
+    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
     const is_subproject = git.path_with_namespace !== project;
     const commit_url = `${git.web_url}/commit/${commit.id}`
     const has_data = !!commit?.authored_datetime
