@@ -144,7 +144,7 @@ class TuningForm extends Component {
         ? this.props.parameter_search_auto
         : templates['optimize'](config, metrics),
 
-      user: this.props.user || default_user,
+      user: this.props.redux_user.user_name || this.props.user || default_user,
       android_device: "openstf",
 
     };
@@ -443,7 +443,7 @@ class TuningForm extends Component {
             </div>
           </Popover>}
           {message && <span>
-               <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>}
+               <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>
               To know your options, go to the "Tests" tab.
           </span>}
           {this.state.selected_group_info_loading && <Icon icon="time"/>}
@@ -535,7 +535,7 @@ class TuningForm extends Component {
         />
       </FormGroup>
 
-      {lsf_runner && <FormGroup
+      {/* {lsf_runner && <FormGroup
         label="Run as"
         helperText="(required)"
         labelFor="input-user"
@@ -552,7 +552,12 @@ class TuningForm extends Component {
           type="text"
           dir="auto"
         />
-      </FormGroup>}
+      </FormGroup>} */}
+
+      {lsf_runner &&<Tooltip>
+        <Tag key={`Run as: ${user}`} icon="user" intent={Intent.PRIMARY} large minimal style={{marginRight: '5px', marginBottom: '5px'}}>{`Run as: ${user}`}</Tag>
+        Make sure to setup your shell environment correctly
+      </Tooltip>}
 
       {search_type === "optimize" && <>
         <Callout icon="info-sign" title="About auto-tuning">
@@ -571,6 +576,7 @@ class TuningForm extends Component {
 
 const mapStateToProps = (state, ownProps) => {
   return {
+      redux_user: state.user || null,
       ...(state.tuning[ownProps.project] || {})
   }
 }
