@@ -44,6 +44,7 @@ import {
 	batchSelector,
 } from './selectors/projects'
 
+import PrivateContent from "./components/authentication/RequireAuth"
 
 
 
@@ -324,12 +325,14 @@ class CiCommitResults extends Component {
               {selected_views.includes('groups') && <Section>
                 <Card>
                   <h2 className={Classes.HEADING}>Groups of tests</h2>
-                  <AddRecordingsForm
+                  <PrivateContent>
+                    <AddRecordingsForm
                     project={project}
                     git={git}
                     commit={new_commit}
                     config={config}
-                  />
+                    />
+                  </PrivateContent>
                 </Card>
                </Section>}
 
@@ -342,12 +345,14 @@ class CiCommitResults extends Component {
                 : <Section>
                   <h2 className={Classes.HEADING}>Tuning Experiments</h2>
                   <Card>
-                    <TuningForm
+                    <PrivateContent>
+                      <TuningForm
                       project={project}
                       config={config}
                       metrics={metrics}
                       commit={new_commit}
-                    />
+                      />
+                    </PrivateContent>
                   </Card>
               </Section>)}
 
