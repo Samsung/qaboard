@@ -49,9 +49,13 @@ integrations:
   - text: Jenkins Triggered Build
     jenkins:
       build_url: $JENKINS_URL/job/CDE_Project_Linux
+      # You can include the token from the job's configuration page
+      # token: qaboard   # default value # FIXME: make it empty in the OSS version
       parameters:
         commit: "${commit.id}"
 ```
+
+You must enable "triggering the build via scripts/webhooks" in the job's configuration. Parameters are optional.
 
 ## Using webhooks
 You can use webhooks to trigger a variety of external tools:

@@ -316,13 +316,17 @@ def jenkins_build_trigger():
   build_url = re.sub("/$", "", data['build_url'])
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
+    params = {
+      "cause": data.get('cause', "Triggered via QA-Board"),
+      **data.get('params'),
+    }
+    if "token" in data:
+      params["token"] = data["token"]
+    else:
+      params["token"] = "qaboard" # FIXME: default to not setting it in the OSS version
     r = requests.post(
       build_trigger_url,
-      params={
-        "token": data.get('token', "qaboard"),
-        "cause": data.get('cause', "Triggered via QA-Board"),
-        **data['params'],
-      },
+      params=params,
       **jenkins_credentials,
     )
   except Exception as e:
@@ -330,7 +334,9 @@ def jenkins_build_trigger():
       print(e)
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
-
+  if 'location' not in r.headers:
+      # return r.text
+      return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header"}), 500
   build_queue_location = f"{r.headers['location']}/api/json"
   time.sleep(5) # jenkins quiet period
   sleep_total = 5
