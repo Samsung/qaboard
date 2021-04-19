@@ -268,6 +268,7 @@ def start_tuning(hexsha):
     use_openstf = data["android_device"].lower() == "openstf"
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
     envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
+    outputs_dir_prefix = str(ci_commit.outputs_dir).replace('/ispq/', f'/{user}/')
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
@@ -292,7 +293,7 @@ def start_tuning(hexsha):
             f"\nexport CI=true;\n",
             f"\nexport GIT_COMMIT='{ci_commit.hexsha}';\n",
             f"export QABOARD_TUNING=true;\n\n",
-            f"export QA_OUTPUTS_COMMIT='{ci_commit.outputs_dir.replace('/ispq/', f'/{user}/')}';\n\n",
+            f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}';\n\n",
             # backward compatibility
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.outputs_dir}';\n\n",
             batch_command,
