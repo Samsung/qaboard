@@ -47,10 +47,10 @@ class AuthButton extends React.Component {
     })
   }
 
-  componentDidMount() {
-    if (!this.props.user.is_logged)
-      this.checkAuth()
-  }
+  // componentDidMount() {
+  //   if (!this.props.user.is_logged)
+  //     this.checkAuth()
+  // }
 
   logout = () => {
     const { user_name, full_name } = this.props.user;
