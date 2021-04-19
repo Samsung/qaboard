@@ -1,5 +1,6 @@
+  # http://nginx.org/en/docs/http/ngx_http_headers_module.html#add_header
   if ($request_method ~* "(GET|POST|PUT|DELETE)") {
-    add_header "Access-Control-Allow-Origin"  *;
+    add_header "Access-Control-Allow-Origin"  * always;
   }
   # Preflighted requests
   if ($request_method = OPTIONS ) {
