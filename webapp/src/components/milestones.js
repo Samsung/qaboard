@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Moment from "react-moment";
 import { post } from "axios";
 
@@ -17,6 +17,8 @@ import {
   Switch,
   FormGroup,
   InputGroup,
+  ControlGroup,
+  HTMLSelect,
   Tooltip,
   Popover,
   Alert,
@@ -24,21 +26,49 @@ import {
 } from "@blueprintjs/core";
 
 import { updateMilestones, fetchProjects } from "../actions/projects";
+import { match_query } from "../utils";
 
 const toaster = Toaster.create();
 
 
 
 const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
-	const has_milestones = Object.keys(milestones).length > 0;
+  const [filter, setFilter] = useState(null);
+  const [orderBy, setOrderBy] = useState("date ↓");
+
+  const has_milestones = Object.keys(milestones).length > 0;
+  const matcher = match_query(filter)
+  const sortWeight =  (orderBy.includes("↓") ? 1 : -1)
 	const milestones_menu_items = has_milestones
       ? (Object.values(milestones)
-          .sort( (m0, m1) => new Date(m1.date) - new Date(m0.date))
+          .filter(m => matcher(`${m.commit} ${m.batch} ${m.filter} ${m.label} ${m.notes}`))
+          .sort( (m0, m1) => sortWeight * (new Date(m0.date) - new Date(m1.date)))
          || [])
          .map(  (m, idx) => <MilestoneMenu icon={icon} key={`${type}-${idx}`} milestone={m} onSelect={onSelect} /> )
       : <></>
     return <>
       {(!!title && has_milestones) && <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>{title}</h6></li>}
+      {Object.keys(milestones).length > 1 &&
+          <ControlGroup>
+            <InputGroup
+              placeholder="filter milestones by label, branch, comment..."
+              leftIcon="filter"
+              value={filter}
+              className={filter === '' ? undefined : Intent.PRIMARY}
+              onChange={e => {
+                setFilter(e.target.value)
+              }}
+              fill
+            />
+            <HTMLSelect
+              onChange={e => {
+                setOrderBy(e.currentTarget.value)
+              }}
+              options={["date ↓", "date ↑"]}
+              value={orderBy}
+            />
+          </ControlGroup>
+        }
       {milestones_menu_items}
     </>
 }
