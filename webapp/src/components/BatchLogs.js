@@ -173,7 +173,7 @@ class OutputLog extends React.Component {
 
 
 
-class BatchLogs extends React.PureComponent {
+class BatchLogs extends React.Component {
   render() {
     const { batch } = this.props;
     if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
