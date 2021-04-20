@@ -411,7 +411,7 @@ class TuningForm extends Component {
       <pre>
         <div>cd HW_ALG</div>
         <div>git checkout {(this.props.commit?.id ?? '').slice(0, 8)}</div>
-        <div>cd {project}</div>
+        <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
         <div>qa save-artifacts</div>
       </pre>
       </Callout>}
