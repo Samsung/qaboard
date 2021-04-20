@@ -98,7 +98,7 @@ def proxy_gitlab():
   else:
     cookies = {}
   # print(url)
-  r = requests.get(url, cookies=cookies)
+  r = requests.get(url, cookies=cookies, verify=False)
   session = Session()
   resp = make_response(r.content, r.status_code)
   for k, v in r.headers.items():
