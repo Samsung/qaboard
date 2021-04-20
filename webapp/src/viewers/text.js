@@ -170,7 +170,7 @@ class GenericTextViewer extends React.Component {
         />
 
     return <>
-      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag> {hash && <Tooltip><Tag style={{backgroundColor: hash_color(hash)}}>hash: {hash.slice(0,8)}</Tag><span>Hash of the new file</span></Tooltip>}</h3>
+      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag></h3>
       {editor}
     </>
   }
