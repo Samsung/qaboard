@@ -405,6 +405,16 @@ class TuningForm extends Component {
       <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
       <p>Otherwise, your runs may be killed if they take too long.</p>
       </Callout>}
+      {project.startsWith('CDE-Users/HW_ALG') && <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+      <p>For tuning to work, your branch name (<code>{this.props.commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
+      <p>A workaround is calling from Windows/Linux:</p>
+      <pre>
+        <div>cd HW_ALG</div>
+        <div>git checkout {(this.props.commit?.id ?? '').slice(0, 8)}</div>
+        <div>cd {project}</div>
+        <div>qa save-artifacts</div>
+      </pre>
+      </Callout>}
       <FormGroup
         helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
         label={`Experiment name:`}
@@ -555,7 +565,7 @@ class TuningForm extends Component {
       </FormGroup>} */}
 
       {lsf_runner &&<Tooltip>
-        <Tag key={`Run as: ${user}`} icon="user" intent={Intent.PRIMARY} large minimal style={{marginRight: '5px', marginBottom: '5px'}}>{`Run as: ${user}`}</Tag>
+        <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
         Make sure to setup your shell environment correctly
       </Tooltip>}
 
