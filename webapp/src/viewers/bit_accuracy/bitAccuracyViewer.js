@@ -152,15 +152,22 @@ class BitAccuracyViewer extends React.Component {
        onNodeCollapse={this.handleNodeCollapse}
        onNodeExpand={this.handleNodeExpand}
       />
-      {selected.map( filename => 
-        <OutputViewer
-            key={filename}
-            path={filename}
-            hash={getNodeById(tree.mixed, filename) && getNodeById(tree.mixed, filename).nodeData.md5}
-            max_lines={30}
-            {...props}
-        />
-      )}
+      {selected.map( filename => {
+        const hash = {
+          new: this.props.manifests?.new?.[filename]?.md5,
+          reference: this.props.manifests?.reference?.[filename]?.md5,
+        }
+        const has_same_data = !!hash.new && hash.new === hash.reference
+        return <>
+          {has_same_data && <Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data</Tag>}
+          <OutputViewer
+              key={filename}
+              path={filename}
+              max_lines={30}
+              {...props}
+          />
+        </>
+      })}
 
     </div>
   }

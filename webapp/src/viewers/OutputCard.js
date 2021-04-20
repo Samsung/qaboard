@@ -482,16 +482,22 @@ class OutputCard extends React.Component {
             if (!new_available)
               return <span/>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
+            const hash = {
+              new: this.state.manifests?.new?.[path]?.md5,
+              reference: this.state.manifests?.reference?.[path]?.md5,
+            }
+            const has_same_data = !!hash.new && hash.new === hash.reference
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
               {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
+              {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
               <OutputViewer
                 key={`${idx}-${path_idx}`}
                 id={`${idx}-${path_idx}`}
                 output_new={output_new}
                 output_ref={(ref_available && show_ref_if_available && output_ref?.id !== output_new?.id) ? output_ref : undefined}
+                path={path}
                 manifests={this.state.manifests}
                 {...view}
-                path={path}
                 {...controls}
                 style={{ ...style, ...view.style }}
                 fullscreen={this.state.fullscreen}
