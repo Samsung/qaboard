@@ -5,8 +5,6 @@ import { Classes, Tag, Tooltip } from "@blueprintjs/core";
 import MonacoEditor from 'react-monaco-editor';
 import { MonacoDiffEditor } from 'react-monaco-editor';
 
-import { hash_color } from '../utils'
-
 // TODO: Implement a way to hide identical lines in the diff viewer
 // 1. We could use the diffNavigator
 // https://microsoft.github.io/monaco-editor/playground.html#creating-the-diffeditor-navigating-a-diff
@@ -39,7 +37,6 @@ const editor_options = {
   selectOnLineNumbers: true,
   seedSearchStringFromSelection: true,
   readOnly: true,
-  //renderSideBySide: false
 };
 
 
@@ -53,6 +50,7 @@ class GenericTextViewer extends React.Component {
       error: null,
       cancel_source: CancelToken.source(),
       shown_left: "reference",
+      renderSideBySide: props.renderSideBySide ?? true,
     }
   }
 
@@ -132,7 +130,7 @@ class GenericTextViewer extends React.Component {
   }
 
   render() {
-    const { is_loaded, error } = this.state;
+    const { is_loaded, error, renderSideBySide } = this.state;
     if (!is_loaded) return <span/>;
     if (!!error && !this.props.always_show_diff) return <span>{JSON.stringify(error)}</span>
 
@@ -158,7 +156,10 @@ class GenericTextViewer extends React.Component {
           language={this.props.language || language(filename)}
           value={shown_left==='reference' ? data.new : data.reference}
           original={shown_left==='reference' ? data.reference : data.new}
-          options={editor_options}
+          options={{
+            ...editor_options,
+            renderSideBySide,
+          }}
         />
       : <MonacoEditor
           readonly
@@ -170,7 +171,11 @@ class GenericTextViewer extends React.Component {
         />
 
     return <>
-      <h3 className={Classes.HEADING}>{filename} <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag></h3>
+      <h3 className={Classes.HEADING}>
+        <span style={{marginRight: "5px"}}>{filename}</span>
+        <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag>
+        <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => this.setState({renderSideBySide: !renderSideBySide})}>{renderSideBySide ? "side-by-side" : "inline diff"}</Tag>
+      </h3>
       {editor}
     </>
   }
