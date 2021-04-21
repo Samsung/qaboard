@@ -1,5 +1,10 @@
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useState } from "react";
+import {
+  Tag,
+} from "@blueprintjs/core";
+
 import { is_image } from "./images/utils"
+
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images/images' /* webpackChunkName: "image-viewer" */));
@@ -12,11 +17,25 @@ const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackC
 const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChunkName: "flame-graph-viewer" */));
 
 const OutputViewer = props_ => {
+    const [image_viewer, setImageViewer] = useState('image')
+
     const { type, output_ref, ...props } = props_;
     const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
     let viewer;
     if (is_image(props_)) {
-      viewer =  <LoadableImageViewer {...props} output_ref={maybe_output_ref}/>
+      if (props_.path.endsWith('hex')) {
+        viewer = <>
+          <div><Tag minimal interactive icon={image_viewer === 'image' ? 'media' : 'align-justify'} onClick={() => setImageViewer(image_viewer === 'image' ? 'text' : 'image')}>toggle image/text</Tag></div>
+          <div>
+          {image_viewer === 'text' ? 
+              <LoadableTextViewer renderSideBySide={false} {...props} type={type} output_ref={output_ref}/>
+            : <LoadableImageViewer {...props} output_ref={maybe_output_ref}/>
+          }
+          </div>
+        </>
+      } else {
+        viewer =  <LoadableImageViewer {...props} output_ref={maybe_output_ref}/>
+      }
     } else
     if (!!type) {
       if (type === "6dof/txt")
