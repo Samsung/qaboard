@@ -37,7 +37,9 @@ OpenSeadragon.Tile.prototype._hasTransparencyChannel = () => false
 const openseadragon_config = {
   visibilityRatio: 1,
   preserveViewport: true,
+
   springStiffness: 15,
+  animationTime: 0,
 
   defaultZoomLevel: 1,
   minZoomLevel: 1,
