@@ -495,10 +495,10 @@ class OutputCard extends React.Component {
                 id={`${idx}-${path_idx}`}
                 output_new={output_new}
                 output_ref={(ref_available && show_ref_if_available && output_ref?.id !== output_new?.id) ? output_ref : undefined}
-                path={path}
                 manifests={this.state.manifests}
                 {...view}
                 {...controls}
+                path={path}
                 style={{ ...style, ...view.style }}
                 fullscreen={this.state.fullscreen}
                 config={config}
