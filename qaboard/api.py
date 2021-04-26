@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 import simplejson
 import click
 
-from .config import config, commit_id, is_ci, available_metrics
+from .config import project, config, commit_id, is_ci, available_metrics
 from .config import secrets
 
 qaboard_protocol = os.getenv('QABOARD_PROTOCOL', secrets.get('QABOARD_PROTOCOL', 'https'))
@@ -52,7 +52,7 @@ def dir_to_url(path: Path) -> str:
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
     batch_label = ctx.obj["batch_label"]
-    commit_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+    commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
       if status == "starting":
         click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
@@ -188,11 +188,11 @@ def get_output(output_id):
 
 # We used to use a cache but now we want to check run statuses before/after the batch
 # @lru_cache()
-def batch_info(reference, batch, is_branch=False):
+def batch_info(reference, batch, is_branch=False, project=project):
   """Get data about a batch of outputs in the database"""
   import requests
   params = {
-    "project": config['project']['name'],
+    "project": str(project),
     "batch": batch,
     # the format is metric: target.... not great.
     "metrics": json.dumps({metric: 0 for metric in available_metrics.keys()}),
@@ -204,6 +204,8 @@ def batch_info(reference, batch, is_branch=False):
   r = requests.get(url, params=params)
   if 'batches' not in r.json():
     raise ValueError(f'We could not get the results for {batch} batch {reference}')
+  if batch not in r.json()["batches"]:
+    raise ValueError(f'We could not get the results for {batch} batch {reference}. Available: {list(b for b in r.json()["batches"])}')
   return r.json()['batches'][batch]
 
 
