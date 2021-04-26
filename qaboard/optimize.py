@@ -45,83 +45,87 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
       if parallel_param_sampling == 1:
         suggested = optimizer.ask()
       else:
+        click.secho(f"  {parallel_param_sampling} parallel samples", fg='blue')
         suggested = optimizer.ask(n_points=parallel_param_sampling)
       # print("suggested", suggested)
       click.secho(f"Computing objective", fg='blue')
       if parallel_param_sampling == 1:
         y = objective([*suggested, iteration])
       else:
-        y = Parallel(n_jobs=parallel_param_sampling)(delayed(objective)([*s, iteration]) for s in suggested)
+        y = Parallel(n_jobs=parallel_param_sampling)(delayed(objective)([*s, iteration+idx]) for idx, s in enumerate(suggested))
       # print(f"y={y}", suggested)
       click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
-      # print("results", results)
+
       click.secho(f"Updating QA-Board", fg='blue')
-
-      iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
-      iteration_batch_dir = batch_dir(outputs_commit, iteration_batch_label)
-      notify_qa_database(**{
-        **ctx.obj,
-        **{
-          "extra_parameters": dim_mapping(suggested),
-          # TODO: we really should to tuning/platform in make_batch_conf_dir
-          #       1. make change, 2. rename existing folders)
-          "output_directory": iteration_batch_dir,
-          'input_path': '|'.join(batches),
-          # we want to show in the summary tab the best results for the tuning experiment
-          # but in the exploration see the results per iteration....
-          "input_type": 'optim_iteration', # or... single ? don't show them in the UI
-          "is_pending": False,
-          "is_failed": False,
-          "metrics": {
-            "iteration": iteration+1,
-            "objective": y,
-            **aggregated_metrics(iteration_batch_label),
-          },
-        },
-      })
-
-      notify_qa_database(object_type='batch', **{
-        **ctx.obj,
-        **{
-            "data": {
-              "optimization": True,
-              "iterations": iteration+1,
-              "last_iteration_label": iteration_batch_label,
+      if parallel_param_sampling == 1:
+        suggested = [suggested]
+        y = [y]
+      for idx, y_iter in enumerate(y): 
+        iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+idx+1}"
+        iteration_batch_dir = batch_dir(outputs_commit, iteration_batch_label)
+        notify_qa_database(**{
+          **ctx.obj,
+          **{
+            "extra_parameters": dim_mapping(suggested[idx]),
+            # TODO: we really should to tuning/platform in make_batch_conf_dir
+            #       1. make change, 2. rename existing folders)
+            "output_directory": iteration_batch_dir,
+            'input_path': '|'.join(batches),
+            # we want to show in the summary tab the best results for the tuning experiment
+            # but in the exploration see the results per iteration....
+            "input_type": 'optim_iteration', # or... single ? don't show them in the UI
+            "is_pending": False,
+            "is_failed": False,
+            "metrics": {
+              "iteration": iteration+idx+1,
+              "objective": y_iter,
+              **aggregated_metrics(iteration_batch_label),
             },
-        },
-      })
+          },
+        })
 
-      # results
-      #    .x [float]: location of the minimum.
-      #    .fun [float]: function value at the minimum.
-      #    .models: surrogate models used for each iteration.
-      #    .x_iters [array]: location of function evaluation for each iteration.
-      #    .func_vals [array]: function value for each iteration.
-      #    .space [Space]: the optimization space.
-      #    .specs [dict]: parameters passed to the function.
-      is_best = results.func_vals[iteration] <= results.fun 
-      if iteration==0 or is_best:
-        click.secho(f'New best @iteration{iteration+1}: {y} at iteration {iteration+1}', fg='green')
         notify_qa_database(object_type='batch', **{
           **ctx.obj,
           **{
               "data": {
-                "best_params": dim_mapping(suggested),
-                "best_iter": iteration+1,
-                "best_metrics": aggregated_metrics(iteration_batch_label),
+                "optimization": True,
+                "iterations": iteration+idx+1,
+                "last_iteration_label": iteration_batch_label,
               },
           },
         })
-        try:
-          click.secho(f'Creating plots', fg='blue')
-          make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
-        except:
-          pass
-      else:
-        # TODO: do it using an API call...? 1. get the batch ID 2. DELETE /api/v1/batch/<batch_id>/
-        # We remove the results to make sure we don't waste disk space
-        rmtree(iteration_batch_dir, ignore_errors=True)
+
+        # results
+        #    .x [float]: location of the minimum.
+        #    .fun [float]: function value at the minimum.
+        #    .models: surrogate models used for each iteration.
+        #    .x_iters [array]: location of function evaluation for each iteration.
+        #    .func_vals [array]: function value for each iteration.
+        #    .space [Space]: the optimization space.
+        #    .specs [dict]: parameters passed to the function.
+        is_best = results.func_vals[iteration+idx] <= results.fun
+        if iteration+idx==0 or is_best:
+          click.secho(f'New best @iteration{iteration+idx+1}: {y} at iteration {iteration+idx+1}', fg='green')
+          notify_qa_database(object_type='batch', **{
+            **ctx.obj,
+            **{
+                "data": {
+                  "best_params": dim_mapping(suggested[idx]),
+                  "best_iter": iteration+idx+1,
+                  "best_metrics": aggregated_metrics(iteration_batch_label),
+                },
+            },
+          })
+          try:
+            click.secho(f'Creating plots', fg='blue')
+            make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
+          except:
+            pass
+        else:
+          # TODO: do it using an API call...? 1. get the batch ID 2. DELETE /api/v1/batch/<batch_id>/
+          # We remove the results to make sure we don't waste disk space
+          rmtree(iteration_batch_dir, ignore_errors=True)
 
   print(results)
   if not results.models: # needs at least n_initial_points(=5) evaluations!
