@@ -10,7 +10,7 @@ import numpy as np
 from joblib import Parallel, delayed
 
 from .api import NumpyEncoder, batch_info, notify_qa_database, print_url
-from .config import subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
+from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType
 
@@ -207,7 +207,8 @@ def init_optimization(optim_config_file, ctx):
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
-    return batch_objective(commit_id, batch_label, optim_config['objective'])
+    shared_batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
+    return batch_objective(project, commit_id, shared_batch_label, optim_config['objective'])
 
   # For the full list of options, refer to:
   # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
@@ -291,8 +292,8 @@ def matching_output(output_reference, outputs):
 
 
 
-def batch_objective(commit_id, batch_label, config_objective):
-  this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
+def batch_objective(project, commit_id, batch_label, config_objective):
+  this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, project=project)
   # We can compare to KPI quality target defined
   if 'target' in config_objective and config_objective['target']:
     target = config_objective['target']
@@ -303,6 +304,8 @@ def batch_objective(commit_id, batch_label, config_objective):
         target.get('id', target.get('branch', target.get('tag', ''))),
         batch=target.get('batch', 'default'),
         is_branch='branch' in target, # for tag we need special care...
+        # the working directory changed...
+        project=project,
       )
   else:
     use_default_targets = True
