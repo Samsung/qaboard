@@ -51,7 +51,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
       if parallel_param_sampling == 1:
         y = objective([*suggested, iteration])
       else:
-        y = Parallel(n_jobs=len(suggested))(delayed(objective)(v) for v in suggested)
+        y = Parallel(n_jobs=parallel_param_sampling)(delayed(objective)([*s, iteration]) for s in suggested)
       # print(f"y={y}", suggested)
       click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
