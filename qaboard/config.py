@@ -285,7 +285,11 @@ if commit_id and is_in_git_repo:
   try:
     commit_info = git_show("%n".join(fields), commit_id)
     fields_values = commit_info.split('\n', maxsplit=len(fields))
-    commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents_str, commit_message = fields_values
+    commit_committer_name, commit_committer_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
+    if not commit_authored_datetime:
+      commit_authored_datetime = commit_authored_datetime_
+    if not commit_message:
+      commit_message = commit_message_
     commit_parents = commit_parents_str.split()
   except:
     # may fail when working on the first commit in a repo, like in our tests
