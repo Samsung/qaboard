@@ -23,7 +23,7 @@ from .utils import PathType
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
-@click.option('--parallel-param-sampling', type=int, default=1, help="Parallel paramater sampling.")
+@click.option('--parallel-param-sampling', type=int, help="Parallel paramater sampling.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
@@ -36,6 +36,8 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
   from shutil import rmtree
   from .api import aggregated_metrics
   objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
+  if not parallel_param_sampling:
+    parallel_param_sampling = optim_config.get('parallel_sampling', 1)
 
   # TODO: warm-start
   #   load and "tell" existing results (if there are any)
