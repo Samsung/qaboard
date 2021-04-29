@@ -87,17 +87,6 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
           },
         })
 
-        notify_qa_database(object_type='batch', **{
-          **ctx.obj,
-          **{
-              "data": {
-                "optimization": True,
-                "iterations": iteration+idx+1,
-                "last_iteration_label": iteration_batch_label,
-              },
-          },
-        })
-
         # results
         #    .x [float]: location of the minimum.
         #    .fun [float]: function value at the minimum.
@@ -106,27 +95,37 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         #    .func_vals [array]: function value for each iteration.
         #    .space [Space]: the optimization space.
         #    .specs [dict]: parameters passed to the function.
-        is_best = results.func_vals[iteration+idx] <= results.fun
-        if iteration+idx==0 or is_best:
+        is_best = results.func_vals[iteration+idx] <= results.fun or iteration+idx==0
+        if is_best:
           click.secho(f'New best @iteration{iteration+idx+1}: {y} at iteration {iteration+idx+1}', fg='green')
-          notify_qa_database(object_type='batch', **{
-            **ctx.obj,
-            **{
-                "data": {
-                  "best_params": dim_mapping(suggested[idx]),
-                  "best_iter": iteration+idx+1,
-                  "best_metrics": aggregated_metrics(iteration_batch_label),
-                },
-            },
-          })
+
+        is_best_data = {
+          "is_best_iter": True,
+          "best_params": dim_mapping(suggested[idx]),
+          "best_metrics": aggregated_metrics(iteration_batch_label),
+        } if is_best else {}
+
+        notify_qa_database(object_type='batch', **{
+          **ctx.obj,
+          **{
+              "data": {
+                "optimization": True,
+                "iteration": iteration+idx+1,
+                "iteration_label": iteration_batch_label,
+                **is_best_data,
+              },
+          },
+        })
+
+        if is_best:
           try:
             click.secho(f'Creating plots', fg='blue')
             make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
           except:
             pass
         else:
-          # TODO: do it using an API call...? 1. get the batch ID 2. DELETE /api/v1/batch/<batch_id>/
           # We remove the results to make sure we don't waste disk space
+          # It is also be done server-side...
           rmtree(iteration_batch_dir, ignore_errors=True)
 
   print(results)
