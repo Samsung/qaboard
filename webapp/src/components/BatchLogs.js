@@ -25,6 +25,13 @@ var convert = new Convert();
 class OutputLog extends React.Component {
   constructor(props) {
     super(props);
+    this.log_ref = null
+    this.onRefChange = element => {
+      // console.log("onRefChange", element)
+      this.log_ref = element
+      // this.scrollBottom(true)
+    };
+
     this.state = {
       is_loaded: false,
       is_open: false,
@@ -40,6 +47,11 @@ class OutputLog extends React.Component {
     const had_logs = !!prevProps.output && !!prevProps.output_dir_url
     if (had_logs && this.props.output_dir_url !==prevProps.output.output_dir_url)
       this.getLog()
+
+    // console.log("[didUpdate]")
+    // if (!!this.props.output?.logs_html_safe && !!!this.prevProps.output?.logs_html_safe)
+    // this.scrollBottom()
+  
   }
 
   refreshLog = () => {
@@ -114,6 +126,16 @@ class OutputLog extends React.Component {
       });
   }
 
+  scrollBottom = redo => {
+    console.log("scroll", this.log_ref)
+    if (this.log_ref) {
+      console.log(">")
+      this.log_ref.scrollTo(0, this.log_ref.scrollHeight)
+      if (redo)
+        setTimeout(this.scrollBottom, 10)
+    }
+  }
+
   render() {
     const { output } = this.props;
     const { is_open, is_loaded, error, logs_html_safe } = this.state;
@@ -126,10 +148,10 @@ class OutputLog extends React.Component {
         {button_text} logs
       </Button>
     );
-
-
+    // onmount ref
+    // this.log_ref.current.scrollTop = offsetTop
     const header_prefix = <>
-      {show_button} {output.output_type !== "batch" && <StatusTag output={output}/>}
+      {show_button}{button_text==="Hide" && <Button onClick={this.scrollBottom} icon="double-chevron-down"></Button>} {output.output_type !== "batch" && <StatusTag output={output}/>}
     </>
     return (
       <div>
@@ -152,6 +174,8 @@ class OutputLog extends React.Component {
             />
           : <div>
               <pre
+                // ref={this.log_ref}
+                ref={this.onRefChange}
                 className={Classes.CODE_BLOCK}
                 dangerouslySetInnerHTML={{
                   __html: logs_html_safe || ""
