@@ -131,7 +131,6 @@ class Output(Base):
            f"filename='{self.test_input.filename}' /]")
 
   def to_dict(self):
-    print()
     cols = [
      'id',
      'output_type',

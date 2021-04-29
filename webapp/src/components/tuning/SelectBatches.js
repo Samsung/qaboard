@@ -20,14 +20,16 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts }) => {
       return label1.localeCompare(label2);
     })
     .map(([label, batch]) => {
-      let outputs = Object.values(batch.outputs || {});
+      let outputs = Object.values(batch.outputs || {})
+      let iters = outputs.filter(o => o.output_type === "optim_iteration").length
+      outputs = outputs.filter(o => o.output_type !== "optim_iteration")
       const title = pretty_label(batch)
       let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
       let status = `${nb_success}/${outputs.length} ✅`;
       let nb_failed = outputs.filter(o => o.is_failed).length;
       let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
       return  <option key={label} value={label}>
-         {title} &nbsp;•&nbsp; {status} &nbsp;{failures}
+         {title} &nbsp;•&nbsp; {status} &nbsp;{failures}{iters > 0 ? `${iters} 🔁` : ''}
        </option>
     });
 

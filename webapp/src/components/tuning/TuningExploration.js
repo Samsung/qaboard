@@ -614,8 +614,8 @@ class TuningExploration extends Component {
     let number_inputs = Object.keys(groupBy(Object.values(outputs), "test_input_path")).length;
 
     const batch_data = batch.data || {};
-    let filtered_best_metrics = batch_data.best_metrics!==undefined ? Object.keys(batch_data.best_metrics)
-                                  .filter(k => main_metrics.includes(k) )
+    let filtered_best_metrics = batch_data.best_metrics !==undefined ? Object.keys(batch_data.best_metrics)
+                                  // .filter(k => main_metrics.includes(k) )
                                   .reduce((obj, key) => ({
                                     ...obj,
                                     [key]: batch_data.best_metrics[key]

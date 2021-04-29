@@ -49,28 +49,36 @@ def update_batch():
 
   # It's a `qa optimzize` experiment
   if batch_data.get('optimization'):
-    if 'best_iter' in batch_data:
+    if batch_data.get('is_best_iter'):
       # we will save the outputs from the best iteration in the batch,
       # so first we need to remove any previous best results
       for o in batch.outputs:
         if o.output_type != 'optim_iteration':
+          print(f"  DELETE {o}")
           o.delete(soft=False)
+          db_session.delete(o)
       db_session.add(batch)
       db_session.commit()
+
       # Move results from the best iteration in this batch
-      batch_batch_label = batch_data['last_iteration_label']
+      batch_batch_label = batch_data['iteration_label']
       best_batch = ci_commit.get_or_create_batch(batch_batch_label)
       for o in best_batch.outputs:
-        o.output_dir_override = str(o.output_dir)
         o.batch = batch
         db_session.add(o)
       db_session.commit()
 
-      for b in ci_commit.batches:
-        if b.label.startswith(f"{data['batch_label']}|iter") and b.label != batch_data['last_iteration_label']:
-          print(f'Deleting previous iteration {b.label}')
-          if b.label != batch_data['last_iteration_label']:
-            db_session.delete(b)
+    # delete past iterations (we can have "future iters when running in parallel")
+    # results from the best iter are already in the "main" batch
+    optim_prefix = f"{data['batch_label']}|iter"
+    for b in ci_commit.batches:
+      if not b.label.startswith(optim_prefix):
+        continue
+      iteration = int(b.label.replace(optim_prefix, ""))
+      if iteration <= batch_data['iteration']:
+        print(f'Deleting iteration {iteration} in {b.label}')
+        b.delete(db_session)
+        db_session.delete(b)
 
   db_session.add(batch)
   db_session.commit()
