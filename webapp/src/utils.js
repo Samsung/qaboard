@@ -47,7 +47,7 @@ const shortId = (project, id) => {
 const pretty_label = batch => {
   if ((batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)) {
     var [user, label] = batch.label.replace('@', '').split('| ');
-    return `🏠 ${user} 🚧 ${label !== 'default' ? label : ''}`;
+    return `${user} 🏠 ${label !== 'default' ? label : ''}`;
   } else {
     return batch.label === "default" ? "CI" : batch.label;
   }
