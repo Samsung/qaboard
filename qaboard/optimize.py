@@ -27,7 +27,10 @@ from .utils import PathType
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
-  ctx.obj['batch_dir'].mkdir(parents=True, exist_ok=True)
+  batch_dir_for = lambda label: batch_dir(outputs_commit, label, save_with_ci=True)
+  optim_dir = batch_dir_for(ctx.obj['batch_label'])
+  optim_dir.mkdir(parents=True, exist_ok=True)
+
   ctx.obj['batches'] = batches
   ctx.obj['batches_files'] = batches_files
   ctx.obj['forwarded_args'] = forwarded_args
@@ -65,7 +68,8 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         y = [y]
       for idx, y_iter in enumerate(y): 
         iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+idx+1}"
-        iteration_batch_dir = batch_dir(outputs_commit, iteration_batch_label)
+        iteration_batch_dir = batch_dir_for(iteration_batch_label)
+        aggregated_metrics_ = aggregated_metrics(iteration_batch_label)
         notify_qa_database(**{
           **ctx.obj,
           **{
@@ -82,7 +86,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
             "metrics": {
               "iteration": iteration+idx+1,
               "objective": y_iter,
-              **aggregated_metrics(iteration_batch_label),
+              **aggregated_metrics_,
             },
           },
         })
@@ -102,7 +106,10 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         is_best_data = {
           "is_best_iter": True,
           "best_params": dim_mapping(suggested[idx]),
-          "best_metrics": aggregated_metrics(iteration_batch_label),
+          "best_metrics": {
+            "objective": y_iter,
+            **aggregated_metrics_,
+          },
         } if is_best else {}
 
         notify_qa_database(object_type='batch', **{
@@ -120,20 +127,22 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         if is_best:
           try:
             click.secho(f'Creating plots', fg='blue')
-            make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
+            make_plots(results, optim_dir)
           except:
             pass
         else:
           # We remove the results to make sure we don't waste disk space
           # It is also be done server-side...
+          print(f"RM {iteration_batch_dir}")
           rmtree(iteration_batch_dir, ignore_errors=True)
+          exit(0)
 
   print(results)
   if not results.models: # needs at least n_initial_points(=5) evaluations!
     return
 
   # tuning plots are saved in the label directory
-  make_plots(results, batch_dir(outputs_commit, ctx.obj['batch_label']))
+  make_plots(results, optim_dir)
 
 
 
@@ -352,6 +361,7 @@ def batch_objective(project, commit_id, batch_label, config_objective):
 
 
 def make_plots(results, dir):
+  # click.secho(str(dir), dim=True)
   import matplotlib
   import matplotlib.pyplot as plt
   # https://matplotlib.org/faq/usage_faq.html#non-interactive-example
@@ -401,16 +411,6 @@ def make_plots(results, dir):
 #                         ("forest_minimize('et)", et_res), 
 #                         true_minimum=0.397887, yscale="log")
 # plot.legend(loc="best", prop={'size': 6}, numpoints=1);
-
-
-# parallel optimization
-# in the yaml:
-# parallel: X (if you have a small dataset.self.)
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/parallel-optimization.ipynb
-# from sklearn.externals.joblib import Parallel, delayed
-# x = optimizer.ask(n_points=4)  # x is a list of n_points points    
-# y = Parallel()(delayed(branin)(v) for v in x)  # evaluate points in parallel
-# optimizer.tell(x, y)
 
 
 # checkpoints?
