@@ -165,9 +165,10 @@ class OutputTags extends React.Component {
 
 
   render() {
-    const { platform, configurations, output_dir_url, id } = this.props.output;
+    const { platform, configurations, output_dir_url, id, deleted } = this.props.output;
     const { mismatch } = this.props;
     return <span style={this.props.style}>
+      {deleted && <Tag icon="trash">deleted</Tag>}
       <PlatformTag platform={platform} />
       <ConfigurationsTags configurations={configurations} />
 
@@ -175,7 +176,7 @@ class OutputTags extends React.Component {
         <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
 
         <Menu>
-          {id && <MenuItem
+          {id && !deleted && <MenuItem
             icon="trash"
             text="Delete"
             intent={Intent.DANGER}
