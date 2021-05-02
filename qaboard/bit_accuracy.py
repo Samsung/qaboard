@@ -58,10 +58,16 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
 def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
   """Bit-accuracy test between two manifests.
   Their format is {filepath: {md5, size_st}}"""
-  with manifest_path_1.open() as f:
-    manifest_1 = json.load(f)
-  with manifest_path_2.open() as f:
-    manifest_2 = json.load(f)
+  def parse_json(path):
+    with path.open() as f:
+      data = f.read()
+      try:
+        return json.loads(data)
+      except Exception as e:
+        print(data)
+        raise Exception(f"{e} Could not parse as JSON: {path}")
+  manifest_1 = parse_json(manifest_path_1)
+  manifest_2 = parse_json(manifest_path_2)
   # print("manifest_1", manifest_1)
   # print("manifest_2", manifest_2)
   # print("manifest inter:", set(manifest_1.keys()) & set(manifest_2.keys()))
