@@ -2,8 +2,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
 
-import Moment from "react-moment";
-import { Tooltip, Classes } from "@blueprintjs/core";
+import { DateTime } from 'luxon';
+import { Classes } from "@blueprintjs/core";
 
 import { updateSelected } from "../actions/selected";
 
@@ -17,20 +17,19 @@ class DoneAtTagUnstyled extends React.Component {
   render() {
     const { project, commit, className, style, dispatch } = this.props;
     const has_data = !!commit?.authored_datetime
-    let maybe_skeletton = has_data ? null : Classes.SKELETON; 
+    const maybe_skeletton = has_data ? null : Classes.SKELETON; 
     return (
       <span className={className} style={style}>
-        <Tooltip>
-          <Moment className={maybe_skeletton} fromNow date={has_data ? commit.authored_datetime : defaults.date} />
-          <Moment utc>{commit?.authored_datetime}</Moment>
-        </Tooltip>{" "}
+        <span className={maybe_skeletton} title={commit?.authored_datetime ?? defaults.date}>
+          {DateTime.fromISO(commit?.authored_datetime ?? defaults.date).toRelative()}
+        </span>
         {" "}
         <Link
          className={maybe_skeletton}
          to={`/${project}/committer/${commit?.committer_name}`}
          onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
         >
-          by {has_data ? commit.committer_name : defaults.committer_name}
+          by {commit?.committer_name ?? defaults.committer_name}
         </Link>
       </span>
     );

@@ -1,5 +1,5 @@
 import { matchPath } from 'react-router'
-import moment from "moment";
+import { DateTime } from 'luxon';
 
 
 // TODO: import from ./routes without triggering cyclic imports... 
@@ -38,10 +38,10 @@ export const default_metrics = {
 };
 
 export const default_date_range = () => {
-	let date_range = [new Date(moment().subtract(3, "d")), new Date()]
-	date_range[0].setHours(0,0,0);
-	date_range[1].setHours(23,59,59);
-	return date_range;
+	return [
+		DateTime.now().minus({ days: 3 }).startOf('day').toJSDate(),
+		DateTime.now().endOf('day').toJSDate(),
+	]
 }
 
 

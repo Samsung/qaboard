@@ -3,7 +3,7 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 
-import Moment from "react-moment";
+import { DateTime } from 'luxon';
 
 import {
   Classes,
@@ -40,11 +40,10 @@ class LastCommitAt extends Component {
     return (
       <span className={className} style={{marginBottom: '5px'}}>
         <Tooltip content={date}>
-          <span style={{ color: "#555"}}>latest {!!date_output ? "output" : "commit"} <Moment
-            fromNow
-            utc
-            date={date}
-          /></span>
+          <span style={{ color: "#555"}}>latest {!!date_output ? "output" : "commit"}
+          {" "}
+          <span title={date}>{DateTime.fromISO(date).toRelative()}</span>
+          </span>
         </Tooltip>
       </span>
     );

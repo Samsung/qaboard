@@ -14585,6 +14585,11 @@
         "yallist": "^4.0.0"
       }
     },
+    "luxon": {
+      "version": "1.26.0",
+      "resolved": "https://registry.npmjs.org/luxon/-/luxon-1.26.0.tgz",
+      "integrity": "sha512-+V5QIQ5f6CDXQpWNICELwjwuHdqeJM1UenlZWx5ujcRMc9venvluCjFb4t5NYLhb6IhkbMVOxzVuOqkgMxee2A=="
+    },
     "magic-string": {
       "version": "0.25.7",
       "resolved": "https://registry.npmjs.org/magic-string/-/magic-string-0.25.7.tgz",
@@ -15034,11 +15039,6 @@
       "requires": {
         "minimist": "^1.2.5"
       }
-    },
-    "moment": {
-      "version": "2.29.1",
-      "resolved": "https://registry.npmjs.org/moment/-/moment-2.29.1.tgz",
-      "integrity": "sha512-kHmoybcPV8Sqy59DwNDY3Jefr64lK/by/da0ViFcuA4DH0vQg5Q6Ze5VimxkfQNSC+Mls/Kx53s7TjP1RhFEDQ=="
     },
     "monaco-editor": {
       "version": "0.20.0",
@@ -17780,11 +17780,6 @@
       "requires": {
         "prop-types": "^15.5.0"
       }
-    },
-    "react-moment": {
-      "version": "0.9.7",
-      "resolved": "https://registry.npmjs.org/react-moment/-/react-moment-0.9.7.tgz",
-      "integrity": "sha512-ifzUrUGF6KRsUN2pRG5k56kO0mJBr8kRkWb0wNvtFIsBIxOuPxhUpL1YlXwpbQCbHq23hUu6A0VEk64HsFxk9g=="
     },
     "react-monaco-editor": {
       "version": "0.36.0",
