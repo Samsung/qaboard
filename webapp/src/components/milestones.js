@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Moment from "react-moment";
+import { DateTime } from 'luxon';
 import { post } from "axios";
 
 import {
@@ -38,7 +38,7 @@ const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
 
   const has_milestones = Object.keys(milestones).length > 0;
   const matcher = match_query(filter)
-  const sortWeight =  (orderBy.includes("↓") ? 1 : -1)
+  const sortWeight =  orderBy.includes("↓") ? -1 : 1
 	const milestones_menu_items = has_milestones
       ? (Object.values(milestones)
           .filter(m => matcher(`${m.commit} ${m.batch} ${m.filter} ${m.label} ${m.notes}`))
@@ -83,7 +83,9 @@ const MilestoneMenu = ({ milestone, onSelect, icon }) => {
   return <MenuItem
     text={<>
       {has_label && <>{label}<br/></>}
-      {!!date && <span className={Classes.TEXT_MUTED} title={date}>set <Moment fromNow date={date} /></span>}      
+      {!!date && <span className={Classes.TEXT_MUTED} title={date}>
+        set {DateTime.fromJSDate(new Date(date)).toRelative()}
+      </span>}
     </>}
     icon={<Icon icon={icon || "star"} style={{color: Colors.GOLD4}} />}
     label={<>
@@ -115,7 +117,7 @@ class CommitMilestoneEditor extends React.Component {
       // TODO: how exactly do we use current/previous?
       // FIXME: we should keep proper "milesone" objects for the current milestone
       //        do we even need the previous milestone?
-      date: new Date().toLocaleString(),
+      date: new Date(),
       notes: '',
       label: '',
       // we ask for confirmation when users delete/overwrite a milestone
@@ -241,7 +243,7 @@ class CommitMilestoneEditor extends React.Component {
     const milestone_type = this.getMilestoneType()
     if (milestone_type === 'none') {
       this.setState({
-        date: new Date().toLocaleString(),
+        date: new Date(),
         label: '',
         notes: '',
         is_shared: true,

@@ -3,7 +3,8 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import styled from "styled-components";
 
-import Moment from "react-moment";
+import { DateTime } from 'luxon';
+
 
 import {
   Classes,
@@ -115,12 +116,14 @@ class CiCommitList extends React.Component {
       {error && <NonIdealState description={error.message} icon="error" />}
       {is_loading && !some_commits_loaded && <NonIdealState title="Loading" icon={<Spinner />} />}
       {is_loaded && !is_loading && !error && !some_commits_loaded &&
-      <NonIdealState
+        <NonIdealState
           title="Could not find a commit with results"
           description={<span>Searched {" "}
-            <strong>from <Moment fromNow date={date_range[0]} title={date_range[0]}/></strong>
+            <strong>from <span title={date_range[0]}>{DateTime.fromJSDate(date_range[0]).toRelativeCalendar({unit: "days"})}</span></strong>
             {" "}to{" "}
-            {date_range[1] > new Date() ? "today" : <strong><Moment fromNow date={date_range[1]} title={date_range[1]}/></strong>}
+            {date_range[1] > new Date() ? "today" : <strong>
+              <span title={date_range[1]}>{DateTime.fromJSDate(date_range[1]).toRelativeCalendar({unit: "days"})}</span>
+            </strong>}
           </span>}
           icon="search"
       />}
@@ -131,12 +134,13 @@ class CiCommitList extends React.Component {
       <>
         {Object.keys(commits_by_day).map(day => (
           <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
-            <h4 className={Classes.HEADING}>
-              {(!!day && day !== "undefined") ? <><Moment
-                calendar={calendarStrings}
-                date={day}
-              />{" "}
-              &#8212; {commits_by_day[day].length} commits</> : `${commits_by_day[day].length} commits`}
+            <h4 className={Classes.HEADING} style={{textTransform: 'capitalize'}}>
+              {(!!day && day !== "undefined") ? <>
+                  {DateTime.fromISO(day).toRelativeCalendar({unit: "days"})}
+                  {" "}
+                  &#8212; {commits_by_day[day].length} commits
+                </>
+               : `${commits_by_day[day].length} commits`}
             </h4>
             <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
           </Card>

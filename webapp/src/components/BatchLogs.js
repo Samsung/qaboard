@@ -1,7 +1,7 @@
 import React from "react";
 import { get } from "axios";
 
-import Moment from "react-moment";
+import { DateTime } from 'luxon';
 import sanitizeHtml from 'sanitize-html';
 
 import {
@@ -10,7 +10,6 @@ import {
   Callout,
   Button,
   NonIdealState,
-  Tooltip,
 } from "@blueprintjs/core";
 
 import { StatusTag, style_skeleton } from './tags'
@@ -240,10 +239,7 @@ class BatchLogs extends React.Component {
         return <Callout style={{marginBottom: '5px'}} key={id} title={
           <>
             {!!command.job_url && <a style={{marginRight: '12px'}} href={command.job_url} target="_blank" rel="noopener noreferrer"><Button icon="share">Open Logs</Button></a>}
-          	<Tooltip>
-              <Moment fromNow utc>{command.command_created_at_datetime}</Moment>
-              <Moment utc>{command.command_created_at_datetime}</Moment>
-            </Tooltip>
+            <span title={command.command_created_at_datetime}>{DateTime.fromISO(command.command_created_at_datetime).toRelative()}</span>
             {!!command.user && ` as ${command.user}`}{!!command.HOST && ` @${command.HOST}`}
           </>}>
           <code>{command.argv.join(" ")}</code>
