@@ -1,7 +1,8 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import { median as mathjs_median } from "mathjs/number";
-import { levenshtein } from "./levenshtein";
 import md5 from "js-md5";
+
+import { levenshtein } from "./levenshtein";
 
 
 const calendarStrings = {

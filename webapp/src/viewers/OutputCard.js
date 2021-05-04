@@ -4,7 +4,7 @@ import { InView } from 'react-intersection-observer'
 import { get, all, CancelToken, isCancel } from "axios";
 import { matchPath } from 'react-router'
 import pathToRegexp from 'path-to-regexp'
-import Moment from "react-moment";
+import { DateTime } from 'luxon';
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
 
 import styled from "styled-components";
@@ -121,7 +121,11 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
             </MenuItem>
           </>}
           <MenuDivider key={"Output-Info"} title="Output Info" />
-          <MenuItem key="created-date" text={<span title={output.created_date}><Moment fromNow utc>{output.created_date}</Moment></span>} icon="time" />
+          <MenuItem
+            key="created-date"
+            text={<span title={output.created_date}> {DateTime.fromISO(output.created_date).toRelative()}</span>}
+            icon="time"
+          />
           {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
         </Menu>
       </Popover>
