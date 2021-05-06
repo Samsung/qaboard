@@ -8,6 +8,8 @@ import {
 
 
 const attribute_mappings = {
+  ref_project: "ref_project",
+  new_project: "new_project",
   ref_commit_id: "reference",
   selected_batch_new: "batch",
   selected_batch_ref: "batch_ref",
@@ -36,6 +38,12 @@ export const updateSelected = (project, selected, url_search) => {
     })
     // if set, already part of the URL path
     selected_in_url.new_commit_id = undefined;
+    if (project === selected_in_url.new_project) {
+      selected_in_url.new_project = undefined;
+    }
+    if (project === selected_in_url.ref_project) {
+      selected_in_url.ref_project = undefined;
+    }
 
     let search = qs.parse(window.location.search.substring(1));
     history.push({

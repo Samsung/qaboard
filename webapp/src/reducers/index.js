@@ -20,7 +20,7 @@ function selected(state = {
   // we select a default project based on the current URL
   project: default_project_id,
   [default_project_id]: {
-    ...default_selected(),
+    ...default_selected(default_project_id),
   }
 }, action) {
   switch (action.type) {
@@ -29,7 +29,7 @@ function selected(state = {
         ...state,
         project: action.project,
         [action.project]: {
-          ...default_selected(),
+          ...default_selected(action.project),
           ...state[action.project],
           ...action.selected,
         },
@@ -56,14 +56,19 @@ function tuning(state = { [default_project_id]: {} }, action) {
 }
 
 
-function commits(state = {}, action) {
+function commits(state = { [default_project_id]: {} }, action) {
   var new_state;
   switch (action.type) {
     case UPDATE_COMMITS:
-      new_state = { ...state }
+      new_state = {
+        ...state,
+        [action.project]: {
+          ...state[action.project],
+        },
+      }
       action.commits.forEach(c => {
-        new_state[c.id] = {
-          ...new_state[c.id],
+        new_state[action.project][c.id] = {
+          ...new_state[action.project]?.[c.id],
           ...c,
         }
       })
@@ -71,12 +76,15 @@ function commits(state = {}, action) {
     case FETCH_COMMIT:
       return {
         ...state,
-        [action.id]: {
-          ...state[action.id],
-          // we mark that we loaded the whole data about the commit
-          // not just a summary
-          is_loaded: false,
-          error: action.error,
+        [action.project]: {
+          ...state[action.project],
+          [action.id]: {
+            ...state[action.project]?.[action.id],
+            // we mark that we loaded the whole data about the commit
+            // not just a summary
+            is_loaded: false,
+            error: action.error,
+          }  
         }
       }
     case UPDATE_COMMIT:
@@ -86,13 +94,16 @@ function commits(state = {}, action) {
       }
       return {
         ...state,
-        [action.id]: {
-          ...state[action.id],
-          ...action.data,
-          // we mark that we loaded the whole data about the commit
-          // not just a summary
-          is_loaded: true,
-          error: action.error,
+        [action.project]: {
+          ...state[action.project],
+          [action.id]: {
+            ...state[action.project]?.[action.id],
+            ...action.data,
+            // we mark that we loaded the whole data about the commit
+            // not just a summary
+            is_loaded: true,
+            error: action.error,
+          }
         }
       }
     default:
@@ -107,7 +118,6 @@ const rootReducer = combineReducers({
   selected,
   tuning,
   user: loggedReducer,
-
 })
 
 

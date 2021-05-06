@@ -107,11 +107,12 @@ class ProjectSideCommitList extends React.Component {
 
   selectMilestone = milestone => {
     const { project, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: milestone.commit}));
+    dispatch(fetchCommit({project: milestone.project ?? project, id: milestone.commit}));
     dispatch(updateSelected(project, {
-      'new_commit_id': milestone.commit,
-      'selected_batch_new': milestone.batch,
-      'filter_batch_new': milestone.filter,
+      new_project: milestone.project ?? project,
+      new_commit_id: milestone.commit,
+      selected_batch_new: milestone.batch,
+      filter_batch_new: milestone.filter,
     }))
   };
 
@@ -161,10 +162,10 @@ class ProjectSideCommitList extends React.Component {
             transitionDuration: 800,
           }}
         >
-          <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
+          <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
           {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
-          <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-          <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
+          <MilestonesMenu project={project} milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
+          <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
         </MenuItem>
         </>}
     </>

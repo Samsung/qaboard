@@ -97,7 +97,7 @@ export const default_project = {
 
 // FIXME: get the /commit/X part...
 
-export const default_selected = () => {
+export const default_selected = project => {
 	var params = new URLSearchParams(window.location.search);
 	const selected = {
 		// This decides what is shows on the project page
@@ -105,8 +105,12 @@ export const default_selected = () => {
 		branch: default_from_url('branch') || params.get("branch") || null,
 		committer: default_from_url('committer') || params.get("committer") || null,
 
+		// User can override the project used to display the results of the selected commit...
+		new_project: params.get("new_project") || project,
+		ref_project: params.get("ref_project") || project,
+
 		// What commits should we show results for?
-		new_commit_id: params.get("commit_folder") || default_from_url('commit') || null,
+		new_commit_id: default_from_url('commit') || null,
 		ref_commit_id: params.get("reference") || params.get("commit_ref_folder") || null,
 
 		// What batch of results should we show, with what filters?
