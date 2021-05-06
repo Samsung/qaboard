@@ -14,6 +14,7 @@ import {
   Button,
   FormGroup,
   InputGroup,
+  ControlGroup,
   NavbarGroup,
   Dialog,
   Tooltip,
@@ -105,6 +106,7 @@ class CommitNavbar extends React.Component {
       waiting: false,
       show_rename_dialog: false,
       renamed_batch_label: '',
+      project_input: null,
     };
   }
 
@@ -127,6 +129,9 @@ class CommitNavbar extends React.Component {
 
   render() {
     const { project, project_data, commits, commit, batch, selected, type, dispatch, update } = this.props;
+    const { project_input } = this.state;
+    const project_attr = `${type}_project`
+
     const qatools_config = project_data?.data?.qatools_config
     const reference_branch = qatools_config?.project?.reference_branch || 'master';
 
@@ -137,16 +142,30 @@ class CommitNavbar extends React.Component {
     const private_milestones = project_data.milestones || {}
 
     const milestones_menu = <Menu style={{maxHeight: '500px', overflowY: 'scroll'}}>
+      <MenuDivider title="Change Project"/>
+      <ControlGroup>
+        <InputGroup
+          placeholder="project"
+          leftIcon="git-repo"
+          value={project_input ?? selected[project_attr]}
+          onChange={e => this.setState({project_input: e.target.value})}
+          onBlur={e => {
+            this.setState({project_input: e.target.value}, () => this.selectCommit(commit.id))
+          }}
+          fill
+        />
+        <Button icon="arrow-right" onClick={() => this.selectCommit(commit.id)}></Button>
+      </ControlGroup>
       <MenuDivider title="Quick Actions"/>
       <MenuItem text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
       <MenuItem text={`Also Select as ${type === 'ref' ? 'New' : 'Reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={this.copyToOtherType} />
       <MenuItem text="Remove from comparaison" icon="cross" onClick={() => this.removeSelection()} />
       <MenuDivider title="Select"/>
       <MenuItem text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
-      <MilestonesMenu milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
+      <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
       {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
-      <MilestonesMenu milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-      <MilestonesMenu milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
+      <MilestonesMenu project={project} milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
+      <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
     </Menu>
 
     let has_selected_batch = !!commit && !!commit.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
@@ -169,6 +188,7 @@ class CommitNavbar extends React.Component {
 
             <CommitMilestoneEditor
               project={project}
+              project_shown={selected[project_attr]}
               project_data={project_data}
               commit={commit}
               batch={batch}
@@ -194,6 +214,7 @@ class CommitNavbar extends React.Component {
             </div>
             <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
             </span>
+            {!!selected[project_attr] && project !== selected[project_attr] && <Tag style={{marginLeft: '10px', padding: '5px'}}>{selected[project_attr]}</Tag>}
             <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
             <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
@@ -398,18 +419,26 @@ class CommitNavbar extends React.Component {
   }
 
   refresh = () => {
-    const { project, commit, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: commit.id}))
+    const { project, type, selected, commit, dispatch } = this.props;
+    dispatch(fetchCommit({project: selected[`${type}_project`] ?? project, id: commit.id}))
   }
 
   selectCommit = e => {
-    const { project, type, selected, dispatch } = this.props;
-    const id = e.target.value;
-    const attribute = `${type}_commit_id`
-    const commit_id = selected[attribute]
-    if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id)) {
-      dispatch(fetchCommit({project, id, update_selected: attribute}));
-      dispatch(updateSelected(project, { [attribute]: id }))
+    const { type, selected, dispatch } = this.props;
+    const { project_input } = this.state;
+    const project = project_input ?? this.props.project
+    const id = e.target?.value ?? e;
+
+    const commit_attr = `${type}_commit_id`
+    const project_attr = `${type}_project`
+    const commit_id = selected[commit_attr]
+    if (commit_id === undefined || commit_id === null || !commit_id.startsWith(id) || selected[project_attr] !== project) {
+      dispatch(fetchCommit({project, id, update_with_id: {project: this.props.project, commit: commit_attr}}));
+      let selected_update = {[commit_attr]: id}
+      if (project_input) {
+        selected_update[project_attr] = project
+      }
+      dispatch(updateSelected(this.props.project, selected_update))
     }
   };
 
@@ -419,16 +448,17 @@ class CommitNavbar extends React.Component {
   }
 
   selectBranch = branch => {
-    const { project, type, dispatch } = this.props;
-    dispatch(fetchCommit({project, branch, update_selected: `${type}_commit_id`}));
+    const { project, type, dispatch, selected } = this.props;
+    dispatch(fetchCommit({project: selected[`${type}_project`], branch, update_with_id: {project, commit: `${type}_commit_id`}}));
   };
   selectMilestone = milestone => {
     const { project, type, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: milestone.commit}));
+    dispatch(fetchCommit({project: milestone.project ?? project, id: milestone.commit}));
     dispatch(updateSelected(project, {
       [`${type}_commit_id`]: milestone.commit,
       [`selected_batch_${type}`]: milestone.batch,
       [`filter_batch_${type}`]: milestone.filter,
+      [`${type}_project`]: milestone.project ?? project,
     }))
   };
 
@@ -440,6 +470,7 @@ class CommitNavbar extends React.Component {
       [`${other_type}_commit_id`]: selected[`${type}_commit_id`],
       [`selected_batch_${other_type}`]: selected[`selected_batch_${type}`],
       [`filter_batch_${other_type}`]: selected[`filter_batch_${type}`],
+      [`${other_type}_project`]: selected[`${type}_project`],
     }))
   }
 
@@ -447,6 +478,8 @@ class CommitNavbar extends React.Component {
   switchSelection = () => {
     const { project, selected, dispatch } = this.props;
     dispatch(updateSelected(project, {
+      new_project: selected.ref_project,
+      ref_project: selected.new_project,
       new_commit_id: selected.ref_commit_id,
       ref_commit_id: selected.new_commit_id,
       selected_batch_new: selected.selected_batch_ref,

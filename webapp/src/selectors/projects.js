@@ -10,6 +10,7 @@ import {
 
 
 export const projectSelector = state => state.selected.project
+
 export const projectsSelector = state => state.projects.data
 export const projectDataSelector = createSelector([projectSelector, projectsSelector], (project, projects) => {
   return projects[project] || default_project;
@@ -17,7 +18,7 @@ export const projectDataSelector = createSelector([projectSelector, projectsSele
 
 
 export const selectedSelector = createSelector([projectSelector, state => state], (project, state) => {
-  return state.selected[project] || default_selected();
+  return state.selected[project] || default_selected(project);
 })
 
 
@@ -45,11 +46,20 @@ export const latestCommitSelector = createSelector([commitsDataSelector, state =
 })
 
 
-export const commitSelector = createSelector([selectedSelector, state => state.commits, commitsDataSelector], (selected, commits, commits_data) => {
+export const commitSelector = createSelector([
+    selectedSelector,
+    state => state.commits,
+    commitsDataSelector,
+  ],
+  (
+    selected,
+    commits,
+    commits_data,
+  ) => {
   return {
     // we use '' as a special nothing-should-be-selected value
-    new_commit: selected.new_commit_id !== '' && commits[selected.new_commit_id || commits_data.ids[0]],
-    ref_commit: selected.ref_commit_id !== '' && commits[selected.ref_commit_id || commits_data.ids[1]],
+    new_commit: selected.new_commit_id !== '' && commits[selected.new_project]?.[selected.new_commit_id || commits_data.ids[0]],
+    ref_commit: selected.ref_commit_id !== '' && commits[selected.ref_project]?.[selected.ref_commit_id || commits_data.ids[1]],
   }
 })
 

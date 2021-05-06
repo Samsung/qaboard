@@ -30,10 +30,13 @@ import { match_query } from "../utils";
 
 const toaster = Toaster.create();
 
+// FIXME: Right now we can only have 1 filter per commit/batch, because it's not in the key...
+//        The design is really bad. Instead we could use uuids, or just have a list of milestones
+//        that we filter for match on project+commit+batch+filter
+//        It requires a migration, so let's leave it for later...
 
-
-const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
-  const [filter, setFilter] = useState(null);
+const MilestonesMenu = ({project, milestones, title, icon, onSelect, type}) => {
+  const [filter, setFilter] = useState('');
   const [orderBy, setOrderBy] = useState("date ↓");
 
   const has_milestones = Object.keys(milestones).length > 0;
@@ -41,10 +44,10 @@ const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
   const sortWeight =  orderBy.includes("↓") ? -1 : 1
 	const milestones_menu_items = has_milestones
       ? (Object.values(milestones)
-          .filter(m => matcher(`${m.commit} ${m.batch} ${m.filter} ${m.label} ${m.notes}`))
+          .filter(m => matcher(`${m.project} ${m.commit} ${m.batch} ${m.filter} ${m.label} ${m.notes}`))
           .sort( (m0, m1) => sortWeight * (new Date(m0.date) - new Date(m1.date)))
          || [])
-         .map(  (m, idx) => <MilestoneMenu icon={icon} key={`${type}-${idx}`} milestone={m} onSelect={onSelect} /> )
+         .map(  (m, idx) => <MilestoneMenu project={project} icon={icon} key={`${type}-${idx}`} milestone={m} onSelect={onSelect} /> )
       : <></>
     return <>
       {(!!title && has_milestones) && <li className={Classes.MENU_HEADER}><h6 className={Classes.HEADING}>{title}</h6></li>}
@@ -74,7 +77,7 @@ const MilestonesMenu = ({milestones, title, icon, onSelect, type}) => {
 }
 
 
-const MilestoneMenu = ({ milestone, onSelect, icon }) => {
+const MilestoneMenu = ({ project, milestone, onSelect, icon }) => {
   const { commit: commit_id, batch, filter, label, notes, date } = milestone;
   const has_filter = !!filter && filter.length > 0;
   const has_label = !!label && label.length > 0;
@@ -89,12 +92,13 @@ const MilestoneMenu = ({ milestone, onSelect, icon }) => {
     </>}
     icon={<Icon icon={icon || "star"} style={{color: Colors.GOLD4}} />}
     label={<>
-      {has_batch && <Tag minimal icon="layout-skew-grid">{batch}</Tag>}
-      {has_filter && <Tag minimal style={{marginLeft: '5px'}} icon="filter">{filter}</Tag>}
-      {!!milestone.branch && <Tag minimal icon="git-branch" style={{marginLeft: '5px'}}>{milestone.branch}</Tag>}
-      {!!commit_id && <Tag minimal icon="git-commit" style={{marginLeft: '5px'}}>{commit_id.slice(0, 8)}</Tag>}
+      {(!!milestone.project && milestone.project !== project) && <Tag icon="git-repo" style={{marginRight: '5px'}}>{milestone.project}</Tag>}
+      {has_batch && <Tag minimal style={{marginRight: '5px'}} icon="layout-skew-grid">{batch}</Tag>}
+      {has_filter && <Tag minimal style={{marginRight: '5px'}} icon="filter">{filter}</Tag>}
+      {!!milestone.branch && <Tag minimal icon="git-branch" style={{marginRight: '5px'}}>{milestone.branch}</Tag>}
+      {!!commit_id && <Tag minimal icon="git-commit" style={{marginRight: '5px'}}>{commit_id.slice(0, 8)}</Tag>}
       {has_notes && <Tooltip position="right">
-        <Tag icon="more" style={{marginLeft: '5px'}}/>
+        <Tag icon="more" style={{marginRight: '5px'}}/>
         <pre>{notes}</pre>
       </Tooltip>}
     </>}
@@ -177,9 +181,13 @@ class CommitMilestoneEditor extends React.Component {
             isOpen={show_alert_remove}
             onCancel={() => this.setState({ show_alert_remove: false })}
             onConfirm={this.deleteMilestone}
-            style={{width: '1200px'}}
+            style={{width: '1200px', maxWidth: "fit-content"}}
           >
-            <p>Are you sure you want to delete <Menu><MilestoneMenu milestone={previous_milestone}/></Menu> ?</p>
+            <p>Are you sure you want to delete this milestone?
+              <Menu>
+                <MilestoneMenu milestone={previous_milestone}/>
+              </Menu>
+            </p>
           </Alert>
         </>}
         <Button className={Classes.POPOVER_DISMISS} text="Save" intent={Intent.PRIMARY} onClick={this.saveMilestoneMaybeAskForConfirmation} />
@@ -219,15 +227,15 @@ class CommitMilestoneEditor extends React.Component {
 
 
   getMilestoneType = () => {
-    const { commit, project, project_data, batch } = this.props;
+    const { commit, project_shown, project_data, batch } = this.props;
     if (commit === undefined || commit === null ||
-    	  project=== undefined || project=== null  )
+        project_shown=== undefined || project_shown=== null  )
         return 'none'
-    const key = milestone_key(project, commit, batch)
-    const shared_milestones = ((project_data || {}).data || {}).milestones || {}
+    const key = milestone_key(project_shown, commit, batch)
+    const shared_milestones = project_data?.data?.milestones ?? {}
     if (key in shared_milestones)
       return 'shared';
-    const private_milestones = project_data.milestones || {}
+    const private_milestones = project_data.milestones ?? {}
     if (key in private_milestones)
     	return 'private';
     return 'none';
@@ -237,9 +245,9 @@ class CommitMilestoneEditor extends React.Component {
   // TODO: We really could do all that in ComponentDidMount/ComponentDidUpdate
   // it would allow us some fine handling of the label/notes, we should keep them without needing to save
   updateData = () => {
-    const { commit, project, project_data, batch } = this.props;
-    const key = milestone_key(project, commit, batch)
-
+    const { commit, project_shown, project_data, batch } = this.props;
+    const key = milestone_key(project_shown, commit, batch)
+ 
     const milestone_type = this.getMilestoneType()
     if (milestone_type === 'none') {
       this.setState({
@@ -250,8 +258,8 @@ class CommitMilestoneEditor extends React.Component {
       })      
     }
     else if (milestone_type === 'private' || milestone_type === 'shared') {
-        const private_milestones = project_data.milestones || {};
-        const shared_milestones = ((project_data || {}).data || {}).milestones || {}
+        const private_milestones = project_data.milestones ?? {};
+        const shared_milestones = project_data?.data?.milestones ?? {}
         const milestones = milestone_type === 'private' ? private_milestones : shared_milestones
         const matching_milestone = milestones[key]
         this.setState({
@@ -293,10 +301,10 @@ class CommitMilestoneEditor extends React.Component {
     // Remove if the milestone already exists
     this.deleteMilestone();
 
-    const { commit, dispatch, project, project_data, batch, filter } = this.props;
+    const { commit, dispatch, project, project_shown, project_data, batch, filter } = this.props;
     const { date, label, notes, is_shared } = this.state
 
-    const milestone = {
+    let milestone = {
       label,
       notes,
       commit: commit.id,
@@ -305,8 +313,10 @@ class CommitMilestoneEditor extends React.Component {
       filter,
       date,
     }
+    if (project !== project_shown)
+      milestone.project = project_shown
+    const key = milestone_key(project_shown, commit, batch)
 
-    const key = milestone_key(project, commit, batch)
     if (is_shared)
       this.updateShared({key, milestone});
     else {
@@ -322,9 +332,9 @@ class CommitMilestoneEditor extends React.Component {
   }
 
   saveMilestoneMaybeAskForConfirmation = () => {
-    const { commit, project, project_data, batch } = this.props;
-    const key = milestone_key(project, commit, batch)
-    const shared_milestones = ((project_data || {}).data || {}).milestones || {}
+    const { commit, project_shown, project_data, batch } = this.props;
+    const key = milestone_key(project_shown, commit, batch)
+    const shared_milestones = project_data?.data?.milestones ?? {}
     if (key in shared_milestones)
       this.setState({
         show_alert_overwrite: true,
@@ -335,8 +345,8 @@ class CommitMilestoneEditor extends React.Component {
   }
 
   deleteMilestone = () => {
-    const { dispatch, commit, project, project_data, batch } = this.props;
-    const key = milestone_key(project, commit, batch)
+    const { dispatch, commit, project, project_shown, project_data, batch } = this.props;
+    const key = milestone_key(project_shown, commit, batch)
     switch (this.getMilestoneType()) {
       case "private":
         const milestones = project_data.milestones || [];
