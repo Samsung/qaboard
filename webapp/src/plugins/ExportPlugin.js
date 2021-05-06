@@ -43,6 +43,7 @@ class ExportPlugin extends React.Component {
     const params = {
       path: this.state.path,
       project: this.props.project,
+      ref_project: this.props.ref_project,
       new_commit_id: this.props.new_commit_id,
       ref_commit_id: this.props.ref_commit_id,
       batch_new: this.props.selected_batch_new,

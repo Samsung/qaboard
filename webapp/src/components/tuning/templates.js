@@ -76,6 +76,7 @@ return {
   optimize: (config, metrics) => {
     return `# We will call the objective function that many times
 evaluations: 50
+parallel_sampling: 1
 
 # You can configure the the solver:
 # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
