@@ -12,13 +12,14 @@ const refresh_interval = 15 * 1000 // seconds
 
 export const updateCommit = (project, commit, error) => ({
   type: UPDATE_COMMIT,
+  project,
   id: commit.id,
   data: commit,
   error,
 })
 
 
-export const fetchCommit = ({project, id, branch, update_selected, batch}) => {
+export const fetchCommit = ({project, id, branch, update_with_id, batch}) => {
   return dispatch => {
     dispatch({
       type: FETCH_COMMIT,
@@ -33,8 +34,8 @@ export const fetchCommit = ({project, id, branch, update_selected, batch}) => {
         // when page load and look for, say, the latest commit on master, we don't know it's commit hash until we fetch it
         // hence we have to expose a way to updated the "selected" commit to the now-known commit
         let id_ = response.data.id
-        if (update_selected)
-          dispatch(updateSelected(project, { [update_selected]: id_}) )
+        if (update_with_id)
+          dispatch(updateSelected(update_with_id.project, { [update_with_id.commit]: id_}) )
 
         // we want to keep updated
         const batches = response.data.batches || {}

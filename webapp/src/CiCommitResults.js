@@ -126,9 +126,9 @@ class CiCommitResults extends Component {
   };
 
   fetchCommits() {
-    const { project, new_commit_id, ref_commit_id, dispatch } = this.props;    
-    dispatch(fetchCommit({project, id: new_commit_id, update_selected: "new_commit_id"}));
-    dispatch(fetchCommit({project, id: ref_commit_id, update_selected: "ref_commit_id"}));
+    const { project, new_project, ref_project, new_commit_id, ref_commit_id, dispatch } = this.props
+    dispatch(fetchCommit({project: new_project, id: new_commit_id, update_with_id: {project, commit: "new_commit_id"}}))
+    dispatch(fetchCommit({project: ref_project, id: ref_commit_id, update_with_id: {project, commit: "ref_commit_id"}}))
   }
 
   componentDidMount() {
@@ -418,7 +418,7 @@ class CiCommitResults extends Component {
                     filter_batch_ref={this.props.filter_batch_ref}
                   />
                   <OutputCardsList
-                    project={project}
+                    project={this.props.selected.new_project}
                     config={config}
                     metrics={metrics}
                     new_commit={new_commit}
@@ -445,7 +445,7 @@ class CiCommitResults extends Component {
                   />
                   <OutputCardsList
                     type='bit_accuracy'
-                    project={project}
+                    project={this.props.selected.new_project}
                     config={config}
                     metrics={metrics}
                     new_commit={new_commit}
@@ -483,10 +483,7 @@ const mapStateToProps = (state, ownProps) => {
     let project = projectSelector(state)
 
     let selected = selectedSelector(state)
-    let new_commit_id = selected.new_commit_id
-    let ref_commit_id = selected.ref_commit_id
-    let filter_batch_new = selected.filter_batch_new
-    let filter_batch_ref = selected.filter_batch_ref
+    const { new_commit_id, ref_commit_id, filter_batch_new, filter_batch_ref, new_project, ref_project } = selected
 
     let { new_commit, ref_commit } = commitSelector(state)
 
@@ -509,12 +506,15 @@ const mapStateToProps = (state, ownProps) => {
     return {
       params,
       project,
+      selected,
       config,
       metrics,
       git,
       available_metrics,
       selected_metrics,
       // selected commit
+      new_project,
+      ref_project,
       new_commit_id,
       ref_commit_id,
       new_commit,
