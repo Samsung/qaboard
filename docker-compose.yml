@@ -95,7 +95,7 @@ services:
     build:
       cache_from: ["arthurflam/qaboard:frontend"]
       context: webapp
-      shm_size: 4gb
+      shm_size: 6gb
       args:
         REACT_APP_QABOARD_DOCS_ROOT: "/"
     volumes:
