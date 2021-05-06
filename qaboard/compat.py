@@ -126,7 +126,7 @@ def fix_linux_permissions(path: Path):
     # We can assume SSH to be present on Windows10
     user = getuser()
     ssh = f"ssh -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
-    hostname = f"{user}-vdi" if user != "sircdevops" else "jenkins10-srv"
+    hostname = f"{user}-vdi" if user != "sircdevops" else "qa"
     chmod = f'{ssh} {user}@{hostname} \'chmod -R 777 "{windows_to_linux_path(path).as_posix()}"\''
     click.secho(chmod, err=True)
     os.system(chmod)
