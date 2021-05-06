@@ -179,7 +179,7 @@ class CiCommitResults extends Component {
     } = this.props;
 
     var warning_messages = <CommitWarningMessages
-                            project={project}
+                            project={this.props.selected.new_project}
                             commit={new_commit}
                             dispatch={dispatch}
                            />;
@@ -293,14 +293,14 @@ class CiCommitResults extends Component {
             <>
               <Section key="filters">
                 {warning_messages}
-                <BatchStatusMessages project={project} commit={new_commit} batch={new_batch} dispatch={dispatch} />
+                <BatchStatusMessages project={this.props.selected.new_project} commit={new_commit} batch={new_batch} dispatch={dispatch} />
               </Section>
 
               {selected_views.includes('summary') && <Section>
                 <Card elevation={2}>
                   <h2 className={Classes.HEADING}>Summary</h2>
                   <MetricsSummary
-                    project={project}
+                    project={this.props.selected.new_project}
                     metrics={metrics}
                     available_metrics={available_metrics}
                     new_batch={new_batch}
@@ -313,7 +313,7 @@ class CiCommitResults extends Component {
                 <Card>
                   <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
                   <CommitParameters
-                    project={project}
+                    project={this.props.selected.new_project}
                     config={config}
                     new_commit={new_commit}
                     ref_commit={ref_commit}
@@ -388,7 +388,7 @@ class CiCommitResults extends Component {
                   {all_controls}
                   <h2 className={Classes.HEADING}>Output logs</h2>
                   <BatchLogs
-                    project={project}
+                    project={this.props.selected.new_project}
                     commit={new_commit}
                     batch={new_batch}
                     batch_label={new_batch.label}
@@ -408,7 +408,7 @@ class CiCommitResults extends Component {
                  {all_controls}
                   <h2 className={Classes.HEADING}>Outputs</h2>
                   <ExportPlugin
-                    project={project}
+                    project={this.props.selected.new_project}
                     ref_project={this.props.selected.ref_project}
                     config={config}
                     new_commit_id={new_commit_id}
@@ -435,7 +435,7 @@ class CiCommitResults extends Component {
                  {all_controls}
                   <h2 className={Classes.HEADING}>Files & Bit Accuracy</h2>
                   <ExportPlugin
-                    project={project}
+                    project={this.props.selected.new_project}
                     ref_project={this.props.selected.ref_project}
                     config={config}
                     new_commit_id={new_commit_id}
@@ -463,7 +463,7 @@ class CiCommitResults extends Component {
                 <Card>
                   <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
                   <TuningExploration
-                    project={project}
+                    project={this.props.selected.new_project}
                     metrics={metrics}
                     batch={new_batch}
                    />
