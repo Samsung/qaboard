@@ -152,7 +152,7 @@ class AppNavbar extends Component {
           <CommitNavbar
             dispatch={dispatch}
             update={this.update}
-            commits={commits}
+            loading={!commits[this.props.selected.new_project]?.[new_commit?.id]?.is_loaded}
             commit={new_commit}
             batch={new_batch}
             filter={filter_batch_new}
@@ -167,10 +167,10 @@ class AppNavbar extends Component {
             dispatch={dispatch}
             update={this.update}
             commit={ref_commit}
-            commits={commits}
             batch={ref_batch}
             filter={filter_batch_ref}
             project={project}
+            loading={commits[this.props.selected.ref_project]?.[ref_commit?.id]?.is_loaded}
             project_data={project_data}
             selected={selected}
             type="ref"
