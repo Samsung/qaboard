@@ -9,7 +9,6 @@ import {
 } from "../defaults"
 
 
-// FIXME: commits[\[\.]
 export const projectSelector = state => state.selected.project
 
 export const projectsSelector = state => state.projects.data
