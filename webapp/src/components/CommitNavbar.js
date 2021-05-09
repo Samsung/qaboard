@@ -116,19 +116,19 @@ class CommitNavbar extends React.Component {
     this.setState({waiting: true, show_rename_dialog: false})
     toaster.show({message: "Redo requested."});
     axios.post(`/api/v1/batch/rename/`, {id: batch.id, label})
-      .then(response => {
+      .then(() => {
         this.setState({waiting: false})
         toaster.show({message: `Renamed ${batch.label} to ${label}.`, intent: Intent.PRIMARY});
         this.refresh()    
       })
       .catch(error => {
         this.setState({waiting: false });
-        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+        toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
       });
   }
 
   render() {
-    const { project, project_data, commits, commit, batch, selected, type, dispatch, update } = this.props;
+    const { project, project_data, commit, batch, selected, type, dispatch, update } = this.props;
     const { project_input } = this.state;
     const project_attr = `${type}_project`
 
@@ -250,11 +250,11 @@ class CommitNavbar extends React.Component {
           onChange={update(`selected_batch_${type}`)}
           hide_counts
         />
-        {!!commit && !!commits[commit.id] && <>
+        {!!commit && <>
           <Button
             className={Classes.TEXT_MUTED} minimal
             icon="refresh"
-            disabled={!!commit && commit.id && !commits[commit.id].is_loaded}
+            disabled={this.props.loading}
             onClick={this.refresh}
           />
           <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
