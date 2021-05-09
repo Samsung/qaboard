@@ -142,6 +142,7 @@ def commonprefix(m):
 @app.route("/api/v1/export/")
 def export_to_folder():
   project_id = request.args['project']
+  ref_project_id = request.args.get('ref_project', project_id)
 
   new_commit = load_commit(project_id, request.args['new_commit_id'])
   if not new_commit:
@@ -150,7 +151,7 @@ def export_to_folder():
   new_outputs = new_batch.outputs
 
   if request.args.get('ref_commit_id'):
-    ref_commit = load_commit(project_id, request.args['ref_commit_id'])
+    ref_commit = load_commit(ref_project_id, request.args['ref_commit_id'])
     if not ref_commit:
       return f"ERROR: Commit {request.args['ref_commit_id']} not found", 404    
     ref_batch = ref_commit.get_or_create_batch(request.args.get('batch_ref', 'default'))
