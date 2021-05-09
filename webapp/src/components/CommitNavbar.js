@@ -105,16 +105,17 @@ class CommitNavbar extends React.Component {
     this.state = {
       waiting: false,
       show_rename_dialog: false,
-      renamed_batch_label: '',
+      show_move_dialog: false,
+      dst_batch_label: '',
       project_input: null,
     };
   }
 
   renameBatch = () => {
     const { batch } = this.props;
-    const { renamed_batch_label: label } = this.state;
+    const { dst_batch_label: label } = this.state;
     this.setState({waiting: true, show_rename_dialog: false})
-    toaster.show({message: "Redo requested."});
+    toaster.show({message: "Rename requested."});
     axios.post(`/api/v1/batch/rename/`, {id: batch.id, label})
       .then(() => {
         this.setState({waiting: false})
@@ -127,10 +128,29 @@ class CommitNavbar extends React.Component {
       });
   }
 
+  moveBatch = () => {
+    const { batch, selected, type } = this.props;
+    const { dst_batch_label: label } = this.state;
+    const filter = selected[`filter_batch_${type}`]
+    this.setState({waiting: true, show_rename_dialog: false})
+    toaster.show({message: "Move requested."});
+    axios.post(`/api/v1/batch/move/`, {id: batch.id, label, filter})
+      .then(() => {
+        this.setState({waiting: false})
+        toaster.show({message: `Moved to ${label}.`, intent: Intent.PRIMARY});
+        this.refresh()
+      })
+      .catch(error => {
+        this.setState({waiting: false });
+        toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+      });
+  }
+
   render() {
     const { project, project_data, commit, batch, selected, type, dispatch, update } = this.props;
     const { project_input } = this.state;
     const project_attr = `${type}_project`
+    const filter = selected[`filter_batch_${type}`]
 
     const qatools_config = project_data?.data?.qatools_config
     const reference_branch = qatools_config?.project?.reference_branch || 'master';
@@ -261,22 +281,26 @@ class CommitNavbar extends React.Component {
             <Icon icon="menu" className={Classes.TEXT_MUTED}/>
             <Menu>
               <MenuDivider title="Commit"/>
-              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.artifacts_url))}} />
-              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.artifacts_url))}} />
+              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
               <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               {has_selected_batch && <>
               <MenuDivider title="Batch"/>
+              <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(batch.batch_dir_url))}} />
+              <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
+              <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+              <MenuDivider/>
               <Dialog
                 isOpen={this.state.show_rename_dialog}
-                onOpening={() => this.setState({renamed_batch_label: batch.label})}
+                onOpening={() => this.setState({dst_batch_label: batch.label})}
                 onClose={() => this.setState({show_rename_dialog: false})}
-                title="Rename batch"
+                title={filter.length > 0 ? "Rename whole batch" : "Rename batch" }
                 icon="edit"
               >
                 <div className={Classes.DIALOG_BODY}>
                   <input
-                    value={this.state.renamed_batch_label}
-                    onChange={event => this.setState({renamed_batch_label: event.target.value})}
+                    value={this.state.dst_batch_label}
+                    onChange={event => this.setState({dst_batch_label: event.target.value})}
                     className={Classes.INPUT}
                     style={{marginBottom: '15px'}}
                   />
@@ -289,9 +313,41 @@ class CommitNavbar extends React.Component {
                   </div>
                 </div>
               </Dialog>
+              <Dialog
+                isOpen={this.state.show_move_dialog}
+                onOpening={() => this.setState({dst_batch_label: batch.label})}
+                onClose={() => this.setState({show_move_dialog: false})}
+                title={filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch" }
+                icon="send-to-graph"
+              >
+                <div className={Classes.DIALOG_BODY}>
+                  <input
+                    value={this.state.dst_batch_label}
+                    onChange={event => this.setState({dst_batch_label: event.target.value})}
+                    className={Classes.INPUT}
+                    style={{marginBottom: '15px'}}
+                  />
+                  <p>The destination batch will be created if needed.</p>
+                </div>
+                <div className={Classes.DIALOG_FOOTER}>
+                  <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+                    <Button onClick={() => this.setState({show_move_dialog: false})}>Close</Button>
+                    <Button onClick={this.moveBatch} intent={Intent.PRIMARY}>Move</Button>
+                  </div>
+                </div>
+              </Dialog>
+              <MenuItem
+                icon="send-to-graph"
+                text={filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch"}
+                minimal
+                disabled={this.state.waiting}
+                shouldDismissPopover={false}
+                onClick={() => this.setState({show_move_dialog: true})}
+              >
+              </MenuItem>
               <MenuItem
                 icon="edit"
-                text="Rename batch"
+                text={filter.length > 0 ? "Rename whole batch" : "Rename batch"}
                 minimal
                 disabled={this.state.waiting}
                 shouldDismissPopover={false}
