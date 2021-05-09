@@ -9,6 +9,7 @@ import {
 } from "../defaults"
 
 
+// FIXME: commits[\[\.]
 export const projectSelector = state => state.selected.project
 
 export const projectsSelector = state => state.projects.data
@@ -23,25 +24,25 @@ export const selectedSelector = createSelector([projectSelector, state => state]
 
 
 
-export const commitsDataSelector = createSelector([projectSelector, projectDataSelector, selectedSelector], (project, project_data, selected) => {
+export const commitsDataSelector = createSelector([projectDataSelector, selectedSelector], (project_data, selected) => {
   let key = selected.branch || selected.committer || 'latests';
   return project_data.commits[key] || default_commits_data;
 })
 
 
 const has_batches = c => Object.keys(c.batches || {}).length > 0;
-export const commitsSelector = createSelector([commitsDataSelector, state => state.commits], (commits_data, commits) => {
-  let out = commits_data.ids.map(id => commits[id] || { id, batches: {} })
+export const commitsSelector = createSelector([projectSelector, commitsDataSelector, state => state.commits], (project, commits_data, commits) => {
+  let out = commits_data.ids.map(id => commits[project]?.[id] || { id, batches: {} })
   if (out.some(has_batches))
     return out.filter(c => Date.now() - new Date(c.authored_datetime) < 15 * 1000 || has_batches(c));
   return out
 })
 
 
-export const latestCommitSelector = createSelector([commitsDataSelector, state => state.commits], (commits_data, commits) => {
+export const latestCommitSelector = createSelector([projectSelector, commitsDataSelector, state => state.commits], (project, commits_data, commits) => {
   if (commits_data.latest_commit === undefined)
     return { id: undefined, batches: {} }
-  const latest_commit = commits[commits_data.latest_commit.id] || { id: commits_data.latest_commit.id, batches: {} };
+  const latest_commit = commits[project]?.[commits_data.latest_commit.id] || { id: commits_data.latest_commit.id, batches: {} };
   return latest_commit
 })
 
