@@ -165,7 +165,7 @@ class OutputTags extends React.Component {
 
 
   render() {
-    const { platform, configurations, output_dir_url, id, deleted } = this.props.output;
+    const { platform, configurations, output_dir_url, id, deleted, is_pending } = this.props.output;
     const { mismatch } = this.props;
     return <span style={this.props.style}>
       {deleted && <Tag icon="trash">deleted</Tag>}
@@ -186,14 +186,36 @@ class OutputTags extends React.Component {
               this.setState({waiting: true})
               toaster.show({message: "Delete requested."});
               axios.delete(`/api/v1/output/${id}/`)
-                .then(response => {
+                .then(() => {
                   this.setState({waiting: false})
                   toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
                   this.refresh()
                 })
                 .catch(error => {
                   this.setState({waiting: false });
-                  toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  this.refresh()
+                });
+            }}
+          />}
+          {id && is_pending && <MenuItem
+            icon="stop"
+            text="Mark as Finished"
+            intent={Intent.WARNING}
+            minimal
+            disabled={this.state.waiting}
+            onClick={() => {
+              this.setState({waiting: true})
+              toaster.show({message: "Requested to mark as 'Finished'."});
+              axios.put(`/api/v1/output/${id}/`, {is_pending: false})
+                .then(() => {
+                  this.setState({waiting: false})
+                  toaster.show({message: "Marked as finished.", intent: Intent.PRIMARY});
+                  this.refresh()
+                })
+                .catch(error => {
+                  this.setState({waiting: false });
+                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
                   this.refresh()
                 });
             }}
