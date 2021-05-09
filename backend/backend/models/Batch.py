@@ -97,10 +97,7 @@ class Batch(Base):
 
   def rename(self, label, db_session):
     assert not any([o.is_pending for o in self.outputs])
-    # For now we could be computing those dirs based on the label...
-    # We avoid moving moving anything...
-    for output in self.outputs:
-      output.output_dir_override = str(output.output_dir)
+    # Note that the output directories will still be based on the old label, we don't move/copy anything
     self.label = label
     db_session.add(self)
     db_session.commit()

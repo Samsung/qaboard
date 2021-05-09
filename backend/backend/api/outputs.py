@@ -11,12 +11,32 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 
 
-@app.route("/api/v1/output/<output_id>", methods=['GET', 'DELETE'])
-@app.route("/api/v1/output/<output_id>/", methods=['GET', 'DELETE'])
+@app.route("/api/v1/output/<output_id>", methods=['GET', 'PUT', 'DELETE'])
+@app.route("/api/v1/output/<output_id>/", methods=['GET', 'PUT', 'DELETE'])
 def crud_output(output_id):
   output = Output.query.filter(Output.id==output_id).one()
   if request.method == 'GET':
     return jsonify(output.to_dict())
+
+  if request.method == 'PUT':
+    data = request.get_json()
+    if 'is_pending' in data:
+      output.is_pending = data['is_pending']
+    if 'is_running' in data:
+      output.is_running = data['is_running']
+    if 'is_failed' in data:
+      output.is_failed = data['is_failed']
+    output.is_pending = output.is_running or output.is_pending
+    if 'data' in data:
+      output.data = {**output.data,  **data['data']}
+      flag_modified(output, "data")
+    if 'metrics' in data:
+      output.metrics = {**output.metrics,  **data['metrics']}
+      flag_modified(output, "metrics")
+    db_session.add(output)
+    db_session.commit()
+    return jsonify(output.to_dict())
+
   if request.method == 'DELETE':
     if output.is_pending:
       return {"error": "Please wait for the Output to finish running before deleting it"}, 500
