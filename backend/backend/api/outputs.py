@@ -26,7 +26,6 @@ def crud_output(output_id):
       output.is_running = data['is_running']
     if 'is_failed' in data:
       output.is_failed = data['is_failed']
-    output.is_pending = output.is_running or output.is_pending
     if 'data' in data:
       output.data = {**output.data,  **data['data']}
       flag_modified(output, "data")

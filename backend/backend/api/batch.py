@@ -5,6 +5,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from ..models import CiCommit, Batch
+from .export_to_folder import filter_outputs
 
 
 
@@ -121,8 +122,31 @@ def rename_batch():
   try:
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
-    return f"404 ERROR:\n Not found", 404
+    return '{"error":"not found"}', 404
+  try:
+    assert all([b.label != data['label'] for b in batch.ci_commit.batches])
+  except:
+    return '{"error":"already exists {e}"}', 403
   status = batch.rename(label=data['label'], db_session=db_session)
+  return '{"status": "OK"}'
+
+# Check move: existing, delete if empty, filter
+
+@app.route('/api/v1/batch/move', methods=['POST'])
+@app.route('/api/v1/batch/move/', methods=['POST'])
+def move_batch():
+  data = request.get_json()
+  try:
+    batch = Batch.query.filter(Batch.id == data['id']).one()
+  except:
+    return f"404 ERROR:\n Not found", 404
+  dst_batch = batch.ci_commit.get_or_create_batch(data['label'])
+  for o in filter_outputs(data.get('filter'), batch.outputs):
+    o.batch = dst_batch
+    db_session.add(o)
+  if not batch.outputs:
+    batch.delete(session=db_session)
+  db_session.commit()
   return '{"status": "OK"}'
 
 

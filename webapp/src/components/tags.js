@@ -207,7 +207,7 @@ class OutputTags extends React.Component {
             onClick={() => {
               this.setState({waiting: true})
               toaster.show({message: "Requested to mark as 'Finished'."});
-              axios.put(`/api/v1/output/${id}/`, {is_pending: false})
+              axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false})
                 .then(() => {
                   this.setState({waiting: false})
                   toaster.show({message: "Marked as finished.", intent: Intent.PRIMARY});
