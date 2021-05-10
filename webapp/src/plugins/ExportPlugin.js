@@ -69,7 +69,7 @@ class ExportPlugin extends React.Component {
     .catch(error => {
         this.setState({is_loading: false})
         toaster.show({
-          message: `Network error: ${JSON.stringify(error)}`,
+          message: error?.response?.data?.error ?? `Error: ${JSON.stringify(error)}`,
           intent: Intent.DANGER,
         });
     })
