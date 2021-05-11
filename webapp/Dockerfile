@@ -1,8 +1,8 @@
-FROM node:lts
+FROM node:latest
 WORKDIR /webapp
 
-
-ENV PROXY_HOST=webproxy.transchip.com \
+# ENV PROXY_HOST=webproxy.transchip.com \
+ENV PROXY_HOST=dlp2-wcg01 \
     PROXY_PORT=8080 \
     PROXY_PROTOCOL=http
 ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
@@ -20,7 +20,7 @@ RUN apt update -qq && apt-get install -y --no-install-recommends rsync
 
 ENV PATH /app/node_modules/.bin:$PATH
 
-COPY package.json npm-shrinkwrap.json ./
+COPY package.json package-lock.json ./
 
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
 RUN npm ci
