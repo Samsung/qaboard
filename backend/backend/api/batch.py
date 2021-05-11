@@ -160,7 +160,9 @@ def delete_batch(batch_id):
   stop_status = batch.stop()
   if "error" in stop_status:
     return jsonify(stop_status), 500
-  batch.delete(session=db_session, only_failed=request.args.get('only_failed', False))
+  soft = request.args.get('soft') == 'true'
+  only_failed = request.args.get('only_failed') == 'true'
+  batch.delete(session=db_session, soft=soft, only_failed=only_failed)
   return {"status": "OK"}
 
 

@@ -139,19 +139,22 @@ class Batch(Base):
     else:
       return {}
 
-  def delete(self, session, only_failed=False):
+  def delete(self, session, soft=False, only_failed=False):
     """
-    Hard delete the batch and all related outputs.
-    Note: You should call .stop() before
+    Delete the batch and all related outputs.
+    By default it will be a "hard" delete where the metadata+files are deleted from the database/disk.
+    With soft deletes, only the files are deleted.
+    Note: You should call .stop() before.
     """
     still_has_outputs = False
     for output in self.outputs:
       if only_failed and not output.is_failed:
         still_has_outputs = True
         continue
-      output.delete(soft=False)
-      session.delete(output)
-    if not still_has_outputs:
+      output.delete(soft=soft)
+      if not soft:
+        session.delete(output)
+    if not still_has_outputs and not soft:
       session.delete(self)
     session.commit()
 

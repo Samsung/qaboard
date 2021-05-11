@@ -198,6 +198,28 @@ class OutputTags extends React.Component {
                 });
             }}
           />}
+          {id && !deleted && <MenuItem
+            icon="trash"
+            text="Delete Output Files"
+            intent={Intent.DANGER}
+            minimal
+            disabled={this.state.waiting}
+            onClick={() => {
+              this.setState({waiting: true})
+              toaster.show({message: "Delete requested."});
+              axios.delete(`/api/v1/output/${id}/?soft=true`)
+                .then(() => {
+                  this.setState({waiting: false})
+                  toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
+                  this.refresh()
+                })
+                .catch(error => {
+                  this.setState({waiting: false });
+                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  this.refresh()
+                });
+            }}
+          />}
           {id && is_pending && <MenuItem
             icon="stop"
             text="Mark as Finished"

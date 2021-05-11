@@ -39,9 +39,11 @@ def crud_output(output_id):
   if request.method == 'DELETE':
     if output.is_pending:
       return {"error": "Please wait for the Output to finish running before deleting it"}, 500
-    output.delete(soft=False)
-    db_session.delete(output)
-    db_session.commit()
+    soft = request.args.get('soft') == 'true'
+    output.delete(soft=soft)
+    if not soft:
+      db_session.delete(output)
+      db_session.commit()
     return {"status": "OK"}
 
 
