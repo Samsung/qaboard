@@ -1,13 +1,12 @@
-FROM node:lts
+FROM node:latest
 WORKDIR /webapp
-
 
 
 RUN apt update -qq && apt-get install -y --no-install-recommends rsync
 
 ENV PATH /app/node_modules/.bin:$PATH
 
-COPY package.json npm-shrinkwrap.json ./
+COPY package.json package-lock.json ./
 
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
 RUN npm ci
