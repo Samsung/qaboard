@@ -391,7 +391,7 @@ if metrics_file:
         if not ignore_config_errors:
           click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
           click.secho(f'{e}', fg='red', err=True)
-          ignore_config_errors = True
+          ignore_config_errors = False
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
 
