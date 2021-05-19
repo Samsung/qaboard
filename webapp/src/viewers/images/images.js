@@ -558,7 +558,7 @@ class ImgViewer extends React.PureComponent {
     const { output_new, output_ref, diff, label, path } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
-    const has_reference = !!output_ref && !!output_ref.output_dir_url;
+    const has_reference = !!output_ref?.output_dir_url;
     const has_error = !!error && Object.keys(error).length > 0;
     const error_messages = !has_error ? <span/> : <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
         <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
@@ -573,7 +573,7 @@ class ImgViewer extends React.PureComponent {
     const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
     const available_width = this.props.fullscreen ? (has_reference ? vw : 2*vw) : width
 
-    const single_image_width = Math.floor((available_width - 10) / (diff ? 3 : 2));
+    const single_image_width = Math.floor((available_width - 10) / ((diff && has_reference) ? 3 : 2));
     const single_image_height = !!image_height ? Math.floor(image_height / image_width * single_image_width) : 0
     const flex = { flex: '0 0 auto' }
     const single_image_size = {
