@@ -12,7 +12,7 @@ import click
 from .conventions import make_batch_conf_dir
 from .iterators import iter_inputs
 from .utils import PathType
-from .config import commit_id, subproject, outputs_commit_root, outputs_commit, is_ci, default_platform, config
+from .config import commit_id, project, subproject, outputs_commit_root, outputs_commit, is_ci, default_platform, config
 from .config import user, default_batches_files
 
 
