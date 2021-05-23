@@ -158,6 +158,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       click.secho("WARNING: nothing was compared", fg='yellow')
       return True
 
+    missing_runs = False
     comparaisons = {'match': [], 'mismatch': [], 'errors': [], 'only_in_1': [], 'only_in_2': []}
     for output_directory in output_directories:
       # print('output_directory', output_directory)
@@ -172,8 +173,9 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
         from .config import platform
         dir_2 = Path(str(dir_2).replace(platform, reference_platform))
 
-      # print('dir_1', dir_1)
-      # print('dir_2', dir_2)
+      if not dir_2.exists():
+        click.secho(f"ERROR: did not run {output_directory}", fg='red')
+        missing_runs = True
       if (dir_1 / 'manifest.outputs.json').exists() and (dir_2 / 'manifest.outputs.json').exists():
         comparaison = cmpmanifests(
           manifest_path_1 = dir_1 / 'manifest.outputs.json',
@@ -191,6 +193,8 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       for attr in ('match', 'mismatch', 'errors', 'only_in_1', 'only_in_2'):
         comparaisons[attr].extend(output_directory / p for p in comparaison[attr])
 
+    if missing_runs:
+      return False
     bit_accurate = True
     if strict:
       if comparaisons['only_in_1']:
@@ -214,7 +218,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
     nothing_was_compared = not (len(comparaisons['match']) + len(comparaisons['mismatch']) + len(comparaisons['errors']) )
     if nothing_was_compared:
       for o in output_directories:
-        click.echo(click.style(str(o), fg='yellow') + click.style(' (warning: no files were found to compare)', fg='yellow', dim=True), err=True)
+        click.echo(click.style(str(o), fg='yellow') + click.style(' (warning: no files were compared)', fg='yellow', dim=True), err=True)
 
     if comparaisons['errors']:
       bit_accurate = False
@@ -247,10 +251,13 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
   Checks the bit accuracy of the results in the current ouput directory
   versus the latest commit on origin/develop.
   """
-    commit_dir = outputs_commit if is_ci else Path()
+    commit_dir = outputs_commit if (is_ci or ctx.obj['share']) else Path()
     all_bit_accurate = True
     nb_compared = 0
     for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
+      if not (run_context.database / run_context.rel_input_path / "manifest.outputs.json").exists():
+        click.secho(f"[WARNING] no manifest for {run_context.database / run_context.rel_input_path}", fg='yellow')
+        continue
       nb_compared += 1
       if run_context.input_path.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
@@ -339,7 +346,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
     
     # This where the new results are located
-    commit_dir = outputs_commit_root if is_ci else Path()
+    commit_dir = outputs_commit_root if (is_ci or ctx.obj['share']) else Path()
 
     if not batches:
       output_directories = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
