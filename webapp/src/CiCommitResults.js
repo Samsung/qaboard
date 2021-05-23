@@ -145,8 +145,8 @@ class CiCommitResults extends Component {
     // }
     const config_curr = this.props.config;
     const config_prev = prevProps.config;
-    const new_outputs = (config_curr || {}).outputs;
-    const old_outputs = (config_prev || {}).outputs;
+    const new_outputs = config_curr?.outputs;
+    const old_outputs = config_prev?.outputs;
 
     if (new_outputs !== old_outputs ) {
       let controls = controls_defaults(config_curr)
@@ -190,7 +190,9 @@ class CiCommitResults extends Component {
       ) : null;
     let metricTableSelect = (
       <MultiSelect
-        items={Object.values(available_metrics)}
+        items={Object.entries(available_metrics)
+               .filter(([key, _]) => new_batch.used_metrics.has(key))
+               .map(([k, m]) => m)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -368,7 +370,7 @@ class CiCommitResults extends Component {
                     <TableCompare
                       new_batch={new_batch}
                       ref_batch={ref_batch}
-                      metrics={selected_metrics}
+                      metrics={selected_metrics.map(m => m.key)}
                       available_metrics={available_metrics}
                       input={metricTableSelect}
                     />
@@ -382,7 +384,7 @@ class CiCommitResults extends Component {
                     <TableKpi
                       new_batch={new_batch}
                       ref_batch={ref_batch}
-                      metrics={selected_metrics}
+                      metrics={selected_metrics.map(m => m.key)}
                       available_metrics={available_metrics}
                       input={metricTableSelect}
                     />
