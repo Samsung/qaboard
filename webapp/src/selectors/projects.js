@@ -170,8 +170,11 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
   })
 
   let used_metrics = new Set()
+  let metrics_with_refs = new Set()
   Object.values(new_batch.outputs).forEach(o => {
     Object.keys(o.metrics).forEach(m => used_metrics.add(m))
+    if (!!o.reference_id)
+      Object.keys(o.metrics).forEach(m => metrics_with_refs.add(m))
   })
 
   // Tuned_parameters holds all tuning values used for each parameter
@@ -191,6 +194,7 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
   new_batch.extra_parameters = extra_parameters
   new_batch.sorted_extra_parameters = sorted_extra_parameters
   new_batch.used_metrics = used_metrics
+  new_batch.metrics_with_refs = metrics_with_refs
   return {
     selected_batch_new,
     selected_batch_ref,
