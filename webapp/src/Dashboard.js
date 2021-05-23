@@ -147,7 +147,9 @@ class Dashboard extends React.Component {
     let clearButton = selected_metrics.length > 0 ? <Button icon="cross" minimal={true} onClick={this.handleClear} /> : null;
     let metricTableSelect = (
       <MultiSelect
-        items={Object.values(available_metrics)}
+        items={Object.entries(available_metrics)
+          .filter(([key, _]) => new_batch.used_metrics.has(key))
+          .map(([k, m]) => m)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
