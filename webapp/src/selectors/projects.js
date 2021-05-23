@@ -139,8 +139,8 @@ const makeSortOutputs = (sort_by, sort_order, outputs) => {
   return (ka, kb) => {
     const a = outputs[ka]
     const b = outputs[kb]
-    const a_value = a.metrics[sort_by] || a.extra_parameters[sort_by] || a[sort_by] || ka;
-    const b_value = b.metrics[sort_by] || b.extra_parameters[sort_by] || b[sort_by] || kb;
+    const a_value = a.metrics[sort_by] ?? a.extra_parameters[sort_by] ?? a[sort_by] ?? ka;
+    const b_value = b.metrics[sort_by] ?? b.extra_parameters[sort_by] ?? b[sort_by] ?? kb;
     if (a_value === undefined || a_value === null) return 1;
     // console.log(a_value, b_value)
     if (a_value > b_value) {
