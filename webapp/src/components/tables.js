@@ -101,7 +101,9 @@ const TableCompare = ({
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration");
 
-  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => m !== undefined && outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
+  const metrics_ = metrics.map(m => available_metrics[m])
+                          .filter(m => new_batch.used_metrics.has(m.key)
+                                    && new_batch.metrics_with_refs.has(m.key))
   return (
     <Section>
       {input}
@@ -153,19 +155,19 @@ const TableCompare = ({
 };
 
 const TableKpi = ({
-  new_batch,  
+  new_batch,
   ref_batch,
   metrics=[],
   available_metrics={},
   input,
   labels
 }) => {
-  if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
+  if (new_batch?.outputs === undefined || new_batch?.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Ref"];
   const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
     .filter(([id, o]) => !o.is_pending)
     .filter(([id, o]) => o.output_type!=="optim_iteration");
-  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => m !== undefined && outputs.some(([id, o]) => o.metrics[m.key] !== null && o.metrics[m.key] !== undefined))
+  const metrics_ = metrics.map(m => available_metrics[m]).filter(m => new_batch.used_metrics.has(m.key))
   return (
     <Section>
       {input}
@@ -174,8 +176,14 @@ const TableKpi = ({
           <tr>
             <th />
             {metrics_.map(m => (
-              <th colSpan={2} key={m.key}>
-                <Tooltip><span>{m.short_label}</span><span>{m.label}</span></Tooltip> {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>[{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]</span>}
+              <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
+                <Tooltip>
+                  <span>{m.short_label}</span>
+                  <span>{m.label}</span>
+                </Tooltip>
+                {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
+                  [{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]
+                </span>}
               </th>
             ))}
           </tr>
@@ -187,8 +195,10 @@ const TableKpi = ({
             </th>
             {metrics_.map(m => (
               <Fragment key={m.key}>
-                <th scope="col">{label_new}</th>
-                <th scope="col">{label_ref}</th>
+                {new_batch.metrics_with_refs.has(m.key) && <>
+                  <th scope="col">{label_new}</th>
+                  <th scope="col">{label_ref}</th>
+                </>}
               </Fragment>
             ))}
           </tr>
@@ -203,7 +213,7 @@ const TableKpi = ({
                 {metrics_.map(m => (
                   <Fragment key={m.key}>
                     <QualityCell metric_info={m} metric={output.metrics[m.key]} />
-                    <QualityCell metric_info={m} metric={output_ref.metrics[m.key]} metric_ref={output.metrics[m.key]}/>
+                    {new_batch.metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref.metrics[m.key]} metric_ref={output.metrics[m.key]}/>}
                   </Fragment>
                 ))}
               </Row>

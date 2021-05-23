@@ -169,9 +169,6 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
     output.reference_mismatch = mismatch
   })
 
-
-  // Tuned_parameters holds all tuning values used for each parameter
-  let extra_parameters = {};
   Object.entries(new_batch.outputs).forEach(([id, o]) => {
     Object.entries(o.extra_parameters).forEach(([param, value]) => {
       if (extra_parameters[param] === undefined)
@@ -186,6 +183,8 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
   // Parts of the frontend want to know whether there was tuning and how
   new_batch.extra_parameters = extra_parameters
   new_batch.sorted_extra_parameters = sorted_extra_parameters
+  new_batch.used_metrics = used_metrics
+  new_batch.metrics_with_refs = metrics_with_refs
   return {
     selected_batch_new,
     selected_batch_ref,
