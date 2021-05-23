@@ -1,12 +1,8 @@
-import sys
 import yaml
 import json
 import subprocess
-from functools import lru_cache
 
-import requests
 import click
-import numpy as np
 from joblib import Parallel, delayed
 
 from .api import NumpyEncoder, batch_info, notify_qa_database, print_url
