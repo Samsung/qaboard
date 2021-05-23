@@ -269,7 +269,7 @@ class CiCommitResults extends Component {
                 </option>
             )}
             <option disabled style={{fontWeight: 'bold'}}>Metrics</option>
-            {Object.values(available_metrics).map(
+            {[...new_batch.used_metrics].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(
               m => (
                 <option key={m.key} value={m.key}>
                   Sort by {m.label}

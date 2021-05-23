@@ -17,7 +17,7 @@ import {
 import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
 import CommitsEvolution from "./CommitsEvolution";
-import { groupBy, calendarStrings, match_query } from "./utils";
+import { groupBy, match_query } from "./utils";
 
 import { fetchCommits } from './actions/projects'
 import { default_date_range } from './defaults'

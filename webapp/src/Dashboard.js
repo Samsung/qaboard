@@ -264,7 +264,7 @@ class Dashboard extends React.Component {
                   >
                   <option value="test_input_path">Sort by Name</option>
                   <option value="id">Sort by ID</option>
-                  {Object.values(available_metrics).map(m => (
+                  {[...new_batch.used_metrics].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(m => (
                     <option key={m.key} value={m.key}>
                       Sort by {m.label}
                     </option>
