@@ -246,6 +246,8 @@ class CiCommitResults extends Component {
     // flex-wrap: wrap;
     // justify-content: space-between;
     // align-items: baseline;
+    const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
+    const has_tuning = tuned_params.length > 0
     const all_controls = <>
       <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline'}}>
         {show_viewer_controls && controls}
@@ -258,12 +260,15 @@ class CiCommitResults extends Component {
           >
             <option value="test_input_path">Sort by Name</option>
             <option value="id">Sort by ID</option>
-            {new_batch.sorted_extra_parameters.map(
+            {has_tuning && <option style={{fontWeight: 'bold'}} disabled>Tuning</option>}
+            {tuned_params
+              .map(
               param =>
                 <option key={param} value={param}>
                   Sort by {param} ({new_batch.extra_parameters[param].size})
-                </option>            
+                </option>
             )}
+            <option disabled style={{fontWeight: 'bold'}}>Metrics</option>
             {Object.values(available_metrics).map(
               m => (
                 <option key={m.key} value={m.key}>
