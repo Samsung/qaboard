@@ -24,7 +24,7 @@ class MultiSelectTags extends React.Component {
     }
     const { output_new, output_ref } = props;
     const rois = output_rois(output_new)
-    if (rois) {
+    if (rois.length > 0) {
       available_roi_groups.push(predefined_rois_group)
       selected_roi_groups.push(predefined_rois_group)
     }
@@ -64,6 +64,9 @@ class MultiSelectTags extends React.Component {
         minimal: true,
       }
     };
+
+    if (available_roi_groups.length === 0)
+      return <span/>
 
     const selected_auto_rois = selected_roi_groups.some(c => c.title === "Automatic ROIs");
     const selected_predefined_rois = selected_roi_groups.some(c => c.title === "Pre-defined");
