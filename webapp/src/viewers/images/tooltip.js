@@ -26,8 +26,8 @@ const margin = {marginLeft: '10px'};
 
 const Tooltips = ({x, y, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref}) => {
     const [base, setBase] = useState('dec');
-    const x_round = Math.round(x)
-    const y_round = Math.round(y)
+    const x_round = x !== null ? Math.round(x) : null
+    const y_round = y !== null ? Math.round(y) : null
     return <div
                 onClick={() => setBase(base === 'dec' ? 'hex' : 'dec')}
             >
@@ -102,6 +102,8 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
         []
     );
     useEffect(() => {
+        if (x === null || y === null)
+            return
         if (loaded_once || !loading)
             _debounce(x, y, image_url)
     }, [x, y, image_url, loaded_once]);
