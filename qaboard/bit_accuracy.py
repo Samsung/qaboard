@@ -273,6 +273,9 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
         start, *end = commit_dir.parts
         start, end = Path(start), str(Path(*end))
         commit_dirs = start.glob(end)
+        # FIXME: the output path is not created like this if rel_input_path is long or there are configs/tuning...
+        commit_dirs = [d for d in commit_dirs if (d / batch_conf_dir / run_context.rel_input_path).exists()]
+        assert commit_dirs
         for commit_dir in commit_dirs:
           input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
           all_bit_accurate = all_bit_accurate and input_is_bit_accurate
