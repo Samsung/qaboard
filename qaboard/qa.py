@@ -491,7 +491,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], default_runner_options, config, ctx.obj['inputs_settings'])
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
-    for tuning_file, tuning_hash, tuning_params in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
+    for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
       if not prefix_outputs_path:
           batch_conf_dir = make_batch_conf_dir(
             outputs_commit,
@@ -502,9 +502,11 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
             ctx.obj['share']
           )
       else:
+          # FIXME: not 100% correct if there is tuning.. but who uses this flag anyway?
+          #        worse case batch and outputs will be in slightly different folders... 
           batch_conf_dir = outputs_commit / prefix_outputs_path
-          if tuning_file:
-              batch_conf_dir = batch_conf_dir / Path(tuning_file).stem
+          if tuning_params:
+              batch_conf_dir = batch_conf_dir / tuning_hash
       from qaboard.conventions import slugify_hash
       input_dir = run_context.rel_input_path.with_suffix('')
       if len(input_dir.as_posix()) > 70:
@@ -558,6 +560,17 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           from .compat import escaped_for_cli
           configuration_cli =  f'--configuration {escaped_for_cli(input_configuration_str)}'
 
+      if not tuning_params:
+        tuning_cli = None
+      else:
+        if not on_windows:
+          tuning_str = tuning_str.replace("'", "'\"'\"'") # support single-quotes
+          tuning_cli =  f"--tuning '{tuning_str}'"
+        else:
+          from .compat import escaped_for_cli
+          tuning_cli =  f'--tuning {escaped_for_cli(tuning_str)}'
+
+
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
       args = [
           f"qa",
@@ -568,7 +581,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           f'--type "{run_context.type}"' if run_context.type != default_input_type else None,
           f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
-          f'--tuning-filepath "{tuning_file}"' if tuning_params else None,
+          tuning_cli,
           'run' if should_run else action_on_existing,
           f'--input "{run_context.rel_input_path}"',
           f'--output "{run_context.output_dir}"' if prefix_outputs_path else None,

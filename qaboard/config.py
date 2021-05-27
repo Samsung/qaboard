@@ -306,10 +306,9 @@ if root_qatools_config:
   outputs_commit        = outputs_project_root   / commit_dirs / subproject
 else:
   artifacts_commit_root = Path()
-  artifacts_commit = Path()
+  artifacts_commit = Path() # / subproject? FIXME: check...
   outputs_commit_root = Path()
-  outputs_commit = Path()
-
+  outputs_commit = Path() # / subproject? FIXME: check...
 # backward compatibility for HW_ALG's runs. And tof/swip_tof's runs: has to exist
 commit_ci_dir = outputs_commit
 # backward compatibility for HW_ALG/tools/ci_tools/find_valid_build.py
