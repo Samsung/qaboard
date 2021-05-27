@@ -174,7 +174,9 @@ class GenericTextViewer extends React.Component {
       <h3 className={Classes.HEADING}>
         <span style={{marginRight: "5px"}}>{filename}</span>
         <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag>
-        <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => this.setState({renderSideBySide: !renderSideBySide})}>{renderSideBySide ? "side-by-side" : "inline diff"}</Tag>
+        {!no_reference && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => this.setState({renderSideBySide: !renderSideBySide})}>
+          {renderSideBySide ? "side-by-side" : "inline diff"}
+        </Tag>}
       </h3>
       {editor}
     </>
