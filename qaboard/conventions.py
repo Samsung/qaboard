@@ -130,7 +130,7 @@ def serialize_config(configurations: List) -> str:
   return configuration
 
 
-def pretty_hash(params_str):
+def pretty_hash(params_str, maxlen=20):
   """Best effort attempt at making a human-readable name from tuning parameters"""
   params_hash = make_hash(params_str)
   params_hash_pretty = params_str.replace(",","_")
