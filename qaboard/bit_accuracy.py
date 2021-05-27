@@ -200,14 +200,14 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       if comparaisons['only_in_1']:
         for o in output_directories:
           click.secho(str(o), fg='red', bold=True, err=True)
-        click.secho(f"ERROR: some files existing in the reference run are not present:", fg='red')
+        click.secho(f"ERROR: ({len(comparaisons['only_in_1'])}) file(s) existing in the reference run are not present:", fg='red')
         for p in comparaisons['only_in_1']:
           click.secho(f'➖ {p}', fg='red', dim=True)
         bit_accurate = False
       if comparaisons['only_in_2']:
         for o in output_directories:
           click.secho(str(o), fg='red', bold=True, err=True)
-        click.secho(f"ERROR: some files are not present in the reference run:", fg='red')
+        click.secho(f"ERROR: {len(comparaisons['only_in_2'])} file(s) are not present in the reference run:", fg='red')
         for p in comparaisons['only_in_2']:
           click.secho(f'➕ {p}', fg='red', dim=True)
         # print(comparaisons)
@@ -252,6 +252,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
   versus the latest commit on origin/develop.
   """
     commit_dir = outputs_commit if (is_ci or ctx.obj['share']) else Path()
+    click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
     all_bit_accurate = True
     nb_compared = 0
     for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
@@ -269,15 +270,19 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
       if f"/{user}/" in str(commit_dir):
-        commit_dir = Path(str(commit_dir).replace(user, '*'))
-        start, *end = commit_dir.parts
+        commit_dir_ = Path(str(commit_dir).replace(user, '*'))
+        start, *end = commit_dir_.parts
         start, end = Path(start), str(Path(*end))
         commit_dirs = start.glob(end)
         # FIXME: the output path is not created like this if rel_input_path is long or there are configs/tuning...
         commit_dirs = [d for d in commit_dirs if (d / batch_conf_dir / run_context.rel_input_path).exists()]
-        assert commit_dirs
-        for commit_dir in commit_dirs:
-          input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
+        try:
+          assert commit_dirs
+        except:
+          click.secho(f"ERROR: Missing run: {run_context.rel_input_path}", bg='red', underline=True, bold=True)
+          exit(1)
+        for commit_dir_ in commit_dirs:
+          input_is_bit_accurate = is_bit_accurate(commit_dir_ / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
           all_bit_accurate = all_bit_accurate and input_is_bit_accurate
       else:
         input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
