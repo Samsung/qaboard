@@ -393,7 +393,7 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('logs') && <Section>
                   {all_controls}
-                  <h2 className={Classes.HEADING}>Output logs</h2>
+                  <h2 className={Classes.HEADING}>Logs</h2>
                   <BatchLogs
                     project={this.props.selected.new_project}
                     commit={new_commit}
@@ -413,7 +413,7 @@ class CiCommitResults extends Component {
                    />
                  : <Section>
                  {all_controls}
-                  <h2 className={Classes.HEADING}>Outputs</h2>
+                  <h2 className={Classes.HEADING}>Visualizations</h2>
                   <ExportPlugin
                     project={this.props.selected.new_project}
                     ref_project={this.props.selected.ref_project}
@@ -440,7 +440,7 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('bit-accuracy') && <Section>
                  {all_controls}
-                  <h2 className={Classes.HEADING}>Files & Bit Accuracy</h2>
+                  <h2 className={Classes.HEADING}>Output Files</h2>
                   <ExportPlugin
                     project={this.props.selected.new_project}
                     ref_project={this.props.selected.ref_project}

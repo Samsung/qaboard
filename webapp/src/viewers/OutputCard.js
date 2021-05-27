@@ -87,7 +87,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
     <h5 className={Classes.HEADING} style={style} >
       {prefix}   
       {tags_first && tags}
-      <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER}>
+      {output.output_type !== "batch" && <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER}>
         <span>
           <Link
             to={input_over_time_url}
@@ -128,7 +128,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
           />
           {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
         </Menu>
-      </Popover>
+      </Popover>}
       {!tags_first && tags}
     </h5>
     <p>

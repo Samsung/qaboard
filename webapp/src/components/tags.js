@@ -165,13 +165,14 @@ class OutputTags extends React.Component {
 
 
   render() {
-    const { platform, configurations, output_dir_url, id, deleted, is_pending } = this.props.output;
+    const { platform, configurations, output_dir_url, id, deleted, is_pending, output_type } = this.props.output;
     const { mismatch } = this.props;
     return <span style={this.props.style}>
       {deleted && <Tag icon="trash">deleted</Tag>}
       <PlatformTag platform={platform} />
       <ConfigurationsTags configurations={configurations} />
 
+      {output_type !== "batch" &&
       <Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
         <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
 
@@ -255,7 +256,7 @@ class OutputTags extends React.Component {
             <MenuItem icon="folder-shared-open" href={this.props.output_ref.output_dir_url} text="View"/>
           </>}
         </Menu>
-      </Popover>
+      </Popover>}
 
 
       <Tooltip>
