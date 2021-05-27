@@ -17,7 +17,7 @@ from typing import List, Union, Dict, Tuple, Iterator, cast
 import yaml
 import click
 
-from .conventions import make_hash, make_pretty_tuning_filename, get_settings, location_from_spec
+from .conventions import pretty_hash, get_settings, location_from_spec
 from .utils import input_metadata, entrypoint_module
 from .compat import cased_path
 from .run import RunContext
@@ -401,20 +401,13 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
         return
     # the search overrides the extra parameters specified earlier
     params = {**extra_params, **params_}
-    # we sort to avoid ordering issues; we want a unique hash per tuning configuration
-    params_s = json.dumps(params, sort_keys=True)
-    params_hash = make_hash(params)
+    params_str = json.dumps(params, sort_keys=True)
+    params_hash = pretty_hash(params_str)
 
-    working_directory = Path('.') # can we do something smarter?
-    params_file = working_directory / 'configurations' / 'tuning' / make_pretty_tuning_filename(params_s, filetype)
 
-    if params:
-      params_file.parent.mkdir(parents=True, exist_ok=True)
-      with params_file.open('w') as f:
-        if filetype == 'json':
-          f.write(params_s)
-        elif filetype == 'yaml' or filetype == 'yml':
-          yaml.dump(params, f)
-        else:
-          raise ValueError(f"{params_file} should be json/yaml")
-    yield params_file, params_hash, params
+    # We can either save the tuning parameters on the CLI only, or in a file
+    # If we save in a file, then it must be readable on the server that will execute the run
+    #   so /tmp folders are not possible. We can assume the current working directory is readable,
+    #   but in CI settings the current user may no have enough permissions to write there (if we switched user to handle storage quotas...)
+    #   and in any case if the files are temporary it makes reproducing the runs that much harder...
+    yield params, params_str, params_hash

@@ -130,17 +130,17 @@ def serialize_config(configurations: List) -> str:
   return configuration
 
 
-def make_pretty_tuning_filename(paramstring, filetype, maxlen=20):
+def pretty_hash(params_str):
   """Best effort attempt at making a human-readable name from tuning parameters"""
-  thishash = make_hash(paramstring)
-  params_filename = paramstring.replace(",","_")
+  params_hash = make_hash(params_str)
+  params_hash_pretty = params_str.replace(",","_")
   for char in "\\{}:[] \r\n\"/":
-    params_filename = params_filename.replace(char,"")
-  if len(params_filename) > maxlen:
-    params_filename = thishash[:8] + '-' + re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_filename)
-  if len(params_filename) > maxlen:
-    params_filename = params_filename[-10:] + '-' + thishash[:10]
-  return f"{params_filename}.{filetype}"
+    params_hash_pretty = params_hash_pretty.replace(char,"")
+  if len(params_hash_pretty) > maxlen:
+    params_hash_pretty = params_hash[:8] + '-' + re.sub("[a-zA-Z_]+", lambda x: x.group(0)[-2:], params_hash_pretty)
+  if len(params_hash_pretty) > maxlen:
+    params_hash_pretty = params_hash_pretty[-10:] + '-' + params_hash[:10]
+  return params_hash_pretty
 
 
 
