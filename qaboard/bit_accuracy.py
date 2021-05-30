@@ -255,6 +255,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
     all_bit_accurate = True
     nb_compared = 0
+    missing_runs = 0
     for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
       if not (run_context.database / run_context.rel_input_path / "manifest.outputs.json").exists():
         click.secho(f"[WARNING] no manifest for {run_context.database / run_context.rel_input_path}", fg='yellow')
@@ -279,8 +280,8 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
         try:
           assert commit_dirs
         except:
-          click.secho(f"ERROR: Missing run: {run_context.rel_input_path}", bg='red', underline=True, bold=True)
-          exit(1)
+          click.secho(f"ERROR: Missing run: {run_context.rel_input_path}", fg='red')
+          missing_runs += 1
         for commit_dir_ in commit_dirs:
           input_is_bit_accurate = is_bit_accurate(commit_dir_ / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
           all_bit_accurate = all_bit_accurate and input_is_bit_accurate
@@ -288,6 +289,9 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
         input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
         all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
+    if missing_runs:
+      click.secho(f"ERROR: {missing_runs} runs are missing!", bg='red', underline=True, bold=True)
+      exit(1)
     if not all_bit_accurate:
       click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
       click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
