@@ -43,7 +43,7 @@ import requests
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
-from ..compat import linux_to_windows_path
+from ..compat import linux_to_windows, linux_to_windows_path
 
 
 from ..api import api_prefix
@@ -133,7 +133,7 @@ class JenkinsWindowsRunner(BaseRunner):
     command = re.sub(r"(.*) && (.*)", r"\1; if ($?) { \2 }", command)
 
     script = "\n".join([
-      f'cd "{linux_to_windows_path(os.getcwd())}"',
+      f'cd "{linux_to_windows(os.getcwd())}"',
       command,
       'exit $lastExitCode',
     ])
