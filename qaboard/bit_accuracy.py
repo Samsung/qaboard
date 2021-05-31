@@ -281,6 +281,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
           assert commit_dirs
         except:
           click.secho(f"ERROR: Missing run: {run_context.rel_input_path}", fg='red')
+          click.secho(f"       nothing at {commit_dir_ / batch_conf_dir / run_context.rel_input_path}", fg='red')
           missing_runs += 1
         for commit_dir_ in commit_dirs:
           input_is_bit_accurate = is_bit_accurate(commit_dir_ / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
