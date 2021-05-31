@@ -5,11 +5,13 @@ from .base import BaseRunner
 from .lsf import LsfRunner
 from .local import LocalRunner
 from .celery import CeleryRunner
+from .jenkins_windows import JenkinsWindowsRunner
 
 runners: Dict[str, Type[BaseRunner]] = {
     'local': LocalRunner,
     'lsf': LsfRunner,
     'celery': CeleryRunner,
+    'windows': JenkinsWindowsRunner,
 }
 
 
