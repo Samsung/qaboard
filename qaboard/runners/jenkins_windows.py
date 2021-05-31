@@ -105,7 +105,7 @@ def wait_for_build(build_info):
     if status != 'success':
         secho(f'[ERROR] There was an issue while waiting for the end of: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}', fg='red')
         secho(f'        The job is marked as: {status}', fg='red')
-        exit(1)
+        raise Exception
     
 
 class JenkinsWindowsRunner(BaseRunner):
@@ -125,7 +125,7 @@ class JenkinsWindowsRunner(BaseRunner):
     assert command
 
     # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/out-file?view=powershell-7.1
-    command = f"{command} | Out-File -FilePath {linux_to_windows_path(self.run_context.output_dir / 'log.txt')}"
+    command = f"{command} | Out-File -Append -FilePath {linux_to_windows_path(self.run_context.output_dir / 'log.txt')}"
 
     # not needed after PowerShell 7
     # https://stackoverflow.com/questions/2416662/what-are-the-powershell-equivalents-of-bashs-and-operators
