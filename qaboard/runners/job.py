@@ -31,7 +31,7 @@ class Job():
       return asdict(self)
 
     def start(self, blocking=True, **kwargs):
-        self.runner.start(blocking, **kwargs)
+        return self.runner.start(blocking, **kwargs)
 
     def is_failed(self, verbose=False):
       if self.id:
