@@ -5,11 +5,11 @@ import subprocess
 import click
 from joblib import Parallel, delayed
 
-from .api import NumpyEncoder, batch_info, notify_qa_database, print_url
+from .api import NumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType
-
+from .run import RunContext
 
 
 
@@ -275,33 +275,6 @@ def make_reduce(options):
     from numpy.linalg import norm
     return lambda x: norm(x, ord=int(reduce_type[1])) / len(x)
 
-
-def matching_output(output_reference, outputs):
-  """
-  Return the output from from a given batch that looks most similar to a given output.
-  This helps us compare an output to historical results.
-  FIXME: this is old......... there is newer version in the backend
-  """
-  matching_outputs = [o for o in outputs if o.test_input_path == output_reference.test_input_path]
-  valid_outputs = [o for o in matching_outputs if not o.is_pending and not o.is_failed]
-  if not valid_outputs:
-    raise ValueError(f"Could not find an output for {output_reference.test_input_path} in the target batch")
-
-  def match_key(output):
-    has_meta_id = output.test_input.data and output_reference.test_input.data and output.test_input.data.get('id')
-    return (
-      4 if has_meta_id and output.test_input.data.get('id') == output_reference.test_input.data.get('id') else 0 +
-      4 if json.dumps(output.configurations, sorted=True) == json.dumps(output_reference.configurations, sorted=True) else 0 +
-      # 4 if output.configuration == output_reference.configuration else 0 + # FIXME: a faster property?
-      # we can't test for equality with == because of potentially nested dicts... 
-      2 if output.platform == output_reference.platform else 0 +
-      1 if json.dumps(output.extra_parameters, sorted=True) == json.dumps(output_reference.extra_parameters, sorted=True) else 0
-    )
-  valid_outputs.sort(key=match_key, reverse=True)
-  return valid_outputs[0]
-
-
-
 def batch_objective(project, commit_id, batch_label, config_objective):
   this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, project=project)
   # We can compare to KPI quality target defined
@@ -333,8 +306,10 @@ def batch_objective(project, commit_id, batch_label, config_objective):
       if 'target' in config_objective and ('shift' in loss_name or 'relative' in loss_name):
         if use_default_targets:
           metric_target = available_metrics[metric]['target']
-        else:  
-          output_target = matching_output(output, target_batch_info['outputs'])
+        else:
+          output_target = matching_output(RunContext.from_api_output(output), target_batch_info['outputs'].values())
+          if not output_target:
+            raise ValueError(f"Could not find an output for {output['test_input_path']} in the target batch")
           metric_target = output_target['metrics'][metric]
       else:
         metric_target = None

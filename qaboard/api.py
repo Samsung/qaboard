@@ -3,17 +3,18 @@ Utilities related to CI database: fetching results, saving results...
 """
 import os
 import json
+from pathlib import Path
 from copy import deepcopy
 from functools import lru_cache
 from urllib.parse import quote, unquote
-from pathlib import Path, PurePosixPath
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import simplejson
 import click
 
-from .config import project, config, commit_id, is_ci, available_metrics
+from .config import project, commit_id, is_ci, available_metrics
 from .config import secrets
+from .run import RunContext
 
 qaboard_protocol = os.getenv('QABOARD_PROTOCOL', secrets.get('QABOARD_PROTOCOL', 'https'))
 qaboard_hostname = os.getenv('QABOARD_HOSTNAME', secrets.get('QABOARD_HOSTNAME'))
@@ -233,3 +234,27 @@ def aggregated_metrics(batch_label):
     for k, v in info['aggregated_metrics'].items()
     if k.endswith(aggregation)
   }
+
+
+def matching_output(output_reference: RunContext, outputs: List[Dict]):
+  """
+  Return the output from from a given batch that is like a given output.
+  This helps us compare an output to historical results.
+  """
+  matching_outputs = [o for o in outputs if f'{o["test_input_database"]}/{o["test_input_path"]}' == output_reference.input_path.as_posix()]
+  valid_outputs = [o for o in matching_outputs if not o["is_pending"]]
+  def match_ref(output):
+    output_ctx = RunContext.from_api_output(output)
+    if not output_ctx.platform == output_reference.platform:
+      return False
+    if not json.dumps(output_ctx.configurations, sort_keys=True) == json.dumps(output_reference.configurations, sort_keys=True):
+      return False
+    if not json.dumps(output_ctx.extra_parameters, sort_keys=True) == json.dumps(output_reference.extra_parameters, sort_keys=True):
+      return False
+    return True
+  valid_outputs = [o for o in valid_outputs if match_ref(o)]
+  if not valid_outputs:
+    return None
+  # at most 1, garanteed by database constaints
+  assert len(valid_outputs) == 1
+  return valid_outputs[0]
