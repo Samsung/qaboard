@@ -85,6 +85,22 @@ class RunContext():
           return True
 
     @staticmethod
+    def from_api_output(output: Dict):
+        from qaboard.api import url_to_dir
+        return RunContext(
+            input_path=Path(output['test_input_path']),
+            database=output['test_input_database'],
+            input_metadata=output.get('test_input_metadata', {}),
+            configurations=output['configurations'],
+            extra_parameters=output['extra_parameters'],
+            platform=output['platform'],
+            output_dir=url_to_dir(output['output_dir_url']),
+            type=output['output_type'],
+            click_context=None,
+        )
+
+
+    @staticmethod
     def from_click_run_context(ctx, config):
         if ctx.params['input_path'].is_absolute():
             database_str, *input_path_parts = ctx.params['input_path'].parts
