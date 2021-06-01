@@ -420,8 +420,8 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue', lsf_config.get('queue')), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
-@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-use results) / skip")
-@click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / continue (run as usual, can cause races)")
+@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
+@click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -521,15 +521,33 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       else:
         run_context.extra_parameters = tuning_params
 
+      if list_inputs:
+        print(run_context.input_path)
+        break
+
+      # In the past we could assume a given run had a unique output dir,
+      # so we could identify platform+input+config+tuning tuples describing runs by their output dir
+      # But now the directory can depend on the username...
+      # In most cases we don't care: worse case re-running will lead to some orphan output dirs on disk and wasted compute
+      # But when trying to get results from older `qa batch`, we care...
+      # We could remove the feature flag, maybe when it's used a bit more and we check there is no noticeable runtime cost..
+      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ:
+        matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
+        matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None
+      else:
+        from .api import matching_output
+        matching_existing_output = matching_output(run_context, list(existing_outputs.values()))
+      if action_on_existing=='assert-exists':
+        if not matching_existing_output:
+          click.secho("ERROR: At least 1 run cannot be found in QA-Board's past runs'", err=True, fg="red")
+          click.secho(f"       {run_context}", err=True, fg="red")
+          exit(1)
+        run_context.output_dir = RunContext.from_api_output(matching_existing_output).output_dir
+
       if list_output_dirs:
         print(run_context.output_dir)
         break
-      if list_inputs:
-        print(run_context.input_path)        
-        break
 
-      matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
-      matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None # at most 1, garanteed by database constaints
       is_pending = matching_existing_output['is_pending'] if matching_existing_output else False
       is_failed = matching_existing_output['is_failed'] if matching_existing_output else run_context.is_failed()
       ran_before = True if matching_existing_output else run_context.ran()
