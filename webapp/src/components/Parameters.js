@@ -1,6 +1,7 @@
 import React from "react";
 import { get, all, CancelToken } from "axios";
 import qs from "qs";
+import copy from 'copy-to-clipboard';
 
 import {
   Classes,
@@ -12,10 +13,15 @@ import {
   Switch,
   NonIdealState,
   InputGroup,
+  Toaster,
 } from "@blueprintjs/core";
 
 import { bit_accuracy_help, humanFileSize } from "../viewers/bit_accuracy/utils";
+import { linux_to_windows } from "../utils";
 import { OutputViewer } from "../viewers/OutputViewer";
+
+
+export const toaster = Toaster.create();
 
 
 class CommitParameters extends React.Component {
@@ -219,9 +225,20 @@ class CommitParameters extends React.Component {
                           <p className={Classes.TEXT_MUTED}><code>{JSON.stringify(error.new.response)}</code></p>
                         </>}
                       />
-                   : viewer}
+                   : viewer
+      }
+      <div style={{margin: '10px'}}>
+        <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(new_commit.artifacts_url))}}>
+          Copy Path <Tag minimal>windows</Tag>
+        </Button>
+        <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(new_commit.artifacts_url).slice(2))}}>
+          Copy Path <Tag minimal>linux</Tag>
+        </Button>
+        <a rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url}><Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
+          View in browser
+        </Button></a>
+      </div>
     </div>
-
   }
 
 
