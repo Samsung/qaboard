@@ -7,6 +7,7 @@ import re
 import json
 import hashlib
 from pathlib import Path
+from functools import lru_cache
 
 from requests.utils import quote
 from flask import request, jsonify, make_response
@@ -19,10 +20,12 @@ from qaboard.conventions import serialize_config
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_hash
 
-
 # https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
+@lru_cache(maxsize=4096)
 def levenshtein(s1, s2):
     if s1 == "{}" and s2 == "{}":
+      return 0
+    if s1 == "[]" and s2 == "[]":
       return 0
     if len(s1) < len(s2):
         return levenshtein(s2, s1)
@@ -108,7 +111,10 @@ def matching_output(output_reference, outputs):
   This helps us compare an output to historical results.
   """
   def to_json(a):
-    return json.dumps(a, sort_keys=True)
+    json_str = json.dumps(a, sort_keys=True)
+    # the string edit distance scales quadratically
+    # we mitigate it..
+    return re.sub("(workspace|[{}\", '/.-_]|config|raw|bmp)", "", json_str)
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending]
   if not valid_outputs: return None
