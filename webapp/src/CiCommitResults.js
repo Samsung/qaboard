@@ -87,7 +87,7 @@ class CiCommitResults extends Component {
         icon={this.isMetricSelected(metric) ? "tick" : "blank"}
         key={metric.key}
         label={metric.key}
-        text={`${metric.label} [${metric.suffix}]`}
+        text={`${metric.label}${!!metric.suffix ? ` [${metric.suffix}]` : ''}`}
         onClick={handleClick}
         shouldDismissPopover={false}
       />
@@ -506,7 +506,6 @@ const mapStateToProps = (state, ownProps) => {
     let { git, config, metrics, selected_metrics } = configSelector(state)
     let { available_metrics } = metrics;
 
-
     let selected_views = selected.selected_views || (config.outputs || {}).default_tab_details || "summary";
     if (!Array.isArray(selected_views))
       selected_views = [selected_views]
@@ -520,7 +519,7 @@ const mapStateToProps = (state, ownProps) => {
       metrics,
       git,
       available_metrics,
-      selected_metrics,
+      selected_metrics: selected_metrics.map(m => available_metrics[m]),
       // selected commit
       new_project,
       ref_project,
