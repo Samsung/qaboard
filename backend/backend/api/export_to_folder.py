@@ -359,5 +359,5 @@ def copy_path_rel(output, output_path, label):
     output_path_rel = output.test_input.path / output_path.relative_to(output.output_dir)
     copied_rel = output_path_rel
   copied_rel = copied_rel.parent / f"{output_path_rel.stem}{label}{output_path_rel.suffix}" 
-  copied_rel = str(copied_rel).replace('/', '•') # or \ ? or just name .... ??
+  copied_rel = str(copied_rel).replace('/', '_') # or \ ? or just name .... ??
   return copied_rel
