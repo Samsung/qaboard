@@ -133,8 +133,11 @@ class JenkinsWindowsRunner(BaseRunner):
     command = re.sub(r"(.*) \|\| (.*)", r"\1; if (-not $?) { \2 }", command)
     command = re.sub(r"(.*) && (.*)", r"\1; if ($?) { \2 }", command)
 
+    from ..config import user
     script = "\n".join([
+      # TODO: use this? self.run_context.job_options.get('user', user)
       f'cd "{linux_to_windows(os.getcwd())}"',
+      f"$env:QA_USER = '{user}'",
       command,
       'exit $lastExitCode',
     ])
