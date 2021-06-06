@@ -138,7 +138,7 @@ def commonprefix(m):
   s1 = min(m, key=key)
   s2 = max(m, key=key)
   for i, c in enumerate(s1):
-    print(i, c, file=sys.stderr)
+    # print(i, c, file=sys.stderr)
     if c != s2[i]:
       return s1[:i]
   return s1
@@ -150,31 +150,39 @@ def export_to_folder():
   project_id = request.args['project']
   ref_project_id = request.args.get('ref_project', project_id)
 
-  new_commit = load_commit(project_id, request.args['new_commit_id'])
+  new_commit_id = request.args['new_commit_id']
+  new_commit = load_commit(project_id, new_commit_id)
   if not new_commit:
     return f"ERROR: Commit {request.args['new_commit_id']} not found", 404
-  new_batch = new_commit.get_or_create_batch(request.args.get('batch_new', 'default'))
+  new_batch_label = request.args.get('batch_new', 'default')
+  new_batch = new_commit.get_or_create_batch(new_batch_label)
   new_outputs = new_batch.outputs
 
+  filter_new = request.args.get('filter_new')
+  filter_ref = request.args.get('filter_ref')
+
   if request.args.get('ref_commit_id'):
-    ref_commit = load_commit(ref_project_id, request.args['ref_commit_id'])
+    ref_commit_id = request.args['ref_commit_id']
+    ref_commit = load_commit(ref_project_id, ref_commit_id)
     if not ref_commit:
-      return f"ERROR: Commit {request.args['ref_commit_id']} not found", 404    
-    ref_batch = ref_commit.get_or_create_batch(request.args.get('batch_ref', 'default'))
+      return f"ERROR: Commit {ref_commit_id} not found", 404
+    ref_batch_label = request.args.get('batch_ref', 'default')
+    ref_batch = ref_commit.get_or_create_batch(ref_batch_label)
     ref_outputs = ref_batch.outputs
+    same_ref_new = ref_project_id == project_id and ref_commit_id == new_commit_id and ref_batch_label == new_batch_label and filter_new == filter_ref
+    if same_ref_new:
+      ref_commit = None
+      ref_batch = None
+      ref_outputs = []
   else:
     ref_commit = None
     ref_batch = None
     ref_outputs = []
 
-  filter_new = request.args.get('filter_new')
-  filter_ref = request.args.get('filter_ref')
-  print("filter_new", filter_new)
-  print("filter_ref", filter_ref)
   new_outputs = filter_outputs(filter_new, new_outputs)
   ref_outputs = filter_outputs(filter_ref, ref_outputs)
-  print("new_outputs", len(new_outputs))
-  print("ref_outputs", len(ref_outputs))
+  # print("new_outputs", len(new_outputs))
+  # print("ref_outputs", len(ref_outputs))
 
   # We save the links in a unique folder
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
@@ -188,9 +196,9 @@ def export_to_folder():
   output_refs = {}
   for output in new_outputs:
     output_refs[output.id] = matching_output(output, ref_outputs)
-    if output_refs[output.id]:
-      print("  config:", output.configurations)
-      print("  match:", output_refs[output.id].configurations)
+    # if output_refs[output.id]:
+    #   print("  config:", output.configurations)
+    #   print("  match:", output_refs[output.id].configurations)
 
   # find common characteristics
   common_data = {}
@@ -224,7 +232,7 @@ def export_to_folder():
       o_value = [str(o.extra_parameters.get(key))]
       # print(o.id, o_value)
       values.update(set(o_value))
-    print(key, values)
+    # print(key, values)
     if len(values) == 1:
       if not all_outputs[0].extra_parameters: all_outputs[0].extra_parameters = {} 
       common_extra_parameters[key] = all_outputs[0].extra_parameters.get(key)
@@ -264,7 +272,7 @@ def export_to_folder():
         if stripped_config:
           labels.append(stripped_config)
         label_mappings['configurations'][stripped_config] = output.configurations
-        print('label', stripped_config, output.configurations)
+        # print('label', stripped_config, output.configurations)
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
         p = tame(output.extra_parameters) - tame(common_extra_parameters)
@@ -349,6 +357,8 @@ def symlink_to(path_from, path_to):
   try:
     if path_from.exists():
         path_from.unlink()
+    # print(f"LINK {path_from} -> {path_to}")
+    # print("  ", path_from.owner())
     os.link(str(path_to), str(path_from))
     # path_from.symlink_to(path_to)
   except:
