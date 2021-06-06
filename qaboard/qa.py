@@ -593,7 +593,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       platform_cli =None
       Runner = runners[run_context.job_options['type']]
       if getattr(Runner, "platform", default_platform) != default_platform:
-        platform_cli = f'--platform "{getattr(Runner, "platform")}"'
+        run_context.platform = getattr(Runner, "platform")
       if run_context.platform != default_platform:
         platform_cli = f'--platform "{run_context.platform}"'
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
