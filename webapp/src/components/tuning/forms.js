@@ -405,7 +405,7 @@ class TuningForm extends Component {
       <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
       <p>Otherwise, your runs may be killed if they take too long.</p>
       </Callout>}
-      {project.startsWith('CDE-Users/HW_ALG') && !(this.props.commit?.branch.split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop" && <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+      {project.startsWith('CDE-Users/HW_ALG') && !((this.props.commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop" && <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
       <p>For tuning to work, your branch name (<code>{this.props.commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
       <p>A workaround is calling from Windows/Linux:</p>
       <pre>
