@@ -106,10 +106,11 @@ def wait_for_build(build_info):
         secho(f'[ERROR] There was an issue while waiting for the end of: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}', fg='red')
         secho(f'        The job is marked as: {status}', fg='red')
         raise Exception
-    
+
 
 class JenkinsWindowsRunner(BaseRunner):
   type = "windows"
+  platform = "windows"
 
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
