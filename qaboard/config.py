@@ -127,13 +127,14 @@ on_lsf = 'HOST' in os.environ and (os.environ['HOST'].endswith("transchip.com") 
 
 platform = 'windows' if on_windows else 'linux'
 
-user = getuser()
+
+user = os.environ.get('QA_USER', getuser())
 
 
 def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path]:
   # useful when migration results to a new default location
   if 'QABOARD_NO_CACHE_USER' in os.environ:
-    user_ = getuser()
+    user_ = os.environ.get('QA_USER', getuser())
   else:
     user_ = user
   try:

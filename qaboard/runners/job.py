@@ -22,10 +22,8 @@ class Job():
 
       self.run_context = deepcopy(run_context)
       from . import runners
-      for Runner in runners.values():
-        Runner.type
-        if run_context.job_options['type'] == Runner.type:
-            self.runner = Runner(self.run_context)
+      Runner = runners[run_context.job_options['type']]
+      self.runner = Runner(self.run_context)
 
     def asdict(self):
       return asdict(self)
