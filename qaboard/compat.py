@@ -30,12 +30,12 @@ def ensure_cli_backward_compatibility():
     def renamed_deprecated(arg):
         for before, after in renamings:
             if arg == before:
-                click.secho(f'DEPRECATION WARNING: "{before}" was replaced by "{after}" and will be removed in a future release.', fg='yellow')
+                click.secho(f'[DEPRECATION WARNING]: "{before}" was replaced by "{after}" and will be removed in a future release.', fg='yellow')
                 return after
         return arg
     sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
     if '--lsf-sequential' in sys.argv:
-        click.secho('DEPRECATION WARNING: "--lsf-sequential" was replaced with "--runner local"', fg='yellow', bold=True)
+        click.secho('[DEPRECATION WARNING]: "--lsf-sequential" was replaced with "--runner local"', fg='yellow', bold=True)
 
 
 
