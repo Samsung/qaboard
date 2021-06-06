@@ -116,7 +116,7 @@ class JenkinsWindowsRunner(BaseRunner):
     self.run_context = run_context
 
 
-  def start(self, blocking=True) -> Dict:
+  def start(self, blocking=True, log_path=None) -> Dict:
     # To allow the jenkins job to write we need permissions to be wide open
     self.run_context.output_dir.mkdir(exist_ok=True, parents=True)
     self.run_context.output_dir.chmod(0o777)
@@ -125,8 +125,11 @@ class JenkinsWindowsRunner(BaseRunner):
     command = self.run_context.command
     assert command
 
+    if not log_path:
+      log_path = self.run_context.output_dir / 'log.txt'
+
     # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/out-file?view=powershell-7.1
-    command = f"{command} | Out-File -Append -FilePath {linux_to_windows_path(self.run_context.output_dir / 'log.txt')}"
+    command = f"{command} | Out-File -Append -FilePath {linux_to_windows_path(log_path)}"
 
     # not needed after PowerShell 7
     # https://stackoverflow.com/questions/2416662/what-are-the-powershell-equivalents-of-bashs-and-operators
@@ -137,7 +140,9 @@ class JenkinsWindowsRunner(BaseRunner):
     script = "\n".join([
       # TODO: use this? self.run_context.job_options.get('user', user)
       f'cd "{linux_to_windows(os.getcwd())}"',
-      f"$env:QA_USER = '{user}'",
+      f"$Env:QA_USER = '{user}'",
+      # https://stackoverflow.com/questions/40098771/changing-powershells-default-output-encoding-to-utf-8
+      "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'",
       command,
       'exit $lastExitCode',
     ])
