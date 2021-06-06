@@ -589,13 +589,20 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           tuning_cli =  f'--tuning {escaped_for_cli(tuning_str)}'
 
 
+      from .runners import runners
+      platform_cli =None
+      Runner = runners[run_context.job_options['type']]
+      if getattr(Runner, "platform", default_platform) != default_platform:
+        platform_cli = f'--platform "{getattr(Runner, "platform")}"'
+      if run_context.platform != default_platform:
+        platform_cli = f'--platform "{run_context.platform}"'
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
       args = [
           f"qa",
           f'--share' if ctx.obj["share"] else None,
           f'--offline' if ctx.obj['offline'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
-          f'--platform "{run_context.platform}"' if run_context.platform != default_platform else None,
+          platform_cli,
           f'--type "{run_context.type}"' if run_context.type != default_input_type else None,
           f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
