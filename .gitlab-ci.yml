@@ -40,6 +40,12 @@ deploy:qa:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - pip install $PROXY_STUFF .
 
+deploy:qa:windows:
+  stage: deploy
+  only:
+    - master
+  script:
+    -   - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/UpdateQAOnAllWindowsNodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
 
 publish:PyPi:
   stage: publish
