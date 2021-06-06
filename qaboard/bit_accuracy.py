@@ -236,7 +236,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
 
     if bit_accurate and not nothing_was_compared:
       for o in output_directories:
-        click.secho(str(o), fg='green', err=True)
+        click.secho(f"✔️ {o}", fg='green', err=True)
     return bit_accurate
 
 
