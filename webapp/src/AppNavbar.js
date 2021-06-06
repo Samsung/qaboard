@@ -145,7 +145,7 @@ class AppNavbar extends Component {
 
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
 
-    const is_commit = this.props.match.path.startsWith('/:project_id+/commit');
+    const is_commit = this.props.match.path.startsWith('/:project_id+/commit') && !this.props.match.path.startsWith('/:project_id+/commits');
     if (is_commit) {
       return <>
         <StyledNavbarNew>
