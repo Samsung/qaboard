@@ -81,9 +81,9 @@ export const fetchCommits = (project, branch, date_range, aggregation_metrics, e
         dispatch({ type: UPDATE_COMMITS, project, branch, commits: response.data })
         if (!!branch.name && response.data && response.data.length > 0 && !fetch_once) {
           const latest_commit = response.data[0]
-          const available_metrics = metrics_fill_defaults(latest_commit.data.qatools_metrics.available_metrics);
+          const available_metrics = metrics_fill_defaults(latest_commit.data.qatools_metrics?.available_metrics);
           let aggregated_metrics = {};
-          (latest_commit.data.qatools_metrics.main_metrics.main_metrics || []).forEach(m => {
+          (latest_commit.data.qatools_metrics?.main_metrics || []).forEach(m => {
             if (available_metrics[m] !== undefined)
               aggregated_metrics[m] = available_metrics[m].target ?? 0
           });
