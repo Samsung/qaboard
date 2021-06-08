@@ -13,11 +13,18 @@ my-batch:
   configurations: [base, delta]
 ```
 
-## [admin] Required configuration
+## Required configuration
 - QA-Board needs to be setup with enough jenkins credentials to trigger builds
-- Jenkins needs to have a job configured like this:
-  * The build name should match build_url below
+- qaboard.yaml needs to be configured with something like:
+```yaml
+runners:
+  jenkins:
+    build_url: http://jenmaster1:8080/job/ALGO/job/WindowsExecutor
+    token: "1234"
+``` 
+- This Jenkins build job needs to be configured like this:
   * Enable "Trigger builds remotely", the token should match what's below
+  * The build url and token should be the same as above
   * Parametrized: **task** should be a String parameter that gets a command to run
   * Build > "Execute Windows Batch command"
 ```
@@ -35,7 +42,6 @@ import os
 import re
 import time
 from typing import List, Dict, Any
-from pathlib import Path
 
 from click import secho
 import requests
@@ -44,14 +50,26 @@ from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
 from ..compat import linux_to_windows, linux_to_windows_path
-
+from ..config import config
 
 from ..api import api_prefix
 
+
+
 def trigger_run(task: str) -> Dict:
+    config_error = False
+    if 'runners' not in config or 'jenkins' not in config['runners']:
+      secho("ERROR: you must configure your Jenkins runner in qaboard.yaml", fg='red')
+      config_error = True
+    jenkins_config = config['runners']['jenkins']
+    print(jenkins_config)
+    if any([k not in jenkins_config for k in ('build_url', 'token')]):
+      secho("ERROR: you must configure your Jenkins runner in qaboard.yaml with build_url/token", fg='red')
+    if config_error:
+      raise ValueError("Missing config in qaboard.yaml")
     data = {
-        "build_url": "http://jenmaster1:8080/job/ALGO/job/WindowsExecutor",
-        "token": "1234",
+        "build_url": jenkins_config["build_url"],
+        "token": jenkins_config["token"],
         "cause": "qa run",
         "params": {
             "task": task,
