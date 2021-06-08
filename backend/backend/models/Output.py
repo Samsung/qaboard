@@ -2,15 +2,13 @@
 Describes an Output from `qa run`.
 """
 import os
-import re
 import json
-import hashlib
+import uuid
 import fnmatch
 import datetime
 import subprocess
 from pathlib import Path
 
-from requests.utils import quote
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -202,7 +200,9 @@ class Output(Base):
       return output
 
 
-  def redo(self):
+  def redo(self, command_id=None):
+    if not command_id:
+      command_id = uuid.uuid4()
     extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
     job_options = self.data.get("job_options", {})
     job_options_cli = ""
@@ -242,7 +242,7 @@ class Output(Base):
       f"export GIT_COMMIT='{self.batch.ci_commit.hexsha}';",
       f"export QA_OUTPUTS_COMMIT='{self.batch.ci_commit.outputs_dir}'",
       f"export QABOARD_TUNING=true;",
-      f'export QA_BATCH_COMMAND_HIDE_LOGS=true',
+      f'export QA_BATCH_COMMAND_ID={command_id}',
       "",
       # get the env right
       f'umask 0',
