@@ -2,13 +2,10 @@
 Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
+import uuid
 import datetime
-import json
-import subprocess
 from pathlib import Path
-from functools import lru_cache
 
-from requests.utils import quote
 import numpy as np
 from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
 from sqlalchemy import UniqueConstraint, Column
@@ -17,7 +14,7 @@ from sqlalchemy.orm import relationship
 from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
-from backend.models import Base, Output
+from backend.models import Base
 
 
 
@@ -113,7 +110,7 @@ class Batch(Base):
         continue
       if only_deleted and not output.deleted:
         continue
-      output_success = output.redo()
+      output_success = output.redo(command_id=uuid.uuid4())
       success = success and output_success
     return success
 
@@ -125,10 +122,14 @@ class Batch(Base):
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?
     errors = []
     for command_id, command in self.data.get('commands', {}).items():
+      print(f"stopping {command['runner']} {command_id}")
       from qaboard.runners.job import JobGroup
       # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
-      # if the stop dosn't only use the command_id...
-      jobs = JobGroup(job_options={"type": "local", "command_id": command_id, **command})
+      jobs = JobGroup(job_options={
+        "type": command['runner'],
+        "command_id": command_id,
+        **command,
+      })
       try:
         jobs.stop()
       except Exception as e:
