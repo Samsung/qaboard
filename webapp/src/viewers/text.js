@@ -21,7 +21,7 @@ const ansi_regexp = new RegExp(ansi_pattern, 'g');
 const language = filename => {    
   if (filename.endsWith('yaml') || filename.endsWith('yml'))
     return 'yaml';
-  if (filename.endsWith('json') || filename.endsWith('tunset0'))
+  if (filename.endsWith('json') || filename.endsWith('tuneset0'))
     return 'json';
   if (filename.endsWith('js'))
     return 'javascript';
