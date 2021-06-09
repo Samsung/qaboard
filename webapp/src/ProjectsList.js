@@ -85,6 +85,8 @@ class ProjectsList extends Component {
     const matcher = match_query(query)
     let rendered_projects = Object.entries(projects)
                             .filter( ([id, data]) => matcher(id))
+                            // legacy SIRC projects...
+                            .filter( ([id, data]) => !data.data?.legacy && data.data?.qatools_config?.project?.name !== undefined)
     let list_projects = rendered_projects.length === 0 ? empty_projects : (
       <div>
         {rendered_projects
