@@ -105,12 +105,13 @@ class Batch(Base):
     if not self.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
       self.ci_commit.save_artifacts()
+    command_id = uuid.uuid4()
     for output in self.outputs:
       if only_failed and not output.is_failed:
         continue
       if only_deleted and not output.deleted:
         continue
-      output_success = output.redo(command_id=uuid.uuid4())
+      output_success = output.redo(command_id=command_id)
       success = success and output_success
     return success
 
