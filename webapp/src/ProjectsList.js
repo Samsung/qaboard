@@ -11,7 +11,9 @@ import {
   Card,
   Button,
   Icon,
+  Tag,
   Intent,
+  InputGroup,
   Tooltip,
   NonIdealState,
   Spinner,
@@ -27,8 +29,8 @@ import AuthButton from "./components/authentication/Auth"
 
 import { fetchProjects, updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
-import { project_avatar_style } from "./utils"
-import { git_hostname, default_git_hostname } from "./utils"
+import { match_query } from "./utils"
+import { project_avatar_style, git_hostname, default_git_hostname } from "./utils"
 
 
 class LastCommitAt extends Component {
@@ -51,12 +53,20 @@ class LastCommitAt extends Component {
 }
 
 class ProjectsList extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      query: null,
+    };
+  }
+
   componentDidMount() {
     this.props.dispatch(fetchProjects())
   }
 
   render() {
     const { error, is_loaded, projects } = this.props;
+    const { query } = this.state;
     let warnings;
     if (error)
       warnings = <NonIdealState description={error.message} icon="error" />;
@@ -71,16 +81,20 @@ class ProjectsList extends Component {
         description={<p>Learn how to to <a href="https://samsung.github.io/qaboard/docs/installation">get started, and<br/><a href="https://spectrum.chat/qaboard">chat with the maintainers</a> if you run into issues</a>.</p>}
       />
     </div>;
-    let list_projects = Object.keys(projects).length === 0 ? empty_projects : (
+
+    const matcher = match_query(query)
+    let rendered_projects = Object.entries(projects)
+                            .filter( ([id, data]) => matcher(id))
+    let list_projects = rendered_projects.length === 0 ? empty_projects : (
       <div>
-        {Object.entries(projects)
+        {rendered_projects
           .sort(
             ([id0, d0], [id1, d1]) => {
               let fav0 = projects[id0].is_favorite || false
               let fav1 = projects[id1].is_favorite || false
               if (fav0 === fav1) {
-                let date0 = d0.latest_output_datetime || (d0.data || {}).latest_output_datetime;
-                let date1 = d1.latest_output_datetime || (d1.data || {}).latest_output_datetime;
+                let date0 = d0.latest_output_datetime || d0.data?.latest_output_datetime;
+                let date1 = d1.latest_output_datetime || d1.data?.latest_output_datetime;
                 if (!!date1  && !!!date0) return 1
                 if (!!!date1 &&  !!date0) return -1
                 if (!!!date1 && !!!date0) return new Date(d1.latest_commit_datetime) - new Date(d0.latest_commit_datetime)
@@ -93,7 +107,7 @@ class ProjectsList extends Component {
           .map(([project_id, details]) => {
             let data = details.data || {};
             let git = data.git || {};
-            let qatools_config_project = (data.qatools_config || {}).project || {};
+            let qatools_config_project = data.qatools_config?.project || {};
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
@@ -105,7 +119,7 @@ class ProjectsList extends Component {
               avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
             }
             const is_subproject = git.path_with_namespace !== project_id;
-            const has_custom_avatar = !!((data.qatools_config || {}).project || {}).avatar_url
+            const has_custom_avatar = !!data.qatools_config?.project?.avatar_url
             const should_tweak_image = is_subproject && !has_custom_avatar;
             const avatar_style = should_tweak_image ? project_avatar_style(project_id) : null;
             // console.log(project_id, `is_subproject:${is_subproject}`, `has_custom_avatar:${has_custom_avatar}`, `should_tweak_image:${should_tweak_image}`)
@@ -175,6 +189,22 @@ class ProjectsList extends Component {
             </NavbarGroup>
         </Navbar>
         <Container>
+          <div style={{display: "flex", justifyContent: "space-between", alignItems: "baseline"}}>
+            <div style={{width: '300px', marginTop: '30px', marginBottom: '10px'}}>
+                <InputGroup
+                  intent={!!query ? Intent.PRIMARY : undefined}
+                  value={query}
+                  round
+                  large
+                  leftIcon="search"
+                  placeholder="filter projects..."
+                  onChange={e => this.setState({query: e.target.value})}
+                />
+              </div>
+            <div style={{}}>
+              <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}projects</Tag>
+            </div>
+          </div>
           {warnings}
           {list_projects}
         </Container>
