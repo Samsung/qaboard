@@ -22,9 +22,10 @@ module.exports = {
                 type: 'category',
                 label: 'Distributed Task Queues',
                 items: [
+                    "local-multiprocessing",
                     "celery-integration",
                     "lsf-integration",
-                    "local-multiprocessing",
+                    "jenkins-integration",
                 ],
             },
             {
