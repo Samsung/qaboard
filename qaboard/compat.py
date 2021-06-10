@@ -83,6 +83,7 @@ mappings = (
   ('\\\\f2\\algo_archive\\', '/stage/algo_archive/'),
   ('\\\\mars\\stage\\jenkins_ws\\', '/stage/jenkins_ws/'),
   ('\\\\mars\\stage\\algo_jenkins_ws\\', '/stage/algo_jenkins_ws/'),
+  ('\\\\mars\\raid\\data\\DATASYNC', '/raid/data/DATASYNC'),
   ('\\\\mars\\raid\\algo\\', '/algo/'),
   ('\\\\mars\\algo\\', '/algo/'),
   ('\\\\mars\\raid\\', '/raid'),
