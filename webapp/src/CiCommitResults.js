@@ -111,14 +111,14 @@ class CiCommitResults extends Component {
   deselectMetric = index => {
     this.props.dispatch(updateSelected(
       this.props.project, {
-        selected_metrics: this.props.selected_metrics.filter((metric, i) => i !== index)
+        selected_metrics: this.props.selected_metrics.filter((metric, i) => i !== index).map(m => m.key)
       }))
   };
   handleMetricSelect = metric => {
     if (!this.isMetricSelected(metric)) {
       this.props.dispatch(updateSelected(
         this.props.project, {
-          selected_metrics: [...this.props.selected_metrics, metric] 
+          selected_metrics: [...this.props.selected_metrics, metric].map(m => m.key)
         }))
     } else {
       this.deselectMetric(this.getSelectedMetricIndex(metric));
