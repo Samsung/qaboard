@@ -116,6 +116,7 @@ def get_branches():
   return jsonify([b[0] for b in branches])
 
 
+
 @app.route("/api/v1/projects")
 def get_projects():
   projects = (db_session
@@ -131,16 +132,19 @@ def get_projects():
               .order_by(asc(func.lower(Project.id)))
               .all()
              )
-  projects = {
-    project_id: {
-      # TODO: drop qatools_metrics from each project
-      # TODO: drop qatools_config
+  response = {}
+  for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects:
+    if "qatools_metrics" in data:
+      del data['qatools_metrics']
+    if "qatools_config" in data:
+      data['qatools_config'] = {"project": data['qatools_config'].get("project", {})}
+    response[project_id] = {
       'data': data,
       'latest_output_datetime': latest_output_datetime.isoformat() if latest_output_datetime else None, # isoformat not necessary?
       'latest_commit_datetime': latest_commit_datetime.isoformat(),
       'total_commits': total_commits,
-    } for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects }
-  response = make_response(ujson.dumps(projects))
+    }
+  response = make_response(ujson.dumps(response))
   response.headers['Content-Type'] = 'application/json'
   return response
 

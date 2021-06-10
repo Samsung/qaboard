@@ -1,6 +1,7 @@
 import { get } from "axios";
 
 import {
+  FETCH_PROJECT,
   FETCH_PROJECTS,
   UPDATE_PROJECTS,
   FETCH_BRANCHES,
@@ -25,6 +26,22 @@ export const fetchProjects = () => {
     get("/api/v1/projects")
       .then(response => {
         dispatch(updateProjects(response.data))
+      })
+      .catch(error => {
+        dispatch(updateProjects(null, error))
+      });
+  }
+}
+
+
+
+export const fetchProject = project => {
+  console.log("fetch!", project)
+  return dispatch => {
+    dispatch({ type: FETCH_PROJECT })
+    get(`/api/v1/project?project=${project}`)
+      .then(response => {
+        dispatch(updateProjects({project: response.data}))
       })
       .catch(error => {
         dispatch(updateProjects(null, error))

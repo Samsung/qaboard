@@ -43,7 +43,10 @@ function update_project(state = default_project, data) {
     ...state,
     ...data,
     // for some reason we get null for projects that are not configured with qatools
-    data: { ...state.data, ...data.data },
+    data: {
+      ...state.data,
+      ...data.data
+    },
   }
 }
 
@@ -51,7 +54,7 @@ function update_project(state = default_project, data) {
 export const branch_key = branch => {
   if (branch === undefined || branch === null)
     return 'latests';
-  return branch.name || branch.committer || 'latests';
+  return branch.name ?? branch.committer ?? 'latests';
 }
 export function projects(state = {
   data: !!default_project_id ?  {
@@ -89,7 +92,7 @@ export function projects(state = {
 
     case UPDATE_COMMITS:
       var branch = branch_key(action.branch);
-      let previous_ids = state.data[action.project].commits[branch] && state.data[action.project].commits[branch].ids;
+      let previous_ids = state.data[action.project].commits[branch]?.ids;
       new_state = {
         ...state,
         data: {
@@ -121,11 +124,11 @@ export function projects(state = {
         if (branch !== 'latests') {
           var branch_last_commit = last_commit
         } else {
-          const default_branch = ((state.data[action.project].data || {}).git || {}).default_branch ||
-                                 (((state.data[action.project].data || {}).qatools_config || {}).project || {}).reference_branch;
+          const default_branch = state.data[action.project].data?.git?.default_branch ??
+                                 state.data[action.project].data?.qatools_config?.project?.reference_branch;
           branch_last_commit = action.commits.filter(c => c.branch === default_branch )[0];
         }
-        const last_commit_authored_datetime = new Date((branch_last_commit || {}).authored_datetime);
+        const last_commit_authored_datetime = new Date(branch_last_commit?.authored_datetime);
         // console.log("branch_last_commit", branch_last_commit, last_commit_authored_datetime)
         let had_latest_commit = new_state.data[action.project].commits[branch].latest_commit !== undefined;
         // console.log("had_latest_commit", had_latest_commit)
