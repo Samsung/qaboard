@@ -79,9 +79,10 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
     let delta_relative = delta / metrics_ref[metric_info.key];
     var intent_compare;
-    if (delta_relative > 0.01)
+    const neutral_threshold = metric_info.target_passfail ? 0 : 0.01
+    if (delta_relative > neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
-    else if (delta_relative < -0.01)
+    else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
     var compare_tag = <Tag style={{margin: '3px'}} minimal intent={intent_compare}>{percent_formatter.format(100 * delta_relative)}%</Tag>;

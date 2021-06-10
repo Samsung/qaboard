@@ -73,11 +73,15 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
   )
     return <td></td>;
   const delta_relative = !!metric_info.target ? (metric_info.target - metric) / (metric_info.target + 0.000001) : 0;
-  let quality = metric_info.smaller_is_better ? (0.5 + delta_relative/2) : (0.5 - delta_relative/2);
+  if (metric_info.target_passfail) {
+    var quality = metric_info.smaller_is_better ? metric_info.target >= metric : metric_info.target < metric
+  } else {
+    quality = metric_info.smaller_is_better ? (0.5 + delta_relative/2) : (0.5 - delta_relative/2);
+  }
   quality = Math.max(Math.min(quality, 0.9), 0.08)
-  // className={Classes.MONOSPACE_TEXT} ?
+  const color = interpolateRdYlGn(quality)
   return (
-    <td style={{ background: interpolateRdYlGn(quality) }}>
+    <td style={{ background: color }}>
       <Tooltip>
        <span>{metric_ref === metric ? '=' : metric_formatter(metric * metric_info.scale, metric_info)}</span>
        <span>{metric * metric_info.scale}{metric_info.suffix}</span>
