@@ -209,10 +209,12 @@ class LsfRunner(BaseRunner):
           bkill,
           shell=True,
           encoding="utf-8",
+          capture_output=True
       )
-      try:
-        out.check_returncode()
-      except:
-        # If LSF can't find the jobs, they are likely done already
-        if 'No match' not in str(out.stdout):
-          return out.stdout
+      print(out.stdout)
+      print(out.stderr)
+      # If LSF can't find the jobs, they are likely done already
+      out.check_returncode()
+      # we parse logs in case we use an ssh bridge
+      if 'is not found' in out.stdout:
+        raise ValueError(out.stdout)

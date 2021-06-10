@@ -32,7 +32,7 @@ def delete_commit(commit_id, project_id=None):
       return f"403 ERROR: Cannot delete milestones", 403
     for batch in ci_commit.batches:
       print(f" > {batch}")
-      stop_status = batch.stop()
+      stop_status = batch.stop(db_session)
       if "error" in stop_status:
         return jsonify(stop_status), 500
       batch.delete(session=db_session)
