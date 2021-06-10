@@ -201,20 +201,17 @@ class LsfRunner(BaseRunner):
       # We could dot this to be sure we explicitely kill all jobs 
       #   command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
       # But we're only sending jobs as part of a single command...
-      bkill = f"bkill -J '{job_options['command_id'][:8]}/*'"
+      bkill = f'bkill -J "{job_options["command_id"][:8]}/*"'
+      if job_options.get('bridge'):
+        bkill = job_options.get('bridge', '').format(**job_options, bsub_command=bkill)
       secho(bkill, bold=True, err=True)
-      
-      bridge_bkill = job_options.get('bridge', '').format(**job_options, bsub_command=bkill)
       out = subprocess.run(
-          bkill if not job_options.get('bridge') else bridge_bkill,
+          bkill,
           shell=True,
           encoding="utf-8",
-          stdout=subprocess.PIPE,
-          stderr=subprocess.STDOUT,
       )
       try:
         out.check_returncode()
-        secho(out.stdout, err=True)
       except:
         # If LSF can't find the jobs, they are likely done already
         if 'No match' not in str(out.stdout):

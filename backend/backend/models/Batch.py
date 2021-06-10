@@ -2,6 +2,7 @@
 Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
+import os
 import uuid
 import datetime
 from pathlib import Path
@@ -126,10 +127,13 @@ class Batch(Base):
       print(f"stopping {command['runner']} {command_id}")
       from qaboard.runners.job import JobGroup
       # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
+      if command['runner'] == "lsf":
+        bridge = os.environ.get("QA_RUNNERS_LSF_BRIDGE")
       jobs = JobGroup(job_options={
         "type": command['runner'],
         "command_id": command_id,
         **command,
+        "bridge": bridge,
       })
       try:
         jobs.stop()
