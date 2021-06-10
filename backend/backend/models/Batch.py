@@ -116,7 +116,7 @@ class Batch(Base):
       success = success and output_success
     return success
 
-  def stop(self):
+  def stop(self, session):
     if not any([o.is_pending for o in self.outputs]):
       return {}
 
@@ -143,6 +143,12 @@ class Batch(Base):
     if errors:
       return {"error": errors}
     else:
+      for o in self.outputs:
+        if o.is_pending:
+          o.is_pending = False
+          o.is_running = False
+          session.add(o)
+      session.commit()
       return {}
 
   def delete(self, session, soft=False, only_failed=False):

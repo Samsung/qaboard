@@ -95,7 +95,7 @@ def stop_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
-  status = batch.stop()
+  status = batch.stop(db_session)
   return jsonify(status), 200 if not "error" in status else 500
 
 @app.route('/api/v1/batch/redo', methods=['POST'])
@@ -157,7 +157,7 @@ def delete_batch(batch_id):
     batch = Batch.query.filter(Batch.id == batch_id).one()
   except:
     return f"404 ERROR:\nNot found", 404
-  stop_status = batch.stop()
+  stop_status = batch.stop(db_session)
   if "error" in stop_status:
     return jsonify(stop_status), 500
   soft = request.args.get('soft') == 'true'
