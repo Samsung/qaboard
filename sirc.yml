@@ -47,7 +47,7 @@ services:
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
-    - /net/f2/algo_archive:/stage/algo_archive
+    - /stage/algo_archive:/stage/algo_archive
     # - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
     # - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
     # - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
@@ -79,10 +79,9 @@ services:
     - /opt/dockermounts/stage:/stage
     - /opt/dockermounts/home:/raid/users
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
-    - /opt/dockermounts/stage/algo_archive:/stage/algo_archive
+    - /stage/algo_archive:/stage/algo_archive
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
-    - /net/f2/algo_archive:/stage/algo_archive
     - /algo:/algo:shared
     - /sim:/sim:shared
     - /data:/data:shared
