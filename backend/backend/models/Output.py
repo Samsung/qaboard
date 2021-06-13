@@ -265,7 +265,6 @@ class Output(Base):
     with script_path.open('w') as f:
       f.write(script)
     print(f'"{script_path}"')
-    import os
     p = subprocess.run(f'ssh ispq@ispq-vdi \'bash "{script_path}"\' > "{logs_path}" 2>&1', shell=True)
     success = p.returncode == 0
     return success
