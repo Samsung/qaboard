@@ -179,13 +179,17 @@ class TuningForm extends Component {
       .then(response => {
         this.setState({
           selected_group_info_loading: false,
-          selected_group_info: response.data
+          selected_group_info: response.data,
+          error: response.data.error ?? null,
         });
       })
       .catch(error => {
         this.setState({
           selected_group_info_loading: false,
-          selected_group_info: { tests: [] }
+          selected_group_info: {
+            tests: [],
+            error: error,
+          }
         });
       });
   }
@@ -308,7 +312,7 @@ class TuningForm extends Component {
   render() {
     const { project, config, metrics } = this.props;
     const { search_type, search_options } = this.state;
-    const { experiment_name, selected_group, selected_group_info } = this.state;
+    const { experiment_name, selected_group, selected_group_info, error } = this.state;
     const { user, platform, android_device } = this.state;
     const { tests, message } = selected_group_info;
     const { combinations, language } = this.state
@@ -442,6 +446,7 @@ class TuningForm extends Component {
               </ul>
             </div>
           </Popover>}
+          {error && <Tag icon='warning-sign' intent={Intent.DANGER}>{error.response?.data?.error ?? JSON.stringify(error)}</Tag>}
           {message && <span>
                <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>
               To know your options, go to the "Tests" tab.

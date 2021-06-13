@@ -11,7 +11,7 @@ import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
 import IeDeprecationWarning from './components/IeDeprecationWarning'
 
-import { fetchProjects } from './actions/projects'
+import { fetchProjects, fetchProject } from './actions/projects'
 
 import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
 import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
@@ -36,6 +36,14 @@ class App extends React.Component {
 
   componentDidMount() {
     this.props.store.dispatch(fetchProjects())
+    const state = this.props.store.getState()
+    if (state.selected.project !== null)
+      fetchProject(state.selected.project)
+    const selected = state.selected[state.selected.project]
+    if (selected.new_project !== null)
+      fetchProject(selected.new_project)
+    if (selected.ref_project !== null)
+      fetchProject(selected.ref_project)
   }
 
 
@@ -52,15 +60,17 @@ class App extends React.Component {
   render() {
     if (this.state.hasError)
       return <ErrorPage error={this.state.error} info={this.state.info}/>
-	  return <Provider store={this.props.store}><PersistGate loading={null} persistor={this.props.persistor}>
-      <IeDeprecationWarning/>
-	    <Router history={history}>
-        <Switch>
-          <Route exact path="/" component={ProjectsList} />
-          <Route component={ProjectApp} />
-        </Switch>
-      </Router>
-	  </PersistGate></Provider>
+	  return <Provider store={this.props.store}>
+      <PersistGate loading={null} persistor={this.props.persistor}>
+        <IeDeprecationWarning/>
+        <Router history={history}>
+          <Switch>
+            <Route exact path="/" component={ProjectsList} />
+            <Route component={ProjectApp} />
+          </Switch>
+        </Router>
+      </PersistGate>
+    </Provider>
   }
 }
 

@@ -36,7 +36,6 @@ export const fetchProjects = () => {
 
 
 export const fetchProject = project => {
-  console.log("fetch!", project)
   return dispatch => {
     dispatch({ type: FETCH_PROJECT })
     get(`/api/v1/project?project=${project}`)

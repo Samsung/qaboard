@@ -6,6 +6,8 @@ import { tsvParse } from "d3-dsv";
 const config = {
   showSendToCloud: true,
   displayModeBar: true,
+  plotlyServerURL: "https://chart-studio.plotly.com",
+  showSendToCloud: true,
 };
 
 var colors = {

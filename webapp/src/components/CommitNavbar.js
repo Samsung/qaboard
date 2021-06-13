@@ -370,7 +370,7 @@ class CommitNavbar extends React.Component {
                     })
                     .catch(error => {
                       this.setState({waiting: false });
-                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
                     });
                 }}
               />}
@@ -391,7 +391,7 @@ class CommitNavbar extends React.Component {
                     })
                     .catch(error => {
                       this.setState({waiting: false });
-                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
                     });
                 }}
               />}
@@ -415,7 +415,7 @@ class CommitNavbar extends React.Component {
                     })
                     .catch(error => {
                       this.setState({waiting: false });
-                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
                     });
                 }}
               />

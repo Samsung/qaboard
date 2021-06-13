@@ -27,7 +27,7 @@ import { Container } from "./components/layout";
 import { Avatar } from "./components/avatars";
 import AuthButton from "./components/authentication/Auth"
 
-import { fetchProjects, updateFavorite } from './actions/projects'
+import { updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
 import { match_query } from "./utils"
 import { project_avatar_style, git_hostname, default_git_hostname } from "./utils"
@@ -58,10 +58,6 @@ class ProjectsList extends Component {
     this.state = {
       query: null,
     };
-  }
-
-  componentDidMount() {
-    this.props.dispatch(fetchProjects())
   }
 
   render() {

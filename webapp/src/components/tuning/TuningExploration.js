@@ -10,8 +10,10 @@ import { groupBy, groupByObject, hash_color, median, average } from "../../utils
 
 
 const config = {
-  showSendToCloud: true,
   displayModeBar: true,
+  showLink: true,
+  plotlyServerURL: "https://chart-studio.plotly.com",
+  showSendToCloud: true,
 };
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
