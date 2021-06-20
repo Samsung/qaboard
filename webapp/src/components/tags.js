@@ -177,6 +177,50 @@ class OutputTags extends React.Component {
         <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
 
         <Menu>
+          {id && is_pending && <MenuItem
+            icon="stop"
+            text="Mark as Finished"
+            intent={Intent.WARNING}
+            minimal
+            disabled={this.state.waiting}
+            onClick={() => {
+              this.setState({waiting: true})
+              toaster.show({message: "Requested to mark as 'Finished'."});
+              axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false})
+                .then(() => {
+                  this.setState({waiting: false})
+                  toaster.show({message: "Marked as finished.", intent: Intent.PRIMARY});
+                  this.refresh()
+                })
+                .catch(error => {
+                  this.setState({waiting: false });
+                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  this.refresh()
+                });
+            }}
+          />}
+          {id && !is_pending && <MenuItem
+            icon="redo"
+            text="Redo"
+            intent={Intent.WARNING}
+            minimal
+            disabled={this.state.waiting}
+            onClick={() => {
+              this.setState({waiting: true})
+              toaster.show({message: "Requested Redo."});
+              axios.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false})
+                .then(() => {
+                  this.setState({waiting: false})
+                  toaster.show({message: "Redo started.", intent: Intent.PRIMARY});
+                  this.refresh()
+                })
+                .catch(error => {
+                  this.setState({waiting: false });
+                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  this.refresh()
+                });
+            }}
+          />}
           {id && !deleted && <MenuItem
             icon="trash"
             text="Delete"
@@ -212,28 +256,6 @@ class OutputTags extends React.Component {
                 .then(() => {
                   this.setState({waiting: false})
                   toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false });
-                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  this.refresh()
-                });
-            }}
-          />}
-          {id && is_pending && <MenuItem
-            icon="stop"
-            text="Mark as Finished"
-            intent={Intent.WARNING}
-            minimal
-            disabled={this.state.waiting}
-            onClick={() => {
-              this.setState({waiting: true})
-              toaster.show({message: "Requested to mark as 'Finished'."});
-              axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false})
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Marked as finished.", intent: Intent.PRIMARY});
                   this.refresh()
                 })
                 .catch(error => {

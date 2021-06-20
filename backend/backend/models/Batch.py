@@ -101,11 +101,12 @@ class Batch(Base):
     db_session.commit()
 
   def redo(self, only_failed=False, only_deleted=False):
-    success = True
     # in case it was deleted without QA-Board being made aware
     if not self.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
       self.ci_commit.save_artifacts()
+
+    success = True
     command_id = uuid.uuid4()
     for output in self.outputs:
       if only_failed and not output.is_failed:

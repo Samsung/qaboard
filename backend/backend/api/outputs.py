@@ -47,7 +47,18 @@ def crud_output(output_id):
     return {"status": "OK"}
 
 
-
+@app.route('/api/v1/output/redo/<output_id>', methods=['POST'])
+@app.route('/api/v1/output/redo/<output_id>/', methods=['POST'])
+def output_redo(output_id):
+  output = Output.query.filter(Output.id==output_id).one()
+  try:
+    success = output.redo()
+  except Exception as e:
+    return jsonify({"error": f"{e}"}), 500
+  if success:
+    return '{"status": "OK"}'
+  else:
+    return jsonify({"error": "The run failed to start. Check the 'redo.log' files in the output directories to know more."}), 500
 
 
 @app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])
@@ -158,4 +169,7 @@ def new_output_webhook():
   db_session.add(output)
   db_session.commit()
   return jsonify(output.to_dict())
+
+
+
 
