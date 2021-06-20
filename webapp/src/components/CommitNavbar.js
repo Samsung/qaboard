@@ -19,6 +19,7 @@ import {
   Dialog,
   Tooltip,
   Popover,
+  Switch,
   Toaster,
 } from "@blueprintjs/core";
 
@@ -104,6 +105,7 @@ class CommitNavbar extends React.Component {
     super(props);
     this.state = {
       waiting: false,
+      soft_delete: false,
       show_rename_dialog: false,
       show_move_dialog: false,
       dst_batch_label: '',
@@ -148,7 +150,7 @@ class CommitNavbar extends React.Component {
 
   render() {
     const { project, project_data, commit, batch, selected, type, dispatch, update } = this.props;
-    const { project_input } = this.state;
+    const { project_input, soft_delete } = this.state;
     const project_attr = `${type}_project`
     const filter = selected[`filter_batch_${type}`]
 
@@ -419,16 +421,17 @@ class CommitNavbar extends React.Component {
                     });
                 }}
               />
+              <MenuDivider/>
               <MenuItem
                 icon="trash"
-                text="Delete Failed Outputs"
+                text={`Delete Failed Outputs${soft_delete ? "' Files" : ''}`}
                 intent={Intent.DANGER}
                 minimal
                 disabled={this.state.waiting}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested for failed outputs."});
-                  axios.delete(`/api/v1/batch/${batch.id}/?only_failed=true`)
+                  axios.delete(`/api/v1/batch/${batch.id}/?only_failed=true&soft=${soft_delete}`)
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
@@ -444,14 +447,14 @@ class CommitNavbar extends React.Component {
               />
               <MenuItem
                 icon="trash"
-                text="Delete All Outputs"
+                text={`Delete All Outputs${soft_delete ? "' Files" : ''}`}
                 intent={Intent.DANGER}
                 minimal
                 disabled={this.state.waiting}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});
-                  axios.delete(`/api/v1/batch/${batch.id}/`)
+                  axios.delete(`/api/v1/batch/${batch.id}/&soft=${soft_delete}`)
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
@@ -465,6 +468,11 @@ class CommitNavbar extends React.Component {
                     });
                 }}
               />
+              <MenuItem
+                  text={<em>Delete files, keep metadata</em>}
+                  shouldDismissPopover={false}
+                  labelElement={<Switch checked={soft_delete} innerLabelChecked="soft" onChange={() => this.setState({soft_delete: !soft_delete})} />}
+              />  
             </>}
             </Menu>
           </Popover>
