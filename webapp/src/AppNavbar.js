@@ -141,11 +141,14 @@ class AppNavbar extends Component {
       filter_batch_new,
       filter_batch_ref,
       dispatch,
+      match,
     } = this.props;
 
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
 
-    const is_commit = this.props.match.path.startsWith('/:project_id+/commit') && !this.props.match.path.startsWith('/:project_id+/commits');
+    const is_commit = match.path.startsWith('/:project_id+/commit')
+                   && !match.path.startsWith('/:project_id+/commits')
+                   && !match.path.startsWith('/:project_id+/committer');
     if (is_commit) {
       return <>
         <StyledNavbarNew>
@@ -181,9 +184,9 @@ class AppNavbar extends Component {
     /*<a rel="noopener noreferrer" target="_blank" href={`/api/v1/commit/${!!new_commit && new_commit.id}?project=${project}`}><Button className={Classes.TEXT_MUTED} minimal icon="database"></Button></a>*/
 
 
-    const is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+"
-    const is_project_branch_home = this.props.match.path === "/:project_id+/commits/:name+"
-    const is_dashboard = this.props.match.path.startsWith('/:project_id+/history/');
+    const is_project_home = match.path === "/:project_id+/commits" || match.path === "/:project_id+"
+    const is_project_branch_home = match.path === "/:project_id+/commits/:name+"
+    const is_dashboard = match.path.startsWith('/:project_id+/history/');
 
     // let is_committer = !!match.params.committer;
     // let is_branch = !!match.params.name;
@@ -219,9 +222,9 @@ class AppNavbar extends Component {
               let extended_date_range = [new_date_range[0], new_date_range[1]]
               extended_date_range[0].setHours(0,0,0,0);
               extended_date_range[1].setHours(23,59,59,999);
-              const is_dashboard = this.props.match.path.startsWith('/:project_id+/history');
+              const is_dashboard = match.path.startsWith('/:project_id+/history');
               const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
-              dispatch(fetchCommits(project, {...this.props.match.params}, new_date_range, aggregated_metrics, options))
+              dispatch(fetchCommits(project, {...match.params}, new_date_range, aggregated_metrics, options))
             }}
             shortcuts
           />}
@@ -234,9 +237,9 @@ class AppNavbar extends Component {
                           let extended_date_range = [date_range[0], date_range[1]]
                           extended_date_range[0].setHours(0,0,0,0);
                           extended_date_range[1].setHours(23,59,59,999);
-                          const is_dashboard = this.props.match.path.startsWith('/:project_id+/history');
+                          const is_dashboard = match.path.startsWith('/:project_id+/history');
                           const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
-                          dispatch(fetchCommits(project, {...this.props.match.params}, extended_date_range, aggregated_metrics, options))
+                          dispatch(fetchCommits(project, {...match.params}, extended_date_range, aggregated_metrics, options))
                         }
                       }
               />
