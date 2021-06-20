@@ -201,6 +201,11 @@ class Output(Base):
 
 
   def redo(self, command_id=None):
+    # in case it was deleted without QA-Board being made aware
+    if not self.batch.ci_commit.artifacts_dir.exists():
+      print("Restoring artifacts")
+      self.ci_commit.save_artifacts()
+
     if not command_id:
       command_id = uuid.uuid4()
     extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
