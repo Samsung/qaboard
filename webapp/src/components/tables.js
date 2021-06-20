@@ -50,7 +50,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   )
     return <td></td>;
   let delta = metrics_new[metric.key] - metrics_ref[metric.key];
-  let delta_relative = delta / (metrics_ref[metric.key] + 0.00001);
+  let delta_relative = delta / (Math.abs(metrics_ref[metric.key]) + 0.00001);
   let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
   quality = Math.max(Math.min(quality, 0.9), 0.08)
   return (
