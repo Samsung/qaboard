@@ -454,7 +454,7 @@ class CommitNavbar extends React.Component {
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});
-                  axios.delete(`/api/v1/batch/${batch.id}/&soft=${soft_delete}`)
+                  axios.delete(`/api/v1/batch/${batch.id}/?soft=${soft_delete}`)
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
