@@ -221,7 +221,7 @@ class ProjectSideResults extends React.Component {
       <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
-      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} text="Tuning Analysis" onClick={this.set('selected_views', 'optimization')}/>
+      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} text="Analysis" onClick={this.set('selected_views', 'optimization')}/>
     </>
   }
 }
