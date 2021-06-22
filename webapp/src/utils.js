@@ -78,9 +78,6 @@ const matching_output = ({ output, batch }) => {
     .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .map(o => {
-      o.configurations_str = JSON.stringify(o.configurations)
-      o.extra_parameters_str = JSON.stringify(o.extra_parameters)
-
       o.dist_configurations = levenshtein(o.configurations_str, output.configurations_str)
       o.dist_extra_parameters = levenshtein(o.extra_parameters_str, output.extra_parameters_str)
       return o;

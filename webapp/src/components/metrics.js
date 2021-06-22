@@ -487,7 +487,7 @@ class MetricsSummary extends Component {
       <div>
         {(!batch_data.optimization && new_batch.sorted_extra_parameters.length > 0) && (
           <Callout intent={Intent.WARNING}>
-            For <strong>manual tuning</strong>, you may see below results with the tuning <strong>parameters mixed together.</strong>
+            The aggregation below contains all runs, possibly with tuning <strong>parameters mixed together.</strong>
           </Callout>
         )}
         <MultiSelect

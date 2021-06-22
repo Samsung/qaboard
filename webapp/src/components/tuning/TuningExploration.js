@@ -1,6 +1,7 @@
 import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
 import qs from "qs";
+import { get as _get } from "lodash";
 
 import Plot from 'react-plotly.js';
 import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
@@ -42,7 +43,7 @@ const Sensibility1DLines = ({
         .filter(o => !o.is_pending && !o.is_failed)
         .sort(
           (a, b) =>
-            a.extra_parameters[parameter] - b.extra_parameters[parameter]
+            _get(a.params, parameter) ?? - _get(b.params, parameter)
         );
       let color = hash_color(test_input_path);
       let line = {
@@ -60,9 +61,9 @@ const Sensibility1DLines = ({
         type: "scatter",
         mode: "lines+markers",
         name: `${test_input_path} ${configurations_str}`,
-        x: outputs.map(o => o.extra_parameters[parameter]),
+        x: outputs.map(o => _get(o.params, parameter)),
         y,
-        text: outputs.map(o => `${configurations_str}<br />${JSON.stringify(o.extra_parameters).replace(/,/g, '<br />')}`),
+        text: outputs.map(o => `${configurations_str}<br />${JSON.stringify(o.params).replace(/,/g, '<br />')}`),
         marker: {
           size: 4,
           color,
@@ -75,10 +76,10 @@ const Sensibility1DLines = ({
   );
   const layout_ = {
     hovermode: "closest",
-    hoverinfo: "name",
     hoverlabel: {
       namelength: -1
     },
+    hovertemplate: 'name',
     showlegend: false,
     xaxis: {
       title: parameter
@@ -91,7 +92,7 @@ const Sensibility1DLines = ({
       // dtick: 0.69897000433,
       // exponentformat: "SI",
       showgrid: false,
-      zeroline: false,
+      // zeroline: false,
       gridcolor: "rgb(255, 255, 255)",
       gridwidth: 1
     },
@@ -108,7 +109,7 @@ const Sensibility1DLines = ({
 const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }) => {
   let outputs_values = Object.values(outputs).map(o => ({
     ...o,
-    extra_parameter: o.extra_parameters[parameter]
+    extra_parameter: _get(o.params, parameter)
   }));
   let outputs_by_param = groupBy(outputs_values, "extra_parameter");
   let traces = Object.entries(outputs_by_param).map(
@@ -119,7 +120,7 @@ const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }
       return {
         type: "box",
         name: param_value,
-        x: outputs.map(o => o.extra_parameters[parameter]),
+        x: outputs.map(o => _get(o.params, parameter)),
         y: outputs.map(o => o.metrics[metric.key] * metric.scale),
         boxmean: true,
         marker: {
@@ -135,10 +136,6 @@ const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }
     showlegend: false,
     yaxis: {
       title: metric.label,
-      type: "log",
-      autotick: false,
-      dtick: 0.69897000433,
-      exponentformat: "SI",
       showgrid: false,
       zeroline: false,
       gridcolor: "rgb(255, 255, 255)",
@@ -150,6 +147,16 @@ const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }
       title: parameter,
     },
   };
+  const all_positive = traces.every(t => t.y.every(v => v > 0))
+  if (all_positive) {
+    layout_.yaxis =  {
+      ...layout_.yaxis,
+      type: "log",
+      autotick: false,
+      dtick: 0.69897000433,
+      exponentformat: "SI",
+    }
+  }
   return <Plot data={traces} layout={layout_} config={config} />;
 });
 
@@ -179,7 +186,7 @@ const ParallelTuningPlot = React.memo(({
   // this avoid giving more weights to tunings that ran on more tests
   let outputs_by_params = new Map();
   outputs_ok.forEach(output => {
-    let key = JSON.stringify(output.extra_parameters);
+    let key = JSON.stringify(output.params);
     let outputs_with_same_params = outputs_by_params.get(key) || [];
     outputs_with_same_params.push(output);
     outputs_by_params.set(key, outputs_with_same_params);
@@ -234,7 +241,7 @@ const ParallelTuningPlot = React.memo(({
        ...metrics_with_different_values
          .map( metric => {
             return {
-             label: metric.short_label || metric.label || metric.key,
+             label: metric.short_label ?? metric.label ?? metric.key,
              values: values(metric)(metrics_aggregated_by_params),
              // range: [1, 5],
              // constraintrange: [1, 2],
@@ -285,7 +292,7 @@ const ParallelTuningPlot = React.memo(({
   // console.log(traces)
   let layout = {
     // width: 80*metrics_with_different_values.length + 80*parameters_with_different_values.length,
-    width: Math.max(10 * metrics_with_different_values.map(m=>(m.short_label || m.label || m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0), 1200),
+    width: Math.max(10 * metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0), 1200),
     autosize: false,
   }
   return <Plot layout={layout} data={traces} config={config} />;
@@ -307,7 +314,7 @@ const EfficientFrontierPlot = React.memo(({
   // this avoid giving more weights to tunings that ran on more tests
   let outputs_by_params = new Map();
   outputs_ok.forEach(output => {
-    let key = JSON.stringify(output.extra_parameters);
+    let key = JSON.stringify(output.params);
     let outputs_with_same_params = outputs_by_params.get(key) || [];
     outputs_with_same_params.push(output);
     outputs_by_params.set(key, outputs_with_same_params);
@@ -381,7 +388,7 @@ const Sensibility2DContour = React.memo(({
   // this avoid giving more weights to tunings that ran on more tests
   let outputs_by_params = new Map();
   outputs_ok.forEach(output => {
-    let key = JSON.stringify(output.extra_parameters);
+    let key = JSON.stringify(output.params);
     let outputs_with_same_params = outputs_by_params.get(key) || [];
     outputs_with_same_params.push(output);
     outputs_by_params.set(key, outputs_with_same_params);
@@ -405,8 +412,8 @@ const Sensibility2DContour = React.memo(({
   metrics_aggregated_by_params.forEach(([extra_parameters_s, metrics]) => {
     let extra_parameters = JSON.parse(extra_parameters_s);
     let shown_params = {
-      [parameters[0]]: extra_parameters[parameters[0]],
-      [parameters[1]]: extra_parameters[parameters[1]],
+      [parameters[0]]: _get(extra_parameters, parameters[0]),
+      [parameters[1]]: _get(extra_parameters, parameters[1]),
     }
     let key = JSON.stringify(shown_params);
     let outputs_with_same_params = metrics_aggregated_by_shown_params.get(key) || [];
@@ -428,12 +435,11 @@ const Sensibility2DContour = React.memo(({
     }
   )
 
-
   let traces = [
     {
       type: "contour",
-      x: metrics_by_shown_params_aggregated.map(([p,m]) => p[parameters[0]]),
-      y: metrics_by_shown_params_aggregated.map(([p,m]) => p[parameters[1]]),
+      x: metrics_by_shown_params_aggregated.map(([p,m]) => _get(p, parameters[0])),
+      y: metrics_by_shown_params_aggregated.map(([p,m]) => _get(p, parameters[1])),
       z: metrics_by_shown_params_aggregated.map(([p,m]) => m[metric.key] * metric.scale),
       contours: {
         coloring: "heatmap", // apply a gradient within each contour
@@ -519,7 +525,7 @@ class TuningExploration extends Component {
   	const qatools_metrics = this.props.metrics;
     const { main_metrics=[], available_metrics={}, default_metric="objective" } = qatools_metrics;
      
-    let is_optimization_batch = ((props.batch || {}).data || {}).best_metrics !== undefined;
+    let is_optimization_batch = props.batch?.data?.best_metrics !== undefined;
     const optimization_metrics = is_optimization_batch ? {
       iteration: {
         key: "iteration",
@@ -725,7 +731,7 @@ class TuningExploration extends Component {
         />}
         <h4 className={Classes.HEADING}>Breakdown by test</h4>
         <Switch
-          label="Relative"
+          label="Relative to Best"
           defaultChecked={relative}
           onChange={e => {this.setState({ relative: !relative });}}
         />

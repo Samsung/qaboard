@@ -88,10 +88,29 @@ function commits(state = { [default_project_id]: {} }, action) {
         }
       }
     case UPDATE_COMMIT:
-      if ((action.data.data || {}).qatools_metrics) {
+      if (action.data.data?.qatools_metrics) {
         action.data.data.qatools_metrics.available_metrics = metrics_fill_defaults(action.data.data.qatools_metrics.available_metrics);
         action.data.data.qatools_metrics.main_metrics = action.data.data.qatools_metrics.main_metrics.filter(m => !!action.data.data.qatools_metrics.available_metrics[m]);
       }
+      // here we precompute various useful output information
+      // like str representaton of their configs or merged "outputs.params"
+      //    params: str -> {config: str}
+      Object.keys(action.data.batches).forEach(b => {
+        Object.keys(action.data.batches[b].outputs).forEach(id => {
+          // this is useful for filtering
+          action.data.batches[b].outputs[id].configurations_str = JSON.stringify(action.data.batches[b].outputs[id].configurations)
+          action.data.batches[b].outputs[id].extra_parameters_str = JSON.stringify(action.data.batches[b].outputs[id].extra_parameters)
+          // this is useful for tuning analysis
+          var params = {}
+          let configs = [...action.data.batches[b].outputs[id].configurations, action.data.batches[b].outputs[id].extra_parameters]
+          configs.forEach(c => {
+            if (typeof c === "string")
+              return
+            params = {...params, ...c}
+          })
+          action.data.batches[b].outputs[id].params = params
+        })
+      })
       return {
         ...state,
         [action.project]: {
@@ -99,8 +118,7 @@ function commits(state = { [default_project_id]: {} }, action) {
           [action.id]: {
             ...state[action.project]?.[action.id],
             ...action.data,
-            // we mark that we loaded the whole data about the commit
-            // not just a summary
+            // we mark that we loaded the whole data about the commit not just a summary
             is_loaded: true,
             error: action.error,
           }

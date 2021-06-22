@@ -1,4 +1,5 @@
 import { createSelector } from 'reselect'
+import { get as _get } from "lodash";
 
 import { filter_batch, matching_output, metrics_fill_defaults } from "../utils";
 import {
@@ -133,14 +134,13 @@ export const configSelector = createSelector([batchSelectorPreFilter, commitSele
 
 
 
-
 const makeSortOutputs = (sort_by, sort_order, outputs) => {
   // console.log(sort_by, sort_order, outputs)
   return (ka, kb) => {
     const a = outputs[ka]
     const b = outputs[kb]
-    const a_value = a.metrics[sort_by] ?? a.extra_parameters[sort_by] ?? a[sort_by] ?? ka;
-    const b_value = b.metrics[sort_by] ?? b.extra_parameters[sort_by] ?? b[sort_by] ?? kb;
+    const a_value = a.metrics[sort_by] ?? a.params[sort_by] ?? _get(a.params, sort_by) ?? a[sort_by] ?? ka;
+    const b_value = b.metrics[sort_by] ?? b.params[sort_by] ?? _get(b.params, sort_by) ?? b[sort_by] ?? kb;
     if (a_value === undefined || a_value === null) return 1;
     // console.log(a_value, b_value)
     if (a_value > b_value) {
@@ -169,17 +169,38 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
     output.reference_mismatch = mismatch
   })
 
+  let used_metrics = new Set()
+  let metrics_with_refs = new Set()
+  Object.values(new_batch.outputs).forEach(o => {
+    Object.keys(o.metrics).forEach(m => used_metrics.add(m))
+    if (!!o.reference_id)
+      Object.keys(o.metrics).forEach(m => metrics_with_refs.add(m))
+  })
+
+  // Tuned_parameters holds all tuning values used for each parameter
+  let extra_parameters = {};
+  const update_params = (output_params, prefix='') => {
+    Object.entries(output_params).forEach( ([key, value]) => {
+      const key_ = prefix !== '' ? `${prefix}.${key}` : key
+      if (typeof value === "object")
+        update_params(value, key_)
+      else {
+        if (extra_parameters[key_] === undefined)
+          extra_parameters[key_] = new Set();
+        extra_parameters[key_].add(value);
+      }
+    })
+  }
+
   Object.entries(new_batch.outputs).forEach(([id, o]) => {
-    Object.entries(o.extra_parameters).forEach(([param, value]) => {
-      if (extra_parameters[param] === undefined)
-        extra_parameters[param] = new Set();
-      extra_parameters[param].add(value);
-    });
+    update_params(o.params)
   });
+
   // Sort tuned parameters by the number of different values that were used
   let sorted_extra_parameters = Object.entries(extra_parameters)
     .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
     .map(([k, v]) => k);
+
   // Parts of the frontend want to know whether there was tuning and how
   new_batch.extra_parameters = extra_parameters
   new_batch.sorted_extra_parameters = sorted_extra_parameters
