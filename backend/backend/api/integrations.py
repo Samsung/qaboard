@@ -228,11 +228,29 @@ def gitlab_play_manual_job():
 
   # Get the list of manual jobs in that pipeline
   # https://docs.gitlab.com/ee/api/jobs.html#list-pipeline-jobs
-  url = f"{gitlab_api}/projects/{project_id}/pipelines/{pipeline_id}/jobs"
-  r = requests.get(url, headers=gitlab_headers)
-  jobs = r.json()
+  jobs = []
+  page = 1
+  total_pages = None
+  def get_jobs(page, per_page):
+    r = requests.get(
+      f"{gitlab_api}/projects/{project_id}/pipelines/{pipeline_id}/jobs",
+      params={
+        "page": page,
+        "per_page": per_page,
+      },
+      headers=gitlab_headers,
+    )
+    total_pages = int(r.headers['X-Total-Pages']) if r.headers.get('X-Total-Pages') else 0
+    return r.json(), total_pages
+  while total_pages is None or page <= total_pages:
+    jobs_page, total_pages = get_jobs(page=page, per_page=50)
+    jobs.extend(jobs_page)
+    page += 1
+
+
   try:
       matching_jobs = [j for j in jobs if data['job_name'] == j['name']]
+      assert matching_jobs
       for j in matching_jobs:
         print(j['name'], j['id'], j["created_at"], j['status'])
   except Exception as e:
