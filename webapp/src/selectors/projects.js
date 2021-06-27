@@ -180,7 +180,7 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
   // Tuned_parameters holds all tuning values used for each parameter
   let extra_parameters = {};
   const update_params = (output_params, prefix='') => {
-    Object.entries(output_params).forEach( ([key, value]) => {
+    Object.entries(output_params ?? {}).forEach( ([key, value]) => {
       const key_ = prefix !== '' ? `${prefix}.${key}` : key
       if (typeof value === "object")
         update_params(value, key_)
