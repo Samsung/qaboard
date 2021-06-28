@@ -233,7 +233,7 @@ const ParallelTuningPlot = React.memo(({
   const metrics_with_different_values = metrics
     .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
     .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
-  const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p])) );
+  const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))) );
   let traces = [{
     type: 'parcoords',
     line: all_good(line.color) ? line : undefined,
@@ -248,7 +248,7 @@ const ParallelTuningPlot = React.memo(({
             }
        }),
       ...parameters_with_different_values.map(p => {
-        let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => params[p])
+        let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))
         let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
         let integer = values.every(v => Number.isInteger(v));
         // console.log(p, 'int:', integer, 'num:', numeric)
