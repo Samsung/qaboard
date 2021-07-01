@@ -472,7 +472,10 @@ class CiCommitResults extends Component {
                   <TuningExploration
                     project={this.props.selected.new_project}
                     metrics={metrics}
+                    available_metrics={available_metrics}
+                    selected_metrics={selected_metrics.map(m => m.key)}
                     batch={new_batch}
+                    input={metricTableSelect}
                    />
                 </Card>
                </Section>}
