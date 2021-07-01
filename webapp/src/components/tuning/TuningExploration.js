@@ -1,4 +1,4 @@
-import React, { Component, Fragment } from "react";
+import React, { Component, Fragment, useReducer, useState, useEffect } from "react";
 import { withRouter } from "react-router";
 import qs from "qs";
 import { get as _get } from "lodash";
@@ -8,7 +8,11 @@ import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } 
 
 import { Section } from "../../components/layout";
 import { groupBy, groupByObject, hash_color, median, average } from "../../utils";
+import { OutputTags } from "../tags";
+import { main_metrics } from "../../viewers/tof/metrics";
 
+// to test selectable metrics...
+// http://alginfra1:6001/CIS_ISP_Algorithms/approximate_computing/sircapproxlib/commit/dd68070ad59b72b00d242959fb235eed8e9ee495?reference=81055b515c71cd3c3557c49ca8e889e7b0028eb4&selected_views=optimization&sort_by=miter.threshold_%25&sort_order=1&selected_parameter=miter.threshold_%25&selected_metric=fitness_last&aggregation=average&selected_parameter_2=resources.evolve_limit_value&selected_metric2=fitness_last&filter=&selected_metrics%5B0%5D=fitness_init&selected_metrics%5B1%5D=fitness_last&selected_metrics%5B2%5D=fitness_improvement&selected_metrics%5B3%5D=wce_%25_actual&selected_metrics%5B4%5D=wce_%25_goal&selected_metrics%5B5%5D=wce_%25_actual_diff_goal&selected_metrics%5B6%5D=no_generations&selected_metrics%5B7%5D=average_generation_runtime
 
 const config = {
   displayModeBar: true,
@@ -22,6 +26,30 @@ const metric_formatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
+
+const optimization_metrics = {
+  iteration: {
+    key: "iteration",
+    label: "Iteration",
+    short_label: "iter",
+    scale: 1,
+    suffix: "",
+    target: -1,
+    smaller_is_better: false,
+    plot_scale: "linear"
+  },
+  objective: {
+    key: "objective",
+    label: "Objective",
+    short_label: "objective",
+    scale: 1,
+    suffix: "",
+    target: -1,
+    smaller_is_better: true,
+  },      
+}
+
+
 
 const Sensibility1DLines = ({
   outputs,
@@ -170,133 +198,172 @@ const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }
 //   values: outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
-const ParallelTuningPlot = React.memo(({
+const plotly_state_init = {data: [], layout: {}, frames: [], config: {}}
+const plotly_state_reducer = (state, action) => {
+  return {
+    ...state,
+    ...action
+  }
+}
+
+
+const ParallelTuningPlot = ({
   outputs,
   metrics,
   main_metric,
   parameters,
   aggregation,
 }) => {
-  let outputs_ok = Object.values(outputs).filter(
-    o => !o.is_pending && !o.is_failed
-  );
+  // console.log("[parallel] metrics", metrics)
   // console.log(outputs_ok)
 
-  // first we group outputs by all their tuning / extra parameters
-  // this avoid giving more weights to tunings that ran on more tests
-  let outputs_by_params = new Map();
-  outputs_ok.forEach(output => {
-    let key = JSON.stringify(output.params);
-    let outputs_with_same_params = outputs_by_params.get(key) || [];
-    outputs_with_same_params.push(output);
-    outputs_by_params.set(key, outputs_with_same_params);
-  })
-  // console.log(outputs_by_params)
+  // const [revision, setRevision] = useState(0);
+  // let traces, layout
+  // const [traces, setTraces] = useState([]);
+  // const [layout, setLayout] = useState({});
 
-  // we aggregate
-  let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
-    ([extra_parameters_s, outputs]) => {
-      let aggregated_metrics = {}
-      metrics.forEach(m => {
-        let values = outputs
-          .map(o => o.metrics[m.key])
-          .filter(x => x !== undefined);
-        let aggregated_value = aggregation==='median' ? median(values) : average(values);
-        if (aggregated_value !== null && !isNaN(aggregated_value) )
-          aggregated_metrics[m.key] = aggregated_value;
-        else
-          aggregated_metrics[m.key] = NaN;
-      });
-      return [JSON.parse(extra_parameters_s), aggregated_metrics];
+  // useEffect(() => {
+    console.log("[Parallel] UPDATE")
+    let outputs_ok = Object.values(outputs).filter(
+      o => !o.is_pending && !o.is_failed
+    );
+      // first we group outputs by all their tuning / extra parameters
+    // this avoid giving more weights to tunings that ran on more tests
+    let outputs_by_params = new Map();
+    outputs_ok.forEach(output => {
+      let key = JSON.stringify(output.params);
+      let outputs_with_same_params = outputs_by_params.get(key) || [];
+      outputs_with_same_params.push(output);
+      outputs_by_params.set(key, outputs_with_same_params);
+    })
+    // console.log(outputs_by_params)
+
+    // we aggregate
+    let metrics_aggregated_by_params = Array.from(outputs_by_params.entries()).map(
+      ([extra_parameters_s, outputs]) => {
+        let aggregated_metrics = {}
+        metrics.forEach(m => {
+          let values = outputs
+            .map(o => o.metrics[m.key])
+            .filter(x => x !== undefined);
+          let aggregated_value = aggregation==='median' ? median(values) : average(values);
+          if (aggregated_value !== null && !isNaN(aggregated_value) )
+            aggregated_metrics[m.key] = aggregated_value;
+          else
+            aggregated_metrics[m.key] = NaN;
+        });
+        return [JSON.parse(extra_parameters_s), aggregated_metrics];
+      }
+    )
+    // console.log(metrics_aggregated_by_params)
+
+    const values = metric => aggr => aggr.map(  ([p, m]) => m[metric.key] * metric.scale);
+    const all_good = values => values.every( v => !isNaN(v) && v!==null && v!==undefined)
+    const some_different = values => new Set(values).size > 1
+    const line = {
+      color: values(main_metric)(metrics_aggregated_by_params),
+      colorscale: 'Viridis',
+      showscale: true,
+      reversescale: main_metric.smaller_is_better,
+      colorbar: {
+        title: main_metric.label,
+        thickness: 20, // default: 30
+        outlinewidth: 0,
+        borderwidth: 0,
+        ticksuffix: main_metric.suffix || '',
+        showticksuffix: 'last',
+      },
     }
-  )
-  // console.log(metrics_aggregated_by_params)
 
-  const values = metric => aggr => aggr.map(  ([p, m]) => m[metric.key] * metric.scale);
-  const all_good = values => values.every( v => !isNaN(v) && v!==null && v!==undefined)
-  const some_different = values => new Set(values).size > 1
-  const line = {
-    color: values(main_metric)(metrics_aggregated_by_params),
-    colorscale: 'Viridis',
-    showscale: true,
-    reversescale: main_metric.smaller_is_better,
-    colorbar: {
-      title: main_metric.label,
-      thickness: 20, // default: 30
-      outlinewidth: 0,
-      borderwidth: 0,
-      ticksuffix: main_metric.suffix || '',
-      showticksuffix: 'last',
-    },
-  }
+    const metrics_with_different_values = metrics
+      .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
+      .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
+    const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))) );
+    let traces = [{
+      type: 'parcoords',
+      line: all_good(line.color) ? line : undefined,
+      dimensions: [
+        ...metrics_with_different_values
+          .map( metric => {
+              return {
+              label: metric.short_label ?? metric.label ?? metric.key,
+              values: values(metric)(metrics_aggregated_by_params),
+              // range: [1, 5],
+              // constraintrange: [1, 2],
+              }
+        }),
+        ...parameters_with_different_values.map(p => {
+          let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))
+          let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
+          let integer = values.every(v => Number.isInteger(v));
+          // console.log(p, 'int:', integer, 'num:', numeric)
+          // console.log(values)
+          if (!numeric) {
+            // we need to remap the values to categorical integers values
+            var remapped_values = new Array(values.length);
+            var unique_values = new Map(...[undefined, 0]);
+            values.forEach( (v, idx) => {
+              let v_s = JSON.stringify(v)
+              // if (v === false) v = 'false'
+              // if (v === true) v = 'true'
+              if (!unique_values.get(v_s))
+                unique_values.set(v_s, unique_values.size+1)
+              remapped_values[idx] = unique_values.get(v_s)
+            })
+          }
+          // console.log(unique_values)
+          let dimension = {
+            values: numeric ? values : remapped_values,
+            integer,
+            label: p,
+          }
+          if (!numeric) {
+            // TODO: try to differentiate the lines going to the same points...
+            //       the best would be using splines, like Google Vizier
+            //       adding a bit of jitter could also work
+            //         https://github.com/plotly/plotly.js/issues/2229
+            //         https://github.com/plotly/plotly.js/issues/2229
+            dimension.tickvals = Array.from(unique_values.values());
+            dimension.ticktext = Array.from(unique_values.keys()).map(k=> k===undefined ? '<no-tuning>' : k);
+            dimension.integer = true;    
+          }
+          // console.log(dimension)
+          // TODO: hover
+          //       https://github.com/plotly/dash-core-components/issues/157
+          return dimension;
+        })
+      ]
+    }]
+    // console.log(traces)
+    let layout = {
+      // width: 80*metrics_with_different_values.length + 80*parameters_with_different_values.length,
+      width: Math.max(8 * (metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0)), 840),
+      autosize: false,
+    }
+    console.log(layout.width)
+    // setTraces(traces)
+    // setLayout(layout)
+    // setRevision(revision+1)
+    // dispatch({layout})
+  // }, [outputs, metrics, main_metric, parameters, aggregation]);
 
-  const metrics_with_different_values = metrics
-    .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
-    .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
-  const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))) );
-  let traces = [{
-    type: 'parcoords',
-    line: all_good(line.color) ? line : undefined,
-    dimensions: [
-       ...metrics_with_different_values
-         .map( metric => {
-            return {
-             label: metric.short_label ?? metric.label ?? metric.key,
-             values: values(metric)(metrics_aggregated_by_params),
-             // range: [1, 5],
-             // constraintrange: [1, 2],
-            }
-       }),
-      ...parameters_with_different_values.map(p => {
-        let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))
-        let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
-        let integer = values.every(v => Number.isInteger(v));
-        // console.log(p, 'int:', integer, 'num:', numeric)
-        // console.log(values)
-        if (!numeric) {
-          // we need to remap the values to categorical integers values
-          var remapped_values = new Array(values.length);
-           var unique_values = new Map(...[undefined, 0]);
-          values.forEach( (v, idx) => {
-            let v_s = JSON.stringify(v)
-            // if (v === false) v = 'false'
-            // if (v === true) v = 'true'
-            if (!unique_values.get(v_s))
-              unique_values.set(v_s, unique_values.size+1)
-            remapped_values[idx] = unique_values.get(v_s)
-          })
-        }
-        // console.log(unique_values)
-        let dimension = {
-          values: numeric ? values : remapped_values,
-          integer,
-          label: p,
-        }
-        if (!numeric) {
-          // TODO: try to differentiate the lines going to the same points...
-          //       the best would be using splines, like Google Vizier
-          //       adding a bit of jitter could also work
-          //         https://github.com/plotly/plotly.js/issues/2229
-          //         https://github.com/plotly/plotly.js/issues/2229
-          dimension.tickvals = Array.from(unique_values.values());
-          dimension.ticktext = Array.from(unique_values.keys()).map(k=> k===undefined ? '<no-tuning>' : k);
-          dimension.integer = true;    
-        }
-        // console.log(dimension)
-        // TODO: hover
-        //       https://github.com/plotly/dash-core-components/issues/157
-        return dimension;
-      })
-    ]
-  }]
-  // console.log(traces)
-  let layout = {
-    // width: 80*metrics_with_different_values.length + 80*parameters_with_different_values.length,
-    width: Math.max(10 * metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0), 1200),
-    autosize: false,
-  }
-  return <Plot layout={layout} data={traces} config={config} />;
-})
+  // const [plotly_state, dispatch] = useReducer(plotly_state_reducer, {
+  //   // data: traces,
+  //   layout,
+  //   config,
+  //   frames: [],
+  // });
+  return <Plot
+    data={traces}
+    layout={layout}
+    // revision={revision}
+    config={config}
+    // config={plotly_state.config}
+    // onInitialized={figure => dispatch(figure)}
+    // onUpdate={figure => dispatch(figure)}
+  />;
+  // return <Plot layout={layout} data={traces} config={config} />;
+}
 
 const EfficientFrontierPlot = React.memo(({
   outputs,
@@ -480,8 +547,9 @@ class TuningExploration extends Component {
     super(props);
     const params = new URLSearchParams(props.location.search);
     this.state = {
-      ...this.metrics_data(props),
       ...this.parameters_data(props),
+      selected_metric: params.get("selected_metric"),
+      selected_metric2: params.get("selected_metric2"),
       relative: true,
       aggregation: params.get('aggregation') || 'median',
       layout: {
@@ -493,13 +561,7 @@ class TuningExploration extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const project_qatools_metrics_curr = this.props.metrics;
-    const project_qatools_metrics_prev = prevProps.metrics;
-    if (project_qatools_metrics_curr !== project_qatools_metrics_prev) {
-        this.setState(this.metrics_data(this.props))
-    }
-
-    if (!!this.props.batch && this.props.batch !== prevProps.batch) {
+    if (this.props.batch?.id !== prevProps.batch?.id || this.props.batch?.filtered?.outputs !== prevProps.batch?.filtered?.outputs) {
       this.setState(this.parameters_data(this.props))
     }
 
@@ -517,51 +579,6 @@ class TuningExploration extends Component {
       sorted_parameters,
       selected_parameter: params.get("selected_parameter") || sorted_parameters[0],
       selected_parameter_2: params.get("selected_parameter_2") || (sorted_parameters.length > 1 ? sorted_parameters[1] : sorted_parameters[0]),
-    }
-  }
-
-  metrics_data(props) {
-    const params = new URLSearchParams(props.location.search);
-  	const qatools_metrics = this.props.metrics;
-    const { main_metrics=[], available_metrics={}, default_metric="objective" } = qatools_metrics;
-     
-    let is_optimization_batch = props.batch?.data?.best_metrics !== undefined;
-    const optimization_metrics = is_optimization_batch ? {
-      iteration: {
-        key: "iteration",
-        label: "Iteration",
-        short_label: "iter",
-        scale: 1,
-        suffix: "",
-        target: -1,
-        smaller_is_better: false,
-        plot_scale: "linear"
-      },
-      objective: {
-        key: "objective",
-        label: "Objective",
-        short_label: "objective",
-        scale: 1,
-        suffix: "",
-        target: -1,
-        smaller_is_better: true,
-      },      
-    } : {}
-    const available_metrics_ = {
-      ...optimization_metrics,
-      ...available_metrics,
-    }
-    const main_metrics_ = [
-      ...(is_optimization_batch ? ["iteration", "objective"] : []),
-      ...main_metrics.filter(m => !!available_metrics_[m])
-    ];
-    return {
-      selected_parameter: null,
-      available_metrics: available_metrics_,
-      main_metrics: main_metrics_,
-      default_metric,
-      selected_metric: params.get("selected_metric") || default_metric,
-      selected_metric2: params.get("selected_metric2") || main_metrics.filter(l=>l !== default_metric)[0] || default_metric,    	
     }
   }
 
@@ -592,13 +609,38 @@ class TuningExploration extends Component {
   } 
 
   render() {
-    const { batch } = this.props;
-    const { selected_metric, selected_metric2 } = this.state;
-    const { layout, relative, available_metrics, main_metrics, aggregation } = this.state;
+    const { batch, selected_metrics: selected_metrics_, available_metrics: available_metrics_, input } = this.props;
+    const { layout, relative, aggregation } = this.state;
     const { tuned_parameters, sorted_parameters } = this.state;
 
     if (!batch)
       return <p>Loading...</p>;
+
+    let is_optimization_batch = batch?.data?.best_metrics !== undefined;
+    const selected_metrics = [
+      ...(is_optimization_batch ? ["iteration", "objective"] : []),
+      ...selected_metrics_,
+    ];
+    let available_metrics = {}
+    // const available_metrics = is_optimization_batch ? {
+    //   ...optimization_metrics,
+    //   ...available_metrics_,
+    // } : available_metrics_
+    selected_metrics.forEach(m => available_metrics[m] = available_metrics_[m])
+    // http://alginfra1:6001/CIS_ISP_Algorithms/approximate_computing/sircapproxlib/commit/dd68070ad59b72b00d242959fb235eed8e9ee495?reference=81055b515c71cd3c3557c49ca8e889e7b0028eb4
+    console.log("selected_metrics", selected_metrics)
+    console.log("available_metrics", available_metrics)
+
+    // selected_metric: params.get("selected_metric") || ,
+    // selected_metric2: params.get("selected_metric2") || main_metrics.filter(l=>l !== default_metric)[0] || default_metric,    	
+ 
+    let selected_metric = this.state.selected_metric ?? (is_optimization_batch ? "objective" : selected_metrics[0])
+    let selected_metric2 = this.state.selected_metric2 ?? selected_metrics.filter(l=>l !== selected_metric)[0]
+    // console.log(selected_metric, selected_metric2)
+
+    // what metric are we looking at?
+    let metric = available_metrics[selected_metric] ?? {label: 'NA'};
+    let metric2 = available_metrics[selected_metric2] ?? {label: 'NA'};
 
     let outputs = {}
     batch.filtered.outputs.forEach(id => {
@@ -606,16 +648,13 @@ class TuningExploration extends Component {
     })
     let total_outputs = batch.filtered.outputs.length;
     if (sorted_parameters.length===0 && total_outputs > 0)
-      return <Callout title="How to start auto-tuning?" icon="info-sign">
-        <p>To get started with automatic tuning, go to the <strong>"Run Tests / Tuning"</strong> tab, and choose <strong>"Automated Tuning"</strong>.</p>
+      return <Callout title="How to start tuning?" icon="info-sign">
+        <p>This page will display various sensibility analysis plots. Your code needs to returns metrics, and support key:values configurations</p>
+        <p>To get started with tuning, go to the <strong>"Run Tests / Tuning"</strong> tab, and choose <strong>"Automated Tuning"</strong>.</p>
       </Callout>
 
     let selected_parameter = this.state.selected_parameter;
     let selected_parameter_2 = this.state.selected_parameter_2;
-
-    // what metric are we looking at?
-    let metric = available_metrics[this.state.selected_metric] || {label: 'NA'};
-    let metric2 = available_metrics[this.state.selected_metric2] || {label: 'NA'};
 
     let show_2d_sensibility = sorted_parameters.length > 1 && tuned_parameters[sorted_parameters[1]].size > 1;
 
@@ -630,7 +669,6 @@ class TuningExploration extends Component {
                                    }), {}) : {};
     return (
       <Section>
-
         {batch_data.optimization && <Callout icon='crown' title="Best parameters">
           {Object.entries(batch_data.best_params).map(([k, v]) => 
             <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
@@ -642,14 +680,17 @@ class TuningExploration extends Component {
         </Callout>}
 
         {!batch_data.optimization && <>
-          <h3 className={Classes.HEADING}>{total_outputs} result{total_outputs>1 && "s"}</h3>
-          <p className={Classes.TEXT_MUTED}>{number_inputs} {number_inputs>1 && "different "}test{number_inputs>1 && "s"}</p>
+          <h3 className={Classes.HEADING}>{total_outputs} run{total_outputs>1 && "s"}</h3>
+          <p className={Classes.TEXT_MUTED}>{number_inputs} {number_inputs>1 && "different "}input{number_inputs>1 && "s"}</p>
         </>}
 
+        <div style={{paddingBottom: '10px'}}>
+          {input}
+        </div>
         <ParallelTuningPlot
           outputs={outputs}
           main_metric={metric}
-          metrics={main_metrics.map(m => available_metrics[m])}
+          metrics={selected_metrics.map(m => available_metrics[m])}
           parameters={sorted_parameters}
           aggregation={this.state.aggregation}
         />
