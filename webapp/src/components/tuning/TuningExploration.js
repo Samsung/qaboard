@@ -626,7 +626,8 @@ class TuningExploration extends Component {
     //   ...optimization_metrics,
     //   ...available_metrics_,
     // } : available_metrics_
-    selected_metrics.forEach(m => available_metrics[m] = available_metrics_[m])
+    const available_metrics_keys = [...selected_metrics, ...Object.keys(batch.data?.best_metrics ?? {})]
+    available_metrics_keys.forEach(m => available_metrics[m] = available_metrics_[m] ?? optimization_metrics[m])
     // http://alginfra1:6001/CIS_ISP_Algorithms/approximate_computing/sircapproxlib/commit/dd68070ad59b72b00d242959fb235eed8e9ee495?reference=81055b515c71cd3c3557c49ca8e889e7b0028eb4
     console.log("selected_metrics", selected_metrics)
     console.log("available_metrics", available_metrics)
