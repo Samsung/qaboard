@@ -192,7 +192,8 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
     })
   }
 
-  Object.entries(new_batch.outputs).forEach(([id, o]) => {
+  const has_optim_iterations = Object.values(new_batch.outputs).some(o => o.output_type === "optim_iteration")
+  Object.entries(new_batch.outputs).filter(([id, o]) => !has_optim_iterations || o.output_type === "optim_iteration").forEach(([id, o]) => {
     update_params(o.params)
   });
 
