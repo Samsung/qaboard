@@ -555,10 +555,12 @@ class ImgViewer extends React.PureComponent {
   }
 
   render() {
-    const { output_new, output_ref, diff, label, path } = this.props;
+    const { output_new, output_ref, diff, label, path, manifests } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
 
     const has_reference = !!output_ref?.output_dir_url;
+    const is_same_data = manifests?.new?.[path]?.md5 === manifests?.reference?.[path]?.md5
+
     const has_error = !!error && Object.keys(error).length > 0;
     const error_messages = !has_error ? <span/> : <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
         <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
@@ -608,7 +610,7 @@ class ImgViewer extends React.PureComponent {
           onClick={this.switch_images}
         >reference</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
-      <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference} />
+      <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || is_same_data} />
     </div>
 
 
