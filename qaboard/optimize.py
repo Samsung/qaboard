@@ -1,5 +1,9 @@
+import os
+import sys
+import uuid
 import yaml
 import json
+import datetime
 import subprocess
 
 import click
@@ -8,7 +12,7 @@ from joblib import Parallel, delayed
 from .api import NumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
-from .utils import PathType
+from .utils import PathType, getenvs
 from .run import RunContext
 
 
@@ -23,6 +27,17 @@ from .run import RunContext
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
+  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  command_data = {
+    "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
+    "argv": sys.argv,
+    **ctx.obj,
+  }
+  job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
+  if job_url:
+    command_data['job_url'] = job_url
+  command={command_id: command_data}
+
   batch_dir_for = lambda label: batch_dir(outputs_commit, label, save_with_ci=True)
   optim_dir = batch_dir_for(ctx.obj['batch_label'])
   optim_dir.mkdir(parents=True, exist_ok=True)
@@ -85,7 +100,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
               **aggregated_metrics_,
             },
           },
-        })
+        }, command=command)
 
         # results
         #    .x [float]: location of the minimum.
@@ -108,17 +123,17 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
           },
         } if is_best else {}
 
-        notify_qa_database(object_type='batch', **{
+        notify_qa_database(
+          object_type='batch',
+          command=command,
           **ctx.obj,
-          **{
-              "data": {
-                "optimization": True,
-                "iteration": iteration+idx+1,
-                "iteration_label": iteration_batch_label,
-                **is_best_data,
-              },
-          },
-        })
+          **{"data": {
+              "optimization": True,
+              "iteration": iteration+idx+1,
+              "iteration_label": iteration_batch_label,
+              **is_best_data,
+          }},
+        )
 
         if is_best:
           try:
