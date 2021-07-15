@@ -131,7 +131,6 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
           # It is also be done server-side...
           print(f"RM {iteration_batch_dir}")
           rmtree(iteration_batch_dir, ignore_errors=True)
-          exit(0)
 
   print(results)
   if not results.models: # needs at least n_initial_points(=5) evaluations!
