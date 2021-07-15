@@ -8,6 +8,7 @@ import json
 import datetime
 import itertools
 import subprocess
+from pathlib import Path
 
 import yaml
 from flask import request, jsonify
@@ -223,8 +224,11 @@ def start_tuning(hexsha):
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
     prev_mask = os.umask(000)
-    if not batch.batch_dir.exists():
-        batch.batch_dir.mkdir(exist_ok=True, parents=True)
+
+    batch_dir = batch.batch_dir
+    batch_dir = Path(str(batch_dir).replace('/ispq/', f'/{user}/'))
+    if not batch_dir.exists():
+        batch_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
 
@@ -236,7 +240,7 @@ def start_tuning(hexsha):
     if do_optimize:
         # we write somewhere the optimzation search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
-        config_path = batch.batch_dir / 'optim-config.yaml'
+        config_path = batch_dir / 'optim-config.yaml'
         config_option = f"--config-file '{config_path}'"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
@@ -289,7 +293,7 @@ def start_tuning(hexsha):
         "",
     ])
     print(qa_batch_script)
-    qa_batch_path = batch.batch_dir / f"qa_batch.sh"
+    qa_batch_path = batch_dir / f"qa_batch.sh"
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
