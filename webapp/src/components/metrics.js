@@ -48,10 +48,12 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
 });
 
 const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
+  const value = metrics_new[metric_info.key]
   let formatted_valued = (
     <span>
       {metric_info.short_label}:{" "}
-      <strong>{metric_formatter(metric_info.scale * metrics_new[metric_info.key], metric_info)}{metric_info.suffix}
+      <strong>
+        {typeof value !== 'number' ? JSON.stringify(value) : metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}
       </strong>
     </span>
   );
