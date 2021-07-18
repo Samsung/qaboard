@@ -18,10 +18,7 @@ const colors = {
 };
 
 
-const adapt = (trace, label, side_by_side) => {
-  if (side_by_side)
-    return trace
-
+const adapt = (trace, label) => {
   let width = (trace.line && trace.line.width) || 2;
   let size = (trace.marker && trace.marker.size) || 3;
   if (label === "ref") {
@@ -92,11 +89,11 @@ class PlotlyViewer extends PureComponent {
       this.setState((previous_state, props) => ({
         data: {
           ...previous_state.data,
-          [label]: (response.data.data || []).map(t => adapt(t, label, side_by_side) ),
+          [label]: response.data.data ?? [],
         },
         layouts: {
           ...previous_state.layouts,
-          [label]: response.data.layout || {},                          
+          [label]: response.data.layout ?? {},                          
         }
       }))
     }
@@ -126,11 +123,9 @@ class PlotlyViewer extends PureComponent {
 
       const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
       const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
+      // if has_ref and not same..
       let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
       let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
-      // TODO: if we have a ref and didn't before, call adapt on the new
-      //       and don't call adapt unless we have a ref...
-      //       This would help preserve colors.  
       if (updated_new || updated_path) {
         this.getData(this.props, 'new');
       }
@@ -141,7 +136,9 @@ class PlotlyViewer extends PureComponent {
 
   render() {
     const { data, layouts, is_loaded, error } = this.state;
-    const { side_by_side } = this.props;
+    const { side_by_side, output_ref } = this.props;
+    const has_ref = output_ref !== undefined && output_ref !== null;
+
     if (!is_loaded) return <span/>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
@@ -162,11 +159,16 @@ class PlotlyViewer extends PureComponent {
       layout_.xaxis.automargin = true;
       layout_.yaxis.automargin = true;
       layout_.legend.traceorder = 'reversed';
-      let traces = [
-        ...( data.groundtruth || []),
-        ...( data.ref || [] ),
-        ...( data.new || []),
-      ]
+      let traces = [];
+      ['groundtruth', 'ref', 'new'].forEach(label => {
+        let trace = data[label]
+        if (!trace)
+          return
+        if (has_ref)
+          trace = adapt(t, label, side_by_side)
+        traces = traces.concat(trace)
+      });
+
       if (traces.length===0)
         return <span></span>
       return <Plot data={traces} layout={layout_}/>;
