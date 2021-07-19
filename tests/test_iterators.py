@@ -147,6 +147,13 @@ class TestIterators(unittest.TestCase):
     batches = get_batch('matrix-many')
     self.assertEqual(len(batches), 8)
 
+    batches = get_batch('matrix-interpolation')
+    self.assertEqual(len(batches), 4)
+    self.assertEqual(batches[0].configurations, ['base-1'])
+    self.assertEqual(batches[1].configurations, ['base-2'])
+    self.assertEqual(batches[2].configurations, ['base-1', 'delta'])
+    self.assertEqual(batches[3].configurations, ['base-2', 'delta'])
+
     batches = get_batch('matrix-keep-type')
     self.assertEqual(len(batches), 2)
     self.assertEqual(batches[0].configurations, ['base', {"param": 1}])
@@ -280,6 +287,14 @@ matrix-many:
     platform: [linux, windows]
     parameter: [1, 2]
     configurations: [[base], [base, delta]]
+
+matrix-interpolation:
+  inputs:
+  - a.txt
+  matrix:
+    x: [1, 2]
+    configurations: [["base-${matrix.x}"], ["base-${matrix.x}", delta]]
+
 
 matrix-keep-type:
   inputs:
