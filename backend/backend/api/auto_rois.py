@@ -71,7 +71,7 @@ def memmapped_read_image(image_path):
     #   uwsgi.lock()
     # print(f'MISS {image_path}')
     image, meta = read_image(image_path)
-    # print(f'READ')
+    # print(f'READ', meta)
     with image_cache_info.open('w') as fmeta:
       json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
     fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
@@ -85,6 +85,7 @@ def memmapped_read_image(image_path):
     # print(f'HIT {hash}')
     with image_cache_info.open() as f:
       info = json.load(f)
+    # print(info['meta'])
     fp = np.memmap(image_cache_data, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
     return fp, info['meta']
 
@@ -98,6 +99,11 @@ def get_pixel():
   # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
   image, meta = memmapped_read_image(Path(image_path))
   # image, meta = cached_read_image(Path(image_path))
+  # print('meta', meta)
+  try:
+    meta = ImageType(*meta)
+  except:
+    pass
   if isinstance(meta, ImageType):
     meta = {"mode": meta.id}
   return jsonify({
