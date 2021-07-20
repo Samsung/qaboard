@@ -55,3 +55,32 @@ If it all goes well you get:
 :::note
 We plan on not requiring you to define metrics ahead of time.
 :::
+
+## Special "metrics"
+- `{"is_failed":True}` will have QA-Board consider the run as "failed". The main uses cases are:
+  * simplifying the control flow, instead of raising an exception from `run()`
+  * failing runs that don't achieve a target quality
+  * remembering if the `run` was successful, when users split between `run/postprocess` stages
+- `{"params": {...}}` makes it possible to display dynamic as "parameters" in the UI. The use-cases are:
+  * taking as configuration a unique machine learning model ID, then make it easy to view/filter its hyperparameters
+
+It is possible to **display badges** next to runs:
+
+```python
+return {
+    "params": {
+        "badges": [
+            {
+                "text": "link to training",
+                # link to somewhere
+                "href": "https://example.com",
+                # must be selected from [blueprint's](https://blueprintjs.com/docs/#icons)
+                "icon": "settings",
+                # you can also tweak the [blueprint Tag](https://blueprintjs.com/docs/#core/components/tag) with `intent`, `style`, `large`, `minimal`
+            }
+        ]
+    }
+}
+```
+
+The main use case for badges is linking to the training log of a machine learning model from the inference results. It enables smooth workflows between QA-Boad and other run-trackers focused on deep learning.

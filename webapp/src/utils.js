@@ -177,13 +177,10 @@ const filter_batch = (batch, filter_values) => {
   }
 
   Object.entries(batch.outputs).forEach(([id, output]) => {
-    let extra_parameters = Object.keys(output.extra_parameters || {}).length > 0 ? JSON.stringify(output.extra_parameters || {}) : "";
-    let metadata = Object.keys(output.test_input_metadata || {}).length > 0 ? JSON.stringify(output.test_input_metadata || {}) : "";
-    let configuration = JSON.stringify(output.configurations)
+    let metadata = Object.keys(output.test_input_metadata ?? {}).length > 0 ? JSON.stringify(output.test_input_metadata ?? {}) : "";
     let failed = output.is_failed ? 'fail crash' : '';
     let pending = output.is_pending ? 'pending running' : ''
-    let searched = `${output.test_input_path} ${output.platform} ${configuration} ${metadata} ${extra_parameters} ${failed} ${pending}`;
-    searched = searched.replace(/"/g, "")
+    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${failed} ${pending} ${output.platform}`;
     // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);
@@ -374,6 +371,9 @@ const slug = text => {
 
 const metrics_fill_defaults = available_metrics => {
   Object.entries(available_metrics || {}).forEach( ([key, m])  => {
+    if (m === undefined || m === null) {
+      m = {}
+    }
     m.key = key
     m.label = m.label || key
     m.short_label = m.short_label || m.label || key

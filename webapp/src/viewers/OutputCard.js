@@ -67,7 +67,16 @@ const FullScreenableSlimCard = props => {
   </SlimCard>
 }
 
-
+const RunBadges = ({output}) => {
+  return (output.params.badges ?? []).map( (badge, idx) => {
+      const tag = <Tag icon={badge.icon} minimal={badge.minimal} large={badge.large} rightIcon={badge.href && "share"} style={badge.style} intent={badge.intent}>{badge.text}</Tag>
+      return <span key={idx}>
+        {!!badge.href ? <a rel="noopener noreferrer" target="_blank" href={badge.href}>
+          {tag}
+        </a> : tag}
+      </span>
+  })
+}
 
 const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, style, prefix, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
@@ -83,6 +92,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
   />
 
   const input_over_time_url = `/${project}/history/${!!commit ? commit.branch : ''}${window.location.search}`
+  // output.params.badges = [{text: "training", icon: "settings", href: "https://example.com"}]
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}   
@@ -132,6 +142,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
       {!tags_first && tags}
     </h5>
     <p>
+      <RunBadges output={output}></RunBadges>
       <ExtraParametersTags parameters={output.extra_parameters} />
     </p>
   </>
