@@ -68,7 +68,7 @@ const FullScreenableSlimCard = props => {
 }
 
 const RunBadges = ({output}) => {
-  return (output.params.badges ?? []).map( (badge, idx) => {
+  return (output.params?.badges ?? []).map( (badge, idx) => {
       const tag = <Tag icon={badge.icon} minimal={badge.minimal} large={badge.large} rightIcon={badge.href && "share"} style={badge.style} intent={badge.intent}>{badge.text}</Tag>
       return <span key={idx}>
         {!!badge.href ? <a rel="noopener noreferrer" target="_blank" href={badge.href}>
