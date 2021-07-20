@@ -79,7 +79,7 @@ const Sensibility1DLines = ({
         width: 2,
         opacity: 0.8,
       };
-      let values = outputs.map(o => o.metrics[metric.key] * metric.scale);
+      let values = outputs.map(o => o.metrics[metric.key] * metric.scale).filter(x => !isNaN(x));
       let v0 = metric.smaller_is_better
         ? Math.min(...values)
         : Math.max(...values);
@@ -223,7 +223,7 @@ const ParallelTuningPlot = ({
   // const [layout, setLayout] = useState({});
 
   // useEffect(() => {
-    console.log("[Parallel] UPDATE")
+    // console.log("[Parallel] UPDATE")
     let outputs_ok = Object.values(outputs).filter(
       o => !o.is_pending && !o.is_failed
     );
@@ -245,7 +245,7 @@ const ParallelTuningPlot = ({
         metrics.forEach(m => {
           let values = outputs
             .map(o => o.metrics[m.key])
-            .filter(x => x !== undefined);
+            .filter(x => !isNaN(x));
           let aggregated_value = aggregation==='median' ? median(values) : average(values);
           if (aggregated_value !== null && !isNaN(aggregated_value) )
             aggregated_metrics[m.key] = aggregated_value;
@@ -334,13 +334,23 @@ const ParallelTuningPlot = ({
         })
       ]
     }]
+    console.log(metrics_with_different_values)
+    console.log(parameters_with_different_values)
+    const sum_length = array => array.map(e => e.length).reduce( (a,b) => a+b, 0)
+    const max_length = array => array.map(e => e.length).reduce( (a,b) => Math.max(a, b), 0)
+    const sum_chars = sum_length(metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key))) + sum_length(parameters_with_different_values)
+    const columns = metrics_with_different_values.length + parameters_with_different_values.length
+    const max_col_length = max_length(metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key))) + max_length(parameters_with_different_values)
+    // console.log("columns", columns, "sum_chars", sum_chars, "max_col_length", max_col_length)
+    const width = Math.max(4 * max_col_length * columns, 840)
+    // console.log(width)
     // console.log(traces)
     let layout = {
-      // width: 80*metrics_with_different_values.length + 80*parameters_with_different_values.length,
-      width: Math.max(8 * (metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key).length).reduce( (a,b)=> a+b, 0) +parameters_with_different_values.map(p => p.length).reduce( (a,b)=>a+b, 0)), 840),
+      // width: Math.max(5 *columns, 840),
+      width,
       autosize: false,
     }
-    console.log(layout.width)
+    // console.log(layout.width)
     // setTraces(traces)
     // setLayout(layout)
     // setRevision(revision+1)
@@ -393,7 +403,7 @@ const EfficientFrontierPlot = React.memo(({
       Object.values(available_metrics).forEach(m => {
         let values = outputs
           .map(o => o.metrics[m.key])
-          .filter(x => x !== undefined);
+          .filter(x => !isNaN(x));
         aggregated_metrics[m.key] = aggregation==='median' ? median(values) : average(values);
       });
       return [extra_parameters_s, aggregated_metrics];
@@ -467,7 +477,7 @@ const Sensibility2DContour = React.memo(({
       Object.values(available_metrics).forEach(m => {
         let values = outputs
           .map(o => o.metrics[m.key])
-          .filter(x => x !== undefined);
+          .filter(x => !isNaN(x));
         aggregated_metrics[m.key] = aggregation==='median' ? median(values) : average(values);
       });
       return [extra_parameters_s, aggregated_metrics];
@@ -493,7 +503,7 @@ const Sensibility2DContour = React.memo(({
     ([extra_parameters_s, metrics]) => {
       let aggregated_metrics = {}
       Object.values(available_metrics).forEach(m => {
-        let values = metrics.map(metric => metric[m.key])
+        let values = metrics.map(metric => metric[m.key]).filter(x => !isNaN(x))
         let aggregated_value = aggregation==='median' ? median(values) : average(values);
         if (aggregated_value !== null)
           aggregated_metrics[m.key] = aggregated_value;
@@ -617,10 +627,12 @@ class TuningExploration extends Component {
       return <p>Loading...</p>;
 
     let is_optimization_batch = batch?.data?.best_metrics !== undefined;
-    const selected_metrics = [
+    let selected_metrics = [
       ...(is_optimization_batch ? ["iteration", "objective"] : []),
       ...selected_metrics_,
+      // ...Object.keys(batch_data.best_metrics ?? {}),
     ];
+    // selected_metrics = [...new Set(selected_metrics)];
     let available_metrics = {}
     // const available_metrics = is_optimization_batch ? {
     //   ...optimization_metrics,
@@ -629,8 +641,8 @@ class TuningExploration extends Component {
     const available_metrics_keys = [...selected_metrics, ...Object.keys(batch.data?.best_metrics ?? {})]
     available_metrics_keys.forEach(m => available_metrics[m] = available_metrics_[m] ?? optimization_metrics[m])
     // http://alginfra1:6001/CIS_ISP_Algorithms/approximate_computing/sircapproxlib/commit/dd68070ad59b72b00d242959fb235eed8e9ee495?reference=81055b515c71cd3c3557c49ca8e889e7b0028eb4
-    console.log("selected_metrics", selected_metrics)
-    console.log("available_metrics", available_metrics)
+    // console.log("selected_metrics", selected_metrics)
+    // console.log("available_metrics", available_metrics)
 
     // selected_metric: params.get("selected_metric") || ,
     // selected_metric2: params.get("selected_metric2") || main_metrics.filter(l=>l !== default_metric)[0] || default_metric,    	
