@@ -141,7 +141,7 @@ class GenericTextViewer extends React.Component {
     if (this.props.only_diff && data.new === data.ref)
       return <span></span>
 
-    const { filename, text_url_new, text_url_ref, width, hash } = this.props;
+    const { filename, text_url_new, text_url_ref, width } = this.props;
     let no_reference = !!!text_url_ref || !!!data.reference || (!!text_url_new && text_url_new === text_url_ref);
 
     const max_lines = this.props.max_lines || 40

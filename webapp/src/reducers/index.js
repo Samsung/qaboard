@@ -102,7 +102,11 @@ function commits(state = { [default_project_id]: {} }, action) {
           action.data.batches[b].outputs[id].extra_parameters_str = JSON.stringify(action.data.batches[b].outputs[id].extra_parameters)
           // this is useful for tuning analysis
           var params = {}
-          let configs = [...action.data.batches[b].outputs[id].configurations, action.data.batches[b].outputs[id].extra_parameters]
+          let configs = [
+            ...action.data.batches[b].outputs[id].configurations,
+            action.data.batches[b].outputs[id].extra_parameters,
+            action.data.batches[b].outputs[id].data?.params ?? {},
+          ]
           configs.forEach(c => {
             if (typeof c === "string")
               return

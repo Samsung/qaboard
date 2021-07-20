@@ -123,7 +123,7 @@ multiple-configs:
           - base
 
 #=> `qa batch multiple-configs` will run
-#   with [base, tuning] and [tuning]
+#   with [base, tuning] and [base]
 ```
 
 > Per-input extra configurations still work.

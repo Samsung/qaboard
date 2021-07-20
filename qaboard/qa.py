@@ -229,7 +229,6 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         runtime_metrics = {'is_failed': True}
 
       if not runtime_metrics:
-        click.secho('[WARNING] Your `run` function should return a dict with a least {"is_failed": False}', fg='yellow')
         runtime_metrics = {"is_failed": False}
 
       if not isinstance(runtime_metrics, dict):
@@ -317,6 +316,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     output_data = {
       'storage': total_storage(outputs_manifest),
     }
+    if 'params' in metrics:
+      output_data['params'] = metrics['params']
+      del metrics['params']
   except Exception as e:
     output_data = {}
     click.secho(f'WARNING: When writing the output manifest:', fg="yellow", bold=True, err=True)
