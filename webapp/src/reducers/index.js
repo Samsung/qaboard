@@ -97,6 +97,10 @@ function commits(state = { [default_project_id]: {} }, action) {
       //    params: str -> {config: str}
       Object.keys(action.data.batches).forEach(b => {
         Object.keys(action.data.batches[b].outputs).forEach(id => {
+          const run_params = action.data.batches[b].outputs[id].data?.params
+          if (run_params !== undefined) {
+            action.data.batches[b].outputs[id].configurations.push(run_params)
+          }
           // this is useful for filtering
           action.data.batches[b].outputs[id].configurations_str = JSON.stringify(action.data.batches[b].outputs[id].configurations)
           action.data.batches[b].outputs[id].extra_parameters_str = JSON.stringify(action.data.batches[b].outputs[id].extra_parameters)
@@ -105,10 +109,9 @@ function commits(state = { [default_project_id]: {} }, action) {
           let configs = [
             ...action.data.batches[b].outputs[id].configurations,
             action.data.batches[b].outputs[id].extra_parameters,
-            action.data.batches[b].outputs[id].data?.params ?? {},
           ]
           configs.forEach(c => {
-            if (typeof c === "string")
+            if (typeof c === "string" || c === undefined || c === null)
               return
             params = {...params, ...c}
           })
