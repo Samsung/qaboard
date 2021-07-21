@@ -311,18 +311,16 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       click.secho(f'WARNING: When writing the input manifest:', fg="yellow", bold=True, err=True)
       click.secho(str(e), fg="yellow", err=True)
 
+  output_data = {}
   try:
     outputs_manifest = save_outputs_manifest(run_context.output_dir, config=config)
-    output_data = {
-      'storage': total_storage(outputs_manifest),
-    }
+    output_data['storage'] = total_storage(outputs_manifest)
+  except Exception as e:
+    click.secho(f'WARNING: When writing the output manifest:', fg="yellow", bold=True, err=True)
+    click.secho(str(e), fg="yellow", err=True)
     if 'params' in metrics:
       output_data['params'] = metrics['params']
       del metrics['params']
-  except Exception as e:
-    output_data = {}
-    click.secho(f'WARNING: When writing the output manifest:', fg="yellow", bold=True, err=True)
-    click.secho(str(e), fg="yellow", err=True)
 
 
   if save_manifests_in_database:
