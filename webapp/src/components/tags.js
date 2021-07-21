@@ -62,41 +62,41 @@ class PlatformTag extends React.Component {
   }
 }
 
-class ConfigurationsTags extends React.Component {
-  render() {
-    const configurations = this.props.configurations;
-    const intent = this.props.intent || Intent.PRIMARY;
-
-    // Some configuration key names are used and shown by viewers
-    // we don't display them here...
-
-    const reserved_keys = [] //"roi", "auto_rois"]
+const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, toplevel=true}) => {
+    // Some configuration key names are used and shown by viewers - we don't display them here...
+    const hidden_keys = ["badges", "roi", "auto_rois"]
     const tags = configurations.map((c, idx) => {
       const is_object = typeof (c) !== 'string';
-      if (is_object) {
-        reserved_keys.forEach(key => {
-          delete c[key];
-        })
+      // if (is_object) {
+        // hidden_keys.forEach(key => {
+        //   delete c[key];
+        // })
         // if (Object.keys(c).length === 0)
         //   return <span key={idx} />
-      }
+      // }
       return <Tag
         intent={intent}
         round
-        minimal={!this.props.inverted}
+        minimal={!inverted}
         interactive
         key={idx}
         style={{ marginRight: '5px', marginBottom: '3px' }}
       >
-        {!is_object ? c : JSON.stringify(c)}
+        {!is_object ? c :
+                      Object.entries(c)
+                      .filter(([k, v]) => !hidden_keys.includes(k))
+                      .map( ([k, v]) => <Tag round interactive key={k} intent="primary" minimal>
+                        <strong>{k}:</strong> {JSON.stringify(v)}
+                      </Tag> )}
       </Tag>
     })
 
-    const pretty_json = JSON.stringify(this.props.configurations, null, 2);
+    if (!toplevel)
+      return tags
+    const pretty_json = JSON.stringify(configurations, null, 2);
     return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}>
       <span>{tags}</span>
     </CopyToClipboard>
-  }
 }
 
 
