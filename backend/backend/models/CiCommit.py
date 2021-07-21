@@ -284,8 +284,9 @@ class CiCommit(Base):
           ci_commit.data['git'].update({"path_with_namespace": data['project_root']})
           flag_modified(ci_commit, "data")
 
-        if data and data.get('qaboard_config'):
-          ci_commit.data.update({'qatools_config': data['qaboard_config']})
+        if data:
+          if 'qaboard_config' in data:
+            ci_commit.data.update({'qatools_config': data['qaboard_config']})
           if "qaboard_metrics" in data:
             ci_commit.data.update({'qatools_metrics': data['qaboard_metrics']})
           flag_modified(ci_commit, "data")
