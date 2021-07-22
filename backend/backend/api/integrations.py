@@ -399,6 +399,8 @@ def jenkins_build_trigger():
     "status": 'pending',
     **r.json(),
   }
+  if 'url' not in response:
+    response['url'] = build_queue_location
   if r.json().get('executable', {}).get('url'):
     response['web_url'] = r.json()['executable']['url']
   return jsonify(response)
