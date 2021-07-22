@@ -10,7 +10,8 @@ RUN yarn config set strict-ssl false
 
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
 COPY package.json yarn.lock ./
-RUN yarn install
+# we try multiple times to work around network issues...
+RUN yarn install --network-timeout 100000 || yarn install --network-timeout 100000 || yarn install --network-timeout 100000 || yarn install --network-timeout 100000
 COPY . ./
 
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than
