@@ -87,6 +87,22 @@ for hostname, auth in gitlab_credentials.items():
     json.dump(gitlab_cookies, f)
 
 
+jenkins_credentials = json.loads(os.environ['JENKINS_AUTH'])
+def jenkins_hostname_credentials(build_url):
+  hostname = urlparse(build_url).hostname
+  if hostname not in jenkins_credentials:
+    return None
+  credentials = jenkins_credentials[hostname]
+  return {
+    "auth": HTTPBasicAuth(
+      credentials['user'],
+      credentials['token'],
+    ),
+    "headers": {
+      "Jenkins-Crumb": credentials['crumb'],
+    },
+  }
+
 # TODO: get password for gitlab-adm to avoid any auth and password changes
 # TODO: if expired, renew the token...
 @app.route("/api/v1/gitlab/proxy")
@@ -278,17 +294,9 @@ def jenkins_build():
   """
   data = request.get_json()
   url = f"{data['web_url']}/api/json" if "web_url" in data else data['url']
-  hostname = urlparse(url).hostname
-  credentials = json.loads(os.environ['JENKINS_AUTH'])[hostname]
-  jenkins_credentials = {
-    "auth": HTTPBasicAuth(
-      credentials['user'],
-      credentials['token'],
-    ),
-    "headers": {
-      "Jenkins-Crumb": credentials['crumb'],
-    }
-  }
+  jenkins_credentials = jenkins_hostname_credentials(url)
+  if not jenkins_credentials:
+    return f"ERROR: No credentials for {hostname}", "403"
   try:
     r = requests.get(url, **jenkins_credentials)
   except Exception as e:
@@ -337,17 +345,9 @@ def jenkins_build_trigger():
   data = request.get_json()
   if 'build_url' not in data:
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
-  hostname = urlparse(data['build_url']).hostname
-  credentials = json.loads(os.environ['JENKINS_AUTH'])[hostname]
-  jenkins_credentials = {
-    "auth": HTTPBasicAuth(
-      credentials['user'],
-      credentials['token'],
-    ),
-    "headers": {
-      "Jenkins-Crumb": credentials['crumb'],
-    }
-  }
+  jenkins_credentials = jenkins_hostname_credentials(data['build_url'])
+  if not jenkins_credentials:
+    return f"ERROR: No credentials for {hostname}", "403"
   build_url = re.sub("/$", "", data['build_url'])
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
@@ -370,10 +370,9 @@ def jenkins_build_trigger():
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
   if 'location' not in r.headers:
-      # return r.text
       return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header"}), 500
   build_queue_location = f"{r.headers['location']}/api/json"
-  time.sleep(5) # jenkins quiet period
+  time.sleep(5) # jenkins' "quiet period"
   sleep_total = 5
   error = None
   web_url = None
