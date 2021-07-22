@@ -18,7 +18,7 @@ qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_di
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
 
 :::note
-Results are saved under *output/*. `--share`'d results are saved in */mnt/qaboard*. To change it, edit `storage` in `qaboard.yaml`.
+Results are saved under *output/*. `--share`'d results are available in the web UI and their data is stored under */mnt/qaboard*. To change it, edit `storage` in `qaboard.yaml`.
 :::
 
 
@@ -34,7 +34,7 @@ Many users want to separate algorithm runs and postprocessing. To make this flow
 ## What should your wrapper do?
 The main assumption is that your code
 - Write *"qualitative"* files in the `output_dir`
-- Returns *"quantitative"* metrics/KPIs.
+- Returns *"quantitative"* metrics/KPIs ([More info here - what you return can also be used to consider the run as "failed", or display badges...](computing-quantitative-metrics)).
 
 The `run()` function receives as argument a [`context` object whose properties](#reference-useful-context-properties) tell us **how** you should run **what**, and **where** outputs are expected to be saved.
 
@@ -55,6 +55,7 @@ def run(context):
       # The next page will show you to supply configurations via context.params
       params={"hard-coded": "values"}, 
   )
+  # you can return a dict with "metrics"
   metrics['is_failed'] = False
   return metrics
 ```
@@ -83,7 +84,7 @@ def run(context):
 ```
 
 :::tip
-Instead of returning metrics, if you don't want to touch too much python, you can simply write them as JSON in *$output_directory/metrics.json*.
+Instead of returning your metrics, in some cases it's more convinient to write them as JSON in *context.output_dir/metrics.json*.
 :::
 
 ### Use-case #3: Importing existing results (Advanced)

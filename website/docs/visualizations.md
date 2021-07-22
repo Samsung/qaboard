@@ -45,7 +45,7 @@ Extenstions                                         | Type         | Viewer     
 `*.hex*`, `*.raw*`, `*.dng*`                        |  `image/*`   | **Image** (via CDE)                          |
 `*.plotly.json`                                     | `plotly/json`| **Plot.ly**                                  |
 `*.flame.json`                                      | `flame/json` | **[Flame Graph](http://www.brendangregg.com/flamegraphs.html)**, [diffable](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)          |
-`*.html`                                            | `plain/html` | **HTML** (assumes trusted input..!)          |
+`*.html`                                            | `text/html` | **HTML** (assumes trusted input..!)          |
 `*.mp4`                                             | `video/*`    | **Video** (synced)                           |
 `*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
 `</>`                                               | `pointcloud/txt` | ToF's **pointcloud** viewer (needs to be split) |
