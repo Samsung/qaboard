@@ -62,18 +62,12 @@ class PlatformTag extends React.Component {
   }
 }
 
+const hidden_keys = ["badges", "roi", "auto_rois"]
+
 const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, toplevel=true}) => {
     // Some configuration key names are used and shown by viewers - we don't display them here...
-    const hidden_keys = ["badges", "roi", "auto_rois"]
     const tags = configurations.map((c, idx) => {
       const is_object = typeof (c) !== 'string';
-      // if (is_object) {
-        // hidden_keys.forEach(key => {
-        //   delete c[key];
-        // })
-        // if (Object.keys(c).length === 0)
-        //   return <span key={idx} />
-      // }
       return <Tag
         intent={intent}
         round
@@ -85,7 +79,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
         {!is_object ? c :
                       Object.entries(c)
                       .filter(([k, v]) => !hidden_keys.includes(k))
-                      .map( ([k, v]) => <Tag round interactive key={k} intent="primary" minimal>
+                      .map( ([k, v]) => <Tag round key={k} intent="primary" minimal>
                         <strong>{k}:</strong> {JSON.stringify(v)}
                       </Tag> )}
       </Tag>
@@ -107,11 +101,13 @@ class ExtraParametersTags extends React.Component {
       return <span />
 
     const intent = this.props.intent || Intent.PRIMARY;
-    const tags = Object.entries(parameters).map(([k, v]) => (
-      <Tag key={k} intent={intent} minimal={!this.props.inverted} round interactive>
-        <strong>{k}: </strong> {JSON.stringify(v)}
-      </Tag>
-    ));
+    const tags = Object.entries(parameters)
+      .filter(([k, v]) => !hidden_keys.includes(k))
+      .map(([k, v]) => (
+        <Tag key={k} intent={intent} minimal={!this.props.inverted} round interactive style={{ marginRight: '5px', marginBottom: '3px' }}>
+          <strong>{k}: </strong> {JSON.stringify(v)}
+        </Tag>
+      ));
 
     const pretty_json = JSON.stringify(parameters, null, 2);
     return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}><span>
@@ -147,6 +143,17 @@ const MismatchTags = ({mismatch}) => {
   </div>
 }
 
+
+const RunBadges = ({output}) => {
+  return (output.params?.badges ?? []).map( (badge, idx) => {
+      const tag = <Tag icon={badge.icon} minimal={badge.minimal} large={badge.large} rightIcon={badge.href && "share"} style={badge.style} intent={badge.intent}>{badge.text}</Tag>
+      return <span key={idx} style={{marginRight: '5px'}}>
+        {!!badge.href ? <a rel="noopener noreferrer" target="_blank" href={badge.href}>
+          {tag}
+        </a> : tag}
+      </span>
+  })
+}
 
 
 
@@ -320,4 +327,4 @@ class OutputTags extends React.Component {
 }
 
 
-export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, style_skeleton };
+export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadges, style_skeleton };

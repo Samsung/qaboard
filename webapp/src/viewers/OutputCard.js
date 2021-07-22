@@ -27,7 +27,7 @@ import copy from 'copy-to-clipboard'
 
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
-import { OutputTags, ExtraParametersTags, StatusTag, style_skeleton } from '../components/tags'
+import { OutputTags, ExtraParametersTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { humanFileSize } from "./bit_accuracy/utils";
 
 import { updateSelected } from "../actions/selected";
@@ -65,17 +65,6 @@ const FullScreenableSlimCard = props => {
       {props.children}
     </FullScreen>
   </SlimCard>
-}
-
-const RunBadges = ({output}) => {
-  return (output.params?.badges ?? []).map( (badge, idx) => {
-      const tag = <Tag icon={badge.icon} minimal={badge.minimal} large={badge.large} rightIcon={badge.href && "share"} style={badge.style} intent={badge.intent}>{badge.text}</Tag>
-      return <span key={idx}>
-        {!!badge.href ? <a rel="noopener noreferrer" target="_blank" href={badge.href}>
-          {tag}
-        </a> : tag}
-      </span>
-  })
 }
 
 const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, style, prefix, tags_first=false }) => {
@@ -141,7 +130,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
       </Popover>}
       {!tags_first && tags}
     </h5>
-    <p>
+    <p style={{maxWidth: '600px'}}>
       <RunBadges output={output}></RunBadges>
       <ExtraParametersTags parameters={output.extra_parameters} />
     </p>
