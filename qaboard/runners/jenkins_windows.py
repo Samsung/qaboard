@@ -86,7 +86,7 @@ def trigger_run(task: str) -> Dict:
         secho(r.text, fg='red')
         secho(f"[ERROR] Could not start the Jenkins job running on Windows {task}", fg='red', bold=True)
         exit(1)
-    job_url = f"{r.json()['web_url']}console" if 'web_url' in r.json() else ['url']
+    job_url = f"{r.json()['web_url']}console" if 'web_url' in r.json() else r.json()['url']
     secho(f"[TRIGGER] A Jenkins job is now running on Windows. To check the status (and possible errors!):", fg='blue', bold=True)
     secho(f"          {job_url}", fg='blue')
     return r.json()
