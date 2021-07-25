@@ -165,7 +165,7 @@ class PlotlyViewer extends PureComponent {
         if (!trace)
           return
         if (has_ref)
-          trace = adapt(t, label, side_by_side)
+          trace = adapt(trace, label, side_by_side)
         traces = traces.concat(trace)
       });
 
