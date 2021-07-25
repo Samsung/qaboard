@@ -307,7 +307,7 @@ class Output(Base):
             continue
           print(f'{output_file}')
           if not dryrun:
-            rmtree(output_dir)
+            rmtree(output_file)
     self.deleted = True
 
 
