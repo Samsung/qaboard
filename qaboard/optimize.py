@@ -27,6 +27,9 @@ from .run import RunContext
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
+  import numpy as np
+  np.random.seed(int(os.environ.get('QA_SEED', 101)))
+
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   command_data = {
     "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
