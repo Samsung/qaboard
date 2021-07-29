@@ -293,8 +293,8 @@ class Output(Base):
       manifest_path = output_dir / 'manifest.outputs.json'
       if manifest_path.exists():
         try:
-        with manifest_path.open() as f:
-          files = json.load(f)
+          with manifest_path.open() as f:
+            files = json.load(f)
         except Exception as e:
             print("{e}: corrupted manifest {manifest_path}")
             rmtree(output_dir)
