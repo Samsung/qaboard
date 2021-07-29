@@ -292,8 +292,12 @@ class Output(Base):
       # If a run crashes, or in case of network issues, the manifests may not be updated...
       manifest_path = output_dir / 'manifest.outputs.json'
       if manifest_path.exists():
+        try:
         with manifest_path.open() as f:
           files = json.load(f)
+        except Exception as e:
+            print("{e}: corrupted manifest {manifest_path}")
+            rmtree(output_dir)
         for file in files.keys():
           if file in ['manifest.outputs.json', 'manifest.inputs.json']:
             continue
