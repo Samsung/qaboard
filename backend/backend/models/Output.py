@@ -298,6 +298,8 @@ class Output(Base):
         except Exception as e:
             print("{e}: corrupted manifest {manifest_path}")
             rmtree(output_dir)
+            self.deleted = True
+            return
         for file in files.keys():
           if file in ['manifest.outputs.json', 'manifest.inputs.json']:
             continue
