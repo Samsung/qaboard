@@ -51,6 +51,8 @@ def update_batch():
   # It's a `qa optimzize` experiment
   if batch_data.get('optimization'):
     if batch_data.get('is_best_iter'):
+      batch.data['best_iter'] = batch_data['iteration']
+      flag_modified(batch, "data")
       # we will save the outputs from the best iteration in the batch,
       # so first we need to remove any previous best results
       for o in batch.outputs:

@@ -334,8 +334,8 @@ const ParallelTuningPlot = ({
         })
       ]
     }]
-    console.log(metrics_with_different_values)
-    console.log(parameters_with_different_values)
+    // console.log(metrics_with_different_values)
+    // console.log(parameters_with_different_values)
     const sum_length = array => array.map(e => e.length).reduce( (a,b) => a+b, 0)
     const max_length = array => array.map(e => e.length).reduce( (a,b) => Math.max(a, b), 0)
     const sum_chars = sum_length(metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key))) + sum_length(parameters_with_different_values)
@@ -657,6 +657,8 @@ class TuningExploration extends Component {
 
     let outputs = {}
     batch.filtered.outputs.forEach(id => {
+      if (is_optimization_batch && batch.outputs[id].metrics.objective === undefined)
+        return
       outputs[id] = batch.outputs[id]
     })
     let total_outputs = batch.filtered.outputs.length;
@@ -689,7 +691,7 @@ class TuningExploration extends Component {
           {Object.entries(filtered_best_metrics).map(([k,v]) =>
             <Tag key={k} minimal round style={{"margin":'3px'}}>{available_metrics[k].label}: {metric_formatter.format(v*available_metrics[k].scale)}{available_metrics[k].suffix}</Tag>
           )}
-          <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iterations}</p>
+          <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iteration}</p>
         </Callout>}
 
         {!batch_data.optimization && <>
