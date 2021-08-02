@@ -158,13 +158,16 @@ class CiCommit(Base):
     import tempfile
     import git
     from ..git_utils import git_pull
+
     with tempfile.TemporaryDirectory() as tmp_dir:
       tmp_dir_path = Path(tmp_dir)
+      # if it fails in dev, chmod -R 777 /var/qaboard/git/CDE-Users/HW_ALG/.git
       git_pull(self.project.repo)
       self.project.repo.git.worktree("add", tmp_dir_path, self.hexsha)
-      tmp_repo = git.Repo(tmp_dir_path)
-      command = ['qa', 'save-artifacts', '--out', str(self.artifacts_dir)]
+      # tmp_repo = git.Repo(tmp_dir_path)
+      command = ['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)]
       print(command)
+      print(tmp_dir_path / self.project.id_relative)
       subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
 
   def delete(self, ignore=None, keep=None, dryrun=False):
