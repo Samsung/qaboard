@@ -158,6 +158,9 @@ class CiCommit(Base):
     import tempfile
     import git
     from ..git_utils import git_pull
+    # workaround for SIRC, trying to save artifacts will crash because the storage assumes a product name
+    if self.project.id_relative.endswith("tests/products"):
+      return
     with tempfile.TemporaryDirectory() as tmp_dir:
       tmp_dir_path = Path(tmp_dir)
       git_pull(self.project.repo)
