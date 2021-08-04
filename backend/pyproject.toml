@@ -43,4 +43,5 @@ pytest = "^3.4"
 
 [tool.poetry.scripts]
 qaboard_clean = 'backend.clean:clean'
+qaboard_clean_untracked_hwalg_artifacts = 'backend.clean:clean_untracked_hwalg_artifacts'
 qaboard_init_database = 'backend.scripts.init_database:init_database'
