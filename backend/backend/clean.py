@@ -53,13 +53,17 @@ now = datetime.datetime.utcnow()
 # TODO: remove __all__ the output folders for deleted results +3months
 # TODO: remove all files in artifacts by fixing permission issues
 
-def clean_untracked_hwalg_artifacts():
+@click.command()
+@click.option('--clean-untracked-artifacts', is_flag=True, help="Delete untracked artifacts")
+@click.option('--artifacts-root', 'artifacts_roots', multiple=True, required=True, help="Where to look for artifacts")
+@click.option('--use-cache', is_flag=True, help="Cache protected commits from milestones")
+def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, use_cache):
     """
     WARNING: don't run this unless you know what you are doing
     """
     from .git_utils import git_pull
     cache_path = Path('cache.milestones.json')
-    if cache_path.exists():
+    if cache_path.exists() and use_cache:
         secho("WARNING: Using CACHED MILESTONES commits", fg='yellow')
         milestone_commits = set(json.loads(cache_path.read_text()))
     else:
@@ -78,55 +82,59 @@ def clean_untracked_hwalg_artifacts():
 
     hwalg = db_session.query(Project).filter(Project.id == 'CDE-Users/HW_ALG').one()
     git_pull(hwalg.repo)
-    artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG/commits') # 3. add parsing for the commits in this
-    # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG') # 2. try this too...
-    artifacts_root = Path('/algo/CIS_artifacts/CDE-Users/HW_ALG') # 1.
-    def iter_hashsha_dir():
-        # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG/commits')
-        # for directory in artifacts_root.iterdir():
-        #     hexsha = directory.name.split('__')[-1]
-        #     yield hexsha, directory
-        # return?
-        # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG')
-        artifacts_root = Path('/algo/PSP_2x_artifacts/CDE-Users/HW_ALG')
-        artifacts_root = Path('/algo/KITT_ISP_artifacts/CDE-Users/HW_ALG')
-        artifacts_root = Path('/algo/CIS_artifacts/CDE-Users/HW_ALG')
-        for hash2 in artifacts_root.iterdir():
-            if len(hash2.name) != 2:
-                continue
-            for hash16 in hash2.iterdir():
-                hexsha = hash2.name + hash16.name
-                yield hexsha, hash16
 
-    for hexsha, artifact_dir in iter_hashsha_dir():
-        try:
-            commit = hwalg.repo.commit(hexsha)
-            created_datetime = commit.authored_datetime
-        except: # force pushes, rebases... some commits won't be fetched
-            ctime = artifact_dir.stat().st_ctime
-            created_datetime = datetime.datetime.fromtimestamp(ctime).astimezone()
-        is_old = created_datetime < now.astimezone() - parse_time('3weeks')
-        if is_old and not any([c.startswith(commit.hexsha) for c in milestone_commits]):
-            print('DELETE', artifact_dir, created_datetime)
-            ci_commit = CiCommit(
-                hexsha=hexsha,
-                project=hwalg,
-            )
+    if not artifacts_roots:
+        artifacts_roots = [
+            '/stage/algo_data/ci/CDE-Users/HW_ALG/commits',
+            '/algo/CIS_artifacts/CDE-Users/HW_ALG',
+            '/algo/PSP_2x_artifacts/CDE-Users/HW_ALG',
+            '/algo/KITT_ISP_artifacts/CDE-Users/HW_ALG',
+            # '/stage/algo_data/ci/CDE-Users/HW_ALG',
+        ]
+    for artifacts_root in artifacts_roots:
+        artifacts_root = Path(artifacts_root)
+        def iter_hashsha_dir():
+            # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG/commits')
+            # for directory in artifacts_root.iterdir():
+            #     hexsha = directory.name.split('__')[-1]
+            #     yield hexsha, directory
+            # return?
+            for hash2 in artifacts_root.iterdir():
+                if len(hash2.name) != 2:
+                    continue
+                for hash16 in hash2.iterdir():
+                    hexsha = hash2.name + hash16.name
+                    yield hexsha, hash16
+
+        for hexsha, artifact_dir in iter_hashsha_dir():
             try:
-                nb_manifests_dir = 0
-                for qatools_path in artifact_dir.rglob('manifests'):
-                    nb_manifests_dir += 1
-                    ci_commit.commit_dir_override = qatools_path.parent
-                    print(ci_commit.commit_dir_override)
-                    ci_commit.delete()
-                if not nb_manifests_dir:
-                    ci_commit.commit_dir_override = artifact_dir
-                    print(ci_commit.commit_dir_override)
-                    ci_commit.delete()
-            except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
-                # __pycache__ can be owned by a different user that the one that created the folder...
-                print(e)
-            # return
+                commit = hwalg.repo.commit(hexsha)
+                created_datetime = commit.authored_datetime
+            except: # force pushes, rebases... some commits won't be fetched
+                ctime = artifact_dir.stat().st_ctime
+                created_datetime = datetime.datetime.fromtimestamp(ctime).astimezone()
+            is_old = created_datetime < now.astimezone() - parse_time('3weeks')
+            if is_old and not any([c.startswith(commit.hexsha) for c in milestone_commits]):
+                print('DELETE', artifact_dir, created_datetime)
+                ci_commit = CiCommit(
+                    hexsha=hexsha,
+                    project=hwalg,
+                )
+                try:
+                    nb_manifests_dir = 0
+                    for qatools_path in artifact_dir.rglob('manifests'):
+                        nb_manifests_dir += 1
+                        ci_commit.commit_dir_override = qatools_path.parent
+                        print(ci_commit.commit_dir_override)
+                        ci_commit.delete()
+                    if not nb_manifests_dir:
+                        ci_commit.commit_dir_override = artifact_dir
+                        print(ci_commit.commit_dir_override)
+                        ci_commit.delete()
+                except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
+                    # __pycache__ can be owned by a different user that the one that created the folder...
+                    print(e)
+                # return
 
 
 
@@ -139,14 +147,6 @@ def clean_untracked_hwalg_artifacts():
 @click.option('--dryrun', is_flag=True)
 @click.option('--verbose', is_flag=True)
 def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, can_delete_artifacts, dryrun, verbose):
-    if '--verbose' in sys.argv:
-        clean_untracked_hwalg_artifacts()
-        exit(0)
-    # if '--verbose' in sys.argv:
-    #     from .clean_big_files import main
-    #     main()
-    #     exit(0)
-
     if before and not project_ids:
         secho('[ERROR] when using --before you need to use --project', fg='red')
         exit(1)
@@ -210,7 +210,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                     db_session.add(o)
               except Exception as e:
                 print(e)
-                raise e
+                # raise e
                 try:
                     o.update_manifest()
                 except:
@@ -262,4 +262,7 @@ def parse_time(time_str):
 
 
 if __name__ == '__main__':
-    clean()
+    if '--clean-untracked-artifacts' in sys.argv:
+        clean_untracked_hwalg_artifacts()
+    else:
+        clean()
