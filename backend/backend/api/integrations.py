@@ -293,10 +293,15 @@ def jenkins_build():
   Get the status of a Jenkins build.
   """
   data = request.get_json()
-  url = f"{data['web_url']}/api/json" if "web_url" in data else data['url']
+  if "build_url" in data:
+    url = f"{data['build_url']}/api/json"
+  elif "web_url" in data:
+    url = f"{data['web_url']}/api/json"
+  else:
+    url = data['url']
   jenkins_credentials = jenkins_hostname_credentials(url)
   if not jenkins_credentials:
-    return f"ERROR: No credentials for {hostname}", "403"
+    return f"ERROR: No credentials for {url}", "403"
   try:
     r = requests.get(url, **jenkins_credentials)
   except Exception as e:
@@ -347,7 +352,7 @@ def jenkins_build_trigger():
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
   jenkins_credentials = jenkins_hostname_credentials(data['build_url'])
   if not jenkins_credentials:
-    return f"ERROR: No credentials for {hostname}", "403"
+    return f"ERROR: No credentials for {data['build_url']}", "403"
   build_url = re.sub("/$", "", data['build_url'])
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
@@ -359,7 +364,7 @@ def jenkins_build_trigger():
       params["token"] = data["token"]
     else:
       params["token"] = "qaboard" # FIXME: default to not setting it in the OSS version
-    r = requests.post(
+    r_build = requests.post(
       build_trigger_url,
       params=params,
       **jenkins_credentials,
@@ -369,27 +374,34 @@ def jenkins_build_trigger():
       print(e)
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
-  if 'location' not in r.headers:
+  if 'location' not in r_build.headers:
       return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header"}), 500
-  build_queue_location = f"{r.headers['location']}/api/json"
+  build_queue_location = f"{r_build.headers['location']}/api/json"
+  # in some cases jenkins will return a relative location
+  if '://' not in build_queue_location:
+    url_info = urlparse(build_url)
+    if not build_queue_location.startswith('/'):
+      build_queue_location = f"/{build_queue_location}" 
+    build_queue_location = f"{url_info.scheme}://{url_info.netloc}{build_queue_location}"
+
   time.sleep(5) # jenkins' "quiet period"
   sleep_total = 5
   error = None
   web_url = None
   while not web_url and sleep_total < 30:
     try:
-      r = requests.get(
+      r_get = requests.get(
         build_queue_location,
         **jenkins_credentials,
       )
-      r.raise_for_status()
+      r_get.raise_for_status()
       error = None
     except Exception as e:
       error = str(e)
     try:
-      web_url = r.json()['executable']['url']
+      web_url = r_get.json()['executable']['url']
     except Exception as e:
-      print(r.json())
+      print(r_get.json())
       print(f"INFO: When reading build queue info, no build URL given at: {build_queue_location}. {e}")
     time.sleep(0.5)
     sleep_total = sleep_total + 0.5
@@ -397,10 +409,10 @@ def jenkins_build_trigger():
     return jsonify({"error": error}), 500
   response = {
     "status": 'pending',
-    **r.json(),
+    **r_get.json(),
   }
   if 'url' not in response:
     response['url'] = build_queue_location
-  if r.json().get('executable', {}).get('url'):
-    response['web_url'] = r.json()['executable']['url']
+  if r_get.json().get('executable', {}).get('url'):
+    response['web_url'] = r_get.json()['executable']['url']
   return jsonify(response)
