@@ -608,7 +608,7 @@ class ImgViewer extends React.PureComponent {
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >reference</Tag>{switch_help_label}</Tooltip> : switch_label}
+        >{!is_same_data ? "reference" : 'reference (same-image)'}</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || is_same_data} />
     </div>
