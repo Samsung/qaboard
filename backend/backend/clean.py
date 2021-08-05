@@ -85,7 +85,7 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
 
     if not artifacts_roots:
         artifacts_roots = [
-            '/stage/algo_data/ci/CDE-Users/HW_ALG/commits',
+            # '/stage/algo_data/ci/CDE-Users/HW_ALG/commits',
             '/algo/CIS_artifacts/CDE-Users/HW_ALG',
             '/algo/PSP_2x_artifacts/CDE-Users/HW_ALG',
             '/algo/KITT_ISP_artifacts/CDE-Users/HW_ALG',
