@@ -107,11 +107,10 @@ def build_status(build_info):
   return r.json()['status']
 
 
-def wait_for_build(build_info):
+def wait_for_build(build_info, should_print_log=True):
     sleep =       5 # s
     timeout = 15*60 # s 
     max_tries = timeout / sleep
-
     status = build_status(build_info)
     tries = 0
     while status in ["BLOCKED", "STUCK", "running"] and tries < max_tries: 
@@ -120,10 +119,23 @@ def wait_for_build(build_info):
         status = build_status(build_info)
         if status != "success":
             secho(status, dim=True)
+    if should_print_log:
+        log_url = f"{build_info['web_url']}consoleText" if 'web_url' in build_info else build_info['url']
+        print_log(log_url)
     if status != 'success':
         secho(f'[ERROR] There was an issue while waiting for the end of: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}', fg='red')
         secho(f'        The job is marked as: {status}', fg='red')
         raise Exception
+
+
+def print_log(log_url):
+    try:
+        r = requests.get(log_url)
+        result = r.text
+        secho(f"JENKINS LOG:", fg='blue', bold=True)
+        print(result)
+    except:
+        secho(f"[WARNING] Could not retrieve jenkins job log!", fg='yellow')
 
 
 class JenkinsWindowsRunner(BaseRunner):
@@ -134,7 +146,7 @@ class JenkinsWindowsRunner(BaseRunner):
     self.run_context = run_context
 
 
-  def start(self, blocking=True, log_path=None) -> Dict:
+  def start(self, blocking=True, log_path=None, should_print_log=True) -> Dict:
     # To allow the jenkins job to write we need permissions to be wide open
     self.run_context.output_dir.mkdir(exist_ok=True, parents=True)
     self.run_context.output_dir.chmod(0o777)
@@ -147,7 +159,8 @@ class JenkinsWindowsRunner(BaseRunner):
       log_path = self.run_context.output_dir / 'log.txt'
 
     # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/out-file?view=powershell-7.1
-    command = f"{command} | Out-File -Append -FilePath {linux_to_windows_path(log_path)}"
+    # https://stackoverflow.com/questions/50912801/output-multiple-command-results-to-a-single-txt-file
+    command = f"& {{{command}}} | Tee-Object -FilePath {linux_to_windows_path(log_path)}"
 
     # not needed after PowerShell 7
     # https://stackoverflow.com/questions/2416662/what-are-the-powershell-equivalents-of-bashs-and-operators
@@ -161,6 +174,7 @@ class JenkinsWindowsRunner(BaseRunner):
       f"$Env:QA_USER = '{user}'",
       # https://stackoverflow.com/questions/40098771/changing-powershells-default-output-encoding-to-utf-8
       "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'",
+      "$ErrorActionPreference = \"Stop\"",
       command,
       'exit $lastExitCode',
     ])
@@ -173,7 +187,7 @@ class JenkinsWindowsRunner(BaseRunner):
     build_info = trigger_run(task=f'{linux_to_windows_path(bat_script_path)}')
 
     if blocking:
-      wait_for_build(build_info)
+      wait_for_build(build_info, should_print_log)
 
     return build_info
 
