@@ -377,13 +377,17 @@ def jenkins_build_trigger():
   if 'location' not in r_build.headers:
       return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header"}), 500
   build_queue_location = f"{r_build.headers['location']}/api/json"
-  # in some cases jenkins will return a relative location
-  if '://' not in build_queue_location:
-    url_info = urlparse(build_url)
-    if not build_queue_location.startswith('/'):
-      build_queue_location = f"/{build_queue_location}" 
-    build_queue_location = f"{url_info.scheme}://{url_info.netloc}{build_queue_location}"
 
+  def ensure_absolute(url):
+    # in some cases jenkins will return a relative location
+    if '://' not in build_queue_location:
+      url_info = urlparse(build_url)
+      if not build_queue_location.startswith('/'):
+        url = f"/{build_queue_location}" 
+      url = f"{url_info.scheme}://{url_info.netloc}{url}"
+    return url
+
+  build_queue_location = ensure_absolute(build_queue_location)
   time.sleep(5) # jenkins' "quiet period"
   sleep_total = 5
   error = None
@@ -414,5 +418,5 @@ def jenkins_build_trigger():
   if 'url' not in response:
     response['url'] = build_queue_location
   if r_get.json().get('executable', {}).get('url'):
-    response['web_url'] = r_get.json()['executable']['url']
+    response['web_url'] = ensure_absolute(r_get.json()['executable']['url'])
   return jsonify(response)
