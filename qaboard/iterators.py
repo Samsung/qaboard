@@ -129,10 +129,10 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 
   if not nb_inputs:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found matching "{path}" under "{database}".', fg='red', err=True)
+      click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
       raise ValueError 
     else:
-      click.secho(f'WARNING: No inputs found matching "{path}" under "{database}".', fg='yellow', err=True)
+      click.secho(f'WARNING: No inputs found matching "{path}" [{globs}] under "{database}".', fg='yellow', err=True)
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
