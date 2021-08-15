@@ -16,7 +16,7 @@ from .git import git_show
 
 
 
-def location_from_spec(spec: Union[str, Dict], interpolation_vars: Optional[Dict] = None) -> Path:
+def location_from_spec(spec: Union[str, Dict, Path], interpolation_vars: Optional[Dict] = None) -> Path:
   if isinstance(spec, dict):
     # Mounts are often called differently on linux and windows
     mount_flavor = 'windows' if os.name == 'nt' else 'linux'
