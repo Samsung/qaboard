@@ -21,13 +21,10 @@ You can change the default LSF configuration with:
 runners:
   # In doubt, ask advice from your manager / CAD / bqueues.
   lsf:
-    user: username
     queue: your_queue
-    # qaboard uses a fast queue to launch jobs that create subsequent LSF jobs
-    # It helps get faster feeback about which outputs are pending
-    # fast_queue: your_queue
-    # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
-    # memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # max_threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
+    # max_memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # resources: RESOURCE_STRING
 ```
 
 :::warning
