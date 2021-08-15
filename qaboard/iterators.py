@@ -174,7 +174,9 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_da
   available_batches: Dict = {}
   for batches_file in batches_files:
     try:
-      new_batches = yaml.load(open(batches_file), Loader=yaml.SafeLoader)
+      from .config import project, subproject
+      batches_file_path = location_from_spec(batches_file, {"project": project, "subproject": subproject})
+      new_batches = yaml.load(open(batches_file_path), Loader=yaml.SafeLoader)
     except Exception as e:
       click.secho(f"ERROR: Invalid YAML: {batches_file}", err=True)
       raise e
