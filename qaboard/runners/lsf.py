@@ -214,7 +214,10 @@ class LsfRunner(BaseRunner):
       print(out.stdout)
       print(out.stderr)
       # If LSF can't find the jobs, they are likely done already
-      out.check_returncode()
-      # we parse logs in case we use an ssh bridge
-      if 'is not found' in out.stdout:
+      #   it will error 255 in this case... but it's a good sign
+      #   out.check_returncode()
+      # It's a better idea to check the logs for the status
+      being_terminated = "is being terminated" in out.stdout
+      job_not_found = "is not found" in out.stdout
+      if not (being_terminated or job_not_found): 
         raise ValueError(out.stdout)
