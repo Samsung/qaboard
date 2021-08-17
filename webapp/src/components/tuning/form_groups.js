@@ -97,7 +97,7 @@ class AddRecordingsForm extends Component {
   };
 
   render() {
-    const { commit, config, git } = this.props;
+    const { project, commit, config, git } = this.props;
     const { isLoaded, error, groups } = this.state;
     if (!isLoaded) return <Spinner />;
     if (error)
@@ -108,9 +108,19 @@ class AddRecordingsForm extends Component {
         />
       );
 
-    let commit_groups_files = config.inputs?.batches || config.inputs?.groups || []; // .groups for backward compat
+    let commit_groups_files = config.inputs?.batches ?? config.inputs?.groups ?? []; // .groups for backward compat
     if (!Array.isArray(commit_groups_files))
       commit_groups_files = [commit_groups_files]
+    // we allow python-syntax formatting with project/subproject
+    // ideally we should something more... complete
+    let project_repo = git.path_with_namespace ?? '';
+    let subproject = project.slice(project_repo.length + 1);
+    commit_groups_files = commit_groups_files.map(f => {
+      const subproject_parts = subproject.split('/')
+      const project_parts = project.split('/')
+      return f.replace('{project.name}', project_parts[project_parts.length-1])
+              .replace('{subproject.parts[0]}', subproject_parts[0])
+      })
     return (
       <form onSubmit={this.onSubmit}>
         <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>

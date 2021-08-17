@@ -79,7 +79,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
         {!is_object ? c :
                       Object.entries(c)
                       .filter(([k, v]) => !hidden_keys.includes(k))
-                      .map( ([k, v]) => <Tag round key={k} intent="primary" minimal>
+                      .map( ([k, v]) => <Tag round key={k} intent={intent} minimal>
                         <strong>{k}:</strong> {JSON.stringify(v)}
                       </Tag> )}
       </Tag>
