@@ -331,11 +331,11 @@ config_inputs = config.get('inputs', {})
 
 # "batches" is prefered, but we want to stay backward compatible
 default_batches_files = config_inputs.get('groups', config_inputs.get('batches'))
-default_batches_files = location_from_spec(default_batches_files, {"project": project, "subproject": subproject})
 if not default_batches_files:
   default_batches_files = []
 if not (isinstance(default_batches_files, list) or isinstance(default_batches_files, tuple)):
   default_batches_files = [default_batches_files]
+default_batches_files = [location_from_spec(s, {"project": project, "subproject": subproject}) for s in default_batches_files]
 
 
 config_inputs_types = config_inputs.get('types', {})
@@ -395,8 +395,6 @@ if metrics_file:
           ignore_config_errors = False
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
-
-
 
 # We want to allow any user to use the Gitlab API, stay compatible with usage at Samsung 
 # ...and remove the credentials from the repo
