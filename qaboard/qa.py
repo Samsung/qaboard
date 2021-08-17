@@ -715,8 +715,8 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
     config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qaboard.yaml') for p in qatools_config_paths]}
     config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
     config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
-    config['artifacts']['__batches.yaml'] = {"glob": default_batches_files}
-    config['artifacts']['__envrc'] = {"glob": ['.envrc', '**/*.envrc']}
+    config['artifacts']['__batches.yaml'] = {"glob": [str(p) for p in default_batches_files]}
+    config['artifacts']['__envrc'] = {"glob": ['.envrc', '*/.envrc']} # we don't use ** since it's so slow...
     if groups:
       if excluded_groups:
         groups = [g for g in groups if g not in excluded_groups]
