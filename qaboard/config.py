@@ -331,6 +331,7 @@ config_inputs = config.get('inputs', {})
 
 # "batches" is prefered, but we want to stay backward compatible
 default_batches_files = config_inputs.get('groups', config_inputs.get('batches'))
+default_batches_files = location_from_spec(default_batches_files, {"project": project, "subproject": subproject})
 if not default_batches_files:
   default_batches_files = []
 if not (isinstance(default_batches_files, list) or isinstance(default_batches_files, tuple)):
