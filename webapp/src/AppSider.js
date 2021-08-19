@@ -117,7 +117,7 @@ class ProjectSideCommitList extends React.Component {
   };
 
   render() {
-    const { project, project_data={}, commit={}, match } = this.props;
+    const { project, project_data={}, commit={}, match, user } = this.props;
     let qatools_config = project_data.data?.qatools_config || {};
     let reference_branch = qatools_config.project?.reference_branch;
     const git = project_data.data?.git || {};
@@ -167,6 +167,12 @@ class ProjectSideCommitList extends React.Component {
           <MilestonesMenu project={project} milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
           <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
         </MenuItem>
+        {user?.is_logged && <MenuItem
+          href={`/metabase/dashboard/38?username=${user.user_name}&project=${project}`}
+          icon="database"
+          text="Quota"
+          label={<Tag intent="primary">new</Tag>}
+        />}
         </>}
     </>
     }
@@ -244,7 +250,7 @@ class AppSider extends React.Component {
         <Divider style={{marginBottom: '10px', marginTop: '10px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
-        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
+        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} user={this.props.user} tuning_user={this.props.tuning_user}/>}
         {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.batch} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
       </ul>
     </Sider>
@@ -296,6 +302,7 @@ const mapStateToProps = (state, ownProps) => {
     selected_views,
     batch,
     tuning_user: (!!state.tuning[project] && state.tuning[project].user) || (qatools_config.lsf || {}).user || "ispq",
+    user: state.user ?? null,
   }
 }
 
