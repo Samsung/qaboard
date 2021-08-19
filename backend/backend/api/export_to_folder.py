@@ -188,10 +188,12 @@ def export_to_folder():
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
   m = hashlib.md5(query_string.encode('utf-8')).hexdigest()
   export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
+  prev_mask = os.umask(000)
   try:
     export_dir.mkdir(parents=True, exist_ok=True)
   except:
     return json.dumps({"error": f"permission denied: '{export_dir}'"}), 403
+  os.umask(prev_mask)
 
   output_refs = {}
   for output in new_outputs:
