@@ -165,7 +165,7 @@ class LoginButton extends React.Component {
 
 
   render() {
-    const { error } = this.state;
+    const { error, is_loading } = this.state;
     const warning_sign = <>
       <Tooltip content="Try your windows credentials" position="right" intent={Intent.DANGER} hoverCloseDelay={2000}>
           <Icon icon="warning-sign" iconSize={Icon.SIZE_LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
@@ -203,7 +203,7 @@ class LoginButton extends React.Component {
               {error === "invalid-password" && <div style={{color: "#f02849", margin: "8px"}}>The password is incorrect.</div>}
             </div>
             <div style={{padding: "6px"}} >
-              <Button type="submit" large intent={Intent.PRIMARY} fill loading={this.state.is_loading}>
+              <Button type="submit" large intent={Intent.PRIMARY} fill loading={is_loading}>
                 <b>Log In</b>
               </Button>
             </div>
