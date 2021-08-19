@@ -21,7 +21,7 @@ class DoneAtTagUnstyled extends React.Component {
     return (
       <span className={className} style={style}>
         <span className={maybe_skeletton} title={commit?.authored_datetime ?? defaults.date}>
-          {DateTime.fromISO(commit?.authored_datetime ?? defaults.date).toRelative()}
+          {DateTime.fromISO(commit?.authored_datetime ?? defaults.date, { zone: 'utc' }).toRelative()}
         </span>
         {" "}
         <Link

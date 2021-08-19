@@ -225,7 +225,7 @@ class CommitNavbar extends React.Component {
                   fontFamily: 'monospace',
                 }}
                 rightElement={<Popover position="bottom" hoverCloseDelay={200} interactionKind={"hover"}>
-                  <Tag minimal icon="edit">Change</Tag>
+                  <Tag minimal icon="edit"><span className="hide-small-screen">Change</span></Tag>
                   {milestones_menu}
                 </Popover>}
                 onChange={this.selectCommit}
