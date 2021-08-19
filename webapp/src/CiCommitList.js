@@ -136,7 +136,7 @@ class CiCommitList extends React.Component {
           <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
             <h4 className={Classes.HEADING} style={{textTransform: 'capitalize'}}>
               {(!!day && day !== "undefined") ? <>
-                  {DateTime.fromISO(day).toRelativeCalendar({unit: "days"})}
+                  {DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"})}
                   {" "}
                   &#8212; {commits_by_day[day].length} commits
                 </>

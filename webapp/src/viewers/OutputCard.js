@@ -122,7 +122,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
           <MenuDivider key={"Output-Info"} title="Output Info" />
           <MenuItem
             key="created-date"
-            text={<span title={output.created_date}> {DateTime.fromISO(output.created_date).toRelative()}</span>}
+            text={<span title={output.created_date}> {DateTime.fromISO(output.created_date, { zone: 'utc' }).toRelative()}</span>}
             icon="time"
           />
           {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}

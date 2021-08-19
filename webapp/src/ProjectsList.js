@@ -44,7 +44,7 @@ class LastCommitAt extends Component {
         <Tooltip content={date}>
           <span style={{ color: "#555"}}>latest {!!date_output ? "output" : "commit"}
           {" "}
-          <span title={date}>{DateTime.fromISO(date).toRelative()}</span>
+          <span title={date}>{DateTime.fromISO(date, { zone: 'utc' }).toRelative()}</span>
           </span>
         </Tooltip>
       </span>
