@@ -182,7 +182,7 @@ class ProjectsList extends Component {
                 <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="Docs" style={{color : "#fff"}}/></a>
             </NavbarGroup>
             <NavbarGroup align={Alignment.RIGHT}>
-              {user?.is_logged && <a style={{paddingRight: '15px'}} href={`/metabase/dashboard/38?username=${user.user_name}`}>
+              {user?.is_logged && <a style={{paddingRight: '15px'}} href={`/metabase/dashboard/38?username=${user.user_name}`} rel="noopener noreferrer" target="_blank">
                 <Button icon="database" text="Quotas" style={{color : "#fff"}}/>
               </a>}
               <AuthButton/>

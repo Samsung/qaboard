@@ -170,6 +170,7 @@ class ProjectSideCommitList extends React.Component {
         </MenuItem>
         {user?.is_logged && <MenuItem
           href={`/metabase/dashboard/38?username=${user.user_name}&project=${project}`}
+          rel="noopener noreferrer" target="_blank"
           icon="database"
           text="Quota"
           label={<Tag intent="primary">new</Tag>}
