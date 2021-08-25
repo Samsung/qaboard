@@ -417,6 +417,7 @@ def jenkins_build_trigger():
   }
   if 'url' not in response:
     response['url'] = build_queue_location
+  response['url'] = ensure_absolute(response['url'])
   if r_get.json().get('executable', {}).get('url'):
     response['web_url'] = ensure_absolute(r_get.json()['executable']['url'])
   return jsonify(response)
