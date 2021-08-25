@@ -185,6 +185,7 @@ class JenkinsWindowsRunner(BaseRunner):
     with bat_script_path.open('w', newline='\r\n') as f:
       f.write(f'powershell  -ExecutionPolicy Bypass "{linux_to_windows_path(script_path)}"')
     build_info = trigger_run(task=f'{linux_to_windows_path(bat_script_path)}')
+    print(f"Jenkins: {build_info}")
 
     if blocking:
       wait_for_build(build_info, should_print_log)
