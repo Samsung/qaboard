@@ -158,7 +158,6 @@ runners:
   local:
     concurrency: -1
   lsf: # we use our cluster on linux
-    user: ispq
     # Depending on your project, you may want to use different LSF job queues
     # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
     queue: alg_isp_q
