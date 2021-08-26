@@ -84,7 +84,7 @@ function maintain_zoom() {
     sync_group.leading = "resize";
     try { // we should try to find how to identify when an image is not loaed...
       sync_group.viewers.forEach(v => {
-        const size = new OpenSeadragon.Point(v.container.clientWidth || 1, v.container.clientHeight || 1);
+        const size = new OpenSeadragon.Point(v.container.clientWidth ?? 1, v.container.clientHeight ?? 1);
         v.viewport.resize(size, true);
         v.viewport.zoomTo(sync_group.zoom, null, true);
         v.viewport.panTo(sync_group.center, true);
@@ -110,9 +110,9 @@ class ImgViewer extends React.PureComponent {
 
     this.state = {
       ready: false,
-      first_image: "new",
-      width: Math.floor(parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, ''))),
       cancel_source: CancelToken.source(),
+      first_image: "new",
+      width: Math.floor(parseFloat((this.props.style?.width ?? '390px').replace(/[^\d]+/, ''))),
       height: 217, // default 4/3 ratio
       hide_labels: false,
       diff_threshold: 0.05,
@@ -246,82 +246,93 @@ class ImgViewer extends React.PureComponent {
 
       const has_reference = !!output_ref && !!output_ref.output_dir_url;
 
-      get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })
-        .then(res => {
-          this.setState({ loaded: true })
-          // https://Openseadragon.github.io/examples/tilesource-iiif/
-          // image dimensions
-          const { height, width, profile=[] } = res.data;
-          let format = 'jpg';
-          if (profile[1] !== undefined) {
-            const { formats } = profile[1];
-            if (formats.includes('png')) {
-              format = "png";
-            } 
-          }
-          let source_config = {
-            "@context": "http://iiif.io/api/image/2/context.json",
-            protocol: "http://iiif.io/api/image",
-            profile: ["http://iiif.io/api/image/2/level2.json"],
-            preferredFormats: [format],
-            fitBounds: true,
-            height,
-            width,
-          }
-
-          // As explained below, we stack images on top of the other instead of calling `viewer.open`
-          // So if the viewer receives images of varying sizes, old images risk overflowing....
-          const changed_image_dimension = (!!this.state.image_width && !!this.state.image_height) && (this.state.image_width !== width || this.state.image_height !== height)
-          if (changed_image_dimension) {
-            if (viewer_new.world.getItemCount() > 0) // todo: in a while-loop?
-              viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
-            if (viewer_ref.world.getItemCount() > 0)
-              viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))
-          }
-
-          this.setState({
-            image_width: width,
-            image_height: height,
-            error: null,
-          }, () => resolve())
-
-
-          // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
-          // https://github.com/openseadragon/openseadragon/issues/1428
-          // let viewer_new_is_open = viewer_new.isOpen()
-          viewer_new.addTiledImage({
-            tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path) },
-            success: () => {
-              // To avoid leaking tile sources, we should remove the previous tile
-              // however, it causes a blink-to-white transition... so until we find a fix...
-              // We may also not want to remove old source, eg cache them. But it's a small gain, and
-              // we already have the browser's cache, the IIIF server's, so...
-              // if (viewer_new.world.getItemCount() > 1)
-              //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
-            },
-            // We would like to do this, there is still a white flicker... 
-            // index: viewer_new_is_open ? 0 : undefined,
-            // replace: viewer_new_is_open ? true : undefined,
-          })
-
-          if (has_reference) {
-            // console.log('[Init] loading meta for ref')
-            viewer_ref.addTiledImage({
-              tileSource: { ...source_config, "@id": iiif_url(output_ref.output_dir_url, path) },
-              success: () => { },
-            })
-          }
-        })
-        .catch(error => {
-          console.log(error)
-          // If there is an error we don't want to show a previous image successfully loaded... 
-          if (viewer_new.world.getItemCount() > 0)
+      let requests = [get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      if (has_reference)
+        requests.push(get(`${iiif_url(output_ref.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+      Promise.all(requests).then( ([res_new, res_ref]) => {
+        this.setState({ loaded: true })
+        // https://Openseadragon.github.io/examples/tilesource-iiif/
+        // image dimensions
+        const { height, width, profile=[] } = res_new.data;
+        let format = 'jpg';
+        if (profile[1] !== undefined) {
+          const { formats } = profile[1];
+          if (formats.includes('png')) {
+            format = "png";
+          } 
+        }
+        let source_config = {
+          "@context": "http://iiif.io/api/image/2/context.json",
+          protocol: "http://iiif.io/api/image",
+          profile: ["http://iiif.io/api/image/2/level2.json"],
+          preferredFormats: [format],
+          fitBounds: true,
+          height,
+          width,
+        }
+        // As explained below, we stack images on top of the other instead of calling `viewer.open`
+        // So if the viewer receives images of varying sizes, old images risk overflowing....
+        const changed_image_dimension = (!!this.state.image_width && !!this.state.image_height) && (this.state.image_width !== width || this.state.image_height !== height)
+        if (changed_image_dimension) {
+          if (viewer_new.world.getItemCount() > 0) // todo: in a while-loop?
             viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
           if (viewer_ref.world.getItemCount() > 0)
             viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))
-          this.setState({ error })
-          reject({ error })
-        });
+        }
+
+        this.setState({
+          image_width: width,
+          image_height: height,
+          image_height_ref: res_ref?.data?.height,
+          image_width_ref: res_ref?.data?.width,
+          error: null,
+        }, () => resolve())
+
+        // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
+        // https://github.com/openseadragon/openseadragon/issues/1428
+        // let viewer_new_is_open = viewer_new.isOpen()
+        viewer_new.addTiledImage({
+          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path) },
+          success: () => {
+            // To avoid leaking tile sources, we should remove the previous tile
+            // however, it causes a blink-to-white transition... so until we find a fix...
+            // We may also not want to remove old source, eg cache them. But it's a small gain, and
+            // we already have the browser's cache, the IIIF server's, so...
+            // if (viewer_new.world.getItemCount() > 1)
+            //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
+          },
+          // We would like to do this, there is still a white flicker... 
+          // index: viewer_new_is_open ? 0 : undefined,
+          // replace: viewer_new_is_open ? true : undefined,
+        })
+
+        if (has_reference) {
+          console.log("ref: ", res_ref?.data?.height, res_ref?.data?.width)
+          console.log("new: ", height, width)
+          // TOOD: to something with this
+
+          // console.log('[Init] loading meta for ref')
+          viewer_ref.addTiledImage({
+            tileSource: {
+              ...source_config,
+              width: res_ref?.data?.width,
+              height: res_ref?.data?.height,
+              "@id": iiif_url(output_ref.output_dir_url, path),
+            },
+            success: () => { },
+          })
+        }
+      })
+      .catch(error => {
+        console.log(error)
+        // If there is an error we don't want to show a previous image successfully loaded... 
+        if (viewer_new.world.getItemCount() > 0)
+          viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
+        if (viewer_ref.world.getItemCount() > 0)
+          viewer_ref.world.removeItem(viewer_ref.world.getItemAt(0))
+        this.setState({ error })
+        reject({ error })
+      });
     })
   }
 
