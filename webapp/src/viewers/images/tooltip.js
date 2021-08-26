@@ -24,14 +24,20 @@ const formatting = {
 
 const margin = {marginLeft: '10px'};
 
-const Tooltips = ({x, y, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref}) => {
+const Tooltips = ({x, y, x_ref, y_ref, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref}) => {
     const [base, setBase] = useState('dec');
     const x_round = x !== null ? Math.round(x) : null
     const y_round = y !== null ? Math.round(y) : null
+    const x_ref_round = x_ref !== null ? Math.round(x_ref) : null
+    const y_ref_round = y_ref !== null ? Math.round(y_ref) : null
+    // console.log(x, y, x_ref, y_ref)
     return <div
                 onClick={() => setBase(base === 'dec' ? 'hex' : 'dec')}
             >
-                <CoordTooltip x={x_round} y={y_round}/>
+                {has_reference && x_round !== x_ref_round ? <>
+                    <CoordTooltip style={{marginRight: '5px'}} label="new " x={x_round} y={y_round}/>
+                    <CoordTooltip label="ref " x={x_ref_round} y={y_ref_round}/>
+                </> : <CoordTooltip x={x_round} y={y_round}/>}
                 <ColorTooltip
                     x={x_round}
                     y={y_round}
@@ -40,8 +46,8 @@ const Tooltips = ({x, y, has_reference, first_image, image_url_new, image_url_re
                     base={base}
                 />
                 {has_reference && <ColorTooltip
-                    x={x_round}
-                    y={y_round}
+                    x={x_ref_round}
+                    y={y_ref_round}
                     color={first_image === 'new' ? color_ref : color_new}
                     image_url={first_image === 'new' ? image_url_ref : image_url_new}
                     base={base}
@@ -119,7 +125,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
 
     const prefix = <span className={Classes.TEXT_MUTED}>{formatting[base].prefix}</span>
     return <span style={margin}>
-        <Tag style={{background: color, ...margin}} round></Tag>
+        <Tag style={{background: `rgb(${r},${g},${b})`, ...margin}} round></Tag>
         {!!pixel && <>
             <code
                 className={(loading || data_on_wrong_pixel) ? Classes.TEXT_MUTED: undefined}
@@ -152,11 +158,11 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
 
 const coordFormat = coord => coord.toString().padStart('x', 5)
 
-const CoordTooltip = ({x, y}) => {
+const CoordTooltip = ({x, y, label='', style={}}) => {
     if (x === undefined || x === null || y === undefined || y === null)
         return <span/>
-    return <span style={margin}>
-        <code>x: {coordFormat(x)}, y: {coordFormat(y)}</code>
+    return <span style={{...style, ...margin}}>
+        <code>{label}x: {coordFormat(x)}, y: {coordFormat(y)}</code>
     </span>
 }
 

@@ -119,6 +119,8 @@ class ImgViewer extends React.PureComponent {
       color: {}, // rgb values as displayed on the screen
       x: null, // hover xy from in real image coordinates
       y: null,
+      x_ref: null, // hover xy from in real image coordinates
+      y_ref: null,
     }
   }
 
@@ -179,14 +181,17 @@ class ImgViewer extends React.PureComponent {
       let { leading } = synced_viewers[sync_key];
       if (!!leading && (leading !== viewer.id && leading !== 'resize'))
         return;
+      // synced_viewers[sync_key].height = viewer.source.height
+      // synced_viewers[sync_key].width = viewer.source.width
       synced_viewers[sync_key].zoom = viewer.viewport.getZoom();
       synced_viewers[sync_key].center = viewer.viewport.getCenter();
-      // console.log(`leading with ${viewer.id} to ${zoom} / ${center}`)      
+      // console.log(`leading with ${viewer.id} to ${synced_viewers[sync_key].zoom} / ${synced_viewers[sync_key].center} (${viewer.source.height}:${viewer.source.height})`)      
       if (synced_viewers[sync_key].center === undefined || synced_viewers[sync_key].center === null)
         return
       synced_viewers[sync_key].leading = viewer.id;
       synced_viewers[sync_key].viewers.filter(v => v.id !== viewer.id).forEach(v => {
-        // console.log(`  follow for ${v.id}`)
+        // console.log(`  follow for ${v.id} (${v.source.height}:${v.source.width})`)
+        // console.log(v.source.width)
         v.viewport.zoomTo(synced_viewers[sync_key].zoom);
         v.viewport.panTo(synced_viewers[sync_key].center);
       })
@@ -541,6 +546,9 @@ class ImgViewer extends React.PureComponent {
           const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
           this.setState({
             color_ref,
+            // best effort, will fails if images don't have the right image ratios...
+            x_ref: color_new.imageCoordinates?.x * this.state.image_width_ref / this.state.image_width,
+            y_ref: color_new.imageCoordinates?.y * this.state.image_height_ref / this.state.image_height,
           })
         }
         this.setState({
@@ -556,8 +564,10 @@ class ImgViewer extends React.PureComponent {
           return
         const color_new = rgb_new.getValueAt(color_ref.viewportCoordinates.x, color_ref.viewportCoordinates.y)
         this.setState({
-          x: color_ref.imageCoordinates.x,
-          y: color_ref.imageCoordinates.y,
+          x_ref: color_ref.imageCoordinates?.x,
+          y_ref: color_ref.imageCoordinates?.y,
+          x: color_ref.imageCoordinates?.x * this.state.image_width / this.state.image_width_ref,
+          y: color_ref.imageCoordinates?.y * this.state.image_height / this.state.image_height_ref,
           color_new,
           color_ref,
         })
@@ -700,6 +710,8 @@ class ImgViewer extends React.PureComponent {
           <Tooltips
             x={this.state.x}
             y={this.state.y}
+            x_ref={this.state.x_ref}
+            y_ref={this.state.y_ref}
             color_new={this.state.color_new}
             color_ref={this.state.color_ref}
             image_url_new={`${this.props.output_new.output_dir_url}/${this.props.path}`}
