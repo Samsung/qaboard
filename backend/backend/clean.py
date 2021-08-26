@@ -55,7 +55,7 @@ now = datetime.datetime.utcnow()
 
 @click.command()
 @click.option('--clean-untracked-artifacts', is_flag=True, help="Delete untracked artifacts")
-@click.option('--artifacts-root', 'artifacts_roots', multiple=True, required=True, help="Where to look for artifacts")
+@click.option('--artifacts-root', 'artifacts_roots', multiple=True, help="Where to look for artifacts")
 @click.option('--use-cache', is_flag=True, help="Cache protected commits from milestones")
 def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, use_cache):
     """
