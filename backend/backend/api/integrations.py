@@ -303,10 +303,11 @@ def jenkins_build():
   if not jenkins_credentials:
     return f"ERROR: No credentials for {url}", "403"
   try:
-    r = requests.get(url, **jenkins_credentials)
+    # https://docs.python-requests.org/en/master/user/advanced/#timeouts
+    r = requests.get(url, timeout=(60, 3.5*60), **jenkins_credentials)
   except Exception as e:
     print(e)
-    return jsonify({"error": f"ERROR: When reading build info: {e}"}), 500
+    return jsonify({"error": f"ERROR: When triggering a build: {e}"}), 500
   build_data = r.json()
   # print(build_data.get('building'), build_data.get('result'))
   # https://javadoc.jenkins-ci.org/hudson/model/Result.html
