@@ -92,6 +92,7 @@ mappings = (
   ('\\\\netapp\\raid\\users\\', '/home/'),
   ('\\\\netapp\\QA-Data\\', '/stage/qa_data/'),
   ('\\\\f2\\algo-datasets\\', '/stage/algo-datasets/'),
+  ('\\\\mars\\data', '/data/'),
 )
 
 

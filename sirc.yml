@@ -102,6 +102,7 @@ services:
       - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
       - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
       - /sim:/repository/sim:shared
+      - /data:/data:shared
     environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
