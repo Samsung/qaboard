@@ -86,6 +86,11 @@ roi:
 - {image_width: 1600, image_height: 1200, x: 351, y: 567, w: 45, h: 53, label: "Details fine line"}
 ```
 
+If you click on the histogram button, you'll be able to select a region of interest and easily copy the format above:
+
+<img alt="Image viewer" src={useBaseUrl('img/image-viewer-selection.png')} />
+
+
 ### Plot.ly viewer
 [The Plotly library](https://plot.ly/graphing-libraries/) has everything you need from bar charts to 3d plots.
 - huge variety of plots
