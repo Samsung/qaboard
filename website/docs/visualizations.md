@@ -73,6 +73,19 @@ If your configurations or [input metadata](metadata-integration-external-databas
 
 <!-- http://qa:3000/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/051ee752a3aafa817b735bf34f7779dec9920387?reference=a4222720d3101049b3e43b458e2b8cd02470e65b&controls=%7B%22show%22%3A%7B%22Debug%20Image%22%3Afalse%2C%22CDE%20config%22%3Afalse%2C%22Video%22%3Afalse%2C%22BPC%20Directions%22%3Afalse%2C%22Remosaic%20RGB%22%3Afalse%2C%22HDR%20Merger%20LMS%20Weights%20Map%22%3Afalse%7D%2C%22diff%22%3Atrue%7D&batch=foveon_full&filter=Foveon_AFIT%2F61_SDQH_3_Nona_OutD_Person_FAR_1of800s_ISO100_5184x3792_GR.he&batch_ref=foveon_full&filter_ref= -->
 
+### Regions of interest
+The image viewer can thumbnails to navigate between Regions of Interest. To enable this, you must provide as [metadata-integration-external-databases](input metadata) some info. With YAML syntax:
+
+```yaml
+width: 800   # optional, useful if your results are showed with downscaled resolution
+height: 600  # optional, idem
+roi:
+- {x: 1408, y: 244, w: 121, h: 97, label: "Gradations and overshoots"}
+- {x: 455, y: 651, w: 58, h: 58, label: "False colors"}
+# you can override give the image dimension per ROI:
+- {image_width: 1600, image_height: 1200, x: 351, y: 567, w: 45, h: 53, label: "Details fine line"}
+```
+
 ### Plot.ly viewer
 [The Plotly library](https://plot.ly/graphing-libraries/) has everything you need from bar charts to 3d plots.
 - huge variety of plots

@@ -30,6 +30,12 @@ const output_rois = output => {
   let input_rois = output.test_input_metadata?.roi ?? [];
   let rois = [...input_rois, ...configs_rois];
   rois = uniq_rois(rois) // remove duplicates
+
+  const { width: image_width, height: image_height } = output.test_input_metadata || {};
+  if (width !== undefined || height !== undefined)
+    rois = rois.map(roi => {
+      return {image_width, image_height, ...roi}
+    })
   if (rois.length>0) {
     rois.push({label: 'Full image'})
   }
@@ -62,7 +68,11 @@ class Crops extends React.Component {
     const tags = regions_of_interest.map((roi, idx) => {
       let height = 50;
       let url_prefix = iiif_url(output_new.output_dir_url, this.props.path)
-      let src = roi.label !== 'Full image' ? `${url_prefix}/${roi.x},${roi.y},${roi.w},${roi.h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
+      const x = roi.x * viewer.source.width  / (roi.image_width  ?? viewer.source.width)
+      const y = roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height)
+      const w = roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width)
+      const h = roi.h * viewer.source.height / (roi.image_width  ?? viewer.source.height)
+      let src = roi.label !== 'Full image' ? `${url_prefix}/${x},${y},${w},${h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
       let tooltip_text = <p align="center">
         <span>{roi.label || roi.tag || idx}</span>
         <span>Select next/before roi with keyboard shortcut n/b</span>
@@ -123,10 +133,10 @@ const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
   }
 
   let { x, y, width, height } = viewer.viewport.imageToViewportRectangle(
-    roi.x,
-    roi.y,
-    roi.w,
-    roi.h,
+    roi.x * viewer.source.width  / (roi.image_width ?? viewer.source.width),
+    roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height),
+    roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width),
+    roi.h * viewer.source.height / (roi.image_width ?? viewer.source.height),
   );
   const center = {
     x: x + width / 2,
