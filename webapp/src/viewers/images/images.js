@@ -119,6 +119,7 @@ class ImgViewer extends React.PureComponent {
       color: {}, // rgb values as displayed on the screen
       x: null, // hover xy from in real image coordinates
       y: null,
+      has_reference: false,
       x_ref: null, // hover xy from in real image coordinates
       y_ref: null,
     }
@@ -249,7 +250,8 @@ class ImgViewer extends React.PureComponent {
       const { viewer_new, viewer_ref } = this;
       const { path, output_new, output_ref } = this.props;
 
-      const has_reference = !!output_ref && !!output_ref.output_dir_url;
+      const has_reference = !!output_ref && !!output_ref.output_dir_url && this.props.manifests.reference[path] !== undefined;
+      this.setState({has_reference})
 
       let requests = [get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })]
       if (has_reference)
@@ -312,10 +314,6 @@ class ImgViewer extends React.PureComponent {
         })
 
         if (has_reference) {
-          console.log("ref: ", res_ref?.data?.height, res_ref?.data?.width)
-          console.log("new: ", height, width)
-          // TOOD: to something with this
-
           // console.log('[Init] loading meta for ref')
           viewer_ref.addTiledImage({
             tileSource: {
@@ -500,8 +498,7 @@ class ImgViewer extends React.PureComponent {
     if (!this.show_histogram)
       return
     this.histo_new = histogram_traces(this.viewer_new, this.canvasCoords, 'new')
-    let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
-    if (has_reference)
+    if (this.state.has_reference)
       this.histo_ref = histogram_traces(this.viewer_ref, this.canvasCoords, 'ref')
   }
 
@@ -541,8 +538,7 @@ class ImgViewer extends React.PureComponent {
       onCanvasHover: color_new => {
         if (!!!color_new.viewportCoordinates)
           return
-        let has_reference = !!this.props.output_ref && !!this.props.output_ref.output_dir_url;
-        if (has_reference) {
+        if (this.state.has_reference) {
           const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
           this.setState({
             color_ref,
@@ -577,9 +573,8 @@ class ImgViewer extends React.PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path, manifests } = this.props;
-    const { first_image, width, image_height, image_width, error, hide_labels } = this.state;
+    const { first_image, width, image_height, image_width, error, hide_labels, has_reference } = this.state;
 
-    const has_reference = !!output_ref?.output_dir_url;
     const is_same_data = manifests?.new?.[path]?.md5 === manifests?.reference?.[path]?.md5
 
     const has_error = !!error && Object.keys(error).length > 0;
