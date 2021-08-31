@@ -159,7 +159,7 @@ class BitAccuracyViewer extends React.Component {
         }
         const has_same_data = !!hash.new && hash.new === hash.reference
         return <>
-          {has_same_data && <Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data</Tag>}
+          {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
           <OutputViewer
               key={filename}
               path={filename}
