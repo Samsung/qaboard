@@ -32,7 +32,7 @@ const output_rois = output => {
   rois = uniq_rois(rois) // remove duplicates
 
   const { width: image_width, height: image_height } = output.test_input_metadata || {};
-  if (width !== undefined || height !== undefined)
+  if (image_width !== undefined || image_height !== undefined)
     rois = rois.map(roi => {
       return {image_width, image_height, ...roi}
     })
