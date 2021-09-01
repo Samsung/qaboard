@@ -701,7 +701,11 @@ class ImgViewer extends React.PureComponent {
               <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
             </ul>
           </Tooltip>}
-          {this.show_histogram && !!this.imageCoords && <CropSelection imageCoords={this.imageCoords} />}
+          {this.show_histogram && !!this.imageCoords && <CropSelection
+            image_width={this.viewer_new?.source?.width}
+            image_height={this.viewer_new?.source?.height}
+            roiCoords={this.imageCoords}
+          />}
           <Tooltips
             x={this.state.x}
             y={this.state.y}
