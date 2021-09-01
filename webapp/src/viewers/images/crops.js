@@ -174,16 +174,12 @@ const isValidRoi = (roi, viewer) => {
 };
 
 
-const CropSelection = ({ imageCoords }) => {
-  if (imageCoords) {
+const CropSelection = ({ roiCoords, image_width, image_height }) => {
+  if (roiCoords) {
+    const { x, y, width, height } = roiCoords
     // const image_coords = viewer.viewport.viewportToImageRectangle(selection.rect);
     const to_clipboard =
-      `- {` +
-      `x: ${Math.round(imageCoords.x)}, ` +
-      `y: ${Math.round(imageCoords.y)}, ` +
-      `w: ${Math.round(imageCoords.width)}, ` +
-      `h: ${Math.round(imageCoords.height)}, ` +
-      `label: ""}`;
+      `width: ${image_width}\nheight: ${image_height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(width)}, h: ${Math.round(height)}, label: ""}`;
     return (
       <Tooltip hoverCloseDelay={1000}>
         <Button
