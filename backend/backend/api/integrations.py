@@ -313,7 +313,7 @@ def jenkins_build():
   except Exception as e:
     print(r.text)
     print(e)
-    return jsonify({"error": f"ERROR: malformed Jenkins resonse, when checking the build status: {e}", "text": r.text}), 500
+    return jsonify({"error": f"ERROR: malformed Jenkins response, when checking the build status: {e}", "text": r.text}), 500
   # print(build_data.get('building'), build_data.get('result'))
   # https://javadoc.jenkins-ci.org/hudson/model/Result.html
   allow_failure = False
