@@ -307,8 +307,13 @@ def jenkins_build():
     r = requests.get(url, timeout=(60, 3.5*60), **jenkins_credentials)
   except Exception as e:
     print(e)
-    return jsonify({"error": f"ERROR: When triggering a build: {e}"}), 500
-  build_data = r.json()
+    return jsonify({"error": f"ERROR: checking the build status: {e}"}), 500
+  try:
+    build_data = r.json()
+  except Exception as e:
+    print(r.text)
+    print(e)
+    return jsonify({"error": f"ERROR: malformed Jenkins resonse, when checking the build status: {e}", "text": r.text}), 500
   # print(build_data.get('building'), build_data.get('result'))
   # https://javadoc.jenkins-ci.org/hudson/model/Result.html
   allow_failure = False
