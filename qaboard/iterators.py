@@ -225,6 +225,14 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_da
       yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
 
 
+class SubscriptableDict:
+  def __init__(self, data):
+    self.data = data
+  def __getattr__(self, name):
+    return self.data[name]
+  def __getitem__(self, name):
+    return self.data[name]
+
 def deep_interpolate(value, replaced: str, to_value):
   if isinstance(value, dict):
     return {k: deep_interpolate(v, replaced, to_value) for k, v in value.items()}
@@ -234,13 +242,26 @@ def deep_interpolate(value, replaced: str, to_value):
     if value == replaced:
       return to_value
     else:
-      obj = {replaced: to_value}
-      wrapped_replaced = "\${" + replaced + r"([^}]*)}"
-      match = re.search(wrapped_replaced, value)
-      if match: # FIXME: if there are multiple matches...
-        match_str = match.group(0)
-        value = value.replace(match_str, match_str[1:])
+      obj = {replaced: SubscriptableDict(to_value) if isinstance(to_value, dict) else to_value}
+      wrapped_replaced = "(\${" + replaced + r"([^}]*)})"
+      matches = re.findall(wrapped_replaced, value)
+      full_match = False
+      if matches:
+        for match in matches:
+          match_str = match[0]
+          if len(match_str) == len(value):
+            full_match = True
+          value = value.replace(match_str, match_str[1:])
         value = value.format(**obj)
+      if full_match:
+        try:
+          return int(value)
+        except:
+          pass
+        try:
+          return float(value)
+        except:
+          pass
       return value
   else:
     return value
@@ -297,7 +318,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         for param, value in matrix.items():
           if param in ['configuration', 'configurations', 'configs', 'platform']:
             continue
-          matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix.%s' % param, value)
+          matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
         yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
       return
 

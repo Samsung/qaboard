@@ -65,6 +65,14 @@ class TestIterators(unittest.TestCase):
       deep_interpolate("object ${object[test]}", "object", {"test": "abcdef"}),
       "object abcdef"
     )
+    self.assertEqual(
+      deep_interpolate("object ${object[a]} ${object[c]}", "object", {"a": "b", "c": "d"}),
+      "object b d"
+    )
+    self.assertEqual(
+      deep_interpolate("object ${matrix[test]}", "matrix", {"test": "abcdef"}),
+      "object abcdef"
+    )
 
   def test_match(self):
     from qaboard.iterators import match
