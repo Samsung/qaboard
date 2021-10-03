@@ -166,9 +166,21 @@ my-batch-multiple-values:
 #     etc
 ```
 
-:::tip
-Advanced users can use indexing: `${matrix.param[0]}` or `${matrix.param[key]}`...
-:::
+Advanced users can use indexing: `${matrix.param[0]}` or `${matrix.param[key]}` according to the python [formatting miniformat](https://docs.python.org/3/library/string.html#formatspec), if they use "complex" matrix parameters with objects/arrays/strings:
+
+```yaml
+my-batch-matrix-object:
+  inputs:
+  - image.raw
+  matrix:
+    point: [
+      {x: 10, y: 40},
+      {x: 20, y: 50},
+    ]
+  configs:
+    - base
+    - flags: "-x=${matrix.point[x]} -y=${matrix.point[y]}"
+```
 
 ## Aliases for groups of batches
 For convenience you can define aliases for batches you often run together. For instance you can do:
