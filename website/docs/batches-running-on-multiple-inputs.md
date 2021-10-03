@@ -166,6 +166,9 @@ my-batch-multiple-values:
 #     etc
 ```
 
+:::tip
+Advanced users can use indexing: `${matrix.param[0]}` or `${matrix.param[key]}`...
+:::
 
 ## Aliases for groups of batches
 For convenience you can define aliases for batches you often run together. For instance you can do:
