@@ -234,7 +234,14 @@ def deep_interpolate(value, replaced: str, to_value):
     if value == replaced:
       return to_value
     else:
-      return value.replace(replaced, str(to_value))
+      obj = {replaced: to_value}
+      wrapped_replaced = "\${" + replaced + r"([^}]*)}"
+      match = re.search(wrapped_replaced, value)
+      if match: # FIXME: if there are multiple matches...
+        match_str = match.group(0)
+        value = value.replace(match_str, match_str[1:])
+        value = value.format(**obj)
+      return value
   else:
     return value
 
@@ -290,7 +297,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         for param, value in matrix.items():
           if param in ['configuration', 'configurations', 'configs', 'platform']:
             continue
-          matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, '${matrix.%s}' % param, value)
+          matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix.%s' % param, value)
         yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
       return
 

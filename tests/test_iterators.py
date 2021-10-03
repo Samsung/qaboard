@@ -39,6 +39,33 @@ class TestIterators(unittest.TestCase):
         ['self-referential']
     )
 
+  def test_interpolation(self):
+    from qaboard.iterators import deep_interpolate
+    self.assertEqual(
+      deep_interpolate("hello ${alice}", "alice", "bob"),
+      "hello bob"
+    )
+    self.assertEqual(
+      deep_interpolate("hello {alice}", "alice", "bob"),
+      "hello {alice}"
+    )
+    self.assertEqual(
+      deep_interpolate("tuple ${tuple}", "tuple", (0, 1)),
+      "tuple (0, 1)"
+    )
+    self.assertEqual(
+      deep_interpolate("tuple ${tuple[0]}", "tuple", (0, 1)),
+      "tuple 0"
+    )
+    self.assertEqual(
+      deep_interpolate("string ${string[0]}", "string", "abcdef"),
+      "string a"
+    )
+    self.assertEqual(
+      deep_interpolate("object ${object[test]}", "object", {"test": "abcdef"}),
+      "object abcdef"
+    )
+
   def test_match(self):
     from qaboard.iterators import match
     metadata = {"Sensor": "HM4"}
