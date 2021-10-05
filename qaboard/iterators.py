@@ -251,8 +251,10 @@ def deep_interpolate(value, replaced: str, to_value):
           match_str = match[0]
           if len(match_str) == len(value):
             full_match = True
-          value = value.replace(match_str, match_str[1:])
-        value = value.format(**obj)
+          try:
+            value = value.replace(match_str, match_str[1:].format(**obj))
+          except: # we don't care if some format strings don't match our object
+            pass
       if full_match:
         try:
           return int(value)

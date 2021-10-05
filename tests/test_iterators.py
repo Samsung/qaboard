@@ -46,6 +46,10 @@ class TestIterators(unittest.TestCase):
       "hello bob"
     )
     self.assertEqual(
+      deep_interpolate("hello ${alice}", "bob", "charly"),
+      "hello ${alice}"
+    )
+    self.assertEqual(
       deep_interpolate("hello {alice}", "alice", "bob"),
       "hello {alice}"
     )
@@ -71,6 +75,10 @@ class TestIterators(unittest.TestCase):
     )
     self.assertEqual(
       deep_interpolate("object ${matrix[test]}", "matrix", {"test": "abcdef"}),
+      "object abcdef"
+    )
+    self.assertEqual(
+      deep_interpolate("object ${matrix.test}", "matrix", {"test": "abcdef"}),
       "object abcdef"
     )
 
@@ -197,6 +205,8 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(len(batches), 2)
     self.assertEqual(batches[0].configurations, ['base', 'config-v1', {"version": "v1"}])
     self.assertEqual(batches[1].configurations, ['base', 'config-v2', {"version": "v2"}])
+    batches = get_batch('matrix-interpolate-2')
+    self.assertEqual(len(batches), 4)
 
 
 
@@ -349,6 +359,20 @@ matrix-interpolate:
     - base
     - config-v${matrix.version}
     - version: v${matrix.version}
+
+matrix-interpolate-2:
+  inputs:
+  - a.txt
+  matrix:
+    version:
+    - {major: 1}
+    - {major: 2}
+    param: [3, 4]
+  configurations:
+    - base
+    - param-v${matrix.param}
+    - version: v${matrix.version[major]}
+
 """
 sample_batches_yaml = sample_batches_yaml.replace("qaboard/sample_project", str(root_dir / Path("qaboard/sample_project")))
 
