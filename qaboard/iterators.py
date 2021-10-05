@@ -229,9 +229,9 @@ class SubscriptableDict:
   def __init__(self, data):
     self.data = data
   def __getattr__(self, name):
-    return self.data.get(name)
+    return self.data[name]
   def __getitem__(self, name):
-    return self.data.get(name)
+    return self.data[name]
 
 def deep_interpolate(value, replaced: str, to_value):
   if isinstance(value, dict):
