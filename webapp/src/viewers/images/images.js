@@ -644,7 +644,7 @@ class ImgViewer extends React.PureComponent {
       <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={histogram_size_tight} />
     </div> : <></>
 
-    const diff_info = single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
+    const diff_info = !is_same_data && single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
       <div style={{ minHeight: '40px' }}>
         <MultiSlider
           defaultTrackIntent={Intent.WARNING}
