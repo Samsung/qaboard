@@ -93,6 +93,7 @@ mappings = (
   ('\\\\netapp\\QA-Data\\', '/stage/qa_data/'),
   ('\\\\f2\\algo-datasets\\', '/stage/algo-datasets/'),
   ('\\\\mars\\data', '/data/'),
+  ('\\\\netapp\\Joint\\', '/net/netapp/vol/home_nt/Joint'),
 )
 
 
