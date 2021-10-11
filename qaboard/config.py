@@ -285,7 +285,7 @@ if commit_id and is_in_git_repo:
   fields = ['%cn', '%ce', '%aI', '%P', "%B"]
   try:
     commit_info = git_show("%n".join(fields), commit_id)
-    fields_values = commit_info.split('\n', maxsplit=len(fields))
+    fields_values = commit_info.split('\n', maxsplit=len(fields)-1)
     commit_committer_name, commit_committer_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
     if not commit_authored_datetime:
       commit_authored_datetime = commit_authored_datetime_
