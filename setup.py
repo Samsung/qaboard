@@ -42,6 +42,7 @@ setup(
   python_requires='>=3.7',
   install_requires=[
     'click>=7.0',  # CLI for humans. In v7 they changed CLI command conventions, started using "-" vs "_"
+    'rich', # make things pretty
     'requests',    # HTTP for humans
     # Used for serializer flexibility,
     # but we could replace it since it requires a compiler for the optionnal C-extensions at `pip install`-time... 
