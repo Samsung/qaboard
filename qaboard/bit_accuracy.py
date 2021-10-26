@@ -135,8 +135,8 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 
 
 
-def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_directories, strict=False, reference_platform=None):
-    """Compares the results of the current output directory versus a reference"""    
+def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_directories, strict=False, reference_platform=None, manifest_file_name='manifest.outputs.json'):
+    """Compares the results of the current output directory versus a reference"""
     from .config import config
     patterns = config.get("bit_accuracy", {}).get("patterns", [])
     if not (isinstance(patterns, list) or isinstance(patterns, tuple)):
@@ -159,7 +159,7 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       return True
 
     missing_runs = False
-    comparaisons = {'match': [], 'mismatch': [], 'errors': [], 'only_in_1': [], 'only_in_2': []}
+    comparisons = {'match': [], 'mismatch': [], 'errors': [], 'only_in_1': [], 'only_in_2': []}
     for output_directory in output_directories:
       # print('output_directory', output_directory)
       dir_1 = reference_rootproject_dir / output_directory
@@ -176,67 +176,67 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       if not dir_2.exists():
         click.secho(f"ERROR: did not run {output_directory}", fg='red')
         missing_runs = True
-      if (dir_1 / 'manifest.outputs.json').exists() and (dir_2 / 'manifest.outputs.json').exists():
-        comparaison = cmpmanifests(
-          manifest_path_1 = dir_1 / 'manifest.outputs.json',
-          manifest_path_2 = dir_2 / 'manifest.outputs.json',
+      if (dir_1 / manifest_file_name).exists() and (dir_2 / manifest_file_name).exists():
+        comparison = cmpmanifests(
+          manifest_path_1 = dir_1 / manifest_file_name,
+          manifest_path_2 = dir_2 / manifest_file_name,
           patterns=patterns,
           ignore=ignore,
         )
       else:
-        comparaison = cmpfiles(
+        comparison = cmpfiles(
           dir_1=dir_1,
           dir_2=dir_2,
           patterns=patterns,
           ignore=ignore,
         )
       for attr in ('match', 'mismatch', 'errors', 'only_in_1', 'only_in_2'):
-        comparaisons[attr].extend(output_directory / p for p in comparaison[attr])
+        comparisons[attr].extend(output_directory / p for p in comparison[attr])
 
     if missing_runs:
       return False
     bit_accurate = True
     if strict:
-      if comparaisons['only_in_1']:
+      if comparisons['only_in_1']:
         for o in output_directories:
-          click.secho(str(o), fg='red', bold=True, err=True)
-        click.secho(f"ERROR: ({len(comparaisons['only_in_1'])}) file(s) existing in the reference run are not present:", fg='red')
-        for p in comparaisons['only_in_1']:
+          click.secho(f'{o} {manifest_file_name}', fg='red', bold=True, err=True)
+        click.secho(f"ERROR: ({len(comparisons['only_in_1'])}) file(s) existing in the reference run are not present:", fg='red')
+        for p in comparisons['only_in_1']:
           click.secho(f'➖ {p}', fg='red', dim=True)
         bit_accurate = False
-      if comparaisons['only_in_2']:
+      if comparisons['only_in_2']:
         for o in output_directories:
-          click.secho(str(o), fg='red', bold=True, err=True)
-        click.secho(f"ERROR: {len(comparaisons['only_in_2'])} file(s) are not present in the reference run:", fg='red')
-        for p in comparaisons['only_in_2']:
+          click.secho(f'{o} {manifest_file_name}', fg='red', bold=True, err=True)
+        click.secho(f"ERROR: {len(comparisons['only_in_2'])} file(s) are not present in the reference run:", fg='red')
+        for p in comparisons['only_in_2']:
           click.secho(f'➕ {p}', fg='red', dim=True)
-        # print(comparaisons)
+        # print(comparisons)
         # exit(0)
         bit_accurate = False
 
-    # print(comparaisons['mismatch'])
-    nothing_was_compared = not (len(comparaisons['match']) + len(comparaisons['mismatch']) + len(comparaisons['errors']) )
+    # print(comparisons['mismatch'])
+    nothing_was_compared = not (len(comparisons['match']) + len(comparisons['mismatch']) + len(comparisons['errors']) )
     if nothing_was_compared:
       for o in output_directories:
-        click.echo(click.style(str(o), fg='yellow') + click.style(' (warning: no files were compared)', fg='yellow', dim=True), err=True)
+        click.echo(click.style(f'{o} {manifest_file_name}', fg='yellow') + click.style(' (warning: no files were compared)', fg='yellow', dim=True), err=True)
 
-    if comparaisons['errors']:
+    if comparisons['errors']:
       bit_accurate = False
       click.secho("ERROR: while trying to read those files:", fg='red', bold=True)
-      for p in comparaisons['error']:
+      for p in comparisons['error']:
         click.secho(f"⚠️ {p}", fg='red')
 
-    if comparaisons['mismatch']:
+    if comparisons['mismatch']:
       bit_accurate = False
       for o in output_directories:
-        click.secho(str(o), fg='red', bold=True, err=True)
+        click.secho(f'{o} {manifest_file_name}', fg='red', bold=True, err=True)
       click.secho(f"ERROR: mismatch for:", fg='red')
-      for p in comparaisons['mismatch']:
+      for p in comparisons['mismatch']:
         click.secho(f'❌ {p}', fg='red', dim=True)
 
     if bit_accurate and not nothing_was_compared:
       for o in output_directories:
-        click.secho(f"✔️ {o}", fg='green', err=True)
+        click.secho(f"✔️ {o} {manifest_file_name}", fg='green', err=True)
     return bit_accurate
 
 
@@ -248,18 +248,22 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     """
-  Checks the bit accuracy of the results in the current ouput directory
-  versus the latest commit on origin/develop.
-  """
+    Checks the bit accuracy of the results in the current output directory
+    versus the latest commit on origin/develop.
+    """
     commit_dir = outputs_commit if (is_ci or ctx.obj['share']) else Path()
     click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
     all_bit_accurate = True
     nb_compared = 0
     missing_runs = 0
     for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
-      if not (run_context.database / run_context.rel_input_path / "manifest.outputs.json").exists():
-        click.secho(f"[WARNING] no manifest for {run_context.database / run_context.rel_input_path}", fg='yellow')
-        continue
+      inputs_manifest_exists = (run_context.database / run_context.rel_input_path / "manifest.inputs.json").exists()
+      outputs_manifest_exists = (run_context.database / run_context.rel_input_path / "manifest.outputs.json").exists()
+      if not inputs_manifest_exists:
+        click.secho(f"[WARNING] no input manifest for {run_context.database / run_context.rel_input_path}", fg='yellow')
+      if not outputs_manifest_exists:
+        click.secho(f"[WARNING] no output manifest for {run_context.database / run_context.rel_input_path}", fg='yellow')
+        if not inputs_manifest_exists: continue
       nb_compared += 1
       if run_context.input_path.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
@@ -284,11 +288,19 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
           click.secho(f"       nothing at {commit_dir_ / batch_conf_dir / run_context.rel_input_path}", fg='red')
           missing_runs += 1
         for commit_dir_ in commit_dirs:
-          input_is_bit_accurate = is_bit_accurate(commit_dir_ / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
-          all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+          if inputs_manifest_exists:
+            input_is_bit_accurate = is_bit_accurate(commit_dir_ / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict, manifest_file_name='manifest.inputs.json')
+            all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+          if outputs_manifest_exists:
+            input_is_bit_accurate = is_bit_accurate(commit_dir_ / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
+            all_bit_accurate = all_bit_accurate and input_is_bit_accurate
       else:
-        input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
-        all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+        if inputs_manifest_exists:
+          input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict, manifest_file_name='manifest.inputs.json')
+          all_bit_accurate = all_bit_accurate and input_is_bit_accurate
+        if outputs_manifest_exists:
+          input_is_bit_accurate = is_bit_accurate(commit_dir / batch_conf_dir, run_context.database, [run_context.rel_input_path], strict=strict)
+          all_bit_accurate = all_bit_accurate and input_is_bit_accurate
 
     if missing_runs:
       click.secho(f"ERROR: {missing_runs} runs are missing!", bg='red', underline=True, bold=True)
@@ -357,7 +369,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         click.secho(f'Comparing bit-accuracy versus {reference}', fg='cyan', bold=True, err=True)
         reference_commits = [reference]
     click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
-    
+
     # This where the new results are located
     commit_dir = outputs_commit_root if (is_ci or ctx.obj['share']) else Path()
 
