@@ -14,8 +14,8 @@ import traceback
 from pathlib import Path
 
 import click
-# from rich.traceback import install
-# install(show_locals=True, suppress=[click])
+from rich.traceback import install
+install(show_locals=True, suppress=[click])
 
 from .run import RunContext
 from .runners import Job, JobGroup
