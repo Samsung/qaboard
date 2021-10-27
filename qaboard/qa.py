@@ -14,8 +14,8 @@ import traceback
 from pathlib import Path
 
 import click
-from rich.traceback import install
-install(show_locals=True, suppress=[click])
+# from rich.traceback import install
+# install(show_locals=True, suppress=[click])
 
 from .run import RunContext
 from .runners import Job, JobGroup
@@ -77,7 +77,6 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['project'] = project
   ctx.obj['project_root'] = project_root
   ctx.obj['subproject'] = subproject
-  ctx.obj['HOST'] = os.environ.get('HOST', os.environ.get('HOSTNAME'))
   ctx.obj['user'] = user
   ctx.obj['dryrun'] = dryrun
   ctx.obj['share'] = share
@@ -144,7 +143,7 @@ def get(ctx, input_path, output_path, variable):
     output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('') if not output_path else output_path
   except:
     pass
-  from .config import outputs_commit, commit_branch, artifacts_branch_root
+  from .config import outputs_commit, commit_branch, commit_message, artifacts_branch, artifacts_branch_root
   # backward compatibility
   if variable == "branch_ci_dir":
     variable = "artifacts_branch_root"
