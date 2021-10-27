@@ -1,5 +1,9 @@
 import React from "react";
 
+import {
+  Tag,
+} from "@blueprintjs/core";
+
 class SyncedVideos extends React.Component {
   constructor(props) {
     super(props);
@@ -34,7 +38,7 @@ class SyncedVideos extends React.Component {
   componentWillUnmount() {
     // Make sure to remove the DOM listener when the component is unmounted.
     if (!!this.viewRefR.current) {
-      this.viewRefR.current.removeEventListener("canplay", this.canplay_ref);
+      this.viewRefR.current.removeEventListener("loadedmetadata", this.canplay_ref);
     }
     if (!!this.viewNewR.current) {
       this.viewNewR.current.removeEventListener("play", this.play_ref);
@@ -65,36 +69,46 @@ class SyncedVideos extends React.Component {
   }
 
   render() {
-    const { output_new, output_ref, path, poster='poster.jpg', type } = this.props;
+    const { output_new, output_ref, path, poster='poster.jpg', type, manifests } = this.props;
+    const is_same_data = manifests?.new?.[path]?.md5 === manifests?.reference?.[path]?.md5
     let width = parseFloat(((this.props.style || {}).width || '390px').replace(/[^\d]+/, ''))
     const single_video_width = (width - 10) / 2
 
     return (
       <>
-        <video
-          ref={this.viewNewR}
-          preload="none"
-          controls
-          loop="loop"
-          title="New"
-          width={single_video_width}
-          poster={`${output_new.output_dir_url}/${poster}`}
-          type={type}
-        >
-          <source src={`${output_new.output_dir_url}/${path}`} />
-        </video>
-        {!!output_ref ? (
+        <div>
+          <div><Tag intent="primary">new</Tag></div>
           <video
-            ref={this.viewRefR}
+            ref={this.viewNewR}
             preload="none"
+            controls
             loop="loop"
-            title="Reference"
+            title="New"
             width={single_video_width}
-            poster={`${output_ref.output_dir_url}/${poster}`}
+            poster={`${output_new.output_dir_url}/${poster}`}
             type={type}
           >
-            <source src={`${output_ref.output_dir_url}/${path}`} />
+            <source src={`${output_new.output_dir_url}/${path}`} />
           </video>
+        </div>
+        {!!output_ref ? (
+          <div>
+            <div>
+              <Tag intent="warning">{!is_same_data ? "reference" : 'reference (same-video)'}</Tag>
+            </div>
+            {!is_same_data && <video
+              ref={this.viewRefR}
+              controls
+              preload="none"
+              loop="loop"
+              title="Reference"
+              width={single_video_width}
+              poster={`${output_ref.output_dir_url}/${poster}`}
+              type={type}
+            >
+              <source src={`${output_ref.output_dir_url}/${path}`} />
+            </video>}
+          </div>
         ) : <span ref={this.viewRefR}/>}
       </>
     );
