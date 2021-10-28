@@ -143,11 +143,11 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
       patterns = [patterns]
     if not patterns:
       patterns = ['*']
-    patterns.append('manifest.inputs.json')
 
     ignore = config.get("bit_accuracy", {}).get("ignore", [])
     if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
       ignore = [ignore]
+    ignore.append('manifest.inputs.json') # compared when setting manifest_file_name
     ignore.append('run.json')     # qa-board data, not relevant
     ignore.append('log.txt')      # contains timestamps
     ignore.append('log.lsf.txt')  # contains timestamps
@@ -257,7 +257,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     nb_compared = 0
     missing_runs = 0
     for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
-      inputs_manifest_exists = (run_context.database / run_context.rel_input_path / "manifest.inputs.json").exists()
+      inputs_manifest_exists =  (run_context.database / run_context.rel_input_path / "manifest.inputs.json").exists()
       outputs_manifest_exists = (run_context.database / run_context.rel_input_path / "manifest.outputs.json").exists()
       if not inputs_manifest_exists:
         click.secho(f"[WARNING] no input manifest for {run_context.database / run_context.rel_input_path}", fg='yellow')
@@ -404,11 +404,13 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
           for o in output_directories:
             all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], strict=strict, reference_platform=reference_platform) and all_bit_accurate
+            all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], strict=strict, reference_platform=reference_platform, manifest_file_name='manifest.inputs.json') and all_bit_accurate
       else:
         click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
         all_bit_accurate = True
         for o in output_directories:
           all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], strict=strict, reference_platform=reference_platform) and all_bit_accurate
+          all_bit_accurate = is_bit_accurate(commit_dir, reference_rootproject_ci_dir, [o], strict=strict, reference_platform=reference_platform, manifest_file_name='manifest.inputs.json') and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:
