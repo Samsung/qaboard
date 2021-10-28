@@ -71,7 +71,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
     os.chdir(root_qatools)
 
   # We want open permissions on outputs and artifacts
-  # it makes collaboration among mutliple users / automated tools so much easier...
+  # it makes collaboration among multiple users / automated tools so much easier...
   os.umask(0)
 
   ctx.obj['project'] = project
@@ -95,7 +95,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['database'] = database if database else get_default_database(ctx.obj['inputs_settings'])
   # configuration singular is for backward compatibility to a time where there was a single str config
   ctx.obj['configuration'] = ':'.join(configurations) if configurations else get_default_configuration(ctx.obj['inputs_settings'])
-  # we should refactor the str configuration away completly, and do a much simpler parsing, like
+  # we should refactor the str configuration away completely, and do a much simpler parsing, like
   #   deserialize_config = lambda configurations: return [maybe_json_loads(c) for c in configurations]
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
   ctx.obj['extra_parameters'] = {}
@@ -255,6 +255,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
   """Computes computes various success metrics and outputs."""
   from .utils import file_info
+  from .compat import windows_to_linux_path
 
   try:
     if not skip:
@@ -299,9 +300,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
           break
         if not path.is_file():
           continue
-        input_files[path.as_posix()] = file_info(path, config=config)
+        input_files[windows_to_linux_path(path).as_posix()] = file_info(path, config=config)
     elif manifest_input.is_file():
-      input_files.update({manifest_input.as_posix(): file_info(manifest_input, config=config)})
+      input_files.update({windows_to_linux_path(manifest_input).as_posix(): file_info(manifest_input, config=config)})
     try:
       with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
         json.dump(input_files, f, indent=2)
@@ -459,7 +460,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       "runner": runner,
       **ctx.obj,
     }
-    job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
+    job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
     if not os.environ.get('QA_BATCH_COMMAND_HIDE_LOGS'):
@@ -473,7 +474,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   }
   # Each runner should add what it cares about...
   # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
-  # TODO: It would be nice to generate the CLI help depending on the runner that's choosen, then we could use
+  # TODO: It would be nice to generate the CLI help depending on the runner that's chosen, then we could use
   if runner == 'lsf':
     default_runner_options.update({
       "project": lsf_config.get('project', str(project) if project else "qaboard"),

@@ -148,11 +148,11 @@ def is_bit_accurate(commit_rootproject_dir, reference_rootproject_dir, output_di
     if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
       ignore = [ignore]
     ignore.append('manifest.inputs.json') # compared when setting manifest_file_name
-    ignore.append('run.json')     # qa-board data, not relevant
-    ignore.append('log.txt')      # contains timestamps
-    ignore.append('log.lsf.txt')  # contains timestamps
-    ignore.append('metrics.json') # contains measured run time
-    ignore.append('.nfs000*')     # NFS temporary files
+    ignore.append('run.json')             # qa-board data, not relevant
+    ignore.append('log.txt')              # contains timestamps
+    ignore.append('log.lsf.txt')          # contains timestamps
+    ignore.append('metrics.json')         # contains measured run time
+    ignore.append('.nfs000*')             # NFS temporary files
 
     if not len(output_directories):
       click.secho("WARNING: nothing was compared", fg='yellow')
@@ -337,9 +337,9 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 @click.option('--reference-platform', help="Compare against a difference platform.")
 def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference_platform):
     """
-  Checks the bit accuracy of the results in the current ouput directory
-  versus the latest commit on origin/develop.
-  """
+    Checks the bit accuracy of the results in the current output directory
+    versus the latest commit on origin/develop.
+    """
     from .config import is_in_git_repo, commit_branch, is_ci, outputs_project_root, repo_root
     from .gitlab import lastest_successful_ci_commit
     from .conventions import get_commit_dirs
