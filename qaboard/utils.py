@@ -30,7 +30,10 @@ def merge(src: Dict, dest: Dict) -> Dict:
           # "super" is a reserved keyword
           if isinstance(value, list) and "super" in value:
             value = list(chain.from_iterable([[e] if e != "super" else dest.get(key, []) for e in value]))
-          dest[key] = value
+          if isinstance(dest, dict):
+            dest[key] = value
+          else:
+            dest = {key: value}
     return dest
 
 

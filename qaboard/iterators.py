@@ -166,7 +166,17 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 
-def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_database: Path, default_configurations: List, default_platform: str, default_job_configuration, qatools_config, default_inputs_settings=None, debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False)):
+def iter_inputs(
+  batches: List[str],
+  batches_files: List[os.PathLike],
+  default_database: Path,
+  default_configurations: List,
+  default_platform: str,
+  default_job_configuration,
+  qatools_config,
+  default_inputs_settings=None,
+  debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False),
+):
   """
   Returns an iterator over the (input_path, configurations, runner-configuration) from the selected batches
   # TODO: allow changing the entrypoint per-batch
@@ -184,8 +194,25 @@ def iter_inputs(batches: List[str], batches_files: List[os.PathLike], default_da
       # deep-merge the aliases
       old_aliases = available_batches.get('aliases', {})
       new_aliases = new_batches.get('aliases', new_batches.get('groups', {}))
-      available_batches.update(new_batches)
       available_batches['aliases'] = {**old_aliases, **new_aliases}
+
+      for new_batch in new_batches:
+        if new_batch.startswith('.') or new_batch == 'database':
+          continue
+        if 'database' in new_batches and 'database' not in new_batches[new_batch]:
+          new_batches[new_batch]['database'] = new_batches['database']
+        allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
+        if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
+          available_batches[new_batch] = new_batches[new_batch]
+        else: # we want to run both...
+          if new_batch not in available_batches['aliases']:
+            available_batches['aliases'][new_batch] = [f"{new_batch}_FIRST", f"{new_batch}@{batches_file}"]
+            available_batches[f"{new_batch}_FIRST"] = available_batches[new_batch]
+            available_batches[f"{new_batch}@{batches_file}"] = new_batches[new_batch]
+            del available_batches[new_batch]
+          else:
+            available_batches['aliases'][new_batch].append(f"{new_batch}@{batches_file}")
+            available_batches[f"{new_batch}@{batches_file}"] = new_batches[new_batch]
   if debug:
     click.secho(str(available_batches), dim=True, err=True)
 
