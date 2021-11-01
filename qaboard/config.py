@@ -292,7 +292,8 @@ if commit_id and is_in_git_repo:
     if not commit_message:
       commit_message = commit_message_
     commit_parents = commit_parents_str.split()
-  except:
+  except Exception as e:
+    print(e)
     # may fail when working on the first commit in a repo, like in our tests
     pass
 
