@@ -381,7 +381,7 @@ def jenkins_build_trigger():
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
   if 'location' not in r_build.headers:
-      return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header"}), 500
+      return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header. {r_build.text}"}), 500
   build_queue_location = f"{r_build.headers['location']}/api/json"
 
   def ensure_absolute(url):
