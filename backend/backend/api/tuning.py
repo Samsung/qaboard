@@ -15,7 +15,7 @@ from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.iterators import iter_inputs
-from qaboard.conventions import deserialize_config
+from qaboard.conventions import deserialize_config, batches_files
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -74,11 +74,9 @@ def get_commit_batches_paths(project, commit_id):
     ci_commit = CiCommit.query.filter(
         CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
     ).one()
-    commit_config_inputs = ci_commit.data.get('qatools_config', {}).get('inputs', {})
-    commit_group_files = commit_config_inputs.get('batches', commit_config_inputs.get('groups', []))
+    commit_config = ci_commit.data.get('qatools_config', {})
+    commit_group_files = batches_files(commit_config, None, project.id, project.id_relative, ci_commit.repo_artifacts_dir)
     print(commit_group_files, file=sys.stderr)
-    if not (isinstance(commit_group_files, list) or isinstance(commit_group_files, tuple)):
-      commit_group_files = [commit_group_files]
 
     # custom groups have priority over the commit's groups
     for group_file in commit_group_files:

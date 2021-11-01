@@ -49,6 +49,31 @@ def get_settings(inputs_type, config):
 
 
 
+def batches_files(config, batch_paths, project, subproject, root_qatools):
+  assert bool(config) ^ bool(batch_paths)
+  if config:
+    config_inputs = config.get('inputs', {})
+    # "batches" is prefered, but we want to stay backward compatible
+    paths = config_inputs.get('groups', config_inputs.get('batches'))
+  elif batch_paths:
+    paths = batch_paths
+
+  if not paths:
+    paths = []
+  if not (isinstance(paths, list) or isinstance(paths, tuple)):
+    paths = [paths]
+  paths = [location_from_spec(p, {"project": project, "subproject": subproject}) for p in paths]
+
+  if any(['*' in str(paths)]):
+    from itertools import chain
+    from glob import iglob
+    # in python3.10 glob supports root_dir...
+    prev_cwd = os.getcwd()
+    os.chdir(root_qatools)  
+    paths = list(chain.from_iterable([iglob(str(path)) for path in paths]))
+    os.chdir(prev_cwd)
+  return paths
+
 def slugify(s : str, maxlength=32):
   # lowercased and shortened to 63 bytes
   slug = s.lower()

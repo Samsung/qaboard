@@ -13,7 +13,7 @@ import click
 
 from .utils import merge, getenvs
 from .git import git_head, git_show
-from .conventions import slugify, get_commit_dirs, location_from_spec
+from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files
 from .iterators import flatten
 
 
@@ -330,14 +330,7 @@ default_batch_label = 'default'
 
 config_inputs = config.get('inputs', {})
 
-# "batches" is prefered, but we want to stay backward compatible
-default_batches_files = config_inputs.get('groups', config_inputs.get('batches'))
-if not default_batches_files:
-  default_batches_files = []
-if not (isinstance(default_batches_files, list) or isinstance(default_batches_files, tuple)):
-  default_batches_files = [default_batches_files]
-default_batches_files = [location_from_spec(s, {"project": project, "subproject": subproject}) for s in default_batches_files]
-
+default_batches_files = batches_files(config, None, project, subproject, root_qatools)
 
 config_inputs_types = config_inputs.get('types', {})
 default_input_type = config_inputs_types.get('default', 'default')
