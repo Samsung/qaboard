@@ -24,6 +24,17 @@ qa batch my-batch
 qa batch --batch first-batch --batch second-batch
 ```
 
+## Setting a custom database
+You can set a default database for all the batches in define in each file:
+
+```yaml
+database: /some/path
+
+my-batch:
+  inputs: # will be relative to the database
+  - Images/Demo3/A.jpg
+  - Images/Demo2
+```
 ## Setting a custom database per batch
 ```yaml {2-4}
 you-can-override-the-default-database:
