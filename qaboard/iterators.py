@@ -200,7 +200,10 @@ def iter_inputs(
         if new_batch.startswith('.') or new_batch == 'database':
           continue
         if 'database' in new_batches and 'database' not in new_batches[new_batch]:
-          new_batches[new_batch]['database'] = new_batches['database']
+          try:
+            new_batches[new_batch]['database'] = new_batches['database']
+          except: # people often have things that are not batches, maybe aliases reused elsewhere...
+            pass
         allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
         if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
           available_batches[new_batch] = new_batches[new_batch]
