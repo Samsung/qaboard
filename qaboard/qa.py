@@ -64,7 +64,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj = {}
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
-  noop_command = 'get' in sys.argv or 'init' in sys.argv
+  noop_command = 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
     ctx.obj['previous_cwd'] = os.getcwd()
     click.echo(click.style("Working	directory changed to: ", fg='blue') + click.style(str(root_qatools), fg='blue', bold=True), err=True)
@@ -140,7 +140,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
 def get(ctx, input_path, output_path, variable):
   """Prints the value of the requested variable. Mostly useful for debug."""
   try:
-    output_directory = ctx.obj['batch_conf_dir'] / input_path.with_suffix('') if not output_path else output_path
+    run_context = RunContext.from_click_run_context(ctx, config)
   except:
     pass
   from .config import outputs_commit, commit_branch, commit_message, artifacts_branch, artifacts_branch_root
@@ -151,6 +151,7 @@ def get(ctx, input_path, output_path, variable):
     variable = "outputs_commit"
   locals().update(globals())
   locals().update(ctx.obj)
+  locals().update(run_context.asdict())
   if variable in locals():
     print(locals().get(variable))
   else:
