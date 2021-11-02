@@ -14,6 +14,7 @@ const route_paths = [
 	"/:project_id+",
 ];
 
+const params = new URLSearchParams(window.location.search);
 const default_from_url = (attribute) => {
     // eslint thinks `path` is not used (?) 
     // eslint-disable-next-line
@@ -23,8 +24,8 @@ const default_from_url = (attribute) => {
 			return match.params[attribute];
 		}
 	}
+	return params.get(attribute)
 }
-const params = new URLSearchParams(window.location.search);
 
 export const default_project_id = default_from_url('project_id') || params.get("project");
 
@@ -38,10 +39,13 @@ export const default_metrics = {
 };
 
 export const default_date_range = () => {
-	return [
-		DateTime.now().minus({ days: 3 }).startOf('day').toJSDate(),
-		DateTime.now().endOf('day').toJSDate(),
-	]
+	let from_date = new Date(`${default_from_url('from')}T00:00:00`)
+	let to_date = new Date(`${default_from_url('to')}T00:00:00`)
+	if (from_date === undefined || from_date.toString() == "Invalid Date")
+		from_date = DateTime.now().minus({ days: 3 }).startOf('day').toJSDate()
+	if (to_date === undefined || to_date.toString() == "Invalid Date")
+		to_date = DateTime.now().endOf('day').toJSDate()
+	return [from_date, to_date]
 }
 
 
