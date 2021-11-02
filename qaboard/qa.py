@@ -134,7 +134,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
 
 @qa.command()
 @click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 @click.argument('variable')
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
@@ -167,7 +167,7 @@ def get(ctx, input_path, output_path, variable):
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 @click.option('--keep-previous', is_flag=True, help="Don't clean previous outputs before the run.")
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
 @click.option('--save-manifests-in-database', is_flag=True, help="Save the input and outputs manifests in the database.")
@@ -344,7 +344,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
@@ -366,7 +366,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
 ))
 @click.pass_context
 @click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
-@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
+@click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
   run_context = RunContext.from_click_run_context(ctx, config)
@@ -381,7 +381,7 @@ def sync(ctx, input_path, output_path):
     ignore_unknown_options=True,
 ))
 @click.pass_context
-@click.option('--output-id', 'output_id', help='Custom output directory path. If not provided, defaults to ctx.obj["batch_conf_dir"] / input_path.with_suffix('')')
+@click.option('--output-id', 'output_id', help='Custom output directory path.')
 def wait(ctx, output_id):
   from .api import get_output 
   while True:
@@ -512,11 +512,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           batch_conf_dir = outputs_commit / prefix_outputs_path
           if tuning_params:
               batch_conf_dir = batch_conf_dir / tuning_hash
-      from qaboard.conventions import slugify_hash
-      input_dir = run_context.rel_input_path.with_suffix('')
-      if len(input_dir.as_posix()) > 70:
-          input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
-      run_context.output_dir = batch_conf_dir / input_dir
+      from qaboard.conventions import slugify_hash, output_dirs_for_input_part
+      run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
       if forwarded_args:
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:

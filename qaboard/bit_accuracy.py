@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from .conventions import make_batch_conf_dir
+from .conventions import make_batch_conf_dir, output_dirs_for_input_part
 from .iterators import iter_inputs
 from .utils import PathType
 from .config import commit_id, project, subproject, outputs_commit_root, outputs_commit, is_ci, default_platform, config
@@ -267,10 +267,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       nb_compared += 1
       if run_context.input_path.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
-        # otherwise the manifest is at
-        #   * input_path.parent / 'manifest.json' in the database
-        #   * input_path.with_suffix('') / 'manifest.json' in the results
-        # # reference_output_directory = run_context.input_path if run_context.input_path.is_folder() else run_context.input_path.parent
+        # otherwise the manifest is at input_path.parent/manifest.json in the database and input_path.stem/manifest.json in the results
         exit(1)
 
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
@@ -385,8 +382,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           except:
             print("TODO: fix this...")
             pass
-        input_path = run_context.rel_input_path
-        output_directory = batch_conf_dir / input_path.with_suffix('')
+        output_directory = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
         output_directories.append(output_directory)
 
     for reference_commit in reference_commits:
