@@ -5,7 +5,7 @@ import os
 import sys
 import datetime
 from getpass import getuser
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional, Union
 
 import yaml
@@ -351,7 +351,7 @@ def get_default_database(inputs_settings):
   else:
     database_spec = inputs_settings.get('database', {})
   try:
-    database = location_from_spec(database_spec)
+    database = location_from_spec(database_spec, {"project": project, "subproject": subproject})
   except:
     database = Path("/")
   if not database:
