@@ -30,6 +30,26 @@ import { match_query } from "../utils";
 
 const toaster = Toaster.create();
 
+
+const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${(!!batch && batch.label) || 'default'}`
+const has_milestones = ({commit, project, project_data}) => {
+  const milesones = project_data?.data?.milestones ?? {}
+  return Object.keys(milesones).some(k => k.startsWith(`${project}/${commit.id}/`))
+}
+const milestone_type = ({ commit, project_shown, project_data, batch }) => {
+  if (commit === undefined || commit === null ||
+      project_shown=== undefined || project_shown=== null  )
+      return 'none'
+  const key = milestone_key(project_shown, commit, batch)
+  const shared_milestones = project_data?.data?.milestones ?? {}
+  if (key in shared_milestones)
+    return 'shared';
+  const private_milestones = project_data.milestones ?? {}
+  if (key in private_milestones)
+    return 'private';
+  return 'none';
+}
+
 // FIXME: Right now we can only have 1 filter per commit/batch, because it's not in the key...
 //        The design is really bad. Instead we could use uuids, or just have a list of milestones
 //        that we filter for match on project+commit+batch+filter
@@ -107,7 +127,6 @@ const MilestoneMenu = ({ project, milestone, onSelect, icon }) => {
 }
 
 
-const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${(!!batch && batch.label) || 'default'}`
 
 
 
@@ -140,9 +159,9 @@ class CommitMilestoneEditor extends React.Component {
     	show_alert_remove,
     	show_alert_overwrite,
     } = this.state;
-    const milestone_type = this.getMilestoneType();
-    const icon = milestone_type === 'none' ? 'star-empty' : (milestone_type === 'shared' ? 'crown' : 'star');
-    const color = milestone_type === 'none' ? undefined : Colors.GOLD4;
+    const type = milestone_type(this.props);
+    const icon = type === 'none' ? 'star-empty' : (type === 'shared' ? 'crown' : 'star');
+    const color = type === 'none' ? undefined : Colors.GOLD4;
 
     const popover_body = <div>
       <H5>Milestone Info</H5>
@@ -164,7 +183,7 @@ class CommitMilestoneEditor extends React.Component {
         <TextArea onChange={this.update('notes')} value={notes} style={{ width: "200px" }} />
       </FormGroup>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
-        {(milestone_type !== 'none') && <>
+        {(type !== 'none') && <>
           <Button
             text="Delete"
             onClick={() => this.setState({ show_alert_remove: true })}
@@ -200,7 +219,7 @@ class CommitMilestoneEditor extends React.Component {
         position={Position.RIGHT}
         popoverClassName={Classes.POPOVER_CONTENT_SIZING}
       >
-        <Tooltip content={milestone_type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
+        <Tooltip content={type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
           <Button minimal style={{ marginRight: '5px' }} onClick={this.updateData}
           >
             <Icon icon={icon} color={color} />
@@ -226,30 +245,14 @@ class CommitMilestoneEditor extends React.Component {
   }
 
 
-  getMilestoneType = () => {
-    const { commit, project_shown, project_data, batch } = this.props;
-    if (commit === undefined || commit === null ||
-        project_shown=== undefined || project_shown=== null  )
-        return 'none'
-    const key = milestone_key(project_shown, commit, batch)
-    const shared_milestones = project_data?.data?.milestones ?? {}
-    if (key in shared_milestones)
-      return 'shared';
-    const private_milestones = project_data.milestones ?? {}
-    if (key in private_milestones)
-    	return 'private';
-    return 'none';
-  }
-
-
   // TODO: We really could do all that in ComponentDidMount/ComponentDidUpdate
   // it would allow us some fine handling of the label/notes, we should keep them without needing to save
   updateData = () => {
     const { commit, project_shown, project_data, batch } = this.props;
     const key = milestone_key(project_shown, commit, batch)
  
-    const milestone_type = this.getMilestoneType()
-    if (milestone_type === 'none') {
+    const type = milestone_type(this.props)
+    if (type === 'none') {
       this.setState({
         date: new Date(),
         label: '',
@@ -257,16 +260,16 @@ class CommitMilestoneEditor extends React.Component {
         is_shared: true,
       })      
     }
-    else if (milestone_type === 'private' || milestone_type === 'shared') {
+    else if (type === 'private' || type === 'shared') {
         const private_milestones = project_data.milestones ?? {};
         const shared_milestones = project_data?.data?.milestones ?? {}
-        const milestones = milestone_type === 'private' ? private_milestones : shared_milestones
+        const milestones = type === 'private' ? private_milestones : shared_milestones
         const matching_milestone = milestones[key]
         this.setState({
           previous_milestone: {...matching_milestone},
           label: matching_milestone.label,
           notes: matching_milestone.notes,
-          is_shared: milestone_type === 'shared',
+          is_shared: type === 'shared',
         })
     }
   }
@@ -347,7 +350,7 @@ class CommitMilestoneEditor extends React.Component {
   deleteMilestone = () => {
     const { dispatch, commit, project, project_shown, project_data, batch } = this.props;
     const key = milestone_key(project_shown, commit, batch)
-    switch (this.getMilestoneType()) {
+    switch (milestone_type(this.props)) {
       case "private":
         const milestones = project_data.milestones || [];
         delete milestones[key];
@@ -388,4 +391,4 @@ class CommitMilestoneEditor extends React.Component {
 }
 
 
-export { MilestonesMenu, CommitMilestoneEditor };
+export { MilestonesMenu, CommitMilestoneEditor, has_milestones };
