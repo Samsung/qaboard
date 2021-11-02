@@ -238,7 +238,7 @@ class AppSider extends React.Component {
           <Link style={{ color: "#fff" }}  to="/">
               <b>QA-Board</b>
           </Link>
-          <Tooltip><a href={process.env.REACT_APP_QABOARD_DOCS_ROOT} rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Click to see the docs!</span></Tooltip>
+          <Tooltip><a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs`} rel="noopener noreferrer" target="_blank" style={{alignSelf: 'center', marginTop: '-1px'}} ><Icon title="Help / About" style={{color: 'white'}} icon="info-sign"/></a><span>Click to see the docs!</span></Tooltip>
         </Navbar.Heading>
         <Divider style={{marginBottom: '10px', marginTop: '16px'}}/>
         <AuthButton appSider={true}/>
