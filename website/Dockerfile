@@ -18,7 +18,7 @@ RUN apk update && apk add --no-cache \
     # https://github.com/mhart/alpine-node/issues/27
     # https://github.com/nodejs/docker-node/issues/384
     # https://github.com/nodejs/docker-node/issues/282
-    g++ make python \
+    g++ make python3 \
     rsync \
     && rm -rf /var/cache/apk/*
 
