@@ -197,10 +197,10 @@ class AppNavbar extends Component {
     let some_commits_loaded = !!commits && commits.length > 0;
     const first_commit_date = (some_commits_loaded && commits[commits.length - 1].authored_datetime) || date_range[0]
     const last_commit_date = (some_commits_loaded && commits[0].authored_datetime)  || date_range[1]
-    const effective_date_range = [
-      (!!first_commit_date ? new Date(first_commit_date) : null),
-      (!!last_commit_date ? new Date(last_commit_date) : null)
-    ]
+    // const effective_date_range = [
+    //   (!!first_commit_date ? new Date(first_commit_date) : null),
+    //   (!!last_commit_date ? new Date(last_commit_date) : null)
+    // ]
 
     const date_input_props = {style: {width:'100px'}}
     // const tag_icon = <Icon icon={is_branch ? "git-branch" : (is_committer ? 'user' : null)} style={{marginRight: '5px'}}/>
@@ -210,7 +210,7 @@ class AppNavbar extends Component {
           {!is_commit && <DateRangeInput
           	endInputProps={date_input_props}
           	startInputProps={date_input_props}
-            value={effective_date_range}
+            value={date_range}
             maxDate={new Date()}
             allowSingleDayRange
             formatDate={date =>
