@@ -249,3 +249,13 @@ def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, e
     slugify_hash(full_configurations, maxlength=16)
   )
 
+def output_dirs_for_input_part(input_path, database, config):
+    input_dir = input_path.with_suffix('')
+    if config.get('outputs', {}).get('output_dir_uses_database'):
+        if not database.is_absolute():
+            input_dir = database / input_dir
+        else:
+            input_dir = database.relative_to(database.root) / input_dir
+    if len(input_dir.as_posix()) > 70:
+        input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
+    return input_dir
