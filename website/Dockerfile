@@ -13,6 +13,8 @@ ENV HTTP_PROXY=$PROXY \
     NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
+# Thanks to our proxies...
+RUN sed -i 's/https/http/g' /etc/apk/repositories
 RUN apk update && apk add --no-cache \
     # needed for node-gyp.. some do it with npm install in one layer
     # https://github.com/mhart/alpine-node/issues/27
