@@ -10,6 +10,7 @@ import copy from 'copy-to-clipboard';
 import {
   Classes,
   Button,
+  Colors,
   Icon,
   Intent,
   Tooltip,
@@ -28,6 +29,7 @@ import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { shortId, pretty_label, linux_to_windows } from "../utils";
 import { git_hostname, default_git_hostname } from "../utils"
+import { has_milestones } from './milestones'
 
 const CommitDetails = styled.div`
   display: flex;
@@ -272,6 +274,7 @@ class CommitRow extends React.Component {
     if (!!avatar_url && avatar_url.startsWith(gitlab_host)) {
       avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
     }
+    const commit_has_milestones = has_milestones({commit, project, project_data})
     return (
       <CommitRowWrapper className={className}>
         <Avatar
@@ -284,6 +287,7 @@ class CommitRow extends React.Component {
         <CommitDetails>
           <CommitContent style={{ maxWidth: "600px" }}>
             {tag}
+            {commit_has_milestones && <Icon icon="star" style={{color: Colors.GOLD5}} />}
             <Message className={maybe_skeletton}>{has_data ? commit.message : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
             <div>
               <Tooltip>
@@ -324,7 +328,7 @@ class CommitRow extends React.Component {
                   text="Delete All Runs"
                   icon="trash"
                   intent={Intent.DANGER}
-                  disabled={this.state.waiting}
+                  disabled={this.state.waiting || commit_has_milestones}
                   className={Classes.TEXT_MUTED}
                   minimal
                   onClick={() => {
@@ -347,7 +351,7 @@ class CommitRow extends React.Component {
                   text="Delete All Runs (in all subprojects!)"
                   icon="trash"
                   intent={Intent.DANGER}
-                  disabled={this.state.waiting}
+                  disabled={this.state.waiting || commit_has_milestones}
                   className={Classes.TEXT_MUTED}
                   minimal
                   onClick={() => {
