@@ -139,10 +139,6 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
   """Prints the value of the requested variable. Mostly useful for debug."""
-  try:
-    run_context = RunContext.from_click_run_context(ctx, config)
-  except:
-    pass
   from .config import outputs_commit, commit_branch, commit_message, artifacts_branch, artifacts_branch_root
   # backward compatibility
   if variable == "branch_ci_dir":
@@ -151,7 +147,12 @@ def get(ctx, input_path, output_path, variable):
     variable = "outputs_commit"
   locals().update(globals())
   locals().update(ctx.obj)
-  locals().update(run_context.asdict())
+  try:
+    run_context = RunContext.from_click_run_context(ctx, config)
+    locals().update(run_context.asdict())
+  except:
+    pass
+
   if variable in locals():
     print(locals().get(variable))
   else:
