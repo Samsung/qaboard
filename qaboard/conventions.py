@@ -50,7 +50,10 @@ def get_settings(inputs_type, config):
 
 
 def batches_files(config, batch_paths, project, subproject, root_qatools):
-  assert bool(config) ^ bool(batch_paths)
+  if root_qatools:
+    assert bool(config) ^ bool(batch_paths)
+
+  paths = []
   if config:
     config_inputs = config.get('inputs', {})
     # "batches" is prefered, but we want to stay backward compatible
@@ -59,7 +62,7 @@ def batches_files(config, batch_paths, project, subproject, root_qatools):
     paths = batch_paths
 
   if not paths:
-    paths = []
+    return paths
   if not (isinstance(paths, list) or isinstance(paths, tuple)):
     paths = [paths]
   paths = [location_from_spec(p, {"project": project, "subproject": subproject}) for p in paths]
