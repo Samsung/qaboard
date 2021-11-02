@@ -1,7 +1,14 @@
 FROM node:lts
 WORKDIR /website
 
-RUN apt-get update -qq && apt-get install -y --no-install-recommends rsync
+RUN apk update && apk add --no-cache \
+    # needed for node-gyp.. some do it with npm install in one layer
+    # https://github.com/mhart/alpine-node/issues/27
+    # https://github.com/nodejs/docker-node/issues/384
+    # https://github.com/nodejs/docker-node/issues/282
+    g++ make python3 \
+    rsync \
+    && rm -rf /var/cache/apk/*
 
 ENV PATH /app/node_modules/.bin:$PATH
 RUN yarn config set strict-ssl false
