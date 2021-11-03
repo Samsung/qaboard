@@ -75,7 +75,7 @@ def get_commit_batches_paths(project, commit_id):
         CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
     ).one()
     commit_config = ci_commit.data.get('qatools_config', {})
-    commit_group_files = batches_files(commit_config, None, project.id, project.id_relative, ci_commit.repo_artifacts_dir)
+    commit_group_files = batches_files(commit_config, None, Path(project.id), Path(project.id_relative), ci_commit.repo_artifacts_dir)
     print(commit_group_files, file=sys.stderr)
 
     # custom groups have priority over the commit's groups
