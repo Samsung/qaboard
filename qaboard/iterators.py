@@ -197,9 +197,9 @@ def iter_inputs(
       available_batches['aliases'] = {**old_aliases, **new_aliases}
 
       for new_batch in new_batches:
-        if new_batch.startswith('.') or new_batch == 'database':
+        if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups'):
           continue
-        if 'database' in new_batches and 'database' not in new_batches[new_batch]:
+        if 'database' in new_batches and new_batches[new_batch] and 'database' not in new_batches[new_batch]:
           try:
             new_batches[new_batch]['database'] = new_batches['database']
           except: # people often have things that are not batches, maybe aliases reused elsewhere...
