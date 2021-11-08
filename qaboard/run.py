@@ -112,7 +112,7 @@ class RunContext():
             input_path = ctx.params['input_path']
         
         database_is_absolute = database.is_absolute()
-        # we resolve all the time to handle users that ask for both //db and /db
+        # we resolve all the time to handle users that ask for both //db/path and /db//path ...
         database = database.resolve()
         if database_is_absolute:
             # for relative database paths we don't want an absolute path ending up in the QA-Board database...
@@ -125,7 +125,12 @@ class RunContext():
 
         if not ctx.params.get('output_path'):
             assert input_path_absolute.relative_to(database)
-            output_dir = ctx.obj['batch_conf_dir'] / output_dirs_for_input_part(input_path, database, config)
+            output_dir = ctx.obj['batch_conf_dir'] / output_dirs_for_input_part(
+                input_path,
+                # we really prefer keeping relative paths as-is
+                database if database_is_absolute else ctx.obj['database'],
+                config,
+            )
             # we don't want people using ../ in the input causing issues 
             assert output_dir.resolve().relative_to(ctx.obj['batch_conf_dir'].resolve())
         else:
