@@ -27,7 +27,7 @@ import {
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
-import { MilestonesMenu, CommitMilestoneEditor } from "./milestones"
+import { has_milestones, MilestonesMenu, CommitMilestoneEditor } from "./milestones"
 
 import { shortId, linux_to_windows } from "../utils";
 import { fetchCommit } from "../actions/commit";
@@ -58,7 +58,7 @@ class CommitBranchButton extends React.PureComponent {
     return <span style={style}>
       <Tooltip>
         <Tag style={{marginLeft: '10px', padding: '5px'}} interactive minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
-          {has_branch ? commit.branch : 'master'}
+          <span className="hide-small-screen">{has_branch ? commit.branch : 'master'}</span>
         </Tag>
         <span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>
       </Tooltip>
@@ -163,6 +163,8 @@ class CommitNavbar extends React.Component {
     const shared_milestones = project_data?.data?.milestones || {}
     const private_milestones = project_data.milestones || {}
 
+
+    let commit_has_milestones = has_milestones({commit, project, project_data})
     const milestones_menu = <Menu style={{maxHeight: '500px', overflowY: 'scroll'}}>
       <MenuDivider title="Change Project"/>
       <ControlGroup>
@@ -450,7 +452,7 @@ class CommitNavbar extends React.Component {
                 text={`Delete All Outputs${soft_delete ? "' Files" : ''}`}
                 intent={Intent.DANGER}
                 minimal
-                disabled={this.state.waiting}
+                disabled={this.state.waiting || commit_has_milestones}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});
