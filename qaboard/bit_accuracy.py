@@ -218,7 +218,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
     # print(comparisons['mismatch'])
     nothing_was_compared = not (len(comparison['match']) + len(comparison['mismatch']) + len(comparison['errors']) )
     if nothing_was_compared and bit_accurate:
-      click.echo(click.style(f'{rel_input_path} {manifest_name}', fg='yellow') + click.style(' (warning: no files were compared)', fg='yellow', dim=True), err=True)
+      click.echo(click.style(f'🤔  {rel_input_path} {manifest_name}', fg='yellow') + click.style(' 0 files compared', fg='yellow', dim=True), err=True)
 
     if comparison['errors']:
       bit_accurate = False
