@@ -200,14 +200,14 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
     if strict:
       if comparison['only_in_1']:
         click.secho(f'{rel_input_path} {manifest_name}', fg='red', bold=True, err=True)
-        click.secho(f'{output_dir_suffix}', fg='red', err=True, dim=True)        
+        click.secho(f'{dir_new}', fg='red', err=True, dim=True)        
         click.secho(f"ERROR: ({len(comparison['only_in_1'])}) file(s) are not present in the reference run:", fg='red')
         for p in comparison['only_in_1']:
           click.secho(f'➖ {p}', fg='red', dim=True)
         bit_accurate = False
       if comparison['only_in_2']:
         click.secho(f'{rel_input_path} {manifest_name}', fg='red', bold=True, err=True)
-        click.secho(f'{output_dir_suffix}', fg='red', err=True, dim=True)
+        click.secho(f'{dir_new}', fg='red', err=True, dim=True)
         click.secho(f"ERROR: {len(comparison['only_in_2'])} file(s) existing in the reference run are not present:", fg='red')
         for p in comparison['only_in_2']:
           click.secho(f'➕  {p}', fg='red', dim=True)
@@ -223,14 +223,14 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
     if comparison['errors']:
       bit_accurate = False
       click.secho("ERROR: While trying to read those files:", fg='red', bold=True)
-      click.secho(f'{output_dir_suffix}', fg='red', err=True, dim=True)
+      click.secho(f'{dir_new}', fg='red', err=True, dim=True)
       for p in comparison['error']:
         click.secho(f"⚠️  {p}", fg='red')
 
     if comparison['mismatch']:
       bit_accurate = False
       click.secho(f'{rel_input_path} {manifest_name}', fg='red', bold=True, err=True)
-      click.secho(f'{output_dir_suffix}', fg='red', err=True, dim=True)
+      click.secho(f'{dir_new}', fg='red', err=True, dim=True)
       click.secho(f"ERROR: Mismatch for:", fg='red')
       for p in comparison['mismatch']:
         click.secho(f'❌  {p}', fg='red', dim=True)
