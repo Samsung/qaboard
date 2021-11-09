@@ -158,16 +158,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
     ignore.append('metrics.json')         # contains measured run time
     ignore.append('.nfs000*')             # NFS temporary files
 
-    if not len(output_directories):
-      click.secho("WARNING: nothing was compared", fg='yellow')
-      return True
-
     missing_runs = False
-    comparisons = {'match': [], 'mismatch': [], 'errors': [], 'only_in_1': [], 'only_in_2': []}
-    for output_directory in output_directories:
-      # print('output_directory', output_directory)
-      dir_1 = reference_rootproject_dir / output_directory
-      dir_2 = commit_rootproject_dir / output_directory
 
     # FIXME: the platform named used to be part of the output dir,
     #       but not anymore, so this code is broken..!
