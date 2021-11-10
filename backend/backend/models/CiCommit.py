@@ -200,7 +200,7 @@ class CiCommit(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
-          file_to_delete = self.artifacts_dir / file
+          file_to_delete = self.repo_artifacts_url / file
           print(str(file_to_delete))
           # raise ValueError
           if not dryrun:
