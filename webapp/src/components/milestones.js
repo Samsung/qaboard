@@ -33,6 +33,8 @@ const toaster = Toaster.create();
 
 const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${(!!batch && batch.label) || 'default'}`
 const has_milestones = ({commit, project, project_data}) => {
+  if (commit === undefined || commit == null)
+    return false
   const milesones = project_data?.data?.milestones ?? {}
   return Object.keys(milesones).some(k => k.startsWith(`${project}/${commit.id}/`))
 }
