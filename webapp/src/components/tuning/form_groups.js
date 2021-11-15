@@ -118,9 +118,12 @@ class AddRecordingsForm extends Component {
     commit_groups_files = commit_groups_files.map(f => {
       const subproject_parts = subproject.split('/')
       const project_parts = project.split('/')
+      // FIXME: call utils.fill_template, with a twist to replace "\${key}" with ${key},
+      //        but not trivial since those are to be interpreted as python Pathlib... 
       return f.replace('{project.name}', project_parts[project_parts.length-1])
               .replace('{subproject.parts[0]}', subproject_parts[0])
-      })
+              .replace('{subproject}', subproject)
+    })
     return (
       <form onSubmit={this.onSubmit}>
         <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>
