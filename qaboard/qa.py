@@ -679,9 +679,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity
-      print_url(ctx, status="failure")
+      if should_notify_qa_database:
+        print_url(ctx, status="failure")
       exit(1)
-
+    else:
+      if should_notify_qa_database:
+        print_url(ctx)
 
 
 @qa.command()
