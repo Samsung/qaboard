@@ -170,7 +170,7 @@ def mkdir(path: Path):
         click.secho(f'ERROR: The storage path does not exist: "{path}".', fg='red', err=True)
         if "/algo/" in str(path) and not Path(*path.parts[:3]).exists():
           click.secho(f'INFO: To create storage locations for new projects, go to:', fg='blue', bold=True, err=True)
-          click.secho(f'      http://projdb/ProjectSelect.php?NewProject=1', fg='blue', err=True)
+          click.secho(f'      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec', fg='blue', err=True)
           click.secho(f'Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.', fg='blue', err=True)
 
 outputs_root: Optional[Path]
