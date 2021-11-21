@@ -411,13 +411,20 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         reference_rootproject_ci_dir_ = Path(str(reference_rootproject_ci_dir).replace(user, '*'))
         start, *end = reference_rootproject_ci_dir_.parts
         start, end = Path(start), str(Path(*end))
-        reference_rootproject_ci_dirs = start.glob(end)
+        reference_rootproject_ci_dirs = list(start.glob(end))
         all_bit_accurate = True
-        for reference_rootproject_ci_dir in reference_rootproject_ci_dirs:
-          click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
-          for ba_context in ba_contexts:
-            all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict, reference_platform=reference_platform) and all_bit_accurate
-            all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict, reference_platform=reference_platform, manifest_name='manifest.inputs.json') and all_bit_accurate
+        missing_run = True
+        click.secho(f"Reference directories: {reference_rootproject_ci_dirs}", fg='cyan', bold=True, err=True)
+        for ba_context in ba_contexts:
+          for reference_rootproject_ci_dir in reference_rootproject_ci_dirs:
+            dir_ref = reference_rootproject_ci_dir / ba_context["output_dir_suffix"]
+            if dir_ref.exists():
+              missing_run = False
+              all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict, reference_platform=reference_platform) and all_bit_accurate
+              all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict, reference_platform=reference_platform, manifest_name='manifest.inputs.json') and all_bit_accurate
+          if missing_run:
+            click.secho(f"ERROR: No reference for '{ba_context['rel_input_path']}'", fg='red')
+            all_bit_accurate = False
       else:
         click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
         all_bit_accurate = True
