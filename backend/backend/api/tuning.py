@@ -221,22 +221,22 @@ def start_tuning(hexsha):
         # Now that we updated the last_output_datetime, it won't be deleted again until a little while
         return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
 
- 
-    batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
 
-    from qaboard.utils import merge
-    from typing import Dict, Any
-    # take care not to mutate the root config, as its project.name is the git repo name #TODO
-    merged_batches : Dict[str, Any] = {}
-    for c in batches_paths:
-        with c.open('r') as f:
-            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
-        merged_batches = merge(c_dict, merged_batches)
+    batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
 
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
     prev_mask = os.umask(000)
+
+    from qaboard.utils import merge
+    from typing import Dict, Any
+
+    merged_batches : Dict[str, Any] = {}
+    for c in batches_paths:
+        with c.open('r') as f:
+            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
+        merged_batches = merge(c_dict, merged_batches)
 
     batch_dir = batch.batch_dir
     batch_dir = Path(str(batch_dir).replace('/ispq/', f'/{user}/'))
@@ -245,7 +245,8 @@ def start_tuning(hexsha):
     os.umask(prev_mask)
 
     command_id = str(uuid.uuid4())
-    with Path(f'{batch_dir}/tuning_batches_{command_id[:8]}.yaml').open('w') as f:
+    merged_batches_path = f'{batch_dir}/tuning_batches_{command_id[:8]}.yaml'
+    with Path(merged_batches_path).open('w') as f:
         f.write(yaml.dump(merged_batches))
 
     working_directory = ci_commit.artifacts_dir
@@ -269,7 +270,7 @@ def start_tuning(hexsha):
         f"--platform '{data['platform']}'" if "platform" in data else "",
         f"--label '{data['batch_label']}'",
         "optimize" if do_optimize else "batch",
-        ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
+        f'--batches-file {merged_batches_path} '
         f"--batch '{data['selected_group']}'",
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
