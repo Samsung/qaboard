@@ -11,12 +11,14 @@ import datetime
 import itertools
 import subprocess
 from pathlib import Path
+from typing import Dict, Any
 
 import yaml
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
-from qaboard.iterators import iter_inputs
+from qaboard.utils import merge
+from qaboard.iterators import iter_inputs, resolve_aliases
 from qaboard.conventions import deserialize_config, batches_files
 
 from backend import app, db_session
@@ -223,20 +225,24 @@ def start_tuning(hexsha):
 
 
     batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
+    merged_batches : Dict[str, Any] = {}
+    for c in batches_paths:
+        with c.open() as f:
+            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
+        merged_batches = merge(c_dict, merged_batches)
+
+    available_batches: Dict = {}
+    batches = str(data['selected_group'])
+    if merged_batches and isinstance(merged_batches, dict):
+      available_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {}))
+    batch_aliases = available_batches.get('aliases', {})
+    batches = list(resolve_aliases(batches, batch_aliases)) # type: ignore
+    merged_batches = { key:value for (key,value) in merged_batches.items() if key in ['aliases', 'groups', 'database', *batches]}
 
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
     prev_mask = os.umask(000)
-
-    from qaboard.utils import merge
-    from typing import Dict, Any
-
-    merged_batches : Dict[str, Any] = {}
-    for c in batches_paths:
-        with c.open('r') as f:
-            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
-        merged_batches = merge(c_dict, merged_batches)
 
     batch_dir = batch.batch_dir
     batch_dir = Path(str(batch_dir).replace('/ispq/', f'/{user}/'))
