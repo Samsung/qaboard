@@ -288,6 +288,7 @@ def start_tuning(hexsha):
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
+            'printf "\n";\n\n',
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
@@ -334,7 +335,7 @@ def start_tuning(hexsha):
             f'mkdir -p "{batch_dir}"',
             # highest priority for manual runs
             f'bsub_su "{user}" -q "{queue}" -sp 4000 '
-            f"'bash \"{qa_batch_path}\" &> \"{batch_dir}/log.txt\"'",
+            f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
         ]
     )
     print(start_script)
