@@ -14,18 +14,21 @@ import {
   Button,
   Tag,
   Toaster,
+  Tab,
+  Tabs,
+  Icon,
+  Tooltip
 } from "@blueprintjs/core";
+import { MultiSelect } from "@blueprintjs/select";
 
 export const toaster = Toaster.create();
 
 const editor_options = {
   selectOnLineNumbers: true,
   seedSearchStringFromSelection: true,
+  renderWhitespace: "all",
   //renderSideBySide: false
 };
-
-
-
 
 
 class AddRecordingsForm extends Component {
@@ -34,29 +37,33 @@ class AddRecordingsForm extends Component {
     this.state = {
       isLoaded: true,
       error: null,
-      groups: null,
-      dirty: false,
-
+      files: {},
+      groups: {},
+      dirty: {},
       submitted: false,
       overwrite: false,
-      selected_group: null,
       selected_group_info: {
         number_of_tests: 0
       },
-      selected_group_info_loading: false
+      selected_group_info_loading: false,
+      selectedTabId: null,
     };
   }
-
+ 
   componentDidMount() {
-    this.getGroups();
+    const { available_tests_files } = this.props;
+    this.setState({ selectedTabId: "usr", files: available_tests_files }, () =>
+    Object.entries(this.state.files).forEach( ([key, value]) => {
+      this.getGroups(value)
+    }));
   }
-
-  getGroups() {
-    get(`/api/v1/tests/groups?project=${this.props.project}`)
+ 
+  getGroups(name) {
+    get(`/api/v1/tests/groups?project=${this.props.project}&name=${name}`)
       .then(response => {
         this.setState({
           isLoaded: true,
-          groups: response.data
+          groups: {...this.state.groups, [name]: response.data},
         });
       })
       .catch(error => {
@@ -64,31 +71,34 @@ class AddRecordingsForm extends Component {
       });
   }
 
-  updateGroups = newGroups => {
-    this.setState({ groups: newGroups, dirty: true });
+  updateGroups = (newGroups, e) => {
+    const { files, selectedTabId } = this.state;
+    let name = files[selectedTabId]
+    this.setState({ groups: {...this.state.groups, [name]: newGroups}, dirty: {...this.state.dirty, [name]: true} });
   };
 
-  onSubmit = e => {
+  onSubmit = (name, e) => {
     e.preventDefault();
-    const { groups } = this.state;
-    this.setState({ submitted: true, dirty: false });
+    const { groups, dirty } = this.state;
+    if (!dirty[name]) {return};
+    this.setState({ submitted: true, dirty: {...this.state.dirty, [name]: false} });
     toaster.show({
-      message: "The request was sent!",
+      message: `The request was sent for ${name}!`,
       intent: Intent.PRIMARY
     });
-    post(`/api/v1/tests/groups?project=${this.props.project}`, {
+    post(`/api/v1/tests/groups?project=${this.props.project}&name=${name}`, {
       project: this.props.project,
-      groups,
+      groups: groups[name],
     })
       .then(response => {
         this.setState({ submitted: false });
         toaster.show({
-          message: "...Acknowledged!",
+          message: `...Acknowledged for ${name}!`,
           intent: Intent.SUCCESS
         });
       })
       .catch(error => {
-        this.setState({ submitted: false, dirty: true });
+        this.setState({ submitted: false, dirty: {...this.state.dirty, [name]: true} });
         toaster.show({
           message: `Something wrong happened ${JSON.stringify(error.response)}`,
           intent: Intent.DANGER,
@@ -96,9 +106,41 @@ class AddRecordingsForm extends Component {
       });
   };
 
+  handleTabChange = (newTabId, prevTabId, e) => { this.setState({ selectedTabId: newTabId }) };
+
+  editorDidMount(editor, monaco) {
+  }
+  
+  editorWillMount(monaco) {
+  }
+
+  // TODO: add serach feature of other users yamls (read-only)
+  // renderGroups = (group, { modifiers, handleClick }) => {
+  //   // if (!modifiers.matchesPredicate)
+  //   return null;
+  //   return (
+  //     <MenuItem
+  //       // active={modifiers.active}
+  //       // icon={this.isRoiGroupSelected(group) ? "tick" : "blank"}
+  //       // key={group.title}
+  //       // onClick={(handleClick)}
+  //       // text={group.title}
+  //       text={"dff"}
+  //       shouldDismissPopover={false}
+  //     />
+  //   );
+  // };
+  // handleGroupsMultiSelect = (group) => {
+  //   // if (!this.isuserGroupSelected(group))
+  //   //   this.selectuserGroup(group);
+  //   // else
+  //   //   this.deselectuserGroup(this.getSelecteduserGroupIndex(group));
+  // };
+
   render() {
     const { project, commit, config, git } = this.props;
-    const { isLoaded, error, groups } = this.state;
+    const { isLoaded, error, groups, selectedTabId, files, dirty} = this.state;
+
     if (!isLoaded) return <Spinner />;
     if (error)
       return (
@@ -107,6 +149,38 @@ class AddRecordingsForm extends Component {
           description={JSON.stringify(error.response)}
         />
       );
+
+    const user_form_name = files?.['usr'] || ''
+    let group_name = files[selectedTabId]
+    let group_value = groups[group_name]
+    let is_group_dirty = dirty[group_name]
+    let is_any_dirty = Object.values(dirty || []).some(v => v)
+
+    const panel_user = <>
+      <MonacoEditor
+        height={400}
+        language='yaml'
+        options={editor_options}
+        name="user_groups"
+        onChange={this.updateGroups}
+        value={group_value || ""}
+        // editorDidMount={this.editorDidMount}
+        // editorWillMount={this.editorWillMount}
+      />
+    </>
+
+    const panel_shared = <>
+      <MonacoEditor
+        height={400}
+        language='yaml'
+        options={editor_options}
+        name="groups"
+        onChange={this.updateGroups}
+        value={group_value || ""}
+        // editorDidMount={this.editorDidMount}
+        // editorWillMount={this.editorWillMount}
+      />
+    </>
 
     let commit_groups_files = config.inputs?.batches ?? config.inputs?.groups ?? []; // .groups for backward compat
     if (!Array.isArray(commit_groups_files))
@@ -125,14 +199,18 @@ class AddRecordingsForm extends Component {
               .replace('{subproject}', subproject)
     })
     return (
-      <form onSubmit={this.onSubmit}>
+       <form>
         <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>
-          <p>Tuning runs can use the custom groups below, <em>shared with all the project users</em>, or the defaults from:</p>
+          <p>Tuning runs can use the custom groups/batches below:
+          <ol className={Classes.LIST}>
+            <li>Use your private form <b>{user_form_name}</b> (has the highest precedence)</li>
+            <li>or the <b>Collaborative</b> form <em>which is shared with all the project users</em></li>
+            <li>or the <b>default</b> forms:</li>
           <ul className={Classes.LIST}>
            {commit_groups_files.map(file => <React.Fragment key={file}>
              <li><a href={`${git?.web_url}/tree/${commit.id}/${file}`}>{file}</a></li>
             </React.Fragment>)}
-          </ul>
+          </ul></ol></p>
           <p><b>Tip:</b> The <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/defining-groups-of-tests`}>wiki</a> provides many examples to help get the syntax right.</p>
           <p>
             <em>Paths are relative to <code>{config.inputs?.database?.windows}</code> by default.</em>
@@ -151,23 +229,41 @@ class AddRecordingsForm extends Component {
         </Callout>
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
           <Button
-            disabled={!this.state.dirty || this.state.submitted}
-            type="submit"
+            disabled={!is_group_dirty || this.state.submitted}
             intent={Intent.PRIMARY}
-          >
-          <span>Update list of custom groups</span>
+            onClick={(e)=>this.onSubmit(group_name, e)}
+            style={{marginRight: '12px'}}
+            icon="floppy-disk"
+            >
+          <span>Update Form</span>
+          </Button>
+          <Button
+            disabled={!is_any_dirty || this.state.submitted}
+            intent={Intent.DANGER}
+            onClick={(e)=>{Object.entries(files).forEach( ([key, value]) => {this.onSubmit(value, e)})}}
+            icon={<><Icon icon="floppy-disk" style={{marginRight: '4px'}}/>
+                    <Icon icon="floppy-disk" style={{marginRight: '4px'}}/></>}
+            >
+          <span>Update All</span>
           </Button>
         </div>
 
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
-        <MonacoEditor
-          height={400}
-          language='yaml'
-          options={editor_options}
-          name="groups"
-          onChange={this.updateGroups}
-          value={groups || ""}
-        />
+
+        <Tabs renderActiveTabPanelOnly id="Groups" onChange={this.handleTabChange} defaultSelectedTabId="usr">
+          <Tab id="gr" title="Collaborative" panel={panel_shared} />
+          <Tab id="usr" title={user_form_name} panel={panel_user} />
+          <Tabs.Expander />
+          <Tooltip content="Coming Soon!">
+            <MultiSelect
+              placeholder="Search tests..."
+              // itemRenderer={this.renderGroups}
+              items={[]}
+              // onItemSelect={this.handleGroupsMultiSelect}
+              tagRenderer={() => {}}
+            />
+          </Tooltip>
+        </Tabs>
       </form>
     );
   }

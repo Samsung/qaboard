@@ -49,7 +49,8 @@ def groups():
           We would *just* need to write the migration, and it would save 30 lines of code.
     """
     project_id = request.args["project"]
-    groups_path = get_groups_path(project_id)
+    name = request.args["name"]
+    groups_path = get_groups_path(project_id, name=name)
     if request.method == "POST":
         data = request.get_json()
         try:
@@ -91,16 +92,21 @@ def get_commit_batches_paths(project, commit_id):
     return []
 
 
-@app.route("/api/v1/tests/group")
+@app.route("/api/v1/tests/group", methods=["POST"])
 def get_group():
     if not request.args["name"]:
         return jsonify({"tests": []})
 
     project_id = request.args["project"]
     project = Project.get_or_create(session=db_session, id=project_id)
+    data = request.get_json()
+    try:
+        groups = list(data["groups"])
+    except Exception as e:
+        return jsonify(str(e)), 400
 
     message = None
-    batches_paths = [get_groups_path(project_id)]
+    batches_paths = [get_groups_path(project_id, name=group) for group in groups]
     commit_id = request.args.get("commit")
     if commit_id:
       commit_batches_paths = get_commit_batches_paths(project, commit_id)
@@ -201,7 +207,6 @@ def start_tuning(hexsha):
 
     # TODO: use the logged-in user
     user = data['user']
-
     try:
         ci_commit = CiCommit.query.filter(
             CiCommit.project_id == project_id,
@@ -222,9 +227,15 @@ def start_tuning(hexsha):
     if ci_commit.deleted:
         # Now that we updated the last_output_datetime, it won't be deleted again until a little while
         return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
+ 
+    try:
+        groups = list(data["groups"])
+    except Exception as e:
+        return jsonify(str(e)), 400
 
-
-    batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
+    commit_batches_paths = get_commit_batches_paths(ci_commit.project, hexsha)
+    batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+    batches_paths = [*commit_batches_paths, *batches_paths]
     merged_batches : Dict[str, Any] = {}
     for c in batches_paths:
         with c.open() as f:
