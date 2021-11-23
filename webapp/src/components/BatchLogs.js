@@ -50,7 +50,7 @@ class OutputLog extends React.Component {
     // console.log("[didUpdate]")
     // if (!!this.props.output?.logs_html_safe && !!!this.prevProps.output?.logs_html_safe)
     // this.scrollBottom()
-  
+
   }
 
   refreshLog = () => {
@@ -104,7 +104,7 @@ class OutputLog extends React.Component {
           //   30: '#fff',
           //   232: '#fff',
           // },
-          // pre: style={{background: '#000'}} 
+          // pre: style={{background: '#000'}}
         }
         var logs_html_safe;
         try {
@@ -164,7 +164,7 @@ class OutputLog extends React.Component {
           tags_first
         />
         <Collapse isOpen={is_open}>
-          {error ? 
+          {error ?
             <NonIdealState
               title="No logs."
               description={
@@ -213,6 +213,7 @@ class BatchLogs extends React.Component {
       configurations: [],
     }
 
+    Object.entries(batch.data?.commands).forEach(([uuid, command]) => {command.uuid = uuid;})
     let commands = Object.values(batch.data?.commands || {});
     const some_tuning_commands = batch.data?.optimization || commands.some(c => !c.job_url)
 
@@ -241,6 +242,8 @@ class BatchLogs extends React.Component {
             {!!command.job_url && <a style={{marginRight: '12px'}} href={command.job_url} target="_blank" rel="noopener noreferrer"><Button icon="share">Open Logs</Button></a>}
             <span title={command.command_created_at_datetime}>{DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' }).toRelative()}</span>
             {!!command.user && ` as ${command.user}`}{!!command.HOST && ` @${command.HOST}`}
+            <br/>
+            <span title={"Find the corresponding tuning.yaml in the batch ouput directory"}>ID: {command.uuid.substring(0, 8)}</span>
           </>}>
           <code>{command.argv.join(" ")}</code>
         </Callout>
@@ -248,7 +251,7 @@ class BatchLogs extends React.Component {
       </div>
     </>
 
-	}
+  }
 }
 
 
