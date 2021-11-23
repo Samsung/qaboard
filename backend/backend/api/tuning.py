@@ -5,6 +5,8 @@ import re
 import os
 import sys
 import json
+import uuid
+import getpass
 import datetime
 import itertools
 import subprocess
@@ -195,6 +197,9 @@ def start_tuning(hexsha):
     project_id = request.args["project"]
     data = request.get_json()
 
+    # TODO: use the logged-in user
+    user = data['user']
+
     try:
         ci_commit = CiCommit.query.filter(
             CiCommit.project_id == project_id,
@@ -216,8 +221,18 @@ def start_tuning(hexsha):
         # Now that we updated the last_output_datetime, it won't be deleted again until a little while
         return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
 
-
+ 
     batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
+
+    from qaboard.utils import merge
+    from typing import Dict, Any
+    # take care not to mutate the root config, as its project.name is the git repo name #TODO
+    merged_batches : Dict[str, Any] = {}
+    for c in batches_paths:
+        with c.open('r') as f:
+            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
+        merged_batches = merge(c_dict, merged_batches)
+
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
@@ -229,6 +244,9 @@ def start_tuning(hexsha):
         batch_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
+    command_id = str(uuid.uuid4())
+    with Path(f'{batch_dir}/tuning_batches_{command_id[:8]}.yaml').open('w') as f:
+        f.write(yaml.dump(merged_batches))
 
     working_directory = ci_commit.artifacts_dir
     print(working_directory)
@@ -283,6 +301,7 @@ def start_tuning(hexsha):
         # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
         f"export CI=true",
         f"export QABOARD_TUNING=true",
+        f"export QA_BATCH_COMMAND_ID='{command_id}';\n\n",
         f"export GIT_COMMIt='{ci_commit.hexsha}'",
         # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
         f"export QA_OUTPUTS_COMMIT='{ci_commit.commit_dir}'",
