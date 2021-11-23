@@ -187,37 +187,44 @@ def iter_inputs(
       from .config import project, subproject
       batches_file_path = location_from_spec(batches_file, {"project": project, "subproject": subproject})
       new_batches = yaml.load(open(batches_file_path), Loader=yaml.SafeLoader)
+      if new_batches is None:
+        click.secho(f"WARNING: no data in: {batches_file}", fg='yellow', err=True)
+        continue
+      if not isinstance(new_batches, dict):
+        click.secho(f"WARNING: Invalid YAML (expected mapping/dict) in: {batches_file}", fg='yellow', err=True)
+        continue
+      if not new_batches:
+        continue
     except Exception as e:
       click.secho(f"ERROR: Invalid YAML: {batches_file}", err=True)
       raise e
-    if new_batches and isinstance(new_batches, dict):
-      # deep-merge the aliases
-      old_aliases = available_batches.get('aliases', {})
-      new_aliases = new_batches.get('aliases', new_batches.get('groups', {}))
-      available_batches['aliases'] = {**old_aliases, **new_aliases}
+    # deep-merge the aliases
+    old_aliases = available_batches.get('aliases', {})
+    new_aliases = new_batches.get('aliases', new_batches.get('groups', {}))
+    available_batches['aliases'] = {**old_aliases, **new_aliases}
 
-      for new_batch in new_batches:
-        if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups'):
-          continue
-        if 'database' in new_batches and new_batches[new_batch] and 'database' not in new_batches[new_batch]:
-          # pipelines need their own special database, everything is hardcoded for them...
-          if isinstance(new_batches[new_batch], dict) and new_batches[new_batch].get('type') != "pipeline":
-            try:
-              new_batches[new_batch]['database'] = new_batches['database']
-            except: # people often have things that are not batches, maybe aliases reused elsewhere...
-              pass
-        allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
-        if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
-          available_batches[new_batch] = new_batches[new_batch]
-        else: # we want to run both...
-          if new_batch not in available_batches['aliases']:
-            available_batches['aliases'][new_batch] = [f"{new_batch}_FIRST", f"{new_batch}@{batches_file}"]
-            available_batches[f"{new_batch}_FIRST"] = available_batches[new_batch]
-            available_batches[f"{new_batch}@{batches_file}"] = new_batches[new_batch]
-            del available_batches[new_batch]
-          else:
-            available_batches['aliases'][new_batch].append(f"{new_batch}@{batches_file}")
-            available_batches[f"{new_batch}@{batches_file}"] = new_batches[new_batch]
+    for new_batch in new_batches:
+      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups'):
+        continue
+      if 'database' in new_batches and new_batches[new_batch] and 'database' not in new_batches[new_batch]:
+        # pipelines need their own special database, everything is hardcoded for them...
+        if isinstance(new_batches[new_batch], dict) and new_batches[new_batch].get('type') != "pipeline":
+          try:
+            new_batches[new_batch]['database'] = new_batches['database']
+          except: # people often have things that are not batches, maybe aliases reused elsewhere...
+            pass
+      allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
+      if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
+        available_batches[new_batch] = new_batches[new_batch]
+      else: # we want to run both...
+        if new_batch not in available_batches['aliases']:
+          available_batches['aliases'][new_batch] = [f"{new_batch}_FIRST", f"{new_batch}@{batches_file}"]
+          available_batches[f"{new_batch}_FIRST"] = available_batches[new_batch]
+          available_batches[f"{new_batch}@{batches_file}"] = new_batches[new_batch]
+          del available_batches[new_batch]
+        else:
+          available_batches['aliases'][new_batch].append(f"{new_batch}@{batches_file}")
+          available_batches[f"{new_batch}@{batches_file}"] = new_batches[new_batch]
   if debug:
     click.secho(str(available_batches), dim=True, err=True)
 
