@@ -230,14 +230,12 @@ def start_tuning(hexsha):
         with c.open() as f:
             c_dict = yaml.load(f, Loader=yaml.SafeLoader)
         merged_batches = merge(c_dict, merged_batches)
+    merged_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {})) # backward-compat
 
-    available_batches: Dict = {}
     batches = str(data['selected_group'])
-    if merged_batches and isinstance(merged_batches, dict):
-      available_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {}))
-    batch_aliases = available_batches.get('aliases', {})
-    batches = list(resolve_aliases(batches, batch_aliases)) # type: ignore
-    merged_batches = { key:value for (key,value) in merged_batches.items() if key in ['aliases', 'groups', 'database', *batches]}
+    batches = list(resolve_aliases(batches, merged_batches['aliases']))
+    merged_batches = { key:value for key, value in merged_batches.items() if key in ['aliases', 'database', *batches]}
+    # TODO: filter the aliases, but it requires care in case of multiple levels of aliases...
 
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
@@ -251,7 +249,7 @@ def start_tuning(hexsha):
     os.umask(prev_mask)
 
     command_id = str(uuid.uuid4())
-    merged_batches_path = f'{batch_dir}/tuning_batches_{command_id[:8]}.yaml'
+    merged_batches_path = f'{batch_dir}/batches-{command_id[:8]}.yaml'
     with Path(merged_batches_path).open('w') as f:
         f.write(yaml.dump(merged_batches))
 
