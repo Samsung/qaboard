@@ -5,17 +5,20 @@ import re
 import os
 import sys
 import json
+import uuid
 import getpass
 import datetime
 import itertools
 import subprocess
 from pathlib import Path
+from typing import Dict, Any
 
 import yaml
 from flask import request, jsonify
 from sqlalchemy.orm.exc import NoResultFound
 
-from qaboard.iterators import iter_inputs
+from qaboard.utils import merge
+from qaboard.iterators import iter_inputs, resolve_aliases
 from qaboard.conventions import deserialize_config, batches_files
 
 from backend import app, db_session
@@ -198,7 +201,7 @@ def start_tuning(hexsha):
 
     # TODO: use the logged-in user
     user = data['user']
-
+ 
     try:
         ci_commit = CiCommit.query.filter(
             CiCommit.project_id == project_id,
@@ -222,6 +225,18 @@ def start_tuning(hexsha):
 
 
     batches_paths = [*get_commit_batches_paths(ci_commit.project, hexsha), get_groups_path(project_id)]
+    merged_batches : Dict[str, Any] = {}
+    for c in batches_paths:
+        with c.open() as f:
+            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
+        merged_batches = merge(c_dict, merged_batches)
+    merged_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {})) # backward-compat
+
+    batches = str(data['selected_group'])
+    batches = list(resolve_aliases(batches, merged_batches['aliases']))
+    merged_batches = { key:value for key, value in merged_batches.items() if key in ['aliases', 'database', *batches]}
+    # TODO: filter the aliases, but it requires care in case of multiple levels of aliases...
+
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
@@ -233,6 +248,10 @@ def start_tuning(hexsha):
         batch_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
 
+    command_id = str(uuid.uuid4())
+    merged_batches_path = f'{batch_dir}/batches-{command_id[:8]}.yaml'
+    with Path(merged_batches_path).open('w') as f:
+        f.write(yaml.dump(merged_batches))
 
     working_directory = ci_commit.artifacts_dir
     print(working_directory)
@@ -255,7 +274,7 @@ def start_tuning(hexsha):
         f"--platform '{data['platform']}'" if "platform" in data else "",
         f"--label '{data['batch_label']}'",
         "optimize" if do_optimize else "batch",
-        ' '.join([f'--batches-file "{p}"' for p in batches_paths]),
+        f'--batches-file {merged_batches_path} '
         f"--batch '{data['selected_group']}'",
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
@@ -274,6 +293,7 @@ def start_tuning(hexsha):
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
+            'printf "\n";\n\n',
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
@@ -298,7 +318,8 @@ def start_tuning(hexsha):
             f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}';\n\n",
             # backward compatibility
             f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.outputs_dir}';\n\n",
-            batch_command,
+            f"export QA_BATCH_COMMAND_ID='{command_id}';\n\n",
+            f"{batch_command};\n\n",
         ]
     )
     print(qa_batch_script)
@@ -319,7 +340,7 @@ def start_tuning(hexsha):
             f'mkdir -p "{batch_dir}"',
             # highest priority for manual runs
             f'bsub_su "{user}" -q "{queue}" -sp 4000 '
-            f"'bash \"{qa_batch_path}\" &> \"{batch_dir}/log.txt\"'",
+            f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
         ]
     )
     print(start_script)
