@@ -6,17 +6,19 @@ import sys
 import json
 import shutil
 import traceback
+import hashlib
 from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Tuple
+from typing import Optional, Dict, Iterable, Tuple, Union
 
 import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
 from cde.image.read import hex_attributes
+
 
 
 def merge(src: Dict, dest: Dict) -> Dict:
@@ -259,13 +261,13 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True):
 
 
 def md5_hex(path, length=None):
-  import hashlib
   md5 = hashlib.md5()
   block_size = 4**10
   bytes_read = 0
 
-  file_full_length = os.stat(path).st_size if os.stat(path).st_size else 0 #from some reason st_size return None sometimes
-  end_byte = length if length else file_full_length
+  # for some reason st_size return None sometimes
+  file_size = os.stat(path).st_size or 0
+  end_byte = length if length else file_size
 
   with path.open('rb') as f:
     while bytes_read < end_byte:
@@ -277,13 +279,13 @@ def md5_hex(path, length=None):
       if not data: break
       md5.update(data)
       bytes_read += block_size
-
   return md5.hexdigest()
 
 
 def _file_info(path : Path, compute_hashes=True):
-    from hashlib import md5
-    info = {"st_size": os.stat(path).st_size}
+    info: Dict[str, Union[int, str]] = {
+      "st_size": os.stat(path).st_size
+    }
 
     if compute_hashes:
         info['md5'] = md5_hex(path)
@@ -292,7 +294,7 @@ def _file_info(path : Path, compute_hashes=True):
           hash_length = hex_attr.get('footer_start_pos')
           if hash_length: # exclude the footer from the image data hash
             info['md5_data'] = md5_hex(path, hash_length)
-            info['md5_footer'] = md5(json.dumps(hex_attr, sort_keys=True).encode('utf-8')).hexdigest()
+            info['md5_footer'] = hashlib.md5(json.dumps(hex_attr, sort_keys=True).encode('utf-8')).hexdigest()
     return info
 
 
