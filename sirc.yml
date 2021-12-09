@@ -73,6 +73,8 @@ services:
     volumes:
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/qa.key:/ssl/cert.key
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
+    - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.key:/ssl/publish.key
+    - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.cer:/ssl/publish.cer
     - ./services/nginx/passwd:/etc/passwd
     - /opt/dockermounts/home:/home
     - /opt/dockermounts/raid:/raid
