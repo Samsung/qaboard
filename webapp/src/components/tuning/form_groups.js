@@ -40,7 +40,7 @@ class AddRecordingsForm extends Component {
       files: {},
       groups: {},
       dirty: {},
-      submitted: false,
+      submitted: {},
       overwrite: false,
       selected_group_info: {
         number_of_tests: 0
@@ -61,10 +61,10 @@ class AddRecordingsForm extends Component {
   getGroups(name) {
     get(`/api/v1/tests/groups?project=${this.props.project}&name=${name}`)
       .then(response => {
-        this.setState({
+        this.setState(prevState => ({
           isLoaded: true,
-          groups: {...this.state.groups, [name]: response.data},
-        });
+          groups: {...prevState.groups, [name]: response.data},
+        }));
       })
       .catch(error => {
         this.setState({ isLoaded: true, error });
@@ -74,14 +74,16 @@ class AddRecordingsForm extends Component {
   updateGroups = (newGroups, e) => {
     const { files, selectedTabId } = this.state;
     let name = files[selectedTabId]
-    this.setState({ groups: {...this.state.groups, [name]: newGroups}, dirty: {...this.state.dirty, [name]: true} });
+    this.setState({ groups: {...this.state.groups, [name]: newGroups}, dirty: {...this.state.dirty, [name]: true}});
   };
 
   onSubmit = (name, e) => {
     e.preventDefault();
-    const { groups, dirty } = this.state;
-    if (!dirty[name]) {return};
-    this.setState({ submitted: true, dirty: {...this.state.dirty, [name]: false} });
+    const { groups } = this.state;
+    this.setState(prevState => ({ 
+      dirty: {...prevState.dirty, [name]: false},
+      submitted: {...prevState.submitted, [name]: true},
+      }));
     toaster.show({
       message: `The request was sent for ${name}!`,
       intent: Intent.PRIMARY
@@ -91,14 +93,14 @@ class AddRecordingsForm extends Component {
       groups: groups[name],
     })
       .then(response => {
-        this.setState({ submitted: false });
+        this.setState(prevState => ({submitted: {...prevState.submitted, [name]: false}}));
         toaster.show({
           message: `...Acknowledged for ${name}!`,
           intent: Intent.SUCCESS
         });
       })
       .catch(error => {
-        this.setState({ submitted: false, dirty: {...this.state.dirty, [name]: true} });
+        this.setState(prevState => ({ submitted: {...prevState.submitted, [name]: false}, dirty: {...prevState.dirty, [name]: true}}));
         toaster.show({
           message: `Something wrong happened ${JSON.stringify(error.response)}`,
           intent: Intent.DANGER,
@@ -139,7 +141,7 @@ class AddRecordingsForm extends Component {
 
   render() {
     const { project, commit, config, git } = this.props;
-    const { isLoaded, error, groups, selectedTabId, files, dirty} = this.state;
+    const { isLoaded, error, groups, selectedTabId, files, dirty, submitted} = this.state;
 
     if (!isLoaded) return <Spinner />;
     if (error)
@@ -154,7 +156,9 @@ class AddRecordingsForm extends Component {
     let group_name = files[selectedTabId]
     let group_value = groups[group_name]
     let is_group_dirty = dirty[group_name]
+    let is_group_submitted = submitted[group_name]
     let is_any_dirty = Object.values(dirty || []).some(v => v)
+    let is_any_submitted = Object.values(submitted || []).some(v => v)
 
     const panel_user = <>
       <MonacoEditor
@@ -204,7 +208,7 @@ class AddRecordingsForm extends Component {
           <p>Tuning runs can use the custom groups/batches below:
           <ol className={Classes.LIST}>
             <li>Use your private form <b>{user_form_name}</b> (has the highest precedence)</li>
-            <li>or the <b>Collaborative</b> form <em>which is shared with all the project users</em></li>
+            <li>or the <b>Collaborative</b> form, <em>which is shared with all the project users</em></li>
             <li>or the <b>default</b> forms:</li>
           <ul className={Classes.LIST}>
            {commit_groups_files.map(file => <React.Fragment key={file}>
@@ -229,7 +233,7 @@ class AddRecordingsForm extends Component {
         </Callout>
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
           <Button
-            disabled={!is_group_dirty || this.state.submitted}
+            disabled={!is_group_dirty || is_group_submitted}
             intent={Intent.PRIMARY}
             onClick={(e)=>this.onSubmit(group_name, e)}
             style={{marginRight: '12px'}}
@@ -238,9 +242,9 @@ class AddRecordingsForm extends Component {
           <span>Update Form</span>
           </Button>
           <Button
-            disabled={!is_any_dirty || this.state.submitted}
+            disabled={!is_any_dirty || is_any_submitted}
             intent={Intent.DANGER}
-            onClick={(e)=>{Object.entries(files).forEach( ([key, value]) => {this.onSubmit(value, e)})}}
+            onClick={(e)=>{Object.entries(files).forEach( ([key, value]) => {if(dirty[value]){this.onSubmit(value, e)}})}}
             icon={<><Icon icon="floppy-disk" style={{marginRight: '4px'}}/>
                     <Icon icon="floppy-disk" style={{marginRight: '4px'}}/></>}
             >
