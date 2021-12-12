@@ -232,7 +232,6 @@ def is_plaintext(path, config=None):
 def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_footer=False):
   """Return metadata about a file."""
   path = Path(path)
-  has_footer = has_footer or path.suffix == '.hex'
 
   # For bit-accuracy checks to work on text files between UNIX/windows,
   # we need to convert end-of-lines on Windows
@@ -251,7 +250,7 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
 
     from tempfile import NamedTemporaryFile
     with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
-      normalized_file_name = normalized_file.name
+      normalized_file_name = normalized_file.name + path.suffix
     with open(normalized_file_name, 'w+', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
       normalized_file.write(text)
 
@@ -259,7 +258,7 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
     Path(normalized_file_name).unlink()
     return normalized_file_info
 
-  return _file_info(path, compute_hashes=compute_hashes, has_footer=has_footer)
+  return _file_info(path, compute_hashes=compute_hashes)
 
 
 def md5_hex(path, length=None):
@@ -284,15 +283,15 @@ def md5_hex(path, length=None):
   return md5.hexdigest()
 
 
-def _file_info(path : Path, has_footer : bool, compute_hashes=True):
+def _file_info(path : Path, compute_hashes=True):
     info: Dict[str, Union[int, str]] = {
       "st_size": os.stat(path).st_size
     }
 
     if compute_hashes:
         info['md5'] = md5_hex(path)
-        hex_attr = hex_attributes(path)
-        if has_footer:
+        if path.suffix == '.hex':
+          hex_attr = hex_attributes(path)
           hash_length = hex_attr.get('footer_start_pos')
           if hash_length: # exclude the footer from the image data hash
             info['md5_data'] = md5_hex(path, hash_length)
