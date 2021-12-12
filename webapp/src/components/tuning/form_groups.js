@@ -217,7 +217,7 @@ class AddRecordingsForm extends Component {
             <li><b>Private</b> ({user_form_name}), that only you can view and edit.</li>
           </ol></p>
           <p>To know more about the <b>syntax</b> of this files, <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/batches-running-on-multiple-inputs`}>read the docs</a>.</p>
-          {!!(config.inputs?.database?.windows) && <p>
+          {(config.inputs?.database !== undefined) && <p>
              <em>By default input paths are relative to</em> <code>{config.inputs?.database?.windows}</code>
             <CopyToClipboard
               text={config?.inputs?.database?.windows}
@@ -230,7 +230,7 @@ class AddRecordingsForm extends Component {
               }}>
               <Tag interactive minimal round icon="duplicate">Copy</Tag>
             </CopyToClipboard>
-          </p>
+          </p>}
         </Callout>
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`}>
           <Button
