@@ -85,7 +85,7 @@ class AddRecordingsForm extends Component {
       submitted: {...prevState.submitted, [name]: true},
       }));
     toaster.show({
-      message: `The request was sent for ${name}!`,
+      message: `The request was sent!`,
       intent: Intent.PRIMARY
     });
     post(`/api/v1/tests/groups?project=${this.props.project}&name=${name}`, {
@@ -95,7 +95,7 @@ class AddRecordingsForm extends Component {
       .then(response => {
         this.setState(prevState => ({submitted: {...prevState.submitted, [name]: false}}));
         toaster.show({
-          message: `...Acknowledged for ${name}!`,
+          message: `...Acknowledged!`,
           intent: Intent.SUCCESS
         });
       })
@@ -157,8 +157,8 @@ class AddRecordingsForm extends Component {
     let group_value = groups[group_name]
     let is_group_dirty = dirty[group_name]
     let is_group_submitted = submitted[group_name]
-    let is_any_dirty = Object.values(dirty || []).some(v => v)
-    let is_any_submitted = Object.values(submitted || []).some(v => v)
+    // let is_any_dirty = Object.values(dirty || []).some(v => v)
+    // let is_any_submitted = Object.values(submitted || []).some(v => v)
 
     const panel_user = <>
       <MonacoEditor
@@ -239,9 +239,9 @@ class AddRecordingsForm extends Component {
             style={{marginRight: '12px'}}
             icon="floppy-disk"
             >
-          <span>Update Form</span>
+          <span>Update list of custom groups</span>
           </Button>
-          <Button
+          {/* <Button
             disabled={!is_any_dirty || is_any_submitted}
             intent={Intent.DANGER}
             onClick={(e)=>{Object.entries(files).forEach( ([key, value]) => {if(dirty[value]){this.onSubmit(value, e)}})}}
@@ -249,7 +249,7 @@ class AddRecordingsForm extends Component {
                     <Icon icon="floppy-disk" style={{marginRight: '4px'}}/></>}
             >
           <span>Update All</span>
-          </Button>
+          </Button> */}
         </div>
 
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
