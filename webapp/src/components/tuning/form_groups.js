@@ -204,20 +204,21 @@ class AddRecordingsForm extends Component {
     })
     return (
        <form>
-        <Callout title="How to define groups of tests" icon='info-sign' style={{marginBottom: '10px'}}>
-          <p>Tuning runs can use the custom groups/batches below:
+        <Callout title="How to define custom batches" icon='info-sign' style={{marginBottom: '10px'}}>
+          <p>Tuning experiments will try to use batch definitions from:
           <ol className={Classes.LIST}>
-            <li>Use your private form <b>{user_form_name}</b> (has the highest precedence)</li>
-            <li>or the <b>Collaborative</b> form, <em>which is shared with all the project users</em></li>
-            <li>or the <b>default</b> forms:</li>
+            <li>The <b>current commit,</b> in:</li>
           <ul className={Classes.LIST}>
            {commit_groups_files.map(file => <React.Fragment key={file}>
              <li><a href={`${git?.web_url}/tree/${commit.id}/${file}`}>{file}</a></li>
             </React.Fragment>)}
-          </ul></ol></p>
-          <p><b>Tip:</b> The <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/defining-groups-of-tests`}>wiki</a> provides many examples to help get the syntax right.</p>
-          <p>
-            <em>Paths are relative to <code>{config.inputs?.database?.windows}</code> by default.</em>
+              </ul>
+            <li><b>Shared</b> with all QA-Board users.</li>
+            <li><b>Private</b> ({user_form_name}), that only you can view and edit.</li>
+          </ol></p>
+          <p>To know more about the <b>syntax</b> of this files, <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/batches-running-on-multiple-inputs`}>read the docs</a>.</p>
+          {!!(config.inputs?.database?.windows) && <p>
+             <em>By default input paths are relative to</em> <code>{config.inputs?.database?.windows}</code>
             <CopyToClipboard
               text={config?.inputs?.database?.windows}
               style={{margin: '5px'}}
@@ -239,7 +240,7 @@ class AddRecordingsForm extends Component {
             style={{marginRight: '12px'}}
             icon="floppy-disk"
             >
-          <span>Update list of custom groups</span>
+          <span>Update Batches</span>
           </Button>
           {/* <Button
             disabled={!is_any_dirty || is_any_submitted}
@@ -255,7 +256,7 @@ class AddRecordingsForm extends Component {
         <div className={`${Classes.INLINE} ${Classes.FORM_GROUP}`} />
 
         <Tabs renderActiveTabPanelOnly id="Groups" onChange={this.handleTabChange} defaultSelectedTabId="usr">
-          <Tab id="gr" title="Collaborative" panel={panel_shared} />
+          <Tab id="gr" title="Shared" panel={panel_shared} />
           <Tab id="usr" title={user_form_name} panel={panel_user} />
           <Tabs.Expander />
           <Tooltip content="Coming Soon!">
