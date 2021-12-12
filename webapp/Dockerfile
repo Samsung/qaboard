@@ -32,6 +32,7 @@ RUN npm ci || npm ci || npm ci
 COPY . ./
 ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
 ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
+ENV NODE_OPTIONS="--openssl-legacy-provider"
 RUN npm run-script build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
