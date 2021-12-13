@@ -176,6 +176,7 @@ class CiCommitResults extends Component {
       selected_views,
       dispatch,
       history,
+      available_tests_files,
     } = this.props;
 
     var warning_messages = <CommitWarningMessages
@@ -338,6 +339,7 @@ class CiCommitResults extends Component {
                     git={git}
                     commit={new_commit}
                     config={config}
+                    available_tests_files={available_tests_files}
                     />
                   </PrivateContent>
                 </Card>
@@ -358,6 +360,7 @@ class CiCommitResults extends Component {
                       config={config}
                       metrics={metrics}
                       commit={new_commit}
+                      available_tests_files={available_tests_files}
                       />
                     </PrivateContent>
                   </Card>
@@ -542,6 +545,12 @@ const mapStateToProps = (state, ownProps) => {
 
       sort_by: selected.sort_by,
       sort_order: selected.sort_order || 'input_test_path',
+
+      // TODO: migrate the availble-tests-files to DB
+      available_tests_files: {
+        gr: "extra-batches", 
+        usr: state.user?.user_name ?? null
+      },
     }
 }
 
