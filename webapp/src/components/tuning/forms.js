@@ -174,8 +174,11 @@ class TuningForm extends Component {
 
   getGroupInfo(group) {
   	const commit_part = !!this.props.commit ? `&commit=${this.props.commit.id}` : '';
+    const { available_tests_files } = this.props;
   	this.setState({selected_group_info_loading: true})
-    get(`/api/v1/tests/group?project=${this.props.project}&name=${group}${commit_part}`, {})
+    post(`/api/v1/tests/group?project=${this.props.project}&name=${group}${commit_part}`, {
+      groups: Object.values(available_tests_files),
+    })
       .then(response => {
         this.setState({
           selected_group_info_loading: false,
@@ -255,12 +258,11 @@ class TuningForm extends Component {
   };
 
   onSubmit = () => {
-    const { project, commit, dispatch } = this.props;
+    const { project, commit, dispatch, available_tests_files } = this.props;
     const {
       experiment_name,
       platform,
       android_device,
-      groups,
       selected_group,
       overwrite,
       user
@@ -282,7 +284,7 @@ class TuningForm extends Component {
         parameter_search: search_type==='optimize' ? parameter_search_auto : eval_combinations(parameter_search).combinations,
       },
       selected_group,
-      groups,
+      groups: Object.values(available_tests_files),
       user,
       android_device,
       overwrite,
