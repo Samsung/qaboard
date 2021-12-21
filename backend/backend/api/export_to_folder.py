@@ -191,8 +191,8 @@ def export_to_folder():
   prev_mask = os.umask(000)
   try:
     export_dir.mkdir(parents=True, exist_ok=True)
-  except:
-    return json.dumps({"error": f"permission denied: '{export_dir}'"}), 403
+  except Exception as e:
+    return json.dumps({"error": f"ERROR: when creating '{export_dir}': {e}"}), 403
   os.umask(prev_mask)
 
   output_refs = {}
