@@ -25,7 +25,9 @@ if qaboard_hostname and qaboard_port:
 elif qaboard_host:
   qaboard_url = f"{qaboard_protocol}://{qaboard_host}"
 else:
-  qaboard_url = "http://localhost:5151"
+  qaboard_url = "https://qa"
+  # the default for a local dev server started with the default config
+  # qaboard_url = "http://localhost:5151"
   click.secho(f"WARNING: We don't know where to look for your QA-Board server. Default: {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho(f"         Please provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
   click.secho(f"         If needed you can define QABOARD_PROTOCOL (default: https). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
@@ -60,8 +62,6 @@ def dir_to_url(path: Path) -> str:
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
     batch_label = ctx.obj["batch_label"]
-    # FIXME: use the same port at SIRC for the API/web, and don't hardcode...
-    qaboard_url = "https://qa"
     commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
       if status == "starting":
