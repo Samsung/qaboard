@@ -11,12 +11,11 @@ If you've got questions about anything (setup, contributing...) or just want to 
 
 ## Code organization
 Each section has its own README:
-- [qaboard](qaboard): provides the `qa` CLI wrapper than runs your code, and the associated package (`import qaboard`).
-- [webapp](webapp/) is the frontend that displays results.
-- [backend](backend/) exposes an HTTP API used to read/write all the metadata on runs.
-- [website](website/) is the QA-Board website and docs - samsung.github.io/qaboard
-- [thirdparty](thirdparty/):
-  * [Cantaloupe](https://medusa-project.github.io/cantaloupe/) IIIF server, used to "stream" large images to the users.
+- [qaboard](qaboard/): python package (`qaboard`) for the `qa` CLI wrapper than runs your code
+- [backend](backend/) exposes an HTTP API to manage runs. Built with python's `flask` and `postgreSQL` as database.
+- [webapp](webapp/) is the web frontend that displays results, based on `reactjs`.
+- [services](services/): the web application composes a reverse proxy (`nginx`), an image server ([`cantaloupe`](https://medusa-project.github.io/cantaloupe/)), etc. This folder stores all the relevant `Dockerfile`s and settings
+- [website](website/) is the [QA-Board website](https://samsung.github.io/qaboard) and [docs](https://samsung.github.io/qaboard/docs) 
 
 ## Where to start
 If you want to contribute to the project but do not know where to start, or what to work on, don't hesitate to chat with the maintainers. QA-Board has many parts and much can be improved. We'll do our best to find something that matches your experience and has a meaningful impact on the project. Before you work on a big feature, don't hesitate to open an issue and discuss it.

@@ -87,7 +87,7 @@ for hostname, auth in gitlab_credentials.items():
     json.dump(gitlab_cookies, f)
 
 
-jenkins_credentials = json.loads(os.environ['JENKINS_AUTH'])
+jenkins_credentials = json.loads(os.environ.get('JENKINS_AUTH', '{}'))
 def jenkins_hostname_credentials(build_url):
   hostname = urlparse(build_url).hostname
   if hostname not in jenkins_credentials:
