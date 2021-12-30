@@ -54,13 +54,15 @@ def update_gitlab_status(state, name, target_url, description, commit_id=commit_
   }
   try:
     r = requests.post(url, headers=gitlab_headers, params=params)
-    r.raise_for_status()
-    # print(r.json())
   except Exception as e:
-    print(r)
-    print(url)
     print(e)
-    pass
+    print(url)
+  try:
+    r.raise_for_status()
+  except Exception as e:
+    print(e)
+    print(url)
+    print(r)
 
 
 
