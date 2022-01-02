@@ -62,6 +62,7 @@ def dir_to_url(path: Path) -> str:
 def print_url(ctx, status="starting"):
   if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
     batch_label = ctx.obj["batch_label"]
+    qaboard_url = "https://qa" # At SIRC we cannot access 80/443 reliably
     commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
     if is_ci or ctx.obj['share']:
       if status == "starting":
