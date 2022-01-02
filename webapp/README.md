@@ -14,6 +14,7 @@ Web frontend for QA-Board.
 
 - Install the third-party packages and run the application:
 ```bash
+cd webapp
 npm install
 npm start
 #=> listenning on port 3000

@@ -20,6 +20,17 @@ Each section has its own README:
 ## Where to start
 If you want to contribute to the project but do not know where to start, or what to work on, don't hesitate to chat with the maintainers. QA-Board has many parts and much can be improved. We'll do our best to find something that matches your experience and has a meaningful impact on the project. Before you work on a big feature, don't hesitate to open an issue and discuss it.
 
+**To start a dev server:**
+
+```bash
+# check requirements in webapp/README.md
+cd webapp
+npm install
+
+# see more into in docker-compose.yml and backend/README.md
+docker-compose -f docker-compose.yml -f development.yml up -d
+```
+
 
 ## Openness
 Currently, we use internally at Samsung a private fork of QA-Board. The differences are very small, mainly having to do with hardcoded configuration and CI. Our goal to move to a process where we first contribute to the public repository, then merge back the changes.
