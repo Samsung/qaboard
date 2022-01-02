@@ -44,7 +44,7 @@ To resolve auto-mount issues causing "too many levels of symbolic links", run `.
 1. You need Linux, [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
 2. To start the QA-Board server:
 ```bash
-git clone https://github.com/Samsung/qaboard.git
+git clone https://gitlab-srv/common-infrastructure/qaboard.git
 cd qaboard
 
 docker-compose -f docker-compose.yml -f sirc.yml pull
