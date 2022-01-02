@@ -28,9 +28,8 @@ cd webapp
 npm install
 
 # see more into in docker-compose.yml and backend/README.md
-docker-compose -f docker-compose.yml -f development.yml up -d
+docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
 ```
-
 
 ## Openness
 Currently, we use internally at Samsung a private fork of QA-Board. The differences are very small, mainly having to do with hardcoded configuration and CI. Our goal to move to a process where we first contribute to the public repository, then merge back the changes.
