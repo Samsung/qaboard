@@ -68,25 +68,24 @@ bit-accuracy-all:
   - qa check-bit-accuracy --batch all
 ```
 
-## Custom comparison
-Bit accuracy tests in QABoard are done using manifests comparison.
+## Custom output comparisons
+Bit accuracy checks in QA-Board are done by checking the hashes of your output files. To make it fast, those hashes are computed once, and stored in "manifest" files to make it fast, along with other file metadata.
 
-The manifests contain basic information of every output file (size in KB, file's hash and more...)
-This is an efficient and rubost method for comparing many output files, some can be quite large.
+In some cases, you may want to compare files using something else than bit-exactness between files. Maybe you want to ignore timestamps, or maybe you want to do "semantic" comparaions... To to this, you can supply your own comparaison function:
 
-However, you can use QABoard for comparing files with your own costum method.
+1. Implement a `cmp` function in some _file.py_:
 
-To enable this option do:
-```
-export QA_BITACCURACY_CMP=/path/to/file.py
-qa check-bit-accuracy --batch <batch_name>
-```
-
-Note that QABoard assume that the `.py` file you enter to QA_BITACCURACY_CMP contains a function with the following signature:
 ```python
-# path/to/file.py
-
 from pathlib import Path
 
 def cmp(path1 : Path, path2 : Path) -> bool
+  """Checks if the files have the same content, like QA-Board does by default"""
+  return path1.read_bytes() == path2.read_bytes()
+```
+
+2. Ask `qa` to use it:
+
+```bash
+export QA_BITACCURACY_CMP=/path/to/file.py
+qa check-bit-accuracy --batch <batch_name>
 ```
