@@ -313,7 +313,7 @@ def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=Tr
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   manifest = outputs_manifest(output_directory, config, compute_hashes)
   with (output_directory / 'manifest.outputs.json').open('w') as f:
-    json.dump(manifest, f, indent=2)
+    json.dump(manifest, f, sort_keys=True, indent=2)
   return manifest
 
 

@@ -307,7 +307,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       input_files.update({windows_to_linux_path(manifest_input).as_posix(): file_info(manifest_input, config=config)})
     try:
       with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
-        json.dump(input_files, f, indent=2)
+        json.dump(input_files, f, sort_keys=True, indent=2)
     except Exception as e:
       click.secho(f'WARNING: When writing the input manifest:', fg="yellow", bold=True, err=True)
       click.secho(str(e), fg="yellow", err=True)
