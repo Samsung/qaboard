@@ -302,7 +302,14 @@ def _file_info(path : Path, compute_hashes=True):
 def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
   def should_be_in_manifest(path):
     # avoid logs with timestamps and temporary NFS files
-    return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
+    illegal_file = path.name == 'log.txt' or path.name.startswith('.nfs00000')
+    # avoid source-controled files and logs in HW_ALG
+    if config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
+      illegal_file = illegal_file or \
+                      path.name in ("run.json", "metrics.json", "manifest.outputs.json", "manifest.inputs.json",  "runme_csg.bat", "cde.log") \
+                      or "Config" in path.parts \
+                      or path.parent.name == "outputs"
+    return path.is_file() and not illegal_file
   return {
     path.relative_to(output_directory).as_posix(): file_info(path, config=config, compute_hashes=compute_hashes)
     for path in output_directory.rglob('*')
@@ -313,7 +320,7 @@ def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=Tr
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   manifest = outputs_manifest(output_directory, config, compute_hashes)
   with (output_directory / 'manifest.outputs.json').open('w') as f:
-    json.dump(manifest, f, indent=2)
+    json.dump(manifest, f, sort_keys=True, indent=2)
   return manifest
 
 
