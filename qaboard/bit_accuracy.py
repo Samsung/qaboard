@@ -17,10 +17,16 @@ from .config import commit_id, project, subproject, outputs_commit_root, outputs
 from .config import user, default_batches_files
 
 
-def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
+def default_cmp(file_1, file_2):
+    filecmp.cmp(str(file_1), str(file_2), shallow=False)
+
+def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None, cmp=default_cmp):
   """Bit-accuracy test between two directories. We usually use cmpmanifest only...
   Almost like https://docs.python.org/3/library/filecmp.html
   """
+  if not cmp:
+    cmp = default_cmp
+
   if not patterns:
     patterns = ['*']
   if not ignore:
@@ -51,7 +57,7 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None):
       file_2 = dir_2 / rel_path
       if file_2.is_file():
         try:
-          is_same = filecmp.cmp(str(file_1), str(file_2), shallow=False)
+          is_same = cmp(file_1, file_2)
           if not is_same:
             mismatch.add(rel_path)
           else:
@@ -176,7 +182,34 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
     if not dir_new.exists():
       click.secho(f"ERROR: Missing run for '{rel_input_path}'", fg='red')
       missing_runs = True
-    if (dir_new / manifest_name).exists() and (dir_ref / manifest_name).exists():
+
+    import os
+    custom_cmp = os.environ.get("QA_BITACCURACY_CMP")
+    # In some cases you want to implement your own file comparaison.
+    # It can be useful if e.g. you want to allow a file-format change, but still fail in case of semantic changes
+    # To do this, write some/file.py implemented a "cmp(file_1, file_2)" function.
+    # It should return True if the files are "the same", False otherwise
+    # To use this file, set as environment variable QA_BITACCURACY_CMP=/your/file.py
+    if custom_cmp:
+      try:
+        import sys
+        cmp_source = Path(custom_cmp).absolute()
+        # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('custom-cmp', str(cmp_source))
+        module = importlib.util.module_from_spec(spec)
+        sys.path.insert(0, str(cmp_source.parent))
+        spec.loader.exec_module(module)
+        cmp_func = module.cmp
+      except Exception as e:
+        import traceback
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        click.secho(f'ERROR: Error importing the custom compare function.', fg='red', err=True, bold=True)
+        click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+
+      # ... load the code from some_file
+      # ... diff = module_some_file['diff']
+    if (dir_new / manifest_name).exists() and (dir_ref / manifest_name).exists() and not custom_cmp:
       comparison = cmpmanifests(
         manifest_path_1 = dir_new / manifest_name,
         manifest_path_2 = dir_ref / manifest_name,
@@ -189,10 +222,11 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
         dir_2=dir_ref,
         patterns=patterns,
         ignore=ignore,
+        cmp=cmp_func,
       )
       # print(dir_1)
       # print(dir_ref)
-      # print(comparaison)
+      # print(comparison)
 
     if missing_runs:
       return False
@@ -216,27 +250,28 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
         bit_accurate = False
 
     # print(comparisons['mismatch'])
+    input_path_string = rel_input_path if custom_cmp else f'{rel_input_path} {manifest_name}' 
     nothing_was_compared = not (len(comparison['match']) + len(comparison['mismatch']) + len(comparison['errors']) )
     if nothing_was_compared and bit_accurate:
-      click.echo(click.style(f'🤔  {rel_input_path} {manifest_name}', fg='yellow') + click.style(' 0 files compared', fg='yellow', dim=True), err=True)
+      click.echo(click.style(f'🤔  {input_path_string}', fg='yellow') + click.style(' 0 files compared', fg='yellow', dim=True), err=True)
 
     if comparison['errors']:
       bit_accurate = False
       click.secho("ERROR: While trying to read those files:", fg='red', bold=True)
       click.secho(f'{dir_new}', fg='red', err=True, dim=True)
-      for p in comparison['error']:
+      for p in comparison['errors']:
         click.secho(f"⚠️  {p}", fg='red')
 
     if comparison['mismatch']:
       bit_accurate = False
-      click.secho(f'{rel_input_path} {manifest_name}', fg='red', bold=True, err=True)
+      click.secho(f'{input_path_string}', fg='red', bold=True, err=True)
       click.secho(f'{dir_new}', fg='red', err=True, dim=True)
       click.secho(f"ERROR: Mismatch for:", fg='red')
       for p in comparison['mismatch']:
         click.secho(f'❌  {p}', fg='red', dim=True)
 
     if bit_accurate and not nothing_was_compared:
-      click.secho(f"✔️  {rel_input_path} {manifest_name}", fg='green', err=True)
+      click.secho(f"✔️  {input_path_string}", fg='green', err=True)
     return bit_accurate
 
 
@@ -373,7 +408,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     commit_dir = outputs_commit_root if (is_ci or ctx.obj['share']) else Path()
 
     ba_contexts = []
-    if not batches:
+    if not batches: # backward-compat for DVS, can likely be removed at the next refactoring
       output_dirs = list(p.parent.relative_to(commit_dir) for p in (commit_dir / subproject / 'output').rglob('manifest.outputs.json'))
       for output_dir in output_dirs:
         run_path = commit_dir / output_dir / "run.json"
