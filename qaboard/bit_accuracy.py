@@ -36,8 +36,8 @@ if custom_cmp:
     spec = importlib.util.spec_from_file_location('custom-cmp', str(cmp_source))
     module = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(cmp_source.parent))
-    spec.loader.exec_module(module)
-    cmp_func = module.cmp
+    spec.loader.exec_module(module) # type: ignore
+    cmp_func = module.cmp # type: ignore
   except Exception as e:
     import traceback
     exc_type, exc_value, exc_traceback = sys.exc_info()
