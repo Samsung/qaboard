@@ -69,7 +69,7 @@ const FullScreenableSlimCard = props => {
   </SlimCard>
 }
 
-const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, style, prefix, tags_first=false }) => {
+const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, style, prefix, viewable, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const tags = <OutputTags
@@ -84,11 +84,13 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
 
   const input_over_time_url = `/${project}/history/${!!commit ? commit.branch : ''}${window.location.search}`
   // output.params.badges = [{text: "training", icon: "settings", href: "https://example.com"}]
+  const run_path = has_label ? output.test_input_metadata.label : `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}   
-      {tags_first && tags}
-      {output.output_type !== "batch" && <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER}>
+      {tags_first && viewable && tags}
+      {output.output_type !== "batch" && !viewable ?
+        <span>{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER}>
         <span>
           <Link
             to={input_over_time_url}
@@ -105,7 +107,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
             }}
             style={{ color: 'inherit' }}
           >
-            {has_label ? output.test_input_metadata.label : `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`}
+            {run_path}
           </Link>
         </span>
         <Menu>
@@ -130,7 +132,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
           {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
         </Menu>
       </Popover>}
-      {!tags_first && tags}
+      {!tags_first && viewable && tags}
     </h5>
     <p style={{maxWidth: '600px'}}>
       <RunBadges output={output}></RunBadges>
@@ -405,7 +407,7 @@ class OutputCard extends React.Component {
 
 
   render() {
-    const { is_loaded, error } = this.state;
+    const { is_loaded, error, viewable } = this.state;
     const { output_new, output_ref, config } = this.props;
 
     const has_output_new = output_new !== undefined && output_new !== null
@@ -429,7 +431,7 @@ class OutputCard extends React.Component {
 
       var controls = this.props.controls || {};
       var views = config.outputs?.visualizations || [];
-      let viewers = views.map((view, idx) => {
+      let viewers = !viewable ? null : views.map((view, idx) => {
         let hidden = view.default_hidden === true && !(!!controls.show && controls.show[view.name] === true)
         if (hidden)
           return <span key={idx} />
@@ -518,7 +520,9 @@ class OutputCard extends React.Component {
         </>
       })
 
-      if (this.props.type === 'bit_accuracy') {
+      if (!viewable) {
+        content = <span></span>
+      } else if (this.props.type === 'bit_accuracy') {
         content = <OutputViewer
           key="bit-accuracy"
           type="files/bit-accuracy"
@@ -538,8 +542,8 @@ class OutputCard extends React.Component {
             key="content"
             selected_metrics={main_metrics}
             available_metrics={available_metrics}
-            metrics_new={output_new.metrics ? output_new.metrics : {}}
-            metrics_ref={output_ref && output_ref.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
+            metrics_new={output_new.metrics ?? {}}
+            metrics_ref={output_ref?.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
           />}
           {viewers}
         </>
@@ -570,6 +574,7 @@ class OutputCard extends React.Component {
           commit={this.props.commit}
           output={output_new}
           output_ref={output_ref}
+          viewable={viewable}
           type={this.props.type}
           dispatch={this.props.dispatch}
           style={condensed_header_style}
@@ -580,7 +585,7 @@ class OutputCard extends React.Component {
         {output_new.deleted && <Tag key="new-deleted" intent={Intent.DANGER}>Deleted</Tag>}
         {output_ref && output_ref.deleted && <Tag key="ref-deleted" intent={Intent.WARNING}>Reference deleted</Tag>}
 
-        {!this.state.viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+        {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
           <span key="viewable"></span>
         </InView>}
         {(is_loaded || has_output_new) && content}
@@ -597,9 +602,11 @@ const cache = {};
 const cacheLimit = 10000;
 let cacheCount = 0;
 function compilePath(path) {
+  console.log("[compilePath]", path)
   if (cache[path]) return cache[path];
   const regexp = compile(path);
   if (cacheCount < cacheLimit) {
+    console.log(cacheCount, path)
     cache[path] = regexp;
     cacheCount++;
   }
