@@ -88,8 +88,8 @@ class Project(Base):
   def repo(self):
     try:
       return repos[self.id_git]
-    except:
-      print(f"Could not get repo for <{self.id_git}>")
+    except Exception as e:
+      print(f"Could not get repo for <{self.id_git}>: {e}")
       pass
     return None
 
