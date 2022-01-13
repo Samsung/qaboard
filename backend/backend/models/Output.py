@@ -239,6 +239,8 @@ class Output(Base):
       f'"{self.test_input.path}"',
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
+    if 'user' in self.data:
+      command = f'bsub_su {self.data["user"]} -I {command}'
     script = '\n'.join([
       '#!/bin/bash',
       'set -ex',
