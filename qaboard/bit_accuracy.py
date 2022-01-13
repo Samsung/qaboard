@@ -2,6 +2,7 @@
 """
 Bit-accuracy test between 2 results folders
 """
+import os
 import json
 import filecmp
 import fnmatch
@@ -19,6 +20,31 @@ from .config import user, default_batches_files
 
 def default_cmp(file_1, file_2):
     filecmp.cmp(str(file_1), str(file_2), shallow=False)
+
+# In some cases you want to implement your own file comparaison.
+# It can be useful if e.g. you want to allow a file-format change, but still fail in case of semantic changes
+# To do this, write some/file.py implemented a "cmp(file_1, file_2)" function.
+# It should return True if the files are "the same", False otherwise
+# To use this file, set as environment variable QA_BITACCURACY_CMP=/your/file.py
+custom_cmp = os.environ.get("QA_BITACCURACY_CMP")
+if custom_cmp:
+  try:
+    import sys
+    cmp_source = Path(custom_cmp).resolve()
+    # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('custom-cmp', str(cmp_source))
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(cmp_source.parent))
+    spec.loader.exec_module(module)
+    cmp_func = module.cmp
+  except Exception as e:
+    import traceback
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    click.secho(f'ERROR: Error importing the custom cmp function.', fg='red', err=True, bold=True)
+    click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+
+
 
 def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None, cmp=default_cmp):
   """Bit-accuracy test between two directories. We usually use cmpmanifest only...
@@ -183,32 +209,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
       click.secho(f"ERROR: Missing run for '{rel_input_path}'", fg='red')
       missing_runs = True
 
-    import os
-    custom_cmp = os.environ.get("QA_BITACCURACY_CMP")
-    # In some cases you want to implement your own file comparaison.
-    # It can be useful if e.g. you want to allow a file-format change, but still fail in case of semantic changes
-    # To do this, write some/file.py implemented a "cmp(file_1, file_2)" function.
-    # It should return True if the files are "the same", False otherwise
-    # To use this file, set as environment variable QA_BITACCURACY_CMP=/your/file.py
-    if custom_cmp:
-      try:
-        import sys
-        cmp_source = Path(custom_cmp).absolute()
-        # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-        import importlib.util
-        spec = importlib.util.spec_from_file_location('custom-cmp', str(cmp_source))
-        module = importlib.util.module_from_spec(spec)
-        sys.path.insert(0, str(cmp_source.parent))
-        spec.loader.exec_module(module)
-        cmp_func = module.cmp
-      except Exception as e:
-        import traceback
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        click.secho(f'ERROR: Error importing the custom compare function.', fg='red', err=True, bold=True)
-        click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
 
-      # ... load the code from some_file
-      # ... diff = module_some_file['diff']
     if (dir_new / manifest_name).exists() and (dir_ref / manifest_name).exists() and not custom_cmp:
       comparison = cmpmanifests(
         manifest_path_1 = dir_new / manifest_name,
