@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { InView } from 'react-intersection-observer'
 import { get, all, CancelToken, isCancel } from "axios";
 import { matchPath } from 'react-router'
-import pathToRegexp from 'path-to-regexp'
+import { parse, compile } from 'path-to-regexp'
+// TODO: check we use the correct {delimiter: '/'} maybe ?
+// https://github.com/pillarjs/path-to-regexp
 import { DateTime } from 'luxon';
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
 
@@ -314,7 +316,7 @@ class OutputCard extends React.Component {
     views.forEach((view, idx) => {
       if (view.path === undefined) return
       // FIXME: be glob-friendly? view.path.replace(/[^\.]\*/g, '(.*)')
-      let view_options = pathToRegexp.parse(view.path)
+      let view_options = parse(view.path)
       view_options.forEach(token => {
         // console.log(token)
         if (token.name === undefined) // static part
@@ -468,7 +470,9 @@ class OutputCard extends React.Component {
         if (!(view.display === 'viewer') && view_options.length > 0) {
           if (view.display === undefined || view.display === 'single') {
             const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.selected[0]])
-            var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))].map(p => decodeURIComponent(p))
+            // path used to be urlencoded, changed in https://github.com/pillarjs/path-to-regexp/releases/tag/v5.0.0
+            // can be opted-in via   { encode: encodeURIComponent } https://github.com/pillarjs/path-to-regexp#compile-reverse-path-to-regexp
+            var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))] // .map(p => decodeURIComponent(p)) // not needed anymore
             // Note: before we had a path with / and other characters, and now it's url encoded
           } else if (view.display === 'all') {
             paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
@@ -594,7 +598,7 @@ const cacheLimit = 10000;
 let cacheCount = 0;
 function compilePath(path) {
   if (cache[path]) return cache[path];
-  const regexp = pathToRegexp.compile(path);
+  const regexp = compile(path);
   if (cacheCount < cacheLimit) {
     cache[path] = regexp;
     cacheCount++;
