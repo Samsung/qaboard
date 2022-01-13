@@ -1,6 +1,7 @@
 import React from "react";
 import { Provider } from 'react-redux'
 import history from "./history";
+// https://github.com/remix-run/react-router/blob/main/docs/upgrading/v5.md
 import { Router, Route, Switch } from "react-router-dom";
 import { PersistGate } from 'redux-persist/integration/react'
 
