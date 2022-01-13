@@ -1,8 +1,7 @@
-FROM node:latest
+FROM node:lts
 WORKDIR /webapp
 
-# ENV PROXY_HOST=webproxy.transchip.com \
-ENV PROXY_HOST=dlp2-wcg01 \
+ENV PROXY_HOST=webproxy \
     PROXY_PORT=8080 \
     PROXY_PROTOCOL=http
 ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
@@ -32,8 +31,7 @@ RUN npm ci || npm ci || npm ci
 COPY . ./
 ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
 ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
-ENV NODE_OPTIONS="--openssl-legacy-provider"
-RUN npm run-script build
+# RUN npm run-script build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
 # without the application crashing and asking for a refresh
