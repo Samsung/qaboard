@@ -60,6 +60,7 @@ services:
     - REACT_APP_QABOARD_API_HOST=http://backend:5152
     - REACT_APP_QABOARD_HOST=http://proxy:5151
     command: npm start
+    user: "11611:10"
     ports:
     - "${QABOARD_DEV_FRONTEND_PORT:-3000}:3000"
     depends_on:

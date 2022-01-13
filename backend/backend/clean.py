@@ -107,8 +107,8 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     yield hexsha, hash16
 
         for hexsha, artifact_dir in iter_hashsha_dir():
+            commit = hwalg.repo.commit(hexsha)
             try:
-                commit = hwalg.repo.commit(hexsha)
                 created_datetime = commit.authored_datetime
             except: # force pushes, rebases... some commits won't be fetched
                 ctime = artifact_dir.stat().st_ctime
@@ -216,15 +216,17 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                 except:
                     pass
             gc_config_artifacts = gc_config.get('artifacts', {})
+            deleted_artifacts = False
             if gc_config_artifacts.get('delete') == True or can_delete_artifacts:
                 secho(f"  Deleting artifacts", fg='cyan', dim=True)
                 try:
                     commit.delete(keep=gc_config_artifacts.get('keep', []), dryrun=dryrun)
+                    deleted_artifacts = True
                 except Exception as e:
                     print(e)
                     continue
             if not dryrun:
-              if nb_outputs_deleted:
+              if nb_outputs_deleted or deleted_artifacts:
                 db_session.add(commit)
               if not nb_outputs and can_delete_outputs:
                 print(f"DELETE {commit}")

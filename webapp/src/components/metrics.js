@@ -1,7 +1,6 @@
 import React, { Component, Fragment } from "react";
 import Plot from 'react-plotly.js';
 import styled from "styled-components";
-import { format } from "mathjs/number";
 
 import {
   Classes,
@@ -17,7 +16,7 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 
 import { noMetrics } from "./metricSelect";
-import { median, plotly_palette, match_query } from "../utils";
+import { format, median, plotly_palette, match_query } from "../utils";
 
 
 

@@ -25,8 +25,10 @@ celery -A qaboard.runners.celery_app worker --loglevel=info
 3. Next, use QA-Board's Celery runner:
 
 ```bash
-qa batch --runner=celery my-batch
+qa --share batch --runner=celery my-batch
 ```
+
+Note that unless you have a transparent shared storage for your working directory, you'll need to use `--share`.
 
 ## Configuring Celery
 To configure Celery at the **project level**:

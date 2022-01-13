@@ -4,7 +4,6 @@ import { connect } from 'react-redux'
 import axios from "axios";
 
 import styled from "styled-components";
-import { format } from "mathjs/number";
 import copy from 'copy-to-clipboard';
 
 import {
@@ -27,7 +26,7 @@ import { fetchCommit } from "../actions/commit";
 import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { CopyToClipboard } from "react-copy-to-clipboard";
-import { shortId, pretty_label, linux_to_windows } from "../utils";
+import { format, shortId, pretty_label, linux_to_windows } from "../utils";
 import { git_hostname, default_git_hostname } from "../utils"
 import { has_milestones } from './milestones'
 

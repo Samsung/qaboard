@@ -301,6 +301,11 @@ def _file_info(path : Path, compute_hashes=True):
 
 def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
   def should_be_in_manifest(path):
+    # backward-compat with manifests created by run_tv.py,
+    # which doesn't copy the TV folder in the output directory
+    if config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
+      if path.name in ("run.json", "metrics.json", "manifest.ouputs.json", "runme_csg.bat") or "Config" in path.parts:
+        return False
     # avoid logs with timestamps and temporary NFS files
     return path.is_file() and path.name != 'log.txt' and not path.name.startswith('.nfs00000')
   return {

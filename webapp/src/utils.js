@@ -1,6 +1,18 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
-import { median as mathjs_median } from "mathjs/number";
 import md5 from "js-md5";
+
+// https://mathjs.org/docs/custom_bundling.html
+import {
+  create,
+  medianDependencies,
+  formatDependencies
+} from 'mathjs/number'
+const { median: mathjs_median, format } = create({
+  medianDependencies,
+  formatDependencies,
+})
+
+import {  } from "mathjs/number";
 
 import { levenshtein } from "./levenshtein";
 
@@ -397,6 +409,7 @@ const metrics_fill_defaults = available_metrics => {
 export {
   average,
   median,
+  format,
   groupBy,
   groupByObject,
   matching_output,

@@ -1,6 +1,5 @@
-FROM node:latest
+FROM node:lts
 WORKDIR /webapp
-
 
 RUN apt update -qq && apt-get install -y --no-install-recommends rsync
 
@@ -11,6 +10,8 @@ COPY package.json package-lock.json ./
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
 RUN npm ci
 COPY . ./
+ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
+ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
 RUN npm run-script build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
