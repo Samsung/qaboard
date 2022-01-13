@@ -2,7 +2,7 @@ import os
 
 from git import Repo
 from git import RemoteProgress
-from git.exc import NoSuchPathError
+from git.exc import NoSuchPathError, InvalidGitRepositoryError
 
 from .fs_utils import as_user
 
@@ -31,6 +31,9 @@ class Repos():
     clone_location = str(self.clone_directory / project_path)
     try:
       repo = Repo(clone_location)
+    except InvalidGitRepositoryError:
+      from fs_utils import rmtree
+      rmtree(clone_location) # fail, and hopefully it will work better next time...
     except NoSuchPathError:
       try:
         # TODO: use access token :)
