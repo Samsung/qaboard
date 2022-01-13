@@ -602,11 +602,9 @@ const cache = {};
 const cacheLimit = 10000;
 let cacheCount = 0;
 function compilePath(path) {
-  console.log("[compilePath]", path)
   if (cache[path]) return cache[path];
   const regexp = compile(path);
   if (cacheCount < cacheLimit) {
-    console.log(cacheCount, path)
     cache[path] = regexp;
     cacheCount++;
   }
