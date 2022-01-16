@@ -17,11 +17,16 @@ services:
     - /sim:/var/www/localhost/images/sim:shared
 
   db:
+    # postgres needs a file owned by postgres, and we cannot chown on our shared storage
+    # the default entrypoint changes user from root to postgres and inits the database,
+    # but only if the command starts with "postgres"... so we need to wrap it
+    entrypoint: /init.sh
+    volumes:
+    - ./services/db/init.sh:/init.sh
+    - ./services/db/postgres.conf:/postgres.host.conf
+    - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
-    volumes:
-    - /home/ispq/qaboard_data_prod/database_backups:/backups
-    - ./services/db/postgres.conf:/var/lib/postgresql/data/postgresql.conf
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     environment:
