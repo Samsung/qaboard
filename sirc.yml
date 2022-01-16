@@ -21,8 +21,7 @@ services:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
     volumes:
     - /home/ispq/qaboard_data_prod/database_backups:/backups
-      
-
+    - ./services/db/postgres.conf:/var/lib/postgresql/data/postgresql.conf
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     environment:
