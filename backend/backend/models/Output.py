@@ -239,8 +239,6 @@ class Output(Base):
       f'"{self.test_input.path}"',
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
-    if 'user' in self.data:
-      command = f'bsub_su {self.data["user"]} -I {command}'
     script = '\n'.join([
       '#!/bin/bash',
       'set -ex',
@@ -270,6 +268,7 @@ class Output(Base):
     with script_path.open('w') as f:
       f.write(script)
     print(f'"{script_path}"')
+    # TODO: ideally su as self.data["user"] like we do at Samsung...
     p = subprocess.run(f'bash "{script_path}" > "{logs_path}" 2>&1', shell=True)
     success = p.returncode == 0
     return success
