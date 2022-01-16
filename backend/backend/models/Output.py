@@ -239,8 +239,6 @@ class Output(Base):
       f'"{self.test_input.path}"',
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
-    if 'user' in self.data:
-      command = f'bsub_su {self.data["user"]} -I {command}'
     script = '\n'.join([
       '#!/bin/bash',
       'set -ex',
@@ -272,7 +270,8 @@ class Output(Base):
     with script_path.open('w') as f:
       f.write(script)
     print(f'"{script_path}"')
-    p = subprocess.run(f'ssh ispq@ispq-vdi \'bash "{script_path}"\' > "{logs_path}" 2>&1', shell=True)
+    script_exec = "bash" if 'user' not in self.data else f'bsub_su {self.data["user"]} -I bash'
+    p = subprocess.run(f'ssh ispq@ispq-vdi \'{script_exec} "{script_path}"\' > "{logs_path}" 2>&1', shell=True)
     success = p.returncode == 0
     return success
 
