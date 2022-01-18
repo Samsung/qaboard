@@ -448,11 +448,11 @@ class CommitNavbar extends React.Component {
                 }}
               />
               <MenuItem
-                icon="trash"
+                icon={!commit_has_milestones ? "trash" : "crown"}
                 text={`Delete All Outputs${soft_delete ? "' Files" : ''}`}
                 intent={Intent.DANGER}
                 minimal
-                disabled={this.state.waiting || commit_has_milestones}
+                disabled={this.state.waiting || (commit_has_milestones && !soft_delete)}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});
