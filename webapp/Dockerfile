@@ -31,7 +31,7 @@ RUN npm ci || npm ci || npm ci
 COPY . ./
 ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
 ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
-# RUN npm run-script build
+RUN npm run-script build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
 # without the application crashing and asking for a refresh
