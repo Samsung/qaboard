@@ -27,9 +27,11 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts }) => {
       let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
       let status = `${nb_success}/${outputs.length} ✅`;
       let nb_failed = outputs.filter(o => o.is_failed).length;
+      let nb_running = outputs.filter(o => o.is_running).length;
       let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
+      let running = nb_running > 0 ? `${nb_running}🏃` : "";
       return  <option key={label} value={label}>
-         {title} &nbsp;•&nbsp; {status} &nbsp;{failures}{iters > 0 ? `${iters} 🔁` : ''}
+         {title} &nbsp;•&nbsp; {status} &nbsp;{failures}{running}{iters > 0 ? `${iters} 🔁` : ''}
        </option>
     });
 
