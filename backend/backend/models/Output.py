@@ -276,7 +276,7 @@ class Output(Base):
     return success
 
 
-  def delete(self, soft=True, ignore=None, dryrun=False):
+  def delete(self, soft=True, ignore=None, filter=None, dryrun=False):
     """
     Delete the output's output files.
     It's soft by default, in that we still keep the metadata.
@@ -309,6 +309,8 @@ class Output(Base):
           if ignore:
             if any([fnmatch.fnmatch(file, i) for i in ignore]):
               continue
+          if filter and not fnmatch.fnmatch(file, filter):
+            continue
           output_file = output_dir / file
           if not output_file.exists():
             continue
