@@ -155,16 +155,16 @@ class CommitNavbar extends React.Component {
     const filter = selected[`filter_batch_${type}`]
 
     const qatools_config = project_data?.data?.qatools_config
-    const reference_branch = qatools_config?.project?.reference_branch || 'master';
+    const reference_branch = qatools_config?.project?.reference_branch ?? 'master';
 
     // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
-    const qatools_milestones_array = qatools_config?.project?.milestones || []
+    const qatools_milestones_array = qatools_config?.project?.milestones ?? []
     const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
-    const shared_milestones = project_data?.data?.milestones || {}
-    const private_milestones = project_data.milestones || {}
+    const shared_milestones = project_data?.data?.milestones ?? {}
+    const private_milestones = project_data.milestones ?? {}
 
 
-    let commit_has_milestones = has_milestones({commit, project, project_data})
+    let is_milestone = has_milestones({commit, project, project_data, batch})
     const milestones_menu = <Menu style={{maxHeight: '500px', overflowY: 'scroll'}}>
       <MenuDivider title="Change Project"/>
       <ControlGroup>
@@ -448,11 +448,11 @@ class CommitNavbar extends React.Component {
                 }}
               />
               <MenuItem
-                icon={!commit_has_milestones ? "trash" : "crown"}
+                icon={!is_milestone ? "trash" : "crown"}
                 text={`Delete All Outputs${soft_delete ? "' Files" : ''}`}
                 intent={Intent.DANGER}
                 minimal
-                disabled={this.state.waiting || (commit_has_milestones && !soft_delete)}
+                disabled={this.state.waiting || (is_milestone && !soft_delete)}
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});

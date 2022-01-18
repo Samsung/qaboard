@@ -31,12 +31,13 @@ import { match_query } from "../utils";
 const toaster = Toaster.create();
 
 
-const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${(!!batch && batch.label) || 'default'}`
-const has_milestones = ({commit, project, project_data}) => {
+const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${batch?.label ?? 'default'}`
+const has_milestones = ({commit, project, project_data, batch}) => {
   if (commit === undefined || commit == null)
     return false
   const milesones = project_data?.data?.milestones ?? {}
-  return Object.keys(milesones).some(k => k.startsWith(`${project}/${commit.id}/`))
+  const milestone_key = `${project}/${commit.id}/${batch?.label ?? ''}`
+  return Object.keys(milesones).some(k => k.startsWith(milestone_key))
 }
 const milestone_type = ({ commit, project_shown, project_data, batch }) => {
   if (commit === undefined || commit === null ||
