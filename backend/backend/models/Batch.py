@@ -152,7 +152,7 @@ class Batch(Base):
       session.commit()
       return {}
 
-  def delete(self, session, soft=False, only_failed=False):
+  def delete(self, session, soft=False, only_failed=False, filter=None):
     """
     Delete the batch and all related outputs.
     By default it will be a "hard" delete where the metadata+files are deleted from the database/disk.
@@ -164,7 +164,7 @@ class Batch(Base):
       if only_failed and not output.is_failed:
         still_has_outputs = True
         continue
-      output.delete(soft=soft)
+      output.delete(soft=soft, filter=filter)
       if not soft:
         session.delete(output)
     if not still_has_outputs and not soft:

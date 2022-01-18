@@ -110,6 +110,7 @@ class CommitNavbar extends React.Component {
       show_move_dialog: false,
       dst_batch_label: '',
       project_input: null,
+      files_delete_filter: null,
     };
   }
 
@@ -150,7 +151,7 @@ class CommitNavbar extends React.Component {
 
   render() {
     const { project, project_data, commit, batch, selected, type, dispatch, update } = this.props;
-    const { project_input, soft_delete } = this.state;
+    const { project_input, soft_delete, files_delete_filter } = this.state;
     const project_attr = `${type}_project`
     const filter = selected[`filter_batch_${type}`]
 
@@ -433,7 +434,9 @@ class CommitNavbar extends React.Component {
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested for failed outputs."});
-                  axios.delete(`/api/v1/batch/${batch.id}/?only_failed=true&soft=${soft_delete}`)
+                  axios.delete(`/api/v1/batch/${batch.id}/`, {
+                    params: {only_failed: true, soft: soft_delete, filter: files_delete_filter}
+                  })
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
@@ -456,7 +459,9 @@ class CommitNavbar extends React.Component {
                 onClick={() => {
                   this.setState({waiting: true})
                   toaster.show({message: "Delete requested."});
-                  axios.delete(`/api/v1/batch/${batch.id}/?soft=${soft_delete}`)
+                  axios.delete(`/api/v1/batch/${batch.id}/`, {
+                    params: {soft: soft_delete, filter: files_delete_filter}
+                  })
                     .then(response => {
                       this.setState({waiting: false})
                       toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
@@ -474,7 +479,18 @@ class CommitNavbar extends React.Component {
                   text={<em>Delete files, keep metadata</em>}
                   shouldDismissPopover={false}
                   labelElement={<Switch checked={soft_delete} innerLabelChecked="soft" onChange={() => this.setState({soft_delete: !soft_delete})} />}
-              />  
+              />
+              {soft_delete && <InputGroup
+                placeholder="Delete patterns (*.png, **/*.py)"
+                leftIcon="filter"
+                value={files_delete_filter}
+                className={filter === '' ? undefined : Intent.PRIMARY}
+                onChange={e => {
+                  this.setState({files_delete_filter: e.target.value})
+                }}
+            fill
+          />
+              }
             </>}
             </Menu>
           </Popover>
