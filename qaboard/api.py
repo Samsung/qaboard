@@ -203,11 +203,18 @@ def batch_info(reference, batch, is_branch=False, project=project):
   commit_id = reference if not is_branch else ''
   url = f'{api_prefix}/commit/{commit_id}'
   r = requests.get(url, params=params)
-  if 'batches' not in r.json():
+  try:
+    data = r.json()
+  except Exception as e:
+    click.secho(r.text, fg='red')
+    click.secho(f'[ERROR]: Failed to get info from QA-Board. ({url} | {params})', fg='red', bold=True, err=True)
+    raise e
+  if 'batches' not in data:
     raise ValueError(f'We could not get the results for {batch} batch {reference}')
-  if batch not in r.json()["batches"]:
-    raise ValueError(f'We could not get the results for {batch} batch {reference}. Available: {list(b for b in r.json()["batches"])}')
-  return r.json()['batches'][batch]
+  batches = data["batches"]
+  if batch not in batches:
+    raise ValueError(f'We could not get the results for {batch} batch {reference}. Available: {list(b for b in batches)}')
+  return batches[batch]
 
 
 def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
