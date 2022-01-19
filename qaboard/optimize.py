@@ -83,7 +83,8 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
       for idx, y_iter in enumerate(y): 
         iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+idx+1}"
         iteration_batch_dir = batch_dir_for(iteration_batch_label)
-        aggregated_metrics_ = aggregated_metrics(iteration_batch_label)
+        metrics = tuple([m for m in optim_config['objective'].keys() if m != 'target'])
+        aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=metrics)
         notify_qa_database(**{
           **ctx.obj,
           **{
@@ -293,7 +294,14 @@ def make_reduce(options):
     return lambda x: norm(x, ord=int(reduce_type[1])) / len(x)
 
 def batch_objective(project, commit_id, batch_label, config_objective):
-  this_batch_info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, project=project)
+  metrics = [m for m in config_objective.keys() if m != 'target']
+  this_batch_info = batch_info(
+    reference=commit_id,
+    is_branch=False,
+    batch=batch_label,
+    project=project,
+    metrics=metrics,
+  )
   # We can compare to KPI quality target defined
   if 'target' in config_objective and config_objective['target']:
     target = config_objective['target']
@@ -306,6 +314,7 @@ def batch_objective(project, commit_id, batch_label, config_objective):
         is_branch='branch' in target, # for tag we need special care...
         # the working directory changed...
         project=project,
+        metrics=metrics,
       )
   else:
     use_default_targets = True
