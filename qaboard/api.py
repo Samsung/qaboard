@@ -189,14 +189,14 @@ def get_output(output_id):
 
 # We used to use a cache but now we want to check run statuses before/after the batch
 # @lru_cache()
-def batch_info(reference, batch, is_branch=False, project=project):
+def batch_info(reference, batch, is_branch=False, project=project, metrics: Optional[List[str]]=None):
   """Get data about a batch of outputs in the database"""
   import requests
   params = {
     "project": str(project),
     "batch": batch,
     # the format is metric: target.... not great.
-    "metrics": json.dumps({metric: 0 for metric in available_metrics.keys()}),
+    "metrics": json.dumps({m: 0 for m in (metrics or available_metrics.keys())}),
   }
   if is_branch:
     params["branch"] = reference
@@ -230,8 +230,8 @@ def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
 
 
 @lru_cache()
-def aggregated_metrics(batch_label):
-  info = batch_info(reference=commit_id, is_branch=False, batch=batch_label)
+def aggregated_metrics(batch_label, metrics=None):
+  info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, metrics=metrics)
   # We also always return the aggregated metrics from the API,
   # it helps understand how metrics evolved during the optimization, irrelative of the objective function
   # Note: we could do the aggregation ourselves...
