@@ -59,7 +59,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
   # TODO: warm-start
   #   load and "tell" existing results (if there are any)
   #   (or use a checkpoint?)
-  for iteration in range(optim_config['evaluations']):
+  for iteration in range(0, optim_config['evaluations'], parallel_param_sampling):
       click.secho(f"Starting iteration {iteration}", fg='blue')
       if parallel_param_sampling == 1:
         suggested = optimizer.ask()
