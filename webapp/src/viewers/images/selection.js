@@ -187,8 +187,8 @@ OpenSeadragon.Selection = function (options) {
     }
 
     var prefix = this.prefixUrl || this.viewer.prefixUrl || '';
-    var useGroup = this.viewer.buttons && this.viewer.buttons.buttons;
-    var anyButton = useGroup ? this.viewer.buttons.buttons[0] : null;
+    var useGroup = this.viewer.buttonGroup && this.viewer.buttonGroup.buttons;
+    var anyButton = useGroup ? this.viewer.buttonGroup.buttons[0] : null;
     var onFocusHandler = anyButton ? anyButton.onFocus : null;
     var onBlurHandler = anyButton ? anyButton.onBlur : null;
     if (this.showSelectionControl) {
@@ -206,8 +206,8 @@ OpenSeadragon.Selection = function (options) {
             onBlur: onBlurHandler
         });
         if (useGroup) {
-            this.viewer.buttons.buttons.push(this.toggleButton);
-            this.viewer.buttons.element.appendChild(this.toggleButton.element);
+            this.viewer.buttonGroup.buttons.push(this.toggleButton);
+            this.viewer.buttonGroup.element.appendChild(this.toggleButton.element);
         }
         if (this.toggleButton.imgDown) {
             this.buttonActiveImg = this.toggleButton.imgDown.cloneNode(true);
