@@ -308,15 +308,20 @@ class CiCommit(Base):
     committer_avatar_url = ''
     if users_db and self.committer_name:
       name = self.committer_name.lower()
+      user = None
       if name in users_db:
-        committer_avatar_url = users_db[name]['avatar_url']
+        user = users_db[name]
       elif name.replace('.', '') in users_db:
-        committer_avatar_url = users_db[name.replace('.', '')]['avatar_url']
+        user = users_db[name.replace('.', '')]
       elif name.replace(' ', '') in users_db:
-        committer_avatar_url = users_db[name.replace(' ', '')]['avatar_url']
-      else:
+        user = users_db[name.replace(' ', '')]
+      elif name.replace(' ', '.') in users_db:
+        user = users_db[name.replace(' ', '.')]
+      if not user:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
+      else:
+        committer_avatar_url = user['avatar_url']
     out = {
         'id': self.hexsha,
         # 'type': self.commit_type,

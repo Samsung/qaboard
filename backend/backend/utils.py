@@ -30,7 +30,7 @@ def cache(minutes=1440, func_skip_cache=None):
   return cache_ttl_decorator
 
 
-@cache(minutes=60)
+@cache(minutes=600)
 def get_users_per_name(search_filter):
   """Retrievies users from Gitlab"""
   if 'GITLAB_ACCESS_TOKEN' not in os.environ:
