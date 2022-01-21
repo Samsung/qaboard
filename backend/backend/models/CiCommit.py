@@ -325,6 +325,8 @@ class CiCommit(Base):
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
       else:
         committer_avatar_url = user['avatar_url']
+        if "gravatar" in committer_avatar_url:
+          committer_avatar_url = f"https://dag.sirc.co.il:8081/{user['username']}.jpg"
     repo_artifacts_url = self.repo_artifacts_url
     artifacts_url = self.artifacts_url
     out = {
