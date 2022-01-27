@@ -299,7 +299,7 @@ class Output(Base):
           with manifest_path.open() as f:
             files = json.load(f)
         except Exception as e:
-            print("{e}: corrupted manifest {manifest_path}")
+            print(f"{e}: corrupted manifest {manifest_path}")
             rmtree(output_dir)
             self.deleted = True
             return
@@ -317,7 +317,8 @@ class Output(Base):
           print(f'{output_file}')
           if not dryrun:
             rmtree(output_file)
-    self.deleted = True
+    if not filter: # better not TODO: update .data.storage at least
+      self.deleted = True
 
 
   def update_manifest(self, compute_hashes=True):
