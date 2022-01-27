@@ -59,7 +59,7 @@
     "reselect": "^4.0.0",
     "sanitize-html": "^2.1.1",
     "styled-components": "^4.4.1",
-    "three": "^0.106.2",
+    "three": "^0.137.0",
     "typescript": "^4.0.5"
   },
   "scripts": {
