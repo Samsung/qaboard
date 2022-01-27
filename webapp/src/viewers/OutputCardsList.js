@@ -21,6 +21,7 @@ class OutputCardsList extends React.Component {
       show_all_files: params.get("show_all_files") === 'true' || false,
       expand_all: params.get("expand_all") === 'true' || false,
       files_filter: params.get("files_filter") || '',
+      color_blind_friendly: params.get("color_blind_friendly") || '',
     };
   }
 
@@ -28,7 +29,7 @@ class OutputCardsList extends React.Component {
   render() {
     const { new_batch, project, config, metrics, new_commit, ref_batch } = this.props;
     const { type, controls } = this.props;
-    const { show_all_files, expand_all, files_filter, select_debug } = this.state;
+    const { show_all_files, expand_all, files_filter, color_blind_friendly, select_debug } = this.state;
     const misc_output_props = {
       project,
       config,
@@ -39,6 +40,7 @@ class OutputCardsList extends React.Component {
       show_all_files,
       files_filter,
       expand_all,
+      color_blind_friendly,
       select_debug,
     }
     const outputs = (new_batch?.filtered?.outputs || [])
@@ -51,6 +53,7 @@ class OutputCardsList extends React.Component {
                                      show_all_files={show_all_files}
                                      expand_all={expand_all}
                                      files_filter={files_filter}
+                                     color_blind_friendly={color_blind_friendly}
                                      toggle={this.toggle}
                                      update={this.update}
                                     />

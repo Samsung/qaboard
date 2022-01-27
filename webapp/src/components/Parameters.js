@@ -40,6 +40,7 @@ class CommitParameters extends React.Component {
       show_all_files: params.get("params_show_all_files") === 'true' || false,
       expand_all: params.get("params_expand_all") === 'true' || true,
       files_filter: params.get("params_files_filter") || '',
+      color_blind_friendly: params.get("params_color_blind_friendly") || '',
     };
   }
 
@@ -130,7 +131,7 @@ class CommitParameters extends React.Component {
   render() {
     const { new_commit, ref_commit, config } = this.props;
     const { manifests, is_loaded, error } = this.state;
-    const { show_all_files, expand_all, files_filter } = this.state;
+    const { show_all_files, expand_all, files_filter, color_blind_friendly } = this.state;
 
     if (new_commit === null || new_commit === undefined)
     	return <span />;
@@ -166,6 +167,7 @@ class CommitParameters extends React.Component {
         show_all_files={show_all_files}
         expand_all={expand_all}
         files_filter={files_filter}
+        color_blind_friendly={color_blind_friendly}
       />
     </>
 
@@ -193,6 +195,18 @@ class CommitParameters extends React.Component {
             label="Expand all folders"
             checked={expand_all}
             onChange={this.toggle('expand_all', 'params_expand_all')}
+            style={{ width: "300px" }}
+          />
+        </FormGroup>
+        <FormGroup
+          inline
+          labelFor="color-blind-friendly"
+          style={{flex: '50 1 auto'}}
+        >
+          <Switch
+            label="Color-blind friendly"
+            checked={color_blind_friendly}
+            onChange={this.toggle('color_blind_friendly', 'params_color_blind_friendly')}
             style={{ width: "300px" }}
           />
         </FormGroup>

@@ -534,6 +534,7 @@ class OutputCard extends React.Component {
           style={style}
           show_all_files={this.props.show_all_files}
           expand_all={this.props.expand_all}
+          color_blind_friendly={this.props.color_blind_friendly}
           files_filter={this.props.files_filter}
         />
       } else {

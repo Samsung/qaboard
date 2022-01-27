@@ -218,7 +218,7 @@ const bit_accuracy_help = <Tooltip><Tag icon='help' minimal round large>Help</Ta
 
 class BitAccuracyForm extends React.Component {
   render() {
-    const { show_all_files, expand_all, files_filter, toggle, update } = this.props;
+    const { show_all_files, expand_all, color_blind_friendly, files_filter, toggle, update } = this.props;
     return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
       <FormGroup
         inline
@@ -242,6 +242,18 @@ class BitAccuracyForm extends React.Component {
           label="Expand all folders"
           checked={expand_all}
           onChange={toggle('expand_all')}
+          style={{ width: "300px" }}
+        />
+      </FormGroup>
+      <FormGroup
+        inline
+        labelFor="color-blind-friendly"
+        style={{flex: '50 1 auto'}}
+      >
+        <Switch
+          label="Color-blind-Friendly"
+          checked={color_blind_friendly}
+          onChange={toggle('color_blind_friendly')}
           style={{ width: "300px" }}
         />
       </FormGroup>
