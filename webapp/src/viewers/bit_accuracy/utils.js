@@ -244,12 +244,6 @@ class BitAccuracyForm extends React.Component {
           onChange={toggle('expand_all')}
           style={{ width: "300px" }}
         />
-      </FormGroup>
-      <FormGroup
-        inline
-        labelFor="color-blind-friendly"
-        style={{flex: '50 1 auto'}}
-      >
         <Switch
           label="Color-blind-Friendly"
           checked={color_blind_friendly}
