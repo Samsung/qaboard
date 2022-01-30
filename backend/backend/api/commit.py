@@ -67,8 +67,13 @@ def api_ci_commit(commit_id=None):
                      CiCommit.project_id==project_id,
                      CiCommit.hexsha.startswith(commit_id),
                    )
-                   .one()
+                   .all()
                   )
+      # fixme: some commits appear twice, one with a short hash...
+      # http://alginfra1:6001/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/2861963a2216816252660bfdd2d9f459ae80b547?reference=ae720d287&batch=default&filter=01_S5KRM1_Nona_12BIT_OUTD02_6576x4992_EIT1.40ms_AGx1_DGx1.ra&selected_views=bit_accuracy
+      # for commit in ci_commit:
+      #   print(commit, commit.hexsha)
+      ci_commit = ci_commit[0]
     except NoResultFound:
       try:
         # TODO: This is a valid use case for having read-rights to the repo,
