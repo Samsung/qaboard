@@ -197,12 +197,6 @@ class CommitParameters extends React.Component {
             onChange={this.toggle('expand_all', 'params_expand_all')}
             style={{ width: "300px" }}
           />
-        </FormGroup>
-        <FormGroup
-          inline
-          labelFor="color-blind-friendly"
-          style={{flex: '50 1 auto'}}
-        >
           <Switch
             label="Color-blind friendly"
             checked={color_blind_friendly}
