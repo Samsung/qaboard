@@ -74,7 +74,7 @@ def api_ci_commit(commit_id=None):
       # for commit in ci_commit:
       #   print(commit, commit.hexsha)
       ci_commit = ci_commit[0]
-    except NoResultFound:
+    except (NoResultFound, IndexError):
       try:
         # TODO: This is a valid use case for having read-rights to the repo,
         #       we can identify a commit by the tag/branch
