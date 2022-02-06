@@ -25,7 +25,6 @@ class SyncedVideos extends React.Component {
   };
 
   componentDidMount() { 
-    this.viewRefR.current.addEventListener("canplay", this.canplay_ref);
     this.viewNewR.current.addEventListener("play", this.play_ref);
     this.viewNewR.current.addEventListener("pause", this.pause_ref);
 
@@ -33,6 +32,16 @@ class SyncedVideos extends React.Component {
     this.viewNewR.current.addEventListener("seeked", this.syncReferenceVideoTwice);
     this.viewNewR.current.addEventListener('seeking', this.syncReferenceVideoTwice);
     this.viewNewR.current.addEventListener("waiting", this.syncReferenceVideoTwice);
+
+    if(!!this.viewRefR.current)
+      this.viewRefR.current.addEventListener("canplay", this.canplay_ref);
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    const is_same_data = this.props.manifests?.new?.[this.props.path]?.md5 === this.props.manifests?.reference?.[this.props.path]?.md5
+    const was_same_data = prevProps.manifests?.new?.[prevProps.path]?.md5 === prevProps.manifests?.reference?.[prevProps.path]?.md5
+    if(was_same_data && !is_same_data && !!this.viewRefR.current)
+      this.viewRefR.current.addEventListener("canplay", this.canplay_ref);
   }
 
   componentWillUnmount() {
