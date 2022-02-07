@@ -210,7 +210,7 @@ def update_project(data, db_session):
 
   # List all the files named "qaboard.yaml" in this commit
   repo_files = repo.git.ls_tree('--name-only', '-r', commit_id).splitlines()
-  projects_config_paths = [Path(f) for f in repo_files if f.endswith('qaboard.yaml') or f.endswith('qatools.yaml') ]
+  projects_config_paths = [Path(f) for f in repo_files if re.search(r'(/|^)qa(board|tools).yaml', f)]
   for subproject_config_path in projects_config_paths:
     project_id = str(root_project_id / subproject_config_path.parent)
     # Make sure the it exists in the database, with up-to-date metadata
