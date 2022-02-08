@@ -5,6 +5,13 @@ from .base import BaseRunner
 from .job import Job
 from ..run import RunContext 
 
+
+
+secrets = ("TOKEN", "ACCESS", "AUTH", "SECRET")
+def is_secret(env_variable):
+  return any([s in env_variable for s in secrets])
+
+
 class CeleryRunner(BaseRunner):
   type = "celery"
 
@@ -22,8 +29,10 @@ class CeleryRunner(BaseRunner):
     if 'cwd' in job_options:
       os.chdir(job_options['cwd'])
 
+    env = {k:v for k, v in os.environ.items() if not is_secret(k)}
+
     # https://docs.celeryproject.org/en/stable/userguide/canvas.html#canvas-group
-    g = group(start.s(job, cwd=cwd) for job in jobs)
+    g = group(start.s(job, cwd=cwd, env=env) for job in jobs)
     # We set the group ID with our own UUID to make cancellation easier to manage
     g.id = job_options['command_id']
     result = g()
@@ -50,6 +59,7 @@ class CeleryRunner(BaseRunner):
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+    return # FIXME: we should do something
     raise NotImplementedError
     # TODO: not sure whether we should .revoke(terminate=True)
     # TODO: one of the options below should work, but I don't have time to test it right now...
