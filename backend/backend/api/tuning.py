@@ -255,7 +255,14 @@ def start_tuning(hexsha):
     prev_mask = os.umask(000)
 
     batch_dir = batch.batch_dir
-    batch_dir = Path(str(batch_dir).replace('/ispq/', f'/{user}/'))
+    # FIXME: if the output directory includes "{user}", we will use the current user (qaboard)
+    # but it's likely better to use the user that requested the tuning
+    batch_dir = Path(str(batch_dir).replace('/outputs/qaboard/', f'/outputs/{user}/'))
+    if not batch.batch_dir_override:
+        batch.batch_dir_override = str(batch_dir)
+        db_session.add(batch)
+        db_session.commit()
+
     if not batch_dir.exists():
         batch_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
@@ -301,7 +308,8 @@ def start_tuning(hexsha):
     use_openstf = data["android_device"].lower() == "openstf"
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
     envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
-    outputs_dir_prefix = str(ci_commit.outputs_dir).replace('/ispq/', f'/{user}/')
+
+    outputs_dir_prefix = str(ci_commit.outputs_dir).replace('/outputs/qaboard/', f'/outputs/{user}/')
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
@@ -391,7 +399,6 @@ def start_tuning(hexsha):
     try:
         out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         out.check_returncode()
-        print(out.stdout)
     except:
-        return jsonify({"error": str(out.stdout), "cmd": str(cmd)}), 500
+        return jsonify({"error": (batch.batch_dir/'log.txt').read_text(), "cmd": str(cmd)}), 500
     return jsonify({"cmd": str(cmd), "stdout": str(out.stdout)})
