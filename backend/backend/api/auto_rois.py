@@ -22,18 +22,22 @@ from backend import app
 from ..models import Output
 
 
-@lru_cache(maxsize=2)
-def cached_read_image(image_path):
-  """
-  Simple LRU cache - the downside is that our images are huge so with 8 workers each saving 2 image, each 300MB, it's bad...
-  """
-  image_pil = Image.open(str(file))
+def read_image(image_path):
+  image_pil = Image.open(str(image_path))
   image = np.array(image_pil)
   meta = {
     # https://pillow.readthedocs.io/en/5.1.x/handbook/concepts.html#concept-modes
     "mode": image_pil.mode
   }
   return image, meta
+
+
+@lru_cache(maxsize=2)
+def cached_read_image(image_path):
+  """
+  Simple LRU cache - the downside is that our images are huge so with 8 workers each saving 2 image, each 300MB, it's bad...
+  """
+  return read_image(image_path)
 
 
 # TODO: - add locking when working with flask
