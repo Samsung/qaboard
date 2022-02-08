@@ -63,7 +63,7 @@ def on_branch(branch):
 def run_tests() -> int:
   if not test_funcs:
     click.secho("Warning: either you did not create tasks, or none were registered via `@on_branch`.", fg='yellow')
-    return 0
+    exit(0)
 
   click.secho(f"Running {len(test_funcs)} tasks", fg='green')
   if skipped_test_nb:
@@ -74,10 +74,10 @@ def run_tests() -> int:
     click.secho(test.__name__, bold=True)
     return_code = test()
     return return_code
-      
+  
   return_codes = Parallel(n_jobs=int(os.environ.get("QA_CI_HELPERS_N_JOBS", -1)), verbose=50)(delayed(run_test)(t) for t in test_funcs)
   if any((return_code is None for return_code in return_codes)):
-    click.secho(f"WARNING: Your test should return a return code (success==0)", fg='yellow', bold=True)   
+    click.secho(f"WARNING: Your test should return a return code (success==0)", fg='yellow', bold=True)
   return all((not return_code for return_code in return_codes))
 
 
