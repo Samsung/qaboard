@@ -80,6 +80,8 @@ WORKDIR /qaboard/backend
 COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
 RUN poetry install --extras qaboard
 
+# TODO: "poetry add" it 
+RUN pip install celery
 
 
 

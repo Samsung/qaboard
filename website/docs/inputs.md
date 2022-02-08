@@ -60,7 +60,7 @@ qa batch my-batch
 ```
 
 :::note
-We'll cover [batches in more depth later](batches-running-on-multiple-inputs). By default, batches run in parallel locally, but you can easily setup an async task queue like [Celery](celery-integration) or [others](https://github.com/Samsung/qaboard/wiki/Adding-new-runners).
+We'll cover [batches in more depth later](batches-running-on-multiple-inputs). By default, batches run in parallel locally, but you can easily setup an async task queue like [Celery](celery-integration) (built-in support), LSF or [others](https://github.com/Samsung/qaboard/wiki/Adding-new-runners).
 :::
 
 ## *(Optional)* Identifying inputs

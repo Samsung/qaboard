@@ -41,6 +41,7 @@ version: "3.5"
 volumes:
   data: {}              # git clones (and custom batches.yaml for now...)
   db: {}                # database with runs, projects, output metadata...
+  rabbitmq-data: {}
   cache_cantaloupe: {}  # cache for the iiif image server
   pgadmin: {}
   # all builds still available for smooth upgrades
@@ -103,6 +104,18 @@ services:
     # by default we assume you run the QA-Board on localhost, but will want to change this
     environment:
     - REACT_APP_QABOARD_HOST=http://localhost:5151
+
+  # Message broker used by the celery task scheduler
+  # https://hub.docker.com/_/rabbitmq
+  rabbitmq:
+    image: rabbitmq:3-management
+    # To store the data at a non-random location
+    hostname: rabbitmq-qaboard
+    volumes:
+    - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+    - ${QABOARD_PORT_RABBITMQ:-5672}:5672
+    - ${QABOARD_PORT_RABBITMQ_MNGT:-15672}:15672
 
   website:
     image: "arthurflam/qaboard:website"
