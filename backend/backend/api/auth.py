@@ -40,11 +40,13 @@ def signup():
     user = create_user({
       "email": request.form.get('email'),
       "user_name": request.form.get('user_name'),
+      "full_name": request.form.get('full_name'),
       "password": request.form.get('password'),
+      "is_ldap": False,
     })
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
-    return f"ERROR: The email or user name already exists", 403
+    return f"ERROR: The email or user name already exists. ({e})", 403
   return jsonify({"id": user.id}) # FIXME: return more info ?
 
 
