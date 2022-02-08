@@ -130,6 +130,8 @@ class Batch(Base):
       # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
       if command['runner'] == "lsf":
         bridge = os.environ.get("QA_RUNNERS_LSF_BRIDGE")
+      else:
+        bridge = None
       jobs = JobGroup(job_options={
         "type": command['runner'],
         "command_id": command_id,
@@ -139,6 +141,8 @@ class Batch(Base):
       try:
         jobs.stop()
       except Exception as e:
+        print(e)
+        raise e
         errors.append(str(e))
         continue
     if errors:
