@@ -24,10 +24,11 @@ def check_gitlab_token():
   if not gitlab_token:
     click.secho("WARNING: GITLAB_ACCESS_TOKEN is not defined.", fg='yellow', bold=True, err=True)
     click.secho("         Please provide it as an environment variable: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html", fg='yellow', err=True)
+  return gitlab_token
 
 
 def ci_commit_data(commit_id):
-  check_gitlab_token()
+  assert check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}"
   r = requests.get(url, headers=gitlab_headers)
   r.raise_for_status()
