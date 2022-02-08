@@ -254,8 +254,7 @@ class CiCommit(Base):
             if "git" not in project.data:
               project.data["git"] = {}
             if "path_with_namespace" not in project.data["git"] and "name" in data["qaboard_config"].get("project", {}): # FIXME: it really should be Project.root
-              # FIXME: Doesn't support updates for now... again should have .id: int, name: str, root: str...
-              project.data["git"]["path_with_namespace"] = data["qaboard_config"]["project"]["name"]
+              project.data["git"]["path_with_namespace"] = data['project_root'] or data["qaboard_config"]["project"]["name"]
             project.data.update({'qatools_config': data['qaboard_config']})
             if "qaboard_metrics" in data:
               project.data.update({'qatools_metrics': data["qaboard_metrics"]})
