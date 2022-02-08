@@ -60,7 +60,9 @@ class Output(Base):
     # https://stackoverflow.com/questions/30885846/how-to-create-jsonb-index-using-gin-on-sqlalchemy
     # https://www.postgresql.org/docs/8.3/indexes-opclass.html
     # CREATE INDEX idx_outputs_data_user ON outputs((data -> 'user'));
-    Index('idx_outputs_data_user', text("(data->'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
+    # ProgrammingError: (psycopg2.errors.UndefinedObject) data type json has no default operator class for access method "btree"
+    # https://sqlalche.me/e/14/f405
+    Index('idx_outputs_data_user', text("(data->>'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
     # we can't create an btree index on everything because JSON values can be big
     # https://github.com/doorkeeper-gem/doorkeeper/wiki/How-to-fix-PostgreSQL-error-on-index-row-size
