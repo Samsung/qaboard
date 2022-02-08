@@ -315,7 +315,7 @@ def start_tuning(hexsha):
         f.write(qa_batch_script)
 
     batch.output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = ['bash', '-c', f'"{qa_batch_path}" &> "{batch.batch_dir}/log.txt"']
+    cmd = ['bash', '-c', f'"{qa_batch_path}" &>> "{batch.batch_dir}/log.txt"']
     print(cmd)
     try:
         out = subprocess.run(cmd, encoding='utf-8')
