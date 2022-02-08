@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+qaboard_url = os.getenv('QABOARD_URL', 'http://qaboard')
+
 # we clone our repositories locally here to access commit metadata
 git_server = os.getenv('GITLAB_HOST', 'https://gitlab.com')
 

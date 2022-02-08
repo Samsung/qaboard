@@ -377,6 +377,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     """
     from .config import is_in_git_repo, commit_branch, is_ci, outputs_project_root, repo_root
     from .gitlab import lastest_successful_ci_commit
+    from .api import qaboard_url
     from .conventions import get_commit_dirs
     from .git import latest_commit, git_parents
 
@@ -472,5 +473,5 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"https://qa/{project.as_posix()}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy", fg='red')
+          click.secho(f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy", fg='red')
       exit(1)

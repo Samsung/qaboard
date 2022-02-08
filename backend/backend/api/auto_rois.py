@@ -19,7 +19,7 @@ from cde.image import read_image, ImageType
 from qaboard.api import url_to_dir 
 from backend import app
 from ..models import Output
-
+from ..config import qaboard_url
 
 @lru_cache(maxsize=2)
 def cached_read_image(image_path):
@@ -269,7 +269,7 @@ def get_rois():
   time_tuple = time.localtime() # get struct_time
   time_string = time.strftime("%d%m%Y_%H%M%S", time_tuple)
   report_path = f"{report_folder}/{time_string}_report.pdf"
-  report_url = f"https://qa/s/{report_folder}/{time_string}_report.pdf"
+  report_url = f"{qaboard_url}/s/{report_folder}/{time_string}_report.pdf"
   Path(report_folder).mkdir(parents=True, exist_ok=True)
 
   image_1, meta_1 = read_image(Path(new_url))
