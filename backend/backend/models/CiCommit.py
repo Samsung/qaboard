@@ -118,7 +118,8 @@ class CiCommit(Base):
 
   @property
   def repo_outputs_dir(self):
-    return self.project.storage_roots['outputs'] / get_commit_dirs(self)
+    config = self.data.get('qatools_config', {})
+    return self.project.storage_roots(config)['outputs'] / get_commit_dirs(self)
 
   @property
   def outputs_url(self) -> str:
