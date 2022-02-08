@@ -313,7 +313,6 @@ def start_tuning(hexsha):
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
-            'printf "\n";\n\n',
             # qa uses click, which hates non-utf8 locales
             'export LC_ALL=en_US.utf8;\n',
             'export LANG=en_US.utf8;\n\n',
