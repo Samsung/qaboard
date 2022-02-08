@@ -104,7 +104,8 @@ class CiCommit(Base):
         return Path(repo_artifacts_dir)
       else:
         return Path(self.commit_dir_override)
-    return self.project.storage_roots['artifacts'] / get_commit_dirs(self)
+    config = self.data.get('qatools_config', {})
+    return self.project.storage_roots(config)['artifacts'] / get_commit_dirs(self)
 
   @property
   def artifacts_url(self) -> str:
