@@ -19,6 +19,7 @@ from qaboard.utils import copy
 from qaboard.conventions import serialize_config
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_hash
+from ..config import qaboard_url
 
 # https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
 @lru_cache(maxsize=4096)
@@ -319,7 +320,7 @@ def export_to_folder():
     "filter_ref": filter_ref if filter_ref else None,
   }
   params = {k: quote(v) for k, v in params.items() if v}
-  url = f"https://qa/{project_id}/commit/{new_commit.hexsha}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+  url = f"{qaboard_url}/{project_id}/commit/{new_commit.hexsha}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
   redirect = f"""<!DOCTYPE HTML>
   <html lang="en-US">
       <head>
