@@ -164,6 +164,7 @@ def delete_batch(batch_id):
     return f"404 ERROR:\nNot found", 404
   stop_status = batch.stop(db_session)
   if "error" in stop_status:
+    print(stop_status)
     return jsonify(stop_status), 500
   soft = request.args.get('soft') == 'true'
   only_failed = request.args.get('only_failed') == 'true'
