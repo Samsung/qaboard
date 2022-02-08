@@ -555,7 +555,7 @@ class TuningForm extends Component {
       </FormGroup>} */}
 
       {lsf_runner &&<Tooltip>
-        <Tag key={`Run as: ${user}`} icon="user" intent={Intent.PRIMARY} large minimal style={{marginRight: '5px', marginBottom: '5px'}}>{`Run as: ${user}`}</Tag>
+        <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
         Make sure to setup your shell environment correctly
       </Tooltip>}
 
