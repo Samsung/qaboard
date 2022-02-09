@@ -17,8 +17,6 @@ import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
-from cde.image.read import hex_attributes
-
 
 
 def merge(src: Dict, dest: Dict) -> Dict:
@@ -290,12 +288,6 @@ def _file_info(path : Path, compute_hashes=True):
 
     if compute_hashes:
         info['md5'] = md5_hex(path)
-        if path.suffix == '.hex':
-          hex_attr = hex_attributes(path)
-          hash_length = hex_attr.get('footer_start_pos')
-          if hash_length: # exclude the footer from the image data hash
-            info['md5_data'] = md5_hex(path, hash_length)
-            info['md5_footer'] = hashlib.md5(json.dumps(hex_attr, sort_keys=True).encode('utf-8')).hexdigest()
     return info
 
 
