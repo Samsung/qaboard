@@ -257,7 +257,7 @@ def start_tuning(hexsha):
     batch_dir = batch.batch_dir
     # FIXME: if the output directory includes "{user}", we will use the current user (qaboard)
     # but it's likely better to use the user that requested the tuning
-    batch_dir = Path(str(batch_dir).replace('/outputs/qaboard/', f'/outputs/{user}/'))
+    batch_dir = Path(str(batch_dir).replace('/outputs/ispq/', f'/outputs/{user}/'))
     if not batch.batch_dir_override:
         batch.batch_dir_override = str(batch_dir)
         db_session.add(batch)
@@ -309,7 +309,7 @@ def start_tuning(hexsha):
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
     envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
 
-    outputs_dir_prefix = str(ci_commit.outputs_dir).replace('/outputs/qaboard/', f'/outputs/{user}/')
+    outputs_dir_prefix = str(ci_commit.outputs_dir).replace('/outputs/ispq/', f'/outputs/{user}/')
     qa_batch_script = "".join(
         [
             "#!/bin/bash\n",
