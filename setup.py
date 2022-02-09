@@ -60,6 +60,11 @@ setup(
       'flake8', # lint
       'green',  # test runner
       'mypy',   # type hint checks
+      # or call: mypy --install-types
+      'types-PyYAML',
+      'types-simplejson',
+      'types-requests',
+      'types-setuptools',
       # 'black' # TODO: formatter 
     ],
   },
