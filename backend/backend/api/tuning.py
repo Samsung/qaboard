@@ -256,7 +256,14 @@ def start_tuning(hexsha):
     prev_mask = os.umask(000)
 
     batch_dir = batch.batch_dir
-    batch_dir = Path(str(batch_dir).replace('/ispq/', f'/{user}/'))
+    # FIXME: if the output directory includes "{user}", we will use the current user (qaboard) to do the run
+    # but it's likely better to use the user that requested the tuning... in depends on the job scheduler capabilities
+    batch_dir = Path(str(batch_dir).replace('/outputs/qaboard/', f'/outputs/{user}/'))
+    if not batch.batch_dir_override:
+        batch.batch_dir_override = str(batch_dir)
+        db_session.add(batch)
+        db_session.commit()
+
     if not batch_dir.exists():
         batch_dir.mkdir(exist_ok=True, parents=True)
     os.umask(prev_mask)
@@ -322,7 +329,7 @@ def start_tuning(hexsha):
         f"export QA_BATCH_COMMAND_ID='{command_id}';\n\n",
         f"export GIT_COMMIt='{ci_commit.hexsha}'",
         # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
-        f"export QA_OUTPUTS_COMMIT='{ci_commit.commit_dir}'",
+        f"export QA_OUTPUTS_COMMIT='{str(ci_commit.commit_dir).replace('/outputs/qaboard/', f'/outputs/{user}/')}'",
         "",
         batch_command,
         "",
@@ -339,5 +346,5 @@ def start_tuning(hexsha):
         out = subprocess.run(cmd, encoding='utf-8')
         out.check_returncode()
     except:
-        return jsonify({"error": str(out.stdout), "cmd": str(cmd)}), 500
+        return jsonify({"error": (batch.batch_dir/'log.txt').read_text(), "cmd": str(cmd)}), 500
     return jsonify({"cmd": str(cmd), "stdout": str(out.stdout)})
