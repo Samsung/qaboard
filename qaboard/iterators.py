@@ -53,15 +53,15 @@ def match(value, value_filter) -> bool:
   elif isinstance(value_filter, str):
     number_spec = re.match(r'(==?|<=?|>=?)(.*)', value_filter)
     if number_spec:
-      if not isinstance(value, numbers.Number):
+      if not isinstance(value, numbers.Real):
         return False
       operator, value_filter = number_spec.groups()
       value_filter = float(value_filter)
       if operator in ['=', '==']: return value == value_filter
-      if operator == '>=': return value >= value_filter
-      if operator == '<=': return value <= value_filter
-      if operator == '>': return value > value_filter
-      if operator == '>': return value > value_filter
+      if operator == '>=': return float(value) >= value_filter
+      if operator == '<=': return float(value) <= value_filter
+      if operator == '>': return float(value) > value_filter
+      if operator == '>': return float(value) > value_filter
       return False
     else:
       return fnmatch.fnmatch(value.casefold(), value_filter.casefold())

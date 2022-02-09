@@ -34,6 +34,7 @@ if custom_cmp:
     # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
     import importlib.util
     spec = importlib.util.spec_from_file_location('custom-cmp', str(cmp_source))
+    assert spec
     module = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(cmp_source.parent))
     spec.loader.exec_module(module) # type: ignore
