@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkApache_2_0=self.webpackChunkApache_2_0||[]).push([[1089],{6709:function(e){e.exports=JSON.parse('{"permalink":"/qaboard/blog","page":1,"postsPerPage":10,"totalPages":1,"totalCount":2,"previousPage":null,"nextPage":null,"blogDescription":"Blog","blogTitle":"Blog"}')}}]);

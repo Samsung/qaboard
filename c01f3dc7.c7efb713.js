@@ -1,1 +1,0 @@
-(window.webpackJsonp=window.webpackJsonp||[]).push([[45],{100:function(a){a.exports=JSON.parse('{"allTagsPath":"/qaboard/blog/tags","slug":"quality-ops","name":"qualityops","count":1,"permalink":"/qaboard/blog/tags/quality-ops"}')}}]);

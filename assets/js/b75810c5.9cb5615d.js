@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkApache_2_0=self.webpackChunkApache_2_0||[]).push([[7511],{8255:function(e){e.exports=JSON.parse('{"allTagsPath":"/qaboard/blog/tags","slug":"/qaboard/blog/tags/engineering","name":"engineering","count":2,"permalink":"/qaboard/blog/tags/engineering"}')}}]);

@@ -1,1 +1,0 @@
-(window.webpackJsonp=window.webpackJsonp||[]).push([[38],{94:function(a){a.exports=JSON.parse('{"allTagsPath":"/qaboard/blog/tags","slug":"performance","name":"performance","count":1,"permalink":"/qaboard/blog/tags/performance"}')}}]);
