@@ -117,6 +117,19 @@ services:
     - ${QABOARD_PORT_RABBITMQ:-5672}:5672
     - ${QABOARD_PORT_RABBITMQ_MNGT:-15672}:15672
 
+  # https://flower.readthedocs.io/en/latest/config.html#options
+  flower:  
+    image: mher/flower
+    environment:
+      - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
+      - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
+      - FLOWER_PORT=8888
+      - FLOWER_URL_PREFIX=flower
+    ports:
+      - "8888:8888"  
+    depends_on: 
+        - rabbitmq
+
   website:
     image: "arthurflam/qaboard:website"
     build:
@@ -156,6 +169,7 @@ services:
     depends_on:
     - backend
     - cantaloupe
+    - flower
 
   # IIIF image server to serve images as tiles
   cantaloupe:

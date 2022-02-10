@@ -36,8 +36,12 @@ services:
   proxy:
     restart: always
   cantaloupe:
+    restart: always  
+  rabbitmq:
     restart: always
-  
+  flower:
+    restart: always
+
   # # Adapted from https://devopsheaven.com/cron/docker/alpine/linux/2017/10/30/run-cron-docker-alpine.html
   # # To trigger a backup manually call: docker-compose -f docker-compose.yml -f production.yml up -d cron-backup-db
   # # docker-compose run /etc/periodic/daily/backup
@@ -64,21 +68,3 @@ services:
   #   volumes:
   #   - ./services/db/backup:/etc/periodic/daily/backup:ro
   #   - /WHERE/TO/SAVE/BACKUPS:/backups
-
-  rabbitmq:
-    restart: always
-
-  # https://flower.readthedocs.io/en/latest/config.html#options
-  flower:  
-    image: mher/flower
-    environment:
-      - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
-      - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
-      - FLOWER_PORT=8888
-      - FLOWER_URL_PREFIX=flower
-    ports:
-      - "8888:8888"  
-    depends_on: 
-        - rabbitmq
-    restart: always
-
