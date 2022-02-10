@@ -55,6 +55,9 @@ qa batch --runner=local my-batch
 
 Note that unless you have a transparent shared storage for your working directory, you'll need to use `qa --share batch` to see runs in QA-Board...
 
+## Monitoring
+- A [`flower`](https://flower.readthedocs.io/en/latest/) instance is available at `<QABOARD_HOST>/flower`
+- Read the [docs](http://docs.celeryproject.org/en/latest/userguide/monitoring.html).
 ## Advanced Celery Configuration 
 To configure Celery at the **project level**:
 
@@ -98,5 +101,3 @@ Read [Celery's tutorial](http://docs.celeryproject.org/en/latest/getting-started
 :::
 
 Celery's [worker user guide](https://docs.celeryproject.org/en/stable/userguide/workers.html) has lots of information on how to run [worker in the background](https://docs.celeryproject.org/en/stable/userguide/daemonizing.html#daemonizing), set [concurrency](https://docs.celeryproject.org/en/stable/userguide/workers.html#concurrency)... Check it out too as needed!
-
-If you need worker monitoring, read the [docs](http://docs.celeryproject.org/en/latest/userguide/monitoring.html).

@@ -4,7 +4,7 @@
 [tool.poetry]
 name = "backend"
 # name = "qaboard" # used to be backend, poetry issues..
-version = "0.3.0"
+version = "1.0.1"
 description = "Backend for QA-Board"
 authors = ["Arthur Flam <arthur.flam@samsung.com>"]
 license="Apache-2.0"
