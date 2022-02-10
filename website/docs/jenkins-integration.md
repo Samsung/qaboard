@@ -1,11 +1,10 @@
-de ---
+---
 id: jenkins-integration
 title: Using jenkins as a task runner
 sidebar_label: Jenkins Integration
 ---
 
-[Jenkins](https://www.jenkins.io/) can be used a distributed task queue.
-
+[Jenkins](https://www.jenkins.io/) can be used a distributed task queue. It's not pretty, but it can work...
 
 ## Creating a Build Job that `qa` will use
 1. QA-Board needs to be [setup](deploy) with the ENV variable `JENKINS_AUTH`, in order to communicate with jenkins.
