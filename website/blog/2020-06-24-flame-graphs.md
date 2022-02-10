@@ -1,11 +1,9 @@
 ---
 title: Creating and viewing flame graphs with QA-Board
-author: Arthur Flam
-author_url: https://shapescience.xyz/
-author_title: Algo engineering at Samsung
-author_image_url: https://media-exp1.licdn.com/dms/image/C4D03AQFO_tBlzPZ4ug/profile-displayphoto-shrink_400_400/0?e=1602720000&v=beta&t=35CS2a0jRg32mhVbwpqbddP8HJsFp75hLeQJjAHQHCw
 tags: [performance, engineering, visualization]
 image: https://samsung.github.io/qaboard/img/slides/flame-graphs.jpg
+authors: [arthurf]
+hide_table_of_contents: false
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
@@ -148,3 +146,4 @@ outputs:
 
 <img alt="Flame graph viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
 
+<img alt="Flame graph viewer" src="/img/slides/flame-graphs.jpg" />

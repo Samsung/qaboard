@@ -1,136 +1,162 @@
+// @ts-check
+// Note: type annotations allow type checking and IDEs autocompletion
 const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
 const publish_github_samsung_public  = process.env.PUBLISH === 'github_samsung_public' 
-const is_for_webapp = !publish_github_samsung_private && !publish_github_samsung_public
+const is_for_webapp = process.env.QABOARD_DOCS_FOR_WEBAPP === "true"
+// console.log("is_for_webapp", is_for_webapp)
+// console.log("publish_github_samsung_private", publish_github_samsung_private)
+// console.log("publish_github_samsung_public", publish_github_samsung_public)
 
-// See https://docusaurus.io/docs/site-config for all the possible site configuration options.
+const lightCodeTheme = require('prism-react-renderer/themes/github');
+const darkCodeTheme = require('prism-react-renderer/themes/dracula');
+
 const logo = {
   alt: 'QA-Board Logo',
   // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
-  src: 'img/twemoji_poodle.svg',
+  src: '/img/twemoji_poodle.svg',
 }
 
-var config = {
+
+/** @type {import('@docusaurus/types').Config} */
+let config = {
   title: 'QA-Board',
   tagline: "Algorithm engineering is hard enough.<br/>Don't waste time with logistics.",
-  // You may provide arbitrary config keys to be used as needed by your
-  // template. For example, if you need your repo's URL...
-
-  // scripts: [
-  // Add custom scripts here that would be placed in <script> tags.
-  //'https://buttons.github.io/buttons.js'
-  // ],
-
+  url: 'https://samsung.github.io',
+  onBrokenLinks: 'warn', // log
+  onBrokenMarkdownLinks: 'warn',
   // https://realfavicongenerator.net/
   favicon: 'img/favicon/favicon-32x32.png',
-  customFields: {
-    description:
-      "Algorithm engineering is hard enough. Don't waste time with logistics.",
-  },
-  onBrokenLinks: 'log',
-  themeConfig: {
-    image: "img/share.jpg",
-    announcementBar: {
-      id: 'supportus',
-      backgroundColor: '#1064d3',
-      textColor: 'white',
-      content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
-    },
-    prism: {
-      additionalLanguages: ['nginx'],
-      theme: require('prism-react-renderer/themes/github'),
-      darkTheme: require('prism-react-renderer/themes/dracula'),
-    },
-    footer: {
-      logo,
-      copyright: "Made with ❤️ at Samsung. Apache 2.0 License. Built with Docusaurus.",
-    },
-    navbar: {
-      title: 'QA-Board',
-      logo,
-      hideOnScroll: true,
-      items: [
-        {to: is_for_webapp ? '/introduction' : 'docs/introduction', label: 'Docs', position: 'left'},
-        {
-          href: 'https://github.com/Samsung/qaboard',
-          position: 'left',
-          label: 'Source',
-        },
-        {
-          href: 'https://samsung.github.io/qaboard/blog',
-          position: 'left',
-          label: 'Blog',
-        },
-        {
-          href: 'https://github.com/Samsung/qaboard',
-          position: 'right',
-          className: 'header-github-link',
-          'aria-label': 'GitHub repository',
-        }
-      ],
-    },
-    // removes "active" color on parent sidebar categories :|
-    // sidebarCollapsible: false,
-  },
-};
+  projectName: 'qaboard', // Usually your repo name.
+  organizationName: 'Samsung',
+  baseUrl: '/qaboard/',
+  deploymentBranch: 'gh-pages',
 
-
-
-config = {
-  ...config,
   presets: [
     [
-      '@docusaurus/preset-classic',
-      {
+      'classic',
+      /** @type {import('@docusaurus/preset-classic').Options} */
+      ({
+        docs: {
+          sidebarPath: require.resolve('./sidebars.js'),
+          // Please change this to your repo.
+          editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/docs',
+        },
+        blog: {
+          showReadingTime: true,
+          // Please change this to your repo.
+          editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/blog',
+        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
-          // only accepts 1 field :|
-          // customCss: [
-          //   require.resolve('./src/css/custom.css'),
-          //   require.resolve('remark-admonitions/styles/infima.css'),
-          // ],
         },
-        // blog: {
-        //   remarkPlugins: [admonitions],
-        // },
-        docs: {
-          path: 'docs',
-          routeBasePath: 'docs',
-          sidebarPath: require.resolve('./sidebars.js'),
-          editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/',
-
-          // Show documentation's last contributor's name.
-          // enableUpdateBy: true,
-          // Show documentation's last update time.
-          // enableUpdateTime: true,        
-        },
-      },
+      }),
     ],
   ],
-}
 
-
-if (publish_github_samsung_public) {
-  config.themeConfig.algolia = {
-    apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
-    indexName: 'samsung_qaboard',
-    algoliaOptions: {
-      // facetFilters: [`version:${versions[0]}`],
-    },
-  }
-} else {
-  config.plugins = [require.resolve('docusaurus-lunr-search')]
-}
-
+  themeConfig:
+    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
+    ({
+      image: "img/share.jpg",
+      hideableSidebar: true,
+      navbar: {
+        title: 'QA-Board',
+        logo,
+        hideOnScroll: true,
+        items: [
+          {docId: 'introduction', label: 'Docs', type: 'doc', position: 'left'},
+          {
+            // link to other docs, or href links...
+            // type: 'doc', docId: 'intro',
+            href: 'https://github.com/Samsung/qaboard',
+            position: 'left',
+            label: 'Source',
+          },
+          {
+            href: 'https://samsung.github.io/qaboard/blog',
+            position: 'left',
+            label: 'Blog',
+          },
+          {
+            href: 'https://github.com/Samsung/qaboard',
+            position: 'right',
+            className: 'header-github-link',
+            'aria-label': 'GitHub repository',
+          }
+        ],
+      },
+      footer: {
+        style: 'dark',
+        links: [
+          {
+            title: 'Docs',
+            items: [
+              {
+                label: 'Introduction',
+                to: '/docs/introduction',
+              },
+            ],
+          },
+          // {
+          //   title: 'Community',
+          //   items: [
+          //     {
+          //       label: 'Stack Overflow',
+          //       href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+          //     },
+          //     {
+          //       label: 'Discord',
+          //       href: 'https://discordapp.com/invite/docusaurus',
+          //     },
+          //     {
+          //       label: 'Twitter',
+          //       href: 'https://twitter.com/docusaurus',
+          //     },
+          //   ],
+          // },
+          {
+            title: 'More',
+            items: [
+              {
+                label: 'Blog',
+                to: '/blog',
+              },
+              {
+                label: 'GitHub',
+                href: 'https://github.com/Samsung/qaboard',
+              },
+            ],
+          },
+        ],
+        copyright: "Made with ❤️ at Samsung. Apache 2.0 License. Built with Docusaurus.",
+      },
+      prism: {
+        additionalLanguages: ['nginx'],
+        theme: lightCodeTheme,
+        darkTheme: darkCodeTheme,
+      },
+      announcementBar: {
+        id: 'supportus',
+        content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
+        backgroundColor: '#1064d3',
+        textColor: 'white',
+      },
+      algolia: {
+        appId: 'BH4D9OD16A',
+        apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
+        indexName: 'samsung_qaboard',
+      }
+    }),
+};
 
 
 if (is_for_webapp) {
   // build for the app at /docs
   config = {
     ...config,
-    url: 'https://qa', // Your website URL
-    baseUrl: '/docs/', // Base URL for your project */
+    url: process.env.QABOARD_URL,
+    baseUrl: '/docs/',
   }
-  config.presets[0][1].docs.routeBasePath = '';
+  config.presets[0][1].docs.routeBasePath = '/';
 } else {
   if (publish_github_samsung_private) {
     config = {
@@ -139,17 +165,6 @@ if (is_for_webapp) {
       baseUrl: '/pages/arthur-flam/qaboard/',
       githubHost: 'github.sec.samsung.net',
       organizationName: 'arthur-flam',
-      projectName: 'qaboard',
-    }  
-  }
-  if (publish_github_samsung_public) {
-    config = {
-      ...config,
-      url: 'https://samsung.github.io',
-      baseUrl: '/qaboard/',
-      githubHost: 'github.com',
-      organizationName: 'Samsung',
-      projectName: 'qaboard',
     }
   }
 }

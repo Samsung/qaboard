@@ -28,8 +28,9 @@ QA-Board has become a key collaborative tool at Samsung SIRC. Our main use-cases
 - **Regression**: users can check the progress on various metrics, and when needed, identify which commit caused a regression.
 - **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html) and track metrics for regressions.
 
-> Here are some screenshots:
+> Here are some screenshots, from slide 7:
 
 <figure class="video-container">
-  <iframe src="//www.slideshare.net/slideshow/embed_code/key/C3QrOdYHrRyB7d?startSlide=7" width="595" height="485" frameborder="0" marginwidth="0" marginheight="0" scrolling="no" style={{border: "1px solid #CCC", borderWidth: "1px", marginBottom: "5px", maxWidth: "100%"}} allowfullscreen></iframe>
+<iframe src="//www.slideshare.net/slideshow/embed_code/key/C3QrOdYHrRyB7d?startSlide=1" width="595" height="485" frameborder="0" marginwidth="0" marginheight="0" scrolling="no" style={{border: "1px solid #CCC", borderWidth: "1px", marginBottom: "5px", maxWidth: "100%"}} allowfullscreen>
+</iframe>
 </figure>

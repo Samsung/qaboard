@@ -1,15 +1,12 @@
 ---
 title: Introducing QA-Board
-author: Arthur Flam
-author_url: https://shapescience.xyz/
-author_title: Algo engineering at Samsung
-author_image_url: https://media-exp1.licdn.com/dms/image/C4D03AQFO_tBlzPZ4ug/profile-displayphoto-shrink_400_400/0?e=1602720000&v=beta&t=35CS2a0jRg32mhVbwpqbddP8HJsFp75hLeQJjAHQHCw
+authors: [arthurf]
 tags: [qualityOps, engineering]
 # description: Some description
 # image: https://example.com/image.png
 ---
 
-We are happy to introduce [QA-Board](samsung.github.io/qaboard) ([source](https://github.com/samsung/qaboard)), a run-tracker with advanced visualizations for algorithm and software engineers.
+We are happy to introduce [QA-Board](https://samsung.github.io/qaboard) ([source](https://github.com/samsung/qaboard)), a run-tracker with advanced visualizations for algorithm and software engineers.
 
 <!--truncate-->
 
@@ -49,10 +46,10 @@ QA-Board has become a key collaborative tool. Our main use-cases are:
 - **Regression**: users can check the progress on various metrics, and when needed, identify which commit caused a regression.
 - **Performance engineering**: save [`rr`](https://rr-project.org/)/[`perf`](http://www.brendangregg.com/perf.html) recordings, view [flame graphs](http://www.brendangregg.com/flamegraphs.html), [benchmark drivers](https://github.com/arthur-flam/sysbench-qaboard), and track metrics for regressions.
 
-> Here are some screenshots:
+> Here are some screenshots (from slide 7):
 
 <figure class="video-container">
-  <iframe src="//www.slideshare.net/slideshow/embed_code/key/C3QrOdYHrRyB7d?startSlide=7" width="595" height="485" frameborder="0" marginwidth="0" marginheight="0" scrolling="no" style={{border: "1px solid #CCC", borderWidth: "1px", marginBottom: "5px", maxWidth: "100%"}} allowfullscreen></iframe>
+  <iframe src="//www.slideshare.net/slideshow/embed_code/key/C3QrOdYHrRyB7d" width="595" height="485" frameborder="0" marginwidth="0" marginheight="0" scrolling="no" style={{border: "1px solid #CCC", borderWidth: "1px", marginBottom: "5px", maxWidth: "100%"}} allowfullscreen></iframe>
 </figure>
 
 
