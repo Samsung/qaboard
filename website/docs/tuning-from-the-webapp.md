@@ -13,7 +13,7 @@ When doing QA or during development, you often want to run the code/configs from
 
 ## Enabling tuning from QA-Board
 ### 1. Build artifacts
-You must have defined and be using [artifacts](/storage/artifacts)
+You must have defined and be using [artifacts](artifacts)
 
 ### 2. Distributed task queue
 You need to configure a task runner, that will execute tuning runs asynchronously. We recommend getting started with Celery. All the details are on the [next page](celery-integration)!

@@ -25,7 +25,7 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 ENV PATH /app/node_modules/.bin:$PATH
-RUN yarn config set strict-ssl false
+# RUN yarn config set strict-ssl false
 
 # RUN npm install -g yarn
 
@@ -37,7 +37,10 @@ COPY . ./
 
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than
 # when running from the application (/docs). So we don't use algolia for the app...
-RUN yarn run swizzle docusaurus-lunr-search SearchBar
+# RUN yarn run swizzle docusaurus-lunr-search SearchBar
+ENV QABOARD_DOCS_FOR_WEBAPP true
+ARG QABOARD_URL
+ENV QABOARD_URL=$QABOARD_URL
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

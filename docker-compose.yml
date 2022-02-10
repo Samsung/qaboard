@@ -123,6 +123,9 @@ services:
       cache_from: ["arthurflam/qaboard:website"]
       context: website
       shm_size: 4gb
+      # by default we assume you run the QA-Board on localhost, but will want to change this
+      args:
+        - QABOARD_URL=${QABOARD_URL:-http://localhost:5151}
     volumes:
     - website_builds:/builds
   

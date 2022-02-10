@@ -1,7 +1,7 @@
 // https://github.com/kamilkisiela/graphql-inspector/blob/2784988e06e38a36ebd82da02cb34a771387acfe/website/src/components/feature.js
 import React from 'react';
 
-import classnames from 'classnames';
+import clsx from 'clsx';
 import styles from './feature.module.css';
 
 export function Feature({reversed, title, img, text}) {
@@ -16,7 +16,7 @@ export function Feature({reversed, title, img, text}) {
   return (
     <div className={styles.featureContainer}>
       <div
-        className={classnames('col col--12', styles.featureContent, {[styles.reversed]: reversed === true})}
+        className={clsx('col col--12', styles.featureContent, {[styles.reversed]: reversed === true})}
       >
         {reversed ? (
           <>
