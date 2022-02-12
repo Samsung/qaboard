@@ -141,8 +141,8 @@ let config = {
         textColor: 'white',
       },
       algolia: {
-        appId: 'BH4D9OD16A',
-        apiKey: '4cb9a8cb80c2445a36b52bbb504db331',
+        appId: 'Q9000IO3JM',
+        apiKey: '7a265918a0d970f8f3f36e7fbb70f720',
         indexName: 'samsung_qaboard',
       }
     }),
