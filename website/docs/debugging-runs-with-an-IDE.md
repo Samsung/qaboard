@@ -12,7 +12,7 @@ Edit your "debug configurations" like this:
 - **Parameters:** CLI parameters for `qa`: **`run -i images/A.jpg`**.
 - **Working directory:** Check it’s defined as the directory with *qaboard.yaml*. If this directory happens to have a subfolder named "qaboard", use it.
 
-<img alt="pyCharm setup" src={useBaseUrl('img/pycharm-debugg.png')} />
+<img alt="pyCharm setup" src={useBaseUrl('img/pycharm-debugging-setup.png')} />
 
 > In some cases you'll also need to define as environment variables `LC_ALL=en_US.utf8 LANG=en_US.utf8`
 
