@@ -163,7 +163,10 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             # return
             continue
 
-        gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
+        try:
+            gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
+        except: # e.g. storage is defined as a single string
+            gc_config = {}
         can_delete_reference_branch = can_delete_reference_branch or gc_config.get('can_delete_reference_branch')
         before = gc_config.get('after', '1month') if not before else before
         old_treshold = now - parse_time(before)
