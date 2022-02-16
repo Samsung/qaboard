@@ -146,13 +146,25 @@ const MismatchTags = ({mismatch}) => {
 
 const RunBadges = ({output}) => {
   return (output.params?.badges ?? []).map( (badge, idx) => {
-      const tag = <Tag icon={badge.icon} minimal={badge.minimal} large={badge.large} rightIcon={badge.href && "share"} style={badge.style} intent={badge.intent}>{badge.text}</Tag>
       return <span key={idx} style={{marginRight: '5px'}}>
-        {!!badge.href ? <a rel="noopener noreferrer" target="_blank" href={badge.href}>
-          {tag}
-        </a> : tag}
+        <RunBadge badge={badge} key={idx}/>
       </span>
   })
+}
+const RunBadge = ({badge}) => {
+  const tag = <Tag
+    icon={badge.icon}
+    minimal={badge.minimal}
+    large={badge.large}
+    rightIcon={badge.href && "share"}
+    style={badge.style}
+    intent={badge.intent}>
+      {badge.text ?? (typeof badge==="string" ? badge : JSON.stringify(badge))}
+  </Tag>
+  return <>{!!badge.href ? <a rel="noopener noreferrer" target="_blank" href={badge.href}>
+    {tag}
+    </a> : tag}
+  </>
 }
 
 
@@ -327,4 +339,4 @@ class OutputTags extends React.Component {
 }
 
 
-export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadges, style_skeleton };
+export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
