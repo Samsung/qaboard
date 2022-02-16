@@ -11,6 +11,8 @@ Note:
 """
 import re
 import os
+import random
+import string
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
@@ -78,14 +80,18 @@ class LsfRunner(BaseRunner):
     # We've find it useful to dial back the priority if tuning jobs
     self.options.priority = LsfPriority.LOW if run_context.extra_parameters else LsfPriority.NORMAL
 
-
   @property
   def name(self):
+    # In some cases we want to use the LSF job name as docker container job name,
+    # It imposes restrictions on the length and characters we can use... 
     # We want a unique job name, with the same prefix as other related jobs
-    # so that's it's easy to list/kill them together
-    job_prefix = f"{self.run_context.job_options['command_id'][:8]}/"
-    output_dir_slug = re.sub(r"[^A-Za-z0-9/_]", "-", str(self.output_dir)) if self.output_dir else ''
-    return f"{job_prefix}{output_dir_slug}"
+    # so that's it's easy to list/await/kill them together
+    batch_prefix = self.run_context.job_options['command_id'][:8]
+    # we generate a random string for the run
+    # We used to include self.output_dir in the name, but it's too long and not super readable anyway
+    # if you need to know what job runs what, it is better to print the command or the log file
+    random_str = ''.join((random.choice(string.ascii_lowercase) for _ in range(12)))
+    return f"{batch_prefix}_{random_str}"
 
 
   def start(self, blocking=True, name: Optional[str] = None, flags: str = ''):
@@ -161,7 +167,6 @@ class LsfRunner(BaseRunner):
       raise Exception("Failed to send jobs to LSF")
     return out
 
-
   @staticmethod
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
     # start asynchronously the jobs 
@@ -187,8 +192,8 @@ class LsfRunner(BaseRunner):
       waiting_job.runner.options = dict_to_LsfOptions(job_options)
       waiting_job.runner.command = 'echo Done'
       waiting_job.runner.output_dir = None # disable logging
-      lsf_job_prefix = f"{job_options['command_id'][:8]}/"
-      waiting_job.start(blocking=True, name=f'{lsf_job_prefix}WAIT', flags=f'-w "ended({lsf_job_prefix}*)"')
+      batch_prefix = f"{job_options['command_id'][:8]}_"
+      waiting_job.start(blocking=True, name=f'{batch_prefix}WAIT', flags=f'-w "ended({batch_prefix}*)"')
 
       # Our shared storage takes a while to sync when using LSF. It should be solved, and this sleep removed...
       if not all([j.id for j in jobs]): # if we can read the status from the database, no sync issue
@@ -201,7 +206,8 @@ class LsfRunner(BaseRunner):
       # We could dot this to be sure we explicitely kill all jobs 
       #   command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
       # But we're only sending jobs as part of a single command...
-      bkill = f'bkill -J "{job_options["command_id"][:8]}/*"'
+      batch_prefix = job_options["command_id"][:8]
+      bkill = f'bkill -J "{batch_prefix}*"'
       if job_options.get('bridge'):
         bkill = job_options.get('bridge', '').format(**job_options, bsub_command=bkill)
       secho(bkill, bold=True, err=True)
