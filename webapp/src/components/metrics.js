@@ -16,6 +16,7 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 
 import { noMetrics } from "./metricSelect";
+import { RunBadge } from "./tags";
 import { format, median, plotly_palette, match_query } from "../utils";
 
 
@@ -30,6 +31,9 @@ const color_ref_a = "rgba(55, 126, 184, .4)";
 const colors_a = [color_a, color_ref_a];
 
 const metric_formatter = (value, metric) => {
+  if (isNaN(value)) {
+    return value
+  }
   // 3 significant digits by default
   // https://mathjs.org/docs/reference/functions/format.html
   return format(value, {precision: metric?.precision ?? 3})
@@ -52,7 +56,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     <span>
       {metric_info.short_label}:{" "}
       <strong>
-        {typeof value !== 'number' ? JSON.stringify(value) : metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}
+        {isNaN(value) ? <RunBadge badge={value}/> : metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}
       </strong>
     </span>
   );
@@ -68,15 +72,14 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     <Tag style={{margin: '3px'}} minimal intent={!!metric_info.target ? intent : null}>
       {formatted_valued}
     </Tag>
-    <span>{metric_info.scale * metrics_new[metric_info.key]}{metric_info.suffix}</span>
+    <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
   </Tooltip>;
 
   if (metric_info.key === 'is_failed' && !metrics_new.is_failed) {
     metric_tag = <span/>
   }
 
-
-  if (metrics_ref !== undefined && metrics_ref[metric_info.key]) {
+  if (metrics_ref !== undefined && metrics_ref[metric_info.key] && metrics_ref[metric_info.key] !== metrics_new[metric_info.key]) {
     let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
     let delta_relative = delta / metrics_ref[metric_info.key];
     var intent_compare;
@@ -86,7 +89,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    var compare_tag = <Tag style={{margin: '3px'}} minimal intent={intent_compare}>{percent_formatter.format(100 * delta_relative)}%</Tag>;
+    var compare_tag = <Tag style={{margin: '3px'}} minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
   } else {
     compare_tag = <span/>;
   }

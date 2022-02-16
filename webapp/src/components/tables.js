@@ -11,7 +11,7 @@ import {
 } from "@blueprintjs/core";
 
 import { Section } from "./layout";
-import { PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags } from './tags'
+import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter } from "./metrics"
 
 
@@ -28,6 +28,7 @@ const RowHeaderCell = ({ output }) => {
   return (
     <th scope="row">
       {test_input} <ExtraParametersTags parameters={output.extra_parameters} />
+      <RunBadges output={output}></RunBadges>
       <PlatformTag platform={output.platform}/>
       <ConfigurationsTags configurations={output.configurations}/>
       <MismatchTags mismatch={output.reference_mismatch}/>
@@ -37,33 +38,36 @@ const RowHeaderCell = ({ output }) => {
 };
 
 const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
-  if (
-    !metrics_new ||
-    metrics_new[metric.key] === undefined ||
-    metrics_new[metric.key] === null
-  )
+  const metric_new = metrics_new[metric.key]
+  const metric_ref = metrics_ref[metric.key]
+  if (!metrics_new || metric_new === undefined || metric_new === null)
     return <td></td>;
-  if (
-    !metrics_ref ||
-    metrics_ref[metric.key] === undefined ||
-    metrics_ref[metric.key] === null
-  )
+  if (!metrics_ref || metric_ref === undefined || metric_ref === null)
     return <td></td>;
-  let delta = metrics_new[metric.key] - metrics_ref[metric.key];
-  let delta_relative = delta / (Math.abs(metrics_ref[metric.key]) + 0.00001);
-  let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
-  quality = Math.max(Math.min(quality, 0.9), 0.08)
-  return (
-    <td style={{ background: interpolateRdYlGn(quality) }}>
+
+  const is_numeric = !isNaN(metric_new) || !isNaN(metric_ref)
+  if (is_numeric) {
+    let delta = metric_new - metric_ref;
+    let delta_relative = delta / (Math.abs(metric_ref) + 0.00001);
+    let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
+    quality = Math.max(Math.min(quality, 0.9), 0.08)
+    return <td style={{ background: metric_ref && interpolateRdYlGn(quality) }}>
       <Tooltip>
         {delta === 0 ? "=" : <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>}
         <ul>
-          <li><strong>New:</strong> {metrics_new[metric.key] * metric.scale}{metric.suffix}</li>
-          <li><strong>Reference:</strong> {metrics_ref[metric.key] * metric.scale}{metric.suffix}</li>
+          <li><strong>New:</strong> {metric_new * metric.scale}{metric.suffix}</li>
+          <li><strong>Reference:</strong> {metric_ref * metric.scale}{metric.suffix}</li>
         </ul>
       </Tooltip>
     </td>
-  );
+  } else {
+    return <td>
+        {metric_new !== metric_ref ? "=" : <ul>
+          <li><RunBadge badge={metric_new}/></li>
+          <li><RunBadge badge={metric_ref}/></li>
+        </ul>}
+    </td>
+  }
 };
 
 const QualityCell = ({ metric_info, metric, metric_ref }) => {
@@ -80,12 +84,14 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
   }
   quality = Math.max(Math.min(quality, 0.9), 0.08)
   const color = interpolateRdYlGn(quality)
+  const is_numeric = !isNaN(metric)
+  const metric_for_display = is_numeric ? metric * metric_info.scale : metric
   return (
-    <td style={{ background: color }}>
-      <Tooltip>
-       <span>{metric_ref === metric ? '=' : metric_formatter(metric * metric_info.scale, metric_info)}</span>
-       <span>{metric * metric_info.scale}{metric_info.suffix}</span>
-      </Tooltip>
+    <td style={{ background: metric_info.target !== undefined && is_numeric && color }}>
+      {is_numeric ? <Tooltip>
+       <span>{metric_ref === metric ? '=' : metric_formatter(metric_for_display, metric_info)}</span>
+       <span>{metric_for_display}{metric_info.suffix}</span>
+      </Tooltip> : <span><RunBadge badge={metric}/></span>}
     </td>
   );
 };

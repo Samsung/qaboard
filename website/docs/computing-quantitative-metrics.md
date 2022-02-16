@@ -53,34 +53,68 @@ If it all goes well you get:
 - and evolution over time per branch...
 
 :::note
-We plan on not requiring you to define metrics ahead of time.
+We plan on not requiring you to define all metrics ahead of time...
 :::
 
-## Special "metrics"
-- `{"is_failed":True}` will have QA-Board consider the run as "failed". The main uses cases are:
+## Failed runs
+The metric `is_failed` is boolean. If true, QA-Board will consider the run as "failed".
+The main uses cases are:
+  * highlight in the UI
+  * failing runs that don't achieve a basic target quality (or where things just crash...)
   * simplifying the control flow, instead of raising an exception from `run()`
-  * failing runs that don't achieve a target quality
   * remembering if the `run` was successful, when users split between `run/postprocess` stages
-- `{"params": {...}}` makes it possible to display dynamic as "parameters" in the UI. The use-cases are:
-  * taking as configuration a unique machine learning model ID, then make it easy to view/filter its hyperparameters
 
-It is possible to **display badges** next to runs:
+## Returning rich metrics
+If you return string metrics, they will be shown the UI's tables and cards like this:
+
+<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/rich-metrics-in-card.png')} />
+
+You can return "rich" metrics to customize the display:
 
 ```python
-return {
-    "params": {
-        "badges": [
-            {
-                "text": "link to training",
-                # link to somewhere
-                "href": "https://example.com",
-                # must be selected from [blueprint's](https://blueprintjs.com/docs/#icons)
-                "icon": "settings",
-                # you can also tweak the [blueprint Tag](https://blueprintjs.com/docs/#core/components/tag) with `intent`, `style`, `large`, `minimal`
-            }
-        ]
+def run(context):
+    # ...
+    metrics = {
+        "loss": 1.345, # regular metric, loss has to be defined in qa/metrics.yaml
+        "status": "unstable", # string metric
+        # you can have more complex metrics..
+        "rich_status": {
+            "text": "unstable",
+            # link to somewhere
+            "href": "https://example.com",
+            "icon": "settings", # choose from https://blueprintjs.com/docs/#icons
+            "intent": "WARNING", # or PRIMARY|SUCCESS|WARNING
+            # the rendered "tag" supports all parameters of
+            #   https://blueprintjs.com/docs/#core/components/tag
+            # like "style" for CSS properties, large, minimal....
+        } 
     }
-}
+    return metrics
 ```
 
-The main use case for badges is linking to the training log of a machine learning model from the inference results. It enables smooth workflows between QA-Boad and other run-trackers focused on deep learning.
+## Metrics shown as a "run-time" configuration
+It is possible to add at run-time parameters to the run. The use-cases are:
+1. **making very visible a few key parameters** nested deep in a config-file, and enabling **filtering** by them
+2. **displaying links** next to runs, grouped with the configuration (and not the metrics like above!). Users often use those badges to do deep-learning inference on QA-Board, and easily link back to the training page, managed by a different product. They'll give a model ID as configuration, their `run()` will fetch the training page URL, and it enables smooth workflows.
+
+To make it happen, return in your metrics a `params` key:
+
+```python
+def run(context)
+    return {
+        # ...
+        "params": {
+            # in the UI users will see "mode" as part of the run parameters
+            "mode": "my-deep-learning-architecture",
+            # they will also see a "badge" linking to the model training page:
+            "badges": [
+                {
+                    "text": "link to training",
+                    "href": "https://example.com",
+                    "icon": "settings",
+                    # for more info on available key see above
+                }
+            ]
+        }
+    }
+```
