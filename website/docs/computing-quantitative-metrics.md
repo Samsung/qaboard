@@ -64,7 +64,7 @@ The main uses cases are:
   * simplifying the control flow, instead of raising an exception from `run()`
   * remembering if the `run` was successful, when users split between `run/postprocess` stages
 
-## Returning rich metrics
+## Rich metrics
 If you return string metrics, they will be shown the UI's tables and cards like this:
 
 <img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/rich-metrics-in-card.png')} />
@@ -97,6 +97,8 @@ It is possible to add at run-time parameters to the run. The use-cases are:
 1. **making very visible a few key parameters** nested deep in a config-file, and enabling **filtering** by them
 2. **displaying links** next to runs, grouped with the configuration (and not the metrics like above!). Users often use those badges to do deep-learning inference on QA-Board, and easily link back to the training page, managed by a different product. They'll give a model ID as configuration, their `run()` will fetch the training page URL, and it enables smooth workflows.
 
+<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/run-badges.png')} />
+
 To make it happen, return in your metrics a `params` key:
 
 ```python
@@ -105,12 +107,12 @@ def run(context)
         # ...
         "params": {
             # in the UI users will see "mode" as part of the run parameters
-            "mode": "my-deep-learning-architecture",
+            "mode": "GAN",
             # they will also see a "badge" linking to the model training page:
             "badges": [
                 {
-                    "text": "link to training",
-                    "href": "https://example.com",
+                    "text": "Training",
+                    "href": "https://wandb/run/<some-id>",
                     "icon": "settings",
                     # for more info on available key see above
                 }
