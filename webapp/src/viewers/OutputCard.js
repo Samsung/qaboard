@@ -267,14 +267,21 @@ class OutputCard extends React.Component {
       return;
     const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
     const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
-    let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id || prevProps.output_new.is_running !== this.props.output_new.is_running);
-    let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id || prevProps.output_ref.is_running !== this.props.output_ref.is_running);
+    const had_new = prevProps.output_new !== undefined && prevProps.output_new !== null;
+    const had_ref = prevProps.output_ref !== undefined && prevProps.output_ref !== null;
+
+    let updated_new = has_new && (!had_new || prevProps.output_new.id !== this.props.output_new.id || prevProps.output_new.is_running !== this.props.output_new.is_running);
+    let updated_ref = has_ref && (!had_ref || prevProps.output_ref.id !== this.props.output_ref.id || prevProps.output_ref.is_running !== this.props.output_ref.is_running);
+    updated_ref = updated_ref || had_ref && !has_ref
     if (updated_new) {
       if (!!this.state.cancel_source.new.token)
         this.state.cancel_source.new.cancel("Changed new output");
       this.fetchData('new');
     }
     if (updated_ref) {
+      this.setState({
+        manifests: {...this.state.manifests, reference: undefined},
+      })
       if (!!this.state.cancel_source.reference.token) {
         this.state.cancel_source.reference.cancel("Changed reference output");
         this.setState({
@@ -496,7 +503,7 @@ class OutputCard extends React.Component {
               new: this.state.manifests?.new?.[path]?.md5,
               reference: this.state.manifests?.reference?.[path]?.md5,
             }
-            const has_same_data = !!hash.new && hash.new === hash.reference
+            const has_same_data = !!hash.new && !!hash.reference && hash.new === hash.reference
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
               {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
