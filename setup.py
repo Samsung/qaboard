@@ -53,6 +53,8 @@ setup(
     'joblib',      # Parallelism for dummies
     'sklearn',
     'scikit-optimize',
+    # Only at SIRC
+    'git+ssh://git@gitlab-srv/cde/cde-python',
   ],
 
   extras_require={
