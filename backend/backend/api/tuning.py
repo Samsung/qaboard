@@ -348,7 +348,7 @@ def start_tuning(hexsha):
 
     qatools_config = ci_commit.project.data["qatools_config"]
     lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
-    queue = lsf_config.get("fast_queue", lsf_config['queue'])
+    queue = "alg_long_q" if do_optimize else lsf_config['queue']
     #     - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
     # print("QA_RUNNERS_LSF_BRIDGE", os.environ['QA_RUNNERS_LSF_BRIDGE'])
     start_script = "\n".join(
