@@ -54,7 +54,7 @@ setup(
     'sklearn',
     'scikit-optimize',
     # Only at SIRC
-    'git+ssh://git@gitlab-srv/cde/cde-python',
+    'cde @ git+ssh://git@gitlab-srv/cde/cde-python#cde',
   ],
 
   extras_require={
