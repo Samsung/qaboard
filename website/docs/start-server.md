@@ -23,7 +23,7 @@ chmod -R 777 /mnt/qabaord
 ```
 
 :::tip
-If you want to use a different folder, replace */mnt/qaboard* with your path in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
+If you want to use a different folder, find-and-replace */mnt/qaboard* with your path in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
 :::
 
 :::note Shared Storage?

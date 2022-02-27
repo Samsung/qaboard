@@ -5,7 +5,7 @@ sidebar_label: Defining Pipelines / DAG
 ---
 
 :::caution Work-In-Progress
-Nothing here is implemented available, it's at the API design stage. [[Link-to-issue]](https://github.com/Samsung/qaboard/issues/10).
+We have at Samsung a 'user-side' implementation of what's discussed here. We plan to upstream it into the core project. [[More Info]](https://github.com/Samsung/qaboard/issues/10). If you want us to release what we have _now_, just kindly ask and we'll do it sooner than planned.
 :::
 
 Currently QA-Board lacks expressivity for the common use-case of:

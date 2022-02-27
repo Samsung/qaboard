@@ -11,14 +11,7 @@ When doing QA or during development, you often want to run the code/configs from
 
 <img alt="Tuning from the UI" src={useBaseUrl('img/tuning-from-the-ui.jpg')} />
 
-## Investigating results/configs you see in the UI
-Every time you see an output in the web application, you see what configurations were used, and you can easily open the output directory:
-
-<img alt="Copy the Windows output dir" src={useBaseUrl('img/output-windows-dir.jpg')} />
-
-<img alt="Output directory from Windows" src={useBaseUrl('img/winows-explorer-output-dir.jpg')} />
-
-> The output logs always show you the exact CLI commands that were used, so that reproducing results is only a `git checkout $revision ; make ; qa run` away.
+$revision ; make ; qa run` away.
 
 
 ## Workflows used for Tuning

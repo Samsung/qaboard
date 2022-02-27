@@ -32,6 +32,7 @@ html[data-theme='dark'] {
 blockquote {
   /* samsung blue with lots of transparency */
   background-color: #0c4da224;
+  padding: 15px;
 }
 .docusaurus-highlight-code-line {
   background-color: rgba(0, 0, 0, 0.1);

@@ -9,7 +9,8 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 2. View in the web interface a list of all those files in the "Output Files" tab!
 3. Click on a file to open it:
 
-<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=bit_accuracy" src={useBaseUrl('img/output-files.png')} />
+<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?
+reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=bit_accuracy" src={useBaseUrl('img/output-files.png')} />
 
 QA-Board will try to guess the right file viewer depending on the extension. Many are available, read the [Read the visualizations guide](visualizations) to learn more.
 
@@ -22,6 +23,9 @@ All the outputs are saved as files. To get them out and QA-Board provides multip
 
 <img alt="Export batch outputs" src={useBaseUrl('img/copy-windows-output-dir.png')} />
 
+<img alt="Output directory from Windows" src={useBaseUrl('img/winows-explorer-output-dir.jpg')} />
+
 2. **From the Navigation bar**, you can copy-to-clipboard the windows-ish path where each commit saves its results:
 <img alt="Export batch outputs" src={useBaseUrl('img/export-commit-folder.png')} />
 
+> If you want to reproduce output files, the logs always show you the exact CLI commands that were used, so most of the time reproducing results is only a `git checkout` away.
