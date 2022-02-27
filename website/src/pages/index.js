@@ -133,6 +133,7 @@ export default function Home() {
             <p>
               Use Grid-Search or <strong>Black-box optimization</strong> (via <a href="https://scikit-optimize.github.io/">scikit-optimize</a>), and analyse trade-offs. Use <a href="https://github.com/Samsung/qaboard/wiki/Adding-new-runners">common tools</a> for distributed runs.
             </p>
+            <iframe width="560" height="315" src="https://www.youtube.com/embed/XN71PBr0Rvg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
           </>
         }
       />

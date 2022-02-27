@@ -35,6 +35,9 @@ available_metrics:
     # scale: 1     # e.g. 100 to convert [0-1] to percents...
     # by default we try to show 3 significant digits, but you can change it with
     # precision: 3
+
+# at the end of the file add your metrics to
+# default_metric/main_metrics/summary_metrics
 ```
 
 If it all goes well you get:

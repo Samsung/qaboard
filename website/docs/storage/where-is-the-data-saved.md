@@ -60,23 +60,26 @@ Even if you use `{user}` for outputs, if you ran a first tuning as a user then w
 **TODO:** Maybe `{user}` should evaluate to the current user name for outputs and to the committer name for artifacts. 
 :::
 
-## Storage locations
+## Accessing Storage locations programmatically
 In *qaboard.config.py* the location where things are stored is defined via:
-- `artifacts_root`: `/mnt/qaboard`
-- `artifacts_project`: `/mnt/qaboard/your/project`
-- `artifacts_commit_root`: `/mnt/qaboard/your/project/commits/$hash/subproject`
-- `artifacts_commit`: `/mnt/qaboard/your/project/commits/$hash`
-- `artifacts_branch`: `/mnt/qaboard/your/project/branches/branch-slug`
 
-Similarly, there are also: `outputs_root`, `outputs_project`, `outputs_commit`, `outputs_commit_root`.
+| variable                | sample value                                          |
+|-------------------------|-------------------------------------------------------|
+| `artifacts_root`        | `/mnt/qaboard`                                        |
+| `artifacts_project`     | `/mnt/qaboard/your/project`                           |
+| `artifacts_commit_root` | `/mnt/qaboard/your/project/commits/$hash/subproject`  |
+| `artifacts_commit`      | `/mnt/qaboard/your/project/commits/$hash`             |
+| `artifacts_branch`      | `/mnt/qaboard/your/project/branches/branch-slug`      |
+
+> Similarly, there are also: `outputs_root`, `outputs_project`, `outputs_commit`, `outputs_commit_root`.
 
 :::tip
-In your CI, you can save e.g. coverage reports at `$(qa get artifacts_branch)`, and make them easily [accessible as links](https://samsung.github.io/qaboard/docs/triggering-third-party-tools) with `href: /s/mnt/qaboardyour/project/branches/{commit.branch_slug}/coverage`.
+In your CI, you can save e.g. coverage reports at `$(qa get artifacts_branch)`, and make them easily [accessible as links](https://samsung.github.io/qaboard/docs/triggering-third-party-tools) as sidebar menus with `href: /s/mnt/qaboardyour/project/branches/{commit.branch_slug}/coverage`.
 
-**TODO:** We could simplify that API a tiny bit with e.g. `href: "{branch.artifacts}/coverage"`...
+We could simplify that API a tiny bit with e.g. `href: "{branch.artifacts}/coverage"`...
 :::
 
-## TODO: Support for usual blob storage like S3
+<!-- ## Support for usual blob storage like S3
 We can get hints from connex projects facing the same needs:
 - [in MLflow](https://github.com/mlflow/mlflow/tree/dcda3767d4119713cbf8d33ef5ab31655183cb48/mlflow/store/artifact)
-- [in DVC](https://github.com/iterative/dvc/tree/master/dvc/tree), [docs](https://dvc.org/doc/command-reference/remote), [deps](https://github.com/iterative/dvc/blob/master/setup.py#L87)
+- [in DVC](https://github.com/iterative/dvc/tree/master/dvc/tree), [docs](https://dvc.org/doc/command-reference/remote), [deps](https://github.com/iterative/dvc/blob/master/setup.py#L87) -->
