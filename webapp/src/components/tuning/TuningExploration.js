@@ -454,6 +454,7 @@ const Sensibility2DContour = React.memo(({
   layout,
   available_metrics,
   aggregation,
+  connectgaps_enable
 }) => {
   // https://plot.ly/javascript/reference/#contour
   // https://plot.ly/javascript/contour-plots/
@@ -527,7 +528,7 @@ const Sensibility2DContour = React.memo(({
         }
       },
       // zsmooth: 'best',// default
-      connectgaps: false,
+      connectgaps: connectgaps_enable,
       colorscale: "Viridis"
       // reversescale: true,
       // showscale: false,
@@ -771,6 +772,7 @@ class TuningExploration extends Component {
             available_metrics={available_metrics}
             parameters={[selected_parameter, selected_parameter_2]}
             aggregation={this.state.aggregation}
+            connectgaps_enable={batch_data.optimization} // In optimization mode some of the data include NaNs so there is a need to connect the gaps in the 2d plot	
           />
           <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
             <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
