@@ -52,7 +52,7 @@ def get_commits(branch=None):
 
   latest_authored_datetime = ci_commits.scalar()
   if not latest_authored_datetime:
-  	return jsonify([])
+    return jsonify([])
   from_date = min(latest_authored_datetime - (to_date - from_date), from_date)
   from_date = from_date - datetime.timedelta(hours=3) # timezones as above
 
