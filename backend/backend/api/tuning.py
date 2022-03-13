@@ -246,6 +246,21 @@ def start_tuning(hexsha):
 
     batches = str(data['selected_group'])
     batches = list(resolve_aliases(batches, merged_batches['aliases']))
+
+    # FIXME:  handle pipelines. replace with a generic solution.
+    for b in batches:
+        batch_context = merged_batches.get(b,{})
+        if batch_context.get('type', " ") == 'pipeline':
+            for key in batch_context.keys():
+                if key.lower() in ['configuration', 'configurations']:
+                    configs = batch_context.get(key, [])
+                    for step in configs:
+                        if 'batch' in step.keys():
+                            step_config = step.get('batch')
+                            if isinstance(step_config, str): batches.append(step_config)
+                            elif isinstance(step_config, list): batches = batches + [b for b in step_config if isinstance(b, str)]
+                            batches = list(resolve_aliases(batches, merged_batches['aliases']))
+
     merged_batches = { key:value for key, value in merged_batches.items() if key in ['aliases', 'database', *batches]}
     # TODO: filter the aliases, but it requires care in case of multiple levels of aliases...
 
