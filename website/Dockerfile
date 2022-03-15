@@ -25,7 +25,7 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 ENV PATH /app/node_modules/.bin:$PATH
-# RUN yarn config set strict-ssl false
+RUN yarn config set strict-ssl false
 
 # RUN npm install -g yarn
 
