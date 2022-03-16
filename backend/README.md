@@ -15,6 +15,9 @@ cd qaboard
 4. Start the server:
 
 ```bash
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
 docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up  -d 
 
 # for more build logs

@@ -27,6 +27,9 @@ If you want to contribute to the project but do not know where to start, or what
 cd webapp
 npm install
 
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
 # see more into in docker-compose.yml and backend/README.md
 docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
 ```

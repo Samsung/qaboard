@@ -43,6 +43,9 @@ Symptom:
 - Often necessary if the disk got full..
 
 ```bash
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml restart
 # if you make changes to the docker-compose files...
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
@@ -51,6 +54,9 @@ docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 
 ### How to start from scratch the docker container
 ```bash
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml down
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 ```
@@ -67,6 +73,11 @@ Remove the IIIF image cache:
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml stop cantaloupe
 # remove with the volumes
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml rm -v cantaloupe
+
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
+# Restart
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d cantaloupe
 ```
 
@@ -77,6 +88,9 @@ docker image prune # -a
 
 ### Re-build and start the docker container
 ```bash
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
 docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build
 # you can rebuild a subset of the services: backend, frontend...
 ```

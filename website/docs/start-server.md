@@ -48,6 +48,10 @@ git clone https://gitlab-srv/common-infrastructure/qaboard.git
 cd qaboard
 
 docker-compose -f docker-compose.yml -f sirc.yml pull
+
+# At SIRC we need to make sure important folders are mounted before starting containers...
+./at-sirc-before-up.py
+
 docker-compose -f docker-compose.yml -f sirc.yml up -d
 #=> the application is live at localhost:8080
 ```
