@@ -181,6 +181,7 @@ class OutputLog extends React.Component {
                 }}
                 style={{
                   maxHeight: '500px',
+                  maxWidth: '1400px',
                   overflow: 'scroll',
                   ...(output.is_pending ? style_skeleton : {}),
                 }}
