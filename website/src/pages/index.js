@@ -19,7 +19,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"
-            to={useBaseUrl('docs/introduction')}
+            to={useBaseUrl('docs/introduction').replace('docs/docs/', 'docs/')}
           >
             Get Started
           </Link>
