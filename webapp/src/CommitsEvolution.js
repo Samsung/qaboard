@@ -700,7 +700,7 @@ class CommitsEvolution extends Component {
           >
             {select_metrics.map(m => (
               <option key={available_metrics[m]?.key} value={m}>
-                {available_metrics[m]?.label}
+                {available_metrics[m]?.label ?? m }
               </option>
             ))}
           </HTMLSelect>
