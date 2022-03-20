@@ -55,11 +55,12 @@ def update_batch():
       flag_modified(batch, "data")
       # we will save the outputs from the best iteration in the batch,
       # so first we need to remove any previous best results
-      for o in batch.outputs:
-        if o.output_type != 'optim_iteration':
-          print(f"  DELETE {o}")
-          o.delete(soft=False)
-          db_session.delete(o)
+      if not batch_data.get("keep_all_best_iters"):
+        for o in batch.outputs:
+          if o.output_type != 'optim_iteration':
+            print(f"  DELETE {o}")
+            o.delete(soft=False)
+            db_session.delete(o)
       db_session.add(batch)
       db_session.commit()
 

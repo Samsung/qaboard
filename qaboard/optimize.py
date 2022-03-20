@@ -121,6 +121,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         is_best_data = {
           "is_best_iter": True,
           "best_params": dim_mapping(suggested[idx]),
+          "keep_all_best_iters": optim_config.get("keep_all_best_iters"),
           "best_metrics": {
             "objective": y_iter,
             **aggregated_metrics_,
