@@ -53,10 +53,6 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
   from shutil import rmtree
   from .api import aggregated_metrics
   objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
-  if "keep_all_best_iters" not in optim_config:
-    keep_all_best = 0 # delete all best iters (default)
-  else:
-    keep_all_best = 1
   if not parallel_param_sampling:
     parallel_param_sampling = optim_config.get('parallel_sampling', 1)
 
@@ -125,7 +121,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         is_best_data = {
           "is_best_iter": True,
           "best_params": dim_mapping(suggested[idx]),
-          "keep_all_best_iters": keep_all_best,
+          "keep_all_best_iters": optim_config.get("keep_all_best_iters"),
           "best_metrics": {
             "objective": y_iter,
             **aggregated_metrics_,

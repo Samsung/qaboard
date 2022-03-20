@@ -55,7 +55,7 @@ def update_batch():
       flag_modified(batch, "data")
       # we will save the outputs from the best iteration in the batch,
       # so first we need to remove any previous best results
-      if batch_data.get("keep_all_best_iters") == 0: # Delete all "best_iters" (by default)
+      if not batch_data.get("keep_all_best_iters"):
         for o in batch.outputs:
           if o.output_type != 'optim_iteration':
             print(f"  DELETE {o}")
