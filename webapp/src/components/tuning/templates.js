@@ -159,6 +159,10 @@ search_space:
       low: 0.0000001
       high: 0.1
       prior: log-uniform
+
+
+# uncomment not to delete the "best iteration so far" when a better one is found
+# keep_all_best_iters: true
 `
 },
 };
