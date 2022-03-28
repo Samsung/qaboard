@@ -239,7 +239,7 @@ def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
       reference=commit_id,
       batch=qa_context['batch_label'],
       # we don't need any metric when calling this function from "qa batch", just the output dirs / configs 
-      metrics={"none-required": None},
+      metrics=["none-required"],
     )['outputs']
   except:
     return {}
