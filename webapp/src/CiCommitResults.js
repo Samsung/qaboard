@@ -330,7 +330,7 @@ class CiCommitResults extends Component {
                 </Card>
                </Section>}
 
-              {selected_views.includes('groups') && <Section>
+              {selected_views.includes('groups') && <Section style={{width: "1000px"}}>
                 <Card>
                   <h2 className={Classes.HEADING}>Groups of tests</h2>
                   <PrivateContent>
