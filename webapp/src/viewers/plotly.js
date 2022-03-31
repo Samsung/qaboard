@@ -71,7 +71,7 @@ class PlotlyViewer extends PureComponent {
   getData(props, label) {
     const { output_new, output_ref, path, path_groundtruth, side_by_side } = props;
     const { cancel_source } = this.state;
-    if (!output_new.output_dir_url || !path) return;
+    if (!output_new.output_dir_url || !path || path.endsWith('.html')) return;
 
     let results = [];
     const should_get_all = label === undefined || label === null;
@@ -135,15 +135,27 @@ class PlotlyViewer extends PureComponent {
   }
 
   render() {
+    const { style } = this.props;
+    const width = (!!style && style.width) || '840px';
+    const height = (!!style && style.height) || '525';
+
+    // support plotly saved as embeddable stand-alone html
+    const { output_new, output_ref, path } = this.props;
+    if (!!path && path.endsWith('.html'))
+      return <>
+          <iframe id="igraph" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
+          {!!output_ref &&
+          <iframe id="igraph" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
+          }
+      </>
+
     const { data, layouts, is_loaded, error } = this.state;
-    const { side_by_side, output_ref } = this.props;
+    const { side_by_side } = this.props;
     const has_ref = output_ref !== undefined && output_ref !== null;
 
     if (!is_loaded) return <span/>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
-    const { style } = this.props;
-    const width = (!!style && style.width) || '840px';
 
     // console.log(this.props)
     if (!side_by_side) {
