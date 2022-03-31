@@ -39,11 +39,11 @@ Users will get switches to toggle debug visualizations:
 ## Available file viewers
 QA-Board tries to guess the right image viewer depending on the file extension or a `type`
 
-Extenstions                                         | Type         | Viewer                                       |
+Extensions                                          | Type         | Viewer                                       |
 ----------------------------------------------------|--------------|----------------------------------------------|
 `*.jpg*`, `*.png*`, `*.bmp*`, `*.tif*`, `*.pdf*`... |  `image/*`   | **Image**                                    |
 `*.hex*`, `*.raw*`, `*.dng*`                        |  `image/*`   | **Image** (via CDE)                          |
-`*.plotly.json`                                     | `plotly/json`| **Plot.ly**                                  |
+`*.plotly.json`, `*.plotly.html`                    | `plotly/json` / `plotly/html`| **Plot.ly**                                  |
 `*.flame.json`                                      | `flame/json` | **[Flame Graph](http://www.brendangregg.com/flamegraphs.html)**, [diffable](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)          |
 `*.html`                                            | `text/html` | **HTML** (assumes trusted input..!)          |
 `*.mp4`                                             | `video/*`    | **Video** (synced)                           |
