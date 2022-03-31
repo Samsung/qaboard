@@ -59,7 +59,7 @@ const OutputViewer = props_ => {
       else viewer = <span>No viewer is defined for type: {type}</span>;
     } else {
       const { path='' } = props_;
-      if (path.endsWith('plotly.json')) {
+      if (path.endsWith('plotly.json') || path.endsWith('plotly.html')) {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('flame.json')) {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
