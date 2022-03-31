@@ -42,7 +42,7 @@ const OutputViewer = props_ => {
         viewer =  <LoadableSlamViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "pointcloud/txt")
         viewer = <LoadableTofViewer {...props} output_ref={maybe_output_ref}/>
-      else if (type === "plotly/json")
+      else if (type === "plotly/json" || type === "plotly/html")
         viewer = <LoadablePlotlyViewer {...props} output_ref={maybe_output_ref}/>
       else if (type.startsWith('video'))
         viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
