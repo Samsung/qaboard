@@ -43,6 +43,7 @@ class LsfOptions():
   max_threads: int = 0
   max_memory: int = 0 #in MB
   resources: Optional[str] = None
+  options: Optional[str] = None
   # not strictly LSF options, but important to send jobs
   user: Optional[str] = getenvs(('USERNAME', 'USER'))
   cwd: Path = Path() # current working directory
@@ -130,6 +131,7 @@ class LsfRunner(BaseRunner):
         f"-R \"affinity[thread({self.options.max_threads})]\"" if self.options.max_threads > 0 else "",
         f"-R \"rusage[mem={self.options.max_memory}]\"" if self.options.max_memory > 0 else "",
         f"-R \"{self.options.resources}\"" if self.options.resources else '',
+        self.options.options if self.options.options else '',
         flags,
         '<< "EOF"\n'
         # the click python package hates ascii locales, for good reasons

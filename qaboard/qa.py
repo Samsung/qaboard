@@ -407,7 +407,7 @@ def wait(ctx, output_id):
     exit(0 if not output["is_failed"] else 1)
 
 
-lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {}) 
+lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
 runners_config = config.get('runners', {})
 if 'default' in runners_config:
   default_runner = runners_config['default']
@@ -432,18 +432,19 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
 @click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
 @click.option('--local-concurrency', default=os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency')), type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
-@click.option('--lsf-threads', default=lsf_config.get('threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
+@click.option('--lsf-max-threads', default=lsf_config.get('max_threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-max-memory', default=lsf_config.get('max_memory', lsf_config.get('memory', 0)), help="restrict memory (MB) to use. 0=no restriction")
 @click.option('--lsf-queue', default=lsf_config.get('queue'), help="LSF queue (-q)")
 @click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue', lsf_config.get('queue')), help="Fast LSF queue, for interactive jobs")
 @click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=lsf_config.get('priority', 0), type=int, help="LSF priority (-sp)")
+@click.option('--lsf-options', default=lsf_config.get('options'), help="Other LSF options (as 1 string, like '-W 24:00') that bsub can understand. Will be added after all other CLI flags.")
 @click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
 @click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_threads, lsf_max_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
@@ -492,11 +493,13 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   if runner == 'lsf':
     default_runner_options.update({
       "project": lsf_config.get('project', str(project) if project else "qaboard"),
-      "max_threads": lsf_threads,
-      "max_memory": lsf_max_memory,
-      'resources': lsf_resources,
       "queue": lsf_queue,
       "fast_queue": lsf_fast_queue,
+      'priority': lsf_priority,
+      "max_threads": lsf_max_threads,
+      "max_memory": lsf_max_memory,
+      'resources': lsf_resources,
+      'options': lsf_options,
       "user": ctx.obj['user'],
     })
   if runner == "local":

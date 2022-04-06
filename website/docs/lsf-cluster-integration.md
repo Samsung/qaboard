@@ -22,9 +22,12 @@ runners:
   # In doubt, ask advice from your manager / CAD / bqueues.
   lsf:
     queue: your_queue
-    # max_threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
-    # max_memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # max_threads: 8              # ask for eg 8 max threads when sending jobs to LSF (0=default)
+    # max_memory: 8000            # ask for eg 8000M memory when sending jobs to LSF (0=default)
+    # queue: my_queue
     # resources: RESOURCE_STRING
+    # options: "-W 24:00"         # Specifiy freely other LSF options that bsub accepts
+                                  # Will be added after all other CLI flags.
 ```
 
 :::warning
@@ -36,8 +39,8 @@ runners:
 ```yaml {3-5} title="qa/batches.yaml"
 you-can-give-an-LSF-configuration:
   lsf:
-    memory: 1000
-    threads: 1000
+    max_memory: 10000
+    max_threads: 4
   configurations:
     - base
   inputs:
@@ -48,14 +51,14 @@ you-can-give-an-LSF-configuration:
 ```yaml {2-3,8-10}
 you-can-give-an-LSF-configuration-per-input:
   lsf:
-    memory: 1000
+    max_memory: 1000
   configuration:
     - base
   inputs:
     images/A.jpg:
     images/B.jpg:
       lsf:
-        memory: 200
+        max_memory: 200
 ```
 
 ## LSF options on the CLI
@@ -64,9 +67,16 @@ You can use CLI options to override the defaults:
 ```bash
 qa batch --help
 # --snip--
-  --lsf-threads INTEGER           restrict number of lsf threads to use. 0=no restriction
-  --lsf-memory INTEGER            restrict memory (MB) to use. 0=no restriction
-  --lsf-resources TEXT            LSF resources restrictions (-R)
+  --lsf-threads INTEGER        restrict number of lsf threads to use. 0=no
+                               restriction
+  --lsf-max-memory INTEGER     restrict memory (MB) to use. 0=no restriction
+  --lsf-queue TEXT             LSF queue (-q)
+  --lsf-fast-queue TEXT        Fast LSF queue, for interactive jobs
+  --lsf-resources TEXT         LSF resources restrictions (-R)
+  --lsf-priority INTEGER       LSF priority (-sp)
+  --lsf-options TEXT           Other LSF options (as 1 string, like '-W
+                               24:00') that bsub can understand. Will be added
+                               after all other CLI flags.
   --lsf-sequential / --lsf-parallel
 ```
 
