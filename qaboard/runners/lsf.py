@@ -63,7 +63,7 @@ lsf_option_names = set(f.name for f in fields(LsfOptions))
 def dict_to_LsfOptions(job_options):
   # "Easy" way to inherit documented defaults and get dot accessors...
   options = LsfOptions()
-  filtered_options = {k:v for k,v in job_options.items() if lsf_option_names.get(k)}
+  filtered_options = {k:v for k,v in job_options.items() if k in lsf_option_names and v is not None}
   return replace(options, **filtered_options)
 
 
