@@ -76,23 +76,38 @@ def api_ci_commit(commit_id=None):
       ci_commit = ci_commit[0]
     except (NoResultFound, IndexError):
       try:
-        # TODO: This is a valid use case for having read-rights to the repo,
-        #       we can identify a commit by the tag/branch
-        #       To replace this without read rights, we should listen for push events and build a database
-        project = Project.query.filter(Project.id==project_id).one()
-        commit = project.repo.tags[commit_id].commit
+        ci_commit = (db_session
+                    .query(CiCommit)
+                    .options(
+                      joinedload(CiCommit.batches).
+                      joinedload(Batch.outputs)
+                      )
+                    .filter(
+                      CiCommit.project_id==project_id,
+                      CiCommit.branch==commit_id,
+                    )
+                    .order_by(CiCommit.authored_datetime.desc())
+                    .first()
+                    )
+      except Exception as e:
         try:
-          commit = project.repo.commit(commit_id)
-        except:
+          # TODO: This is a valid use case for having read-rights to the repo,
+          #       we can identify a commit by the tag/branch
+          #       To replace this without read rights, we should listen for push events and build a database
+          project = Project.query.filter(Project.id==project_id).one()
+          commit = project.repo.tags[commit_id].commit
           try:
-            commit = project.repo.refs[commit_id].commit
+            commit = project.repo.commit(commit_id)
           except:
-            commit = project.repo.tags[commit_id].commit
-        ci_commit = CiCommit(commit, project=project)
-        db_session.add(ci_commit)
-        db_session.commit()
-      except:
-        return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
+            try:
+              commit = project.repo.refs[commit_id].commit
+            except:
+              commit = project.repo.tags[commit_id].commit
+          ci_commit = CiCommit(commit, project=project)
+          db_session.add(ci_commit)
+          db_session.commit()
+        except:
+          return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
     except BadName:
       return jsonify({f'error': f'Sorry, we could not understand the commid ID {commit_id} for project {project_id}.'}), 404
     except Exception as e:
