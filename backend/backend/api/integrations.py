@@ -303,8 +303,36 @@ def jenkins_build():
   if not jenkins_credentials:
     return f"ERROR: No credentials for {url}", "403"
   try:
-    # https://docs.python-requests.org/en/master/user/advanced/#timeouts
-    r = requests.get(url, timeout=(60, 3.5*60), **jenkins_credentials)
+    # TODO: add something proper to do retriess
+    # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry
+    # from requests.adapters import Retry, HTTPAdapter
+    # s = requests.Session()
+    # retries = Retry(total=5, backoff_factor=1, status_forcelist=[ 502, 503, 504 ])
+    # s.mount('http://', HTTPAdapter(max_retries=retries))
+    # s.get("http://httpstat.us/503")
+
+    # @retry(tries=3) # pip install retry...
+    def fetch():
+      # https://docs.python-requests.org/en/master/user/advanced/#timeouts
+      return requests.get(url, timeout=(60, 3.5*60), **jenkins_credentials)
+    # LOL Jenkins is super unstable... WIP until we add something proper...
+    import time
+    try:
+      r = fetch()
+    except:
+      try:
+        time.sleep(1)
+        r = fetch()
+      except:
+        try:
+          time.sleep(1)
+          r = fetch()
+        except:
+          try:
+            time.sleep(1)
+            r = fetch()
+          except:
+            r = fetch()
   except Exception as e:
     print(e)
     return jsonify({"error": f"ERROR: checking the build status: {e}"}), 500
