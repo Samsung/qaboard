@@ -102,7 +102,8 @@ def build_status(build_info):
       backoff_factor=1,
       # by default won't retry non-idempotent requests like POST
       # but it's not an issue for us, we retry everything
-      allowed_methods=None,
+      # allowed_methods=None, # replaces the option below in new versions...
+      method_whitelist=None,
     )
   )
   session.mount('https://', adapter)
