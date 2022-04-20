@@ -370,7 +370,7 @@ def jenkins_build():
   return jsonify({
     "status": status,
     "allow_failure": allow_failure,
-    "web_url": data['web_url'],
+    "web_url": url,
   })
 
 

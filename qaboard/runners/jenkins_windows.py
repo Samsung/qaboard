@@ -45,6 +45,7 @@ from typing import List, Dict, Any
 
 from click import secho
 import requests
+from requests.adapters import HTTPAdapter, Retry
 
 from .base import BaseRunner
 from .job import Job
@@ -93,7 +94,21 @@ def trigger_run(task: str) -> Dict:
 
 
 def build_status(build_info):
-  r = requests.post(f"{api_prefix}/jenkins/build/", json=build_info)
+  session = requests.Session()
+  adapter = HTTPAdapter(
+    # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.DEFAULT_ALLOWED_METHODS
+    max_retries=Retry(
+      total=5,
+      backoff_factor=1,
+      # by default won't retry non-idempotent requests like POST
+      # but it's not an issue for us, we retry everything
+      # allowed_methods=None, # replaces the option below in new versions...
+      method_whitelist=None,
+    )
+  )
+  session.mount('https://', adapter)
+  session.mount('http://', adapter)
+  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info)
   try:
       r.raise_for_status()
       if r.json().get('error'):
