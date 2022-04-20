@@ -93,7 +93,12 @@ def trigger_run(task: str) -> Dict:
 
 
 def build_status(build_info):
-  r = requests.post(f"{api_prefix}/jenkins/build/", json=build_info)
+  from requests.adapters import HTTPAdapter, Retry
+  session = requests.Session()
+  retries = Retry(total=5, backoff_factor=1)
+  session.mount('https://', HTTPAdapter(max_retries=retries))
+
+  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info)
   try:
       r.raise_for_status()
       if r.json().get('error'):
