@@ -85,6 +85,7 @@ mappings = (
   ('\\\\mars\\stage\\algo_jenkins_ws\\', '/stage/algo_jenkins_ws/'),
   ('\\\\mars\\raid\\data\\DATASYNC', '/raid/data/DATASYNC'),
   ('\\\\netapp\\algo_ws', '/algo/ws'),
+  ('\\\\netapp\\vol23_algo\\', '/algo/'),
   ('\\\\mars\\raid\\algo\\', '/algo/'),
   ('\\\\mars\\algo\\', '/algo/'),
   ('\\\\mars\\raid\\', '/raid'),
@@ -101,12 +102,14 @@ def windows_to_linux(path : str) -> str:
   for path_windows, path_linux in mappings:
     if path.startswith(path_windows):
       path = path.replace(path_windows, path_linux)
+      # seems logically correct to put a break here
   return path.replace('\\', '/')
 
 def linux_to_windows(path : str) -> str:
   for path_windows, path_linux in mappings:
     if path.startswith(path_linux):
       path = path.replace(path_linux, path_windows)
+      # seems logically correct to put a break here
   return path.replace('/', '\\')
 
 
