@@ -96,9 +96,9 @@ def trigger_run(task: str) -> Dict:
 def build_status(build_info):
   session = requests.Session()
   adapter = HTTPAdapter(
-    # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.DEFAULT_ALLOWED_METHODS
+    # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.
     max_retries=Retry(
-      total=5,
+      connect=5, read=5, status=5,
       backoff_factor=1,
       # by default won't retry non-idempotent requests like POST
       # but it's not an issue for us, we retry everything
