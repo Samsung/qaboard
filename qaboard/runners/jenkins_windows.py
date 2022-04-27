@@ -93,17 +93,35 @@ def trigger_run(task: str) -> Dict:
     return r.json()
 
 
+
+# Adding callback function on each retry attempt using requests/urllib3
+# https://stackoverflow.com/questions/51188661/adding-callback-function-on-each-retry-attempt-using-requests-urllib3
+class CallbackRetry(Retry):
+    def __init__(self, *args, **kwargs):
+        self._callback = kwargs.pop('callback', None)
+        super(CallbackRetry, self).__init__(*args, **kwargs)
+    def new(self, **kw):
+        kw['callback'] = self._callback
+        return super(CallbackRetry, self).new(**kw)
+    def increment(self, method, url, *args, **kwargs):
+        if self._callback:
+          self._callback(url)
+        return super(CallbackRetry, self).increment(method, url, *args, **kwargs)
+
+
 def build_status(build_info):
   session = requests.Session()
   adapter = HTTPAdapter(
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.
     max_retries=Retry(
-      connect=5, read=5, status=5,
+      connect=5, read=5, status=5, total=10,
+      status_forcelist=[500, 502, 503, 504],
       backoff_factor=1,
       # by default won't retry non-idempotent requests like POST
       # but it's not an issue for us, we retry everything
       # allowed_methods=None, # replaces the option below in new versions...
       method_whitelist=None,
+      callback=lambda url: secho(r'Retrying {url}', fg='yellow'),
     )
   )
   session.mount('https://', adapter)
