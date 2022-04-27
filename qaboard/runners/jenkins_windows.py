@@ -113,7 +113,7 @@ def build_status(build_info):
   session = requests.Session()
   adapter = HTTPAdapter(
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.
-    max_retries=Retry(
+    max_retries=CallbackRetry(
       connect=5, read=5, status=5, total=10,
       status_forcelist=[500, 502, 503, 504],
       backoff_factor=1,
