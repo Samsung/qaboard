@@ -21,6 +21,7 @@ from .config import user, default_batches_files
 def default_cmp(file_1, file_2):
     filecmp.cmp(str(file_1), str(file_2), shallow=False)
 
+cmp_func = default_cmp
 # In some cases you want to implement your own file comparaison.
 # It can be useful if e.g. you want to allow a file-format change, but still fail in case of semantic changes
 # To do this, write some/file.py implemented a "cmp(file_1, file_2)" function.
