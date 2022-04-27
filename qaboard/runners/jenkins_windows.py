@@ -121,7 +121,7 @@ def build_status(build_info):
       # but it's not an issue for us, we retry everything
       # allowed_methods=None, # replaces the option below in new versions...
       method_whitelist=None,
-      callback=lambda url: secho(r'Retrying {url}', fg='yellow'),
+      callback=lambda url: secho(f'Retrying {url}', fg='yellow'),
     )
   )
   session.mount('https://', adapter)
