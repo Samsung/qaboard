@@ -439,8 +439,11 @@ def jenkins_build_trigger():
     try:
       web_url = r_get.json()['executable']['url']
     except Exception as e:
-      print(r_get.json())
       print(f"INFO: When reading build queue info, no build URL given at: {build_queue_location}. {e}")
+      try:
+        print(r_get.json())
+      except Exception as ee:
+        print(f"WARNING: could not print the response: {ee}")
     time.sleep(0.5)
     sleep_total = sleep_total + 0.5
   if error:
