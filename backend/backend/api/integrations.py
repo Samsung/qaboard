@@ -410,7 +410,7 @@ def jenkins_build_trigger():
 
   if 'location' not in r_build.headers:
       return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header. {r_build.text}"}), 500
-  build_queue_location = f"{r_build.headers['location']}/api/json"
+  build_queue_location = f"{r_build.headers['location']}/api/json".replace("//api/json", "/api/json")
 
   def ensure_absolute(url):
     # in some cases jenkins will return a relative location
