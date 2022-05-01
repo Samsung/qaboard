@@ -414,10 +414,10 @@ def jenkins_build_trigger():
 
   def ensure_absolute(url):
     # in some cases jenkins will return a relative location
-    if '://' not in build_queue_location:
+    if '://' not in url:
       url_info = urlparse(build_url)
-      if not build_queue_location.startswith('/'):
-        url = f"/{build_queue_location}" 
+      if not url.startswith('/'):
+        url = f"/{url}" 
       url = f"{url_info.scheme}://{url_info.netloc}{url}"
     return url
 
