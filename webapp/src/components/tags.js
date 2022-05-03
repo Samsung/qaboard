@@ -314,7 +314,7 @@ class OutputTags extends React.Component {
 
       <Tooltip>
         <CopyToClipboard
-          text={linux_to_windows(output_dir_url)}
+          text={decodeURIComponent(linux_to_windows(output_dir_url))}
           onCopy={() => {
             toaster.show({
               message: "Copied the output directory's path to the clipboard!",
