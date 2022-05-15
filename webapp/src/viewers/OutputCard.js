@@ -399,11 +399,14 @@ class OutputCard extends React.Component {
       } else {
         selected_value = option.values[all_numbers ? option.values.length-1 : 0]
       }
-
-      const is_without_previous_value = !this.state.options[option.name] || !this.state.options[option.name].selected
+      let current_option = this.state.options?.[option.name] ?? {}
+      const is_without_previous_value = current_option.selected == null  
       if (is_without_previous_value) {
         selected[option.name] = [selected_value]
         option.selected = [selected_value]
+      } else {
+        selected[option.name] = current_option.selected
+        option.selected = current_option.selected
       }
     })
     this.setState({
@@ -497,7 +500,7 @@ class OutputCard extends React.Component {
           (path, path_idx) => {
             let new_available = path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[path])
             if (!new_available)
-              return <span/>
+              return <></>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
             const hash = {
               new: this.state.manifests?.new?.[path]?.md5,
@@ -511,7 +514,7 @@ class OutputCard extends React.Component {
                 key={`${idx}-${path_idx}`}
                 id={`${idx}-${path_idx}`}
                 output_new={output_new}
-                output_ref={(ref_available && show_ref_if_available && output_ref?.id !== output_new?.id) ? output_ref : undefined}
+                output_ref={(ref_available && show_ref_if_available) ? output_ref : undefined}
                 manifests={this.state.manifests}
                 {...view}
                 {...controls}
