@@ -34,6 +34,7 @@ services:
     - UWSGI_UID=ispq
     - UWSGI_GID=uucp
     - QABOARD_DATA_SHARED_DIR=/home/ispq/qaboard/shared
+    - QABOARD_DATA_GIT_DIR=/algo/ws/ispq/qaboard_prod_data_git
     - QA_RUNNERS_LSF_BRIDGE=ssh ispq@ispq-vdi 'bsub_su {user} -I {bsub_command}'
     - QABOARD_LDAP_ENABLED=true
     - QABOARD_LDAP_USER_BASE=REDACTED_LDAP_BASE
