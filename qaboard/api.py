@@ -108,11 +108,11 @@ def serialize_path(path):
 def serialize_paths(data):
   """Serialize recursively Path to strings"""
   if issubclass(type(data), Path):
-  	data = serialize_path(data)
+    data = serialize_path(data)
   elif isinstance(data, dict):
-	  data = {key: serialize_paths(value) for key, value in data.items()}
+    data = {key: serialize_paths(value) for key, value in data.items()}
   elif isinstance(data, list):
-  	data = [serialize_paths(value) for value in data]
+    data = [serialize_paths(value) for value in data]
   return data
 
 
