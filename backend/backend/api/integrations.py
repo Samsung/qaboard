@@ -293,10 +293,13 @@ def jenkins_build():
   Get the status of a Jenkins build.
   """
   data = request.get_json()
-  if "build_url" in data:
-    url = f"{data['build_url']}/api/json"
-  elif "web_url" in data:
-    url = f"{data['web_url']}/api/json"
+  if "build_url" in data or "web_url" in data:
+    if "build_url" in data:
+      url = data['build_url']
+    else:
+      url = data['web_url']
+    if not url.endswith("/api/json"):
+      url =+ "/api/json"
   else:
     url = data['url']
   jenkins_credentials = jenkins_hostname_credentials(url)
