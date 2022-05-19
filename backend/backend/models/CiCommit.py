@@ -221,6 +221,7 @@ class CiCommit(Base):
         if not has_error:
           try: # FIXME: umask 0 when writing the manifest file!
             rmtree(manifest)
+            rm_empty_parents(manifest)
           except:
             pass
         delete_errors = delete_errors or has_error

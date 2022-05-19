@@ -20,7 +20,7 @@ from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
 from backend.models import Base
-from backend.fs_utils import rmtree
+from backend.fs_utils import rm_empty_parents, rmtree
 
 
 
@@ -293,6 +293,7 @@ class Output(Base):
     if not soft:
       print(output_dir)
       rmtree(output_dir)
+      rm_empty_parents(output_dir)
     else:
       # If a run crashes, or in case of network issues, the manifests may not be updated...
       manifest_path = output_dir / 'manifest.outputs.json'
@@ -303,6 +304,7 @@ class Output(Base):
         except Exception as e:
             print(f"{e}: corrupted manifest {manifest_path}")
             rmtree(output_dir)
+            rm_empty_parents(output_dir)            
             self.deleted = True
             return
         for file in files.keys():
@@ -319,6 +321,7 @@ class Output(Base):
           print(f'{output_file}')
           if not dryrun:
             rmtree(output_file)
+            rm_empty_parents(output_dir)
     if not filter: # better not TODO: update .data.storage at least
       self.deleted = True
 
