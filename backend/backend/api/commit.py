@@ -89,13 +89,13 @@ def api_ci_commit(commit_id=None):
                     .order_by(CiCommit.authored_datetime.desc())
                     .first()
                     )
+        assert ci_commit
       except Exception as e:
         try:
           # TODO: This is a valid use case for having read-rights to the repo,
           #       we can identify a commit by the tag/branch
           #       To replace this without read rights, we should listen for push events and build a database
           project = Project.query.filter(Project.id==project_id).one()
-          commit = project.repo.tags[commit_id].commit
           try:
             commit = project.repo.commit(commit_id)
           except:
@@ -103,6 +103,8 @@ def api_ci_commit(commit_id=None):
               commit = project.repo.refs[commit_id].commit
             except:
               commit = project.repo.tags[commit_id].commit
+          if not commit:
+            return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
           ci_commit = CiCommit(commit, project=project)
           db_session.add(ci_commit)
           db_session.commit()
