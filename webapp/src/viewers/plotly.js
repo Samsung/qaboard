@@ -142,12 +142,12 @@ class PlotlyViewer extends PureComponent {
     // support plotly saved as embeddable stand-alone html
     const { output_new, output_ref, path } = this.props;
     if (!!path && path.endsWith('.html'))
-      return <>
+      return <div style={{display: "flex"}}>
           <iframe id="igraph" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
           {!!output_ref &&
           <iframe id="igraph" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
           }
-      </>
+      </div>
 
     const { data, layouts, is_loaded, error } = this.state;
     const { side_by_side } = this.props;
