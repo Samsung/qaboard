@@ -43,7 +43,6 @@ from click import secho
 from sqlalchemy import func, and_, asc, or_, not_
 
 from .database import db_session, Session
-from .fs_utils import rmtree
 from .models import Project, CiCommit, Batch, Output
 
 
@@ -225,6 +224,16 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             gc_config_artifacts = gc_config.get('artifacts', {})
             deleted_artifacts = False
             if gc_config_artifacts.get('delete') == True or can_delete_artifacts:
+                undeleted_commits_from_subprojects = (
+                    db_session.query(CiCommit)
+                    .filter(CiCommit.project.startswith(commit.project_id))
+                    .filter(CiCommit.deleted == False)
+                    .filter(CiCommit.hexsha == commit.hexsha)
+                )
+                if undeleted_commits_from_subprojects:
+                    print(f"> skippping {commit}: undeleted_commits_from_subprojects")
+                    continue
+
                 secho(f"  Deleting artifacts", fg='cyan', dim=True)
                 try:
                     commit.delete(keep=gc_config_artifacts.get('keep', []), dryrun=dryrun)
