@@ -107,14 +107,18 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     yield hexsha, hash16
 
         for hexsha, artifact_dir in iter_hashsha_dir():
-            commit = hwalg.repo.commit(hexsha)
+            try:
+                commit = hwalg.repo.commit(hexsha)
+                hexsha = commit.hexsha
+            except: # force pushes, rebases... some commits won't be fetched
+                commit = None
             try:
                 created_datetime = commit.authored_datetime
-            except: # force pushes, rebases... some commits won't be fetched
+            except:
                 ctime = artifact_dir.stat().st_ctime
                 created_datetime = datetime.datetime.fromtimestamp(ctime).astimezone()
             is_old = created_datetime < now.astimezone() - parse_time('3weeks')
-            if is_old and not any([c.startswith(commit.hexsha) for c in milestone_commits]):
+            if is_old and not any([c.startswith(hexsha) for c in milestone_commits]):
                 print('DELETE', artifact_dir, created_datetime)
                 ci_commit = CiCommit(
                     hexsha=hexsha,
