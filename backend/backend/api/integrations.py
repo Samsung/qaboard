@@ -299,7 +299,7 @@ def jenkins_build():
     else:
       url = data['web_url']
     if not url.endswith("/api/json"):
-      url =+ "/api/json"
+      url += "/api/json"
   else:
     url = data['url']
   jenkins_credentials = jenkins_hostname_credentials(url)
