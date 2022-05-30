@@ -54,10 +54,9 @@ def clear_memmapped_cache_dir():
     file_data.sort(key=lambda f: -f.stat().st_mtime) # oldest last
     for file in file_data[cache_size:]:
         print(f"RM {file}")
-        file.unlink()
+        file.unlink(missing_ok=True)
         file_info = file.with_suffix('.json')
-        if file_info.exists():
-          file_info.unlink()
+        file_info.unlink(missing_ok=True)
 
 def memmapped_read_image(image_path):
   key = f"{image_path}-{image_path.stat().st_mtime}"
