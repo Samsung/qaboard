@@ -1,6 +1,7 @@
 """
 Deprecation warnings, backward compatibility, Windows compatibility
 """
+import re
 import os
 import sys
 import click
@@ -86,7 +87,6 @@ mappings = (
   ('\\\\mars\\raid\\data\\DATASYNC', '/raid/data/DATASYNC'),
   ('\\\\netapp\\algo_ws', '/algo/ws'),
   ('\\\\netapp\\vol23_algo\\', '/algo/'),
-  ('\\\\mars\\raid\\algo\\', '/algo/'),
   ('\\\\mars\\algo\\', '/algo/'),
   ('\\\\mars\\raid\\', '/raid'),
   ('\\\\mars\\stage\\algo_db\\', '/stage/algo_db/'),
@@ -96,21 +96,28 @@ mappings = (
   ('\\\\mars\\data', '/data/'),
   ('\\\\netapp\\Joint\\', '/net/netapp/vol/home_nt/Joint/'),
 )
+re_algo_inputs = re.compile(r"\\\\netapp\\vol23_algo\\([^\\]+)[\\_]inputs")
 
 
 def windows_to_linux(path : str) -> str:
   for path_windows, path_linux in mappings:
     if path.startswith(path_windows):
       path = path.replace(path_windows, path_linux)
-      # seems logically correct to put a break here
+      break
   return path.replace('\\', '/')
 
 def linux_to_windows(path : str) -> str:
   for path_windows, path_linux in mappings:
     if path.startswith(path_linux):
       path = path.replace(path_linux, path_windows)
-      # seems logically correct to put a break here
-  return path.replace('/', '\\')
+      break
+  path = path.replace('/', '\\')
+  match_algo_inputs = re_algo_inputs.match(path)
+  if match_algo_inputs:
+    # /algo/CIS/inputs is a symlink to /algo/CIS_inputs, we prefer the later
+    # /algo is split into multiple volumes, it is not as transparent on windows as on linux
+    path = rf"\\netapp\vol24_algo\{match_algo_inputs.group(1)}_inputs{path[match_algo_inputs.end():]}"
+  return path
 
 
 def windows_to_linux_path(path : Path) -> Path:
