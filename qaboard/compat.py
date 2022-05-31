@@ -87,6 +87,7 @@ mappings = (
   ('\\\\mars\\raid\\data\\DATASYNC', '/raid/data/DATASYNC'),
   ('\\\\netapp\\algo_ws', '/algo/ws'),
   ('\\\\netapp\\vol23_algo\\', '/algo/'),
+  ('\\\\netapp\\vol24_algo\\', '/algo/'),
   ('\\\\mars\\algo\\', '/algo/'),
   ('\\\\mars\\raid\\', '/raid'),
   ('\\\\mars\\stage\\algo_db\\', '/stage/algo_db/'),
