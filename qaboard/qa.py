@@ -675,12 +675,10 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     return
 
   if not dryrun:
-    click.secho(f"### TEST - jobs.start ###", err=True)
     is_failed = jobs.start(
       blocking=not no_wait,
       qa_context=ctx.obj,
     )
-    click.secho(f"### TEST - jobs END ###", err=True)
 
     from .gitlab import gitlab_token, update_gitlab_status
     if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
