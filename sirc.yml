@@ -142,7 +142,7 @@ services:
       MB_QUERY_CACHING_MIN_TTL: 1
       # SMTP
       MB_EMAIL_FROM_ADDRESS: auto_delivery@samsung.com
-      MB_EMAIL_SMTP_HOST: EX01.transchip.com
+      MB_EMAIL_SMTP_HOST: dag.sirc.co.il
       # MB_EMAIL_SMTP_PASSWORD
       # MB_EMAIL_SMTP_USERNAME
       MB_LDAP_ENABLED: "true"
