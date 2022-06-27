@@ -226,7 +226,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             if gc_config_artifacts.get('delete') == True or can_delete_artifacts:
                 undeleted_commits_from_subprojects = (
                     db_session.query(CiCommit)
-                    .filter(CiCommit.project.startswith(commit.project_id))
+                    .filter(CiCommit.project_id.startswith(commit.project_id))
                     .filter(CiCommit.deleted == False)
                     .filter(CiCommit.hexsha == commit.hexsha)
                 )
