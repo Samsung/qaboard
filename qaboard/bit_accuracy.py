@@ -13,7 +13,7 @@ from click import secho
 
 from .conventions import make_batch_conf_dir, output_dirs_for_input_part
 from .iterators import iter_inputs
-from .utils import PathType
+from .utils import PathType, checked_cde_attrs
 from .config import commit_id, project, subproject, outputs_commit_root, outputs_commit, is_ci, default_platform, config
 from .config import user, default_batches_files
 
@@ -45,6 +45,18 @@ if custom_cmp:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'ERROR: Error importing the custom cmp function.', fg='red', err=True, bold=True)
     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+
+
+def is_same_content(filename, meta_1, meta_2):
+  # we allow changes in hex files' footers or raw imgprops, provided same critical attributes don't change
+  if filename.endswith('.hex') or filename.endswith('.raw'):
+    return all(
+      meta_1[attr] == meta_2[attr]
+      for attr in checked_cde_attrs
+      if attr in meta_1 and attr in meta_2
+    )
+  else:
+    return meta_1['md5'] == meta_2['md5']
 
 
 
@@ -152,7 +164,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
       if any(fnmatch.fnmatch(file_1, f"{i}*") for i in ignore):
         continue
       if file_1_str in manifest_2:
-        is_same = meta_1['md5'] == manifest_2[file_1_str]['md5']
+        is_same = is_same_content(file_1_str, meta_1, manifest_2[file_1_str])
         if not is_same:
           mismatch.add(file_1)
         else:
