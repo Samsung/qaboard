@@ -17,7 +17,7 @@ import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
-from cde.image.read import hex_attributes
+from cde.image.read import hex_attributes, read_imgprops
 
 
 
@@ -283,19 +283,29 @@ def md5_hex(path, length=None):
   return md5.hexdigest()
 
 
+# we want to allow new hex attributes, but some are critical 
+checked_cde_attrs = ("width", "height", "format", "imageType", "md5_data")
+
 def _file_info(path : Path, compute_hashes=True):
     info: Dict[str, Union[int, str]] = {
       "st_size": os.stat(path).st_size
     }
-
     if compute_hashes:
         info['md5'] = md5_hex(path)
+        image_meta = None
         if path.suffix == '.hex':
           hex_attr = hex_attributes(path)
           hash_length = hex_attr.get('footer_start_pos')
+          # FIXME: we should not see empty hex files, so why do we do this check?
           if hash_length: # exclude the footer from the image data hash
             info['md5_data'] = md5_hex(path, hash_length)
-            info['md5_footer'] = hashlib.md5(json.dumps(hex_attr, sort_keys=True).encode('utf-8')).hexdigest()
+            image_meta = hex_attr
+        if path.suffix == '.raw':
+          image_meta = read_imgprops(path)
+        if image_meta:
+          for attr in checked_cde_attrs:
+            if attr in image_meta:
+              info[attr] = image_meta[attr]
     return info
 
 
@@ -315,6 +325,7 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
                       or "Config" in path.parts \
                       or path.parent.name == "outputs"
     return path.is_file() and not illegal_file
+
   return {
     path.relative_to(output_directory).as_posix(): file_info(path, config=config, compute_hashes=compute_hashes)
     for path in output_directory.rglob('*')
