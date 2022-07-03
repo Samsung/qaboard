@@ -25,6 +25,8 @@ const Row = styled.tr`
 
 const RowHeaderCell = ({ output }) => {
   let test_input = output.test_input_metadata?.label ?? `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
+  if (output === undefined || output === null)
+    return <th scope="row"></th>
   return (
     <th scope="row">
       {test_input} <ExtraParametersTags parameters={output.extra_parameters} />

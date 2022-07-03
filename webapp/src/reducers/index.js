@@ -95,6 +95,7 @@ function commits(state = { [default_project_id]: {} }, action) {
       // here we precompute various useful output information
       // like str representaton of their configs or merged "outputs.params"
       //    params: str -> {config: str}
+      if (action.error === null || action.error === undefined){
       Object.keys(action.data.batches).forEach(b => {
         Object.keys(action.data.batches[b].outputs).forEach(id => {
           const run_params = action.data.batches[b].outputs[id].data?.params
@@ -122,7 +123,7 @@ function commits(state = { [default_project_id]: {} }, action) {
           })
           action.data.batches[b].outputs[id].params = params
         })
-      })
+      })}
       return {
         ...state,
         [action.project]: {
