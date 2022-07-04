@@ -9,6 +9,7 @@ class TestCompat(unittest.TestCase):
     self.assertEquals(windows_to_linux(r'\\netapp\algo_ws\test'), '/algo/ws/test')
     self.assertEquals(windows_to_linux(r'\\netapp\algo_ws\test'+'\\'), '/algo/ws/test/')
     self.assertEquals(windows_to_linux(r"\\mars\raid\algo\test"), '/algo/test')
+    self.assertEquals(windows_to_linux(r'//netapp/algo_ws'), '/algo/ws')
 
   def test_to_windows(self):
     # usual conversions
