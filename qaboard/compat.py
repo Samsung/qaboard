@@ -104,8 +104,9 @@ re_algo_inputs = re.compile(r"\\\\netapp\\vol23_algo\\([^\\]+)[\\_]inputs")
 def windows_to_linux(path : str) -> str:
   path = path.replace('/', '\\')
   for path_windows, path_linux in mappings:
-    if path.startswith(path_windows):
-      path = path.replace(path_windows, path_linux)
+    path_windows_re = re.escape(path_windows)
+    if re.match(path_windows_re, path, re.IGNORECASE):
+      path = re.sub(path_windows_re, path_linux, path, count=1, flags=re.IGNORECASE)
       break
   return path.replace('\\', '/')
 
