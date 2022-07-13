@@ -56,6 +56,42 @@ function tuning(state = { [default_project_id]: {} }, action) {
 }
 
 
+// precompute useful data
+// like str representaton of their configs or merged "outputs.params"
+// params: str -> {config: str}
+const preprocess_output = output => {
+  // output.configurations = output.configurations.slice(0, 2)
+  const run_params = output.data?.params
+  // const run_params = {
+  //   model: 'GAN',
+  //   badges: [
+  //     {text: "Training", href: "https://wandb/run/<some-id>", "icon": "settings"}
+  //   ]
+  // }
+  if (run_params !== undefined) {
+    // output.configurations.push(run_params)
+    output.extra_parameters = {
+      ...output.extra_parameters,
+      ...run_params,
+    } 
+  }
+  // useful for filtering
+  output.configurations_str = JSON.stringify(output.configurations)
+  output.extra_parameters_str = JSON.stringify(output.extra_parameters)
+  // useful for tuning analysis
+  var params = {}
+  let configs = [
+    ...output.configurations,
+    output.extra_parameters,
+  ]
+  configs.forEach(c => {
+    if (typeof c === "string" || c === undefined || c === null)
+      return
+    params = {...params, ...c}
+  })
+  output.params = params
+}
+
 function commits(state = { [default_project_id]: {} }, action) {
   var new_state;
   switch (action.type) {
@@ -66,10 +102,18 @@ function commits(state = { [default_project_id]: {} }, action) {
           ...state[action.project],
         },
       }
-      action.commits.forEach(c => {
-        new_state[action.project][c.id] = {
-          ...new_state[action.project]?.[c.id],
-          ...c,
+      action.commits.forEach(commit => {
+        // const commit = new_state[action.project]?.[c.id]
+        console.log(commit)
+        Object.keys(commit.batches).forEach(b => {
+          Object.keys(commit.batches[b].outputs).forEach(id => {
+            console.log(id, commit.batches[b].outputs[id])
+            preprocess_output(commit.batches[b].outputs[id])
+          })
+        });
+        new_state[action.project][commit.id] = {
+          ...new_state[action.project]?.[commit.id],
+          ...commit,
         }
       })
       return new_state;
@@ -93,36 +137,11 @@ function commits(state = { [default_project_id]: {} }, action) {
         action.data.data.qatools_metrics.main_metrics = action.data.data.qatools_metrics.main_metrics.filter(m => !!action.data.data.qatools_metrics.available_metrics[m]);
       }
       // here we precompute various useful output information
-      // like str representaton of their configs or merged "outputs.params"
-      //    params: str -> {config: str}
       if (action.error === null || action.error === undefined){
-      Object.keys(action.data.batches).forEach(b => {
-        Object.keys(action.data.batches[b].outputs).forEach(id => {
-          const run_params = action.data.batches[b].outputs[id].data?.params
-          if (run_params !== undefined) {
-            // action.data.batches[b].outputs[id].configurations.push(run_params)
-            action.data.batches[b].outputs[id].extra_parameters = {
-              ...action.data.batches[b].outputs[id].extra_parameters,
-              ...run_params,
-            }
-            
-          }
-          // this is useful for filtering
-          action.data.batches[b].outputs[id].configurations_str = JSON.stringify(action.data.batches[b].outputs[id].configurations)
-          action.data.batches[b].outputs[id].extra_parameters_str = JSON.stringify(action.data.batches[b].outputs[id].extra_parameters)
-          // this is useful for tuning analysis
-          var params = {}
-          let configs = [
-            ...action.data.batches[b].outputs[id].configurations,
-            action.data.batches[b].outputs[id].extra_parameters,
-          ]
-          configs.forEach(c => {
-            if (typeof c === "string" || c === undefined || c === null)
-              return
-            params = {...params, ...c}
+        Object.keys(action.data.batches).forEach(b => {
+          Object.keys(action.data.batches[b].outputs).forEach(id => {
+            preprocess_output(action.data.batches[b].outputs[id])
           })
-          action.data.batches[b].outputs[id].params = params
-        })
       })}
       return {
         ...state,
