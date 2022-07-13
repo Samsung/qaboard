@@ -40,8 +40,8 @@ const RowHeaderCell = ({ output }) => {
 };
 
 const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
-  const metric_new = metrics_new[metric.key]
-  const metric_ref = metrics_ref[metric.key]
+  const metric_new = metrics_new?.[metric.key]
+  const metric_ref = metrics_ref?.[metric.key]
   if (!metrics_new || metric_new === undefined || metric_new === null)
     return <td></td>;
   if (!metrics_ref || metric_ref === undefined || metric_ref === null)
