@@ -135,8 +135,8 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
       } else {
         node_to_path = node_to.path
       }
-      node_from_parent = node_from.childNodes
-      node_to_parent = node_to.childNodes
+      node_from_parent = node_from.childNodes ?? []
+      node_to_parent = node_to.childNodes ?? []
     }
     node.nodeData[key] = node_from.nodeData[key]
 }
