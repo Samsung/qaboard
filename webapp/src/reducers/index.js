@@ -105,9 +105,9 @@ function commits(state = { [default_project_id]: {} }, action) {
       action.commits.forEach(commit => {
         // const commit = new_state[action.project]?.[c.id]
         console.log(commit)
-        Object.keys(commit.batches).forEach(b => {
-          Object.keys(commit.batches[b].outputs).forEach(id => {
-            console.log(id, commit.batches[b].outputs[id])
+        Object.keys(commit.batches ?? {}).forEach(b => {
+          Object.keys(commit.batches[b].outputs ?? {}).forEach(id => {
+            // console.log(id, commit.batches[b].outputs[id])
             preprocess_output(commit.batches[b].outputs[id])
           })
         });
