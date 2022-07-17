@@ -23,6 +23,9 @@ services:
     - UWSGI_CHEAPER_INITIAL=16  # initial number of processes
     - UWSGI_PROCESSES=64        # max
     - UWSGI_CHEAPER=8           # minimum
+    # values in bytes
+    - UWSGI_CHEAPER_RSS_LIMIT_SOFT=
+    - UWSGI_CHEAPER_RSS_LIMIT_HARD=
     - UWSGI_STATS=true
     # leave an unbound port open, useful for debugging 
     ports:
