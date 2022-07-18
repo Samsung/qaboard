@@ -24,6 +24,7 @@ import MultiSelectTags from './MultiselectCrops'
 
 import { unregister_filter_sync } from "./filters"
 
+import { is_same_data } from "../utils"
 var OpenSeadragon = require('openseadragon')
 require('./selection')
 require('./rgb')
@@ -574,8 +575,8 @@ class ImgViewer extends React.PureComponent {
   render() {
     const { output_new, output_ref, diff, label, path, manifests } = this.props;
     const { first_image, width, image_height, image_width, error, hide_labels, has_reference } = this.state;
-
-    const is_same_data = manifests?.new?.[path]?.md5 === manifests?.reference?.[path]?.md5
+    
+    const has_same_data = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path])
 
     const has_error = !!error && Object.keys(error).length > 0;
     const error_messages = !has_error ? <span/> : <>
@@ -627,9 +628,9 @@ class ImgViewer extends React.PureComponent {
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >{!is_same_data ? "reference" : 'reference (same-image)'}</Tag>{switch_help_label}</Tooltip> : switch_label}
+        >{!has_same_data ? "reference" : 'reference (same-image)'}</Tag>{switch_help_label}</Tooltip> : switch_label}
       </div>}
-      <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || is_same_data} />
+      <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>
 
 
@@ -647,7 +648,7 @@ class ImgViewer extends React.PureComponent {
       <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={histogram_size_tight} />
     </div> : <></>
 
-    const diff_info = !is_same_data && single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
+    const diff_info = !has_same_data && single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
       <div style={{ minHeight: '40px' }}>
         <MultiSlider
           defaultTrackIntent={Intent.WARNING}

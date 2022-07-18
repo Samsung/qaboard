@@ -3,7 +3,7 @@ import React from "react";
 import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
-import { match_query } from "../../utils"
+import { match_query, is_same_data } from "../../utils"
 
 
 // Turns a flat file manifest into a proper tree
@@ -55,7 +55,7 @@ const updateMatch = tree_reference => node => {
     if (node_reference === undefined)
       node.nodeData.match = true;
     else
-      node.nodeData.match = node.nodeData.md5 === node_reference.nodeData.md5;
+      node.nodeData.match = is_same_data(node.id, node.nodeData, node_reference.nodeData)
 }
 
 
@@ -182,11 +182,7 @@ class BitAccuracyViewer extends React.Component {
        onNodeExpand={this.handleNodeExpand}
       />
       {selected.map( filename => {
-        const hash = {
-          new: this.props.manifests?.new?.[filename]?.md5,
-          reference: this.props.manifests?.reference?.[filename]?.md5,
-        }
-        const has_same_data = !!hash.new && hash.new === hash.reference
+        const has_same_data = is_same_data(filename, this.props.manifests?.new, this.props.manifests?.reference)
         return <>
           {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
           <OutputViewer

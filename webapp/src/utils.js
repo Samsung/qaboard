@@ -415,6 +415,19 @@ const metrics_fill_defaults = available_metrics => {
   return available_metrics || {}
 }
 
+const checked_cde_attrs = ["width", "height", "format", "imageType", "md5_data"]
+const is_same_data = (path, meta_1, meta_2) => {
+  if (meta_1 === undefined || meta_1 === null || meta_2 === undefined || meta_2 === null)
+    return false
+  if (path.match(/hex|raw/)) {
+    console.log(path, meta_1, meta_2)
+    return checked_cde_attrs.filter(attr => meta_1[attr] !== undefined && meta_2[attr] !== undefined)
+                            .every(attr => meta_1[attr] === meta_2[attr])
+  } else {
+    return meta_1.md5 === meta_2.md5
+  }
+}
+
 
 export {
   average,
@@ -437,4 +450,5 @@ export {
   linux_to_windows,
   make_eval_templates_recursively,
   metrics_fill_defaults,
+  is_same_data,
 };

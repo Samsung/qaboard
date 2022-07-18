@@ -33,7 +33,7 @@ import { OutputTags, ExtraParametersTags, StatusTag, RunBadges, style_skeleton }
 import { humanFileSize } from "./bit_accuracy/utils";
 
 import { updateSelected } from "../actions/selected";
-import { linux_to_windows } from '../utils'
+import { linux_to_windows, is_same_data } from '../utils'
 
 export const toaster = Toaster.create();
 
@@ -502,11 +502,7 @@ class OutputCard extends React.Component {
             if (!new_available)
               return <></>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
-            const hash = {
-              new: this.state.manifests?.new?.[path]?.md5,
-              reference: this.state.manifests?.reference?.[path]?.md5,
-            }
-            const has_same_data = !!hash.new && !!hash.reference && hash.new === hash.reference
+            const has_same_data = is_same_data(filename, this.manifests.manifests?.new, this.manifests.manifests?.reference)
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
               {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
