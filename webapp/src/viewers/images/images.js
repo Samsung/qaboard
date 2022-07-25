@@ -24,7 +24,7 @@ import MultiSelectTags from './MultiselectCrops'
 
 import { unregister_filter_sync } from "./filters"
 
-import { is_same_data } from "../utils"
+import { is_same_data } from "../../utils"
 var OpenSeadragon = require('openseadragon')
 require('./selection')
 require('./rgb')
