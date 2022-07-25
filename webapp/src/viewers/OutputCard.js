@@ -502,7 +502,7 @@ class OutputCard extends React.Component {
             if (!new_available)
               return <></>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
-            const has_same_data = is_same_data(path, this.manifests.manifests?.new, this.manifests.manifests?.reference)
+            const has_same_data = is_same_data(path, this.state.manifests.manifests?.new, this.state.manifests.manifests?.reference)
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
               {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
