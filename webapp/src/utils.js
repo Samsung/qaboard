@@ -420,7 +420,6 @@ const is_same_data = (path, meta_1, meta_2) => {
   if (meta_1 === undefined || meta_1 === null || meta_2 === undefined || meta_2 === null)
     return false
   if (path.match(/hex|raw/)) {
-    console.log(path, meta_1, meta_2)
     return checked_cde_attrs.filter(attr => meta_1[attr] !== undefined && meta_2[attr] !== undefined)
                             .every(attr => meta_1[attr] === meta_2[attr])
   } else {
