@@ -373,7 +373,7 @@ def start_tuning(hexsha):
             "",
             f'mkdir -p "{batch_dir}"',
             # highest priority for manual runs
-            f'bsub_su "{user}" -q "{queue}" -sp 4000 '
+            f'bsub_su "{user}" -q "{queue}" "{batch_dir}/log.lsf.txt" -sp 4000 '
             f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
         ]
     )
