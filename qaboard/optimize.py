@@ -293,10 +293,6 @@ def init_optimization(optim_config_file, checkpoint, ctx):
     if not all(len(p) == optimizer.space.n_dims for p in x0):
         raise RuntimeError("Optimization space (%s) and initial points in x0 "
                            "use inconsistent dimensions." % optimizer.space)
-    # evaluate y0 if only x0 is provided
-    if x0 and y0 is None:
-        y0 = list(map(func, x0))
-        n_calls -= len(y0)
     # record through tell function
     if x0:
         if not (isinstance(y0, Iterable) or isinstance(y0, numbers.Number)):
