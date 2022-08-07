@@ -66,6 +66,17 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
     parallel_param_sampling = optim_config.get('parallel_sampling', 1)
 
   assert previous_iterations+1 < optim_config['evaluations'], f"Already done {previous_iterations} iterations, more than the evaluation budget ({optim_config['evaluations']})"
+
+  notify_qa_database(
+    object_type='batch',
+    command=command,
+    **ctx.obj,
+    **{"data": {
+        "optimization": True,
+        "iteration": previous_iterations+1,
+        "iterations": optim_config['evaluations'],
+    }},
+  )
   for iteration in range(previous_iterations, optim_config['evaluations'], parallel_param_sampling):
       click.secho(f"Starting iteration {iteration}", fg='blue')
       if parallel_param_sampling == 1:
