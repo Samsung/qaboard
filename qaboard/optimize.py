@@ -202,6 +202,11 @@ def init_optimization(optim_config_file, checkpoint, ctx):
     "random_state": seed,
     **optim_config.get('solver', {}),
   }
+  for dimension in optim_config['search_space']:
+    if 'Categorical' in dimension:
+      values = dimension['Categorical']['categories']
+      assert len(values) == len(set(values)), f"Repeated categorical values in {dimension['Categorical']['name']}: {values}"
+
   from skopt.utils import Space
   space = Space.from_yaml(optim_config_file, namespace='search_space')
   preset_params = optim_config.get('preset_params', {})
