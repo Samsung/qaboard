@@ -296,7 +296,8 @@ def start_tuning(hexsha):
         # we write somewhere the optimzation search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
         config_path = batch_dir / 'optim-config.yaml'
-        config_option = f"--config-file '{config_path}'"
+        checkpoint_path = batch_dir / 'checkpoint.pkl'
+        config_option = f"--config-file '{config_path}' --checkpoint '{checkpoint_path}'"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
     else:

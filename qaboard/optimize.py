@@ -3,8 +3,11 @@ import sys
 import uuid
 import yaml
 import json
+import numbers
 import datetime
 import subprocess
+from pathlib import Path
+from collections.abc import Iterable
 
 import click
 from joblib import Parallel, delayed
@@ -23,6 +26,7 @@ from .run import RunContext
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
+@click.option('--checkpoint', type=PathType(), help="Will save/load from this checkpoint to restart interrupted optimizations.")
 @click.option('--parallel-param-sampling', type=int, help="Parallel paramater sampling.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -52,14 +56,14 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
 
   from shutil import rmtree
   from .api import aggregated_metrics
-  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
+  from skopt.utils import dump
+  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, checkpoint, ctx)
+  previous_iterations = len(optimizer.yi)
   if not parallel_param_sampling:
     parallel_param_sampling = optim_config.get('parallel_sampling', 1)
 
-  # TODO: warm-start
-  #   load and "tell" existing results (if there are any)
-  #   (or use a checkpoint?)
-  for iteration in range(0, optim_config['evaluations'], parallel_param_sampling):
+  assert previous_iterations+1 < optim_config['evaluations'], f"Already done {previous_iterations} iterations, more than the evaluation budget ({optim_config['evaluations']})"
+  for iteration in range(previous_iterations, optim_config['evaluations'], parallel_param_sampling):
       click.secho(f"Starting iteration {iteration}", fg='blue')
       if parallel_param_sampling == 1:
         suggested = optimizer.ask()
@@ -72,9 +76,11 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         y = objective([*suggested, iteration])
       else:
         y = Parallel(n_jobs=parallel_param_sampling, prefer='threads')(delayed(objective)([*s, iteration+idx]) for idx, s in enumerate(suggested))
+
       # print(f"y={y}", suggested)
       click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
+      dump(results, checkpoint, compress=9)
 
       click.secho(f"Updating QA-Board", fg='blue')
       if parallel_param_sampling == 1:
@@ -162,7 +168,7 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
 
 
 
-def init_optimization(optim_config_file, ctx):
+def init_optimization(optim_config_file, checkpoint, ctx):
   with optim_config_file.open('r') as f:
     optim_config = yaml.load(f, Loader=yaml.SafeLoader)
 
@@ -239,11 +245,56 @@ def init_optimization(optim_config_file, ctx):
     shared_batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
     return batch_objective(project, commit_id, shared_batch_label, optim_config['objective'])
 
-  # For the full list of options, refer to:
-  # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
   from skopt import Optimizer
   del optim_config['solver']['name']
-  optimizer = Optimizer(space, **optim_config['solver'])
+  # For the full list of options, refer to:
+  # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
+  optimizer = Optimizer(
+    space,
+    **optim_config['solver'],
+  )
+
+  if Path(checkpoint).exists():
+    from skopt.utils import load
+    print(f"Loading {checkpoint}")
+    res = load(checkpoint)
+    x0 = res.x_iters
+    y0 = res.func_vals
+    # same checks as in https://github.com/scikit-optimize/scikit-optimize/blob/de32b5f/skopt/optimizer/base.py#L223
+    # check x0: list-like, requirement of minimal points
+    if x0 is None:
+        x0 = []
+    elif not isinstance(x0[0], (list, tuple)):
+        x0 = [x0]
+    if not isinstance(x0, list):
+        raise ValueError("`x0` should be a list, but got %s" % type(x0))
+    # check y0: list-like, requirement of maximal calls
+    if isinstance(y0, Iterable):
+        y0 = list(y0)
+    elif isinstance(y0, numbers.Number):
+        y0 = [y0]
+    # check x0: element-wise data type, dimensionality
+    assert all(isinstance(p, Iterable) for p in x0)
+
+    if not all(len(p) == optimizer.space.n_dims for p in x0):
+        raise RuntimeError("Optimization space (%s) and initial points in x0 "
+                           "use inconsistent dimensions." % optimizer.space)
+    # evaluate y0 if only x0 is provided
+    if x0 and y0 is None:
+        y0 = list(map(func, x0))
+        n_calls -= len(y0)
+    # record through tell function
+    if x0:
+        if not (isinstance(y0, Iterable) or isinstance(y0, numbers.Number)):
+            raise ValueError(
+                "`y0` should be an iterable or a scalar, got %s" % type(y0))
+        if len(x0) != len(y0):
+            raise ValueError("`x0` and `y0` should have the same length")
+        result = optimizer.tell(x0, y0)
+        # result.specs = specs
+
+    n_calls = len(y0)
+    print(f"Using {n_calls} previous iterations")
 
   # in the optimization loop, `ask` gives us an array of values
   # this wrapper converts it back to the actual named parameters
