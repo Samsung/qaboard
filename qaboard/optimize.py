@@ -414,6 +414,8 @@ def batch_objective(project, commit_id, batch_label, config_objective):
         except:
           click.secho(f'Could not find {metric}', fg='red')        
           click.secho(output['output_dir_url'][2:], fg='red')
+    if not losses:
+      raise ValueError(f"Could not compute the loss function!")
     partial_objective = make_reduce(options)(losses)
     objective += options.get('weight', 1) * partial_objective
   return objective
