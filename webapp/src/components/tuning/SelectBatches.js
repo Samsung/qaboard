@@ -21,7 +21,6 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts }) => {
     })
     .map(([label, batch]) => {
       let outputs = Object.values(batch.outputs || {})
-      let iters = outputs.filter(o => o.output_type === "optim_iteration").length
       outputs = outputs.filter(o => o.output_type !== "optim_iteration")
       const title = pretty_label(batch)
       let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
@@ -31,7 +30,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts }) => {
       let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
       let running = nb_running > 0 ? `${nb_running}🏃` : "";
       return  <option key={label} value={label}>
-         {title} &nbsp;•&nbsp; {status} &nbsp;{failures}{running}{iters > 0 ? `${iters} 🔁` : ''}
+         {title} &nbsp;•&nbsp; {status} &nbsp;{failures}{running}{batch.data.optimization && `${batch.data.iteration} 🔁`}
        </option>
     });
 
