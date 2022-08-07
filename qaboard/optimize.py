@@ -18,6 +18,7 @@ from .conventions import batch_dir
 from .utils import PathType, getenvs
 from .run import RunContext
 
+seed = int(os.environ.get('QA_SEED', 101))
 
 
 @click.command(context_settings=dict(
@@ -30,9 +31,11 @@ from .run import RunContext
 @click.option('--parallel-param-sampling', type=int, help="Parallel paramater sampling.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
+def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
+  import random
+  random.seed(seed)
   import numpy as np
-  np.random.seed(int(os.environ.get('QA_SEED', 101)))
+  np.random.seed(seed)
 
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   command_data = {
@@ -185,7 +188,7 @@ def init_optimization(optim_config_file, checkpoint, ctx):
   }
   optim_config['solver'] = {
     "name": "scikit-optimize",
-    "random_state": 42,
+    "random_state": seed,
     **optim_config.get('solver', {}),
   }
   from skopt.utils import Space
