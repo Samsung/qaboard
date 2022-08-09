@@ -531,7 +531,7 @@ class TuningForm extends Component {
           this.state.submitted ||
           !user ||
           this.state.experiment_name.length === 0 ||
-          !total_runs
+          (!total_runs && search_type !== "optimize")
         }
         large
         intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
