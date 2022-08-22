@@ -191,7 +191,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         if not can_delete_reference_branch:
             commits = commits.filter(CiCommit.branch.notin_(project.protected_refs))
 
-        for commit in commits.all():
+        for commit in commits.yield_per(1000):
             # if '/algo/' not in str(commit.artifacts_dir):
             #     continue
             # print(commit.artifacts_dir)
