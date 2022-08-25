@@ -487,5 +487,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
       if is_ci:
         click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
-          click.secho(f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy", fg='red')
+          url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy"
+          if batches:
+            url = f"{url}&batch={batches[0]}"
+          click.secho(url, fg='red')
       exit(1)
