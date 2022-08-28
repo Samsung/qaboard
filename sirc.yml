@@ -117,6 +117,9 @@ services:
   
   frontend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
+    build:
+      args:
+        REACT_APP_SENTRY_DSN: http://d62c2a28644f4dc2838b98604bb8d80f@sentry:9000/3
 
   website:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"

@@ -12,7 +12,7 @@ ENV HTTP_PROXY=$PROXY \
     http_proxy=$PROXY \
     HTTPS_PROXY=$PROXY \
     https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry'
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 RUN apt update -qq && apt-get install -y --no-install-recommends rsync
@@ -31,6 +31,8 @@ RUN npm ci || npm ci || npm ci
 COPY . ./
 ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
 ENV REACT_APP_QABOARD_DOCS_ROOT=$REACT_APP_QABOARD_DOCS_ROOT
+ARG REACT_APP_SENTRY_DSN
+ENV REACT_APP_SENTRY_DSN=$REACT_APP_SENTRY_DSN
 RUN npm run-script build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
