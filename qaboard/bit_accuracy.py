@@ -185,7 +185,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platform=None, manifest_name='manifest.outputs.json'):
     """Compares the results of the current output directory versus a reference"""
     run_identifier = ba_context["rel_input_path"]
-    if ba_context["configurations"]:
+    if ba_context.get("configurations"):
       configurations_str = json.dumps(ba_context["configurations"])
       run_identifier = f"{run_identifier}  {configurations_str}" 
 
