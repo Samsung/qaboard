@@ -38,29 +38,15 @@ RUN apk add --no-cache --update -X http://dl-cdn.alpinelinux.org/alpine/edge/com
     wget \
     && rm -rf /var/cache/apk/*
 
-
-ENV JAIHOME=/tmp/jai-1_1_2_01/lib \
-  CLASSPATH=$JAIHOME/jai_core.jar:$JAIHOME/jai_codec.jar:$JAIHOME/mlibwrapper_jai.jar:$CLASSPATH \
-  LD_LIBRARY_PATH=.:$JAIHOME:$CLASSPATH \
-  GEM_HOME=/tmp/gems \
+ENV GEM_HOME=/tmp/gems \
   JAVA_HOME=/usr/lib/jvm/java-11-openjdk
 
-RUN apk --no-cache add openjdk11 wget openjpeg-tools \
-  # network issues at SIRC...
-  # msttcorefonts-installer fontconfig \
-  # && update-ms-fonts \
-  # && fc-cache -f \
-  # See https://github.com/exo-docker/exo/blob/master/Dockerfile#L99
-  && wget -nv -q --no-cookies \
-  --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" \
-  -O "/tmp/jai.tar.gz" "http://download.oracle.com/otn-pub/java/jai/1.1.2_01-fcs/jai-1_1_2_01-lib-linux-i586.tar.gz" \
-  && tar -xzpf jai.tar.gz \
+RUN apk --no-cache add openjdk11 wget openjpeg-tools\
   && rm -rf /var/cache/apk/*
-
 
 # https://github.com/crkn-rcdr/cihm-cantaloupe/issues/15
 RUN cd /tmp && apk add --no-cache --virtual build-dependencies cmake g++ make nasm \
-  && wget https://github.com/libjpeg-turbo/libjpeg-turbo/archive/2.0.4.tar.gz -O libjpeg-turbo-2.0.4.tar.gz \
+  && wget https://github.com/libjpeg-turbo/libjpeg-turbo/archive/2.0.4.tar.gz -O libjpeg-turbo-2.0.4.tar.gz --no-check-certificate\
   && tar -xpf libjpeg-turbo-2.0.4.tar.gz \
   && cd libjpeg-turbo-2.0.4 \
   && cmake \
@@ -78,13 +64,13 @@ RUN cd /tmp && apk add --no-cache --virtual build-dependencies cmake g++ make na
 
 
 
-ENV VERSION=4.1.5
+ENV VERSION=5.0.5
 
 ARG user=cantaloupe
 ARG uid=8182
 ARG group=cantaloupe
 ARG gid=8182
-RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$VERSION/Cantaloupe-$VERSION.zip" \
+RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$VERSION/Cantaloupe-$VERSION.zip" --no-check-certificate \
   && mkdir -p /usr/local/ \
   && cd /usr/local \
   && unzip /tmp/Cantaloupe-$VERSION.zip \
@@ -102,10 +88,10 @@ RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$V
 COPY --chown=$user:$group cantaloupe.properties /etc/
 
 # if we run as another user, we don't want to deal with uid/gid issues
-RUN mkdir -p /var/logs/cantaloupe && mkdir -p /srv/cantaloupe
+RUN mkdir -p /var/logs/cantaloupe && mkdir -p /srv/cantaloupe/logs
 VOLUME /srv/cantaloupe
 RUN chmod 777 /srv/cantaloupe && chmod 777 /srv/cantaloupe/logs
 
 # ENV GEM_HOME /tmp/gems
 USER $user
-CMD ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms4g -Xmx12g -jar /usr/local/cantaloupe/cantaloupe-$VERSION.war"]
+CMD ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Xms4g -Xmx12g -jar /usr/local/cantaloupe/cantaloupe-$VERSION.jar"]
