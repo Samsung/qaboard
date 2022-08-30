@@ -7,6 +7,8 @@ import { PersistGate } from 'redux-persist/integration/react'
 
 import { Classes } from "@blueprintjs/core";
 
+import * as Sentry from "@sentry/react";
+
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
@@ -123,6 +125,4 @@ class ProjectApp extends React.Component {
 
 
 
-  
-
-export default App;
+export default Sentry.withProfiler(App);
