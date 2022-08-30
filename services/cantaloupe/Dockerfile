@@ -78,13 +78,13 @@ RUN cd /tmp && apk add --no-cache --virtual build-dependencies cmake g++ make na
 
 
 
-ENV VERSION=4.1.5
+ENV VERSION=5.0.5
 
 ARG user=cantaloupe
 ARG uid=8182
 ARG group=cantaloupe
 ARG gid=8182
-RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$VERSION/Cantaloupe-$VERSION.zip" \
+RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$VERSION/Cantaloupe-$VERSION.zip" --no-check-certificate \
   && mkdir -p /usr/local/ \
   && cd /usr/local \
   && unzip /tmp/Cantaloupe-$VERSION.zip \
@@ -102,10 +102,10 @@ RUN wget -nv "https://github.com/medusa-project/cantaloupe/releases/download/v$V
 COPY --chown=$user:$group cantaloupe.properties /etc/
 
 # if we run as another user, we don't want to deal with uid/gid issues
-RUN mkdir -p /var/logs/cantaloupe && mkdir -p /srv/cantaloupe
+RUN mkdir -p /var/logs/cantaloupe && mkdir -p /srv/cantaloupe/logs
 VOLUME /srv/cantaloupe
 RUN chmod 777 /srv/cantaloupe && chmod 777 /srv/cantaloupe/logs
 
 # ENV GEM_HOME /tmp/gems
 USER $user
-CMD ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms4g -Xmx12g -jar /usr/local/cantaloupe/cantaloupe-$VERSION.war"]
+CMD ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms4g -Xmx12g -jar /usr/local/cantaloupe/cantaloupe-$VERSION.jar"]
