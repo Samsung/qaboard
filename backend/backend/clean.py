@@ -247,7 +247,8 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
               if not nb_outputs and deleted_artifacts and can_delete_outputs:
                 print(f"DELETE {commit}")
                 db_session.delete(commit)
-              db_session.commit()
+
+        db_session.commit()
 
 
 
