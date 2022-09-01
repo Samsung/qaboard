@@ -27,7 +27,12 @@ const Section = styled.div`
   margin-bottom: 40px;
   margin-top: 30px;
   width: fit-content;
-  min-width: 850px;
+  @media (min-width: 768px) {
+    min-width: 850px;
+  }
+  @media (min-width: 1500px) {
+    min-width: 1150px;
+  }
 `;
 
 
