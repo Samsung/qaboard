@@ -11,7 +11,7 @@ import yaml
 
 sirc_config_path = Path(__file__).parent / 'sirc.yml'
 with sirc_config_path.open() as f:
-    sirc_config = yaml.load(f)
+    sirc_config = yaml.safe_load(f)
 volumes = sirc_config['services']['proxy']['volumes']
 volumes.append("/home:/home")
 volumes = [Path(v.split(':')[0]) for v in volumes]
