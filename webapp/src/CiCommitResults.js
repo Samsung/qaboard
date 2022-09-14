@@ -35,6 +35,7 @@ import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { is_image } from "./viewers/images/utils"
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { match_query } from "./utils";
+import { humanFileSize } from "./viewers/bit_accuracy/utils";
 
 import {
 	projectSelector,
@@ -263,6 +264,7 @@ class CiCommitResults extends Component {
           >
             <option value="test_input_path">Sort by Name</option>
             <option value="id">Sort by ID</option>
+            <option value="data.storage">Sort by Storage</option>
             {has_tuning && <option style={{fontWeight: 'bold'}} disabled>Tuning</option>}
             {tuned_params
               .map(
@@ -444,6 +446,11 @@ class CiCommitResults extends Component {
               {selected_views.includes('bit-accuracy') && <Section>
                  {all_controls}
                   <h2 className={Classes.HEADING}>Output Files</h2>
+                  <p className={Classes.TEXT_MUTED}>Total Storage: {humanFileSize(
+                    (new_batch?.filtered?.outputs ?? [])
+                    .map( id => new_batch.outputs[id]?.data?.storage ?? 0)
+                    .reduce((running_total, storage) => running_total + storage, 0)
+                  , true)}</p>
                   <ExportPlugin
                     project={this.props.selected.new_project}
                     ref_project={this.props.selected.ref_project}
