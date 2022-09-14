@@ -94,9 +94,6 @@ WORKDIR /qaboard/backend
 COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
 RUN poetry install --extras qaboard
 
-# TODO: "poetry add" it 
-RUN pip install celery
-
 
 # SIRC-only, installs cde-python, used to read hex/raw images for the auto-ROI feature
 COPY third_party/cde-python /cde-python
