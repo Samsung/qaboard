@@ -37,6 +37,10 @@ uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
 qaboard = { path = "..", optional = true } #, develop = true }
 scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
+certifi = "^2022.6.15"
+requests = "^2.28.1"
+celery = "^5.2.7"
+sentry-sdk = "^1.9.8"
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]
