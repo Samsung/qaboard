@@ -190,7 +190,7 @@ services:
     environment:
       CANTALOUPE_MEM_START: 1g
       CANTALOUPE_MEM_MAX: 2g
-    command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.war'
+    command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.jar'
 
 
   # cron jobs
