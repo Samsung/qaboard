@@ -108,3 +108,10 @@ with profiled():
   ... # code to be profiled
 ```
 
+### SENTRY (Application Monitoring and Error Tracking Software)
+To integrate with SENTRY server, add an environment variable __SENTRY_DSN__ to _\<local\>.yml_, for example:
+```yml
+  backend:
+    environment:
+    - SENTRY_DSN=https://examplePublicKey@o0.ingest.sentry.io/0
+```
