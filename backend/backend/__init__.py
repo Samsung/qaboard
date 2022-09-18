@@ -17,7 +17,7 @@ if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
     sentry_sdk.init(
         dsn=os.environ.get('SENTRY_DSN'),
         integrations=[FlaskIntegration(),],
-        traces_sample_rate=0.2
+        traces_sample_rate=float(os.environ.get('SENTRY_SAMPLE_RATE', 0.2))
     )
 
 # Provide easy access to our git repositories
