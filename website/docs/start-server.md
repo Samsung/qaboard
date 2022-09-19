@@ -92,6 +92,9 @@ third-party-tools#example-jenkins-integration-via-webhooks))               |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
 | `UWSGI_PROCESSS`       | 1       | default: 1g                                          |
+| `SENTRY_DSN`           | _none_  | monitor crashes with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
+| `SENTRY_SAMPLE_RATE`           | 0.2  | sample for perf monitoring |
+
 
 :::note
 In the future we plan to introduce a proper "secret" store, per user and per project.

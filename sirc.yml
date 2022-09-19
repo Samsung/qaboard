@@ -42,6 +42,7 @@ services:
     - QABOARD_LDAP_PASSWORD=REDACTED_LDAP_PASSWORD
     - QABOARD_LDAP_HOST=REDACTED_LDAP_HOST
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
+    - SENTRY_DSN=https://REDACTED_SENTRY_KEY@sentry.transchip.com/5
 
     volumes:
     - ./services/backend/passwd:/etc/passwd

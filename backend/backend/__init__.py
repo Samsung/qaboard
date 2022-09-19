@@ -10,6 +10,16 @@ app = Flask(__name__)
 # To generate a key: python -c 'import os; print(os.urandom(16))'
 app.secret_key = os.environ.get('SECRET_KEY', 'please-generate-your-own-secret-key')
 
+if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
+    # send errors to sentry server
+    import sentry_sdk
+    from sentry_sdk.integrations.flask import FlaskIntegration
+    sentry_sdk.init(
+        dsn=os.environ.get('SENTRY_DSN'),
+        integrations=[FlaskIntegration(),],
+        traces_sample_rate=float(os.environ.get('SENTRY_SAMPLE_RATE', 0.2))
+    )
+
 # Provide easy access to our git repositories
 from .git_utils import Repos
 from .config import git_server, qaboard_data_git_dir
