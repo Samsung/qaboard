@@ -28,7 +28,7 @@ def git_show(format: str, reference: str = None) -> str:
   try:
     p.check_returncode()
   except Exception as e:
-    click.secho(p.stdout, fg='red')
+    click.secho(p.stdout, fg='red', err=True)
     raise e
   return p.stdout.strip()
 
