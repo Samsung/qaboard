@@ -32,15 +32,16 @@ To configure debugging, the editor opens a file called *launch.json*. You want t
 },
 ```
 
+To debug `qa run`, for instance:
 ```json
-{
-  "--",
-  "--database",
-  ".",
-  "run",
-  "--input",
-  "tv/tv_GW1_9296x256_REMOSAIC_V1_FULL_X_HP_PDA1",
-}
+  "args": [
+    "--",
+    "--database",
+    ".",
+    "run",
+    "--input",
+    "tv/tv_GW1_9296x256_REMOSAIC_V1_FULL_X_HP_PDA1",
+  ]
 ```
 
 Here is a more in-depth review of your options at https://code.visualstudio.com/docs/python/debugging
