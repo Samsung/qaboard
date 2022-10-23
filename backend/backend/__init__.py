@@ -14,10 +14,24 @@ if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
     # send errors to sentry server
     import sentry_sdk
     from sentry_sdk.integrations.flask import FlaskIntegration
+
+    # TODO: add IT's certificate and remove this...
+    import urllib3
+    urllib3.disable_warnings()
+    class InsecureHttpTransport(sentry_sdk.transport.HttpTransport):
+        def _get_pool_options(self, ca_certs):
+            options = super()._get_pool_options(ca_certs)
+            options["cert_reqs"] = "CERT_NONE" # Ignore SSL Errors
+            return options
+
     sentry_sdk.init(
         dsn=os.environ.get('SENTRY_DSN'),
-        integrations=[FlaskIntegration(),],
-        traces_sample_rate=float(os.environ.get('SENTRY_SAMPLE_RATE', 0.2))
+        integrations=[
+            FlaskIntegration(),
+        ],
+        traces_sample_rate=float(os.environ.get('SENTRY_SAMPLE_RATE', 0.2)),
+        transport=InsecureHttpTransport, # TODO: remove this...
+        # ca_certs="some/place/sirc-certificate-authority.pem"
     )
 
 # Provide easy access to our git repositories
