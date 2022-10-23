@@ -438,7 +438,7 @@ const JobTag = ({job}) => {
   }
   const { status, allow_failure } = job;
   return <Tooltip>
-    <a href={job.url || job.web_url} target="_blank"  rel="noopener noreferrer"><Tag
+    <a href={(job.url || job.web_url).replace("/api/json", "")} target="_blank"  rel="noopener noreferrer"><Tag
       round
       onClick={e => {e.stopPropagation()}}
       minimal
