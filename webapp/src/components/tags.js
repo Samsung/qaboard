@@ -15,6 +15,7 @@ import {
   Intent,
   Tooltip,
   Toaster,
+  Button,
 } from "@blueprintjs/core";
 
 import { fetchCommit } from "../actions/commit";
@@ -333,6 +334,46 @@ class OutputTags extends React.Component {
         <span>Copy-to-Clipboard the Windows directory</span>
       </Tooltip>
 
+      {false && <Tooltip>
+       && <Button 
+          minimal={true}
+          disabled={this.state.waiting}
+          icon="export"
+          text="Open WebCDE"
+          onClick={() => {
+            this.setState({waiting: true})
+            if(this.props.manifests.new["cde.sh"]) {
+              fetch(output_dir_url + '/cde.sh')
+              .then((r) => r.text())
+              .then(text => {
+                let command = text.replace(/"/g, '').trim();
+                let name = this.props.output.test_input_path.split(".")[0]
+                axios.post(`http://localhost:2020/CDE/Launch?WebCDE`, { os:platform, command:command, commit: this.props.commit.id.slice(0, 8), name: name })
+                .then(() => {
+                  this.setState({waiting: false})
+                  toaster.show({message: "sent to WebCDE", intent: Intent.PRIMARY});
+                  this.refresh()
+                })
+                .catch(error => {
+                  this.setState({waiting: false})
+                  if (error.message == "Network Error") {
+                    toaster.show({message: "Could not connect to CDEWebService. Please check you have a local CDEWebService running on your device *OR* you can download the WebCDE here: \\\\netapp\\joint\\Adi\\CDE2000\\WebCDE_RC5_Setup.exe" + 
+                    " (ERROR: "+ error + ")", intent: Intent.DANGER});
+                  } else {
+                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  }
+                  this.refresh()
+                });
+              })
+            } else {
+              // file was not created. what to do?
+              this.setState({waiting: false})
+              toaster.show({message: "Something went wrong", intent: Intent.DANGER});
+            }
+          }}
+        > </Button>
+        <span>Open in WebCDE</span>
+      </Tooltip> }
       <MismatchTags mismatch={mismatch}/>
     </span>
   }
