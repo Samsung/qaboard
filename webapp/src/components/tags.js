@@ -342,13 +342,20 @@ class OutputTags extends React.Component {
           text="Open WebCDE"
           onClick={() => {
             this.setState({waiting: true})
+            // TODO: look for all cde.sh files and let users choose which one to use
             if(this.props.manifests.new["cde.sh"]) {
-              fetch(output_dir_url + '/cde.sh')
-              .then((r) => r.text())
+              fetch(`${output_dir_url}/cde.sh`)
+              .then(r => r.text())
               .then(text => {
                 let command = text.replace(/"/g, '').trim();
                 let name = this.props.output.test_input_path.split(".")[0]
-                axios.post(`http://localhost:2020/CDE/Launch?WebCDE`, { os:platform, command:command, commit: this.props.commit.id.slice(0, 8), name: name })
+                axios.post(
+                  `http://localhost:2020/CDE/Launch?WebCDE`, {
+                    os: platform,
+                    command,
+                    commit: this.props.commit.id.slice(0, 8),
+                    name
+                })
                 .then(() => {
                   this.setState({waiting: false})
                   toaster.show({message: "sent to WebCDE", intent: Intent.PRIMARY});
@@ -356,11 +363,16 @@ class OutputTags extends React.Component {
                 })
                 .catch(error => {
                   this.setState({waiting: false})
+                  const error_str = error.response?.data?.error ?? JSON.stringify(error)
                   if (error.message == "Network Error") {
-                    toaster.show({message: "Could not connect to CDEWebService. Please check you have a local CDEWebService running on your device *OR* you can download the WebCDE here: \\\\netapp\\joint\\Adi\\CDE2000\\WebCDE_RC5_Setup.exe" + 
-                    " (ERROR: "+ error + ")", intent: Intent.DANGER});
+                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from  \\\\netapp\\joint\\Adi\\CDE2000\\WebCDE_RC5_Setup.exe"
+                    toaster.show({
+                      message: `${info} (ERROR: ${error_str})`,
+                      intent: Intent.DANGER});
                   } else {
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                    toaster.show({
+                      message: error_str,
+                      intent: Intent.DANGER});
                   }
                   this.refresh()
                 });
