@@ -262,4 +262,6 @@ def output_dirs_for_input_part(input_path, database, config):
             input_dir = database.relative_to(database.root) / input_dir
     if len(input_dir.as_posix()) > 70:
         input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
+    else:
+        input_dir = Path(slugify(input_dir.as_posix()))
     return input_dir
