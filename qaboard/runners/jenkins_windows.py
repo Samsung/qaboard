@@ -56,22 +56,31 @@ from ..config import config
 from ..api import api_prefix
 
 
+def get_jenkins_config():
+    jenkins_config = {}
+    error = None
+    if "QA_RUNNERS_JENKINS_BUILD_URL" in os.environ:
+        jenkins_config["build_url"] = os.environ["QA_RUNNERS_JENKINS_BUILD_URL"]
+    if "QA_RUNNERS_JENKINS_TOKEN" in os.environ:
+        jenkins_config["token"] = os.environ["QA_RUNNERS_JENKINS_TOKEN"]
+    if not jenkins_config:
+        if 'runners' not in config or 'jenkins' not in config['runners']:
+            error = "You must configure your Jenkins runner in qaboard.yaml"
+        jenkins_config.update(config['runners']['jenkins'])
+    if "build_url" not in jenkins_config:
+          error = "You must configure your Jenkins runner in qaboard.yaml with build_url (and usually a token)"
+    if error:
+        secho(f"ERROR: {error}", fg='red', bold=True)
+        secho("     See https://samsung.github.io/qaboard/docs/jenkins-integration", fg='red')
+        raise ValueError(error)
+
 
 def trigger_run(task: str) -> Dict:
-    config_error = False
-    if 'runners' not in config or 'jenkins' not in config['runners']:
-      secho("ERROR: you must configure your Jenkins runner in qaboard.yaml", fg='red')
-      config_error = True
-    jenkins_config = config['runners']['jenkins']
-    print(jenkins_config)
-    if any([k not in jenkins_config for k in ('build_url', 'token')]):
-      secho("ERROR: you must configure your Jenkins runner in qaboard.yaml with build_url/token", fg='red')
-    if config_error:
-      raise ValueError("Missing config in qaboard.yaml")
+    jenkins_config = get_jenkins_config()
     data = {
         "build_url": jenkins_config["build_url"],
-        "token": jenkins_config["token"],
-        "cause": "qa run",
+        "token": jenkins_config.get("token"),
+        "cause": "Triggered by QA-Board",
         "params": {
             "task": task,
         }
