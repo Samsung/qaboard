@@ -97,7 +97,7 @@ def slugify_hash(s, maxlength=32):
   else:
     s_to_slugify = s
   if len(s_to_slugify) < maxlength:
-    return slugify(s_to_slugify)
+    return slugify(s_to_slugify, maxlength)
   s_hash = make_hash(s)[:8]
   return f"{s_hash}-{slugify(s_to_slugify[-(maxlength-8):], maxlength=None)}"
 
@@ -255,10 +255,10 @@ def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, e
 
 def output_dirs_for_input_part(input_path, database, config):
     input_dir = input_path.with_suffix('')
+    input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
     if config.get('outputs', {}).get('output_dir_uses_database'):
         if not database.is_absolute():
             input_dir = database / input_dir
         else:
             input_dir = database.relative_to(database.root) / input_dir
-    input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
     return input_dir
