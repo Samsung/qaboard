@@ -73,6 +73,7 @@ def get_jenkins_config():
         secho(f"ERROR: {error}", fg='red', bold=True)
         secho("     See https://samsung.github.io/qaboard/docs/jenkins-integration", fg='red')
         raise ValueError(error)
+    return jenkins_config
 
 
 def trigger_run(task: str) -> Dict:
