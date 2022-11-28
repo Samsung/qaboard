@@ -343,7 +343,7 @@ class OutputTags extends React.Component {
           onClick={() => {
             this.setState({waiting: true})
             // TODO: look for all cde.sh files and let users choose which one to use
-            if(this.props.manifests.new["cde.sh"]) {
+            if(this.props && this.props.manifests && this.props.manifests.new && this.props.manifests.new["cde.sh"]) {
               fetch(`${output_dir_url}/cde.sh`)
               .then(r => r.text())
               .then(text => {
@@ -351,10 +351,11 @@ class OutputTags extends React.Component {
                 let name = this.props.output.test_input_path.split(".")[0]
                 axios.post(
                   `http://localhost:2020/CDE/Launch?WebCDE`, {
-                    os: platform,
-                    command,
-                    commit: this.props.commit.id.slice(0, 8),
-                    name
+                    os: platform, 
+                    command: command, 
+                    wd: `${decodeURIComponent(linux_to_windows(output_dir_url))}\\` , 
+                    commit: this.props.commit.id.slice(0, 8), 
+                    name: name 
                 })
                 .then(() => {
                   this.setState({waiting: false})
@@ -365,7 +366,7 @@ class OutputTags extends React.Component {
                   this.setState({waiting: false})
                   const error_str = error.response?.data?.error ?? JSON.stringify(error)
                   if (error.message == "Network Error") {
-                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from  \\\\netapp\\joint\\Adi\\CDE2000\\WebCDE_RC5_Setup.exe"
+                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\joint\\Adi\\CDE2000\\WebCDE_RC6_Setup.exe)"
                     toaster.show({
                       message: `${info} (ERROR: ${error_str})`,
                       intent: Intent.DANGER});
@@ -381,6 +382,7 @@ class OutputTags extends React.Component {
               // file was not created. what to do?
               this.setState({waiting: false})
               toaster.show({message: "Something went wrong", intent: Intent.DANGER});
+              this.refresh()
             }
           }}
         > </Button>
