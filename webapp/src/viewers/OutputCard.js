@@ -69,7 +69,7 @@ const FullScreenableSlimCard = props => {
   </SlimCard>
 }
 
-const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, style, prefix, viewable, tags_first=false }) => {
+const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, manifests, style, prefix, viewable, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const tags = <OutputTags
@@ -77,6 +77,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, sty
     project={project}
     output_ref={output_ref}
     mismatch={output.reference_mismatch}
+    manifests={manifests}
     dispatch={dispatch}
     commit={commit}
     style={{marginLeft: '5px', marginRight: '5px'}}
@@ -242,6 +243,8 @@ class OutputCard extends React.Component {
               { load_data: {} },
               thrown,
             )
+          else if (!update_manifest)
+            this.fetchData(label, update_manifest=true)
         });
     }).map(f => f()))
       // now we loaded and parsed all the data
@@ -582,6 +585,7 @@ class OutputCard extends React.Component {
           output={output_new}
           output_ref={output_ref}
           viewable={viewable}
+          manifests={this.state.manifests}
           type={this.props.type}
           dispatch={this.props.dispatch}
           style={condensed_header_style}
