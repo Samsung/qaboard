@@ -243,9 +243,8 @@ class OutputCard extends React.Component {
               { load_data: {} },
               thrown,
             )
-          else 
+          else if (!update_manifest)
             this.fetchData(label, update_manifest=true)
-          
         });
     }).map(f => f()))
       // now we loaded and parsed all the data
