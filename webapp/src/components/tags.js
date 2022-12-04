@@ -366,7 +366,7 @@ class OutputTags extends React.Component {
                   this.setState({waiting: false})
                   const error_str = error.response?.data?.error ?? JSON.stringify(error)
                   if (error.message == "Network Error") {
-                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\joint\\Adi\\CDE2000\\WebCDE_RC6_Setup.exe)"
+                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\Joint\\WebCDE\\WebCDE_Setup.exe)"
                     toaster.show({
                       message: `${info} (ERROR: ${error_str})`,
                       intent: Intent.DANGER});
