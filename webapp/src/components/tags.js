@@ -334,8 +334,8 @@ class OutputTags extends React.Component {
         <span>Copy-to-Clipboard the Windows directory</span>
       </Tooltip>
 
-      {false && <Tooltip>
-       && <Button 
+      <Tooltip>
+       <Button 
           minimal={true}
           disabled={this.state.waiting}
           icon="export"
@@ -387,7 +387,7 @@ class OutputTags extends React.Component {
           }}
         > </Button>
         <span>Open in WebCDE</span>
-      </Tooltip> }
+      </Tooltip> 
       <MismatchTags mismatch={mismatch}/>
     </span>
   }
