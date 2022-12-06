@@ -96,6 +96,7 @@ class OutputLog extends React.Component {
         // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
         // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
         const sanitizeHtml_options = {
+          disallowedTagsMode: "recursiveEscape",
           // allowedTags: ['b', 'i', 'em', 'strong', 'a'],
           // allowedAttributes: {
           //   a: ['href', 'target']
