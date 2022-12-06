@@ -36,7 +36,7 @@
     "openseadragon": "^3.0.0",
     "path-to-regexp": "^6.2.0",
     "plotly.js": "^2.8.3",
-    "qs": "^6.9.4",
+    "qs": "^6.10.3",
     "react": "^17.0.1",
     "react-app-polyfill": "^3.0.0",
     "react-app-rewired": "^2.1.11",
