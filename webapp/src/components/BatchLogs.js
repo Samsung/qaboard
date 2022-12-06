@@ -91,7 +91,8 @@ class OutputLog extends React.Component {
 
     get(`${output.output_dir_url}/${log_file || 'log.txt'}`)
       .then(response => {
-        const logs = response.data;
+        var logs = response.data;
+        logs = logs.replaceAll("<?", "??") // avoid issues wih tqdm prints being stripped
         // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
         // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
         // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
