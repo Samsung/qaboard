@@ -29,6 +29,10 @@ services:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
+    # deploy: # supported with swarm
+    #   resources:
+    #     limits:
+    #       memory: 16000M
     environment:
     - GITLAB_HOST=http://gitlab-srv
     - UWSGI_UID=ispq
