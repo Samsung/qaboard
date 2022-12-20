@@ -30,6 +30,8 @@ import templates from './templates'
 export const toaster = Toaster.create();
 
 
+const MAX_RUNS = 5000;
+
 const editor_options = {
   selectOnLineNumbers: true,
   seedSearchStringFromSelection: true,
@@ -218,7 +220,7 @@ class TuningForm extends Component {
       [name]: value,
     }, () => {
       this.setState({...combinations_info(this.state.parameter_search, this.state.search_options, this.state.search_type)})
-    }); 
+    });
     this.props.dispatch(updateTuningForm(this.props.project, {[name] : value}))
   }
 
@@ -320,7 +322,7 @@ class TuningForm extends Component {
     const { combinations, language } = this.state
     let total_runs = combinations * tests.length;
     let time_intent =
-      (combinations === "invalid" || total_runs===0)
+      (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
         ? Intent.DANGER
         : total_runs < 100
           ? Intent.PRIMARY
@@ -388,9 +390,9 @@ class TuningForm extends Component {
         name="editor-tuning-set"
         onChange={this.updateParameterSearch}
       />
-      {this.state.search_type !== "optimize" && <Callout intent={time_intent} >{total_runs} total runs</Callout>}
+      {this.state.search_type !== "optimize" && <Callout intent={time_intent} >{total_runs} total runs {total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.)'} </Callout>}
     </>
-   
+
 
     const panel_auto = <>
       <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset</Button>
@@ -531,7 +533,8 @@ class TuningForm extends Component {
           this.state.submitted ||
           !user ||
           this.state.experiment_name.length === 0 ||
-          (!total_runs && search_type !== "optimize")
+          (!total_runs && search_type !== "optimize") ||
+          total_runs > MAX_RUNS
         }
         large
         intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}

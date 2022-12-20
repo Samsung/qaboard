@@ -153,8 +153,9 @@ class IntegrationsMenus extends React.Component {
     }
     startUpdateIntegrationStatuses = interval => {
       this.stopUpdateIntegrationStatuses();
+      this.updateIntegrationStatuses();
       this.setState({
-        intervalId: setInterval(this.updateIntegrationStatuses, interval || 10*1000),
+        intervalId: setInterval(this.updateIntegrationStatuses, interval || 10 * 1000),
       })
     }
     componentDidMount = function() {
@@ -376,7 +377,7 @@ class IntegrationsMenus extends React.Component {
                     usePortal: true,
                     hoverCloseDelay: 1000,
                     transitionDuration: 1000,
-                    onOpening: this.startUpdateIntegrationStatuses,
+                    onOpening: () => {this.startUpdateIntegrationStatuses(5000)},
                     onClosed: this.stopUpdateIntegrationStatuses,
           }}>
             {integrations_in_menu.map(render_integration)}

@@ -137,7 +137,7 @@ def commit_save_artifacts():
                   )
   except:
     return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({hexsha})", 404
-  for ci_commit in ci_commits.all():
+  for ci_commit in ci_commits.yield_per(1000):
     if not request.json['project'].startswith(ci_commit.project_id):
       print(f'skip {ci_commit.project_id}')
       continue

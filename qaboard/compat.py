@@ -97,6 +97,7 @@ mappings = (
   ('\\\\f2\\algo-datasets', '/stage/algo-datasets'),
   ('\\\\mars\\data', '/data'),
   ('\\\\netapp\\Joint', '/net/netapp/vol/home_nt/Joint'),
+  ('\\\\mars\\sim', '/sim'),
 )
 re_algo_inputs = re.compile(r"\\\\netapp\\vol23_algo\\([^\\]+)[\\_]inputs")
 
