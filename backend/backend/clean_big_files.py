@@ -27,7 +27,7 @@ def main():
     nb_bad_files = 0
     total_size = 0
     errors = []
-    for output in outputs.all():
+    for output in outputs.yield_per(1000):
         if not output.output_dir.exists():
             continue
         if not (output.output_dir / 'manifest.outputs.json').exists():

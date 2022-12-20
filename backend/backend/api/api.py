@@ -91,7 +91,7 @@ def get_commits(branch=None):
       with_batches = ['default']
   serializable_commits = []
   # with profiled():
-  for c in ci_commits.limit(1000):
+  for c in ci_commits.yield_per(1000).limit(1000):
     if not c.batches:
       continue
     serializable_commits.append(c.to_dict(
@@ -113,7 +113,7 @@ def get_branches():
               .distinct()
               .order_by(CiCommit.branch)
              )
-  return jsonify([b[0] for b in branches])
+  return jsonify([b[0] for b in branches.yield_per(1000)])
 
 
 
@@ -130,10 +130,9 @@ def get_projects():
               .join(CiCommit)
               .group_by(Project.id)
               .order_by(asc(func.lower(Project.id)))
-              .all()
              )
   response = {}
-  for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects:
+  for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects.yield_per(1000):
     if "qatools_metrics" in data:
       del data['qatools_metrics']
     if "qatools_config" in data:
