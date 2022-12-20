@@ -40,22 +40,22 @@ RUN apt-get update && apt-get install -y gnupg2 && \
     git config --global http.proxy $PROXY
 
 
-# https://www.psycopg.org/docs/install.html#install-from-source
-# https://www.psycopg.org/docs/faq.html#faq-compile
-RUN apt-get update && apt-get install -y libpq-dev gcc
-# for Ldap Authentication
-RUN apt-get update && apt-get install libsasl2-dev libldap2-dev -y
-
-# At SIRC we need to be able to turn into any user to delete their output files
-RUN apt-get update && apt-get install -y sudo
-
-# procps is a set of command line and full-screen utilities that provide information out of the pseudo-filesystem.
-# https://github.com/warmchang/procps
-RUN apt-get update && apt-get install -y procps
-
-# If we want uwsgi's routing support
-# https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
-# RUN sudo apt-get install libpcre3 libpcre3-dev
+RUN apt-get update -qq && \
+    apt-get install -y \
+    # https://www.psycopg.org/docs/install.html#install-from-source
+    # https://www.psycopg.org/docs/faq.html#faq-compile
+    libpq-dev gcc \
+    # for Ldap Authentication
+    libsasl2-dev libldap2-dev \
+    # At SIRC we need to be able to turn into any user to delete their output files
+    sudo \
+    # procps is a set of command line and full-screen utilities that
+    # provide information out of the pseudo-filesystem.
+    # https://github.com/warmchang/procps
+    procps \
+    # If we want uwsgi's routing support
+    # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
+    libpcre3 libpcre3-dev
 
 # we want /qaboard to "look" like a package for poetry not to fail 
 WORKDIR /qaboard
