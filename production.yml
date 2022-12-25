@@ -25,7 +25,7 @@ services:
     - UWSGI_CHEAPER=8           # minimum
     - UWSGI_CHEAPER_OVERLOAD=15
     # values in bytes
-    - UWSGI_CHEAPER_RSS_LIMIT_SOFT=
+    - UWSGI_CHEAPER_RSS_LIMIT_SOFT=17179869184 #16GB
     - UWSGI_CHEAPER_RSS_LIMIT_HARD=
     - UWSGI_STATS=true
     # leave an unbound port open, useful for debugging 
