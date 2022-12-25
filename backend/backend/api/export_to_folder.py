@@ -364,8 +364,8 @@ def symlink_to(path_from, path_to):
     # print("  ", path_from.owner())
     os.link(str(path_to), str(path_from))
     # path_from.symlink_to(path_to)
-  except:
-    pass
+  except Exception as e:
+    print("symlink_to: ", e)
 
 
 def copy_path_rel(output, output_path, label):
