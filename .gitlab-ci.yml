@@ -11,7 +11,7 @@ stages:
   - publish # To Pypi
 
 before_script:
-  - source .envrc
+  - source ./.envrc
   # Use ssh-agent to build container images that access private repositories
   - eval $(ssh-agent -s)
   - ssh-add $HOME/.ssh/id_rsa
