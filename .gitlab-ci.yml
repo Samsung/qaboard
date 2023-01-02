@@ -1,3 +1,10 @@
+default:
+  tags: [lsf]
+
+variables:
+  SIRC_LSF_QUEUE: alg_isp_q
+  SIRC_USER: ispq
+
 stages:
   - test
   - deploy  # Internally
