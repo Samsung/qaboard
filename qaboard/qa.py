@@ -707,8 +707,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
 
 @qa.command()
-# Do we want this? we could simply use groups not defined in qatools.yaml:artifacts as paths
-@click.option('--file', '-f', 'files', multiple=True, help="Save specific files instead of artifacts indicated by yaml file")
+@click.option('--file', '-f', 'files', multiple=True, help="Save specific files instead of artifacts indicated by yaml file. Supports python-glob-style wildcards - if calling from a shell wrap with single quotes.")
 @click.option('--exclude', 'excluded_groups', multiple=True, help="Exclude specific artifact groups")
 # Do we use this? yes in the API, but let's deprecate and remove for other uses...
 @click.option('--out', '-o', 'artifacts_path', default='', help="Path to save artifacts in case of specified files")
