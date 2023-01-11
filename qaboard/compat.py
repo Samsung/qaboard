@@ -98,7 +98,7 @@ mappings = (
   ('\\\\mars\\data', '/data'),
   ('\\\\netapp\\Joint', '/net/netapp/vol/home_nt/Joint'),
   ('\\\\mars\\sim', '/sim'),
-  ('\\\\mars\\stage', '/stage')
+  ('\\\\mars\\stage', '/stage'),
 )
 re_algo_inputs = re.compile(r"\\\\netapp\\vol23_algo\\([^\\]+)[\\_]inputs")
 
