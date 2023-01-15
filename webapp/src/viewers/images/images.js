@@ -251,7 +251,7 @@ class ImgViewer extends React.PureComponent {
       const { viewer_new, viewer_ref } = this;
       const { path, output_new, output_ref } = this.props;
 
-      const has_reference = !!output_ref && !!output_ref.output_dir_url && this.props.manifests.reference[path] !== undefined;
+      const has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path] !== undefined;
       this.setState({has_reference})
 
       let requests = [get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })]
