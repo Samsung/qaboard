@@ -75,7 +75,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
   </Tooltip>;
 
-  if (metric_info.key === 'is_failed' && !metrics_new.is_failed) {
+  if (metric_info.key === 'is_failed') {
     metric_tag = <span/>
   }
 

@@ -548,13 +548,13 @@ class OutputCard extends React.Component {
         />
       } else {
         content = <>
-          {!output_new.is_failed && <MetricsTags
+          <MetricsTags
             key="content"
             selected_metrics={main_metrics}
             available_metrics={available_metrics}
             metrics_new={output_new.metrics ?? {}}
             metrics_ref={output_ref?.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
-          />}
+          />
           {viewers}
         </>
       }
