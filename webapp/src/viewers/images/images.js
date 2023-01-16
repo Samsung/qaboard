@@ -580,7 +580,7 @@ class ImgViewer extends React.PureComponent {
 
     const has_error = !!error && Object.keys(error).length > 0;
     const error_messages = !has_error ? <span/> : <>
-      {manifests?.new?.[path].st_size == 0 && <Tag style={{marginRight: "5px"}} intent={Intent.DANGER}>Empty Image</Tag>}
+      {manifests?.new?.[path]?.st_size == 0 && <Tag style={{marginRight: "5px"}} intent={Intent.DANGER}>Empty Image</Tag>}
       <Popover inheritDarkTheme portalClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"}>
           <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
           <div style={{ padding: '5px' }}>
