@@ -182,7 +182,7 @@ class BitAccuracyViewer extends React.Component {
        onNodeExpand={this.handleNodeExpand}
       />
       {selected.map( filename => {
-        const has_same_data = is_same_data(filename, this.props.manifests?.new, this.props.manifests?.reference)
+        const has_same_data = is_same_data(filename, this.props.manifests?.new?.[filename], this.props.manifests?.reference?.[filename])
         return <>
           {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
           <OutputViewer

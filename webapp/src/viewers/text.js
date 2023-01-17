@@ -5,6 +5,8 @@ import { Classes, Tag, Tooltip } from "@blueprintjs/core";
 import MonacoEditor from 'react-monaco-editor';
 import { MonacoDiffEditor } from 'react-monaco-editor';
 
+import { is_same_data } from "../utils"
+
 // TODO: Implement a way to hide identical lines in the diff viewer
 // 1. We could use the diffNavigator
 // https://microsoft.github.io/monaco-editor/playground.html#creating-the-diffeditor-navigating-a-diff
@@ -142,6 +144,7 @@ class GenericTextViewer extends React.Component {
       return <span></span>
 
     const { filename, text_url_new, text_url_ref, width } = this.props;
+    const has_same_data = is_same_data(filename, this.props.manifests?.new?.[filename], this.props.manifests?.reference?.[filename])
     let no_reference = !!!text_url_ref || !!!data.reference || (!!text_url_new && text_url_new === text_url_ref);
 
     const max_lines = this.props.max_lines || 40
@@ -151,6 +154,7 @@ class GenericTextViewer extends React.Component {
     const editor = (!no_reference || this.props.always_show_diff)
       ? <MonacoDiffEditor
           readonly
+          ref="monaco"
           width={width}
           height={height}
           language={this.props.language || language(filename)}
@@ -160,9 +164,11 @@ class GenericTextViewer extends React.Component {
             ...editor_options,
             renderSideBySide,
           }}
+          editorDidMount={this.editorDidMount}
         />
       : <MonacoEditor
           readonly
+          ref="monaco"
           width={width}
           height={height}
           language={this.props.language || language(filename)}
@@ -175,14 +181,34 @@ class GenericTextViewer extends React.Component {
         <span style={{marginRight: "5px"}}>{filename}</span>
         <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag>
         {!no_reference && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => this.setState({renderSideBySide: !renderSideBySide})}>
-          {renderSideBySide ? "side-by-side" : "inline diff"}
+          {renderSideBySide ? "Side-by-side" : "Inline diff"}
+        </Tag>}
+        {!no_reference && !has_same_data && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="double-chevron-right" minimal onClick={this.next_diff}>
+          Next Diff
+        </Tag>}
+        {!no_reference && has_same_data && <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>
+          Same Content
         </Tag>}
       </h3>
       {editor}
     </>
   }
 
-
+  editorDidMount = (editor, monaco) => {
+    this.editor = editor
+    this.navi = monaco.editor.createDiffNavigator(editor, {
+      followsCaret: true, // resets the navigator state when the user selects something in the editor
+      ignoreCharChanges: true, // jump from line to line
+      alwaysRevealFirst: true, // jump to first diff
+    });
+  }
+  next_diff = e => {
+    // https://github.com/react-monaco-editor/react-monaco-editor/issues/84
+    try {
+      this.navi.next()
+    } catch {
+    }
+  }
   switch = e => {
     let shown_left = this.state.shown_left === 'reference' ? 'new' : 'reference';
     this.setState({ shown_left })
