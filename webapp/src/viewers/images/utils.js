@@ -7,7 +7,7 @@ export const iiif_url = (output_dir_url, path) => {
   // IIIF specs require encoding the slashes inside the identifier
   identifier = `${identifier}/${encodeURI(decodeURIComponent(path))}`.replace(/\//g, '%2F');
   let is_cde_file = identifier.endsWith('dng') || identifier.endsWith('raw') || identifier.endsWith('hex')
-  let endpoint = is_cde_file ? "/iiif/cde?IIIF=" : "/iiif/2/"
+  let endpoint = is_cde_file ? "/iiif/cde?IIIF=" : "https://cantaloupe-svc.transchip.com/iiif/2/"
   let url = `${endpoint}${identifier}`
   return url
 }
