@@ -41,8 +41,8 @@ services:
 
   proxy:
     restart: always
-  cantaloupe:
-    restart: always
+  # cantaloupe:
+  #   restart: always
   rabbitmq:
     restart: always
   flower:

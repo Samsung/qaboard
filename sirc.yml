@@ -99,26 +99,26 @@ services:
     - /sim:/sim:shared
     - /data:/data:shared
 
-  cantaloupe:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
-    user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
-    # user: ispq
-    build:
-      args:
-        user: ispq
-        uid: 1411
-        group: uucp
-        gid: 10
-    volumes:
-      - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
-      - /algo/CIS/outputs:/repository/algo/CIS/outputs
-      - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
-      - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
-      - /sim:/repository/sim:shared
-      - /data:/data:shared
-    environment:
-      CANTALOUPE_MEM_START: 4g
-      CANTALOUPE_MEM_MAX: 8g
+  # cantaloupe:
+  #   image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
+  #   user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
+  #   # user: ispq
+  #   build:
+  #     args:
+  #       user: ispq
+  #       uid: 1411
+  #       group: uucp
+  #       gid: 10
+  #   volumes:
+  #     - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
+  #     - /algo/CIS/outputs:/repository/algo/CIS/outputs
+  #     - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
+  #     - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
+  #     - /sim:/repository/sim:shared
+  #     - /data:/data:shared
+  #   environment:
+  #     CANTALOUPE_MEM_START: 4g
+  #     CANTALOUPE_MEM_MAX: 8g
   
   frontend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
