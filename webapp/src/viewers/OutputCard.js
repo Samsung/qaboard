@@ -147,7 +147,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
 const condensed_header_style = {
   fontSize: ".7rem",
   fontWeight: 500,
-  lineHeight: 1.6,
+  lineHeight: 0.0,
   letterSpacing: "-1px",
 };
 
@@ -596,7 +596,7 @@ class OutputCard extends React.Component {
         {output_new.deleted && <Tag key="new-deleted" intent={Intent.DANGER}>Deleted</Tag>}
         {output_ref && output_ref.deleted && <Tag key="ref-deleted" intent={Intent.WARNING}>Reference deleted</Tag>}
 
-        {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+        {!viewable && <InView key="unviewable" threshold={0.1} margin='100%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
           <span key="viewable"></span>
         </InView>}
         {(is_loaded || has_output_new) && content}

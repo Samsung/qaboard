@@ -16,11 +16,10 @@ import { iiif_url } from "./utils";
 const toaster = Toaster.create();
 
 
-const uniq_rois = array => {
+const uniq_rois = rois => {
   let seen = {};
-  return array.filter(function(item) {
-      const key = `${item.x} ${item.y} ${item.w} ${item.h} ${item.label} ${item.focused}`
-      return seen.hasOwnProperty(key) ? false : (seen[key] = true);
+  return rois.filter(function(roi) {
+      return seen.hasOwnProperty(roi.key) ? false : (seen[roi.key] = true);
   });
 }
 
@@ -29,98 +28,59 @@ const output_rois = output => {
   let configs_rois = output.configurations.filter(c => typeof c === 'object' && !!c.roi).map(c => c.roi).flat()
   let input_rois = output.test_input_metadata?.roi ?? [];
   let rois = [...input_rois, ...configs_rois];
-  rois = uniq_rois(rois) // remove duplicates
+  rois.forEach(roi => {
+    roi.key = `${roi.x} ${roi.y} ${roi.w} ${roi.h} ${roi.label}`
+  })
+  rois = uniq_rois(rois)
 
   const { width: image_width, height: image_height } = output.test_input_metadata || {};
   if (image_width !== undefined || image_height !== undefined)
     rois = rois.map(roi => {
       return {image_width, image_height, ...roi}
     })
-  if (rois.length>0) {
-    rois.push({label: 'Full image'})
+  if (rois.length > 0) {
+    rois.push({label: 'Full Image'})
   }
   return rois;
 }
 
 
-class Crops extends React.Component {
-  componentDidMount() {
-    const { output_new, viewer } = this.props;
-    if (!!!output_new || !!!viewer) return;
+const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
+  let url_prefix = iiif_url(output.output_dir_url, path)
+  const x = roi.x * viewer.source.width  / (roi.image_width  ?? viewer.source.width)
+  const y = roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height)
+  const w = roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width)
+  const h = roi.h * viewer.source.height / (roi.image_width  ?? viewer.source.height)
+  const height = 50;
+  let src = roi.label !== 'Full Image' ? `${url_prefix}/${x},${y},${w},${h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
+  let tooltip_text = <p align="center">
+    <span>{roi.label}</span>
+  </p>
 
-    let rois = output_rois(output_new)
+  const is_valid = isValidRoi(roi, viewer) || roi.label === 'Full Image';
 
-    if (rois.length>0) {
-      let focused_rois = rois.filter(r => r.focused)
-      const focused_roi = focused_rois.length > 0 ? focused_rois[focused_rois.length-1] : rois[0]
-      fitTo(focused_roi, viewer)  
-    }
-  }
-  render() {
-    const { output_new, viewer } = this.props;
-    if (!!!output_new || !!!viewer) return <span />
-
-    // TODO: add an ROI "full"
-    // TODO: read from 
-    let regions_of_interest = output_rois(output_new)
-    if (!!!regions_of_interest) return <span />
-
-    const tags = regions_of_interest.map((roi, idx) => {
-      let height = 50;
-      let url_prefix = iiif_url(output_new.output_dir_url, this.props.path)
-      const x = roi.x * viewer.source.width  / (roi.image_width  ?? viewer.source.width)
-      const y = roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height)
-      const w = roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width)
-      const h = roi.h * viewer.source.height / (roi.image_width  ?? viewer.source.height)
-      let src = roi.label !== 'Full image' ? `${url_prefix}/${x},${y},${w},${h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
-      let tooltip_text = <p align="center">
-        <span>{roi.label || roi.tag || idx}</span>
-        <span>Select next/before roi with keyboard shortcut n/b</span>
-      </p>
-
-      const is_valid = isValidRoi(roi, viewer) || roi.label === 'Full image';
-      let is_selected = false; // viewer.coordinates === roi.coordinates
-      /*
-      // it would be nice, but openseadragon doensn't trigger a react re-render,
-      // so it's broken.
-      if (is_valid) {
-        console.log(roi.label)
-        let viewport_center =  viewer.viewport.getCenter()
-        let image_center = viewer.viewport.viewportToImageCoordinates(viewport_center)
-        console.log("image_center", image_center)
-        let roi_center = {x: roi.x+roi.w/2, y: roi.y+roi.h/2}
-        console.log("roi_center", roi_center, {x: roi.x, y: roi.y})
-        is_selected = true
-      }
-      */
-    
+  return <Tooltip
+    intent={is_valid ? undefined : Intent.DANGER}
+    content={is_valid ? tooltip_text : `Invalid coordinates! ${JSON.stringify(roi)}`}
+  >
+    <AnchorButton
+      onClick={onSelect}
+      intent={selected ? Intent.PRIMARY : null}
+      disabled={!is_valid}
+      large={false}
+      minimal={!selected}
+      style={{ margin: "5px" }}
+    >
+      <div><img src={src} alt={roi.label} height={height} /></div>
+      <div><span>{roi.label}</span></div>
+      {roi.color && <Icon icon="full-circle" style={{color: roi.color.formatHex()}}></Icon>}
+    </AnchorButton>
+  </Tooltip>
+};
 
 
-      return <Tooltip
-        key={idx}
-        intent={is_valid ? undefined : Intent.DANGER}
-        content={is_valid ? tooltip_text : `Invalid coordinates! ${JSON.stringify(roi)}`}
-      >
-        <AnchorButton
-          onClick={() => { fitTo(roi, viewer) }}
-          intent={is_selected ? Intent.PRIMARY : null}
-          disabled={!is_valid}
-          large={false}
-          minimal
-          style={{ margin: "5px" }}
-        >
-          <div><img src={src} alt={idx} height={height} /></div>
-          <div><span>{roi.label || roi.tag || idx}</span></div>
-        </AnchorButton>
-      </Tooltip>
-    });
-
-    return <div>{tags}</div>;
-  }
-
-}
 const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
-  if (roi.label === "Full image") {
+  if (roi.label === "Full Image") {
     viewer.viewport.goHome()
     return
   }
@@ -153,9 +113,10 @@ const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
 
 
 const isValidRoi = (roi, viewer) => {
-  if (roi.label === "Full image")
+  if (roi.label === "Full Image")
     return true;
-  if (isNaN(roi.x + roi.y + roi.w + roi.h)) return false;
+  if (isNaN(roi.x + roi.y + roi.w + roi.h))
+    return false;
 
   let viewport_rec = viewer.viewport.imageToViewportRectangle(
     roi.x,
@@ -202,4 +163,4 @@ const CropSelection = ({ roiCoords, image_width, image_height }) => {
   }
 }
 
-export { Crops, fitTo, isValidRoi, CropSelection, output_rois };
+export { Crop, fitTo, isValidRoi, CropSelection, output_rois };

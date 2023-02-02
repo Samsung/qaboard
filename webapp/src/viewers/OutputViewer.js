@@ -25,7 +25,7 @@ const OutputViewer = props_ => {
     if (is_image(props_)) {
       if (props_.path.endsWith('hex')) {
         viewer = <>
-          <div><Tag minimal interactive icon={image_viewer === 'image' ? 'media' : 'align-justify'} onClick={() => setImageViewer(image_viewer === 'image' ? 'text' : 'image')}>toggle image/text</Tag></div>
+          <div><Tag minimal interactive icon={image_viewer === 'image' ? 'numerical' : 'media'} onClick={() => setImageViewer(image_viewer === 'image' ? 'text' : 'image')}>Toggle image/text</Tag></div>
           <div>
           {image_viewer === 'text' ? 
               <LoadableTextViewer renderSideBySide={false} {...props} type={type} output_ref={output_ref}/>

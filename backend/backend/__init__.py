@@ -55,7 +55,7 @@ import backend.api.webhooks
 import backend.api.integrations
 import backend.api.tuning
 import backend.api.export_to_folder
-import backend.api.auto_rois
+import backend.api.image
 import backend.api.milestones
 import backend.api.auth
 

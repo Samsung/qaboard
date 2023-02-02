@@ -8,18 +8,16 @@ from math import sqrt, ceil
 from functools import lru_cache
 
 import numpy as np
-from skimage.color import deltaE_cie76, rgb2lab, rgb2yiq
-from skimage.transform import rescale
-from skimage.feature import blob_dog # blob_log, blob_doh
-
 from requests.utils import unquote
 from flask import request, jsonify
 
 from cde.image import read_image, ImageType
 from qaboard.api import url_to_dir 
 from backend import app
+
 from ..models import Output
 from ..config import qaboard_url
+from .image_diff import find_rois
 
 @lru_cache(maxsize=2)
 def cached_read_image(image_path):
@@ -111,149 +109,28 @@ def get_pixel():
   })
 
 
-@app.route("/api/v1/output/diff/image", methods=['GET', 'POST'])
-def get_images():
-  data = request.get_json()
-  # Directory URLs begin with /s/
-  new_url = url_to_dir(data['output_dir_url_new']) / data["path"]
-  ref_url = url_to_dir(data['output_dir_url_ref']) / data["path"]
-  # print(data) # DEBUG
-  blobs = createAutoRois(new_url, ref_url, data["diff_type"], data['threshold'], data['diameter'])
-
-  blobs = (blobs.tolist())
-  # print(blobs)
-  # print("len:", len(blobs))
-
-  ## limits the number of rois to "num_crops", filtering small rois.
-  while len(blobs) > data['count']:
-    index_min = np.argmin([yxr[2] for yxr in blobs])
-    del blobs[index_min]
-
-  # print(blobs)  # DEBUG
-  # print("sorted len: ", len(blobs)) # DEBUG
-
+@app.route("/api/v1/output/image/diff", methods=['GET', 'POST'])
+def get_rois():
+  data = request.json
+  print(data)
+  image_path_new = url_to_dir(data['output_dir_url_new']) / data["path"]
+  image_path_ref = url_to_dir(data['output_dir_url_ref']) / data["path"]
+  image_new, meta_new = read_image(image_path_new)
+  image_ref, meta_ref = read_image(image_path_ref)
+  blobs = find_rois(
+    image_new,
+    image_ref,
+    data["diff_type"],
+    data['threshold'],
+    data['diameter'],
+    data['count']
+  )
   return jsonify(blobs)
 
 
 
-def createAutoRois(path1, path2, diff_type, threshold, blob_diameter):
-  scale = 0.5      # default rescaling for delta image
-  blob_ratio = 0.1 # default ratio for blob diameter
-  min_sigma = 5    # for blob_dog algorithm
-
-  image_1, meta_1 = read_image(Path(path1))
-  image_2, meta_2 = read_image(Path(path2))
-
-  '''
-  print(image_1.shape)
-  print(image_1.size)
-  print(image_1.shape[0]*image_1.shape[1])
-  print("type:", type(image_1))
-  print(image_1[0][0])
-  '''
-
-  '''
-  #image_1_orig = image_1 # DEBUG
-  image_1 = rescale(image_1, scale, mode='constant',
-                    multichannel=True, anti_aliasing=True)
-  image_2 = rescale(image_2, scale, mode='constant',
-                    multichannel=True, anti_aliasing=True)
-  '''
-
-  # start = time.time()                  # DEBUG
-  delta = diff(image_1, image_2, diff_type)
-  # end = time.time()                    # DEBUG
-  # print("diff time: {} sec".format(end-start))  # DEBUG
-
-  width = image_1.shape[0]
-  height = image_1.shape[1]
-  if (width * height < 1000000):
-    scale = 1
-
-
-  # print("scale: ", scale)     # DEBUG
-  delta = rescale(delta, scale, mode='reflect', multichannel=False, anti_aliasing=True)
-  width = image_1.shape[0]
-  height = image_1.shape[1]
-  # print("delta: ", delta)   # DEBUG
-
-
-  '''
-  output = np.empty([width, height])
-  print("output type:", type(output))
-  print("image1 shape:",image_1.shape)
-  print("output shape:", output.shape)
-  '''
-
-  '''
-  print("delta shape:", delta.shape)
-  print("delta size:",delta.size)
-  print(delta.max())
-  np.savetxt("/home/itamarp/delta.txt", delta)
-  from skimage.viewer import ImageViewer  # for Debugging purpose
-  viewer = ImageViewer((delta)) #, plugins=[])
-  viewer.show()
-  '''
-
-
-  if int(blob_diameter) == 0 :
-    blob_diameter = (width + height) / 2 * blob_ratio
-
-  # print("blob_diameter: ", blob_diameter) # DEBUG
-  max_sigma = int(blob_diameter) * scale
-
-  if min_sigma >= max_sigma:
-    min_sigma = 1
-
-  start = time.time()         # DEBUG
-  blobs = blob_dog(delta, min_sigma=min_sigma, max_sigma=int(max_sigma), threshold=(float(threshold) / 100))  # Divide treshold to increase sensetivity
-  end = time.time()           # DEBUG
-  print(f"blob_dog time: {end-start} sec")
-
-  blobs[:, 0] = blobs[:, 0] * 1 / scale
-  blobs[:, 1] = blobs[:, 1] * 1 / scale
-  # The radius of each blob is approximately √2*σ
-  blobs[:, 2] = blobs[:, 2] * sqrt(2)
-
-
-  # print("blobs size:", blobs.size / 3)         # DEBUG
-  # figure, ax = plt.subplots(figsize=(15, 15))  # DEBUG
-  # ax.imshow(image_1_orig)                      # DEBUG
-
-  for blob in blobs:
-    blob[2] = ceil(blob[2])
-    # y, x, r = blob      # DEBUG
-    # c = plt.Circle((x, y), r, color="red", linewidth=1, fill=False) # DEBUG
-    # ax.add_patch(c)   # DEBUG
-
-
-  # plt.savefig('C:/Users/itamarp/Desktop/blobs.png', dpi=300)  # DEBUG
-  # plt.tight_layout()                          # DEBUG
-  # plt.show()                                  # DEBUG
-
-  return blobs
-
-
-################################################################################
-def diff(image_1, image_2, diff_type):
-  # if (diff_type == "rgb"): # for future development (SSIM)
-
-  delta = pixelmatch(image_1, image_2)
-  ## other possibilities are CIE94, CIEDE2000, CMC l:c (1984)
-  # delta = deltaE_cie76(rgb2lab(image_1), rgb2lab(image_2))
-
-  return delta
-
-
-def pixelmatch(img1, img2) :
-  yuv1 = rgb2yiq(img1)
-  yuv2 = rgb2yiq(img2)
-  delta2 = np.square(yuv1 - yuv2) # why square?
-  return delta2 @ [0.5053, 0.299, 0.1957]
-
-################################################################################
 @app.route("/api/v1/output/diff/report", methods=['GET', 'POST'])
-def get_rois():
+def get_report():
   import matplotlib.pyplot as plt
   from matplotlib.backends.backend_pdf import PdfPages
 
@@ -275,7 +152,6 @@ def get_rois():
   image_2, meta_2 = read_image(Path(ref_url))
 
   with PdfPages(report_path) as pdf:
-
     new_ci_output = Output.query.filter(Output.id == data['output_id_new']).one().batch.ci_commit.hexsha
     ref_ci_output = Output.query.filter(Output.id == data['output_id_ref']).one().batch.ci_commit.hexsha
 
@@ -327,21 +203,3 @@ def get_rois():
 
 def crop_image(img, cropx, cropy, cropw, croph):
   return img[cropy:cropy+croph, cropx:cropx+cropw]
-
-################################################################################
-if __name__ == "__main__":
-
-  app.run()
-
-  '''
-  start = time.time()
-
-  path1 = 'C:/Users/itamarp/Desktop/itamar1.bmp'
-  path2 = 'C:/Users/itamarp/Desktop/itamar2.bmp'
-  threshold = 0.01
-  blobs = createAutoRois(path1, path2, "RGB", threshold)
-  print(blobs)
-
-  end = time.time()
-  print("time: {} sec".format(end-start))
-  '''

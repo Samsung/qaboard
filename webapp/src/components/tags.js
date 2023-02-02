@@ -335,11 +335,12 @@ class OutputTags extends React.Component {
       </Tooltip>
 
       <Tooltip>
-       <Button 
-          minimal={true}
+       <Button
+          outlined={true}
+          style={{margin: "5px"}}
           disabled={this.state.waiting}
-          icon="export"
-          text="Open WebCDE"
+          icon="send-to"
+          text="WebCDE"
           onClick={() => {
             this.setState({waiting: true})
             // TODO: look for all cde.sh files and let users choose which one to use

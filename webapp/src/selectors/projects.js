@@ -116,7 +116,7 @@ export const configSelector = createSelector([batchSelectorPreFilter, commitSele
   return {
     git: project_data.data?.git,
     project_config,
-    config: batch_config || commit_config || project_config,
+    config: batch_config ?? commit_config ?? project_config,
     project_metrics: {
       summary_metrics: [],
       available_metrics: {},
