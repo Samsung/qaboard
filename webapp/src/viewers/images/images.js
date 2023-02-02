@@ -614,7 +614,7 @@ class ImgViewer extends React.PureComponent {
       {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
         {!hide_labels ? <Tooltip><Tag
           interactive
-          intent="warning"
+          style={{backgroundColor: Colors.CERULEAN4}}
           rightIcon="exchange"
           onClick={this.switch_images}
         >new</Tag>{switch_help_label}</Tooltip> : switch_label}
@@ -625,7 +625,6 @@ class ImgViewer extends React.PureComponent {
       {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
         {!hide_labels ? <Tooltip><Tag
           interactive
-          intent="primary"
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
