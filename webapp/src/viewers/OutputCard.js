@@ -147,7 +147,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
 const condensed_header_style = {
   fontSize: ".7rem",
   fontWeight: 500,
-  lineHeight: 1.6,
+  lineHeight: 0.0,
   letterSpacing: "-1px",
 };
 

@@ -20,7 +20,8 @@ import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
 import { iiif_url } from "./utils";
-import MultiSelectTags from './MultiselectCrops'
+
+import { RoiViewer } from './roi_viewer'
 
 import { unregister_filter_sync } from "./filters"
 
@@ -686,18 +687,16 @@ class ImgViewer extends React.PureComponent {
     //       {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
 
     // const empty_image = <canvas key="empty-image" {...single_image_size} />
-    return <>
+    return <div style={{dispay: "inline"}}>
       {error_messages}
       {!has_error && <>
         {this.state.ready &&
-          <MultiSelectTags
+          <RoiViewer
             output_new={output_new}
-            output_ref={output_ref}
-            viewer_new={this.viewer_new}
-            viewer_ref={this.viewer_ref}
+            output_ref={!has_same_data ? output_ref : undefined}
             path={path}
-            qatools_config={this.props.qatools_config}
-          />}
+            viewer={this.viewer_new}
+         />}
         <span>
           {this.show_histogram && <Tooltip>
             <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
@@ -733,7 +732,7 @@ class ImgViewer extends React.PureComponent {
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center"}} hidden={has_error}>
         {hist_info}
       </div>
-    </>
+    </div>
   }
 
   switch_images = e => {

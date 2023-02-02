@@ -11,14 +11,13 @@ import {
   Position,
   Tooltip,
   Checkbox,
-  FocusStyleManager,
 } from "@blueprintjs/core";
+import {
+  interpolateInferno,
+} from 'd3-scale-chromatic'
+import { rgb } from 'd3-color'
 
 
-import { iiif_url } from "./utils";
-import { fitTo } from "./crops";
-
-FocusStyleManager.onlyShowFocusOnTabs();
 const toaster = Toaster.create();
 
 
@@ -26,30 +25,22 @@ class AutoCrops extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      regions_of_interest: [],
-      roi: null,
       is_loading: false,
       error: null,
-      active: false,
-      // default configuration for auto-ROI
-      diff_type: 'rgb', // for future development (SSIM)
+      // https://scikit-image.org/docs/stable/api/skimage.color.html
+      diff_type: 'pixelmatch', // cie76 | ciede2000 | ciede94
+      blobs: 'dog',
       threshold: 1,
       roi_diameter: 0,
       num_rois: 20,
       send_report: false,
-      ...((props.auto_rois || [])[0] || {}),
     }
   }
 
 
   render() {
-    const { output_new, viewer_new, output_ref, viewer_ref } = this.props;
-    if (!!!output_new || !!!viewer_new || !!!viewer_ref || !!!output_ref || output_ref.deleted) return <span />
-
-    const { regions_of_interest } = this.state;
     return <>
-      <ControlGroup>
-
+      <ControlGroup style={{marginTop: "10px", marginBottom: "10px"}}>
         <Button
           onClick={this.generateAutoRois}
           intent={Intent.PRIMARY}
@@ -59,7 +50,7 @@ class AutoCrops extends React.Component {
           text={"Find Regions of Interest"}
           style={{ marginRight: "10px" }}
         />
-        <Tooltip content=
+        {false && <><Tooltip content=
           {<ul>
             <li>Threshold [%]</li>
             <li>hold 'alt' for minor step</li>
@@ -113,9 +104,10 @@ class AutoCrops extends React.Component {
             onBlur={() => this.updateOnBlur("num_rois", this.state.num_rois, 20)}
             disabled={this.state.is_loading}
           />
-        </Tooltip>
+        </Tooltip></>}
         <Tooltip content="Export the results to a document" position={Position.TOP}>
-          {!regions_of_interest.length &&
+          <>
+          {false && !this.props.rois.length &&
             <Checkbox
               label={<b>Export report</b>}
               checked={this.state.send_report}
@@ -123,48 +115,19 @@ class AutoCrops extends React.Component {
               style={{ marginLeft: "10px" }}
             />
           }
-          {!!regions_of_interest.length &&
+          {false && !!this.props.rois.length &&
             <Button
               onClick={this.generateReport}
-              intent={Intent.SUCCESS}
               large={false}
-              icon="comparison"
+              icon="export"
               text={"Export report"}
               loading={this.state.is_loading}
               style={{ marginLeft: "10px" }}
             />
           }
+          </>
         </Tooltip>
       </ControlGroup>
-
-      <div style={{ marginTop: "10px" }}>
-        {regions_of_interest.map((roi, idx) => {
-          let height = 50;
-          let url_prefix = iiif_url(this.props.output_new.output_dir_url, this.props.path)
-          let src = `${url_prefix}/${roi.x},${roi.y},${roi.w},${roi.h}/,${height}/0/default.jpg`
-          let tooltip_text = <p align="center">
-            <dl>{roi.label || roi.tag || idx}</dl>
-            {(roi === this.state.roi) && <dl>Select next/before roi with keyboard shortcut n/b</dl>}
-          </p>
-          return <Tooltip content={tooltip_text} position={Position.TOP}>
-            <AnchorButton
-              onClick={() => {
-                this.setState({ roi: roi, active: true }, () => {
-                  //this.props.handle_active_image(this.props.viewer_new.id);
-                  //console.log(this.props); // DEBUG
-                  fitTo(roi, viewer_new);
-                })
-              }}
-              key={idx}
-              intent={this.state.roi === roi ? Intent.PRIMARY : null}
-              onBlur={() => this.setState({ active: false })}
-              minimal={this.state.roi !== roi}
-            >
-              <img src={src} alt={idx} height={height} />
-            </AnchorButton>
-          </Tooltip>
-        })}
-      </div>
     </>
   }
 
@@ -176,48 +139,9 @@ class AutoCrops extends React.Component {
     }
   }
 
-  keyboard = ev => {
-    if (ev.target.nodeName === 'INPUT' || (!this.state.active))
-      return;
-    switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
-      case "n":
-        this.nextRoi(false)
-        break
-      case "b":
-        this.nextRoi(true)
-        break
-      default:
-        return;
-    }
-  }
-
-  nextRoi = (before) => {
-    const { viewer_new } = this.props;
-    const { regions_of_interest, roi } = this.state;
-
-    // console.log(this.props); // DEBUG
-
-    if (!roi) return
-
-    for (let i = 0; i < regions_of_interest.length; i++) {
-      if (regions_of_interest[i] === roi) {
-        let new_idx = i + 1
-        if (before) {
-          new_idx = (i - 1) < 0 ? (regions_of_interest.length - 1) : (i - 1)
-
-        }
-        this.setState({ roi: regions_of_interest[new_idx % regions_of_interest.length] },
-          () => fitTo(this.state.roi, viewer_new))
-        break
-      }
-    }
-  }
-
   generateAutoRois = () => {
-    // console.debug(this.props) // DEBUG
+    this.setState({ is_loading: true });
     const data = {
-      output_id_new: this.props.output_new.id,
-      output_id_ref: this.props.output_ref.id,
       output_dir_url_new: this.props.output_new.output_dir_url,
       output_dir_url_ref: this.props.output_ref.output_dir_url,
       path: this.props.path,
@@ -226,17 +150,13 @@ class AutoCrops extends React.Component {
       diameter: this.state.roi_diameter,
       count: this.state.num_rois || 20,
     };
-
-    this.setState({ is_loading: true, regions_of_interest: [], roi: null });
     // post("http://planet31:9002/api/v1/output/diff/image", data) // for dev-staging
-    post("/api/v1/output/diff/image", data)                          // for prod
+    post("/api/v1/output/image/diff", data)                          // for prod
       .then(res => {
-        //console.log(res.data);
         let regions_of_interest = res.data.map(blob => this.blobToRoi(blob))
-        regions_of_interest.sort((a, b) => b.w * b.h - a.w * a.h)
-
+        // regions_of_interest.sort((a, b) => b.w * b.h - a.w * a.h)
+        this.props.updateRois(regions_of_interest)
         this.setState({
-          regions_of_interest,
           is_loading: false,
           error: null,
         })
@@ -247,15 +167,14 @@ class AutoCrops extends React.Component {
           }
 
           toaster.show({ message: `${regions_of_interest.length} Regions of Interest`, intent: Intent.PRIMARY, timeout: 3000 });
-          window.addEventListener("keypress", this.keyboard, { passive: true });
         }
         else {
           toaster.show({ message: "No results. Try using a lower threshold?", intent: Intent.WARNING, timeout: 3000 });
         }
       })
       .catch(error => {
+        console.log(error)
         this.setState({
-          regions_of_interest: [],
           is_loading: false,
           send_report: false,
           error,
@@ -265,17 +184,27 @@ class AutoCrops extends React.Component {
   }
 
   blobToRoi = blob => {
-    let [y, x, r] = blob;
-
+    let {y, x, r, diff} = blob;
+    // console.log(diff)
+    // let scaled_diff = 1 - (diff / 35215 / (20));
+    scaled_diff = Math.max(0, Math.min(1, diff));
+    let scaled_diff = 1 - diff;
+    let color = rgb(interpolateInferno(scaled_diff))
     let roi = {
-      x: x - r,
-      y: y - r,
-      w: 2 * r,
-      h: 2 * r,
+      r,
+      color,
+      x: x,
+      y: y,
+      w: r,
+      h: r,
+      // x: x - r,
+      // y: y - r,
+      // w: 2 * r,
+      // h: 2 * r,
     }
 
-    const { viewer_new } = this.props;
-    let { x: image_width, y: image_height } = viewer_new.world.getItemAt(0).getContentSize();
+    const { viewer } = this.props;
+    let { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
 
     if (roi.x < 0) {
       roi.w = roi.w + x;
@@ -285,11 +214,27 @@ class AutoCrops extends React.Component {
       roi.h = roi.h + y;
       roi.y = 0;
     }
-
     roi.w = (roi.x + roi.w < image_width) ? roi.w : image_width - roi.x;
     roi.h = (roi.y + roi.h < image_height) ? roi.h : image_height - roi.y;
 
-    roi.label = `${this.state.diff_type}(${roi.x}, ${roi.y})`
+
+    // color.r, color.g, color.b
+    // roi.w = Math.min(r, image_width - (roi.x + 2*r))
+    // roi.h = Math.min(r, image_height - (roi.y + 2*r))
+    // x + w < image_width
+    // w < image_width - x
+    // console.log(roi.x + 2*roi.w, image_width, (roi.x + 2*roi.w) > image_width)
+    // if ((roi.x + 2*roi.w) > image_width) {
+    //   console.log("correcting", (image_width - (roi.x + 2*roi.w)))
+    //   roi.w = roi.w - (image_width - (roi.x + 2*roi.w))
+    // }
+
+    // console.log("H", (roi.y + 2*roi.h), image_width, (roi.y + 2*roi.h) > image_width)
+    // if ((roi.y + 2*roi.h) > image_height) {
+    //   roi.h = roi.h - (image_height - (roi.y + 2*roi.h))
+    // }
+    // roi.label = `${roi.diff}`
+    // console.log(roi)
     return roi;
   }
 
@@ -300,7 +245,6 @@ class AutoCrops extends React.Component {
       output_dir_url_new: this.props.output_new.output_dir_url,
       output_dir_url_ref: this.props.output_ref.output_dir_url,
       path: this.props.path,
-      rois: this.state.regions_of_interest,
     };
 
     this.setState({ is_loading: true });
@@ -313,7 +257,6 @@ class AutoCrops extends React.Component {
           is_loading: false,
           error: null,
         })
-
         if (report) window.open(report, '_blank');
       })
   }
