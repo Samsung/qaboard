@@ -71,7 +71,7 @@ const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
       minimal={!selected}
       style={{ margin: "5px" }}
     >
-      <div><img src={src} alt={roi.label} height={height} /></div>
+      <div><img src={src} alt={roi.label} height={height} width={height} /></div>
       <div><span>{roi.label}</span></div>
       {roi.color && <Icon icon="full-circle" style={{color: roi.color.formatHex()}}></Icon>}
     </AnchorButton>
