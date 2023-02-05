@@ -22,6 +22,10 @@ span.bp3-popover-wrapper {
   background: white;
 }
 
+.bp3-card.output-card {
+  padding: 5px;
+}
+
 @media only screen and (max-width: 1100px) {
   .hide-small-screen {
     display: none;

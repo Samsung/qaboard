@@ -50,7 +50,6 @@ const on_copy = e => {
 
 
 const SlimCard = styled(Card)`
-  padding: 5px !important;
   overflow: "auto";
 `;
 
@@ -147,7 +146,6 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
 const condensed_header_style = {
   fontSize: ".7rem",
   fontWeight: 500,
-  lineHeight: 0.0,
   letterSpacing: "-1px",
 };
 
@@ -566,15 +564,15 @@ class OutputCard extends React.Component {
 
     let container_style = {
       flex: "0 0 auto",
-      width: style.width || '840px',
-      marginBottom: "20px"
+      width: style.width || '1500px',
+      marginBottom: "250px !important",
     }
     const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};
     // console.log(content)
     // console.log(this.state.manifests)
 
     return <div style={container_style}>
-      <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={maybe_style_skeleton}>
+      <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={{...maybe_style_skeleton, paddingBottom: !viewable && "100px"}}>
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
 
