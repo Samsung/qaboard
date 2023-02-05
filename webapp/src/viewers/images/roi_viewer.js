@@ -67,11 +67,11 @@ const RoiViewer = ({output_new, output_ref, path, viewer}) => {
                 icon: "delta",
                 rois: [],
             }
-            new_selectable_rois["Auto False Colors"] = {
-                label: "Auto False Colors",
-                icon: "delta",
-                rois: [],
-            }
+            // new_selectable_rois["Auto False Colors"] = {
+            //     label: "Auto False Colors",
+            //     icon: "delta",
+            //     rois: [],
+            // }
         } else {
             new_selectable_rois["Auto ROIs"] = null
             new_selectable_rois["Auto False Colors"] = null

@@ -5,6 +5,7 @@ import numpy as np
 import skimage.color
 import skimage.transform
 from skimage.feature import peak_local_max, blob_dog # blob_log, blob_doh
+from skimage.metrics import structural_similarity as ssim
 from scipy import ndimage as ndi
 
 plot_debug = False
@@ -26,6 +27,22 @@ def pixelmatch(img1, img2):
 def diff(image_1, image_2, diff_type="pixelmatch"):
     if diff_type == "pixelmatch":
         return pixelmatch(image_1, image_2)
+    elif diff_type == "ssim":
+      # https://scikit-image.org/docs/stable/auto_examples/transform/plot_ssim.html
+      # print(image_1.shape)
+      # print(image_2.shape)
+      ssim_score, delta = ssim(
+        image_1,
+        image_2,
+        data_range=image_1.max()-image_1.min(),
+        channel_axis=2,
+        full=True,
+        # win_size=3,
+      )
+      delta = 1-np.min(delta, axis=2)
+      # print("ssim_score", ssim_score)
+      # print("delta.shape", delta)
+      return delta
     else:
         # https://scikit-image.org/docs/stable/api/skimage.color.html#skimage.color.deltaE_ciede2000
         return getattr(skimage.color, f"deltaE_{diff_type}")(
@@ -86,7 +103,6 @@ def find_rois(image_1, image_2, diff_type, threshold, blob_diameter, count):
 
   delta = diff(image_1_r, image_2_r, diff_type)
   print("diff time: {} sec".format(time.time()-start))
-  print(np.max(delta, axis=(0, 1)))
   # print("delta", delta.shape)
   # plt.imshow(delta)
   # return
@@ -95,21 +111,23 @@ def find_rois(image_1, image_2, diff_type, threshold, blob_diameter, count):
   if True:
     delta_size = 20
     delta_max = ndi.maximum_filter(delta, size=delta_size, mode='constant')
+    delta_max_max = delta_max.max()
+    # print(f"max diff: {delta.max()}")
+    # print(f"delta_max_max: {delta_max_max}")
     coordinates = peak_local_max(delta, min_distance=delta_size)
     # print(coordinates)
     # print(len(coordinates))
-    coordinates = coordinates[:15]
     if plot_debug:
       plot_rois(delta, delta_max, coordinates)
     # print("delta_max.shape", delta_max.shape)
-    print(coordinates)
+    # print(coordinates)
     blobs = [{
       "x": int(x/scale), 
       "y": int(y/scale),
       "r": int(delta_size/2/scale), # TODO: improve: normalized laplacian...
-      "diff": float(delta_max[y, x]),
+      "diff": float(delta_max[y, x] / delta_max_max),
     } for y, x in coordinates.tolist()]
-    print(blobs)
+    # print(blobs)
     blobs.sort(key=lambda b: b["diff"], reverse=True)
     return blobs[:count]
 

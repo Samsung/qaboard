@@ -11,6 +11,7 @@ import {
   Position,
   Tooltip,
   Checkbox,
+  HTMLSelect,
 } from "@blueprintjs/core";
 import {
   interpolateInferno,
@@ -21,6 +22,14 @@ import { rgb } from 'd3-color'
 const toaster = Toaster.create();
 
 
+const diff_type_options = [
+  {type: "pixelmatch", label: "YIQ"},
+  {type: "ssim", label: "SSIM"},
+  {type: "ciede2000", label: "CIE 2000"},
+  {type: "cie76", label: "CIE 1976"},
+  {type: "ciede94", label: "CIE 1994"},
+]
+
 class AutoCrops extends React.Component {
   constructor(props) {
     super(props);
@@ -28,7 +37,7 @@ class AutoCrops extends React.Component {
       is_loading: false,
       error: null,
       // https://scikit-image.org/docs/stable/api/skimage.color.html
-      diff_type: 'pixelmatch', // cie76 | ciede2000 | ciede94
+      diff_type: 'pixelmatch',
       blobs: 'dog',
       threshold: 1,
       roi_diameter: 0,
@@ -47,9 +56,12 @@ class AutoCrops extends React.Component {
           loading={this.state.is_loading}
           large={false}
           icon="multi-select"
-          text={"Find Regions of Interest"}
+          text="Find Regions of Interest"
           style={{ marginRight: "10px" }}
         />
+        <HTMLSelect onChange={e => this.setState({diff_type: e.target.value})}>
+          {diff_type_options.map(type => <option value={type.type} >{type.label ?? type.type}</option>)}
+        </HTMLSelect>
         {false && <><Tooltip content=
           {<ul>
             <li>Threshold [%]</li>
