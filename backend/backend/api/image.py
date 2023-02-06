@@ -2,9 +2,8 @@
 Returns a list of rois.
 Create a pdf report of rois comparison.
 """
+import time
 from pathlib import Path
-import time  # for Debugging purpose
-from math import sqrt, ceil
 from functools import lru_cache
 
 import numpy as np
@@ -13,8 +12,8 @@ from flask import request, jsonify
 
 from cde.image import read_image, ImageType
 from qaboard.api import url_to_dir 
-from backend import app
 
+from backend import app
 from ..models import Output
 from ..config import qaboard_url
 from .image_diff import find_rois
@@ -113,13 +112,12 @@ def get_pixel():
 def get_rois():
   data = request.json
   print(data)
+  start = time.time()
   image_path_new = url_to_dir(data['output_dir_url_new']) / data["path"]
   image_path_ref = url_to_dir(data['output_dir_url_ref']) / data["path"]
-  image_new, meta_new = read_image(image_path_new)
-  image_ref, meta_ref = read_image(image_path_ref)
   blobs = find_rois(
-    image_new,
-    image_ref,
+    image_path_new,
+    image_path_ref,
     data["diff_type"],
     data['threshold'],
     data['diameter'],
