@@ -150,11 +150,12 @@ const RoiViewer = ({output_new, output_ref, path, viewer}) => {
         path={path}
         rois={rois.rois}
         updateRois={rois => {
+            rois.push({label: 'Full Image'})
             set_selectable_rois({
                 ...selectable_rois,
                 "Auto ROIs": {
                     ...selectable_rois["Auto ROIs"],
-                    rois: rois,
+                    rois,
                 }
             })
             if (rois.length > 0) {
