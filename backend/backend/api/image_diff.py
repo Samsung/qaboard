@@ -8,6 +8,8 @@ from skimage.feature import peak_local_max, blob_dog # blob_log, blob_doh
 from skimage.metrics import structural_similarity as ssim
 from scipy import ndimage as ndi
 
+from cde.image import read_image
+
 plot_debug = False
 if os.environ.get("PLOT_DEBUG"):
   plot_debug = True
@@ -53,19 +55,21 @@ def diff(image_1, image_2, diff_type="pixelmatch"):
 
 def rescale(image):
   start = time.time()
+  print("  shape: ", image.shape)
   width = image.shape[0]
   height = image.shape[1]
   pixels = width * height
   if pixels < 500_000:
     return image, 1.0
-  scale = float(512 / max(width, height))
+  max_dim = max(width, height)
+  scale = float(512 / max_dim)
   print("  scale: ", scale)
   image_rescale = skimage.transform.rescale(
       image,
       scale,
       mode='reflect',
       channel_axis=2,
-      anti_aliasing=True,
+      anti_aliasing=max_dim<8_000, # we ran into OOM...
   )
   print("  rescale time: {} sec".format(time.time()-start))
   return image_rescale, scale
@@ -91,17 +95,26 @@ def plot_rois(delta, delta_max, coordinates):
   fig.tight_layout()
   plt.show()
 
-def find_rois(image_1, image_2, diff_type, threshold, blob_diameter, count):
+def find_rois(image_1_path, image_2_path, diff_type, threshold, blob_diameter, count):
+  # since we have huge images, we try to avoid being out of memory
+  # and load one at a time if possible...
   start = time.time()
-  assert image_1.shape == image_2.shape
-  print("image: ", image_1.shape)
-  image_1_r, scale = rescale(image_1)
-  image_2_r, _     = rescale(image_2)
+  image, meta = read_image(image_1_path)
+  image_shape = image.shape
+  print(f"read image 1: {time.time()-start}s")
+  image_1, scale = rescale(image)
+  print(f"rescaled image 1: {time.time()-start}s")
+
+  image, meta = read_image(image_2_path)
+  assert image_shape == image.shape
+  print(f"read image 2: {time.time()-start}s")
+  image_2, _ = rescale(image)
+
   # print("image: ", image_1.shape)
   # plt.imshow(image_1)
   # return
 
-  delta = diff(image_1_r, image_2_r, diff_type)
+  delta = diff(image_1, image_2, diff_type)
   print("diff time: {} sec".format(time.time()-start))
   # print("delta", delta.shape)
   # plt.imshow(delta)
@@ -178,11 +191,13 @@ if __name__ == "__main__":
     dir_new = '/algo/HP2/outputs/noar/CDE-Users/HW_ALG/3d/725cf7398b523a/CIS/tests/products/HP2/output/abs-test/d471da0e-al/ABS_9Stars_AG6_0x60'
     dir_ref = '/algo/HP2/outputs/noar/CDE-Users/HW_ALG/89/02082f8eff5b0a/CIS/tests/products/HP2/output/sds-test/94fd955c-al/ABS_9Stars_AG6_0x60'
     path = 'output.bmp'
-    from cde.image import read_image
     start = time.time()
-    image_new, meta_new = read_image(Path(dir_new) / path)
-    print("read 1 time: {} sec".format(time.time()-start))
-    image_ref, meta_ref = read_image(Path(dir_new) / path)
-    print("read 2 time: {} sec".format(time.time()-start))
-    find_rois(image_new, image_ref, diff_type="pixelmatch", threshold=0.01, blob_diameter=0)
-    print("total time: {} sec".format(time.time()-start))
+    print(f"read 2 time: {time.time()-start}s")
+    find_rois(
+      Path(dir_new) / path,
+      Path(dir_ref) / path,
+      diff_type="pixelmatch",
+      threshold=0.01,
+      blob_diameter=0
+    )
+    print(f"total time: {time.time()-start}s")
