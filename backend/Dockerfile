@@ -19,6 +19,11 @@ ENV HTTP_PROXY=$PROXY \
     NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com'
 
 
+RUN apt-get update -qq && \
+    apt-get install ca-certificates wget -y && \
+    wget http://itweb/downloads/sirc-ca.crt -P /usr/local/share/ca-certificates/ && \
+    update-ca-certificates
+
     # Keeps Python from generating .pyc files for 1-time use in the container's unionFS
 ENV PYTHONDONTWRITEBYTECODE=1 \
     # Turns off buffering for easier container logging
