@@ -24,7 +24,7 @@ const toaster = Toaster.create();
 
 let default_diff_type = "YIQ"
 const diff_type_options = [
-  {type: "pixelmatch", label: "YIQ"},
+  {type: "yiq", label: "YIQ"},
   {type: "ssim", label: "SSIM"},
   {type: "ciede2000", label: "CIE 2000"},
   {type: "cie76", label: "CIE 1976"},
