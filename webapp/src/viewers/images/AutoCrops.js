@@ -48,6 +48,7 @@ class AutoCrops extends React.Component {
 
 
   render() {
+    const { error } = this.state
     return <>
       <ControlGroup style={{marginTop: "10px", marginBottom: "10px"}}>
         <Button
