@@ -3,7 +3,7 @@ import { post } from "axios";
 
 import {
   Button,
-  AnchorButton,
+  Tag,
   Intent,
   Toaster,
   ControlGroup,
@@ -22,9 +22,9 @@ import { rgb } from 'd3-color'
 const toaster = Toaster.create();
 
 
-let default_diff_type = "YIQ"
+let default_diff_type = "yiq"
 const diff_type_options = [
-  {type: "pixelmatch", label: "YIQ"},
+  {type: "yiq", label: "YIQ"},
   {type: "ssim", label: "SSIM"},
   {type: "ciede2000", label: "CIE 2000"},
   {type: "cie76", label: "CIE 1976"},
@@ -60,12 +60,13 @@ class AutoCrops extends React.Component {
           style={{ marginRight: "10px" }}
         />
         <HTMLSelect value={this.state.diff_type} onChange={e => {
-          const diff_type = e.target.value
+          const diff_type = e.currentTarget.value
           this.setState({diff_type})
           default_diff_type = diff_type
         }}>
           {diff_type_options.map(type => <option key={type.type} value={type.type} >{type.label ?? type.type}</option>)}
         </HTMLSelect>
+        {this.state.error && <Tag intent={Intent.DANGER}>Error: {JSON.stringify(this.state.error)}</Tag>}
         {false && <><Tooltip content=
           {<ul>
             <li>Threshold [%]</li>

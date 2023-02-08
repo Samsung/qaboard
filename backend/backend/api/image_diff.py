@@ -16,7 +16,7 @@ if os.environ.get("PLOT_DEBUG"):
   import matplotlib.pyplot as plt
 
 
-def pixelmatch(img1, img2):
+def yiq(img1, img2):
   start = time.time()
   yuv1 = skimage.color.rgb2yiq(img1)
   yuv2 = skimage.color.rgb2yiq(img2)
@@ -26,9 +26,9 @@ def pixelmatch(img1, img2):
   return delta2 @ [0.5053, 0.299, 0.1957]
 
 
-def diff(image_1, image_2, diff_type="pixelmatch"):
-    if diff_type == "pixelmatch":
-        return pixelmatch(image_1, image_2)
+def diff(image_1, image_2, diff_type="yiq"):
+    if diff_type == "yiq":
+        return yiq(image_1, image_2)
     elif diff_type == "ssim":
       # https://scikit-image.org/docs/stable/auto_examples/transform/plot_ssim.html
       # print(image_1.shape)
@@ -54,6 +54,12 @@ def diff(image_1, image_2, diff_type="pixelmatch"):
 
 
 def rescale(image):
+  # TODO: To get better perf with huge (non-BMP?) images, we could use
+  #       https://libvips.github.io/pyvips/intro.html#numpy-and-pil
+  #       https://pypi.org/project/pyvips/
+  #       https://www.libvips.org/API/current/libvips-resample.html#vips-resize
+  #       https://www.libvips.org/
+  #       https://stackoverflow.com/a/53728154
   start = time.time()
   print("  shape: ", image.shape)
   width = image.shape[0]
@@ -196,7 +202,7 @@ if __name__ == "__main__":
     find_rois(
       Path(dir_new) / path,
       Path(dir_ref) / path,
-      diff_type="pixelmatch",
+      diff_type="yiq",
       threshold=0.01,
       blob_diameter=0
     )

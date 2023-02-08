@@ -18,7 +18,7 @@ repository="https://github.com/Samsung/qaboard"
 homepage="https://samsung.github.io/qaboard"
 
 [tool.poetry.dependencies]
-python = "3.8.*"
+python = "3.11.*"
 gitpython = "*"         # manipulate git repositories
 click = "*"             # build CLI tools easily
 flask = "*"             # HTTP server
@@ -31,16 +31,16 @@ alembic = "*"      # Schema migrations
 psycopg2 = "*"     # postgresql driver
 ujson = "*"        # fast json lib
 pandas = "*"       # stats
-numpy = ">=1.17.3" # (needed by pandas - just we ensure python3.8 compat)
+numpy = "*" # (needed by pandas - just we ensure python3.8 compat)
 scikit-image = "*" # image processing for auto-regions of interest
 uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
 qaboard = { path = "..", optional = true } #, develop = true }
 scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
-certifi = "^2022.6.15"
-requests = "^2.28.1"
-celery = "^5.2.7"
-sentry-sdk = {extras = ["flask"], version = "^1.9.8"}
+certifi = "*"
+requests = "*"
+celery = "*"
+sentry-sdk = {extras = ["flask"], version = "*"}
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]

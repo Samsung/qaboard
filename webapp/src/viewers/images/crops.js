@@ -46,35 +46,36 @@ const output_rois = output => {
 
 
 const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
-  let url_prefix = iiif_url(output.output_dir_url, path)
+  const url_prefix = iiif_url(output.output_dir_url, path)
   const x = roi.x * viewer.source.width  / (roi.image_width  ?? viewer.source.width)
   const y = roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height)
   const w = roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width)
   const h = roi.h * viewer.source.height / (roi.image_width  ?? viewer.source.height)
   const height = 50;
-  let src = roi.label !== 'Full Image' ? `${url_prefix}/${x},${y},${w},${h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
-  let tooltip_text = <p align="center">
-    <span>{roi.label}</span>
-  </p>
-
+  const src = roi.label !== 'Full Image' ? `${url_prefix}/${x},${y},${w},${h}/,${height}/0/default.jpg`: `${url_prefix}/full/,${height}/0/default.jpg`
   const is_valid = isValidRoi(roi, viewer) || roi.label === 'Full Image';
+  const crop_image = <AnchorButton
+    onClick={onSelect}
+    intent={selected ? Intent.PRIMARY : null}
+    disabled={!is_valid}
+    large={false}
+    minimal={!selected}
+    style={{ margin: "5px" }}
+  >
+    <div><img src={src} alt={roi.label} height={height} width={height} /></div>
+    <div>{!is_valid && <span style={{color: "red"}}>invalid</span>}{roi.label}</div>
+    {roi.color && <Icon icon="full-circle" style={{color: roi.color.formatHex()}}></Icon>}
+  </AnchorButton>
 
+  if (is_valid) {
+    return crop_image
+  }
+  const tooltip_text = `Invalid coordinates for ${roi.label} ! ${JSON.stringify(roi)}`
   return <Tooltip
     intent={is_valid ? undefined : Intent.DANGER}
-    content={is_valid ? tooltip_text : `Invalid coordinates! ${JSON.stringify(roi)}`}
   >
-    <AnchorButton
-      onClick={onSelect}
-      intent={selected ? Intent.PRIMARY : null}
-      disabled={!is_valid}
-      large={false}
-      minimal={!selected}
-      style={{ margin: "5px" }}
-    >
-      <div><img src={src} alt={roi.label} height={height} width={height} /></div>
-      <div><span>{roi.label}</span></div>
-      {roi.color && <Icon icon="full-circle" style={{color: roi.color.formatHex()}}></Icon>}
-    </AnchorButton>
+    {crop_image}
+    <p align="center">{tooltip_text}</p>
   </Tooltip>
 };
 

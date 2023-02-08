@@ -69,7 +69,7 @@ services:
   backend:
     image: "arthurflam/qaboard:backend"
     build:
-      cache_from: ["arthurflam/qaboard:backend"]
+      # cache_from: ["arthurflam/qaboard:backend"]
       context: .
       dockerfile: backend/Dockerfile
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
@@ -94,7 +94,7 @@ services:
   frontend:
     image: "arthurflam/qaboard:frontend"
     build:
-      cache_from: ["arthurflam/qaboard:frontend"]
+      # cache_from: ["arthurflam/qaboard:frontend"]
       context: webapp
       shm_size: 6gb
       args:
@@ -133,7 +133,7 @@ services:
   website:
     image: "arthurflam/qaboard:website"
     build:
-      cache_from: ["arthurflam/qaboard:website"]
+      # cache_from: ["arthurflam/qaboard:website"]
       context: website
       shm_size: 4gb
       # by default we assume you run the QA-Board on localhost, but will want to change this
@@ -177,7 +177,7 @@ services:
   # cantaloupe:
   #   image: "arthurflam/qaboard:cantaloupe"
   #   build:
-  #     cache_from: ["arthurflam/qaboard:cantaloupe"]
+  #     # cache_from: ["arthurflam/qaboard:cantaloupe"]
   #     context: ./services/cantaloupe
   #   expose:
   #   - "8182"

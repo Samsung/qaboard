@@ -54,6 +54,8 @@ services:
 
 
   frontend:
+    build:
+      target: dev
     volumes:
     - ./webapp:/webapp
     environment:
@@ -69,7 +71,6 @@ services:
     - HTTP_PROXY=
     - http_proxy=
     - REACT_APP_QABOARD_HOST=http://proxy
-    command: npm start
     user: "11611:10"
     ports:
     - "${QABOARD_DEV_FRONTEND_PORT:-3000}:3000"

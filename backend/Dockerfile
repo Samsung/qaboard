@@ -1,5 +1,5 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-FROM python:3.8-slim-buster
+FROM python:3.11-slim-bullseye
 LABEL maintainer="arthurf.flam@samsung.com"
 
 # SIRC proxy configuration [debian/ubuntu]
@@ -19,6 +19,11 @@ ENV HTTP_PROXY=$PROXY \
     NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com'
 
 
+RUN apt-get update -qq && \
+    apt-get install ca-certificates wget -y && \
+    wget http://itweb/downloads/sirc-ca.crt -P /usr/local/share/ca-certificates/ && \
+    update-ca-certificates
+
     # Keeps Python from generating .pyc files for 1-time use in the container's unionFS
 ENV PYTHONDONTWRITEBYTECODE=1 \
     # Turns off buffering for easier container logging
@@ -32,9 +37,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # If we ran into scale issues, we could look into a service like Gitlab's gitaly.
 # Note: if we didn't have proxy issues we would just
 #       add-apt-repository -y ppa:git-core/ppa
-RUN apt-get update && apt-get install -y gnupg2 && \
+RUN apt-get update -qq && \
+    apt-get install -y gpg
+    # This should work but doesn't because of proxy issues
+    # apt-get install -y software-properties-common && \
+    # add-apt-repository ppa:git-core/ppa && \
+RUN echo start && \
     echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
     echo "deb-src http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
+    # this should work but gpg seems to not be found
+    # gpg --batch --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy=$HTTP_PROXY --recv-keys A1715D88E1DF1F24 && \
     apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A1715D88E1DF1F24 && \
     apt-get update -qq && apt-get install -y git && \
     git config --global http.proxy $PROXY
@@ -44,7 +56,7 @@ RUN apt-get update -qq && \
     apt-get install -y \
     # https://www.psycopg.org/docs/install.html#install-from-source
     # https://www.psycopg.org/docs/faq.html#faq-compile
-    libpq-dev gcc \
+    libpq-dev build-essential \
     # for Ldap Authentication
     libsasl2-dev libldap2-dev \
     # At SIRC we need to be able to turn into any user to delete their output files
@@ -67,6 +79,10 @@ COPY setup.py fastentrypoints.py  ./
 #   https://github.com/python-poetry/poetry/issues/1301
 #   https://github.com/python-poetry/poetry/issues/856
 RUN pip install poetry
+# required to build python-scipy from source, since we use python3.11
+# and they are not available pre-built yet...
+RUN apt-get install -y gfortran pkg-config libopenblas-dev liblapack-dev
+
 WORKDIR /qaboard/backend
 COPY backend/pyproject.toml backend/poetry.lock ./
 # Inside the docker container we don't care about isolating virtual environment
@@ -76,7 +92,12 @@ COPY backend/pyproject.toml backend/poetry.lock ./
 # https://github.com/python-poetry/poetry/issues/1579
 # https://github.com/python-poetry/poetry/issues/214 
 RUN poetry config virtualenvs.create false
-RUN poetry install --no-root
+# [SIRC] We ran into strange host-key verification issues when downloading packages via poetry
+RUN git config --global http.sslVerify false
+# https://github.com/jelmer/dulwich/issues/698
+# https://github.com/jelmer/dulwich/issues/879
+# https://github.com/jelmer/dulwich/issues/1025
+RUN poetry install -vvv --no-root
 ENV QA_NO_CHECK_FOR_UPDATES=1
 
 # Copy-in everything else:
@@ -96,14 +117,22 @@ WORKDIR /qaboard
 # this way the install below would not install any 3rd parties :| 
 WORKDIR /qaboard/backend
 COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
-RUN poetry install --extras qaboard
-
 
 # SIRC-only, installs cde-python, used to read hex/raw images for the auto-ROI feature
-COPY third_party/cde-python /cde-python
-RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org /cde-python
-# --ssh is not supported by docker-compose at this point
-# so the simplest option is vendoring...!
+# It's annoying to use ssh from docker-compose, and our network doesn't help - better vendor cde-python...
+# This patch prints the repo paths when cloning with ssh, so that we get more info! (-vvv doens't help) 
+COPY third_party/cde-python /qaboard/third_party/cde-python
+RUN sed -i 's/if not cls\.is_using_legacy_client\(\)/if (print(url, file=open("\/dev\/stdout", "w"))) or not cls.is_using_legacy_client/g' /usr/local/lib/python3.11/site-packages/poetry/vcs/git/backend.py && \
+    grep is_using_legacy_client /usr/local/lib/python3.11/site-packages/poetry/vcs/git/backend.py
+RUN sed -i 's~cde @ git+ssh://git@gitlab-srv/cde/cde-python~cde @ file://localhost/qaboard/third_party/cde-python#egg=cde~' ../setup.py && \
+    sed -i 's~url = "ssh://git@gitlab-srv/cde/cde-python"~path = "/qaboard/third_party/cde-python/"~' poetry.lock && \
+    sed -i 's~git = "ssh://git@gitlab-srv/cde/cde-python"~path = "/qaboard/third_party/cde-python/"~' poetry.lock && \
+    sed -i 's~type = "git"~type = "path"~' poetry.lock && \
+    grep cde-python ../setup.py && grep -C3 cde-python poetry.lock
+RUN poetry install -vvv --extras qaboard
+
+
+# RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org /cde-python
 # https://pythonspeed.com/articles/build-secrets-docker-compose/
 # https://github.com/docker/compose/pull/7296
 # https://github.com/docker/compose/pull/6865

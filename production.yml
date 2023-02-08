@@ -1,6 +1,9 @@
 version: "3.5"
 
 services:
+  frontend:
+    build:
+      target: production
   db:
     shm_size: 1g
     restart: always
