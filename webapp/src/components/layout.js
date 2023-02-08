@@ -34,7 +34,10 @@ const Section = styled.div`
     min-width: 1000px;
   }
   @media (min-width: 1800px) {
-    min-width: 1300px;
+    min-width: 1400px;
+  }
+  @media (min-width: 2400px) {
+    min-width: 2000px;
   }
 `;
 
