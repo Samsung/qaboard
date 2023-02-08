@@ -42,7 +42,7 @@ volumes:
   data: {}              # git clones (and custom batches.yaml for now...)
   db: {}                # database with runs, projects, output metadata...
   rabbitmq-data: {}
-  cache_cantaloupe: {}  # cache for the iiif image server
+  # cache_cantaloupe: {}  # cache for the iiif image server
   pgadmin: {}
   # all builds still available for smooth upgrades
   frontend_builds: {}
@@ -170,27 +170,27 @@ services:
     - website_builds:/docs:ro
     depends_on:
     - backend
-    - cantaloupe
+    # - cantaloupe
     - flower
 
   # IIIF image server to serve images as tiles
-  cantaloupe:
-    image: "arthurflam/qaboard:cantaloupe"
-    build:
-      # cache_from: ["arthurflam/qaboard:cantaloupe"]
-      context: ./services/cantaloupe
-    expose:
-    - "8182"
-    volumes:
-    - cache_cantaloupe:/var/cache/cantaloupe
-    # INSECURE/FIXME: obviously it's not a great default, let's change it!
-    - /:/repository
-    - /srv/cantaloupe
-    # FIXME: change max memory with env variable
-    environment:
-      CANTALOUPE_MEM_START: 1g
-      CANTALOUPE_MEM_MAX: 2g
-    command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.jar'
+  # cantaloupe:
+  #   image: "arthurflam/qaboard:cantaloupe"
+  #   build:
+  #     # cache_from: ["arthurflam/qaboard:cantaloupe"]
+  #     context: ./services/cantaloupe
+  #   expose:
+  #   - "8182"
+  #   volumes:
+  #   - cache_cantaloupe:/var/cache/cantaloupe
+  #   # INSECURE/FIXME: obviously it's not a great default, let's change it!
+  #   - /:/repository
+  #   - /srv/cantaloupe
+  #   # FIXME: change max memory with env variable
+  #   environment:
+  #     CANTALOUPE_MEM_START: 1g
+  #     CANTALOUPE_MEM_MAX: 2g
+  #   command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.jar'
 
 
   # cron jobs

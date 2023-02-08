@@ -8,9 +8,9 @@ services:
   db:
     logging:
       driver: none
-  cantaloupe:
-    logging:
-      driver: none
+  # cantaloupe:
+  #   logging:
+  #     driver: none
   metabase:
     logging:
       driver: none
