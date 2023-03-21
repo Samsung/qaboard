@@ -241,15 +241,18 @@ class Output(Base):
       f'"{self.test_input.path}"',
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
+
+    user = self.data.get("user", "ispq")
+    outputs_dir_prefix = str(self.batch.ci_commit.outputs_dir).replace('/outputs/ispq/', f'/outputs/{user}/')
     script = '\n'.join([
       '#!/bin/bash',
       'set -ex',
       # needed...
       f"export CI=true;",
       f"export GIT_COMMIT='{self.batch.ci_commit.hexsha}';",
-      f"export QA_OUTPUTS_COMMIT='{self.batch.ci_commit.outputs_dir}'",
+      f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}'",
       # backward compatibility with previous qa versions, remove later...
-      f"export QATOOLS_CI_COMMIT_DIR='{self.batch.ci_commit.outputs_dir}'",
+      f"export QATOOLS_CI_COMMIT_DIR='{outputs_dir_prefix}'",
       f"export QABOARD_TUNING=true;",
       f'export QA_BATCH_COMMAND_ID={command_id}',
       "",
@@ -272,7 +275,7 @@ class Output(Base):
     with script_path.open('w') as f:
       f.write(script)
     print(f'"{script_path}"')
-    script_exec = "bash" if 'user' not in self.data else f'bsub_su {self.data["user"]} -I bash'
+    script_exec = "bash" if user == "ispq" else f'bsub_su {user} -I bash'
     p = subprocess.run(f'ssh ispq@ispq-vdi \'{script_exec} "{script_path}"\' > "{logs_path}" 2>&1', shell=True)
     success = p.returncode == 0
     return success
