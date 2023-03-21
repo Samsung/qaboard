@@ -118,7 +118,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['batch_dir'] = make_batch_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configurations'], ctx.obj['extra_parameters'], share)
 
   os.environ.update({
-    "QA_LABEL": batch_label,
+    "QA_LABEL": ctx.obj['raw_batch_label'],
   })
 
   # For convenience, we allow users to change environment variables using {ENV: {VAR: value}}
