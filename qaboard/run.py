@@ -42,6 +42,9 @@ class RunContext():
     command: Optional[str] = None
     # command: Optional[Union[str, List[str]]] = None  # maybe at some point?
 
+    # QA-Board ID
+    id: Optional[str] = None
+
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""
