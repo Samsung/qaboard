@@ -219,7 +219,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 
       if not ctx.obj['offline']:
           qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
-          run_context.id = qa_run_data["id"]
+          if qa_run_data:
+            run_context.id = qa_run_data["id"]
 
       start = time.time()
       cwd = os.getcwd() 
