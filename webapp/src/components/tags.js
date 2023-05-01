@@ -313,27 +313,20 @@ class OutputTags extends React.Component {
         <span>View the output directory in the browser</span>
       </Tooltip>
 
-      <Tooltip>
-        <CopyToClipboard
-          text={decodeURIComponent(linux_to_windows(output_dir_url))}
-          onCopy={() => {
-            toaster.show({
-              message: "Copied the output directory's path to the clipboard!",
-              intent: Intent.PRIMARY
-            });
-          }}
-        >
-          <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
-            <Icon
-             title="Copy-to-Clipboard"
-             iconSize={Icon.SIZE_SMALL}
-             icon="duplicate"
-            />
-          </span>
-        </CopyToClipboard>
-        <span>Copy-to-Clipboard the Windows directory</span>
-      </Tooltip>
-
+      <Popover hoverCloseDelay={500} interactionKind={"hover"}>
+        <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
+          <Icon
+            title="Copy-to-Clipboard"
+            iconSize={Icon.SIZE_SMALL}
+            icon="duplicate"
+            onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(output_dir_url).slice(2))}}
+          />
+        </span>
+        <Menu>
+          <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(output_dir_url).slice(2))}} />
+          <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(output_dir_url))}} />
+        </Menu>
+      </Popover>
       <Tooltip>
        <Button
           outlined={true}
