@@ -147,6 +147,7 @@ const condensed_header_style = {
   fontSize: ".7rem",
   fontWeight: 500,
   letterSpacing: "-1px",
+  lineHeight: 1.6,
 };
 
 
