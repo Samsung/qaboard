@@ -206,7 +206,7 @@ class Output(Base):
     # in case it was deleted without QA-Board being made aware
     if not self.batch.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
-      self.ci_commit.save_artifacts()
+      self.batch.ci_commit.save_artifacts()
 
     if not command_id:
       command_id = uuid.uuid4()
