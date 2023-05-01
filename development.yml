@@ -57,8 +57,10 @@ services:
     build:
       target: dev
     volumes:
-    - ./webapp:/webapp
+    - ./webapp:/app
     environment:
+    - HOME=/app
+    - NPM_CONFIG_USERCONFIG=/app
     # Should we comment it out by default?
     - HOST=0.0.0.0
     - DANGEROUSLY_DISABLE_HOST_CHECK=true
