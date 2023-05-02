@@ -130,7 +130,8 @@ RUN sed -i 's~cde @ git+ssh://git@gitlab-srv/cde/cde-python~cde @ file://localho
     sed -i 's~type = "git"~type = "path"~' poetry.lock && \
     grep cde-python ../setup.py && grep -C3 cde-python poetry.lock
 RUN poetry install -vvv --extras qaboard
-RUN git config --system --add safe.directory '*'
+RUN git config --system --add safe.directory '*' && \
+    git config --global --add safe.directory '*'
 
 # RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org /cde-python
 # https://pythonspeed.com/articles/build-secrets-docker-compose/
