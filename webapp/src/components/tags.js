@@ -327,8 +327,8 @@ class OutputTags extends React.Component {
           <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(output_dir_url))}} />
         </Menu>
       </Popover>
-      <Tooltip>
-       <Button
+      {this.props.manifests?.new?.["cde.sh"] && <Tooltip>
+      <Button
           outlined={true}
           style={{margin: "5px"}}
           disabled={this.state.waiting}
@@ -381,7 +381,7 @@ class OutputTags extends React.Component {
           }}
         > </Button>
         <span>Open in WebCDE</span>
-      </Tooltip> 
+      </Tooltip>}
       <MismatchTags mismatch={mismatch}/>
     </span>
   }
