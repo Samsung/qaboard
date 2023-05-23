@@ -135,9 +135,9 @@ class LsfRunner(BaseRunner):
         flags,
         '<< "EOF"\n'
         # the click python package hates ascii locales, for good reasons
-        "  LC_ALL=en_US.utf8 LANG=en_US.utf8",
+        "  LC_ALL=en_US.utf8 LANG=en_US.utf8" if self.command else '  ',
         # forces a non-interactive matplotlib backend
-        "MPLBACKEND=agg",
+        "MPLBACKEND=agg" if self.command else '',
         self.command if self.command else 'echo OK',
         "\nEOF",
       ]
