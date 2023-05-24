@@ -11,7 +11,7 @@ from pathlib import Path
 import click
 from click import secho
 
-from .conventions import make_batch_conf_dir, output_dirs_for_input_part
+from .conventions import make_batch_conf_dir, output_dirs_for_input_part, slugify_hash
 from .iterators import iter_inputs
 from .utils import PathType, checked_cde_attrs
 from .config import commit_id, project, subproject, outputs_commit_root, outputs_commit, is_ci, default_platform, config
@@ -182,7 +182,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 
 
 
-def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platform=None, manifest_name='manifest.outputs.json'):
+def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='manifest.outputs.json'):
     """Compares the results of the current output directory versus a reference"""
     run_identifier = ba_context["rel_input_path"]
     if ba_context.get("configurations"):
@@ -212,10 +212,14 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, reference_platfo
     #       but not anymore, so this code is broken..!
     #       We'd need a smart refactoring, and pass RunContexts instead of output directories...
     #       then it would be simple to compare to runs with any attribute changed.
-    if reference_platform:
+    if ba_context['reference_platform']:
       from .config import platform
-      dir_ref = Path(str(dir_ref).replace(platform, reference_platform))
+      dir_ref = Path(str(dir_ref).replace(platform, ba_context['reference_platform']))
+    if ba_context['reference_label']:
+      label_slub = slugify_hash(ba_context['batch_label'])
+      label_slub_ref = slugify_hash(ba_context['reference_label'])
 
+      dir_ref = Path(str(dir_ref).replace(label_slub, label_slub_ref))
     # print('dir_new', dir_new) # (dir_new / "manifest.outputs.json").resolve())
     # print('dir_ref', dir_ref) # (dir_ref / "manifest.outputs.json").resolve())
     if not dir_ref.exists():
@@ -386,8 +390,10 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 @click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
+@click.option('--reference-label', default = None, help="Compare against another label on the same batch")
 @click.option('--reference-platform', help="Compare against a difference platform.")
-def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference_platform):
+
+def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference_label, reference_platform):
     """
     Checks the bit accuracy of the results in the current output directory
     versus the latest commit on origin/develop.
@@ -459,6 +465,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           "rel_input_path": run_context.rel_input_path,
           "configurations": run_context.configurations,
           "output_dir_suffix": output_directory,
+          "reference_label": reference_label,
+          "reference_platform": reference_platform,
+          "batch_label":ctx.obj["raw_batch_label"]
         })
 
 
@@ -480,8 +489,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
             dir_ref = reference_rootproject_ci_dir / ba_context["output_dir_suffix"]
             if dir_ref.exists():
               missing_run = False
-              all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict, reference_platform=reference_platform) and all_bit_accurate
-              all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict, reference_platform=reference_platform, manifest_name='manifest.inputs.json') and all_bit_accurate
+              all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict) and all_bit_accurate
+              all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict, manifest_name='manifest.inputs.json') and all_bit_accurate
           if missing_run:
             click.secho(f"ERROR: No reference for '{ba_context['rel_input_path']}'", fg='red')
             all_bit_accurate = False
@@ -489,8 +498,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
         all_bit_accurate = True
         for ba_context in ba_contexts:
-          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict, reference_platform=reference_platform) and all_bit_accurate
-          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict, reference_platform=reference_platform, manifest_name='manifest.inputs.json') and all_bit_accurate
+          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict) and all_bit_accurate
+          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict, manifest_name='manifest.inputs.json') and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:
