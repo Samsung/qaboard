@@ -330,7 +330,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
       output_dir_suffix = output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
       batch_suffixes = batch_conf_dir / output_dir_suffix
-      ba_context = {"output_dir_suffix": output_dir_suffix, "rel_input_path": run_context.rel_input_path}
+      ba_context = {"output_dir_suffix": output_dir_suffix, "rel_input_path": run_context.rel_input_path, "reference_platform":None, "reference_label":None}
       if user in commit_dir.parts:
         commit_dir_ = Path(str(commit_dir).replace(user, '*'))
         start, *end = commit_dir_.parts
@@ -450,6 +450,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           "rel_input_path": run_info["input_path"],
           "configurations": run_info["configurations"],
           "output_dir_suffix": output_dir,
+          "reference_platform": reference_platform,
+          "batch_label":ctx.obj["raw_batch_label"]
         })
     else:
       for run_context in iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], default_platform, {}, config, ctx.obj['inputs_settings']):
