@@ -14,6 +14,7 @@ import os
 import random
 import string
 import subprocess
+import time
 from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
 from typing import Optional, List, Dict, Any, cast
@@ -151,22 +152,35 @@ class LsfRunner(BaseRunner):
     # os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
     bridge_bsub_command = self.options.bridge.format(**asdict(self.options), bsub_command=bsub_command)
-    out = subprocess.run(
+
+    # Retry mechanism
+    retry_count = 3
+    retry_delay = 5
+
+    for attempt in range(retry_count):
+      out = subprocess.run(
       bsub_command if not bridge_bsub_command else bridge_bsub_command,
       shell=True,
       encoding="utf-8",
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
-    )
-    if 'QA_BATCH_VERBOSE' in os.environ:
-      secho(out.stdout, dim=True, err=True)
-      secho(out.stderr, dim=True, err=True)
-    try:
-      out.check_returncode()
-    except:
-      secho(out.stdout, err=True)
-      secho(out.stderr, err=True)
+      )
+      if 'QA_BATCH_VERBOSE' in os.environ:
+        secho(out.stdout, dim=True, err=True)
+        secho(out.stderr, dim=True, err=True)
+      
+      try:
+        out.check_returncode()
+        break
+      except:
+        secho(out.stdout, err=True)
+        secho(out.stderr, err=True)
+        print(f"Failed to send job to LSF ({attempt+1}). Retry... ")
+        time.sleep(retry_delay)
+    else:
+      # Retry attempts exhausted, raise an exception
       raise Exception("Failed to send jobs to LSF")
+
     return out
 
   @staticmethod
