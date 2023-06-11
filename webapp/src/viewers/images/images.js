@@ -156,7 +156,8 @@ class ImgViewer extends React.PureComponent {
     // https://codepen.io/iangilman/pen/BWKKxQ
     const { viewer_new, viewer_ref } = this;
     const { image_width, image_height } = this.state;
-    const sync_key = `${this.props.output_new.test_input_path}-${image_height}x${image_width}`;
+    // const sync_key = `${this.props.output_new.test_input_path}-${image_height}x${image_width}`;
+    const sync_key = `${this.props.output_new.test_input_path}-${(image_height/image_width).toFixed(3)}`;
     // console.log("sync_key", sync_key)
 
     if (synced_viewers[sync_key] === undefined) {
