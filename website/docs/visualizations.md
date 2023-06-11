@@ -143,6 +143,8 @@ outputs:
 
       # For more examples, the full syntax is available at:
       # https://github.com/pillarjs/path-to-regexp
+      # Note that for the most advanced syntax you need tons of escaping, like
+      # path: frames/:frame(\\\\d+).jpg 
 
 ```
 
