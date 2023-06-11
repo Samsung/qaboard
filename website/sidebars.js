@@ -75,7 +75,7 @@ const sidebars = {
         // "tuning-workflows",
         "dag-pipelines",
         // "history"
-        // "monorepos-subprojects",
+        "monorepos-subprojects",
         // "docker-integration",
         // "remote-platforms",
     ],
