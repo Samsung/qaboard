@@ -34,6 +34,7 @@ import { humanFileSize } from "./bit_accuracy/utils";
 
 import { updateSelected } from "../actions/selected";
 import { linux_to_windows, is_same_data } from '../utils'
+import { is_image } from "./images/utils"
 
 export const toaster = Toaster.create();
 
@@ -498,6 +499,7 @@ class OutputCard extends React.Component {
         }
 
         let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
+        show_ref_if_available = show_ref_if_available || is_image(view)
         const viewers = paths.map(
           (path, path_idx) => {
             let new_available = path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[path])
