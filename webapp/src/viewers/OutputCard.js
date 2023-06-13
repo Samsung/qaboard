@@ -356,7 +356,6 @@ class OutputCard extends React.Component {
 
     if (!!parse_errors) {
       console.log(parse_errors)
-      // JSON.stringify(
       this.setState((previous_state, props) => ({
         error: {
           ...previous_state.error,
