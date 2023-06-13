@@ -354,12 +354,18 @@ class OutputCard extends React.Component {
       })
     })
 
-    if (!!parse_errors) {
-      console.log(parse_errors)
+    if (parse_errors.length > 0) {
       this.setState((previous_state, props) => ({
         error: {
           ...previous_state.error,
           "parse": parse_errors,
+        }
+      }))
+    } else if (!!this.state.error?.parse) {
+      this.setState((previous_state, props) => ({
+        error: {
+          ...previous_state.error,
+          "parse": undefined,
         }
       }))
     }
