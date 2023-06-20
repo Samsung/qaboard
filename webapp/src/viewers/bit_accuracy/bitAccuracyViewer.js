@@ -183,7 +183,7 @@ class BitAccuracyViewer extends React.Component {
       />
       {selected.map( filename => {
         const has_same_data = is_same_data(filename, this.props.manifests?.new?.[filename], this.props.manifests?.reference?.[filename])
-        return <>
+        return <div key={filename}>
           {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
           <OutputViewer
               key={filename}
@@ -191,7 +191,7 @@ class BitAccuracyViewer extends React.Component {
               max_lines={30}
               {...props}
           />
-        </>
+        </div>
       })}
 
     </div>

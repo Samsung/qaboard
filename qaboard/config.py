@@ -71,10 +71,8 @@ if not qatools_configsxpaths:
       click.secho(f'       4. qa save-artifacts', fg='red', err=True)
 
 
-# take care not to mutate the root config, as its project.name is the git repo name
+# Final merged config
 config : Dict[str, Any] = {}
-for c in qatools_configs:
-  config = merge(c, config)
 
 # The top-most qaboard.yaml is the root project
 # The current subproject corresponds to the lowest qaboard.yaml
@@ -94,6 +92,15 @@ else:
     root_qatools, *__, project_dir = [c.parent for c in qatools_config_paths]
     root_qatools_config, *_ = qatools_configs
   subproject = project_dir.relative_to(root_qatools) if root_qatools else Path(".")
+
+  # take care not to mutate the root config, as its project.name is the git repo name
+  for c in qatools_configs:
+    if "include" in c:
+      # paths will be relative to the root qaboard.yaml
+      c_include_path = root_qatools / c["include"]
+      c_include = yaml.load(c_include_path.open(), Loader=yaml.SafeLoader)
+      c = merge(c_include, c)
+    config = merge(c, config)
 
   # We check for consistency
   if root_qatools_config and config:

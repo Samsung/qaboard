@@ -15,3 +15,4 @@
 #   - super
 #   - path: output.jpg
 #     name: My new output
+include: included.yaml

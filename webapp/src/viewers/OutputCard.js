@@ -34,6 +34,7 @@ import { humanFileSize } from "./bit_accuracy/utils";
 
 import { updateSelected } from "../actions/selected";
 import { linux_to_windows, is_same_data } from '../utils'
+import { is_image } from "./images/utils"
 
 export const toaster = Toaster.create();
 
@@ -324,10 +325,17 @@ class OutputCard extends React.Component {
     const outputs = this.props.config.outputs || {}
     const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])]; // we allow both for some leeway with half updated projects
     var options = {}
+    let parse_errors = []
     views.forEach((view, idx) => {
       if (view.path === undefined) return
       // FIXME: be glob-friendly? view.path.replace(/[^\.]\*/g, '(.*)')
-      let view_options = parse(view.path)
+      let view_options
+      try {
+        view_options = parse(view.path)
+      } catch (error) {
+        parse_errors.push({path: view.path, message:error.message})
+        return
+      }
       view_options.forEach(token => {
         // console.log(token)
         if (token.name === undefined) // static part
@@ -346,6 +354,21 @@ class OutputCard extends React.Component {
       })
     })
 
+    if (parse_errors.length > 0) {
+      this.setState((previous_state, props) => ({
+        error: {
+          ...previous_state.error,
+          "parse": parse_errors,
+        }
+      }))
+    } else if (!!this.state.error?.parse) {
+      this.setState((previous_state, props) => ({
+        error: {
+          ...previous_state.error,
+          "parse": undefined,
+        }
+      }))
+    }
     const selected = {}
     const paths = Object.keys(this.state.manifests.new)
     // TODO: Ideally, as we iterate over options, we should select values
@@ -424,7 +447,7 @@ class OutputCard extends React.Component {
 
     const has_output_new = output_new !== undefined && output_new !== null
     if (!has_output_new || (output_new.is_pending && !output_new.is_running))
-      return <span />
+      return <span key="loading" />
 
     const style = {
       ...(config?.outputs?.style || {}),
@@ -434,7 +457,7 @@ class OutputCard extends React.Component {
 
     var content;
     if (!is_loaded && !has_output_new) {
-      content = <span />;
+      content = <span key="loading" />;
     } else {
       const { main_metrics, available_metrics } = this.props.metrics;
 
@@ -498,11 +521,12 @@ class OutputCard extends React.Component {
         }
 
         let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
+        show_ref_if_available = show_ref_if_available || is_image(view)
         const viewers = paths.map(
           (path, path_idx) => {
             let new_available = path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[path])
             if (!new_available)
-              return <></>
+              return <span key={`${idx}-${path_idx}`}/>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
             const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[filename], this.state.manifests.manifests?.reference?.[filename])
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
@@ -529,7 +553,7 @@ class OutputCard extends React.Component {
       })
 
       if (!viewable) {
-        content = <span></span>
+        content = <span/>
       } else if (this.props.type === 'bit_accuracy') {
         content = <OutputViewer
           key="bit-accuracy"
@@ -576,6 +600,10 @@ class OutputCard extends React.Component {
       <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={{...maybe_style_skeleton, paddingBottom: !viewable && "100px"}}>
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
+        {error.parse && <Tooltip key="error-parse">
+          <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Parsing Error</Tag>
+          <ul>{error.parse.map(e => <li><strong>{e.path}:</strong> {e.message}</li>)}</ul>
+        </Tooltip>}
 
         {!this.props.no_header && <OutputHeader
           key="header"
