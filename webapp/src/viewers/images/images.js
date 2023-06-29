@@ -687,6 +687,18 @@ class ImgViewer extends React.PureComponent {
     //       {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
 
     // const empty_image = <canvas key="empty-image" {...single_image_size} />
+    let current_roi = {
+      x: 0,
+      y: 0,
+      width: this.viewer_new?.source?.width,
+      height: this.viewer_new?.source?.height,
+    } 
+    if (!!this.viewer_new && !!this.viewer_new.viewport) {
+      const top_left = this.viewer_new.viewport.viewportToImageCoordinates(0, 0)
+      current_roi.x = top_left.x
+      current_roi.y = top_left.y
+    }
+
     return <div style={{dispay: "inline"}}>
       {error_messages}
       {!has_error && <>
@@ -696,6 +708,7 @@ class ImgViewer extends React.PureComponent {
             output_ref={!has_same_data ? output_ref : undefined}
             path={path}
             viewer={this.viewer_new}
+            current_roi={current_roi}
          />}
         <span>
           {this.show_histogram && <Tooltip>
@@ -704,11 +717,6 @@ class ImgViewer extends React.PureComponent {
               <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
             </ul>
           </Tooltip>}
-          {this.show_histogram && !!this.imageCoords && <CropSelection
-            image_width={this.viewer_new?.source?.width}
-            image_height={this.viewer_new?.source?.height}
-            roiCoords={this.imageCoords}
-          />}
           <Tooltips
             x={this.state.x}
             y={this.state.y}

@@ -8,11 +8,14 @@ import {
     MenuItem,
     Menu,
     Colors,
+    Toaster,
 } from "@blueprintjs/core";
+import copy from 'copy-to-clipboard';
+
 import { output_rois, Crop, fitTo } from "./crops"
 import AutoCrops from "./AutoCrops";
 
-
+const toaster = Toaster.create();
 const no_rois = {
     label: "Full Image",
     icon: "media",
@@ -27,7 +30,7 @@ let default_roi_type = "Full Image"
 //       2. wen trigger find, find for all on view? (or force view) ?
 //     make diff faster
 
-const RoiViewer = ({output_new, output_ref, path, viewer}) => {
+const RoiViewer = ({output_new, output_ref, path, viewer, current_roi}) => {
     let [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
 
     // Sample ROIs for testing
@@ -125,6 +128,18 @@ const RoiViewer = ({output_new, output_ref, path, viewer}) => {
                   shouldDismissPopover={false}
                 /> 
             )}
+            <MenuItem
+                text={"Copy current ROI"}
+                icon="duplicate"
+                key="copy-paste-roi"
+                shouldDismissPopover={false}
+                onClick={() => {
+                    const { x, y, width, height } = current_roi
+                    const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(width)}, h: ${Math.round(height)}, label: ""}`;
+                    copy(to_clipboard)
+                    toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
+                }}
+            />
         </Menu>
     </Popover>
     {rois.rois.length > 1 && <>
