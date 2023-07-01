@@ -694,9 +694,15 @@ class ImgViewer extends React.PureComponent {
       height: this.viewer_new?.source?.height,
     } 
     if (!!this.viewer_new && !!this.viewer_new.viewport) {
-      const top_left = this.viewer_new.viewport.viewportToImageCoordinates(0, 0)
+      var viewportBounds = this.viewer_new.viewport.getBounds();
+      let top_left = viewportBounds.getTopLeft()
+      let bottom_right = viewportBounds.getBottomRight()
+      top_left = this.viewer_new.viewport.viewportToImageCoordinates(top_left.x, top_left.y)
+      bottom_right = this.viewer_new.viewport.viewportToImageCoordinates(bottom_right.x, bottom_right.y)
       current_roi.x = top_left.x
       current_roi.y = top_left.y
+      current_roi.w = bottom_right.x - top_left.x
+      current_roi.h = bottom_right.y - top_left.y
     }
 
     return <div style={{dispay: "inline"}}>
