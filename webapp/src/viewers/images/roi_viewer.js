@@ -134,8 +134,8 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi}) => {
                 key="copy-paste-roi"
                 shouldDismissPopover={false}
                 onClick={() => {
-                    const { x, y, width, height } = current_roi
-                    const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(width)}, h: ${Math.round(height)}, label: ""}`;
+                    const { x, y, w, h, width, height } = current_roi
+                    const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}, label: ""}`;
                     copy(to_clipboard)
                     toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
                 }}
