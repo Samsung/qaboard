@@ -1,5 +1,5 @@
 import React from "react";
-import { post, get } from "axios";
+import { post } from "axios";
 import { connect } from 'react-redux'
 import {
   Classes,
@@ -12,6 +12,7 @@ import {
   Dialog,
   Toaster,
 } from "@blueprintjs/core";
+import {LOGIN_TYPE} from "./constants";
 import { login, logout } from '../../actions/users'
 
 // TODO:
@@ -28,35 +29,17 @@ class AuthButton extends React.Component {
     };
   }
 
-  checkAuth = () => {
-    get("/api/v1/user/me/")
-    .then(response => {
-      const { is_authenticated, user_id, user_name, full_name, email, is_ldap } = response.data;
-      this.setState({
-        is_loading: false,
-      });
-      if (is_authenticated) {
-        this.props.dispatch(login({user_name, email, is_ldap, full_name, user_id}))
-      } else {
-        this.props.dispatch(logout())
-      }
-    })
-    .catch(error => {
-      toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 })
-      console.log(error.response)
-    })
-  }
-
-  // componentDidMount() {
-  //   if (!this.props.user.is_logged)
-  //     this.checkAuth()
-  // }
-
   logout = () => {
     const { user_name, full_name } = this.props.user;
     const display_name = full_name ?? user_name
     this.props.dispatch(logout())
-    post("/api/v1/user/logout/")
+    if (LOGIN_TYPE == "SAML") {
+      this.setState({is_loading: true});
+      toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 });
+      window.location.href = '/api/auth/saml20/login/?slo';
+    }
+    else {
+      post("/api/v1/user/logout/")
       .then(response => {
         if(response.status == 200){
           // this.props.getAuth()
@@ -67,6 +50,7 @@ class AuthButton extends React.Component {
         toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 })
         console.log(error.response)
       })
+    }
   }
 
   render() {
@@ -100,7 +84,6 @@ class UserMenu extends React.Component {
     return <>
         <MenuItem
           text={<Icon icon="user"iconSize={Icon.SIZE_LARGE}/>}
-          defaultIsOpen
           popoverProps={{
             usePortal: true,
             // portalClassName: "limit-overflow",
@@ -142,9 +125,9 @@ class LoginButton extends React.Component {
 
     post("/api/v1/user/auth/", data)
     .then(response => {
-      const { user_id, user_name, full_name, email, is_ldap } = response.data;
+      const { user_id, user_name, full_name, email, is_ldap, is_sso } = response.data;
       toaster.show({ message: `Welcome, ${full_name ?? user_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-      this.props.dispatch(login({user_name, email, is_ldap, full_name, user_id}))
+      this.props.dispatch(login({user_name, email, is_ldap, is_sso, full_name, user_id}))
       this.setState({
         error: null,
         is_loading: false,
@@ -178,8 +161,8 @@ class LoginButton extends React.Component {
 
 
     const login_button = this.props.appSider ?
-      <MenuItem icon="log-in" text="Login" intent={Intent.PRIMARY} onClick={this.handleOpen}/> :
-      <Button intent={Intent.PRIMARY} icon={<Icon icon="log-in" color="#fff"/>} style={{color : "#fff"}} text="Login" onClick={this.handleOpen}/>
+      <MenuItem icon="log-in" text="Login" intent={Intent.PRIMARY} onClick={this.handleLogin}/> :
+      <Button intent={Intent.PRIMARY} icon={<Icon icon="log-in" color="#fff"/>} style={{color : "#fff"}} text="Login" onClick={this.handleLogin} loading={is_loading}/>
     const logout_button = this.props.appSider ?
       <MenuItem icon="log-out" text="Logout" onClick={this.props.logout}/> :
       <Button icon={<Icon icon="log-out" color="#fff"/>} style={{color : "#fff"}} onClick={this.props.logout} text="Logout"/>
@@ -216,7 +199,18 @@ class LoginButton extends React.Component {
       </Dialog>
     </>
   }
-  
+
+
+  handleLogin = () => {
+    if (LOGIN_TYPE == "SAML") {
+      this.setState({is_loading: true});
+      window.location.href = '/api/auth/saml20/login/?sso';
+    }
+    else {
+      this.handleOpen()
+    }
+  }
+
   handleOpen = () => this.setState({ isOpen: true , error: null, is_loading: false});
   handleClose = () => this.setState({ isOpen: false });
 }
