@@ -44,7 +44,7 @@ elif login_type == "SAML":
 login_manager = LoginManager(app)
 
 
-@app.route('/api/v1/user/signup/', methods=['POST'])
+# @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
   try:
     user = create_user({
