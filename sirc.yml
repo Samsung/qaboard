@@ -40,12 +40,16 @@ services:
     - QABOARD_DATA_SHARED_DIR=/home/ispq/qaboard/shared
     - QABOARD_DATA_GIT_DIR=/algo/ws/ispq/qaboard_prod_data_git
     - QA_RUNNERS_LSF_BRIDGE=ssh ispq@ispq-vdi 'bsub_su {user} -I {bsub_command}'
-    - QABOARD_LDAP_ENABLED=true
+    - QABOARD_LOGIN_TYPE=LDAP
     - QABOARD_LDAP_USER_BASE=REDACTED_LDAP_BASE
     - QABOARD_LDAP_BIND_DN=cn=Ldap Query,ou=IT,ou=SIRC Users,REDACTED_LDAP_BASE
     - QABOARD_LDAP_PASSWORD=REDACTED_LDAP_PASSWORD
     - QABOARD_LDAP_HOST=REDACTED_LDAP_HOST
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
+    - QABOARD_SAML_DIR=./backend/backend/api/saml
+    - QABOARD_SAML_ATTRIBUTE_EMAIL=http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
+    - QABOARD_SAML_ATTRIBUTE_USER_NAME=http://schemas.sec.com/2018/05/identity/claims/LoginId
+    - QABOARD_SAML_ATTRIBUTE_COMMON_NAME=http://schemas.sec.com/2018/05/identity/claims/Username
     - SENTRY_DSN=https://REDACTED_SENTRY_KEY@sentry.transchip.com/5
 
     volumes:
