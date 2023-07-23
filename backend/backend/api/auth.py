@@ -1,5 +1,5 @@
 """
-Authentication for qaboard users and LDAP.
+Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
 
@@ -12,8 +12,8 @@ from backend import app, db_session
 from ..models import User
 
 
-ldap_enabled = os.getenv('QABOARD_LDAP_ENABLED') 
-if ldap_enabled:
+login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
+if login_type == "LDAP":
   # Server hostname (including port)
   ldap_host = os.environ['QABOARD_LDAP_HOST']
   # Server port, usually 389 or 636 if SSL is used.
@@ -30,6 +30,14 @@ if ldap_enabled:
   ldap_attr_email = os.environ.get('QABOARD_LDAP_ATTRIBUTE_EMAIL', "mail")
   ldap_attr_common_name = os.environ.get('QABOARD_LDAP_ATTRIBUTE_COMMON_NAME', "cn")
 
+elif login_type == "SAML":
+  # the directory that contains the settings files and certs
+  app.config['SAML_PATH'] = os.path.abspath(os.getenv('QABOARD_SAML_DIR'))
+  # User attributes
+  saml_attr_email = os.environ.get('QABOARD_SAML_ATTRIBUTE_EMAIL')
+  saml_attr_user_name = os.environ.get('QABOARD_SAML_ATTRIBUTE_USER_NAME')
+  saml_attr_common_name = os.environ.get('QABOARD_SAML_ATTRIBUTE_COMMON_NAME')
+  # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
 
 login_manager = LoginManager(app)
 
@@ -117,8 +125,10 @@ def create_user(info):
 def auth(username, password):
   user = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
   # FIXME: check we render the error field in JS, not invalid_passord=True..
-  if ldap_enabled and (not user or user.is_ldap):
+  if login_type == "LDAP" and (not user or user.is_ldap):
     return auth_ldap(username, password)
+  # elif login_type == "SAML" and (not user or user.is_sso):
+  #   return auth_sso(username, password)
   else:
     return auth_local(username, password)
 
@@ -143,8 +153,8 @@ def auth_local(username, password):
   return info
 
 def auth_ldap(user_name, password):
-  if not ldap_enabled:
-    raise Exception("LDAP is not enabled")
+  if login_type != "LDAP":
+    raise Exception("LDAP authentication is disabled")
   user_info = {
     "user_name": user_name,
     "is_ldap": True,
