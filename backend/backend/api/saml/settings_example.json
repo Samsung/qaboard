@@ -1,0 +1,39 @@
+{
+    "strict": true,
+    "debug": true,
+    "sp": {
+        "entityId": "https://localhost:44364",
+        "assertionConsumerService": {
+            "url": "https://localhost:44364/?acs",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        },
+        "singleLogoutService": {
+            "url": "https://localhost:44364/?sls",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"        
+    },
+    "idp": {
+        "entityId": "http://sts-dev.secsso.net/adfs/services/trust",
+        "singleSignOnService": {
+            "url": "https://sts-dev.secsso.net/adfs/ls/",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "singleLogoutService": {
+            "url": "https://sts-dev.secsso.net/adfs/ls/?wa=wsignoutcleanup1.0",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "x509cert": "MIIC4DCCAcigAwIBAgIQG40DR9OSaolO+JHldUbqdzANBgkqhkiG9w0BAQsFADAsMSowKAYDVQQDEyFBREZTIFNpZ25pbmcgLSBzdHMtZGV2LnNlY3Nzby5uZXQwHhcNMTgwNzMwMDA0MDUyWhcNMzgwNzI1MDA0MDUyWjAsMSowKAYDVQQDEyFBREZTIFNpZ25pbmcgLSBzdHMtZGV2LnNlY3Nzby5uZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDCAjlN1aipmUwA++3KpSgNDDe3JEwzUyc9qjZ22js5Tu/4L40x56H9lsWmwITq157RNTYa/cad67AnMII/Azo+6QArTsYNl1Cr6UWPxZFSOv8do5Hi3ymsdH2n9oNymvAL0mv0c0GHLu8OvB9lMzv2XL71d68Ql0gp+OlxOzwzfoM4Si98OEdbm9eZRLWq+SbadfpfOkKt5ncNOX3Y7Q2fnItTnpOJuw89Kac9jCf3zMT/6qjb4nX8M3glkOXDsISRG4BXegJXfBHk3wUyIGPOjuzKYWPo3NtbuyPak5xtcL21vNzRkztOsIEJmBEqrc7TMtfP75QYOoeJbHVCfRfxAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAApqobdLJLXHnJy0EcLgdlJLAXpGOy8IM+RssaVJCdE9JWn/59BvFTsBMzuj8nGPERJFrsjsygyjpeE46XXJx21crcdOQEsWtnOfeFdhZSZyRLn4yF1xuX0CKltdRBfl+cgDGrEpiRR3ZzfJCKuUvxS8lrquvMJ9yXsnwiJsny+UGQ+QLMTvBR7kY7X4fJhoo/paB1vPBBD92HUPdni2tEpmQ0ID0IeBXFmOky/xmSjU2itS+HjNIWhtlE/ZBhLtmryeiXgt3SElOp3buYs/A0Vz2ycXx4nwldWSt5IQcpVFdBV4tkJxuPPm7dKMmBrQtp5hFEkjw6q6JUJHkT+lTnE="
+    }
+}
+
+// Idp EntityId
+// 1. Dev : http://sts-dev.secsso.net
+// 2. Asia : http://sts.secsso.net
+// 3. US : http://stsus.secsso.net
+// 4. EU : http://stseu.secsso.net
+// x509cert
+// 1. Dev : MIIC4DCCAcigAwIBAgIQG40DR9OSaolO+JHldUbqdzANBgkqhkiG9w0BAQsFADAsMSowKAYDVQQDEyFBREZTIFNpZ25pbmcgLSBzdHMtZGV2LnNlY3Nzby5uZXQwHhcNMTgwNzMwMDA0MDUyWhcNMzgwNzI1MDA0MDUyWjAsMSowKAYDVQQDEyFBREZTIFNpZ25pbmcgLSBzdHMtZGV2LnNlY3Nzby5uZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDCAjlN1aipmUwA++3KpSgNDDe3JEwzUyc9qjZ22js5Tu/4L40x56H9lsWmwITq157RNTYa/cad67AnMII/Azo+6QArTsYNl1Cr6UWPxZFSOv8do5Hi3ymsdH2n9oNymvAL0mv0c0GHLu8OvB9lMzv2XL71d68Ql0gp+OlxOzwzfoM4Si98OEdbm9eZRLWq+SbadfpfOkKt5ncNOX3Y7Q2fnItTnpOJuw89Kac9jCf3zMT/6qjb4nX8M3glkOXDsISRG4BXegJXfBHk3wUyIGPOjuzKYWPo3NtbuyPak5xtcL21vNzRkztOsIEJmBEqrc7TMtfP75QYOoeJbHVCfRfxAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAApqobdLJLXHnJy0EcLgdlJLAXpGOy8IM+RssaVJCdE9JWn/59BvFTsBMzuj8nGPERJFrsjsygyjpeE46XXJx21crcdOQEsWtnOfeFdhZSZyRLn4yF1xuX0CKltdRBfl+cgDGrEpiRR3ZzfJCKuUvxS8lrquvMJ9yXsnwiJsny+UGQ+QLMTvBR7kY7X4fJhoo/paB1vPBBD92HUPdni2tEpmQ0ID0IeBXFmOky/xmSjU2itS+HjNIWhtlE/ZBhLtmryeiXgt3SElOp3buYs/A0Vz2ycXx4nwldWSt5IQcpVFdBV4tkJxuPPm7dKMmBrQtp5hFEkjw6q6JUJHkT+lTnE=
+// 2. Asia : MIIC2DCCAcCgAwIBAgIQJTsBS/w6qJ5OnrWPQQfnujANBgkqhkiG9w0BAQsFADAoMSYwJAYDVQQDEx1BREZTIFNpZ25pbmcgLSBzdHMuc2Vjc3NvLm5ldDAeFw0xODA4MDkwOTAyMTVaFw0zODA4MDQwOTAyMTVaMCgxJjAkBgNVBAMTHUFERlMgU2lnbmluZyAtIHN0cy5zZWNzc28ubmV0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuDxXn2VDXCxfIXqtILZCL0zLJbY56P6zGWTm1t+JUbCKxFXqjQDQI65mxsu3o6llrsGTQvzQt1/F7bgmDSP/Z5ZSKxaBPz3SK5K/ylTw1Zh30jecvW25ND2LMcD/D+ezbCIwkbHeMDvUqjwaWc4eoKpVvoGj3CkKQ7xTkmcjbttowLyr2Iq5pNmDrlSPEHlCC22our3W/PrE/jpCktSDn3F43tm4q+aFFYnoeufeYYh3BCwv0Whlxc1PS0iA4qfRCemor501ABa1YGPFRcHJi8FxY9nKNyF9eZ3DdHsrDh6RznK7WUcHmDh8aHKXmLsJ2D7pQmhV4ao5IvE18uw+hwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBOgYSeQy0ekpdlOVoOlqUUMI/BiNHecOfIjjxr08XHoPDIBP93PDmPLasHZLK3pRLs0aCUrYjNJTfx0BRqG+RycfccwJmVz8r89E6/XDmjSVqJWRfmzqWNA7gTRI2NqFcAy4CTSAYoP5R1RbhmlY+Q1uVhfNCvDJGI5fhombXKBkb6etZs90KU7hFs/bj7dKVecfABmN0udVkki+9lZ+bvbcL32opyzOxvMhX1so9HJEPglrTve6OGyE119PvGFdQZU8nvqR2aoXbk9GTN38ufNze2ClPTbTHO/elEAYGGem5eh6XOyXtZ1TXLsHl983x5lJcjjUzIt+iPOBCgEE2W
+// 3. US : MIIC3DCCAcSgAwIBAgIQcbJpxEgz461KIaQVOySfQTANBgkqhkiG9w0BAQsFADAqMSgwJgYDVQQDEx9BREZTIFNpZ25pbmcgLSBzdHN1cy5zZWNzc28ubmV0MB4XDTE5MDgwOTAxMDgxMloXDTM5MDgwNDAxMDgxMlowKjEoMCYGA1UEAxMfQURGUyBTaWduaW5nIC0gc3RzdXMuc2Vjc3NvLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOnVPJUpXWs+rlU6M/favT8WJhQRtL0XP7h3wSNZLvIkrFWIEYTEDf7uR4akjQqeZ6O/qnes1RH1QtsA5WhdC/K/aOYMsqVK3dN91IuNhuc2nR0MoNzlA7KnM3dWgnzx7zi7v6L7eIBjEQhvw0KwKOJewEB7gnQ4/OgBdRENq3ZMsT8rSVvVYfIQWxYWy5Nw3K7hiu6X732LAnlY8OV5A3MjjyA+1+kWTD4/5yC5pOJ5SQip/vlAVT4trrHGr1q7qQ4J6fmL41+LBlLiRDQfp67il3hITnzYbQRaGPc+/9Cjte29LHDqacSX0vQoItncap01LcrONTP3bVnVHJcdgrMCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAUBcvWu35kqSXLmH61pOc1857DFZS0jlWhiUAboTfKkSxeRbdaAUZQ1QtMbMtUnQaWYB7v223AgHoOc4rjiBNpaYECGfQtUeDJjGjzutn0CUOlCXl6anBgpbKcwexnt1H/NkWmnWmIv1BI3XzVbIDMFej+XQ7kk5zZzsl2bm/EA8Yf5FuRN0/MCQX+2iT9EGKkNIIODnydJ+/daA82qjGzAG7Yk5unvDlhEA8tOBWjg29DewkTon5+VcYQYrPnpwpgZRG0NZjwHNxOgZntla3c5DkNsMuQQ571OMTSdA/aridC0XJ4M7N73wSlFvImS+6o5+5lE9FJCCHHTM8PNTcUg==
+// 4. EU : MIIC3DCCAcSgAwIBAgIQHluESBiJ3oNEUiXgs27zQjANBgkqhkiG9w0BAQsFADAqMSgwJgYDVQQDEx9BREZTIFNpZ25pbmcgLSBzdHNldS5zZWNzc28ubmV0MB4XDTE5MDYxMTAxMDAyOVoXDTM5MDYwNjAxMDAyOVowKjEoMCYGA1UEAxMfQURGUyBTaWduaW5nIC0gc3RzZXUuc2Vjc3NvLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANtBEIFRXk79kAIvOmwwud12iH5PiUj2qpZsgxpgG4WYNjtgfFDrwCE4TwejhPhfpey3hFflwzfi+deqUvEQqRPnLgEwFSooTfMB1UXAgqXp7GoFl9qohdw40hLnV5FCE+ahZ70MCCoGwVtD7VWosvJJ33Eud8/37qps9AULk3xBeXUCLMDWtzcfNxY1Oi6po46DMJd2w8Aoqy+AqtsvuFwfyfYo1dizOs9pLbZUDKRWfJXoKtJn7emrEGjYDUNCRkTskSRAA53/MkfzTdOcHwDEtQ3dt6CratrlDfkTNWcnCv8UUw7ccm3QkX3YZobFEMZUs0GnX9uuOSjsvw/GxiMCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAlCUbXFk71/Ftm1UYpqvaRda7WSbT9nct4YpgFZMwHjPqrv6l+Z46Me4E9m3gGGXnsxJEnkPHJTkSH4yi8KqGc1WMZyOLwX1T5i/5NvX9VMCPNg7b/A4qUJd0xW8tD0TspQK7Z+u0mlDG72E2jegqLDqJI3VA+IEaPT6jO5chADJbON4tCXVyO7EW8dmtfryloF99pR1w41znLuHGAl/KxbfSgGYYdiluLD7lX4NbIiv5BfBWk+53s7+a3nVC4oOQ3UY83nqoekGrko7Z+hijXuc02h2Prg0M20AoqhTwNpIZ3nzcBsR3c3dNoXX9aZwcRaESy0U9L/sdWQNl4Jtyrw==

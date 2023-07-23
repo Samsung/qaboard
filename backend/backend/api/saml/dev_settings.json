@@ -1,0 +1,28 @@
+{
+    "strict": true,
+    "debug": true,
+    "sp": {
+        "entityId": "https://localhost:5001",
+        "assertionConsumerService": {
+            "url": "https://localhost:5001/api/auth/saml20/login/?acs",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        },
+        "singleLogoutService": {
+            "url": "https://localhost:5001/api/auth/saml20/login/?sls",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"        
+    },
+    "idp": {
+        "entityId": "http://sts-dev.secsso.net/adfs/services/trust",
+        "singleSignOnService": {
+            "url": "https://sts-dev.secsso.net/adfs/ls/",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "singleLogoutService": {
+            "url": "https://sts-dev.secsso.net/adfs/ls/?wa=wsignoutcleanup1.0",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "x509cert": "MIIC4DCCAcigAwIBAgIQG40DR9OSaolO+JHldUbqdzANBgkqhkiG9w0BAQsFADAsMSowKAYDVQQDEyFBREZTIFNpZ25pbmcgLSBzdHMtZGV2LnNlY3Nzby5uZXQwHhcNMTgwNzMwMDA0MDUyWhcNMzgwNzI1MDA0MDUyWjAsMSowKAYDVQQDEyFBREZTIFNpZ25pbmcgLSBzdHMtZGV2LnNlY3Nzby5uZXQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDCAjlN1aipmUwA++3KpSgNDDe3JEwzUyc9qjZ22js5Tu/4L40x56H9lsWmwITq157RNTYa/cad67AnMII/Azo+6QArTsYNl1Cr6UWPxZFSOv8do5Hi3ymsdH2n9oNymvAL0mv0c0GHLu8OvB9lMzv2XL71d68Ql0gp+OlxOzwzfoM4Si98OEdbm9eZRLWq+SbadfpfOkKt5ncNOX3Y7Q2fnItTnpOJuw89Kac9jCf3zMT/6qjb4nX8M3glkOXDsISRG4BXegJXfBHk3wUyIGPOjuzKYWPo3NtbuyPak5xtcL21vNzRkztOsIEJmBEqrc7TMtfP75QYOoeJbHVCfRfxAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAApqobdLJLXHnJy0EcLgdlJLAXpGOy8IM+RssaVJCdE9JWn/59BvFTsBMzuj8nGPERJFrsjsygyjpeE46XXJx21crcdOQEsWtnOfeFdhZSZyRLn4yF1xuX0CKltdRBfl+cgDGrEpiRR3ZzfJCKuUvxS8lrquvMJ9yXsnwiJsny+UGQ+QLMTvBR7kY7X4fJhoo/paB1vPBBD92HUPdni2tEpmQ0ID0IeBXFmOky/xmSjU2itS+HjNIWhtlE/ZBhLtmryeiXgt3SElOp3buYs/A0Vz2ycXx4nwldWSt5IQcpVFdBV4tkJxuPPm7dKMmBrQtp5hFEkjw6q6JUJHkT+lTnE="
+    }
+}
