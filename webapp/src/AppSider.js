@@ -155,7 +155,6 @@ class ProjectSideCommitList extends React.Component {
         <MenuItem
           text="Milestones"
           icon="star"
-          defaultIsOpen
           popoverProps={{
             usePortal: true,
             portalClassName: "limit-overflow",

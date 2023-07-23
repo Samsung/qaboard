@@ -17,6 +17,8 @@ services:
   proxy:
     environment:
     - NGINX_BIN=nginx-debug
+    ports:
+    - 5001:5001
 
   backend:
     volumes:

@@ -1,0 +1,28 @@
+{
+    "strict": true,
+    "debug": true,
+    "sp": {
+        "entityId": "https://qaboard.samsungds.net",
+        "assertionConsumerService": {
+            "url": "https://qaboard.samsungds.net/api/auth/saml20/login/?acs",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        },
+        "singleLogoutService": {
+            "url": "https://qaboard.samsungds.net/api/auth/saml20/login/?sls",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"        
+    },
+    "idp": {
+        "entityId": "http://sts.secsso.net/adfs/services/trust",
+        "singleSignOnService": {
+            "url": "https://sts.secsso.net/adfs/ls/",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "singleLogoutService": {
+            "url": "https://sts.secsso.net/adfs/ls/?wa=wsignoutcleanup1.0",
+            "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        },
+        "x509cert": "MIIC2DCCAcCgAwIBAgIQJTsBS/w6qJ5OnrWPQQfnujANBgkqhkiG9w0BAQsFADAoMSYwJAYDVQQDEx1BREZTIFNpZ25pbmcgLSBzdHMuc2Vjc3NvLm5ldDAeFw0xODA4MDkwOTAyMTVaFw0zODA4MDQwOTAyMTVaMCgxJjAkBgNVBAMTHUFERlMgU2lnbmluZyAtIHN0cy5zZWNzc28ubmV0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuDxXn2VDXCxfIXqtILZCL0zLJbY56P6zGWTm1t+JUbCKxFXqjQDQI65mxsu3o6llrsGTQvzQt1/F7bgmDSP/Z5ZSKxaBPz3SK5K/ylTw1Zh30jecvW25ND2LMcD/D+ezbCIwkbHeMDvUqjwaWc4eoKpVvoGj3CkKQ7xTkmcjbttowLyr2Iq5pNmDrlSPEHlCC22our3W/PrE/jpCktSDn3F43tm4q+aFFYnoeufeYYh3BCwv0Whlxc1PS0iA4qfRCemor501ABa1YGPFRcHJi8FxY9nKNyF9eZ3DdHsrDh6RznK7WUcHmDh8aHKXmLsJ2D7pQmhV4ao5IvE18uw+hwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBOgYSeQy0ekpdlOVoOlqUUMI/BiNHecOfIjjxr08XHoPDIBP93PDmPLasHZLK3pRLs0aCUrYjNJTfx0BRqG+RycfccwJmVz8r89E6/XDmjSVqJWRfmzqWNA7gTRI2NqFcAy4CTSAYoP5R1RbhmlY+Q1uVhfNCvDJGI5fhombXKBkb6etZs90KU7hFs/bj7dKVecfABmN0udVkki+9lZ+bvbcL32opyzOxvMhX1so9HJEPglrTve6OGyE119PvGFdQZU8nvqR2aoXbk9GTN38ufNze2ClPTbTHO/elEAYGGem5eh6XOyXtZ1TXLsHl983x5lJcjjUzIt+iPOBCgEE2W"
+    }
+}

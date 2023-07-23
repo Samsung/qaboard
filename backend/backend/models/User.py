@@ -13,11 +13,12 @@ class User(Base, UserMixin):
   created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
 
   user_name = Column(String(), unique=True)
-  full_name = Column(String(), unique=True)
+  full_name = Column(String(), unique=False)
   email = Column(String(), unique=True)
 
   password = Column(String())
   is_ldap = Column(Boolean(), default=False)
+  is_sso = Column(Boolean(), default=False)
 
   def __repr__(self):
     return (f"<id='{self.id}' "
@@ -25,4 +26,5 @@ class User(Base, UserMixin):
             f"full_name='{self.full_name} "
             f"email='{self.email}' "
             f"is_ldap='{self.is_ldap}' "
+            f"is_sso='{self.is_sso}' "
             )

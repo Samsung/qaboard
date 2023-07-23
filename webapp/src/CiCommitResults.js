@@ -335,7 +335,7 @@ class CiCommitResults extends Component {
               {selected_views.includes('groups') && <Section style={{width: "1000px"}}>
                 <Card>
                   <h2 className={Classes.HEADING}>Groups of tests</h2>
-                  <PrivateContent>
+                  <PrivateContent enabled={true}>
                     <AddRecordingsForm
                     project={project}
                     git={git}
@@ -356,7 +356,7 @@ class CiCommitResults extends Component {
                 : <Section>
                   <h2 className={Classes.HEADING}>Tuning Experiments</h2>
                   <Card>
-                    <PrivateContent>
+                    <PrivateContent enabled={true}>
                       <TuningForm
                       project={project}
                       config={config}

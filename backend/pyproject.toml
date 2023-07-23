@@ -41,6 +41,7 @@ certifi = "*"
 requests = "*"
 celery = "*"
 sentry-sdk = {extras = ["flask"], version = "*"}
+python3-saml = "*"
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]

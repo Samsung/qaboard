@@ -90,6 +90,7 @@ services:
     - JENKINS_AUTH
     - GITLAB_AUTH
     - GITLAB_ACCESS_TOKEN
+    - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
 
   frontend:
     image: "arthurflam/qaboard:frontend"
@@ -104,6 +105,8 @@ services:
     # by default we assume you run the QA-Board on localhost, but will want to change this
     environment:
     - REACT_APP_QABOARD_HOST=http://localhost:5151
+    - REACT_APP_QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
+    - REACT_APP_QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED}
 
   # Message broker used by the celery task scheduler
   # https://hub.docker.com/_/rabbitmq
@@ -141,7 +144,7 @@ services:
         - QABOARD_URL=${QABOARD_URL:-http://localhost:5151}
     volumes:
     - website_builds:/builds
-  
+
 
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
