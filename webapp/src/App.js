@@ -23,6 +23,8 @@ import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
 import { routes } from './routes'
+import PrivateContent from "./components/authentication/RequireAuth"
+import { APP_LOGIN_REQUIRED } from "./components/authentication/constants";
 import { sider_width } from './AppSider'
 
 const Footer = () => {
@@ -66,12 +68,18 @@ class App extends React.Component {
 	  return <Provider store={this.props.store}>
       <PersistGate loading={null} persistor={this.props.persistor}>
         <IeDeprecationWarning/>
-        <Router history={history}>
-          <Switch>
-            <Route exact path="/" component={ProjectsList} />
-            <Route component={ProjectApp} />
-          </Switch>
-        </Router>
+          <Router history={history}>
+            <Switch>
+              <Route exact path="/" >
+                  <ProjectsList/>
+              </Route>
+              <Route>
+                <PrivateContent enabled={APP_LOGIN_REQUIRED}>
+                  <ProjectApp/>
+                </PrivateContent>
+              </Route>
+            </Switch>
+          </Router>
       </PersistGate>
     </Provider>
   }

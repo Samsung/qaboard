@@ -26,7 +26,8 @@ import {
 import { Container } from "./components/layout";
 import { Avatar } from "./components/avatars";
 import AuthButton from "./components/authentication/Auth"
-
+import PrivateContent from "./components/authentication/RequireAuth"
+import {APP_LOGIN_REQUIRED} from "./components/authentication/constants";
 import { updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
 import { match_query } from "./utils"
@@ -56,7 +57,7 @@ class ProjectsList extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      query: null,
+      query: '',
     };
   }
 
@@ -189,24 +190,26 @@ class ProjectsList extends Component {
             </NavbarGroup>
         </Navbar>
         <Container>
-          <div style={{display: "flex", justifyContent: "space-between", alignItems: "baseline"}}>
-            <div style={{width: '300px', marginTop: '30px', marginBottom: '10px'}}>
-                <InputGroup
-                  intent={!!query ? Intent.PRIMARY : undefined}
-                  value={query}
-                  round
-                  large
-                  leftIcon="search"
-                  placeholder="filter projects..."
-                  onChange={e => this.setState({query: e.target.value})}
-                />
+          <PrivateContent enabled={APP_LOGIN_REQUIRED}>
+            <div style={{display: "flex", justifyContent: "space-between", alignItems: "baseline"}}>
+              <div style={{width: '300px', marginTop: '30px', marginBottom: '10px'}}>
+                  <InputGroup
+                    intent={!!query ? Intent.PRIMARY : undefined}
+                    value={query}
+                    round
+                    large
+                    leftIcon="search"
+                    placeholder="filter projects..."
+                    onChange={e => this.setState({query: e.target.value})}
+                  />
+                </div>
+              <div style={{}}>
+                <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}projects</Tag>
               </div>
-            <div style={{}}>
-              <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}projects</Tag>
             </div>
-          </div>
-          {warnings}
-          {list_projects}
+            {warnings}
+            {list_projects}
+          </PrivateContent>
         </Container>
       </>
     );
