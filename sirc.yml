@@ -46,7 +46,7 @@ services:
     - QABOARD_LDAP_PASSWORD=REDACTED_LDAP_PASSWORD
     - QABOARD_LDAP_HOST=REDACTED_LDAP_HOST
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
-    - QABOARD_SAML_DIR=./backend/backend/api/saml
+    - QABOARD_SAML_DIR=/qaboard/backend/backend/api/saml
     - QABOARD_SAML_ATTRIBUTE_EMAIL=http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
     - QABOARD_SAML_ATTRIBUTE_USER_NAME=http://schemas.sec.com/2018/05/identity/claims/LoginId
     - QABOARD_SAML_ATTRIBUTE_COMMON_NAME=http://schemas.sec.com/2018/05/identity/claims/Username
