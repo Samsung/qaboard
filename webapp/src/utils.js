@@ -87,6 +87,7 @@ const matching_output = ({ output, batch }) => {
     .filter(o => o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .map(o => {
+      o.dist_input_path = 1 - Number(o.test_input_path === output.test_input_path)
       o.dist_configurations = levenshtein(o.configurations_str ?? '', output.configurations_str ?? '')
       o.dist_extra_parameters = levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
       return o;
@@ -95,6 +96,10 @@ const matching_output = ({ output, batch }) => {
     .sort((a, b) => {
       // +1: b more similar
       // +-: b less similar
+      const dist_input_path = a.dist_input_path - b.dist_input_path;
+      if (dist_input_path !== 0) {
+        return dist_input_path;
+      }
       const dist_config = a.dist_configurations - b.dist_configurations;
       if (dist_config !== 0) {
         return dist_config;
