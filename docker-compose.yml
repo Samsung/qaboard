@@ -106,7 +106,7 @@ services:
     environment:
     - REACT_APP_QABOARD_HOST=http://localhost:5151
     - REACT_APP_QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
-    - REACT_APP_QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED}
+    - REACT_APP_QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-}
 
   # Message broker used by the celery task scheduler
   # https://hub.docker.com/_/rabbitmq
