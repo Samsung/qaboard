@@ -137,7 +137,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None):
   if path and Path(path).is_absolute():
-    database_str, *path_parts =  Path(path).parts
+    database_str, *path_parts =  Path(path).resolve().parts
     path = Path(*path_parts)
     database = Path(database_str)
   if database.is_absolute(): # normalization to avoid common issues where users ask for "//some/path" instead of "/some/path"
