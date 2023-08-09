@@ -100,13 +100,13 @@ services:
       shm_size: 6gb
       args:
         REACT_APP_QABOARD_DOCS_ROOT: "/"
+        REACT_APP_QABOARD_LOGIN_TYPE: ${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
+        REACT_APP_QABOARD_LOGIN_REQUIRED: ${QABOARD_LOGIN_REQUIRED:-}
     volumes:
     - frontend_builds:/builds
     # by default we assume you run the QA-Board on localhost, but will want to change this
     environment:
     - REACT_APP_QABOARD_HOST=http://localhost:5151
-    - REACT_APP_QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
-    - REACT_APP_QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-}
 
   # Message broker used by the celery task scheduler
   # https://hub.docker.com/_/rabbitmq
