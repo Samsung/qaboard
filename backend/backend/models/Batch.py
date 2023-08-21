@@ -150,7 +150,7 @@ class Batch(Base):
     else:
       for o in self.outputs:
         if o.is_pending:
-          o.is_failed = o.is_running or o.is_failed
+          o.is_failed = True
           o.is_running = False
           o.is_pending = False
           session.add(o)
