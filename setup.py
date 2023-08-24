@@ -51,7 +51,7 @@ setup(
     'simplejson',
     'pyyaml',      # YAML reader
     'joblib',      # Parallelism for dummies
-    'sklearn',
+    'scikit-learn',
     'scikit-optimize',
     # Only at SIRC
     'cde @ git+ssh://git@gitlab-srv/cde/cde-python',
