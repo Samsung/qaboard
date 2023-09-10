@@ -307,7 +307,7 @@ class Output(Base):
         except Exception as e:
             print(f"{e}: corrupted manifest {manifest_path}")
             rmtree(output_dir)
-            rm_empty_parents(output_dir)            
+            rm_empty_parents(output_dir)
             self.deleted = True
             return
         for file in files.keys():
@@ -325,6 +325,9 @@ class Output(Base):
           if not dryrun:
             rmtree(output_file)
             rm_empty_parents(output_dir)
+      else:
+        self.delete(soft=False)
+        return
     if not filter: # better not TODO: update .data.storage at least
       self.deleted = True
 
