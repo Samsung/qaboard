@@ -580,7 +580,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       is_failed = matching_existing_output['is_failed'] if matching_existing_output else run_context.is_failed()
       ran_before = True if matching_existing_output else run_context.ran()
       should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before)
-      if not should_run and action_on_existing=='skip':
+      if not should_run and action_on_existing=='skip' and not is_pending:
         continue
       if is_pending and action_on_pending == 'skip':
           continue
