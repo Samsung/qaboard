@@ -672,6 +672,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           job.run_context.command = wait_command
         elif action_on_pending=="wait":
           job.run_context.command = f"{wait_command} || {job.run_context.command}"
+          if action_on_existing=="skip":
+            job.run_context.command = wait_command
         else:
           assert action_on_pending=="run"
       jobs.append(job)
