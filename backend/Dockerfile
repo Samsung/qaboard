@@ -132,7 +132,7 @@ COPY third_party/cde-python /qaboard/third_party/cde-python
 #     sed -i 's~git = "ssh://git@gitlab-srv/cde/cde-python"~path = "/qaboard/third_party/cde-python/"~' poetry.lock && \
 #     sed -i 's~type = "git"~type = "path"~' poetry.lock && \
 #     grep cde-python ../setup.py && grep -C3 cde-python poetry.lock
-RUN poetry install -vvv --extras qaboard
+RUN --mount=type=ssh poetry install -vvv --extras qaboard
 RUN git config --system --add safe.directory '*' && \
     git config --global --add safe.directory '*'
 
