@@ -58,11 +58,26 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
 
 `database.py` manages how we access our database, and connects to the git repository via `gitpython`.
 
-
 ## Changing the database schemas
 - when you add/rename/delete tables or fields to the database, you should define a migration
   * we use [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html) to manage migrations
   * you'll find [many examples here](alembic/versions)
+
+It's useful to connect to `pgadmin` on the URL `<qaboard>/pgadmin4` (user/pass in the `docker-compose.yml`)
+
+
+## Adding or upgrading packages, migrations...
+Start a shell in the container to access `poetry` or `alembic`:  
+```bash
+# you'd run something like this
+docker-compose -f docker-compose.yml -f development.yml -f sirc.yml build backend
+su $USER
+poetry check
+poetry update
+# ..
+cd backend
+alembic --help
+```
 
 
 ## SQL performance
