@@ -1442,7 +1442,7 @@ files = []
 develop = false
 
 [package.dependencies]
-cde = {path = "/qaboard/third_party/cde-python"}
+cde = {path = "../third_party/cde-python"}
 click = ">=7.0"
 joblib = "*"
 pyyaml = "*"
