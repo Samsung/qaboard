@@ -90,26 +90,6 @@ files = [
 ]
 
 [[package]]
-name = "cde"
-version = "0.0.2"
-description = ""
-category = "main"
-optional = true
-python-versions = "^3.6"
-files = []
-develop = false
-
-[package.dependencies]
-click = "*"
-numpy = "*"
-pandas = "*"
-pillow = "*"
-
-[package.source]
-type = "directory"
-url = "../third_party/cde-python"
-
-[[package]]
 name = "celery"
 version = "5.3.4"
 description = "Distributed Task Queue."
@@ -1442,7 +1422,6 @@ files = []
 develop = false
 
 [package.dependencies]
-cde = {path = "../third_party/cde-python"}
 click = ">=7.0"
 joblib = "*"
 pyyaml = "*"
