@@ -23,7 +23,13 @@ gitpython = "*"         # manipulate git repositories
 click = "*"             # build CLI tools easily
 flask = "*"             # HTTP server
 flask_cors = "*"        # (not used?)
-flask_login = "*"       # Authentication Flows
+
+# flask_login = "*"       # Authentication Flows
+# FIXME: Temporary until part of the next release
+# https://github.com/maxcountryman/flask-login/pull/774
+# https://github.com/maxcountryman/flask-login/pull/778
+flask_login = { git = "https://github.com/maxcountryman/flask-login", branch = "main" }
+
 python-ldap = "*"       # Authentication with LDAP
 sqlalchemy = "*"        # ORM
 sqlalchemy_utils = "*"

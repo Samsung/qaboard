@@ -380,19 +380,23 @@ files = [
 Flask = ">=0.9"
 
 [[package]]
-name = "flask-login"
-version = "0.6.2"
+name = "Flask-Login"
+version = "0.7.0"
 description = "User authentication and session management for Flask."
 optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "Flask-Login-0.6.2.tar.gz", hash = "sha256:c0a7baa9fdc448cdd3dd6f0939df72eec5177b2f7abe6cb82fc934d29caac9c3"},
-    {file = "Flask_Login-0.6.2-py3-none-any.whl", hash = "sha256:1ef79843f5eddd0f143c2cd994c1b05ac83c0401dc6234c143495af9a939613f"},
-]
+python-versions = ">=3.8"
+files = []
+develop = false
 
 [package.dependencies]
-Flask = ">=1.0.4"
-Werkzeug = ">=1.0.1"
+Flask = ">=2.3.0"
+Werkzeug = ">=2.3.2"
+
+[package.source]
+type = "git"
+url = "https://github.com/maxcountryman/flask-login"
+reference = "main"
+resolved_reference = "7d98a49bc38d0849367b348bfe37a2b689323419"
 
 [[package]]
 name = "gitdb"
@@ -2112,4 +2116,4 @@ qaboard = ["qaboard"]
 [metadata]
 lock-version = "2.0"
 python-versions = "3.11.*"
-content-hash = "a77ed54aff67f0dbac48cdedae4e320871f9c0b8b554cbbc4bcfcf6e105d1c0a"
+content-hash = "294e13ec99c6701df71a0d76c50130ad7863fe448d8c21e032ddfe35a690e516"
