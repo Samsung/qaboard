@@ -124,7 +124,7 @@ COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
 # SIRC-only, installs cde-python, used to read hex/raw images for the auto-ROI feature
 # It's annoying to use ssh from docker-compose, and our network doesn't help - better vendor cde-python...
 # This patch prints the repo paths when cloning with ssh, so that we get more info! (-vvv doens't help) 
-COPY third_party/cde-python /qaboard/third_party/cde-python
+# COPY third_party/cde-python /qaboard/third_party/cde-python
 # RUN sed -i 's/if not cls\.is_using_legacy_client\(\)/if (print(url, file=open("\/dev\/stdout", "w"))) or not cls.is_using_legacy_client/g' /usr/local/lib/python3.11/site-packages/poetry/vcs/git/backend.py && \
 #     grep is_using_legacy_client /usr/local/lib/python3.11/site-packages/poetry/vcs/git/backend.py
 # RUN sed -i 's~cde @ git+ssh://git@gitlab-srv/cde/cde-python~cde @ file://localhost/qaboard/third_party/cde-python#egg=cde~' ../setup.py && \
@@ -132,7 +132,8 @@ COPY third_party/cde-python /qaboard/third_party/cde-python
 #     sed -i 's~git = "ssh://git@gitlab-srv/cde/cde-python"~path = "/qaboard/third_party/cde-python/"~' poetry.lock && \
 #     sed -i 's~type = "git"~type = "path"~' poetry.lock && \
 #     grep cde-python ../setup.py && grep -C3 cde-python poetry.lock
-RUN --mount=type=ssh poetry install -vvv --extras qaboard
+RUN --mount=type=ssh ssh -T -o StrictHostKeyChecking=no git@gitlab-srv && \
+    poetry install -vvv --extras qaboard
 RUN git config --system --add safe.directory '*' && \
     git config --global --add safe.directory '*'
 
