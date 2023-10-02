@@ -11,7 +11,8 @@ from functools import lru_cache
 
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy import String, DateTime, JSON
+from sqlalchemy import String, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import cast, type_coerce
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
@@ -29,7 +30,7 @@ from ..config import default_outputs_root, default_artifacts_root
 class Project(Base):
   __tablename__ = 'projects'
   id = Column(String(), primary_key=True)
-  data = Column(JSON(), nullable=False, default=dict, server_default='{}')
+  data = Column(JSONB(), nullable=False, default=dict, server_default='{}')
   latest_output_datetime = Column(DateTime())
 
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")

@@ -8,7 +8,8 @@ import datetime
 from pathlib import Path
 
 import numpy as np
-from sqlalchemy import ForeignKey, Integer, String, DateTime, JSON
+from sqlalchemy import ForeignKey, Integer, String, DateTime, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
 
@@ -23,7 +24,17 @@ class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
   created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-  data = Column(JSON(), nullable=False, default=dict, server_default='{}')
+  data = Column(
+    JSONB(),
+    nullable=False,
+    default=dict,
+    server_default='{}',
+    # FIXME?
+    # https://stackoverflow.com/questions/38961396/sqlalchemy-set-default-value-for-postgres-json-column
+    # says we should use this?
+    # default=text("'{}'::jsonb"),
+    # server_default=text("'{}'::jsonb"),
+  )
 
   ci_commit_id = Column(Integer(), ForeignKey('ci_commits.id'), index=True)
   ci_commit = relationship("CiCommit", back_populates="batches", foreign_keys=[ci_commit_id])

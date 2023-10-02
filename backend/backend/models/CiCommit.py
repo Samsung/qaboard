@@ -10,6 +10,7 @@ from pathlib import Path
 
 from requests.utils import quote
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import or_, UniqueConstraint, orm
 from sqlalchemy.orm import relationship, reconstructor, joinedload
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -38,7 +39,7 @@ class CiCommit(Base):
   project = relationship("Project", back_populates="ci_commits")
   __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
-  data = Column(JSON(), nullable=False, default=dict, server_default='{}')
+  data = Column(JSONB(), nullable=False, default=dict, server_default='{}')
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   committer_name = Column(String(), index=True)
