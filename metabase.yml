@@ -1,0 +1,70 @@
+version: "3.5"
+
+volumes:
+  metabase-db: {}
+  metabase-data: {}
+
+services:
+  metabase-db:
+    image: postgres:16
+    restart: always
+    ports:
+      - 5434:5432
+    environment:
+      POSTGRES_USER: metabase
+      POSTGRES_DB: metabase
+      POSTGRES_PASSWORD: metabase
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - metabase-db:/var/lib/postgresql/data
+
+  metabase:
+    build:
+      # Extends the usual "image: metabase/metabase" with proxy/ssl config
+      dockerfile: services/metabase.Dockerfile
+      context: .
+    restart: always
+    ports:
+    - 3005:3000
+    volumes:
+    - metabase-data:/metabase-data
+    depends_on:
+    - metabase-db
+    # https://www.metabase.com/docs/latest/operations-guide/environment-variables.html
+    environment:
+      # Database
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: metabase-db
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: metabase
+      MB_DB_PASS: metabase
+
+      # General configuration
+      MB_SITE_URL: https://qa/metabase
+      MB_ADMIN_EMAIL: arthur.flam@samsung.com
+      MB_ANON_TRACKING_ENABLED: "false"
+      MB_ENABLE_EMBEDDING: "true"
+      MB_ENABLE_PUBLIC_SHARING: "true"
+      MB_QUERY_CACHING_MIN_TTL: 1
+      JAVA_TIMEZONE: Asia/Jerusalem
+
+      # Email
+      MB_EMAIL_FROM_ADDRESS: auto_delivery@samsung.com
+      MB_EMAIL_SMTP_HOST: dag.sirc.co.il
+      # MB_EMAIL_SMTP_PASSWORD
+      # MB_EMAIL_SMTP_USERNAME
+
+      # LDAP
+      MB_LDAP_ENABLED: "true"
+      MB_LDAP_USER_BASE: "OU=Sirc Users,DC=transchip,DC=com"
+      MB_LDAP_BIND_DN: ldapquery@transchip.com
+      MB_LDAP_PASSWORD: REDACTED_LDAP_PASSWORD
+      MB_LDAP_HOST: transchip.com
+      MB_LDAP_USER_FILTER: "(&(objectClass=user)(|(sAMAccountName={login})))"
+
+    healthcheck:
+      test: curl --fail -I http://localhost:3000/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
