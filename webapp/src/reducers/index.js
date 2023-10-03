@@ -134,7 +134,7 @@ function commits(state = { [default_project_id]: {} }, action) {
     case UPDATE_COMMIT:
       if (action.data.data?.qatools_metrics) {
         action.data.data.qatools_metrics.available_metrics = metrics_fill_defaults(action.data.data.qatools_metrics.available_metrics);
-        action.data.data.qatools_metrics.main_metrics = action.data.data.qatools_metrics.main_metrics.filter(m => !!action.data.data.qatools_metrics.available_metrics[m]);
+        action.data.data.qatools_metrics.main_metrics = (action.data.data.qatools_metrics.main_metrics ?? []).filter(m => !!action.data.data.qatools_metrics.available_metrics[m]);
       }
       // here we precompute various useful output information
       if (action.error === null || action.error === undefined){
