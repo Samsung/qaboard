@@ -18,7 +18,7 @@ cd qaboard
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
 
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up  -d 
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml up  -d 
 
 # for more build logs
 export BUILDKIT_PROGRESS=plain
@@ -28,8 +28,8 @@ export BUILDKIT_PROGRESS=plain
 
 Get logs and a shell with:
 ```
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml logs -f backend
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml exec backend bash
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml logs -f backend
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml exec backend bash
 ```
 
 Edit _development.yml_ as suits your needs to e.g. change connect to another database using `QABOARD_DB_HOST`.
@@ -70,7 +70,7 @@ It's useful to connect to `pgadmin` on the URL `<qaboard>/pgadmin4` (user/pass i
 Start a shell in the container to access `poetry` or `alembic`:  
 ```bash
 # you'd run something like this
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml build backend
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml build backend
 su $USER
 poetry check
 poetry update
@@ -98,7 +98,7 @@ And add it to your `db` container:
 ### Tuning
 Queries:
 - In the backend, set `QABOARD_DB_ECHO=true` to see all SQL queries
-- Get an SQL prompt with `docker-compose exec db psql -U qaboard` and play with `EXPLAIN ANALYZE my-query`.
+- Get an SQL prompt with `docker compose exec db psql -U qaboard` and play with `EXPLAIN ANALYZE my-query`.
 - `pgadmin` is available by default  on port 5050.
 
 Tuning:

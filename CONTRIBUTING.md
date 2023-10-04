@@ -31,7 +31,7 @@ npm install
 ./at-sirc-before-up.py
 
 # see more into in docker-compose.yml and backend/README.md
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
 ```
 
 ## Openness

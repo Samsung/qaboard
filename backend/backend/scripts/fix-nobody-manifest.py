@@ -1,6 +1,6 @@
 """
 Usage:
-- docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run --no-deps backend bash
+- docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --no-deps backend bash
 - [arthurf] python backend/scripts/fix-nobody-manifest.py
 """
 import os

@@ -2,7 +2,7 @@
 python add_storage_info.py
 
 Usage:
-- docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run --no-deps backend bash
+- docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --no-deps backend bash
 - [arthurf] python backend/scripts/add_output_data_storage.py 
 
 - run staging

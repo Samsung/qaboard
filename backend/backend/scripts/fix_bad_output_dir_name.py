@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Fix stuff.
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run --rm --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf backend python /qaboard/backend/backend/scripts/fix_bad_output_dir_name.py
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --rm --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf backend python /qaboard/backend/backend/scripts/fix_bad_output_dir_name.py
 """
 import os
 import sys

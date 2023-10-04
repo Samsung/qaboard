@@ -5,7 +5,7 @@ Migrates a projects' outputs to their default location.
 Usage:
 0. Clean old results..
    ssh qa
-   docker-compose -f docker-compose.yml -f development.yml -f sirc.yml exec -T  backend qaboard_clean --project 'CDE-Users/HW_ALG/CIS$' --before 3months --can-delete-reference-branch # --can-delete-artifacts
+   docker compose -f docker-compose.yml -f development.yml -f sirc.yml exec -T  backend qaboard_clean --project 'CDE-Users/HW_ALG/CIS$' --before 3months --can-delete-reference-branch # --can-delete-artifacts
 1. Save the remote user list
     $ getent --service=sss passwd >> ./services/backend/passwd
    Manually remove those entries and redo if needed...

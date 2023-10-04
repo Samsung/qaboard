@@ -47,12 +47,12 @@ To resolve auto-mount issues causing "too many levels of symbolic links", run `.
 git clone https://gitlab-srv/common-infrastructure/qaboard.git
 cd qaboard
 
-docker-compose -f docker-compose.yml -f sirc.yml pull
+docker compose -f docker-compose.yml -f sirc.yml pull
 
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
 
-docker-compose -f docker-compose.yml -f sirc.yml up -d
+docker compose -f docker-compose.yml -f sirc.yml up -d
 #=> the application is live at localhost:8080
 ```
 
@@ -60,7 +60,7 @@ To have the server restart automatically:
 
 At SIRC:
 ```bash
-docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
+docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
 ```
 
 :::note
@@ -169,18 +169,18 @@ We run those cron jobs:
 ```cron
 # Weekly cleanup of old results
 # https://samsung.github.io/qaboard/docs/deleting-old-data
-59 1 1 * * cd qaboard && docker-compose exec -T backend qaboard_clean
+59 1 1 * * cd qaboard && docker compose exec -T backend qaboard_clean
 # https://github.com/docker/compose/issues/3352
 
 # Weekly removal of old docker images, helps to avoid filling the disk on the host
 59 1 2 * * docker image prune --force
 
 # Restart the image server, somehow after a while they need it (need research...)
-0 4 * * * cd qaboard && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml stop cantaloupe && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml rm -v cantaloupe && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml up -d cantaloupe
+0 4 * * * cd qaboard && docker compose -f docker-compose.yml -f production.yml -f sirc.yml stop cantaloupe && docker compose -f docker-compose.yml -f production.yml -f sirc.yml rm -v cantaloupe && docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d cantaloupe
 
 
 # Restart CDE's IIIF bridge
-0 4 * * * cd qaboard && docker-compose -f docker-compose.yml -f production.yml -f sirc.yml restart iiif-cde
+0 4 * * * cd qaboard && docker compose -f docker-compose.yml -f production.yml -f sirc.yml restart iiif-cde
 
 # To resolve auto-mount issues causing "too many levels of symbolic links"
 @reboot /home/ispq/qaboard_prod/at-sirc-before-up.py.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Run this before calling `docker-compose up` at SIRC.
+Run this before calling `docker compose up` at SIRC.
 
 At SIRC we rely on auto-mounted volumes. Attempting to mount them before they are bound leads to "too many levels of symbolic links errors".
 """

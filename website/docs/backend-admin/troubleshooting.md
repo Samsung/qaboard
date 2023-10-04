@@ -13,12 +13,12 @@ You can interact with the individual services with e.g.
 
 ```bash
 # read logs from a specific service
-docker-compose logs -f backend
+docker compose logs -f backend
 
 # you can get a shell on the various services:
-docker-compose exec backend bash
-docker-compose run proxy /bin/ash
-# or with the docker-compose conventions, if the service is up:
+docker compose exec backend bash
+docker compose run proxy /bin/ash
+# or with the docker compose conventions, if the service is up:
 docker exec -it qaboard_proxy_1 bash
 ```
 
@@ -46,9 +46,9 @@ Symptom:
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
 
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml restart
-# if you make changes to the docker-compose files...
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml restart
+# if you make changes to the docker compose files...
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 
 ```
 
@@ -57,8 +57,8 @@ docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
 
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml down
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml down
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
 ```
 
 ### Quick wins when the disk is full
@@ -70,15 +70,15 @@ Symptom:
 Remove the IIIF image cache:
 ```bash
 # stop
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml stop cantaloupe
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml stop cantaloupe
 # remove with the volumes
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml rm -v cantaloupe
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml rm -v cantaloupe
 
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
 
 # Restart
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d cantaloupe
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d cantaloupe
 ```
 
 Remove unused docker images
@@ -91,6 +91,6 @@ docker image prune # -a
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
 
-docker-compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build
+docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build
 # you can rebuild a subset of the services: backend, frontend...
 ```

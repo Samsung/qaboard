@@ -38,9 +38,9 @@ export MIGRATION_INDEX={i}
 # Avoid "Too many levels of symbolic links" errors
 ./at-sirc-before-up.py --shallow > /dev/null
 
-docker-compose {yamls} pull backend
-docker-compose {yamls} run --rm --user=root --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf -e MIGRATION_PROJECT -e MIGRATION_INDEX -e MIGRATION_JOBS backend /qaboard/backend/backend/scripts/migrate.py
-# docker-compose {yamls} down -v
+docker compose {yamls} pull backend
+docker compose {yamls} run --rm --user=root --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf -e MIGRATION_PROJECT -e MIGRATION_INDEX -e MIGRATION_JOBS backend /qaboard/backend/backend/scripts/migrate.py
+# docker compose {yamls} down -v
 """)
     command = f" bsub -q alg_isp_q -P migration -o {logs} bash {script}"
     start_script += f"{command}\n"

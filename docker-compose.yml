@@ -5,15 +5,15 @@ version: "3.5"
 # Production:
 #   # https://docs.docker.com/compose/production/
 #   # adds to all services "restart: always"
-#   docker-compose -f docker-compose.yml -f production.yml up -d
+#   docker compose -f docker-compose.yml -f production.yml up -d
 # Development:
 #   # Mounts the local code for easy debugging with reloading
-#   docker-compose -f docker-compose.yml -f development.yml up
+#   docker compose -f docker-compose.yml -f development.yml up
 # At SIRC
 #                  -f sirc.yml   # volumes..
 # Push:
-#   docker-compose -f docker-compose.yml build
-#   docker-compose -f docker-compose.yml push
+#   docker compose -f docker-compose.yml build
+#   docker compose -f docker-compose.yml push
 
 # Worth a read:
 # https://medium.com/softonic-eng/docker-compose-from-development-to-production-88000124a57c
@@ -27,20 +27,21 @@ version: "3.5"
 # - Your responsability to setup another reverse proxy on top for SSL
 # - Just allow large bodies (TODO example with own ssl / cert-acme-bot-letsencrypt) 
 
-# General docker-compose usage:
-#   docker-compose up                    # start the whole stack
-#   docker-compose up -d                 # ...as a daemon
-#   docker-compose stop                  # stop the stack's containers
-#   docker-compose down --volumes        # [dangerous] remove the data too
-#   docker-compose build web             # build a single service
-#   docker-compose logs -f web           # logs! -t/--timestamps --tail=10
-#   docker-compose run web env           # "docker-run" commands from a service
-#   docker-compose up --no-deps -d web   # start a single service
+# General docker compose usage:
+#   docker compose up                    # start the whole stack
+#   docker compose up -d                 # ...as a daemon
+#   docker compose stop                  # stop the stack's containers
+#   docker compose down --volumes        # [dangerous] remove the data too
+#   docker compose build web             # build a single service
+#   docker compose logs -f web           # logs! -t/--timestamps --tail=10
+#   docker compose run web env           # "docker-run" commands from a service
+#   docker compose up --no-deps -d web   # start a single service
 
 
 volumes:
   data: {}              # git clones (and custom batches.yaml for now...)
-  db: {}                # database with runs, projects, output metadata...
+  db: {} # to be removed
+  db-16: {}
   rabbitmq-data: {}
   # cache_cantaloupe: {}  # cache for the iiif image server
   pgadmin: {}
@@ -72,8 +73,7 @@ services:
       # cache_from: ["arthurflam/qaboard:backend"]
       context: .
       dockerfile: backend/Dockerfile
-      ssh:
-      - default
+      # ssh: [default]
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
     command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
     depends_on:
@@ -211,6 +211,10 @@ services:
   # https://www.pgadmin.org/docs/pgadmin4/development/container_deployment.html
   pgadmin:
     image: dpage/pgadmin4
+    # was required to run a migration...
+    #  docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d pgadmin && docker attach qaboard_prod_pgadmin_1
+    # tty: true
+    # stdin_open: true
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}

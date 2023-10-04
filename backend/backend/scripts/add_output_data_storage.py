@@ -1,9 +1,9 @@
 """
 python add_storage_info.py
 
-53 * * * * cd qaboard && docker-compose -f docker-compose.yml -f development.yml -f sirc.yml exec -T backend python backend/scripts/add_output_data_storage.py  > /home/arthurf/add_storage.log 2>&1
+53 * * * * cd qaboard && docker compose -f docker-compose.yml -f development.yml -f sirc.yml exec -T backend python backend/scripts/add_output_data_storage.py  > /home/arthurf/add_storage.log 2>&1
 Usage:
-- docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run --no-deps backend bash
+- docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --no-deps backend bash
 - [arthurf] python backend/scripts/add_output_data_storage.py 
 
 - run staging

@@ -1,5 +1,5 @@
 """
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run --user=root --rm --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf -e MIGRATION_PROJECT backend python /qaboard/backend/backend/scripts/delete_orphan_output_dir.py
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --user=root --rm --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf -e MIGRATION_PROJECT backend python /qaboard/backend/backend/scripts/delete_orphan_output_dir.py
 """
 import os
 import sys

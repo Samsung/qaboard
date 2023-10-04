@@ -1,6 +1,6 @@
 """
 cd qaboard
-docker-compose -f docker-compose.yml -f development.yml -f sirc.yml run --rm --user=root --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd backend python /qaboard/backend/backend/scripts/delete_remaining_data_from_deleted_outputs.py
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --rm --user=root --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd backend python /qaboard/backend/backend/scripts/delete_remaining_data_from_deleted_outputs.py
 """
 import sys
 import time
