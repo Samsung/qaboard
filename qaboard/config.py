@@ -112,16 +112,19 @@ else:
 
   # we support "prefix/{root_path.name}" to make configuration easier for groups
   # that have tons of small repos configured the name
-  if "{" in  root_qatools_config['project']['name']:
-    root_qatools_config['project']['name'] = location_from_spec(
-      root_qatools_config['project']['name'],
-      {"root_path": root_qatools, "project_path": project_dir}
+  def expand_paths(value: str):
+    if "{" not in value:
+      return value
+    else:
+      return location_from_spec(
+        root_qatools_config['project']['name'],
+        {"root_path": root_qatools, "project_path": project_dir}
     )
-  if "{" in  config['project']['name']:
-    config['project']['name'] = location_from_spec(
-      config['project']['name'],
-      {"root_path": root_qatools, "project_path": project_dir}
-    )
+  root_qatools_config['project']['name'] = expand_paths(root_qatools_config['project']['name'])
+  root_qatools_config['project']['url'] = expand_paths(root_qatools_config['project']['url'])
+  config['project']['name'] = expand_paths(config['project']['name'])
+  config['project']['url'] = expand_paths(config['project']['url'])
+
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
   # It's not something the user should change...
