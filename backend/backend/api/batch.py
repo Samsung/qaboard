@@ -32,14 +32,24 @@ def update_batch():
   # Currently it's used by `qa optimize` to store info on iterations
   if not batch.data:
     batch.data = {}
+
+  for attr in ("qatools_config", "qatools_metrics"):
+    if attr in data:
+      # the first time we see a commit's data, we'll save it
+      # we used to do it when receiving hooks from source control,
+      # but it led to huge growth of the ci_commits table in a monorepo
+      # with 100s of subprojects each full of config data
+      if attr not in ci_commit.data:
+        ci_commit.data[attr] = data[attr]
+        flag_modified(ci_commit, "data")
+      # And each batch can have changes vs its commit's config and metrics.
+      # The use case is usually working locally with `qa --share` and
+      # seeing updated visualizations and metrics.
+      if ci_commit.data[attr] != data[attr]:
+        batch.data[attr] = data[attr]
+        flag_modified(batch, "data")
+
   batch_data = request.json.get('data', {})
-  # And each batch can have changes vs its commit's config and metrics.
-  # The use case is usually working locally with `qa --share` and
-  # seeing updated visualizations and metrics.
-  if "qaboard_config" in data and "qatools_config" in ci_commit.data and data["qaboard_config"] != ci_commit.data["qatools_config"]:
-    batch.data["config"] = data["qaboard_config"]
-  if "qaboard_metrics" in data and "qatools_metrics" in ci_commit.data and data["qaboard_metrics"] != ci_commit.data["qatools_metrics"]:
-    batch.data["qatools_metrics"] = data["qaboard_metrics"]
   batch.data = {**batch.data, **batch_data}
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs
