@@ -218,18 +218,21 @@ def update_project(data, db_session):
     # Make sure the it exists in the database, with up-to-date metadata
     project = Project.get_or_create(session=db_session, id=project_id)
     update_project_data(project, data, db_session)
-    try:
-      ci_commit = CiCommit.get_or_create(
-        session=db_session,
-        hexsha=commit_id,
-        project_id=project_id,
-        data={"commit_branch": branch},
-      )
-    except Exception as e:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-      print(info, file=sys.stderr)
-      return f"404 ERROR: with commit id {commit_id} in project {project_id}: {info}", 404
+    # we don't want to create commits ahead of time anymore
+    # it started to cause issues with a huge monorepo with 100s of projects
+    # and doesn't bring much value to users
+    # try:
+    #   ci_commit = CiCommit.get_or_create(
+    #     session=db_session,
+    #     hexsha=commit_id,
+    #     project_id=project_id,
+    #     data={"commit_branch": branch},
+    #   )
+    # except Exception as e:
+    #   exc_type, exc_value, exc_traceback = sys.exc_info()
+    #   info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    #   print(info, file=sys.stderr)
+    #   return f"404 ERROR: with commit id {commit_id} in project {project_id}: {info}", 404
 
     # To update the (sub)project configuration stored in the database,
     # we first need to read relevant qaboard.yaml files from this commit.
@@ -242,10 +245,10 @@ def update_project(data, db_session):
       qatools_config = qaboard.merge(config, qatools_config)
     qatools_config['project']['name'] = project_id
 
-    # We store the QA-Board configuration twice: at the project level and at the commit level
-    # - Commit-level info is important to let users easily tweak the outputs and metrics
-    #   they want to see when working on their branches 
-    ci_commit.data.update({'qatools_config': qatools_config})
+    # # We store the QA-Board configuration twice: at the project level and at the commit level
+    # # - Commit-level info is important to let users easily tweak the outputs and metrics
+    # #   they want to see when working on their branches 
+    # ci_commit.data.update({'qatools_config': qatools_config})
     # - Project-level information is used as a default or when showing in the UI list of commits
     #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
     #   This said, we also update project-level data when it's the first time we get a QA-Board config for a project
@@ -260,13 +263,13 @@ def update_project(data, db_session):
     if metrics_path:
       metrics = parsed_content(commit_id, metrics_path)
       if metrics:
-        ci_commit.data.update({'qatools_metrics': metrics})
-        flag_modified(ci_commit, "data")
+        # ci_commit.data.update({'qatools_metrics': metrics})
+        # flag_modified(ci_commit, "data")
         if is_initialization or is_reference:
           project.data.update({'qatools_metrics': metrics})
           flag_modified(project, "data")
 
     # print('project.data :', project.data)
-    db_session.add(ci_commit)
+    # db_session.add(ci_commit)
     db_session.add(project)
     db_session.commit()
