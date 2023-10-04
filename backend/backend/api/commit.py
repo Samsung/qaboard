@@ -50,7 +50,7 @@ def api_ci_commit(commit_id=None):
       project = Project.query.filter(Project.id==project_id).one()
       default_branch = project.data['qatools_config']['project']['reference_branch']
     except:
-      default_branch = 'master'
+      default_branch = None
     branch = request.args.get('branch', default_branch)
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch'))
     if not ci_commit:

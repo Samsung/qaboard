@@ -377,8 +377,11 @@ def latest_successful_commit(session, project_id, branch, batch_label=None, with
                 .options(joinedload(CiCommit.batches))
                 .filter(
                   CiCommit.project_id==project_id,
-                  # we try to be accomodating with the usual remote branch name
-                  or_(CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}')
+                  or_(
+                    # fallback to "any" commit with results
+                    not branch,
+                    # we try to be accomodating with the usual remote branch name
+                    CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}')
                 )
                 .order_by(CiCommit.authored_datetime.desc())
                 .limit(within_last)
