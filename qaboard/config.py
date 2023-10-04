@@ -110,6 +110,19 @@ else:
         click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
         click.secho(f"Changed from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}", fg='red')
 
+  # we support "prefix/{root_path.name}" to make configuration easier for groups
+  # that have tons of small repos configured the name
+  if "{" in  root_qatools_config['project']['name']:
+    root_qatools_config['project']['name'] = location_from_spec(
+      root_qatools_config['project']['name'],
+      {"root_path": root_qatools, "project_path": project_dir}
+    )
+  if "{" in  config['project']['name']:
+    config['project']['name'] = location_from_spec(
+      config['project']['name'],
+      {"root_path": root_qatools, "project_path": project_dir}
+    )
+
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
   # It's not something the user should change...
   project_root = Path(root_qatools_config['project']['name'])
@@ -120,6 +133,7 @@ else:
     if not ignore_config_errors:
       click.secho(f"ERROR: Don't redefine <project.name> in ./qaboard.yaml", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
+  # make sure everything is consistent even if users call this directly
   config['project']['name'] = project.as_posix()
 
 
