@@ -44,7 +44,7 @@ export const fetchCommit = ({project, id, branch, update_with_id, batch}) => {
       })
       .catch(error => {
         if (error.response)
-          dispatch(updateCommit(project, {id}, error.response.data.error))
+          dispatch(updateCommit(project, {id}, error.response.data.error ?? JSON.stringify(error)))
       });
   }
 }
