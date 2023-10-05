@@ -1,6 +1,6 @@
 ---
 id: monorepo-subprojects
-sidebar_label: Monorepos
+sidebar_label: Mono/Multi git repos
 title: Monorepo/Multi-repo support
 ---
 
