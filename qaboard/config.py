@@ -138,7 +138,7 @@ else:
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
   # make sure everything is consistent even if users call this directly
   config['project']['name'] = project.as_posix()
-  root_qatools_config['project']['name'] = project.as_posix()
+  root_qatools_config['project']['name'] = project_root.as_posix()
 
 
 # It's useful to know what's the platform since code is often compiled a different locations.
