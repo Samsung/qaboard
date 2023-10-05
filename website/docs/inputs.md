@@ -124,7 +124,7 @@ inputs:
 
 You can choose what type each batch is: 
 
-```yaml {7} title="qa/batches.yaml"
+```yaml {6} title="qa/batches.yaml"
 my-images:
   inputs:
   - my/image.jpg
@@ -139,10 +139,21 @@ my-batch:
 If needed, you can also specify the input type from the CLI:
 
 ```bash
-qa batch my-imagess              # by default look for images
+qa batch my-images              # by default look for images
 qa --type movie batch my-movies  # here we look for movies
 ```
 
+And finally in `run()` you can:
+
+```python title="qa/main.py"
+def run(context):
+  if context.type == "image":
+    ...
+  else if context.type == "movie":
+    ...
+```
+
+This feature is used to build common needs like "pipelines".
 
 ## *(Advanced)* Allowing duplicate batch names
 In some of our projects, we have tons of subprojects, which all define the same "standard" batch name used in the CI. And sometimes, we also want to be able to run all of those batche at the same time, from the root project... To do it:
