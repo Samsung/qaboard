@@ -1,4 +1,5 @@
 migration/
+.npm/
 cache.*.json
 user-quotas.json
 build/
