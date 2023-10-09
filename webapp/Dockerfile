@@ -43,6 +43,8 @@ ARG REACT_APP_QABOARD_LOGIN_REQUIRED
 ENV REACT_APP_QABOARD_LOGIN_REQUIRED=$REACT_APP_QABOARD_LOGIN_REQUIRED
 
 RUN npm run-script build
+RUN sentry-cli sourcemaps inject build && \
+    sentry-cli sourcemaps upload build
 CMD ["npm", "start"]
 
 
