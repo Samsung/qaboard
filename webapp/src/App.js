@@ -8,6 +8,7 @@ import { PersistGate } from 'redux-persist/integration/react'
 import { Classes } from "@blueprintjs/core";
 
 import * as Sentry from "@sentry/react";
+const SentryRoute = Sentry.withSentryRouting(Route);
 
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
@@ -70,14 +71,14 @@ class App extends React.Component {
         <IeDeprecationWarning/>
           <Router history={history}>
             <Switch>
-              <Route exact path="/" >
+              <SentryRoute exact path="/" >
                   <ProjectsList/>
-              </Route>
-              <Route>
+              </SentryRoute>
+              <SentryRoute>
                 <PrivateContent enabled={APP_LOGIN_REQUIRED}>
                   <ProjectApp/>
                 </PrivateContent>
-              </Route>
+              </SentryRoute>
             </Switch>
           </Router>
       </PersistGate>
@@ -94,7 +95,7 @@ class ProjectApp extends React.Component {
     return <Layout className={Classes.UI_TEXT}>
       <Switch>
         {routes.map((route, index) => (
-          <Route
+          <SentryRoute
             key={index}
             path={route.path}
             component={route.sider}
@@ -105,7 +106,7 @@ class ProjectApp extends React.Component {
       <div style={{width: '100%'}}>
         <Switch>
         {routes.map((route, index) => (
-          <Route
+          <SentryRoute
             key={index}
             path={route.path}
             component={route.navbar}
@@ -116,7 +117,7 @@ class ProjectApp extends React.Component {
         <div style={{paddingLeft: sider_width}}>
           <Switch>
             {routes.map((route, index) => (
-              <Route
+              <SentryRoute
                 key={index}
                 path={route.path}
                 component={route.main}
