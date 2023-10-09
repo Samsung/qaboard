@@ -18,7 +18,6 @@ import * as Sentry from "@sentry/react";
 //       https://reactrouter.com/en/main/upgrading/v5#upgrade-to-react-router-v6
 //       it make require moving to hooks in many places, so at this stage nextjs might make more sense...
 import history from "./history";
-const SentryRoute = Sentry.withSentryRouting(Route);
 import { BrowserTracing } from "@sentry/tracing";
 
 const { store, persistor } = configureStore(default_store)
