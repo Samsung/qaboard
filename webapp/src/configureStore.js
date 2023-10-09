@@ -9,6 +9,8 @@ import localForage from "localforage";
 // import storage from 'redux-persist/lib/storage' // defaults to localStorage for web and AsyncStorage for react-native
 // import autoMergeLevel2 from 'redux-persist/lib/stateReconciler/autoMergeLevel2';
 
+import * as Sentry from "@sentry/react";
+
 import { composeWithDevTools } from 'redux-devtools-extension'
 import loggerMiddleware from './middleware/logger'
 import monitorReducersEnhancer from './enhancers/monitorReducers'
@@ -36,6 +38,8 @@ const persistConfig = {
   // stateReconciler: autoMergeLevel2,
 }
 
+const sentryReduxEnhancer = Sentry.createReduxEnhancer({});
+
 
 export default function configureStore(preloadedState) {
   let is_production = process.env.NODE_ENV === 'production'
@@ -44,7 +48,7 @@ export default function configureStore(preloadedState) {
   let middlewares = is_production ? [thunkMiddleware] : [loggerMiddleware, thunkMiddleware]
   let middlewareEnhancer = applyMiddleware(...middlewares)
   let enhancers = is_production ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
-  let composedEnhancers = is_production ? compose(...enhancers) : composeWithDevTools(...enhancers)
+  let composedEnhancers = is_production ? compose(...enhancers, sentryReduxEnhancer) : composeWithDevTools(...enhancers)
 
   const persistedReducer = persistReducer(persistConfig, rootReducer)
   const store = createStore(persistedReducer, preloadedState, composedEnhancers)
