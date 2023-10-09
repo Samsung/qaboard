@@ -130,6 +130,8 @@ services:
       args:
         REACT_APP_SENTRY_DSN: https://REDACTED_SENTRY_FE_KEY@sentry.transchip.com/2
         REACT_APP_QABOARD_LOGIN_TYPE: "LDAP"
-
+        SENTRY_ORG: sentry
+        SENTRY_PROJECT: qaboard-frontend
+        SENTRY_AUTH_TOKEN: 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
   website:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"
