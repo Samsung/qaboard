@@ -12,7 +12,7 @@ ENV HTTP_PROXY=$PROXY \
     http_proxy=$PROXY \
     HTTPS_PROXY=$PROXY \
     https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry'
+    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com'
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 RUN apt-get update -qq && \
