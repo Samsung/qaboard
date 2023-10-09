@@ -126,7 +126,6 @@ services:
   
   frontend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
-    environment:
     build:
       args:
         REACT_APP_SENTRY_DSN: https://REDACTED_SENTRY_FE_KEY@sentry.transchip.com/2
