@@ -40,7 +40,7 @@ if (process.env.NODE_ENV === 'production' && (process.env.REACT_APP_SENTRY_DSN??
     // of transactions for performance monitoring.
     tracesSampleRate: 1.0,
     // Set `tracePropagationTargets` to control for which URLs distributed tracing should be enabled
-    tracePropagationTargets: ["localhost", /^https:\/\/qa\/api/],
+    tracePropagationTargets: [/^https:\/\/qa\/api/],
     // Capture Replay for 10% of all sessions,
     // plus for 100% of sessions with an error
     replaysSessionSampleRate: 0.1,
