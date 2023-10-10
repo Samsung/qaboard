@@ -92,7 +92,12 @@ def memmapped_read_image(image_path):
   else:
     # print(f'HIT {hash}')
     with image_cache_info.open() as f:
-      info = json.load(f)
+      try:
+        info = json.load(f)
+      except:
+        time.sleep(1) # not super smart, but likely it's because the file exists,
+        # opened by another process, but didn't finish writing...
+        info = json.load(f)
     # print(info['meta'])
     fp = np.memmap(image_cache_data, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
     return fp, info['meta']
