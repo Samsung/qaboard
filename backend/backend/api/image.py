@@ -47,13 +47,25 @@ image_cache_dir.mkdir(exist_ok=True, parents=True)
 
 def clear_memmapped_cache_dir():
     cache_size = 20
+    # it will be called concurrently so maybe the files are already deleted! 
     file_data = list(image_cache_dir.glob('*.dat'))
-    file_data.sort(key=lambda f: -f.stat().st_mtime) # oldest last
-    for file in file_data[cache_size:]:
+
+    def maybe_mtime(path):
+      try: # avoid TOCTOU
+        return path.stat().st_mtime
+      except:
+        return None
+    file_data_ts = [(p, maybe_mtime(p)) for p in file_data]
+    file_data_ts.sort(key=lambda p_ts: -p_ts[1] if p_ts[1] else 0) # oldest last
+    for file, _ in file_data_ts[cache_size:]:
         print(f"RM {file}")
-        file.unlink(missing_ok=True)
-        file_info = file.with_suffix('.json')
-        file_info.unlink(missing_ok=True)
+        try:
+          file.unlink(missing_ok=True)
+          file_info = file.with_suffix('.json')
+          file_info.unlink(missing_ok=True)
+        except:
+          # other processes might have already deleted the files
+          pass
 
 def memmapped_read_image(image_path):
   key = f"{image_path}-{image_path.stat().st_mtime}"
