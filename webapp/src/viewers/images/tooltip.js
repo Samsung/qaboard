@@ -26,8 +26,8 @@ const margin = {marginLeft: '10px'};
 
 const Tooltips = ({x, y, x_ref, y_ref, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref}) => {
     const [base, setBase] = useState('dec');
-    const x_round = x !== null ? Math.round(x) : null
-    const y_round = y !== null ? Math.round(y) : null
+    const x_round = (x !== null && x !== undefined) ? Math.round(x) : null
+    const y_round = (y !== null && y !== undefined) ? Math.round(y) : null
     const x_ref_round = x_ref !== null ? Math.round(x_ref) : null
     const y_ref_round = y_ref !== null ? Math.round(y_ref) : null
     // console.log(x, y, x_ref, y_ref)
