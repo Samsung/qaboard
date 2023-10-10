@@ -16,6 +16,7 @@ services:
   backend:
     restart: always
     environment:
+    - FLASK_ENV=production
     # To use values beyond 128, read
     # * https://stackoverflow.com/a/36452474/5993501
     # * https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#the-listen-queue
