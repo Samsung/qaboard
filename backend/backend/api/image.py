@@ -102,11 +102,13 @@ def memmapped_read_image(image_path):
 def get_pixel():
   x = int(request.args['x'])-1
   y = int(request.args['y'])-1
-  image_path = url_to_dir(request.args['image_url'])
+  image_path = Path(url_to_dir(request.args['image_url']))
+  if not image_path.exists():
+    return f"ERROR: Cannot find {image_path}", 404
   # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
   # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
-  image, meta = memmapped_read_image(Path(image_path))
-  # image, meta = cached_read_image(Path(image_path))
+  image, meta = memmapped_read_image(image_path)
+  # image, meta = cached_read_image(image_path)
   # print('meta', meta)
   try:
     meta = ImageType(*meta)
