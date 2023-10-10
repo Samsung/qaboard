@@ -103,7 +103,9 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                     }
                 }
             }
-            fetchData();
+            if (_image_url !== undefined) {
+                fetchData();
+            }
         }, 200),
         []
     );
