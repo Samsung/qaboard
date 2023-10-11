@@ -278,12 +278,15 @@ else:
 
 
 # TODO: refactor in git.py, consider calling git directly...
-repo_root = Path(os.environ.get('QA_REPO', str(root_qatools if root_qatools else Path())))
+# some projects are submodules, and for those the parent git repo is not what we are interested in
+# so we cannot start the search at root_qatools
+repo_root = Path(os.environ.get('QA_REPO', str(project_dir if project_dir else Path())))
 is_in_git_repo = False
 for d in (repo_root, *list(repo_root.parents)):
   if (d / '.git').exists():
     is_in_git_repo = True
     repo_root = d
+    break
 if not commit_id or not commit_branch:
     if is_in_git_repo:
       commit_branch_, commit_id_ = git_head(repo_root)
