@@ -11,6 +11,7 @@ import * as serviceWorker from './serviceWorker';
 import configureStore from './configureStore';
 import { default_store } from './reducers';
 
+import posthog from 'posthog-js'
 import * as Sentry from "@sentry/react";
 // https://docs.sentry.io/platforms/javascript/guides/react/configuration/integrations/react-router/
 // https://docs.sentry.io/platforms/javascript/guides/react/features/react-router/
