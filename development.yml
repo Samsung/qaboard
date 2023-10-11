@@ -60,6 +60,7 @@ services:
       target: dev
     volumes:
     - ./webapp:/app
+    working_dir: /app
     environment:
     - HOME=/app
     - NPM_CONFIG_USERCONFIG=/app
