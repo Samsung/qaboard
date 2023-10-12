@@ -335,6 +335,8 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
 def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   manifest = outputs_manifest(output_directory, config, compute_hashes)
+  if not output_directory.exists():
+     output_directory.mkdir(parents=True, exist_ok=True)
   with (output_directory / 'manifest.outputs.json').open('w') as f:
     json.dump(manifest, f, sort_keys=True, indent=2)
   return manifest
