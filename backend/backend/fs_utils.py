@@ -58,7 +58,10 @@ def rmtree(path: Path) -> int:
 
 def rm_empty_parents(path: Path):
   for parent in path.parents:
-    is_empty = not any(parent.iterdir())
+    try:
+      is_empty = not any(parent.iterdir())
+    except FileNotFoundError:
+      is_empty = True
     if is_empty:
       rmtree(parent)
     else:
