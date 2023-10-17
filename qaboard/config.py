@@ -71,6 +71,13 @@ if not qatools_configsxpaths:
       click.secho(f'       4. qa save-artifacts', fg='red', err=True)
 
 
+def expand_paths(value: str, interpolation_vars):
+  if "{" not in value:
+    return value
+  else:
+    return location_from_spec(value, interpolation_vars)
+
+
 # Final merged config
 config : Dict[str, Any] = {}
 
@@ -83,6 +90,7 @@ if not qatools_config_paths:
   project = None
   project_root = None
   subproject = Path(".")
+  interpolation_vars = {}
 else:
   if len(qatools_config_paths)==1:
     root_qatools = qatools_config_paths[0].parent
@@ -112,18 +120,11 @@ else:
 
   # we support "prefix/{root_path.name}" to make configuration easier for groups
   # that have tons of small repos configured the name
-  def expand_paths(value: str):
-    if "{" not in value:
-      return value
-    else:
-      return location_from_spec(
-        root_qatools_config['project']['name'],
-        {"root_path": root_qatools, "project_path": project_dir}
-    )
-  root_qatools_config['project']['name'] = expand_paths(root_qatools_config['project']['name'])
-  root_qatools_config['project']['url'] = expand_paths(root_qatools_config['project']['url'])
-  config['project']['name'] = expand_paths(config['project']['name'])
-  config['project']['url'] = expand_paths(config['project']['url'])
+  interpolation_vars = {"root_path": root_qatools, "project_path": project_dir}
+  root_qatools_config['project']['name'] = expand_paths(root_qatools_config['project']['name'], interpolation_vars)
+  root_qatools_config['project']['url'] = expand_paths(root_qatools_config['project']['url'], interpolation_vars)
+  config['project']['name'] = expand_paths(config['project']['name'], interpolation_vars)
+  config['project']['url'] = expand_paths(config['project']['url'], interpolation_vars)
 
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
@@ -172,16 +173,25 @@ def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, 
     spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage
     artifacts_root = location_from_spec(spec_artifacts, interpolation_vars)
     outputs_root = location_from_spec(spec_outputs, interpolation_vars)
+    # some project are submodules and rely in relative paths outside of the project itself
+    # so we need some way to save their artifacts as if they were actually subprojects.
+    # For example, if the real root is HW_ALG, with build in HW_ALG/CIS/build/Release/bin/cde_cis
+    # and the project being HW_ALG/ALG_GEN/BAS/Block, defining artifacts as ../../../CIS/build/Release/bin/cde_cis
+    # we'd need it to have in qaboard.yaml: storage.artifacts.subproject: ALG_GEN/BAS/{project.name}
+    # and recreate the implicit hierarchy.
+    if isinstance(spec_artifacts, dict) and "subproject" in spec_artifacts:
+      subproject_for_artifacts = location_from_spec(spec_artifacts["subproject"], interpolation_vars)
+    else:
+      subproject_for_artifacts = Path()
     if not artifacts_root or not outputs_root:
       raise KeyError
   except KeyError:
     artifacts_root = Path()
     outputs_root = Path()
-    config_has_error = True
     if not ignore_config_errors:
       click.secho('ERROR: Could not find the storage settings that define where outputs & artifacts are saved.', fg='red', err=True)
       click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
-  return outputs_root, artifacts_root
+  return outputs_root, artifacts_root, subproject_for_artifacts
 
 def mkdir(path: Path):
   global config_has_error
@@ -207,7 +217,7 @@ outputs_project: Optional[Path]
 if root_qatools_config:
   assert project
   assert project_root
-  outputs_root, artifacts_root = storage_roots(config, project, subproject)
+  outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
   mkdir(outputs_root)
   mkdir(artifacts_root)
   artifacts_project_root = artifacts_root / project_root
@@ -217,6 +227,7 @@ if root_qatools_config:
 else:
   outputs_root = None
   artifacts_root = None
+  subproject_for_artifacts = Path()
   artifacts_project_root = None
   artifacts_project = None
   outputs_project_root = None
@@ -301,7 +312,7 @@ if not commit_id or not commit_branch:
         commit_id = f'<local:{user}>'
 
 if artifacts_project_root:
-    artifacts_branch_root = artifacts_project_root / 'branches' / slugify(commit_branch)
+    artifacts_branch_root = artifacts_project_root / 'branches' / slugify(commit_branch) / subproject_for_artifacts
     artifacts_branch = artifacts_branch_root / subproject
 else:
     artifacts_branch_root = Path()
@@ -333,8 +344,8 @@ if root_qatools_config:
   assert artifacts_project_root
   assert outputs_project_root
   commit_dirs = get_commit_dirs(commit_id, repo_root)
-  artifacts_commit_root = artifacts_project_root / commit_dirs
-  artifacts_commit      = artifacts_project_root / commit_dirs / subproject
+  artifacts_commit_root = artifacts_project_root / commit_dirs / subproject_for_artifacts
+  artifacts_commit      = artifacts_commit_root / subproject
   outputs_commit_root   = outputs_project_root   / commit_dirs
   outputs_commit        = outputs_project_root   / commit_dirs / subproject
 else:

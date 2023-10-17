@@ -45,14 +45,16 @@ class Project(Base):
     if not qaboard_config.get('storage'):
       qaboard_config = default_qaboard_config
     try:
-      outputs_root, artifacts_root = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative))
+      outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative))
     except Exception as e:
       print(e)
       outputs_root = default_outputs_root
       artifacts_root = default_artifacts_root
+      subproject_for_artifacts = Path()
     return {
       "outputs": outputs_root / id_git,
       "artifacts": artifacts_root / id_git,
+      "subproject": subproject_for_artifacts,
     }
 
   @property
