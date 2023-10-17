@@ -157,7 +157,7 @@ platform = 'windows' if on_windows else 'linux'
 user = os.environ.get('QA_USER', getuser())
 
 
-def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path]:
+def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path, Path]:
   # useful when migration results to a new default location
   if 'QABOARD_NO_CACHE_USER' in os.environ:
     user_ = os.environ.get('QA_USER', getuser())
