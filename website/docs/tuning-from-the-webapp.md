@@ -20,7 +20,7 @@ Tuning parameters that will be merged into `context.params` and appended to `con
 :::
 
 ### 1. Build artifacts
-You must have defined and be using [artifacts](artifacts)
+You must have defined and be using [artifacts](storage/artifacts)
 
 ### 2. Distributed task queue
 You need to configure a task runner, that will execute tuning runs asynchronously. QA-Board ships with a `celery` integration so you'll just have to register a "worker" to get started. [Read more here](celery-integration)!
