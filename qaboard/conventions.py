@@ -20,9 +20,10 @@ def location_from_spec(spec: Union[str, Dict, os.PathLike], interpolation_vars: 
   if isinstance(spec, dict):
     # Mounts are often called differently on linux and windows
     mount_flavor = 'windows' if os.name == 'nt' else 'linux'
-    if mount_flavor not in spec:
-      raise ValueError(f"Expected a key named {mount_flavor} in {spec}. Vars:{interpolation_vars}")
-    location = spec[mount_flavor]
+    try:
+      location = spec[mount_flavor] if mount_flavor in spec else spec["path"]
+    except:
+      raise ValueError(f"Expected a key named {mount_flavor} or path in {spec}.")
   else:
     location = spec
   location = os.path.expandvars(location)
