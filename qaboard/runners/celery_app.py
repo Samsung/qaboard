@@ -3,6 +3,9 @@ import subprocess
 
 from celery import Celery
 
+from kombu.serialization import registry
+registry.enable('pickle')
+
 app = Celery('celery_app')
 app.conf.update(  
     broker_url=os.environ.get('CELERY_BROKER_URL', 'pyamqp://guest:guest@qaboard:5672//'),

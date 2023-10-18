@@ -124,12 +124,15 @@ services:
 
   # https://flower.readthedocs.io/en/latest/config.html#options
   flower:  
-    image: mher/flower
+    build:
+      context: .
+      dockerfile: services/flower.Dockerfile
     environment:
       - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
       - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
       - FLOWER_PORT=8888
       - FLOWER_URL_PREFIX=flower
+    command: celery -A qaboard.runners.celery_app flower
     ports:
       - "8888:8888"  
     depends_on: 
