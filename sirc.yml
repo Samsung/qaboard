@@ -134,7 +134,7 @@ services:
         SENTRY_PROJECT: qaboard-frontend
         SENTRY_AUTH_TOKEN: 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
         REACT_APP_POSTHOG_HOST: https://posthog.transchip.com
-        REACT_APP_POSTHOG_TOKEN: phc_WaLuqxtrz3cTbPyseEL2OwxJWe3tUk2FSFkc9VNprSN
+        REACT_APP_POSTHOG_TOKEN: REDACTED_POSTHOG_TOKEN
 
   website:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"
