@@ -38,8 +38,13 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
     with requests.Session() as s:
         s = requests.Session()
         # curl for the login page to get a session cookie and the sources with the auth tokens
-        r = s.get(f'{hostname}/users/sign_in')
-        matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
+        login_url = f'{hostname}/users/sign_in'
+        r = s.get(login_url)
+        matches = re.findall(r'<form.* data-testid="new_ldap_user" action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
+        if not matches: # before gitlab 16
+          matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
+        if not matches:
+          raise ValueError(f"Cannot find Gitlab login form at {login_url}")
         print(matches)
         matches = [m for m in matches if m[0] == user_type]
         try:
