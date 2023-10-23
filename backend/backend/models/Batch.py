@@ -105,7 +105,6 @@ class Batch(Base):
             f"outputs={len(self.outputs)} />")
 
   def rename(self, label, db_session):
-    assert not any([o.is_pending for o in self.outputs])
     # Note that the output directories will still be based on the old label, we don't move/copy anything
     self.label = label
     db_session.add(self)
