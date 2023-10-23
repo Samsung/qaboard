@@ -245,6 +245,8 @@ def update_project(data, db_session):
     for config_path in config_paths:
       config = parsed_content(commit_id, config_path)
       qatools_config = qaboard.merge(config, qatools_config)
+    if "project" not in  qatools_config:
+      qatools_config["project"] = {}
     qatools_config['project']['name'] = project_id
 
     # # We store the QA-Board configuration twice: at the project level and at the commit level
