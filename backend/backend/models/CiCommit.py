@@ -265,23 +265,22 @@ class CiCommit(Base):
             if "qaboard_metrics" in data:
               project.data.update({'qatools_metrics': data["qaboard_metrics"]})
             flag_modified(project, "data")
-        else:
-          try:
-            git_parents = data["commit_parents"]
-            git_message = data["commit_message"]
-            git_committer_name = data["commit_committer_name"]
-            git_authored_datetime = data["commit_authored_datetime"]
-            git_branch = data["commit_branch"]
-          except Exception as e:
-            # If the project is connected to a git repo, we try to use it
-            # But it is not required...
-            git_commit = project.repo.commit(hexsha)
-            git_parents = [c.hexsha for c in git_commit.parents]
-            git_message = git_commit.message
-            git_committer_name = git_commit.committer.name
-            git_authored_datetime = git_commit.authored_datetime
-            # commits belong to many branches, so this is a guess
-            git_branch = find_branch(hexsha, project.repo)
+        try:
+          git_parents = data["commit_parents"]
+          git_message = data["commit_message"]
+          git_committer_name = data["commit_committer_name"]
+          git_authored_datetime = data["commit_authored_datetime"]
+          git_branch = data["commit_branch"]
+        except Exception as e:
+          # If the project is connected to a git repo, we try to use it
+          # But it is not required...
+          git_commit = project.repo.commit(hexsha)
+          git_parents = [c.hexsha for c in git_commit.parents]
+          git_message = git_commit.message
+          git_committer_name = git_commit.committer.name
+          git_authored_datetime = git_commit.authored_datetime
+          # commits belong to many branches, so this is a guess
+          git_branch = find_branch(hexsha, project.repo)
         ci_commit = CiCommit(
           hexsha,
           project=project,
