@@ -266,25 +266,31 @@ class CiCommit(Base):
               project.data.update({'qatools_metrics': data["qaboard_metrics"]})
             flag_modified(project, "data")
         else:
-          # For backward-compatibility we fallback to reading the data from the commit itself
-          # But in regular use QA-Board doesn't require read rights on repositories
           try:
-            git_commit = project.repo.commit(hexsha)
+            git_parents = data["commit_parents"]
+            git_message = data["commit_message"]
+            git_committer_name = data["commit_committer_name"]
+            git_authored_datetime = data["commit_authored_datetime"]
+            git_branch = data["commit_branch"]
           except Exception as e:
-            error = f'[ERROR] Could not find information on commit {hexsha}. {e}'
-            print(error)
-            raise ValueError(error)
-
+            # If the project is connected to a git repo, we try to use it
+            # But it is not required...
+            git_commit = project.repo.commit(hexsha)
+            git_parents = [c.hexsha for c in git_commit.parents]
+            git_message = git_commit.message
+            git_committer_name = git_commit.committer.name
+            git_authored_datetime = git_commit.authored_datetime
+            # commits belong to many branches, so this is a guess
+            git_branch = find_branch(hexsha, project.repo)
         ci_commit = CiCommit(
           hexsha,
           project=project,
           commit_type='git', # we don't use anything else
-          parents=data["commit_parents"] if (data and "commit_parents" in data) else [c.hexsha for c in git_commit.parents],
-          message=data["commit_message"] if (data and "commit_message" in data) else git_commit.message,
-          committer_name=data["commit_committer_name"] if (data and "commit_committer_name" in data) else git_commit.committer.name,
-          authored_datetime=data["commit_authored_datetime"] if (data and "commit_authored_datetime" in data) else git_commit.authored_datetime,
-          # commits belong to many branches, so this is a guess
-          branch=data["commit_branch"] if (data and "commit_branch" in data) else find_branch(hexsha, project.repo),
+          parents=git_parents,
+          message=git_message,
+          committer_name=git_committer_name,
+          authored_datetime=git_authored_datetime,
+          branch=git_branch,
         )
         if data and data.get('project_root'):
           if not ci_commit.data:
