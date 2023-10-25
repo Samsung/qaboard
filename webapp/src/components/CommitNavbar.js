@@ -557,9 +557,13 @@ class CommitNavbar extends React.Component {
     let requests = []
     show_delete_batches_values.forEach(b => {
       let batch = commit.batches[b]
+      if (batch === undefined) {
+        return
+      }
       let is_milestone = has_milestones({commit, project, project_data, batch})
       if (is_milestone) {
         toaster.show({message: `Cannot delete ${b} because it is a milestone`}, intent=Intent.WARNING);
+        return
       }
       requests.push(axios.delete(`/api/v1/batch/${batch.id}/`, {
         params: {soft: soft_delete, filter: files_delete_filter}
