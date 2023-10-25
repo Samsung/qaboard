@@ -78,7 +78,10 @@ def memmapped_read_image(image_path):
     #   # worst case the 1st requests will write multiple times that file...
     #   uwsgi.lock()
     # print(f'MISS {image_path}')
-    image, meta = read_image(image_path)
+    try:
+      image, meta = read_image(image_path)
+    except Exception as e:
+      return None, None, e
     # print(f'READ', meta)
     with image_cache_info.open('w') as fmeta:
       json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
@@ -88,7 +91,7 @@ def memmapped_read_image(image_path):
     # print(f'WRITE')
     # if under_uwsgi:
     #   uwsgi.unlock()
-    return fp, meta
+    return fp, meta, None
   else:
     # print(f'HIT {hash}')
     with image_cache_info.open() as f:
@@ -100,7 +103,7 @@ def memmapped_read_image(image_path):
         info = json.load(f)
     # print(info['meta'])
     fp = np.memmap(image_cache_data, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
-    return fp, info['meta']
+    return fp, info['meta'], None
 
 
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
@@ -112,7 +115,9 @@ def get_pixel():
     return f"ERROR: Cannot find {image_path}", 404
   # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
   # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
-  image, meta = memmapped_read_image(image_path)
+  image, meta, error = memmapped_read_image(image_path)
+  if error:
+    return jsonify({"error": str(error)}), 400
   # image, meta = cached_read_image(image_path)
   # print('meta', meta)
   try:
