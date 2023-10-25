@@ -21,7 +21,7 @@ const default_from_url = (attribute) => {
 	for (const path of route_paths) {
 		const match = matchPath(window.location.pathname, { path })
 		if (!!match && !!match.params[attribute]) {
-			return match.params[attribute];
+			return decodeURIComponent(match.params[attribute]);
 		}
 	}
 	return params.get(attribute)
