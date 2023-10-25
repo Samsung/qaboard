@@ -239,11 +239,13 @@ class LsfRunner(BaseRunner):
       )
       print(out.stdout)
       print(out.stderr)
-      # If LSF can't find the jobs, they are likely done already
-      #   it will error 255 in this case... but it's a good sign
+      # Not sure what the return code is supposed to be when killing multiple jobs
+      # If LSF can't find the jobs, they are likely done already, but it returns 255, while we don't want to fail!
       #   out.check_returncode()
       # It's a better idea to check the logs for the status
+      # It doens't cover all cases, but we don't need to be super careful
       being_terminated = "is being terminated" in out.stdout
+      already_finished = "has already finished" in out.stdout
       job_not_found = "is not found" in out.stdout
-      if not (being_terminated or job_not_found): 
+      if not (being_terminated or job_not_found or already_finished): 
         raise ValueError(out.stdout)
