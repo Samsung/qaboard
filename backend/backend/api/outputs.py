@@ -113,7 +113,11 @@ def new_output_webhook():
     db_session,
     path=test_input_path,
     database=data['database'],
+    autocommit=True,
   )
+  if data.get('input_metadata'):
+    test_input.data['metadata'] = data['input_metadata']
+    flag_modified(test_input, "data")
 
   # We save the basic information about our result
   batch = ci_commit.get_or_create_batch(data['batch_label'])

@@ -59,7 +59,7 @@ class TestInput(Base):
 
 
   @staticmethod
-  def get_or_create(session, database, path):
+  def get_or_create(session, database, path, autocommit=False):
     try:
       test_input = (session
                     .query(TestInput)
@@ -68,8 +68,9 @@ class TestInput(Base):
       )
     except NoResultFound:
       test_input = TestInput(database=str(database), path=str(path))
-      # session.add(test_input)
-      # session.commit()
+      if autocommit:
+        session.add(test_input)
+        session.commit()
     if not test_input.data:
       test_input.data = {}
     return test_input
