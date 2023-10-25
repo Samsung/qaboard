@@ -218,8 +218,13 @@ class AppNavbar extends Component {
             }
             parseDate={str => new Date(Date.parse(str))}
             onChange={new_date_range => {
+              if (new_date_range[0] === null && new_date_range[1] === null)
+                return
               const { project, aggregated_metrics, dispatch } = this.props;
-              let extended_date_range = [new_date_range[0], new_date_range[1]]
+              let extended_date_range = [
+                new_date_range[0] ?? this.props.date_range[0],
+                new_date_range[1] ?? this.props.date_range[1],
+              ]
               extended_date_range[0].setHours(0,0,0,0);
               extended_date_range[1].setHours(23,59,59,999);
               const is_dashboard = match.path.startsWith('/:project_id+/history');
