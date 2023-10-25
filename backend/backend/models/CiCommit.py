@@ -13,7 +13,8 @@ from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, Foreign
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import or_, UniqueConstraint, orm
 from sqlalchemy.orm import relationship, reconstructor, joinedload
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.conventions import get_commit_dirs
@@ -305,8 +306,20 @@ class CiCommit(Base):
           if "qaboard_metrics" in data:
             ci_commit.data.update({'qatools_metrics': data['qaboard_metrics']})
           flag_modified(ci_commit, "data")
-        session.add(ci_commit)
-        session.commit()
+        try:
+          session.add(ci_commit)
+          session.commit()
+        except IntegrityError:
+          # https://stackoverflow.com/questions/2546207/does-sqlalchemy-have-an-equivalent-of-djangos-get-or-create
+          session.rollback()
+          ci_commit =(
+            session.query(CiCommit)
+            .filter(
+              CiCommit.project_id==project_id,
+              CiCommit.hexsha.startswith(hexsha),
+            )
+            .one()
+          )
       except ValueError:
         error = f'[ERROR] ValueError: could not create a commit for {hexsha}'
         print(error)

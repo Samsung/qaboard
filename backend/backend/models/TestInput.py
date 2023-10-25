@@ -11,6 +11,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.exc import IntegrityError
 
 from qaboard.conventions import slugify_hash
 from backend.models import Base
@@ -69,8 +70,17 @@ class TestInput(Base):
     except NoResultFound:
       test_input = TestInput(database=str(database), path=str(path))
       if autocommit:
-        session.add(test_input)
-        session.commit()
+        try:
+          session.add(test_input)
+          session.commit()
+        except IntegrityError:
+          session.rollback()
+          test_input = (session
+            .query(TestInput)
+            .filter_by(database=str(database), path=str(path))
+            .one()
+          )
+
     if not test_input.data:
       test_input.data = {}
     return test_input
