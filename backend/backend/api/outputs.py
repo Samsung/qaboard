@@ -3,6 +3,7 @@ import datetime
 
 from flask import request, jsonify, redirect, make_response
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.conventions import deserialize_config
 from qaboard.api import dir_to_url
@@ -14,7 +15,13 @@ from ..models import TestInput, CiCommit, Output
 @app.route("/api/v1/output/<output_id>", methods=['GET', 'PUT', 'DELETE'])
 @app.route("/api/v1/output/<output_id>/", methods=['GET', 'PUT', 'DELETE'])
 def crud_output(output_id):
-  output = Output.query.filter(Output.id==output_id).one()
+  try:
+    output = Output.query.filter(Output.id==output_id).one()
+  except NoResultFound:
+    if request.method == 'DELETE':
+      return {"status": "OK"}
+    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+
   if request.method == 'GET':
     return jsonify(output.to_dict())
 
@@ -124,9 +131,6 @@ def new_output_webhook():
   if not batch.data:
     batch.data = {}
   batch.data.update({"type": data['job_type']})
-  if data.get('input_metadata'):
-    test_input.data['metadata'] = data['input_metadata']
-    flag_modified(test_input, "data")
 
   platform = data['platform']
   # for backward-compat with old clients
