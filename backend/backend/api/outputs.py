@@ -57,7 +57,10 @@ def crud_output(output_id):
 @app.route('/api/v1/output/redo/<output_id>', methods=['POST'])
 @app.route('/api/v1/output/redo/<output_id>/', methods=['POST'])
 def output_redo(output_id):
-  output = Output.query.filter(Output.id==output_id).one()
+  try:
+    output = Output.query.filter(Output.id==output_id).one()
+  except NoResultFound:
+    return jsonify({"error": f"Cannot find output {output_id}"}), 400
   try:
     success = output.redo()
   except Exception as e:
@@ -71,7 +74,10 @@ def output_redo(output_id):
 @app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])
 @app.route("/api/v1/output/<output_id>/manifest/", methods=['GET'])
 def get_output_manifest(output_id):
-  output = Output.query.filter(Output.id==output_id).one()
+  try:
+    output = Output.query.filter(Output.id==output_id).one()
+  except NoResultFound:
+    return jsonify({"error": f"Cannot find output {output_id}"}), 400
   manifest_path = output.output_dir / "manifest.outputs.json"
   if output.is_running or request.args.get('refresh') or not manifest_path.exists():
     manifest = output.update_manifest(compute_hashes=False)
