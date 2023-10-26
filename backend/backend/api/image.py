@@ -67,43 +67,60 @@ def clear_memmapped_cache_dir():
           # other processes might have already deleted the files
           pass
 
-def memmapped_read_image(image_path):
+
+def memmapped_read_image(data_path, info_path):
+  with info_path.open() as f:
+    try:
+      info = json.load(f)
+    except:
+      # It's possible writes from the previous call didn't sync
+      # on the shared storage... So we retry after waiting just a little bit
+      time.sleep(1)
+      try:
+        info = json.load(f)
+      except Exception as e:
+        return None, None, e
+  fp = np.memmap(data_path, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
+  return fp, info['meta'], None
+
+
+def maybe_memmapped_read_image(image_path):
   key = f"{image_path}-{image_path.stat().st_mtime}"
   hash = hashlib.sha1(key.encode()).hexdigest()
   image_cache_data = image_cache_dir / f"{hash}.dat"
   image_cache_info = image_cache_dir / f"{hash}.json"
-  if not (image_cache_data.exists() and image_cache_info.exists()):
-    clear_memmapped_cache_dir()
-    # if under_uwsgi:
-    #   # worst case the 1st requests will write multiple times that file...
-    #   uwsgi.lock()
-    # print(f'MISS {image_path}')
+  # FIXME: Avoid partial writes by doing a final rename
+  is_cached = lambda: image_cache_data.exists() and image_cache_info.exists()
+  is_cached = lambda: False
+  if not is_cached():
+    print(f'MISS {image_path}')
+    # if multiple worker processes try to create the cache, we'll run into issues
+    # https://uwsgi-docs.readthedocs.io/en/latest/Locks.html
+    if under_uwsgi:
+      uwsgi.lock()
+    # it's possible we were waiting for another request that wrote the missing file
+    if is_cached():
+      return memmapped_read_image(image_cache_data, image_cache_info)
+
     try:
+      clear_memmapped_cache_dir()
       image, meta = read_image(image_path)
+      print(f'READ', meta)
+      with image_cache_info.open('w') as fmeta:
+        json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
+      fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
+      fp[:] = image[:]
+      fp.flush() # write to disk
+      if under_uwsgi:
+        uwsgi.unlock()
+      return fp, meta, None
     except Exception as e:
+      if under_uwsgi:
+        uwsgi.unlock()
       return None, None, e
-    # print(f'READ', meta)
-    with image_cache_info.open('w') as fmeta:
-      json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
-    fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
-    fp[:] = image[:]
-    fp.flush() # write to disk
-    # print(f'WRITE')
-    # if under_uwsgi:
-    #   uwsgi.unlock()
-    return fp, meta, None
   else:
-    # print(f'HIT {hash}')
-    with image_cache_info.open() as f:
-      try:
-        info = json.load(f)
-      except:
-        time.sleep(1) # not super smart, but likely it's because the file exists,
-        # opened by another process, but didn't finish writing...
-        info = json.load(f)
-    # print(info['meta'])
-    fp = np.memmap(image_cache_data, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
-    return fp, info['meta'], None
+    print(f'HIT {image_path}')
+    return memmapped_read_image(image_cache_data, image_cache_info)
 
 
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
@@ -115,7 +132,7 @@ def get_pixel():
     return f"ERROR: Cannot find {image_path}", 404
   # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
   # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
-  image, meta, error = memmapped_read_image(image_path)
+  image, meta, error = maybe_memmapped_read_image(image_path)
   if error:
     return jsonify({"error": str(error)}), 400
   # image, meta = cached_read_image(image_path)
