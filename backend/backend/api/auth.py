@@ -3,6 +3,7 @@ Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
 
+import simplejson
 import ldap
 from flask import request, jsonify, redirect, session
 from flask_login import LoginManager, login_user, logout_user, current_user
@@ -52,13 +53,19 @@ def signup():
       "user_name": request.form.get('user_name'),
       "full_name": request.form.get('full_name'),
       "password": request.form.get('password'),
-      "is_ldap": False,
-      "is_sso": False,
+      "login_type": "INTERNAL",
+      "data": {},
+      # "is_ldap": False,
+      # "is_sso": False,
     })
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
-    return f"ERROR: The email or user name already exists. ({e})", 403
-  return jsonify({"id": user.id}) # FIXME: return more info ?
+    return f"{e}", 403
+  return jsonify({"id": user.id,
+                "email": user.email,
+                "user_name": user.user_name,
+                "full_name": user.full_name,
+                "login_type": user.login_type})
 
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
@@ -94,12 +101,14 @@ def get_current_user(to_jsonify=True):
             user = User.query.filter_by(user_name=user_name).one_or_none()
             info.update({
             "is_authenticated": True,
-            "is_ldap": False,
-            "is_sso": True,
+            "login_type": login_type,
+            # "is_ldap": False,
+            # "is_sso": True,
             "user_id": user.id,
             "user_name": user.user_name,
             "full_name": user.full_name,
             "email": user.email,
+            "data": user.data,
       })
   else: # login_type != "SAML"
     # https://flask-login.readthedocs.io/en/latest/#your-user-class
@@ -115,8 +124,9 @@ def get_current_user(to_jsonify=True):
         "user_name": current_user.user_name,
         "full_name": current_user.full_name,
         "email": current_user.email,
-        "is_ldap": current_user.is_ldap,
-        "is_sso": current_user.is_sso,
+        "login_type": current_user.login_type,
+        # "is_ldap": current_user.is_ldap,
+        # "is_sso": current_user.is_sso,
       })
 
   if to_jsonify: return jsonify(info)
@@ -135,12 +145,17 @@ def load_user(user_id):
   return User.query.get(user_id)
 
 def create_user(info):
+  if not info["user_name"]:
+    raise Exception("ERROR: cannot create a new user, missing user_name\n")
+
   user = User(
     user_name=info["user_name"],
     full_name=info["full_name"],
     email=info["email"],
-    is_ldap=info["is_ldap"],
-    is_sso=info["is_sso"],
+    login_type=info["login_type"],
+    # is_ldap=info["is_ldap"],
+    # is_sso=info["is_sso"],
+    data=info["data"],
     # TODO: use a slower hash, currently the default is pbkdf2:sha256
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
     password= generate_password_hash(info["password"]) if "password" in info else None,
@@ -153,8 +168,8 @@ def create_user(info):
 
 def auth(username, password):
   user = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
-  # FIXME: check we render the error field in JS, not invalid_passord=True..
-  if login_type == "LDAP" and (not user or user.is_ldap):
+  # FIXME: check we render the error field in JS, not invalid_password=True..
+  if login_type == "LDAP" and (not user or (user.login_type == 'LDAP')):
     return auth_ldap(username, password)
   # elif login_type == "SAML" and (not user or user.is_sso):
   #   return auth_sso(username, password)
@@ -165,8 +180,9 @@ def auth(username, password):
 def auth_local(username, password):
   info = {
     "username": username,
-    "is_ldap": False,
-    "is_sso": False,
+    "login_type": "INTERNAL",
+    # "is_ldap": False,
+    # "is_sso": False,
     "login_success": False,
   }
   user = User.query.filter_by(user_name=username).one_or_none()
@@ -180,6 +196,7 @@ def auth_local(username, password):
     info["full_name"] = user.full_name
     info["user_name"] = user.user_name
     info["email"] = user.email
+    info["data"] = user.data
   return info
 
 def auth_ldap(user_name, password):
@@ -187,8 +204,9 @@ def auth_ldap(user_name, password):
     raise Exception("LDAP authentication is disabled")
   user_info = {
     "user_name": user_name,
-    "is_ldap": True,
-    "is_sso": False,
+    "login_type": login_type,
+    # "is_ldap": True,
+    # "is_sso": False,
     "login_success": False,
   }
   # TODO: support for secure LDAP
@@ -221,6 +239,8 @@ def auth_ldap(user_name, password):
       user_info["login_success"] = True
       user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
       user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
+      # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
+      user_info["data"] = simplejson.loads(simplejson.dumps(details)) 
     except (ldap.INVALID_CREDENTIALS, ldap.OPERATIONS_ERROR):
       user_info["error"] = "invalid-password"
   else:
@@ -284,11 +304,13 @@ def saml_auth():
             if len(session['samlUserdata']) > 0:
               samlUserdata = session['samlUserdata']
               user_info = {
-              "is_ldap": False,
-              "is_sso": True,
+            "login_type": login_type,
+              # "is_ldap": False,
+              # "is_sso": True,
               "user_name": samlUserdata.get(saml_attr_user_name, [])[0],
               "full_name": samlUserdata.get(saml_attr_common_name, [])[0],
               "email": samlUserdata.get(saml_attr_email, [])[0],
+              "data": dict(samlUserdata),
               }
             else: 
               pass # TODO: return error
@@ -316,8 +338,11 @@ def saml_auth():
                 return redirect(url)
             # else: # TODO:
 
-    # TODO: handle bad request:
-    raise Exception(" ".join(errors))
+    # Handle bad requests:
+    # raise Exception(" ".join(errors))
+    print(" ".join(errors))
+    return " ".join(errors), 403
+
     # self_url = OneLogin_Saml2_Utils.get_self_url(req)
     # if 'RelayState' in request.form and self_url != request.form['RelayState']:
     #     return redirect(auth.redirect_to(request.form['RelayState']))

@@ -21,9 +21,9 @@ class PrivateContent extends React.Component {
   checkAuth = () => {
     get("/api/v1/user/me/")
     .then(response => {
-      const { is_authenticated, user_id, user_name, full_name, email, is_ldap, is_sso } = response.data;
+      const { is_authenticated, user_id, user_name, full_name, email, login_type } = response.data;
       if (is_authenticated) {
-        this.props.dispatch(login({user_name, email, is_ldap, is_sso, full_name, user_id}))
+        this.props.dispatch(login({user_name, email, login_type, full_name, user_id}))
       } 
       else {
         this.props.dispatch(logout())

@@ -125,9 +125,9 @@ class LoginButton extends React.Component {
 
     post("/api/v1/user/auth/", data)
     .then(response => {
-      const { user_id, user_name, full_name, email, is_ldap, is_sso } = response.data;
+      const { user_id, user_name, full_name, email, login_type } = response.data;
       toaster.show({ message: `Welcome, ${full_name ?? user_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-      this.props.dispatch(login({user_name, email, is_ldap, is_sso, full_name, user_id}))
+      this.props.dispatch(login({user_name, email, login_type, full_name, user_id}))
       this.setState({
         error: null,
         is_loading: false,
