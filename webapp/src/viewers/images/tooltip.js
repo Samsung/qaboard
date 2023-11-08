@@ -103,7 +103,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                     }
                 }
             }
-            if (_image_url !== undefined) {
+            if (_image_url !== undefined && Number.isInteger(_x) && Number.isInteger(_y) ){
                 fetchData();
             }
         }, 200),
