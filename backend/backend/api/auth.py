@@ -4,6 +4,7 @@ Authentication for qaboard - LOCAL, LDAP and SAML.
 import os
 
 import simplejson
+import yaml
 import ldap
 from flask import request, jsonify, redirect, session
 from flask_login import LoginManager, login_user, logout_user, current_user
@@ -16,6 +17,7 @@ from ..models import User
 
 
 login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
+is_login_restricted = eval(os.getenv("QABOARD_LOGIN_RESTRICT", "False")) # True/False
 if login_type == "LDAP":
   # Server hostname (including port)
   ldap_host = os.environ['QABOARD_LDAP_HOST']
@@ -166,6 +168,28 @@ def create_user(info):
   return user
 
 
+def is_authorized_user(user_info: dict):
+  is_authorized = False
+  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICT_YAML")
+
+  with open(users_restrict_yaml, 'r') as f:
+    users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
+    for key, value in user_info.items():
+      if is_authorized: break
+      if key in users_restrict_config.keys():
+        if isinstance(value, str):
+          is_authorized = value in users_restrict_config[key]
+        elif isinstance(value, list):
+          is_authorized = any([v for v in value if v in users_restrict_config[key]])
+        elif isinstance(value, dict):
+            for inner_key, inner_value in value.items():
+              if is_authorized: break
+              if inner_key in users_restrict_config[key].keys():
+                print([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+                is_authorized = any([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+  return is_authorized
+
+
 def auth(username, password):
   user = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
   # FIXME: check we render the error field in JS, not invalid_password=True..
@@ -179,12 +203,17 @@ def auth(username, password):
 
 def auth_local(username, password):
   info = {
-    "username": username,
+    "user_name": username,
     "login_type": "INTERNAL",
     # "is_ldap": False,
     # "is_sso": False,
     "login_success": False,
   }
+
+  if is_login_restricted and not is_authorized_user(info):
+    info["error"] = f"The user is not authorized according to the 'login restrict yaml'.\n user_info{info}"
+    session.clear()
+    return info
   user = User.query.filter_by(user_name=username).one_or_none()
   if not user:
     info["error"] = "invalid-username"
@@ -247,7 +276,12 @@ def auth_ldap(user_name, password):
     user_info["error"] = "invalid-username"
   ldap_connect.unbind_s()
 
-  if user_info["login_success"]:
+  if is_login_restricted and not is_authorized_user(user_info):
+    user_info["login_success"] = False
+    user_info["error"] = f"The user is not authorized according to the 'qaboard login restrict yaml'.\n user_info{user_info}"
+    session.clear()
+    # return user_info
+  elif user_info["login_success"]:
     user = User.query.filter_by(user_name=user_name).one_or_none()
     if not user:
       user = create_user(user_info)
@@ -301,10 +335,14 @@ def saml_auth():
             session['samlNameIdSPNameQualifier'] = auth.get_nameid_spnq()
             session['samlSessionIndex'] = auth.get_session_index()
 
-            if len(session['samlUserdata']) > 0:
+            if len(session['samlUserdata']) == 0:
+              errors.append(f"samlUserdata is empty.")
+              return " ".join(errors), 403
+            else: 
+            # if len(session['samlUserdata']) > 0:
               samlUserdata = session['samlUserdata']
               user_info = {
-            "login_type": login_type,
+              "login_type": login_type,
               # "is_ldap": False,
               # "is_sso": True,
               "user_name": samlUserdata.get(saml_attr_user_name, [])[0],
@@ -312,8 +350,11 @@ def saml_auth():
               "email": samlUserdata.get(saml_attr_email, [])[0],
               "data": dict(samlUserdata),
               }
-            else: 
-              pass # TODO: return error
+              if is_login_restricted and not is_authorized_user(user_info):
+                errors.append(f"The user is not authorized according to the 'login restrict yaml'.\n user_info{user_info}")
+                session.clear()
+                return " ".join(errors), 403
+
             # user_info = get_current_user(to_jsonify=False)
             user = User.query.filter_by(user_name=user_info.get("user_name")).one_or_none()
             if not user:
