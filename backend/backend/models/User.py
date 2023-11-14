@@ -18,8 +18,6 @@ class User(Base, UserMixin):
   email = Column(String(), unique=True)
 
   password = Column(String())
-  # is_ldap = Column(Boolean(), default=False)
-  # login_type = Column(Boolean(), default=False)
   login_type = Column(String())
   data = Column(JSONB(), nullable=False, default=dict, server_default='{}')
 
@@ -29,8 +27,6 @@ class User(Base, UserMixin):
             f"user_name='{self.user_name}' "
             f"full_name='{self.full_name}' "
             f"email='{self.email}' "
-            # f"is_ldap='{self.is_ldap}' "
-            # f"is_sso='{self.is_sso}' "
             f"login_type='{self.login_type}' "
             f"data='{self.data}' "
             )

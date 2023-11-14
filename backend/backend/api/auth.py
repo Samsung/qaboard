@@ -16,8 +16,8 @@ from backend import app, db_session
 from ..models import User
 
 
+is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICT", False)) # True/False
 login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
-is_login_restricted = eval(os.getenv("QABOARD_LOGIN_RESTRICT", "False")) # True/False
 if login_type == "LDAP":
   # Server hostname (including port)
   ldap_host = os.environ['QABOARD_LDAP_HOST']
@@ -55,10 +55,8 @@ def signup():
       "user_name": request.form.get('user_name'),
       "full_name": request.form.get('full_name'),
       "password": request.form.get('password'),
-      "login_type": "INTERNAL",
+      "login_type": "LOCAL",
       "data": {},
-      # "is_ldap": False,
-      # "is_sso": False,
     })
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
@@ -104,8 +102,6 @@ def get_current_user(to_jsonify=True):
             info.update({
             "is_authenticated": True,
             "login_type": login_type,
-            # "is_ldap": False,
-            # "is_sso": True,
             "user_id": user.id,
             "user_name": user.user_name,
             "full_name": user.full_name,
@@ -127,8 +123,6 @@ def get_current_user(to_jsonify=True):
         "full_name": current_user.full_name,
         "email": current_user.email,
         "login_type": current_user.login_type,
-        # "is_ldap": current_user.is_ldap,
-        # "is_sso": current_user.is_sso,
       })
 
   if to_jsonify: return jsonify(info)
@@ -195,7 +189,7 @@ def auth(username, password):
   # FIXME: check we render the error field in JS, not invalid_password=True..
   if login_type == "LDAP" and (not user or (user.login_type == 'LDAP')):
     return auth_ldap(username, password)
-  # elif login_type == "SAML" and (not user or user.is_sso):
+  # elif login_type == "SAML" and (not user or (user.login_type == 'SAML')):
   #   return auth_sso(username, password)
   else:
     return auth_local(username, password)
@@ -204,14 +198,12 @@ def auth(username, password):
 def auth_local(username, password):
   info = {
     "user_name": username,
-    "login_type": "INTERNAL",
-    # "is_ldap": False,
-    # "is_sso": False,
+    "login_type": "LOCAL",
     "login_success": False,
   }
 
   if is_login_restricted and not is_authorized_user(info):
-    info["error"] = f"The user is not authorized according to the 'login restrict yaml'.\n user_info{info}"
+    info["error"] = f"The user is not authorized according to the 'login restrict yaml', please contact qaboard Admins.\n user_info{info}"
     session.clear()
     return info
   user = User.query.filter_by(user_name=username).one_or_none()
@@ -234,8 +226,6 @@ def auth_ldap(user_name, password):
   user_info = {
     "user_name": user_name,
     "login_type": login_type,
-    # "is_ldap": True,
-    # "is_sso": False,
     "login_success": False,
   }
   # TODO: support for secure LDAP
@@ -276,16 +266,17 @@ def auth_ldap(user_name, password):
     user_info["error"] = "invalid-username"
   ldap_connect.unbind_s()
 
-  if is_login_restricted and not is_authorized_user(user_info):
-    user_info["login_success"] = False
-    user_info["error"] = f"The user is not authorized according to the 'qaboard login restrict yaml'.\n user_info{user_info}"
-    session.clear()
-    # return user_info
-  elif user_info["login_success"]:
-    user = User.query.filter_by(user_name=user_name).one_or_none()
-    if not user:
-      user = create_user(user_info)
-    user_info["id"] = user.id
+  if user_info["login_success"]:
+    if is_login_restricted and not is_authorized_user(user_info):
+      user_info["login_success"] = False
+      user_info["error"] = f"The user is not authorized according to the 'login restrict yaml', please contact qaboard Admins.\n user_info{user_info}"
+      session.clear()
+      # return user_info
+    else:
+      user = User.query.filter_by(user_name=user_name).one_or_none()
+      if not user:
+        user = create_user(user_info)
+      user_info["id"] = user.id
   return user_info
 
 @app.route('/api/auth/saml20/login/', methods=['GET', 'POST'])
@@ -335,7 +326,7 @@ def saml_auth():
             session['samlNameIdSPNameQualifier'] = auth.get_nameid_spnq()
             session['samlSessionIndex'] = auth.get_session_index()
 
-            if len(session['samlUserdata']) == 0:
+            if not session['samlUserdata']:
               errors.append(f"samlUserdata is empty.")
               return " ".join(errors), 403
             else: 
@@ -351,7 +342,7 @@ def saml_auth():
               "data": dict(samlUserdata),
               }
               if is_login_restricted and not is_authorized_user(user_info):
-                errors.append(f"The user is not authorized according to the 'login restrict yaml'.\n user_info{user_info}")
+                errors.append(f"The user is not authorized according to the 'login restrict yaml', please contact qaboard Admins.\n user_info{user_info}")
                 session.clear()
                 return " ".join(errors), 403
 
@@ -377,7 +368,6 @@ def saml_auth():
                 # TODO: To avoid 'Open Redirect' attacks, before execute the redirection confirm
                 # the value of the request.form['RelayState'] is a trusted URL.
                 return redirect(url)
-            # else: # TODO:
 
     # Handle bad requests:
     # raise Exception(" ".join(errors))
