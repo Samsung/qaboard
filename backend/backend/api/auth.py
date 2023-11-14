@@ -16,7 +16,7 @@ from backend import app, db_session
 from ..models import User
 
 
-is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICT", False)) # True/False
+is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICTED", False)) # True/False
 login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
 if login_type == "LDAP":
   # Server hostname (including port)
@@ -164,7 +164,7 @@ def create_user(info):
 
 def is_authorized_user(user_info: dict):
   is_authorized = False
-  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICT_YAML")
+  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
 
   with open(users_restrict_yaml, 'r') as f:
     users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)

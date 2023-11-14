@@ -1,0 +1,26 @@
+# Configuration file for users authentication.
+# supports any column from the database users table.
+# qaboard will check each key against the user that's trying to login.
+# once a key and value are matched, the authentication succeeded (an "OR" relationship).
+
+# Example - 4 different keys for authentication:
+#   user_name: for 'user1'/'user2'/'john.doe'.
+#   email: for 'mr.nobody@samsung.com'
+#   data: ...CompId:  for any user with the CompId 'C123'/'C777'.
+#   data: ...GrdName: for any user with the GrdName 'Staff/Team Leader'.
+
+user_name:
+- user1
+- user2
+- john.doe
+email:
+- mr.nobody@samsung.com
+- user3@samsung.com
+
+data:
+  http://schemas.company.com/2023/11/CompId:
+  - C123
+  - C777
+  http://schemas.company.com/2023/11/GrdName:
+  - Staff
+  - Team Leader
