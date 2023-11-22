@@ -30,3 +30,10 @@ class User(Base, UserMixin):
             f"login_type='{self.login_type}' "
             f"data='{self.data}' "
             )
+
+  def update(self, user_name: str, full_name: str, email: str , login_type: str, data, **kwargs):
+      if user_name:  self.user_name = user_name
+      if full_name:  self.full_name = full_name
+      if email:      self.email = email
+      if login_type: self.login_type = login_type
+      if data:       self.data = data

@@ -16,7 +16,13 @@ from backend import app, db_session
 from ..models import User
 
 
+login_manager = LoginManager(app)
 is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICTED", False)) # True/False
+if is_login_restricted:
+  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
+  with open(users_restrict_yaml, 'r') as f:
+    users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
+
 login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
 if login_type == "LDAP":
   # Server hostname (including port)
@@ -44,7 +50,6 @@ elif login_type == "SAML":
   saml_attr_common_name = os.environ.get('QABOARD_SAML_ATTRIBUTE_COMMON_NAME')
   # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
 
-login_manager = LoginManager(app)
 
 
 # @app.route('/api/v1/user/signup/', methods=['POST'])
@@ -162,25 +167,41 @@ def create_user(info):
   return user
 
 
+def update_user(user, info):
+  if not info["user_name"]:
+    raise Exception("ERROR: cannot create a new user, missing user_name\n")
+
+  user_info = {
+    "user_name":info["user_name"],
+    "full_name":info["full_name"],
+    "email":info["email"],
+    "login_type":info["login_type"],
+    "data":info["data"],
+    "password": generate_password_hash(info["password"]) if "password" in info else None,
+  }
+  user.update(**user_info)
+  db_session.add(user)
+  db_session.commit()
+  return user
+
+
 def is_authorized_user(user_info: dict):
   is_authorized = False
   users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
 
-  with open(users_restrict_yaml, 'r') as f:
-    users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
-    for key, value in user_info.items():
-      if is_authorized: break
-      if key in users_restrict_config.keys():
-        if isinstance(value, str):
-          is_authorized = value in users_restrict_config[key]
-        elif isinstance(value, list):
-          is_authorized = any([v for v in value if v in users_restrict_config[key]])
-        elif isinstance(value, dict):
-            for inner_key, inner_value in value.items():
-              if is_authorized: break
-              if inner_key in users_restrict_config[key].keys():
-                print([v for v in inner_value if v in users_restrict_config[key][inner_key]])
-                is_authorized = any([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+  for key, value in user_info.items():
+    if is_authorized: break
+    if key in users_restrict_config.keys():
+      if isinstance(value, str):
+        is_authorized = value in users_restrict_config[key]
+      elif isinstance(value, list):
+        is_authorized = any([v for v in value if v in users_restrict_config[key]])
+      elif isinstance(value, dict):
+          for inner_key, inner_value in value.items():
+            if is_authorized: break
+            if inner_key in users_restrict_config[key].keys():
+              print([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+              is_authorized = any([v for v in inner_value if v in users_restrict_config[key][inner_key]])
   return is_authorized
 
 
@@ -203,7 +224,7 @@ def auth_local(username, password):
   }
 
   if is_login_restricted and not is_authorized_user(info):
-    info["error"] = f"The user is not authorized according to the 'login restrict yaml', please contact qaboard Admins.\n user_info{info}"
+    info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{info}"
     session.clear()
     return info
   user = User.query.filter_by(user_name=username).one_or_none()
@@ -269,12 +290,14 @@ def auth_ldap(user_name, password):
   if user_info["login_success"]:
     if is_login_restricted and not is_authorized_user(user_info):
       user_info["login_success"] = False
-      user_info["error"] = f"The user is not authorized according to the 'login restrict yaml', please contact qaboard Admins.\n user_info{user_info}"
+      user_info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}"
       session.clear()
       # return user_info
     else:
       user = User.query.filter_by(user_name=user_name).one_or_none()
-      if not user:
+      if user:
+        user = update_user(user, user_info)
+      else:
         user = create_user(user_info)
       user_info["id"] = user.id
   return user_info
@@ -342,13 +365,15 @@ def saml_auth():
               "data": dict(samlUserdata),
               }
               if is_login_restricted and not is_authorized_user(user_info):
-                errors.append(f"The user is not authorized according to the 'login restrict yaml', please contact qaboard Admins.\n user_info{user_info}")
+                errors.append(f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}")
                 session.clear()
                 return " ".join(errors), 403
 
             # user_info = get_current_user(to_jsonify=False)
             user = User.query.filter_by(user_name=user_info.get("user_name")).one_or_none()
-            if not user:
+            if user:
+              user = update_user(user, user_info)
+            else:
               user = create_user(user_info)
 
             self_url = OneLogin_Saml2_Utils.get_self_url(req)
