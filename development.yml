@@ -82,3 +82,14 @@ services:
     depends_on:
     - proxy
     - backend
+
+  website:
+    command: yarn start
+    volumes:
+    - ./website:/website
+    environment:
+      - HOST=0.0.0.0
+      - DANGEROUSLY_DISABLE_HOST_CHECK=true
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - 6051:3000
