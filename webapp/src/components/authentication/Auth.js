@@ -6,6 +6,7 @@ import {
   Intent,
   MenuItem,
   Icon,
+  IconSize,
   Tooltip,
   InputGroup,
   Button,
@@ -141,7 +142,7 @@ class LoginButton extends React.Component {
         is_loading: false,
       });
       if (!error_msg.startsWith('invalid'))
-        toaster.show({ message: `ERROR: ${error_msg}`, intent: Intent.DANGER, timeout: 5000 })
+        toaster.show({ message: `ERROR: ${error_msg}`, intent: Intent.DANGER, timeout: 10000 })
       console.log(error.response)
       })
   }
@@ -151,7 +152,7 @@ class LoginButton extends React.Component {
     const { error, is_loading } = this.state;
     const warning_sign = <>
       <Tooltip content="Try your windows credentials" position="right" intent={Intent.DANGER} hoverCloseDelay={2000}>
-          <Icon icon="warning-sign" iconSize={Icon.SIZE_LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
+          <Icon icon="warning-sign" size={IconSize.LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
       </Tooltip>
       </>
     const warning = {
