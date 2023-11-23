@@ -94,6 +94,7 @@ const sidebars = {
     "Backend Admin": [
         "backend-admin/troubleshooting",
         "backend-admin/host-upgrades",
+        "backend-admin/user-management",
         "backend-admin/getting-SSL-certiticates-from-IT",
     ]
   }

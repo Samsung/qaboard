@@ -3,6 +3,8 @@ Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
 
+import simplejson
+import yaml
 import ldap
 from flask import request, jsonify, redirect, session
 from flask_login import LoginManager, login_user, logout_user, current_user
@@ -13,6 +15,13 @@ from onelogin.saml2.utils import OneLogin_Saml2_Utils
 from backend import app, db_session
 from ..models import User
 
+
+login_manager = LoginManager(app)
+is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICTED", False)) # True/False
+if is_login_restricted:
+  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
+  with open(users_restrict_yaml, 'r') as f:
+    users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
 
 login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
 if login_type == "LDAP":
@@ -41,7 +50,6 @@ elif login_type == "SAML":
   saml_attr_common_name = os.environ.get('QABOARD_SAML_ATTRIBUTE_COMMON_NAME')
   # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
 
-login_manager = LoginManager(app)
 
 
 # @app.route('/api/v1/user/signup/', methods=['POST'])
@@ -52,13 +60,17 @@ def signup():
       "user_name": request.form.get('user_name'),
       "full_name": request.form.get('full_name'),
       "password": request.form.get('password'),
-      "is_ldap": False,
-      "is_sso": False,
+      "login_type": "LOCAL",
+      "data": {},
     })
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
-    return f"ERROR: The email or user name already exists. ({e})", 403
-  return jsonify({"id": user.id}) # FIXME: return more info ?
+    return f"{e}", 403
+  return jsonify({"id": user.id,
+                "email": user.email,
+                "user_name": user.user_name,
+                "full_name": user.full_name,
+                "login_type": user.login_type})
 
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
@@ -94,12 +106,12 @@ def get_current_user(to_jsonify=True):
             user = User.query.filter_by(user_name=user_name).one_or_none()
             info.update({
             "is_authenticated": True,
-            "is_ldap": False,
-            "is_sso": True,
+            "login_type": login_type,
             "user_id": user.id,
             "user_name": user.user_name,
             "full_name": user.full_name,
             "email": user.email,
+            "data": user.data,
       })
   else: # login_type != "SAML"
     # https://flask-login.readthedocs.io/en/latest/#your-user-class
@@ -115,8 +127,7 @@ def get_current_user(to_jsonify=True):
         "user_name": current_user.user_name,
         "full_name": current_user.full_name,
         "email": current_user.email,
-        "is_ldap": current_user.is_ldap,
-        "is_sso": current_user.is_sso,
+        "login_type": current_user.login_type,
       })
 
   if to_jsonify: return jsonify(info)
@@ -135,12 +146,17 @@ def load_user(user_id):
   return User.query.get(user_id)
 
 def create_user(info):
+  if not info["user_name"]:
+    raise Exception("ERROR: cannot create a new user, missing user_name\n")
+
   user = User(
     user_name=info["user_name"],
     full_name=info["full_name"],
     email=info["email"],
-    is_ldap=info["is_ldap"],
-    is_sso=info["is_sso"],
+    login_type=info["login_type"],
+    # is_ldap=info["is_ldap"],
+    # is_sso=info["is_sso"],
+    data=info["data"],
     # TODO: use a slower hash, currently the default is pbkdf2:sha256
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
     password= generate_password_hash(info["password"]) if "password" in info else None,
@@ -151,12 +167,50 @@ def create_user(info):
   return user
 
 
+def update_user(user, info):
+  if not info["user_name"]:
+    raise Exception("ERROR: cannot create a new user, missing user_name\n")
+
+  user_info = {
+    "user_name":info["user_name"],
+    "full_name":info["full_name"],
+    "email":info["email"],
+    "login_type":info["login_type"],
+    "data":info["data"],
+    "password": generate_password_hash(info["password"]) if "password" in info else None,
+  }
+  user.update(**user_info)
+  db_session.add(user)
+  db_session.commit()
+  return user
+
+
+def is_authorized_user(user_info: dict):
+  is_authorized = False
+  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
+
+  for key, value in user_info.items():
+    if is_authorized: break
+    if key in users_restrict_config.keys():
+      if isinstance(value, str):
+        is_authorized = value in users_restrict_config[key]
+      elif isinstance(value, list):
+        is_authorized = any([v for v in value if v in users_restrict_config[key]])
+      elif isinstance(value, dict):
+          for inner_key, inner_value in value.items():
+            if is_authorized: break
+            if inner_key in users_restrict_config[key].keys():
+              print([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+              is_authorized = any([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+  return is_authorized
+
+
 def auth(username, password):
   user = User.query.filter_by(user_name=username).first() # if this returns a user, then the user_name already exists in database
-  # FIXME: check we render the error field in JS, not invalid_passord=True..
-  if login_type == "LDAP" and (not user or user.is_ldap):
+  # FIXME: check we render the error field in JS, not invalid_password=True..
+  if login_type == "LDAP" and (not user or (user.login_type == 'LDAP')):
     return auth_ldap(username, password)
-  # elif login_type == "SAML" and (not user or user.is_sso):
+  # elif login_type == "SAML" and (not user or (user.login_type == 'SAML')):
   #   return auth_sso(username, password)
   else:
     return auth_local(username, password)
@@ -164,11 +218,15 @@ def auth(username, password):
 
 def auth_local(username, password):
   info = {
-    "username": username,
-    "is_ldap": False,
-    "is_sso": False,
+    "user_name": username,
+    "login_type": "LOCAL",
     "login_success": False,
   }
+
+  if is_login_restricted and not is_authorized_user(info):
+    info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{info}"
+    session.clear()
+    return info
   user = User.query.filter_by(user_name=username).one_or_none()
   if not user:
     info["error"] = "invalid-username"
@@ -180,6 +238,7 @@ def auth_local(username, password):
     info["full_name"] = user.full_name
     info["user_name"] = user.user_name
     info["email"] = user.email
+    info["data"] = user.data
   return info
 
 def auth_ldap(user_name, password):
@@ -187,8 +246,7 @@ def auth_ldap(user_name, password):
     raise Exception("LDAP authentication is disabled")
   user_info = {
     "user_name": user_name,
-    "is_ldap": True,
-    "is_sso": False,
+    "login_type": login_type,
     "login_success": False,
   }
   # TODO: support for secure LDAP
@@ -221,6 +279,8 @@ def auth_ldap(user_name, password):
       user_info["login_success"] = True
       user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
       user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
+      # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
+      user_info["data"] = simplejson.loads(simplejson.dumps(details)) 
     except (ldap.INVALID_CREDENTIALS, ldap.OPERATIONS_ERROR):
       user_info["error"] = "invalid-password"
   else:
@@ -228,10 +288,18 @@ def auth_ldap(user_name, password):
   ldap_connect.unbind_s()
 
   if user_info["login_success"]:
-    user = User.query.filter_by(user_name=user_name).one_or_none()
-    if not user:
-      user = create_user(user_info)
-    user_info["id"] = user.id
+    if is_login_restricted and not is_authorized_user(user_info):
+      user_info["login_success"] = False
+      user_info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}"
+      session.clear()
+      # return user_info
+    else:
+      user = User.query.filter_by(user_name=user_name).one_or_none()
+      if user:
+        user = update_user(user, user_info)
+      else:
+        user = create_user(user_info)
+      user_info["id"] = user.id
   return user_info
 
 @app.route('/api/auth/saml20/login/', methods=['GET', 'POST'])
@@ -281,20 +349,31 @@ def saml_auth():
             session['samlNameIdSPNameQualifier'] = auth.get_nameid_spnq()
             session['samlSessionIndex'] = auth.get_session_index()
 
-            if len(session['samlUserdata']) > 0:
+            if not session['samlUserdata']:
+              errors.append(f"samlUserdata is empty.")
+              return " ".join(errors), 403
+            else: 
+            # if len(session['samlUserdata']) > 0:
               samlUserdata = session['samlUserdata']
               user_info = {
-              "is_ldap": False,
-              "is_sso": True,
+              "login_type": login_type,
+              # "is_ldap": False,
+              # "is_sso": True,
               "user_name": samlUserdata.get(saml_attr_user_name, [])[0],
               "full_name": samlUserdata.get(saml_attr_common_name, [])[0],
               "email": samlUserdata.get(saml_attr_email, [])[0],
+              "data": dict(samlUserdata),
               }
-            else: 
-              pass # TODO: return error
+              if is_login_restricted and not is_authorized_user(user_info):
+                errors.append(f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}")
+                session.clear()
+                return " ".join(errors), 403
+
             # user_info = get_current_user(to_jsonify=False)
             user = User.query.filter_by(user_name=user_info.get("user_name")).one_or_none()
-            if not user:
+            if user:
+              user = update_user(user, user_info)
+            else:
               user = create_user(user_info)
 
             self_url = OneLogin_Saml2_Utils.get_self_url(req)
@@ -314,10 +393,12 @@ def saml_auth():
                 # TODO: To avoid 'Open Redirect' attacks, before execute the redirection confirm
                 # the value of the request.form['RelayState'] is a trusted URL.
                 return redirect(url)
-            # else: # TODO:
 
-    # TODO: handle bad request:
-    raise Exception(" ".join(errors))
+    # Handle bad requests:
+    # raise Exception(" ".join(errors))
+    print(" ".join(errors))
+    return " ".join(errors), 403
+
     # self_url = OneLogin_Saml2_Utils.get_self_url(req)
     # if 'RelayState' in request.form and self_url != request.form['RelayState']:
     #     return redirect(auth.redirect_to(request.form['RelayState']))
