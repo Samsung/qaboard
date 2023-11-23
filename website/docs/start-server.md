@@ -67,20 +67,8 @@ docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
 Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans? <a href="mailto:arthur.flam@gmail.com">Get in touch</a>.
 :::
 
-## [User Management](https://samsung.github.io/qaboard/docs/backend-admin/user-management)
-qaboard supports user **sign-in** to allow different levels of access and user-features such as Tuning.
-
-Supported sign-in systems:
-- Local - users that are created by qaboard. \
-To register a new user, add an entry to the database under `users` table. \
-Or enable http requests of the _signup()_ function at _backend/backend/api/auth.py_ , then use the curl command:
-  ```bash
-  curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/
-  ```
-- LDAP
-- SSO via SAML
-
-The login policy is set via environment variables such as `QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQIRED`, `QABOARD_LDAP_`, `QABOARD_SAML_`, as described in the Environment Variables section.
+## Managing access rights and users
+QA-Board can connect to external authentifications systems (LDAP, SAML). If needed, access can be restricted to logged-in users. To know more about this, or create a test user, refer to the docs on [user management](backend-admin/user-management).
 
 ## (Optional) Environment variables
 > To configure your installation, you can either edit [an `.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) or `services.backend.environment` in one of the `docker-compose` files (*docker-compose.yml*, *development.yml*, *production.yml*...).
