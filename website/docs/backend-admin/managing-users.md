@@ -20,7 +20,7 @@ QA-Board offers a user management system. It can be used to block access to anon
 > ```
 
 :::tip
-This flow can be improved. So far all instances of QA-Board rely on external authentifaction providers, so it hasn't been a priority. We would welcome merge requests to add a UX flow to register new users.
+This flow can be improved. So far all instances of QA-Board rely on external authentification providers, so it hasn't been a priority. We would welcome merge requests to add a UX flow to register new users.
 :::
 
 ### Environment variables
