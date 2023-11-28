@@ -162,23 +162,39 @@ const filterNodes = (nodes, filter) => {
 //----- Misc Components ------------------------------------------------------- 
 // from stackoverflow...
 const humanFileSize = (bytes, si) => {
-	if (bytes === undefined || bytes === null)
-		return ''
-    var thresh = si ? 1000 : 1024;
-    if(Math.abs(bytes) < thresh) {
-        return bytes + ' B';
-    }
-    var units = si
-        ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
-        : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
-    var u = -1;
-    do {
-        bytes /= thresh;
-        ++u;
-    } while(Math.abs(bytes) >= thresh && u < units.length - 1);
-    return bytes.toFixed(1)+' '+units[u];
+  if (bytes === undefined || bytes === null)
+    return ''
+
+  var thresh = si ? 1000 : 1024;
+  if(Math.abs(bytes) < thresh) {
+      return bytes + ' B';
+  }
+  var units = si
+      ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
+      : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
+  var u = -1;
+  do {
+      bytes /= thresh;
+      ++u;
+  } while(Math.abs(bytes) >= thresh && u < units.length - 1);
+  return bytes.toFixed(1)+' '+units[u];
 }
 
+const humanElapsedTime = (seconds_str) => {
+  if (seconds_str === undefined || seconds_str === null) {
+    return ''
+  }
+
+  var seconds = Number(seconds_str)
+  var thresh = 60;
+  var units = ['seconds','minutes','hours']
+  var u = 0;
+  while(Math.abs(seconds) >= thresh && u < units.length - 1) {
+    seconds /= thresh;
+    ++u;
+  }
+  return seconds.toFixed(2)+' '+units[u];
+}
 
 
 const file_types = [
@@ -276,4 +292,4 @@ class BitAccuracyForm extends React.Component {
 
 
 
-export { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help }
+export { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
