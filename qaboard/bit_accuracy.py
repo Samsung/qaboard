@@ -50,6 +50,9 @@ if custom_cmp:
 def is_same_content(filename, meta_1, meta_2):
   # we allow changes in hex files' footers or raw imgprops, provided same critical attributes don't change
   if filename.endswith('.hex') or filename.endswith('.raw'):
+    # we compare both data and metadata for raw files
+    if filename.endswith('.raw') and meta_1['md5'] != meta_2['md5']:
+      return False
     return all(
       meta_1[attr] == meta_2[attr]
       for attr in checked_cde_attrs
