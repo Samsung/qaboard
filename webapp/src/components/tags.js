@@ -290,12 +290,16 @@ class OutputTags extends React.Component {
 
 
       <Popover hoverCloseDelay={500} interactionKind={"hover"} position="bottom">
-        <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
+        <a style={{marginLeft: "5px", color: Colors.GRAY1}}
+              target="_blank"
+              rel="noopener noreferrer"
+              href={output_dir_url}
+        >
           <Icon icon="folder-shared-open" />
-        </span>
+        </a>
         <Menu>
           <MenuItem
-            text="View the output directory" 
+            text="Open output directory in browser" 
             target="_blank" 
             rel="noopener noreferrer" 
             href={output_dir_url} 
@@ -304,7 +308,7 @@ class OutputTags extends React.Component {
           />
           {this.props.output_ref && 
           <MenuItem
-            text="View the output directory of 'reference'" 
+            text="Open the Reference's output directory in browser" 
             target="_blank" 
             rel="noopener noreferrer" 
             href={this.props.output_ref.output_dir_url} 
@@ -323,13 +327,14 @@ class OutputTags extends React.Component {
           />
         </span>
         <Menu>
+          {this.props.output_ref && <MenuDivider title="New Run" />}
           <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(output_dir_url).slice(2))}} />
           <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(output_dir_url))}} />
           {
             this.props.output_ref && <>
-            <MenuDivider/>
-            <MenuItem text="Copy output directory of 'reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(this.props.output_ref.output_dir_url).slice(2))}} />
-            <MenuItem text="Copy output directory of 'reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(this.props.output_ref.output_dir_url))}} />
+            <MenuDivider title="Reference Run" />
+            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(this.props.output_ref.output_dir_url).slice(2))}} />
+            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(this.props.output_ref.output_dir_url))}} />
             </>
           }
         </Menu>
