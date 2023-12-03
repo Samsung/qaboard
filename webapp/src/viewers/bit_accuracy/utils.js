@@ -185,15 +185,15 @@ const humanElapsedTime = (seconds_str) => {
     return ''
   }
 
-  var seconds = Number(seconds_str)
-  var thresh = 60;
-  var units = ['seconds','minutes','hours']
-  var u = 0;
-  while(Math.abs(seconds) >= thresh && u < units.length - 1) {
-    seconds /= thresh;
-    ++u;
-  }
-  return seconds.toFixed(2)+' '+units[u];
+  var seconds = (Number(seconds_str) % 60).toFixed(0);
+  var minutes = ((Number(seconds_str) / 60) % 60).toFixed(0);
+  var hours = (Number(seconds_str) / 3600).toFixed(0);
+  var elapsed_time = '';
+  if (hours   !== '0') elapsed_time += hours + 'h'
+  if (minutes !== '0') elapsed_time += minutes + 'min'
+  if (seconds !== '0') elapsed_time += seconds + 's'
+  if (!!!elapsed_time) elapsed_time += Number(seconds_str).toFixed(2) + 's'
+  return elapsed_time;
 }
 
 
