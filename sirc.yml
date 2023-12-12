@@ -16,6 +16,52 @@ services:
     - /opt/dockermounts/home:/var/www/localhost/images/home
     - /sim:/var/www/localhost/images/sim:shared
 
+
+  # plan for tonight:
+  ###################################################
+  # 1. make a dump
+  #      docker compose exec db bash
+  #      pg_dumpall -Uqaboard > /backups/latest.sql
+  #       => takes 15min at least
+  # 2. upgrade the psql version and restore
+  #      docker compose exec db-16 bash
+  #      psql -U qaboard -d qaboard < /backups/latest.sql
+  #       => takes 1h15
+  # 3. use the new database
+  #      in compose change make db-16 db, rename db to db-9, keep same volume...
+  #      restart backend
+  # 4. ugprade docker, compose...
+  ##################################################
+
+  db-upgrade:
+    # based on
+    # image: tianon/postgres-upgrade:12-to-16
+    build:
+      context: ./services/db
+      dockerfile: ./major-upgrades.Dockerfile
+    volumes:
+      - db:/var/lib/postgresql/12/data
+      - db-16:/var/lib/postgresql/16/data
+      # fixme by installing properly...
+      # https://github.com/tianon/gosu/blob/master/INSTALL.md
+      - /home/ispq/miniconda3/lib/python3.7/site-packages/drun/third_party/bin/gosu:/usr/local/bin/gosu
+    environment:
+      - POSTGRES_USER=qaboard
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=qaboard
+
+  # upgrade ########################################
+  # 0. stop database (test without...)
+  # 1. copy files
+  # 2. [x] new container latest version in compose
+  #    [ ] mount the data backup somewhere 
+  #    new volumne with db-16 name
+  # 3. shell, pg_upgrade pointing to the correct places
+  # pg_upgrade --link --verbose
+  # 4. is it long?
+  # 5. rename container, remove previous 
+
+
   db:
     # postgres needs a file owned by postgres, and we cannot chown on our shared storage
     # the default entrypoint changes user from root to postgres and inits the database,
@@ -27,6 +73,9 @@ services:
     - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
+
+
+
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     # deploy: # supported with swarm
@@ -132,7 +181,7 @@ services:
         REACT_APP_QABOARD_LOGIN_TYPE: "LDAP"
         SENTRY_ORG: sentry
         SENTRY_PROJECT: qaboard-frontend
-        SENTRY_AUTH_TOKEN: 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
+        SENTRY_AUTH_TOKEN: REDACTED_SENTRY_AUTH_TOKEN
         REACT_APP_POSTHOG_HOST: https://posthog.transchip.com
         REACT_APP_POSTHOG_TOKEN: REDACTED_POSTHOG_TOKEN
 
