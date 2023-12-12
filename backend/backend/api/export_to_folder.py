@@ -100,7 +100,7 @@ def filter_outputs(query, outputs):
 
 
 def compatible(o1, o2):
-  if o1.test_input.path == o2.test_input.path:
+  if (o1.test_input.database + o1.test_input.path) == (o2.test_input.database + o2.test_input.path):
     return True
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
     return False
