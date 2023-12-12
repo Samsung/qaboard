@@ -74,7 +74,7 @@ const empty_output = { metrics: undefined, extra_parameters: {} };
 const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
-    8 * ((o.test_input_path !== output.test_input_path) | 0) +
+    8 * ((o.test_input_database + o.test_input_path !== output.test_input_database + output.test_input_path) | 0) +
     4 * ((o.configurations_str !== output.configurations_str) | 0) +
     2 * ((o.platform !== output.platform) | 0) +
     1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
