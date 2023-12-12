@@ -87,7 +87,7 @@ const matching_output = ({ output, batch }) => {
     .filter(o => (o.test_input_database + o.test_input_path) === (output.test_input_database + output.test_input_path) || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .map(o => {
-      o.dist_input_path = 1 - Number(o.test_input_path === output.test_input_path)
+      o.dist_input_path = 1 - Number((o.test_input_database + o.test_input_path) === (output.test_input_database + output.test_input_path))
       o.dist_configurations = levenshtein(o.configurations_str ?? '', output.configurations_str ?? '')
       o.dist_extra_parameters = levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
       return o;
