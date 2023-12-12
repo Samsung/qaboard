@@ -76,6 +76,7 @@ const preprocess_output = output => {
     } 
   }
   // useful for filtering
+  output.input_path = (output.test_input_database  + "/" + output.test_input_path).replace("//", "/")
   output.configurations_str = JSON.stringify(output.configurations)
   output.extra_parameters_str = JSON.stringify(output.extra_parameters)
   // useful for tuning analysis

@@ -74,20 +74,20 @@ const empty_output = { metrics: undefined, extra_parameters: {} };
 const matching_output = ({ output, batch }) => {
   // high => more different
   const match_score = o =>
-    8 * ((o.test_input_database + o.test_input_path !== output.test_input_database + output.test_input_path) | 0) +
+    8 * ((o.input_path !== output.input_path) | 0) +
     4 * ((o.configurations_str !== output.configurations_str) | 0) +
     2 * ((o.platform !== output.platform) | 0) +
     1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
 
-  // console.log('MATCHING')
+  console.log('MATCHING', output)
   // const t0 = performance.now();
 
   let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
     .filter(o => !o.is_pending)
-    .filter(o => (o.test_input_database + o.test_input_path) === (output.test_input_database + output.test_input_path) || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
+    .filter(o => o.input_path === output.input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .map(o => {
-      o.dist_input_path = 1 - Number((o.test_input_database + o.test_input_path) === (output.test_input_database + output.test_input_path))
+      o.dist_input_path = 1 - Number(o.input_path === output.input_path)
       o.dist_configurations = levenshtein(o.configurations_str ?? '', output.configurations_str ?? '')
       o.dist_extra_parameters = levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
       return o;
@@ -113,6 +113,7 @@ const matching_output = ({ output, batch }) => {
   
   // const t1 = performance.now();
   // console.log("Match took " + (t1 - t0) + " ms.")
+  console.log(matching_outputs)
 
   let output_ref = matching_outputs[0] || empty_output;
   let ref_match_score = match_score(output_ref);

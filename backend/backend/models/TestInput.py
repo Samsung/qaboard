@@ -50,6 +50,9 @@ class TestInput(Base):
 
   data = Column(JSON(), nullable=False, default=dict, server_default='{}')
 
+  @property
+  def abs_path(self):
+    return (self.database + "/" + self.path).replace("//", "/")
 
   def __init__(self, database, path):
     self.path = str(path)
