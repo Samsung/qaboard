@@ -562,7 +562,7 @@ class CommitNavbar extends React.Component {
       }
       let is_milestone = has_milestones({commit, project, project_data, batch})
       if (is_milestone) {
-        toaster.show({message: `Cannot delete ${b} because it is a milestone`}, intent=Intent.WARNING);
+        toaster.show({message: `Cannot delete ${b} because it is a milestone`, intent: Intent.WARNING});
         return
       }
       requests.push(axios.delete(`/api/v1/batch/${batch.id}/`, {
