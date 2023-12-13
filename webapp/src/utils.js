@@ -79,7 +79,8 @@ const matching_output = ({ output, batch }) => {
     2 * ((o.platform !== output.platform) | 0) +
     1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
 
-  console.log('MATCHING', output)
+  // console.log('MATCHING', output)
+  // console.log(batch.filtered.outputs.map(id => batch.outputs[id]))
   // const t0 = performance.now();
 
   let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
@@ -113,7 +114,7 @@ const matching_output = ({ output, batch }) => {
   
   // const t1 = performance.now();
   // console.log("Match took " + (t1 - t0) + " ms.")
-  console.log(matching_outputs)
+  // console.log(matching_outputs)
 
   let output_ref = matching_outputs[0] || empty_output;
   let ref_match_score = match_score(output_ref);
