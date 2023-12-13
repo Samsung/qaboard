@@ -102,6 +102,8 @@ def filter_outputs(query, outputs):
 def compatible(o1, o2):
   if o1.test_input.abs_path == o2.test_input.abs_path:
     return True
+  if o1.test_input.path == o2.test_input.path:
+    return True
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
     return False
 
@@ -122,7 +124,7 @@ def matching_output(output_reference, outputs):
 
   def match_key(output):
     return (
-      1 - int(output.test_input.abs_path == output_reference.abs_path), 
+      1 - int(output.test_input.abs_path == output_reference.abs_path or output.test_input.path == output_reference.path), 
       levenshtein(to_json(output.configurations), to_json(output_reference.configurations)), 
       levenshtein(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
       output.platform == output_reference.platform,
