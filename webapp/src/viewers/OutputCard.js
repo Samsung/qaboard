@@ -30,7 +30,7 @@ import copy from 'copy-to-clipboard'
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
 import { OutputTags, ExtraParametersTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
-import { humanFileSize } from "./bit_accuracy/utils";
+import { humanFileSize, humanElapsedTime } from "./bit_accuracy/utils";
 
 import { updateSelected } from "../actions/selected";
 import { linux_to_windows, is_same_data } from '../utils'
@@ -125,10 +125,11 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
             </MenuItem>
           </>}
           <MenuDivider key={"Output-Info"} title="Output Info" />
+          {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} icon="stopwatch" />}
           <MenuItem
             key="created-date"
             text={<span title={output.created_date}> {DateTime.fromISO(output.created_date, { zone: 'utc' }).toRelative()}</span>}
-            icon="time"
+            icon="calendar"
           />
           {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
         </Menu>

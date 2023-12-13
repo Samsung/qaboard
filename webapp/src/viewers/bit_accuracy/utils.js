@@ -162,23 +162,39 @@ const filterNodes = (nodes, filter) => {
 //----- Misc Components ------------------------------------------------------- 
 // from stackoverflow...
 const humanFileSize = (bytes, si) => {
-	if (bytes === undefined || bytes === null)
-		return ''
-    var thresh = si ? 1000 : 1024;
-    if(Math.abs(bytes) < thresh) {
-        return bytes + ' B';
-    }
-    var units = si
-        ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
-        : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
-    var u = -1;
-    do {
-        bytes /= thresh;
-        ++u;
-    } while(Math.abs(bytes) >= thresh && u < units.length - 1);
-    return bytes.toFixed(1)+' '+units[u];
+  if (bytes === undefined || bytes === null)
+    return ''
+
+  var thresh = si ? 1000 : 1024;
+  if(Math.abs(bytes) < thresh) {
+      return bytes + ' B';
+  }
+  var units = si
+      ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
+      : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
+  var u = -1;
+  do {
+      bytes /= thresh;
+      ++u;
+  } while(Math.abs(bytes) >= thresh && u < units.length - 1);
+  return bytes.toFixed(1)+' '+units[u];
 }
 
+const humanElapsedTime = (seconds_str) => {
+  if (seconds_str === undefined || seconds_str === null) {
+    return ''
+  }
+
+  var seconds = (Number(seconds_str) % 60).toFixed(0);
+  var minutes = ((Number(seconds_str) / 60) % 60).toFixed(0);
+  var hours = (Number(seconds_str) / 3600).toFixed(0);
+  var elapsed_time = '';
+  if (hours   !== '0') elapsed_time += hours + 'h'
+  if (minutes !== '0') elapsed_time += minutes + 'min'
+  if (seconds !== '0') elapsed_time += seconds + 's'
+  if (!!!elapsed_time) elapsed_time += Number(seconds_str).toFixed(2) + 's'
+  return elapsed_time;
+}
 
 
 const file_types = [
@@ -276,4 +292,4 @@ class BitAccuracyForm extends React.Component {
 
 
 
-export { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help }
+export { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
