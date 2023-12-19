@@ -96,7 +96,10 @@ COPY backend/pyproject.toml backend/poetry.lock ./
 # https://github.com/python-poetry/poetry/issues/214 
 RUN poetry config virtualenvs.create false
 # [SIRC] We ran into strange host-key verification issues when downloading packages via poetry
-RUN git config --global http.sslVerify false
+RUN git config --global http.sslVerify false && \
+    # gc tends to take time in our big repos and the locks slow everything down
+    # causing uwsgi to spawn more workers and eat RAM
+    git config --global gc.auto 0
 # https://github.com/jelmer/dulwich/issues/698
 # https://github.com/jelmer/dulwich/issues/879
 # https://github.com/jelmer/dulwich/issues/1025
