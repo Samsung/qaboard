@@ -223,6 +223,9 @@ def export_to_folder():
     common_data['configurations_prefix'] = commonprefix(all_configurations)
     all_reversed_configurations = [list(reversed(o.configurations)) for o in all_outputs]
     common_data['configurations_suffix'] = list(reversed(commonprefix(all_reversed_configurations)))
+  all_databases = {o.test_input.database for o in all_outputs}
+  if len(all_databases) == 1:
+    common_data['database'] = all_outputs[0].test_input.database
   # To be honest, we really should find what is common in each batch
   # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
 
@@ -252,6 +255,7 @@ def export_to_folder():
   label_mappings = {
     'extra_parameters': dict(),
     'configurations': dict(),
+    'databases': dict(),
   }
 
   glob = request.args.get('path', '*')
@@ -279,6 +283,11 @@ def export_to_folder():
           labels.append(stripped_config)
         label_mappings['configurations'][stripped_config] = output.configurations
         # print('label', stripped_config, output.configurations)
+      if not common_data.get("database"):
+        slugify_database = slugify_hash(output.test_input.database)
+        if slugify_database:
+          labels.append(slugify_database)
+        label_mappings['databases'][slugify_database] = output.test_input.database
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
         p = tame(output.extra_parameters) - tame(common_extra_parameters)
@@ -292,6 +301,9 @@ def export_to_folder():
         if p: labels.append(extra_parameters_label)
       stitch = lambda l: f"@{'@'.join(l)}" if l else ''
       label = stitch(labels)
+      # TODO: do we want to raise exception if label is empty?
+      # if not label:
+      #   raise Exception("no label")
       return label
 
 
