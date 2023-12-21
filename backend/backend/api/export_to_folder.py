@@ -110,7 +110,7 @@ def compatible(o1, o2):
 # Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
   """
-  Return the output from from a given batch that looks most similar to a given output.
+  Return the output from a given batch that looks most similar to a given output.
   This helps us compare an output to historical results.
   """
   def to_json(a):
@@ -124,7 +124,7 @@ def matching_output(output_reference, outputs):
 
   def match_key(output):
     return (
-      1 - int(output.test_input.abs_path == output_reference.abs_path or output.test_input.path == output_reference.path), 
+      1 - int(output.test_input.abs_path == output_reference.test_input.abs_path or output.test_input.path == output_reference.test_input.path), 
       levenshtein(to_json(output.configurations), to_json(output_reference.configurations)), 
       levenshtein(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
       output.platform == output_reference.platform,
