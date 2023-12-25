@@ -193,8 +193,8 @@ class TuningForm extends Component {
           selected_group_info_loading: false,
           selected_group_info: {
             tests: [],
-            error: error,
-          }
+          },
+          error: error,
         });
       });
   }
@@ -307,7 +307,7 @@ class TuningForm extends Component {
       .catch(error => {
         this.setState({ submitted: false });
         toaster.show({
-          message: `Something wrong happened ${JSON.stringify(error.response)}`,
+          message: `Something went wrong: ${JSON.stringify(error.response)}`,
           intent: Intent.DANGER
         });
       });
@@ -413,15 +413,20 @@ class TuningForm extends Component {
       <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
       <p>Otherwise, your runs may be killed if they take too long.</p>
       </Callout>}
-      {project.startsWith('CDE-Users/HW_ALG') && !((this.props.commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop" && <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>For tuning to work, your branch name (<code>{this.props.commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
-      <p>A workaround is calling from Windows/Linux:</p>
-      <pre>
-        <div>cd HW_ALG</div>
-        <div>git checkout {(this.props.commit?.id ?? '').slice(0, 8)}</div>
-        <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
-        <div>qa save-artifacts</div>
-      </pre>
+      {project.startsWith('CDE-Users/HW_ALG') && !((this.props.commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop" && 
+      <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+        <p>For tuning to work, your branch name (<code>{this.props.commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
+        <p>A workaround is calling from Windows/Linux:</p>
+        <pre>
+          <div>cd HW_ALG</div>
+          <div>git checkout {(this.props.commit?.id ?? '').slice(0, 8)}</div>
+          <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
+          <div>qa save-artifacts</div>
+        </pre>
+      </Callout> ||
+      !!message && 
+      <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+        <span dangerouslySetInnerHTML={{__html: message}}></span>
       </Callout>}
       <FormGroup
         helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
@@ -460,11 +465,8 @@ class TuningForm extends Component {
               </ul>
             </div>
           </Popover>}
-          {error && <Tag icon='warning-sign' intent={Intent.DANGER}>{error.response?.data?.error ?? JSON.stringify(error)}</Tag>}
-          {message && <span>
-               <Tooltip><Icon intent={Intent.WARNING} icon="warning-sign"/><span dangerouslySetInnerHTML={{__html: message}}></span></Tooltip>
-              To know your options, go to the "Tests" tab.
-          </span>}
+          <p style={{marginBottom: '5px'}}>To know your options, go to the "Tests" tab.</p>
+          {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error.response?.data?.error ?? JSON.stringify(error)}</Tag></p>}
           {this.state.selected_group_info_loading && <Icon icon="time"/>}
         </>}
         labelFor="selected-group"
