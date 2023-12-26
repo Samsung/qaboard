@@ -56,8 +56,7 @@ def is_same_content(filename, meta_1, meta_2):
       if attr not in meta_1 or attr not in meta_2
     ]
     if missing_attrs:
-      click.secho(f'ERROR: The following image attributes are missing in the manifest: {filename} {missing_attrs}', fg="red", err=True)
-      return False
+      click.secho(f'WARNING: The following image attributes are missing in the manifest: {filename} {missing_attrs}', fg="yellow", err=True)
     return all(
       meta_1[attr] == meta_2[attr]
       for attr in checked_cde_attrs
