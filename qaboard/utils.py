@@ -157,7 +157,7 @@ def input_metadata(absolute_input_path, database, input_path, config):
     try:
       metadata = entrypoint_module_.metadata(absolute_input_path, database, input_path)
       if metadata is None:
-      	metadata = {}
+        metadata = {}
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
@@ -268,7 +268,7 @@ def md5_hex(path, length=None):
 
   # for some reason st_size return None sometimes
   file_size = os.stat(path).st_size or 0
-  end_byte = length if length else file_size
+  end_byte = length if isinstance(length, int) else file_size
 
   with path.open('rb') as f:
     while bytes_read < end_byte:
@@ -284,7 +284,7 @@ def md5_hex(path, length=None):
 
 
 # we want to allow new hex attributes, but some are critical 
-checked_cde_attrs = ("width", "height", "format", "imageType", "md5_data")
+checked_cde_attrs = ("width", "height", "format", "md5_data")
 
 def _file_info(path : Path, compute_hashes=True):
     info: Dict[str, Union[int, str]] = {
@@ -296,16 +296,17 @@ def _file_info(path : Path, compute_hashes=True):
         if path.suffix == '.hex':
           hex_attr = hex_attributes(path)
           hash_length = hex_attr.get('footer_start_pos')
-          # FIXME: we should not see empty hex files, so why do we do this check?
-          if hash_length: # exclude the footer from the image data hash
-            info['md5_data'] = md5_hex(path, hash_length)
-            image_meta = hex_attr
+          info['md5_data'] = md5_hex(path, hash_length)
+          image_meta = hex_attr
         if path.suffix == '.raw':
           image_meta = read_imgprops(path)
         if image_meta:
           for attr in checked_cde_attrs:
             if attr in image_meta:
               info[attr] = image_meta[attr]
+          # patch to create consistency in the manifests
+          if image_meta.get('imageType') and not info.get('format'):
+            info['format'] = image_meta['imageType']
     return info
 
 

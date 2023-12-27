@@ -49,14 +49,37 @@ if custom_cmp:
 
 def is_same_content(filename, meta_1, meta_2):
   # we allow changes in hex files' footers or raw imgprops, provided same critical attributes don't change
-  if filename.endswith('.hex') or filename.endswith('.raw'):
-    # we compare both data and metadata for raw files
-    if filename.endswith('.raw') and meta_1['md5'] != meta_2['md5']:
-      return False
+  if filename.endswith('.hex'):
+    missing_attrs = [
+      attr
+      for attr in checked_cde_attrs
+      if attr not in meta_1 or attr not in meta_2
+    ]
+    if missing_attrs:
+      click.secho(f'WARNING: The following image attributes are missing in the manifest: {filename} {missing_attrs}', fg="yellow", err=True)
     return all(
       meta_1[attr] == meta_2[attr]
       for attr in checked_cde_attrs
       if attr in meta_1 and attr in meta_2
+    )
+  elif filename.endswith('.raw'):
+    missing_attrs = [
+      attr
+      for attr in checked_cde_attrs
+      if attr != "md5_data" and (attr not in meta_1 or attr not in meta_2)
+    ]
+    # warn if the RAW is missing attributes, but don't fail since some RAWs don't have imgprops file.
+    if missing_attrs:
+      click.secho(f'WARNING: The following image attributes are missing in the manifest: {filename} {missing_attrs}', fg="yellow", err=True)
+
+    # we compare both data and metadata for raw files
+    return (
+      meta_1['md5'] == meta_2['md5'] and \
+      all(
+        meta_1[attr] == meta_2[attr]
+        for attr in checked_cde_attrs
+        if attr in meta_1 and attr in meta_2
+      )
     )
   else:
     return meta_1['md5'] == meta_2['md5']
