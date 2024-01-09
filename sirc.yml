@@ -117,6 +117,7 @@ services:
     - /sim:/sim:shared
     - /algo:/algo:shared
     - /data:/data:shared
+    - /net:/net:shared
     # we use a shared location to avoid using ~10G of local storage
     # but root can't write to it, so it's painful..
     # - /algo/ws/ispq/qaboard_data/_data:/var/qaboard
