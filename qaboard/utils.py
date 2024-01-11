@@ -128,7 +128,7 @@ def entrypoint_module(config):
       spec = importlib.util.spec_from_file_location(name, entrypoint)
       assert spec
       module = importlib.util.module_from_spec(spec)
-      sys.path.insert(0, str(entrypoint.parent))
+      sys.path.insert(0, os.path.abspath(str(entrypoint.parent)))
       spec.loader.exec_module(module)
       # sys.path.pop(0)
 
