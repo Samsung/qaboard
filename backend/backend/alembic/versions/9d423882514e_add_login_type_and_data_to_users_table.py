@@ -19,6 +19,7 @@ depends_on = None
 
 def upgrade():
   op.add_column('users', sa.Column('login_type', sa.String))
+  op.add_column('users', sa.Column('data', JSONB))
   # for each entry, set to login_type with values LOCAL/LDAP/SAML according to is_ldap and is_sso
   op.execute("""
               UPDATE users SET login_type = 
@@ -55,3 +56,4 @@ def downgrade():
               """)
 
   op.drop_column('users', 'login_type')
+  op.drop_column('users', 'data')
