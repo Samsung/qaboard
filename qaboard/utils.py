@@ -179,6 +179,8 @@ def input_metadata(absolute_input_path, database, input_path, config):
   #     metadata = {}
   else:
     metadata = {}
+  # update to metadata
+  metadata["_filter"] = str(absolute_input_path)
   return metadata
 
 
