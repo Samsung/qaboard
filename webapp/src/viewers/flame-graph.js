@@ -74,7 +74,7 @@ class FlameGraphComponent extends React.Component {
                           //  .height(400)
                            .title(props.title)
                            .onClick(this.onClick)
-                           .differential(props.differential ?? false)
+                           .computeDelta(props.differential ?? false)
     this.chart.inverted(true) // icicle plot
   }
   onClick = frame => {
