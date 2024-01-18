@@ -148,7 +148,12 @@ def fix_linux_permissions(path: Path):
     user = getuser()
     ssh = f"ssh -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
     hostname = f"{user}-vdi" if user != "sircdevops" else "qa"
-    chmod = f'{ssh} {user}@{hostname} \'chmod -R 777 "{windows_to_linux_path(path).as_posix()}"\''
+    def windowsize(path):
+       return windows_to_linux_path(path).as_posix()
+    # usually we use this function for artifact folders, but if the parent dir
+    # was also created it will have permissions too restrictive too,
+    # and it will break other commits!
+    chmod = f'{ssh} {user}@{hostname} \'chmod -R 777 "{windowsize(path)}"; chmod 777 "{windowsize(path.parent)}"\''
     click.secho(chmod, err=True)
     os.system(chmod)
   except Exception as e:
