@@ -5,7 +5,7 @@ from typing import Tuple, Optional, Dict, List
 import click
 
 
-def git_show(format: str, reference: str = None) -> str:
+def git_show(format: str, reference: Optional[str] = None) -> str:
   """
   Wrapper around git show --format={format} [reference]
 
