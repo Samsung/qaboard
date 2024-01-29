@@ -170,9 +170,10 @@ class BitAccuracyViewer extends React.Component {
 
   render() {
     const { tree, selected } = this.state;
-    const has_files = !!tree.new && !!tree.reference && tree.mixed.length !== 0
+    const has_files = !!tree.mixed && tree.mixed.length !== 0
+    const has_ref = !!this.props.manifests && !!this.props.manifests.reference
     const { type, ...props } = this.props;
-    return <div className={!has_files ? "viewer-no-files" : undefined}>
+    return <div className={(!has_files && has_ref) ? "viewer-no-files" : undefined}>
       {!has_files && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
       {has_files && tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
       <Tree
