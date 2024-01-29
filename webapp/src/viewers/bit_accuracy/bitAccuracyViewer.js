@@ -101,7 +101,7 @@ const applyStyle = (has_reference, color_blind_friendly) => node => {
     }
 
     let icon = 'document'
-    if (node.id.match(/(hex|bmp|raw|jpg|jpeg|mp4|imgprops)$/)) {
+    if (node.id.match(/(hex|png|bmp|raw|jpg|jpeg|mp4|imgprops)$/)) {
       icon = 'media'
     } else if (node.id.match(/\.(xml|html)$/)) {
       icon = 'code'
