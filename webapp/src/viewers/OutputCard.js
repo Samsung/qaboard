@@ -444,7 +444,7 @@ class OutputCard extends React.Component {
 
   render() {
     const { is_loaded, error, viewable } = this.state;
-    const { output_new, output_ref, config } = this.props;
+    const { output_new, output_ref, config, files_filter } = this.props;
 
     const has_output_new = output_new !== undefined && output_new !== null
     if (!has_output_new || (output_new.is_pending && !output_new.is_running))
