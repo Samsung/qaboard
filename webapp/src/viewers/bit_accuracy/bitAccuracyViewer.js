@@ -168,13 +168,13 @@ class BitAccuracyViewer extends React.Component {
     }
   }
 
-
   render() {
     const { tree, selected } = this.state;
-
+    const has_files = !!tree.new && !!tree.reference && tree.mixed.length !== 0
     const { type, ...props } = this.props;
-    return <div>
-      {!!tree.new && !!tree.reference && tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
+    return <div className={!has_files ? "viewer-no-files" : undefined}>
+      {!has_files && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
+      {has_files && tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
       <Tree
        contents={tree.mixed}
        onNodeClick={this.handleNodeClick}
@@ -226,7 +226,10 @@ class BitAccuracyViewer extends React.Component {
     }
     const matcher = match_query(props.files_filter)
     if (has_filter) {
-      tree_compared = filterNodes(tree_compared, node => matcher(node.id) || (node.childNodes !== undefined && node.childNodes.length > 0))
+      tree_compared = filterNodes(tree_compared, node => {
+        let state = node.nodeData.match ? 'match' : 'diff'
+        return matcher(`${state}:${node.id}`) || (node.childNodes !== undefined && node.childNodes.length > 0)
+      })
       forEachNode(tree_compared, node => {node.isExpanded = true} )    	
     }
 

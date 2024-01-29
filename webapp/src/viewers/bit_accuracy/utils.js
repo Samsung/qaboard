@@ -270,7 +270,7 @@ class BitAccuracyForm extends React.Component {
       <FormGroup
         inline
         labelFor="files-filter"
-        helperText="Only show files matching"
+        helperText={<span>Filter files.<br/>You can use <code>match:file.txt</code> or <code>diff:file.txt</code></span>}
         style={{flex: '50 1 auto'}}
       >
         <InputGroup

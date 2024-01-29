@@ -568,7 +568,7 @@ class OutputCard extends React.Component {
           show_all_files={this.props.show_all_files}
           expand_all={this.props.expand_all}
           color_blind_friendly={this.props.color_blind_friendly}
-          files_filter={this.props.files_filter}
+          files_filter={files_filter}
         />
       } else {
         content = <>
@@ -597,7 +597,7 @@ class OutputCard extends React.Component {
     // console.log(content)
     // console.log(this.state.manifests)
 
-    return <div style={container_style}>
+    return <div style={container_style} className="output-card">
       <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={{...maybe_style_skeleton, paddingBottom: !viewable && "100px"}}>
         {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
         {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}

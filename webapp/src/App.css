@@ -32,3 +32,8 @@ span.bp3-popover-wrapper {
     display: none;
   }
 }
+
+.output-card:has(.viewer-no-files) {
+  display: none;
+}
+
