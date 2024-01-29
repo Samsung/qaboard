@@ -110,7 +110,7 @@ const applyStyle = (has_reference, color_blind_friendly) => node => {
     } else if (node.id.match(/\.(bat|sh|exe|ps1)$/)) {
       icon = 'console'
     } else if (node.id.match(/\.plotly.json$/)) {
-      icon = 'area-chart'
+      icon = 'timeline-line-chart'
     } else if (node.id.match(/\.(csv)$/)) {
       icon = 'th-list'
     } else if (node.id.match(/\.json$/)) {
