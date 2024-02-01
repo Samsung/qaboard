@@ -81,6 +81,7 @@ def escaped_for_cli(string):
 mappings = (
   ('\\\\netapp\\algo_data', '/stage/algo_data'),
   ('\\\\netapp2\\algo_data', '/stage/algo_data'),
+  ('\\\\netapp\\algo-datasets', '/stage/algo-datasets'),
   ('\\\\f2\\algo_archive', '/stage/algo_archive'),
   ('\\\\mars\\stage\\jenkins_ws', '/stage/jenkins_ws'),
   ('\\\\mars\\stage\\algo_jenkins_ws', '/stage/algo_jenkins_ws'),
