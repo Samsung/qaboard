@@ -116,8 +116,11 @@ def matching_output(output_reference, outputs):
   def to_json(a):
     json_str = json.dumps(a, sort_keys=True)
     # the string edit distance scales quadratically
-    # we mitigate it..
-    return re.sub("(workspace|[{}\", '/.-_]|config|raw|bmp)", "", json_str)
+    # we tried to mitigate it
+    # print(json_str)
+    json_str = re.sub("(workspace|[{}\", '/.\-_]|config|raw|bmp)", "", json_str)
+    # print(json_str)
+    return json_str
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending]
   if not valid_outputs: return None
