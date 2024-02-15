@@ -278,7 +278,7 @@ def export_to_folder():
         def strip_config(c):
           c_prefix = serialize_config(common_data.get("configurations_prefix", 'placeholder-placeholder'))
           c_suffix = serialize_config(common_data.get("configurations_suffix", 'placeholder-placeholder'))
-          return c.replace(c_prefix, '').replace(c_suffix, '')
+          return c.replace(c_prefix, '').replace(c_suffix, '').replace("crop", "")
         stripped_config = slugify_hash(strip_config(output.configuration))
         # list of common SIRC-specific names
         stripped_config = stripped_config.replace('workspace-configurations-', '')
