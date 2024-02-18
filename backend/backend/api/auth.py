@@ -278,7 +278,11 @@ def auth_ldap(user_name, password):
       user_ldap = details[0][1]
       user_info["login_success"] = True
       user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
-      user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
+      if ldap_attr_email not in user_ldap:
+        user_info["email"] = None
+        user_info["error"] = f"missing-email-({ldap_attr_email} LDAP attribute)"
+      else:
+        user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
       # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
       user_info["data"] = simplejson.loads(simplejson.dumps(details)) 
     except (ldap.INVALID_CREDENTIALS, ldap.OPERATIONS_ERROR):
