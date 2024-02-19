@@ -234,7 +234,7 @@ const bit_accuracy_help = <Tooltip><Tag icon='help' minimal round large>Help</Ta
 
 class BitAccuracyForm extends React.Component {
   render() {
-    const { show_all_files, expand_all, color_blind_friendly, files_filter, toggle, update } = this.props;
+    const { show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update } = this.props;
     return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
       <FormGroup
         inline
@@ -246,6 +246,12 @@ class BitAccuracyForm extends React.Component {
           label="Show all files"
           checked={show_all_files}
           onChange={toggle('show_all_files')}
+          style={{ width: "300px" }}
+        />
+        <Switch
+          label="Hide runs without files"
+          checked={hide_runs_without_files}
+          onChange={toggle('hide_runs_without_files')}
           style={{ width: "300px" }}
         />
       </FormGroup>

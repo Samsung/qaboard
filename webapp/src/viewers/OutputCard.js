@@ -566,6 +566,7 @@ class OutputCard extends React.Component {
           manifests={this.state.manifests}
           style={style}
           show_all_files={this.props.show_all_files}
+          hide_runs_without_files={this.props.hide_runs_without_files}
           expand_all={this.props.expand_all}
           color_blind_friendly={this.props.color_blind_friendly}
           files_filter={files_filter}
