@@ -102,14 +102,16 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         inputs.append(cased_path(input_path))
       for i in inputs:
+        metadata = []
         if only or exclude:
           metadata = input_metadata(i, database, i.relative_to(database), qatools_config)
-          if only:
-            if not match(metadata, only): continue
-          if exclude:
-            if metadata:
-              if match(metadata, exclude): continue
-            if match(os.path.basename(i), exclude): continue
+          if only and not match(metadata, only): continue
+          if exclude and match(metadata, exclude): continue
+        # delete metadata that start with _
+        copy_metadata = metadata.copy()
+        for key in copy_metadata:
+          if '_' == key[0]:
+            del metadata[key]
         nb_inputs += 1
         yield i, database
 
