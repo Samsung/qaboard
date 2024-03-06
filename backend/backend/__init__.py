@@ -58,6 +58,7 @@ import backend.api.export_to_folder
 import backend.api.image
 import backend.api.milestones
 import backend.api.auth
+import backend.api.tasks
 
 # Enable cross-origin requests to avoid development headcaches  
 # cors = CORS(app, resources={r"/api/*": {"origins": "*"}})

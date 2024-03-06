@@ -93,6 +93,7 @@ services:
     - GITLAB_AUTH
     - GITLAB_ACCESS_TOKEN
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
+    - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
 
   frontend:
     image: "arthurflam/qaboard:frontend"

@@ -1,20 +1,17 @@
 import os
+import sys
+import time
+import psutil
 import subprocess
+from typing import Optional
 
 from celery import Celery
+sys.path.append(os.path.dirname(__file__))
+import celeryconfig
 
-from kombu.serialization import registry
-registry.enable('pickle')
 
 app = Celery('celery_app')
-app.conf.update(  
-    broker_url=os.environ.get('CELERY_BROKER_URL', 'pyamqp://guest:guest@qaboard:5672//'),
-    result_backend=os.environ.get('CELERY_RESULT_BACKEND', 'rpc://'),
-    task_serializer='pickle',
-    accept_content=['pickle', 'json'],
-    result_serializer='pickle',
-    enable_utc=True,
-)
+app.config_from_object(celeryconfig)
 
 from qaboard.config import config
 celery_config = config.get('runners', {}).get('celery', {})
@@ -42,4 +39,43 @@ def start(self, job, cwd=None, env=None):
       print(line, end='')
     process.wait()
     return process.returncode
+
+
+
+
+def find_process(env_key, env_value) -> Optional[psutil.Process]:
+    """Returns the process that includes a given environment variable."""
+    # Since the pids are sorted, it supports cases where the task spawns short-lived processes
+    processes = []
+    for pid in psutil.pids():
+        try:
+            p = psutil.Process(pid)
+            with p.oneshot(): # caches internal calls  
+              if p.environ().get(env_key) == env_value:
+                print(f"{p.name()}", ' '.join(p.cmdline()))
+                return p
+        except:
+            pass
+    return processes
+
+
+# Make it possible to use QA-Board's pool of celery worker
+# from other applications that expect to ssh directly to those hosts
+@app.task(name='ssh_task', serializer='json')
+def ssh_task(id):
+    tries = 10
+    ssh = None
+    while tries:
+        ssh = find_process("ID", id)
+        if ssh:
+            break
+        tries -= 1
+        time.sleep(1)
+        print(f"Waiting for SSH ({id})...")
+    if not ssh:
+        return
+    print(f"SSH started ({id})")
+    ssh.wait()
+    print(f"SSH finished ({id})")
+
 
