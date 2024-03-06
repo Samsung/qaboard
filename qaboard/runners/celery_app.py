@@ -46,7 +46,6 @@ def start(self, job, cwd=None, env=None):
 def find_process(env_key, env_value) -> Optional[psutil.Process]:
     """Returns the process that includes a given environment variable."""
     # Since the pids are sorted, it supports cases where the task spawns short-lived processes
-    processes = []
     for pid in psutil.pids():
         try:
             p = psutil.Process(pid)
@@ -56,7 +55,6 @@ def find_process(env_key, env_value) -> Optional[psutil.Process]:
                 return p
         except:
             pass
-    return processes
 
 
 # Make it possible to use QA-Board's pool of celery worker
