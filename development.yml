@@ -23,7 +23,7 @@ services:
   backend:
     volumes:
     - ./qaboard:/qaboard/qaboard
-    - ./qaboard:/usr/local/lib/python3.8/site-packages/qaboard
+    - ./qaboard:/usr/local/lib/python3.11/site-packages/qaboard
     - ./backend:/qaboard/backend
     - ./setup.py:/qaboard/setup.py
     environment:
