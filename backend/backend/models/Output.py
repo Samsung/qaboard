@@ -290,7 +290,7 @@ class Output(Base):
     output_dir = self.output_dir
     if not output_dir.exists():
       self.deleted = True
-      print("Empty output dir")
+      print(f"WARN: already deleted: {output_dir}")
       return
 
     if not soft:
