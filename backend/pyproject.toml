@@ -43,6 +43,7 @@ uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
 qaboard = { path = "..", optional = true } #, develop = true }
 scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
+psutil = "*"
 certifi = "*"
 requests = "*"
 celery = "*"
