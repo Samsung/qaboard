@@ -55,6 +55,7 @@ def find_process(env_key, env_value) -> Optional[psutil.Process]:
                 return p
         except:
             pass
+    return None
 
 
 # Make it possible to use QA-Board's pool of celery worker

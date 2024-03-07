@@ -17,7 +17,7 @@ from backend import app
 inspector = Inspect(app=celery_app)
 
 
-@app.get("/api/v1/task/celery/<id>")
+@app.post("/api/v1/task/celery/<id>")
 def task_celery(id):
     result = ssh_task.delay(id)
     while result.status == "PENDING":
