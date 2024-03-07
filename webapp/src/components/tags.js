@@ -187,7 +187,7 @@ class OutputTags extends React.Component {
   render() {
     const { platform, configurations, output_dir_url, id, deleted, is_pending, output_type } = this.props.output;
     const { mismatch } = this.props;
-    const cde_shs = Object.keys(this.props.manifests.new ?? []).filter(path => path.endsWith("cde.sh"))
+    const cde_shs = Object.keys(this.props.manifests?.new ?? []).filter(path => path.endsWith("cde.sh"))
     return <span style={this.props.style}>
       {deleted && <Tag icon="trash">deleted</Tag>}
       <PlatformTag platform={platform} />
