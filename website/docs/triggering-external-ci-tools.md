@@ -82,6 +82,7 @@ You can use some special variables in your strings with some `${VARIABLE}` templ
 - [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
 - **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
 - **Outputs** are saved under `commit.outputs_url`
+- **Selected runs:** with `batch`, `ref_batch`, `filter`, `ref_filter`, `ref_project`...
 - [etc](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js#L303)
 
 :::tip

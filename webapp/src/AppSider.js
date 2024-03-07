@@ -195,7 +195,7 @@ class ProjectSideResults extends React.Component {
   } 
 
   render() {
-    const { project, project_data={}, commit, batch } = this.props;
+    const { project, project_data={}, commit, new_batch, ref_batch } = this.props;
     const git = project_data.data?.git || {};
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
@@ -211,14 +211,18 @@ class ProjectSideResults extends React.Component {
     const project_qatools_config = (project_data.data || {}).qatools_config || {};
     const qatools_config = commit_qatools_config || project_qatools_config || {};
 
-    const has_optim = batch.data?.optimization === true;
+    const has_optim = new_batch?.data?.optimization === true;
     const active = view => this.props.selected_views.includes(view);
     return <>
       <IntegrationsMenus
         project={project}
         project_data={project_data}
         commit={commit}
-        batch={batch.label}
+        batch={new_batch?.label}
+        ref_batch={ref_batch?.label}
+        filter={this.props.filter}
+        ref_filter={this.props.ref_filter}
+        ref_project={this.props.ref_project}
         user={this.props.tuning_user}
       />
       <MenuDivider vertical="true" style={{marginBottom: '10px', marginTop: '1px'}}/>
@@ -230,7 +234,7 @@ class ProjectSideResults extends React.Component {
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
       <MenuItem icon="saved" text="Output Files" active={active('bit_accuracy')} onClick={this.set('selected_views', 'bit_accuracy')} />
-      <MenuItem icon="console" intent={(!!batch && batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
+      <MenuItem icon="console" intent={(!!new_batch && new_batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       <Divider vertical="true" style={{marginBottom: '10px', marginTop: '16px'}}/>
       <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
@@ -264,8 +268,32 @@ class AppSider extends React.Component {
         <Divider style={{marginBottom: '10px', marginTop: '10px'}}/>
         <ProjectSideAvatar project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} />
 
-        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && <ProjectSideCommitList commit={this.props.latest_commit} match={this.props.match} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} user={this.props.user} tuning_user={this.props.tuning_user}/>}
-        {window.location.pathname.includes('/commit/')  && <ProjectSideResults batch={this.props.batch} commit={this.props.commit} selected_views={this.props.selected_views} history={this.props.history} project={this.props.project} project_data={this.props.project_data} dispatch={this.props.dispatch} tuning_user={this.props.tuning_user}/>}
+        {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && 
+          <ProjectSideCommitList
+            commit={this.props.latest_commit}
+            match={this.props.match}
+            history={this.props.history}
+            project={this.props.project}
+            project_data={this.props.project_data}
+            dispatch={this.props.dispatch}
+            user={this.props.user}
+            tuning_user={this.props.tuning_user}
+          />}
+        {window.location.pathname.includes('/commit/')  &&
+          <ProjectSideResults
+            new_batch={this.props.new_batch}
+            commit={this.props.commit}
+            selected_views={this.props.selected_views}
+            history={this.props.history}
+            project={this.props.project}
+            project_data={this.props.project_data}
+            dispatch={this.props.dispatch}
+            tuning_user={this.props.tuning_user}
+            ref_batch={this.props.ref_batch}
+            filter={this.props.filter}
+            ref_filter={this.props.ref_filter}
+            ref_project={this.props.ref_project}
+          />}
       </ul>
     </Sider>
   }
@@ -284,13 +312,13 @@ const mapStateToProps = (state, ownProps) => {
   let project = projectSelector(state)
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
+  const { filter_batch_new: filter, filter_batch_ref: ref_filter, ref_project } = selected
   let { new_commit: commit } = commitSelector(state)
   const latest_commit = latestCommitSelector(state);
   const qatools_config = (project_data.data || {}).qatools_config || {}
   let selected_views = selected.selected_views || [ ( qatools_config.outputs || {}).default_tab_details || 'summary']
 
-
-  const { new_batch: batch } = batchSelector(state);
+  const { new_batch, ref_batch } = batchSelector(state);
   if (!state.projects.data[project]) {
     return {
       project,
@@ -300,7 +328,6 @@ const mapStateToProps = (state, ownProps) => {
       commit, // selected
       latest_commit, // on branch
       selected_views,
-      batch,
     };
   }
 
@@ -314,7 +341,8 @@ const mapStateToProps = (state, ownProps) => {
     branches: state.projects.data[project].branches ||  [],
     is_loading: state.projects.data[project].branches_loading,
     selected_views,
-    batch,
+    new_batch, ref_batch,
+    filter, ref_filter, ref_project,
     tuning_user: (!!state.tuning[project] && state.tuning[project].user) || (qatools_config.lsf || {}).user || "ispq",
     user: state.user ?? null,
   }
