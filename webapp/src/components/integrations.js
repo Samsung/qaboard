@@ -178,7 +178,7 @@ class IntegrationsMenus extends React.Component {
         const _integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
         let integrations = [...default_gitlab_integrations, ..._integrations]
         integrations = JSON.parse(JSON.stringify(integrations))
-        integrations.filter(i => (i.href !== undefined && i.src === undefined) || i.gitlabCI || i.jenkins)
+        integrations.filter(i => (i.href !== undefined && i.href !== "" && i.src === undefined) || i.gitlabCI || i.jenkins)
                     .forEach(integration => {
           try {
             integration = eval_templates_recusively(integration)
@@ -245,7 +245,7 @@ class IntegrationsMenus extends React.Component {
           // console.log(req_url, params)
           axios.post(req_url, params)
             .then(response => {
-                console.log("[update]", response)
+                // console.log("[update]", response)
                 this.setState({
                   integrations: {
                     ...this.state.integrations,

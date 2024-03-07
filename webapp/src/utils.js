@@ -355,6 +355,7 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
       ...rest,
       // branch,
       // commit,
+      // batch,
       // user,
   }
   if (branch !== undefined){

@@ -151,7 +151,14 @@ class ProjectSideCommitList extends React.Component {
         <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
         <MenuItem href={`/${project}/history/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
         <MenuDivider />
-        <IntegrationsMenus single_menu project={project} project_data={project_data} branch={is_branch ? match.params.name : reference_branch} commit={commit} user={this.props.tuning_user} />
+        <IntegrationsMenus
+          single_menu
+          project={project}
+          project_data={project_data}
+          branch={is_branch ? match.params.name : reference_branch}
+          commit={commit}
+          user={this.props.tuning_user}
+        />
         <MenuItem
           text="Milestones"
           icon="star"
@@ -207,7 +214,13 @@ class ProjectSideResults extends React.Component {
     const has_optim = batch.data?.optimization === true;
     const active = view => this.props.selected_views.includes(view);
     return <>
-      <IntegrationsMenus project={project} project_data={project_data} commit={commit} user={this.props.tuning_user} />
+      <IntegrationsMenus
+        project={project}
+        project_data={project_data}
+        commit={commit}
+        batch={batch.label}
+        user={this.props.tuning_user}
+      />
       <MenuDivider vertical="true" style={{marginBottom: '10px', marginTop: '1px'}}/>
 
       <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
