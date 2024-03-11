@@ -191,7 +191,10 @@ class JenkinsWindowsRunner(BaseRunner):
   def start(self, blocking=True, log_path=None, should_print_log=True) -> Dict:
     # To allow the jenkins job to write we need permissions to be wide open
     self.run_context.output_dir.mkdir(exist_ok=True, parents=True)
-    self.run_context.output_dir.chmod(0o777)
+    try: # can't be done reliably at SIRC
+      self.run_context.output_dir.chmod(0o777)
+    except:
+      pass
 
     # Can't use commands with more than 256 characters, so we use a script to save space
     command = self.run_context.command
