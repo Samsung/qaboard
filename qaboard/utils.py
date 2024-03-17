@@ -180,7 +180,7 @@ def input_metadata(absolute_input_path, database, input_path, config):
   else:
     metadata = {}
   # update to metadata
-  metadata["_filter"] = str(absolute_input_path)
+  metadata["input_path"] = str(absolute_input_path)
   return metadata
 
 
