@@ -279,11 +279,12 @@ class IntegrationsMenus extends React.Component {
     }
 
     render() {
-        const { single_menu, project_data={}, commit={} } = this.props;
-        const commit_qatools_config = commit?.data?.qatools_config || {};
-        const project_qatools_config = project_data?.data?.qatools_config || {};
+        const { single_menu, project_data={}, commit={}, batch } = this.props;
+        const batch_qatools_config = batch?.data?.qatools_config ?? {};
+        const commit_qatools_config = commit?.data?.qatools_config ?? {};
+        const project_qatools_config = project_data?.data?.qatools_config ?? {};
         // let _integrations = debug_integrations; // FIXME comment-out
-        const _integrations = commit_qatools_config.integrations || project_qatools_config.integrations || [];
+        const _integrations = batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
         let integrations = [...default_gitlab_integrations, ..._integrations]
         integrations = JSON.parse(JSON.stringify(integrations))
         const uses_default_integrations = true

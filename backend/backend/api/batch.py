@@ -33,15 +33,17 @@ def update_batch():
   if not batch.data:
     batch.data = {}
 
-  for attr in ("qatools_config", "qatools_metrics"):
+  for attr in ("qaboard_config", "qaboard_metrics"):
     if attr in data:
       # the first time we see a commit's data, we'll save it
       # we used to do it when receiving hooks from source control,
       # but it led to huge growth of the ci_commits table in a monorepo
       # with 100s of subprojects each full of config data
       if attr not in ci_commit.data:
-        ci_commit.data[attr] = data[attr]
+        ci_commit.data[attr.replace("qaboard", "qatools")] = data[attr]
         flag_modified(ci_commit, "data")
+        db_session.add(ci_commit)
+        db_session.commit()
       # And each batch can have changes vs its commit's config and metrics.
       # The use case is usually working locally with `qa --share` and
       # seeing updated visualizations and metrics.
