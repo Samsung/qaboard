@@ -218,7 +218,7 @@ class ProjectSideResults extends React.Component {
         project={project}
         project_data={project_data}
         commit={commit}
-        batch={new_batch?.label}
+        batch={new_batch}
         ref_batch={ref_batch?.label}
         filter={this.props.filter}
         ref_filter={this.props.ref_filter}
