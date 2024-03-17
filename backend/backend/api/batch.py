@@ -40,7 +40,7 @@ def update_batch():
       # but it led to huge growth of the ci_commits table in a monorepo
       # with 100s of subprojects each full of config data
       if attr not in ci_commit.data:
-        ci_commit.data[attr] = data[attr]
+        ci_commit.data[attr.replace("qaboard", "qatools")] = data[attr]
         flag_modified(ci_commit, "data")
         db_session.add(ci_commit)
         db_session.commit()
