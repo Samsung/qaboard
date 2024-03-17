@@ -74,7 +74,10 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
         client.tag(collection_name=collection, batch_id=batch_id, images=[image])
       except DuplicateMD5KeyError:
         prev_image = client.read_image(md5=image["md5"], collection_name=collection)
-        prev_paths = prev_image.get("paths", [])
+        if not prev_image.get("paths"): # can be None
+          prev_paths = []
+        else:
+          prev_paths = prev_image["paths"]
         paths = prev_paths.append(image["metadata"]["path"])
         client.update(collection_name=collection, update_data=[{
           "md5": image["md5"],
