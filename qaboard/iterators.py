@@ -108,9 +108,9 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
           if only and not match(metadata, only): continue
           if exclude and match(metadata, exclude): continue
         # delete metadata that start with _
-        copy_metadata = metadata.copy()
-        for key in copy_metadata:
-          if '_' == key[0]:
+        metadata_keys = list(metadata_keys.keys())
+        for k in metadata_keys:
+          if k.startswith('_') or k == "input_path":
             del metadata[key]
         nb_inputs += 1
         yield i, database
