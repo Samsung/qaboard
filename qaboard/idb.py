@@ -46,6 +46,7 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
     crop_names = ["X", "Y", "W", "H"]
     if all([crops.get(n) for n in crop_names]):
       return ','.join([crops[n] for n in crop_names])
+    return None
 
   for cde_run_dir in cde_run_dirs:
     for image in cde_images:
