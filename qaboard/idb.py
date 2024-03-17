@@ -1,0 +1,84 @@
+"""
+Track output images with http://gitlab-srv/Application-CIS/idb
+"""
+import re
+import json
+import shlex
+from typing import Optional
+
+from .config import commit_id, project
+
+from idb_client import client
+from idb_client.v2.client import DuplicateMD5KeyError
+
+
+cde_images = ("output.png", "output.bmp")
+
+
+def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
+  # we don't really know what the main input file is, but we can guess
+  if run_context.input_path.is_file():
+    raw_path = run_context.input_path
+    raw_info = input_files[manifest_path_str(run_context.input_path)]
+  else:
+    raw_path, raw_info = [i for i in input_files.items()][0]
+  raw_md5 = raw_info["md5"]
+
+  # we need to make some assumptions to extra CDE info, like assuming
+  # the output images are where CDE ran, using cde-python
+  cde_run_dirs = [
+    re.sub("cde.sh$", "", path)
+    for path in outputs_manifest
+    if path.endswith("cde.sh")
+  ]
+
+  def crop_run(run_dir: str) -> Optional[str]:
+    cde_sh = (run_context.output_dir / f"{run_dir}cde.sh").read_text()
+    crops = {}
+    crop_name = None
+    for arg in shlex.split(cde_sh):
+      if crop_name and arg.startswith("-"):
+        crop_name = None
+      if arg.startswith("-crop"):
+        crop_name = arg.replace("-crop", "")
+      if crop_name:
+        crops[crop_name] = arg
+    crop_names = ["X", "Y", "W", "H"]
+    if all([crops.get(n) for n in crop_names]):
+      return ','.join([crops[n] for n in crop_names])
+
+  for cde_run_dir in cde_run_dirs:
+    for image in cde_images:
+      output_image = f"{cde_run_dir}{image}"
+      if output_image not in outputs_manifest:
+        continue
+      output_image_info = outputs_manifest[output_image]
+
+      batch_id = project / commit_id / run_context.obj["batch_label"]
+      image = {
+        "md5": output_image_info["md5"],
+        "metadata": {
+          "path": str(run_context.output_dir / output_image),
+          "raw_md5": raw_md5,
+          "raw_path": str(raw_path),
+          "project": str(project),
+          "commit": commit_id,
+          "run_context": json.load((run_context.output_dir / 'run.json').open()),
+      }}
+      crop_str = crop_run(cde_run_dir)
+      if crop_str:
+        image["metadata"]["crop"] = crop_str
+      collection = "rgb_images"
+      try:
+        client.tag(collection_name=collection, batch_id=batch_id, images=[image])
+      except DuplicateMD5KeyError:
+        prev_image = client.read_image(md5=image["md5"], collection_name=collection)
+        prev_paths = prev_image.get("paths", [])
+        paths = prev_paths.append(image["metadata"]["path"])
+        client.update(collection_name=collection, update_data=[{
+          "md5": image["md5"],
+          "data": {
+            "paths": paths,
+            "path": image["metadata"]["path"],
+          },
+        }])
