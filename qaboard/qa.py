@@ -351,11 +351,11 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
 
   ###### SIRC-specific ########################################################
-  from .idb import update_idb
   try:
+    from .idb import update_idb
     update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
   except Exception as e:
-    print(f"WARNING: idb raise {e}")
+    print(f"WARNING: idb raised {e}")
 
   if os.name == "nt" and not run_context.obj.get('dryrun') and (run_context.obj.get('share') or is_ci):
     from qaboard.compat import fix_linux_permissions
