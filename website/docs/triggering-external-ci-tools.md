@@ -67,9 +67,9 @@ integrations:
     - text: 'Windows',
       icon: build
       webhook:
-      # all the options are send straight to the axios http library. For reference:
+      # all the options are sent straight to the axios http library. For reference:
       # https://github.com/axios/axios#axios-api
-      -  url: "https://my-application/${project}"
+         url: "https://my-application/${project}"
          method: POST
          data:
            branch: "${commit.branch}"

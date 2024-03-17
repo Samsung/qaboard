@@ -198,7 +198,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     with (run_context.output_dir / 'run.json').open('w') as f:
       json.dump({
         # run_context.database is always made absolute, we keep it relative if given so
-        "database": str(ctx.obj["database"]), 
+        "database": str(ctx.obj["database"]),
         "input_path": str(run_context.rel_input_path),
         "input_type": run_context.type,
         "configurations": run_context.configurations,
@@ -303,6 +303,11 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   # To help identify if input files change, we compute and save some metadata.
   manifest_inputs = run_context.obj.get('manifest-inputs', [run_context.input_path])
   input_files = {}
+  def manifest_path_str(path):
+    return windows_to_linux_path(path).as_posix()
+  def update_manifest(path):
+    path_str = manifest_path_str(path)
+    input_files[path_str] = file_info(path, config=config)
   for manifest_input in manifest_inputs:
     manifest_input = Path(manifest_input)
     if manifest_input.is_dir():
@@ -311,9 +316,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
           break
         if not path.is_file():
           continue
-        input_files[windows_to_linux_path(path).as_posix()] = file_info(path, config=config)
+        update_manifest(path)
     elif manifest_input.is_file():
-      input_files.update({windows_to_linux_path(manifest_input).as_posix(): file_info(manifest_input, config=config)})
+      update_manifest(manifest_input)
     try:
       with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
         json.dump(input_files, f, sort_keys=True, indent=2)
@@ -343,6 +348,14 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     notify_qa_database(**run_context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
+
+
+  ###### SIRC-specific ########################################################
+  try:
+    from .idb import update_idb
+    update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
+  except Exception as e:
+    print(f"WARNING: idb raised {e}")
 
   if os.name == "nt" and not run_context.obj.get('dryrun') and (run_context.obj.get('share') or is_ci):
     from qaboard.compat import fix_linux_permissions
