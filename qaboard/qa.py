@@ -319,12 +319,12 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
         update_manifest(path)
     elif manifest_input.is_file():
       update_manifest(manifest_input)
-    try:
-      with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
-        json.dump(input_files, f, sort_keys=True, indent=2)
-    except Exception as e:
-      click.secho(f'WARNING: When writing the input manifest:', fg="yellow", bold=True, err=True)
-      click.secho(str(e), fg="yellow", err=True)
+  try:
+    with (run_context.output_dir / 'manifest.inputs.json').open('w') as f:
+      json.dump(input_files, f, sort_keys=True, indent=2)
+  except Exception as e:
+    click.secho(f'WARNING: When writing the input manifest:', fg="yellow", bold=True, err=True)
+    click.secho(str(e), fg="yellow", err=True)
 
   output_data = {}
   try:
