@@ -263,7 +263,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
         patterns=patterns,
         ignore=ignore,
       )
-    else:
+    elif manifest_name == "manifest.outputs.json":
       comparison = cmpfiles(
         dir_1=dir_new,
         dir_2=dir_ref,
@@ -274,7 +274,9 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
       # print(dir_1)
       # print(dir_ref)
       # print(comparison)
-
+    else:
+      click.secho(f"ERROR: Could not find {manifest_name} in all runs", fg='red')
+      bit_accurate = False
     run_identifier = f"{run_identifier}  @{manifest_name}"
 
     if missing_runs:
