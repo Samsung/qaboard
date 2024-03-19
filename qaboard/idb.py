@@ -6,10 +6,11 @@ import json
 import shlex
 from typing import Optional
 
-from .config import commit_id, project
-
 from idb_client import client
 from idb_client.v2.client import DuplicateMD5KeyError
+from idb_client.v2.utils import Md5HashCalculator
+
+from .config import commit_id, project
 
 
 cde_images = ("output.png", "output.bmp")
@@ -53,16 +54,20 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
       output_image = f"{cde_run_dir}{image}"
       if output_image not in outputs_manifest:
         continue
-      output_image_info = outputs_manifest[output_image]
 
+      image_path = run_context.output_dir / output_image
+      # the md5 computed by QA-Board (outputs_manifest[output_image]["md5"]) is based on the whole-file
+      # while idb first parses the pixel data. Ideally we'd do the same
+      # and save that hash as "md5_hash" in the manifest
+      image_md5 = Md5HashCalculator.from_image(image_path)
       batch_id = project / commit_id / run_context.obj["batch_label"]
       image = {
-        "md5": output_image_info["md5"],
+        "md5": image_md5,
         "metadata": {
-          "path": str(run_context.output_dir / output_image),
+          "path": str(image_path),
           "raw_md5": raw_md5,
           "raw_path": str(raw_path),
-          "project": str(project),
+          "project": str(project.name),
           "commit": commit_id,
           "run_context": json.load((run_context.output_dir / 'run.json').open()),
       }}
@@ -73,14 +78,14 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
       try:
         client.tag(collection_name=collection, batch_id=batch_id, images=[image])
       except DuplicateMD5KeyError:
-        prev_image = client.read_image(md5=image["md5"], collection_name=collection)
+        prev_image = client.read_image(md5=image_md5, collection_name=collection)
         if not prev_image.get("paths"): # can be None
           prev_paths = []
         else:
           prev_paths = prev_image["paths"]
         paths = prev_paths.append(image["metadata"]["path"])
         client.update(collection_name=collection, update_data=[{
-          "md5": image["md5"],
+          "md5": image_md5,
           "data": {
             "paths": paths,
             "path": image["metadata"]["path"],
