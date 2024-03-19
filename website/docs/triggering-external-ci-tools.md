@@ -67,11 +67,11 @@ integrations:
     - text: 'Windows',
       icon: build
       webhook:
-      # all the options are sent straight to the axios http library. For reference:
-      # https://github.com/axios/axios#axios-api
+      # all the options are sent straight to the python requests library. For reference:
+      # https://requests.readthedocs.io/en/latest/api/#requests.request
          url: "https://my-application/${project}"
          method: POST
-         data:
+         json: # use "data" for a x-www-form-url-encoded body
            branch: "${commit.branch}"
 ```
 
