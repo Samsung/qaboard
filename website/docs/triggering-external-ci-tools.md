@@ -83,6 +83,7 @@ You can use some special variables in your strings with some `${VARIABLE}` templ
 - **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
 - **Outputs** are saved under `commit.outputs_url`
 - **Selected runs:** with `batch`, `ref_batch`, `filter`, `ref_filter`, `ref_project`...
+- **User properties**: `user.user_name` (you will get `null` if logged out), or other fields like `email`, `full_name`, `is_logged`...
 - [etc](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js#L303)
 
 :::tip
@@ -147,7 +148,9 @@ integrations:
       params:
         token: $TOKEN
       auth: {
-        username: $username
+        # this needs to be hardcoded with jenkins credentials
+        # hopefully of limited scope
+        username: <the-jenkins-username>
         password: api-token    # keep as-is
       data:
         commit: "${commit.id}"

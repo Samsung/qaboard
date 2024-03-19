@@ -157,7 +157,7 @@ class ProjectSideCommitList extends React.Component {
           project_data={project_data}
           branch={is_branch ? match.params.name : reference_branch}
           commit={commit}
-          user={this.props.tuning_user}
+          user={user}
         />
         <MenuItem
           text="Milestones"
@@ -195,7 +195,7 @@ class ProjectSideResults extends React.Component {
   } 
 
   render() {
-    const { project, project_data={}, commit, new_batch, ref_batch } = this.props;
+    const { project, project_data={}, commit, new_batch, ref_batch, user } = this.props;
     const git = project_data.data?.git || {};
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
@@ -223,7 +223,7 @@ class ProjectSideResults extends React.Component {
         filter={this.props.filter}
         ref_filter={this.props.ref_filter}
         ref_project={this.props.ref_project}
-        user={this.props.tuning_user}
+        user={user}
       />
       <MenuDivider vertical="true" style={{marginBottom: '10px', marginTop: '1px'}}/>
 
@@ -277,7 +277,6 @@ class AppSider extends React.Component {
             project_data={this.props.project_data}
             dispatch={this.props.dispatch}
             user={this.props.user}
-            tuning_user={this.props.tuning_user}
           />}
         {window.location.pathname.includes('/commit/')  &&
           <ProjectSideResults
@@ -288,7 +287,7 @@ class AppSider extends React.Component {
             project={this.props.project}
             project_data={this.props.project_data}
             dispatch={this.props.dispatch}
-            tuning_user={this.props.tuning_user}
+            user={this.props.user}
             ref_batch={this.props.ref_batch}
             filter={this.props.filter}
             ref_filter={this.props.ref_filter}
@@ -328,6 +327,7 @@ const mapStateToProps = (state, ownProps) => {
       commit, // selected
       latest_commit, // on branch
       selected_views,
+      user: state.user,
     };
   }
 
@@ -343,8 +343,7 @@ const mapStateToProps = (state, ownProps) => {
     selected_views,
     new_batch, ref_batch,
     filter, ref_filter, ref_project,
-    tuning_user: (!!state.tuning[project] && state.tuning[project].user) || (qatools_config.lsf || {}).user || "ispq",
-    user: state.user ?? null,
+    user: state.user,
   }
 }
 
