@@ -8,13 +8,12 @@ import {
     MenuDivider,
     Tag,
     Tooltip,
-    Toaster,
 } from "@blueprintjs/core";
 
 import { make_eval_templates_recursively } from '../utils';
 import { git_hostname, default_git_hostname } from "../utils"
+import { toaster } from "../toaster"
 
-export const toaster = Toaster.create();
   
 // TODO:
 // Today we support integrations with

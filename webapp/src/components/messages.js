@@ -8,13 +8,10 @@ import {
   Button,
   Tooltip,
   NonIdealState,
-  Toaster,
 } from "@blueprintjs/core";
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
 import { fetchCommit } from "../actions/commit";
-
-const toaster = Toaster.create();
-
+import { toaster } from "../toaster"
 
 
 class CommitWarningMessages extends React.Component {

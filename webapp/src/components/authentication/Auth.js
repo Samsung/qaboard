@@ -11,16 +11,14 @@ import {
   InputGroup,
   Button,
   Dialog,
-  Toaster,
 } from "@blueprintjs/core";
 import {LOGIN_TYPE} from "./constants";
 import { login, logout } from '../../actions/users'
+import { toaster } from "./../../toaster"
 
 // TODO:
 // - sign-up ?
 // - move login/logout to the action
-
-const toaster = Toaster.create();
 
 class AuthButton extends React.Component {
   constructor(props) {

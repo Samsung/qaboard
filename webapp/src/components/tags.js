@@ -14,15 +14,14 @@ import {
   Popover,
   Intent,
   Tooltip,
-  Toaster,
   Button,
 } from "@blueprintjs/core";
 
 import { fetchCommit } from "../actions/commit";
 import { linux_to_windows } from '../utils'
+import { toaster } from "../toaster"
 
 
-const toaster = Toaster.create();
 const on_copy = text => {
   toaster.show({
     message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
@@ -210,7 +209,7 @@ class OutputTags extends React.Component {
               axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true})
                 .then(() => {
                   this.setState({waiting: false})
-                  toaster.show({message: "Marked as finished.", intent: Intent.PRIMARY});
+                  toaster.show({message: "Marked as finished.", intent: Intent.SUCCESS});
                   this.refresh()
                 })
                 .catch(error => {
@@ -232,7 +231,7 @@ class OutputTags extends React.Component {
               axios.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false})
                 .then(() => {
                   this.setState({waiting: false})
-                  toaster.show({message: "Redo started.", intent: Intent.PRIMARY});
+                  toaster.show({message: "Redo started.", intent: Intent.SUCCESS});
                   this.refresh()
                 })
                 .catch(error => {
@@ -254,7 +253,7 @@ class OutputTags extends React.Component {
               axios.delete(`/api/v1/output/${id}/`)
                 .then(() => {
                   this.setState({waiting: false})
-                  toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
+                  toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
                   this.refresh()
                 })
                 .catch(error => {
@@ -276,7 +275,7 @@ class OutputTags extends React.Component {
               axios.delete(`/api/v1/output/${id}/?soft=true`)
                 .then(() => {
                   this.setState({waiting: false})
-                  toaster.show({message: "Deleted.", intent: Intent.PRIMARY});
+                  toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
                   this.refresh()
                 })
                 .catch(error => {
@@ -328,13 +327,13 @@ class OutputTags extends React.Component {
         </span>
         <Menu>
           {this.props.output_ref && <MenuDivider title="New Run" />}
-          <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(output_dir_url).slice(2))}} />
-          <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(output_dir_url))}} />
+          <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(output_dir_url).slice(2))}} />
+          <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(output_dir_url))}} />
           {
             this.props.output_ref && <>
             <MenuDivider title="Reference Run" />
-            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(this.props.output_ref.output_dir_url).slice(2))}} />
-            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(this.props.output_ref.output_dir_url))}} />
+            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(this.props.output_ref.output_dir_url).slice(2))}} />
+            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(this.props.output_ref.output_dir_url))}} />
             </>
           }
         </Menu>
@@ -364,7 +363,7 @@ class OutputTags extends React.Component {
                 })
                 .then(() => {
                   this.setState({waiting: false})
-                  toaster.show({message: "sent to WebCDE", intent: Intent.PRIMARY});
+                  toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS});
                   this.refresh()
                 })
                 .catch(error => {

@@ -13,15 +13,13 @@ import {
   NonIdealState,
   Button,
   Tag,
-  Toaster,
   Tab,
   Tabs,
-  Icon,
   Tooltip
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
+import { toaster } from "../../toaster"
 
-export const toaster = Toaster.create();
 
 const editor_options = {
   selectOnLineNumbers: true,
@@ -86,7 +84,6 @@ class AddRecordingsForm extends Component {
       }));
     toaster.show({
       message: `The request was sent!`,
-      intent: Intent.PRIMARY
     });
     post(`/api/v1/tests/groups?project=${this.props.project}&name=${name}`, {
       project: this.props.project,
@@ -95,7 +92,7 @@ class AddRecordingsForm extends Component {
       .then(response => {
         this.setState(prevState => ({submitted: {...prevState.submitted, [name]: false}}));
         toaster.show({
-          message: `...Acknowledged!`,
+          message: `Saved`,
           intent: Intent.SUCCESS
         });
       })
@@ -225,7 +222,7 @@ class AddRecordingsForm extends Component {
               onCopy={() => {
                 toaster.show({
                   message: "Copied to clipboard!",
-                  intent: Intent.PRIMARY
+                  intent: Intent.SUCCESS
                 });
               }}>
               <Tag interactive minimal round icon="duplicate">Copy</Tag>

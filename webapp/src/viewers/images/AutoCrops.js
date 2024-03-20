@@ -5,7 +5,6 @@ import {
   Button,
   Tag,
   Intent,
-  Toaster,
   ControlGroup,
   NumericInput,
   Position,
@@ -17,9 +16,7 @@ import {
   interpolateInferno,
 } from 'd3-scale-chromatic'
 import { rgb } from 'd3-color'
-
-
-const toaster = Toaster.create();
+import { toaster } from "../../toaster"
 
 
 let default_diff_type = "yiq"
@@ -184,7 +181,7 @@ class AutoCrops extends React.Component {
             this.setState({ send_report: false })
           }
 
-          toaster.show({ message: `${regions_of_interest.length} Regions of Interest`, intent: Intent.PRIMARY, timeout: 3000 });
+          toaster.show({ message: `${regions_of_interest.length} Regions of Interest`, intent: Intent.SUCCESS, timeout: 3000 });
         }
         else {
           toaster.show({ message: "No results. Try using a lower threshold?", intent: Intent.WARNING, timeout: 3000 });

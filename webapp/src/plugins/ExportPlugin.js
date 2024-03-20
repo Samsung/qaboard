@@ -14,8 +14,7 @@ import {
   Button,
 } from "@blueprintjs/core";
 
-import { Toaster } from "@blueprintjs/core";
-export const toaster = Toaster.create();
+import { toaster } from "../toaster"
 
 
 class ExportPlugin extends React.Component {

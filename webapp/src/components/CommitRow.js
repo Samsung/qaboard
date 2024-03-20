@@ -301,14 +301,14 @@ class CommitRow extends React.Component {
                   onCopy={() => {
                     toaster.show({
                       message: "Copied to clipboard!",
-                      intent: Intent.PRIMARY
+                      intent: Intent.SUCCESS
                     });
                   }}
                 >
                   <Icon
                     style={{marginLeft: '4px', marginRight: '4px'}}
                     title="Copy hash to clipboard"
-                    intent={Intent.PRIMARY}
+                    intent={Intent.SUCCESS}
                     icon="duplicate"
                   />
                 </CopyToClipboard>
@@ -318,8 +318,8 @@ class CommitRow extends React.Component {
             <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
               <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
               <Menu>
-                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.artifacts_url))}} />
-                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
+                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
                 <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
                 <MenuDivider title="Manage"/>
                 <MenuItem
@@ -335,7 +335,7 @@ class CommitRow extends React.Component {
                     axios.delete(`/api/v1/commit/${project}/${commit.id}/batches/`)
                       .then(response => {
                         this.setState({waiting: false})
-                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.PRIMARY});
+                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
                         this.refresh()
                       })
                       .catch(error => {
@@ -358,7 +358,7 @@ class CommitRow extends React.Component {
                     axios.delete(`/api/v1/commit/${commit.id}/batches/`)
                       .then(response => {
                         this.setState({waiting: false})
-                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.PRIMARY});
+                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
                         this.refresh()
                       })
                       .catch(error => {

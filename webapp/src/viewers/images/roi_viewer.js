@@ -8,14 +8,13 @@ import {
     MenuItem,
     Menu,
     Colors,
-    Toaster,
 } from "@blueprintjs/core";
 import copy from 'copy-to-clipboard';
 
 import { output_rois, Crop, fitTo } from "./crops"
 import AutoCrops from "./AutoCrops";
 
-const toaster = Toaster.create();
+import { toaster } from "../../toaster"
 const no_rois = {
     label: "Full Image",
     icon: "media",

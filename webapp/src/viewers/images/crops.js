@@ -7,14 +7,13 @@ import {
   Intent,
   Icon,
   Tooltip,
-  Toaster,
   IconSize,
 } from "@blueprintjs/core";
+import { toaster } from "../../toaster"
 
 
 import { iiif_url } from "./utils";
 
-const toaster = Toaster.create();
 
 
 const uniq_rois = rois => {

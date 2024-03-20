@@ -18,16 +18,16 @@ import {
   RadioGroup,
   Switch,
   Tag,
-  Toaster,
   Tooltip,
   Popover,
   Icon,
   Tab,
   Tabs,
 } from "@blueprintjs/core";
+import { toaster } from "../../toaster"
+
 
 import templates from './templates'
-export const toaster = Toaster.create();
 
 
 const MAX_RUNS = 5000;
@@ -273,7 +273,7 @@ class TuningForm extends Component {
     this.setState({ submitted: true });
     toaster.show({
       message: "Sent!",
-      intent: Intent.PRIMARY
+      intent: Intent.SUCCESS
     });
     post(`/api/v1/commit/${commit.id}/batch?project=${project}`, {
       project,

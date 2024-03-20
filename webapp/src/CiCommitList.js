@@ -11,13 +11,13 @@ import {
   NonIdealState,
   Spinner,
   Card,
-  Toaster,
 } from "@blueprintjs/core";
 
 import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
 import CommitsEvolution from "./CommitsEvolution";
 import { groupBy, match_query } from "./utils";
+import { toaster } from "./toaster"
 
 import { fetchCommits } from './actions/projects'
 import { default_date_range } from './defaults'
@@ -29,8 +29,6 @@ import {
   selectedSelector,
 } from './selectors/projects'
 
-
-export const toaster = Toaster.create();
 
 
 const WrapperCommitRows = styled.ul`

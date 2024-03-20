@@ -5,12 +5,10 @@ import {
   Classes,
   Intent,
   Callout,
-  Toaster,
 } from "@blueprintjs/core";
 import AuthButton from "./Auth"
 import { login, logout } from '../../actions/users'
-
-const toaster = Toaster.create();
+import { toaster } from "./../../toaster"
 
 
 class PrivateContent extends React.Component {

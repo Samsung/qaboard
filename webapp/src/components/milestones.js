@@ -22,13 +22,11 @@ import {
   Tooltip,
   Popover,
   Alert,
-  Toaster,
 } from "@blueprintjs/core";
 
 import { updateMilestones, fetchProjects } from "../actions/projects";
 import { match_query } from "../utils";
-
-const toaster = Toaster.create();
+import { toaster } from "../toaster"
 
 
 const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${batch?.label ?? 'default'}`
@@ -288,7 +286,7 @@ class CommitMilestoneEditor extends React.Component {
       .then(res => {
         toaster.show({
           message: !!should_delete ? 'Deleted' : 'Saved.',
-          intent: Intent.PRIMARY,
+          intent: Intent.SUCCESS,
           timeout: 4500,
         });
         // Causes the projects data to update, and the new milestone to be visible
@@ -360,7 +358,7 @@ class CommitMilestoneEditor extends React.Component {
         dispatch(updateMilestones(project, milestones))
         toaster.show({
           message: "Deleted.",
-          intent: Intent.PRIMARY,
+          intent: Intent.SUCCESS,
           timeout: 4000
         });
         break;

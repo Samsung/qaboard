@@ -20,7 +20,6 @@ import {
   Tooltip,
   Popover,
   Switch,
-  Toaster,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 
@@ -32,8 +31,7 @@ import { has_milestones, MilestonesMenu, CommitMilestoneEditor } from "./milesto
 import { shortId, linux_to_windows } from "../utils";
 import { fetchCommit } from "../actions/commit";
 import { updateSelected } from "../actions/selected";
-
-export const toaster = Toaster.create();
+import { toaster } from "../toaster"
 
 
 class CommitMessage extends React.PureComponent {
@@ -125,7 +123,7 @@ class CommitNavbar extends React.Component {
     axios.post(`/api/v1/batch/rename/`, {id: batch.id, label})
       .then(() => {
         this.setState({waiting: false})
-        toaster.show({message: `Renamed ${batch.label} to ${label}.`, intent: Intent.PRIMARY});
+        toaster.show({message: `Renamed ${batch.label} to ${label}.`, intent: Intent.SUCCESS});
         this.refresh()    
       })
       .catch(error => {
@@ -143,7 +141,7 @@ class CommitNavbar extends React.Component {
     axios.post(`/api/v1/batch/move/`, {id: batch.id, label, filter})
       .then(() => {
         this.setState({waiting: false})
-        toaster.show({message: `Moved to ${label}.`, intent: Intent.PRIMARY});
+        toaster.show({message: `Moved to ${label}.`, intent: Intent.SUCCESS});
         this.refresh()
       })
       .catch(error => {
@@ -288,13 +286,13 @@ class CommitNavbar extends React.Component {
             <Icon icon="menu" className={Classes.TEXT_MUTED}/>
             <Menu>
               <MenuDivider title="Commit"/>
-              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(commit.artifacts_url))}} />
-              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
+              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
               <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               {has_selected_batch && <>
               <MenuDivider title="Batch"/>
-              <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.PRIMARY}); copy(linux_to_windows(batch.batch_dir_url))}} />
-              <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.PRIMARY}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
+              <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(batch.batch_dir_url))}} />
+              <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
               <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               <MenuDivider/>
               <Dialog
@@ -372,7 +370,7 @@ class CommitNavbar extends React.Component {
                   axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
                     .then(response => {
                       this.setState({waiting: false})
-                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
                       this.refresh()
                     })
                     .catch(error => {
@@ -393,7 +391,7 @@ class CommitNavbar extends React.Component {
                   axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
                     .then(response => {
                       this.setState({waiting: false})
-                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
                       this.refresh()
                     })
                     .catch(error => {
@@ -414,7 +412,7 @@ class CommitNavbar extends React.Component {
                   axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
                     .then(response => {
                       this.setState({waiting: false})
-                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
                       this.refresh()
                       setTimeout(this.refresh,  1*1000)
                       setTimeout(this.refresh,  5*1000)
@@ -441,7 +439,7 @@ class CommitNavbar extends React.Component {
                   })
                     .then(response => {
                       this.setState({waiting: false})
-                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
+                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
                       this.refresh()
                       update(`selected_batch_${type}`)('default')
                     })
@@ -466,7 +464,7 @@ class CommitNavbar extends React.Component {
                   })
                     .then(response => {
                       this.setState({waiting: false})
-                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.PRIMARY});
+                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
                       this.refresh()
                       update(`selected_batch_${type}`)('default')
                     })
@@ -553,7 +551,7 @@ class CommitNavbar extends React.Component {
     const { show_delete_batches_values, files_delete_filter, soft_delete } = this.state;
     const { commit, project, project_data } = this.props;
     this.setState({waiting: true})
-    toaster.show({message: `Deleting ${show_delete_batches_values.length} batches.`, intent: Intent.PRIMARY});
+    toaster.show({message: `Deleting ${show_delete_batches_values.length} batches.`});
     let requests = []
     show_delete_batches_values.forEach(b => {
       let batch = commit.batches[b]
@@ -571,7 +569,7 @@ class CommitNavbar extends React.Component {
     })
     Promise.all(requests).then( responses => {
         this.setState({waiting: false})
-        toaster.show({message: `Deleted.`, intent: Intent.PRIMARY});
+        toaster.show({message: `Deleted.`, intent: Intent.SUCCESS});
         this.refresh()
         if (isDeleteBatchSelected(this.state.selected.selected_batch_new)) {
           update(`selected_batch_${type}`)('default')

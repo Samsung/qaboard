@@ -22,7 +22,6 @@ import {
   Menu,
   MenuItem,
   MenuDivider,
-  Toaster,
   PopoverInteractionKind,
 } from "@blueprintjs/core";
 import copy from 'copy-to-clipboard'
@@ -35,8 +34,8 @@ import { humanFileSize, humanElapsedTime } from "./bit_accuracy/utils";
 import { updateSelected } from "../actions/selected";
 import { linux_to_windows, is_same_data } from '../utils'
 import { is_image } from "./images/utils"
+import { toaster } from "../toaster"
 
-export const toaster = Toaster.create();
 
 // ES2018.....
 Object.fromEntries = arr => Object.assign({}, ...Array.from(arr, ([k, v]) => ({ [k]: v })));

@@ -20,11 +20,9 @@ import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { BitAccuracyForm } from "./viewers/bit_accuracy/utils";
 import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median } from "./utils";
-
+import { toaster } from "./toaster"
 import CommitRow from "./components/CommitRow";
 
-import { Toaster } from "@blueprintjs/core";
-export const toaster = Toaster.create();
 
 let default_layout = {
   width: 1200,
