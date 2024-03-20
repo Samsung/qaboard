@@ -14,82 +14,28 @@ The screenshots are not up-to-date; the menu is now named **"Actions & Links"**
 :::
 
 
-
 ## Adding badges and external links
 Configure your project's *qaboard.yaml* like so to display direct links to docs, build artifacts, coverage reports, etc:
 
 ```yaml title="qaboard.yaml"
+# Show basic links
 integrations:
 - text: Docs
-  href: http://my-project/docs
+  href: https://my-project/docs
 
+# Show images, commonly used to display "badges"
 - src: https://gitlab.com/my/project/badges/develop/coverage.svg
-  href: http://my-project/docs
+  href: https://my-project/docs
   alt: Coverage Report
+  # if you want to display items in the side-bar directly,
+  # not within the "Action & Links" menu, you can use:
+  in_menu: false
 ```
 
 :::tip
-The menu item will be disabled if the link doesn't work.
-To show a link but run the check on an other URL, you can provide `url`, `method` (POST..), etc. If you add `allow_failed: true` the link is always enabled.
+The menu item will be disabled if the link doesn't work (HTTP `HEAD` request).
+To show a link but run the check on an other URL, you can provide `url`, `method` (e.g. `POST`), etc. If you add `allow_failed: true` the link is always enabled.
 :::
-
-## Play GitlabCI manual jobs
-Configure your project with:
-```yaml title="qaboard.yaml"
-integrations:
-  - text: Gitlab Job
-    gitlabCI:
-      job_name: build-linux
-```
-<img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
-
-  ## Trigger Jenkins builds
-```yaml title="qaboard.yaml"
-integrations:
-  - text: Jenkins Triggered Build
-    jenkins:
-      build_url: $JENKINS_URL/job/CDE_Project_Linux
-      # You can include the token from the job's configuration page
-      # token: qaboard   # default value # FIXME: make it empty in the OSS version
-      parameters:
-        commit: "${commit.id}"
-```
-
-You must enable "triggering the build via scripts/webhooks" in the job's configuration. Parameters are optional.
-
-## Using webhooks
-You can use webhooks to trigger a variety of external tools:
-
-```yaml
-integrations:
-  - text: Jenkins Triggered Build
-    webhook:
-    - text: 'Windows',
-      icon: build
-      webhook:
-      # all the options are sent straight to the python requests library. For reference:
-      # https://requests.readthedocs.io/en/latest/api/#requests.request
-         url: "https://my-application/${project}"
-         method: POST
-         json: # use "data" for a x-www-form-url-encoded body
-           branch: "${commit.branch}"
-```
-
-## Using variables
-You can use some special variables in your strings with some `${VARIABLE}` templating:
-- **Commit**: `commit.id`, `commit.branch`, `commit.branch_slug`... Also `branch`.
-- **Project**: `project` (full project name), `subproject` (project name relative to the root project), 
-- [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
-- **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
-- **Outputs** are saved under `commit.outputs_url`
-- **Selected runs:** with `batch`, `ref_batch`, `filter`, `ref_filter`, `ref_project`...
-- **User properties**: `user.user_name` (you will get `null` if logged out), or other fields like `email`, `full_name`, `is_logged`...
-- [etc](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js#L303)
-
-:::tip
-If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages. You can add a dummy `only: {branch}`.
-:::
-
 
 
 ## Styling the integrations
@@ -114,7 +60,80 @@ integrations:
   # --snip--
 ```
 
-## Example: Jenkins integration via Webhooks
+Show nested items with:
+```yaml
+integrations:
+- text: "level 1"
+  sub:
+  - text: level 1: A
+  - text: level 1: B
+```
+
+
+## Using webhooks
+You can use webhooks to trigger a variety of external tools:
+
+```yaml
+integrations:
+  - text: Jenkins Triggered Build
+    webhook:
+    - text: 'Windows',
+      icon: build
+      webhook:
+      # all the options are sent straight to the python requests library. For reference:
+      # https://requests.readthedocs.io/en/latest/api/#requests.request
+         url: "https://my-application/${project}"
+         method: POST
+         json: # use "data" for a x-www-form-url-encoded body
+           branch: "${commit.branch}"
+```
+
+> If the response is in JSON format, users will see a status badge pointing to its `url` field. It will open automatically if the response has a `open: true` field. You can specify additionnal properties like explained below.
+
+## Dynamic integrations using "variables"
+You can use some special variables in your strings with some `${VARIABLE}` templating:
+- **Commit**: `commit.id`, `commit.branch`, `commit.branch_slug`... Also `branch`.
+- **Project**: `project` (full project name), `subproject` (project name relative to the root project), 
+- [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
+- **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
+- **Outputs** are saved under `commit.outputs_url`
+- **Selected runs:** with `batch`, `ref_batch`, `filter`, `ref_filter`, `ref_project`...
+- **User properties**: `user.user_name` (you will get `null` if logged out), or other fields like `email`, `full_name`, `is_logged`...
+- [etc](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js#L303)
+
+:::tip
+If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages. You can add a dummy `only: {branch}`.
+:::
+
+
+## Play GitlabCI manual jobs
+Configure your project with:
+```yaml title="qaboard.yaml"
+integrations:
+  - text: Gitlab Job
+    gitlabCI:
+      job_name: build-linux
+```
+<img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
+
+
+## Trigger Jenkins builds
+```yaml title="qaboard.yaml"
+integrations:
+  - text: Jenkins Triggered Build
+    jenkins:
+      build_url: $JENKINS_URL/job/CDE_Project_Linux
+      # You can include the token from the job's configuration page
+      # token: qaboard   # default value # FIXME: make it empty in the OSS version
+      parameters:
+        commit: "${commit.id}"
+```
+
+You must enable "triggering the build via scripts/webhooks" in the job's configuration. Parameters are optional.
+
+
+
+## Webhook Example: Jenkins integration via Webhooks
 :::caution
 The out-of-the-box jenkins integration above is much better! This is just an example with webhooks!
 :::
