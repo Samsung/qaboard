@@ -1,5 +1,5 @@
 import { OverlayToaster, Position } from "@blueprintjs/core";
 
-export const toaster = OverlayToaster.createAsync({
+export const toaster = OverlayToaster.create({
     position: Position.BOTTOM,
 });
