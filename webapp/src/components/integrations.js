@@ -315,9 +315,8 @@ class IntegrationsMenus extends React.Component {
 
           if (integration.gitlabCI || integration.jenkins) {
             // console.log(status)
-            let label = has_error ? <Tooltip>
+            let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
                                       <Tag round icon="cross" intent="danger"/>
-                                      <span>{JSON.stringify(status.error.message)}</span>
                                     </Tooltip>
                                   : <JobTag job={status?.job}/>
             return <MenuItem

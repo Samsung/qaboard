@@ -54,11 +54,10 @@ class CommitBranchButton extends React.PureComponent {
     const { commit, onClick, style } = this.props;
     const has_branch = !!commit && !!commit.branch
     return <span style={style}>
-      <Tooltip>
+      <Tooltip content={<span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>}>
         <Tag style={{marginLeft: '10px', padding: '5px'}} interactive minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
           <span className="hide-small-screen">{has_branch ? commit.branch : 'master'}</span>
         </Tag>
-        <span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>
       </Tooltip>
     </span>
   }
@@ -247,7 +246,7 @@ class CommitNavbar extends React.Component {
             <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
             <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
-            {!!commit && !!commit.error && <Tooltip><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag><span>{commit.error}</span></Tooltip>}
+            {!!commit && !!commit.error && <Tooltip content={<span>{commit.error}</span>}><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag></Tooltip>}
           </div>
         </FormGroup>
       </NavbarGroup>
@@ -255,13 +254,13 @@ class CommitNavbar extends React.Component {
         <FormGroup
           style={{marginTop: '36px'}}
           labelFor={`filter-${type}-input`}
-          helperText={type === 'new' ? <Tooltip>
-            <><BatchTags batch={batch.filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
-            <ul>
+          helperText={type === 'new' ? <Tooltip content={<ul>
               <li>You can use negative filters: <code>-2X5</code></li>
               <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
               <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
-            </ul>
+            </ul>}
+          >
+            <><BatchTags batch={batch.filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
           </Tooltip> : <BatchTags batch={batch.filtered}/>}
         >
           <InputGroup
@@ -286,226 +285,226 @@ class CommitNavbar extends React.Component {
             disabled={this.props.loading}
             onClick={this.refresh}
           />
-          <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
+          <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"} content={<Menu>
+            <MenuDivider title="Commit"/>
+            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
+            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+            <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+            {has_selected_batch && <>
+            <MenuDivider title="Batch"/>
+            <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(batch.batch_dir_url))}} />
+            <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
+            <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+            <MenuDivider/>
+            <Dialog
+              isOpen={this.state.show_rename_dialog}
+              onOpening={() => this.setState({dst_batch_label: batch.label})}
+              onClose={() => this.setState({show_rename_dialog: false})}
+              title={filter.length > 0 ? "Rename whole batch" : "Rename batch" }
+              icon="edit"
+            >
+              <div className={Classes.DIALOG_BODY}>
+                <input
+                  value={this.state.dst_batch_label}
+                  onChange={event => this.setState({dst_batch_label: event.target.value})}
+                  className={Classes.INPUT}
+                  style={{marginBottom: '15px'}}
+                />
+                <p>You won't be able to rename a batch with pending outputs.</p>
+              </div>
+              <div className={Classes.DIALOG_FOOTER}>
+                <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+                  <Button onClick={() => this.setState({show_rename_dialog: false})}>Close</Button>
+                  <Button onClick={this.renameBatch} intent={Intent.PRIMARY}>Rename</Button>
+                </div>
+              </div>
+            </Dialog>
+            <Dialog
+              isOpen={this.state.show_move_dialog}
+              onOpening={() => this.setState({dst_batch_label: batch.label})}
+              onClose={() => this.setState({show_move_dialog: false})}
+              title={filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch" }
+              icon="send-to-graph"
+            >
+              <div className={Classes.DIALOG_BODY}>
+                <input
+                  value={this.state.dst_batch_label}
+                  onChange={event => this.setState({dst_batch_label: event.target.value})}
+                  className={Classes.INPUT}
+                  style={{marginBottom: '15px'}}
+                />
+                <p>The destination batch will be created if needed.</p>
+              </div>
+              <div className={Classes.DIALOG_FOOTER}>
+                <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+                  <Button onClick={() => this.setState({show_move_dialog: false})}>Close</Button>
+                  <Button onClick={this.moveBatch} intent={Intent.PRIMARY}>Move</Button>
+                </div>
+              </div>
+            </Dialog>
+            <MenuItem
+              icon="send-to-graph"
+              text={filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch"}
+              minimal
+              disabled={this.state.waiting}
+              shouldDismissPopover={false}
+              onClick={() => this.setState({show_move_dialog: true})}
+            >
+            </MenuItem>
+            <MenuItem
+              icon="edit"
+              text={filter.length > 0 ? "Rename whole batch" : "Rename batch"}
+              minimal
+              disabled={this.state.waiting}
+              shouldDismissPopover={false}
+              onClick={() => this.setState({show_rename_dialog: true})}
+            />
+            {batch.deleted_outputs > 0 && <MenuItem
+              icon="redo"
+              text="Redo Deleted Outputs"
+              intent={Intent.WARNING}
+              minimal
+              disabled={this.state.waiting || commit?.deleted}
+              onClick={() => {
+                this.setState({waiting: true})
+                toaster.show({message: "Redo of deleted outputs requested."});
+                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
+                  .then(response => {
+                    this.setState({waiting: false})
+                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
+                    this.refresh()
+                  })
+                  .catch(error => {
+                    this.setState({waiting: false });
+                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  });
+              }}
+            />}
+            {batch.failed_outputs > 0 && <MenuItem
+              icon="redo"
+              text="Redo Failed Outputs"
+              intent={Intent.WARNING}
+              minimal
+              disabled={this.state.waiting || commit?.deleted}
+              onClick={() => {
+                this.setState({waiting: true})
+                toaster.show({message: "Redo of failed outputs requested."});
+                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
+                  .then(response => {
+                    this.setState({waiting: false})
+                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
+                    this.refresh()
+                  })
+                  .catch(error => {
+                    this.setState({waiting: false });
+                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  });
+              }}
+            />}
+            <MenuItem
+              icon="redo"
+              text="Redo All Outputs"
+              intent={Intent.WARNING}
+              minimal
+              disabled={this.state.waiting || commit?.deleted}
+              onClick={() => {
+                this.setState({waiting: true})
+                toaster.show({message: "Redo requested."});
+                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
+                  .then(response => {
+                    this.setState({waiting: false})
+                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
+                    this.refresh()
+                    setTimeout(this.refresh,  1*1000)
+                    setTimeout(this.refresh,  5*1000)
+                    setTimeout(this.refresh, 10*1000)
+                  })
+                  .catch(error => {
+                    this.setState({waiting: false });
+                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+                  });
+              }}
+            />
+            <MenuDivider/>
+            <MenuItem
+              icon="trash"
+              text={`Delete Failed Outputs${soft_delete ? "' Files" : ''}`}
+              intent={Intent.DANGER}
+              minimal
+              disabled={this.state.waiting}
+              onClick={() => {
+                this.setState({waiting: true})
+                toaster.show({message: "Delete requested for failed outputs."});
+                axios.delete(`/api/v1/batch/${batch.id}/`, {
+                  params: {only_failed: true, soft: soft_delete, filter: files_delete_filter}
+                })
+                  .then(response => {
+                    this.setState({waiting: false})
+                    toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
+                    this.refresh()
+                    update(`selected_batch_${type}`)('default')
+                  })
+                  .catch(error => {
+                    this.setState({waiting: false });
+                    toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                    this.refresh()
+                  });
+              }}
+            />
+            <MenuItem
+              icon={!is_milestone ? "trash" : "crown"}
+              text={`Delete All Outputs${soft_delete ? "' Files" : ''}`}
+              intent={Intent.DANGER}
+              minimal
+              disabled={this.state.waiting || (is_milestone && !soft_delete)}
+              onClick={() => {
+                this.setState({waiting: true})
+                toaster.show({message: "Delete requested."});
+                axios.delete(`/api/v1/batch/${batch.id}/`, {
+                  params: {soft: soft_delete, filter: files_delete_filter}
+                })
+                  .then(response => {
+                    this.setState({waiting: false})
+                    toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
+                    this.refresh()
+                    update(`selected_batch_${type}`)('default')
+                  })
+                  .catch(error => {
+                    this.setState({waiting: false });
+                    toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
+                    this.refresh()
+                  });
+              }}
+            />
+            <MenuItem
+                text={<em>Delete files, keep metadata</em>}
+                shouldDismissPopover={false}
+                labelElement={<Switch checked={soft_delete} innerLabelChecked="soft" onChange={() => this.setState({soft_delete: !soft_delete})} />}
+            />
+            <MenuItem
+              icon="trash"
+              text={"Delete multiple batches"}
+              intent={Intent.DANGER}
+              minimal
+              disabled={this.state.waiting}
+              shouldDismissPopover={false}
+              onClick={() => this.setState({show_delete_batches_dialog: true})}
+            />
+            {soft_delete && <InputGroup
+              placeholder="Delete patterns (*.png, **/*.py)"
+              leftIcon="filter"
+              value={files_delete_filter}
+              className={filter === '' ? undefined : Intent.PRIMARY}
+              onChange={e => {
+                this.setState({files_delete_filter: e.target.value})
+              }}
+              fill
+            />
+            }
+          </>}
+          </Menu>
+          }>
             <Icon icon="menu" className={Classes.TEXT_MUTED}/>
-            <Menu>
-              <MenuDivider title="Commit"/>
-              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
-              <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
-              <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
-              {has_selected_batch && <>
-              <MenuDivider title="Batch"/>
-              <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(batch.batch_dir_url))}} />
-              <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
-              <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
-              <MenuDivider/>
-              <Dialog
-                isOpen={this.state.show_rename_dialog}
-                onOpening={() => this.setState({dst_batch_label: batch.label})}
-                onClose={() => this.setState({show_rename_dialog: false})}
-                title={filter.length > 0 ? "Rename whole batch" : "Rename batch" }
-                icon="edit"
-              >
-                <div className={Classes.DIALOG_BODY}>
-                  <input
-                    value={this.state.dst_batch_label}
-                    onChange={event => this.setState({dst_batch_label: event.target.value})}
-                    className={Classes.INPUT}
-                    style={{marginBottom: '15px'}}
-                  />
-                  <p>You won't be able to rename a batch with pending outputs.</p>
-                </div>
-                <div className={Classes.DIALOG_FOOTER}>
-                  <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-                    <Button onClick={() => this.setState({show_rename_dialog: false})}>Close</Button>
-                    <Button onClick={this.renameBatch} intent={Intent.PRIMARY}>Rename</Button>
-                  </div>
-                </div>
-              </Dialog>
-              <Dialog
-                isOpen={this.state.show_move_dialog}
-                onOpening={() => this.setState({dst_batch_label: batch.label})}
-                onClose={() => this.setState({show_move_dialog: false})}
-                title={filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch" }
-                icon="send-to-graph"
-              >
-                <div className={Classes.DIALOG_BODY}>
-                  <input
-                    value={this.state.dst_batch_label}
-                    onChange={event => this.setState({dst_batch_label: event.target.value})}
-                    className={Classes.INPUT}
-                    style={{marginBottom: '15px'}}
-                  />
-                  <p>The destination batch will be created if needed.</p>
-                </div>
-                <div className={Classes.DIALOG_FOOTER}>
-                  <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-                    <Button onClick={() => this.setState({show_move_dialog: false})}>Close</Button>
-                    <Button onClick={this.moveBatch} intent={Intent.PRIMARY}>Move</Button>
-                  </div>
-                </div>
-              </Dialog>
-              <MenuItem
-                icon="send-to-graph"
-                text={filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch"}
-                minimal
-                disabled={this.state.waiting}
-                shouldDismissPopover={false}
-                onClick={() => this.setState({show_move_dialog: true})}
-              >
-              </MenuItem>
-              <MenuItem
-                icon="edit"
-                text={filter.length > 0 ? "Rename whole batch" : "Rename batch"}
-                minimal
-                disabled={this.state.waiting}
-                shouldDismissPopover={false}
-                onClick={() => this.setState({show_rename_dialog: true})}
-              />
-              {batch.deleted_outputs > 0 && <MenuItem
-                icon="redo"
-                text="Redo Deleted Outputs"
-                intent={Intent.WARNING}
-                minimal
-                disabled={this.state.waiting || commit?.deleted}
-                onClick={() => {
-                  this.setState({waiting: true})
-                  toaster.show({message: "Redo of deleted outputs requested."});
-                  axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
-                    .then(response => {
-                      this.setState({waiting: false})
-                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                      this.refresh()
-                    })
-                    .catch(error => {
-                      this.setState({waiting: false });
-                      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                    });
-                }}
-              />}
-              {batch.failed_outputs > 0 && <MenuItem
-                icon="redo"
-                text="Redo Failed Outputs"
-                intent={Intent.WARNING}
-                minimal
-                disabled={this.state.waiting || commit?.deleted}
-                onClick={() => {
-                  this.setState({waiting: true})
-                  toaster.show({message: "Redo of failed outputs requested."});
-                  axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
-                    .then(response => {
-                      this.setState({waiting: false})
-                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                      this.refresh()
-                    })
-                    .catch(error => {
-                      this.setState({waiting: false });
-                      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                    });
-                }}
-              />}
-              <MenuItem
-                icon="redo"
-                text="Redo All Outputs"
-                intent={Intent.WARNING}
-                minimal
-                disabled={this.state.waiting || commit?.deleted}
-                onClick={() => {
-                  this.setState({waiting: true})
-                  toaster.show({message: "Redo requested."});
-                  axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
-                    .then(response => {
-                      this.setState({waiting: false})
-                      toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                      this.refresh()
-                      setTimeout(this.refresh,  1*1000)
-                      setTimeout(this.refresh,  5*1000)
-                      setTimeout(this.refresh, 10*1000)
-                    })
-                    .catch(error => {
-                      this.setState({waiting: false });
-                      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                    });
-                }}
-              />
-              <MenuDivider/>
-              <MenuItem
-                icon="trash"
-                text={`Delete Failed Outputs${soft_delete ? "' Files" : ''}`}
-                intent={Intent.DANGER}
-                minimal
-                disabled={this.state.waiting}
-                onClick={() => {
-                  this.setState({waiting: true})
-                  toaster.show({message: "Delete requested for failed outputs."});
-                  axios.delete(`/api/v1/batch/${batch.id}/`, {
-                    params: {only_failed: true, soft: soft_delete, filter: files_delete_filter}
-                  })
-                    .then(response => {
-                      this.setState({waiting: false})
-                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
-                      this.refresh()
-                      update(`selected_batch_${type}`)('default')
-                    })
-                    .catch(error => {
-                      this.setState({waiting: false });
-                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
-                      this.refresh()
-                    });
-                }}
-              />
-              <MenuItem
-                icon={!is_milestone ? "trash" : "crown"}
-                text={`Delete All Outputs${soft_delete ? "' Files" : ''}`}
-                intent={Intent.DANGER}
-                minimal
-                disabled={this.state.waiting || (is_milestone && !soft_delete)}
-                onClick={() => {
-                  this.setState({waiting: true})
-                  toaster.show({message: "Delete requested."});
-                  axios.delete(`/api/v1/batch/${batch.id}/`, {
-                    params: {soft: soft_delete, filter: files_delete_filter}
-                  })
-                    .then(response => {
-                      this.setState({waiting: false})
-                      toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
-                      this.refresh()
-                      update(`selected_batch_${type}`)('default')
-                    })
-                    .catch(error => {
-                      this.setState({waiting: false });
-                      toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
-                      this.refresh()
-                    });
-                }}
-              />
-              <MenuItem
-                  text={<em>Delete files, keep metadata</em>}
-                  shouldDismissPopover={false}
-                  labelElement={<Switch checked={soft_delete} innerLabelChecked="soft" onChange={() => this.setState({soft_delete: !soft_delete})} />}
-              />
-              <MenuItem
-                icon="trash"
-                text={"Delete multiple batches"}
-                intent={Intent.DANGER}
-                minimal
-                disabled={this.state.waiting}
-                shouldDismissPopover={false}
-                onClick={() => this.setState({show_delete_batches_dialog: true})}
-              />
-              {soft_delete && <InputGroup
-                placeholder="Delete patterns (*.png, **/*.py)"
-                leftIcon="filter"
-                value={files_delete_filter}
-                className={filter === '' ? undefined : Intent.PRIMARY}
-                onChange={e => {
-                  this.setState({files_delete_filter: e.target.value})
-                }}
-                fill
-              />
-              }
-            </>}
-            </Menu>
           </Popover>
         </>}
           <Dialog

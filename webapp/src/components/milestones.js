@@ -118,9 +118,8 @@ const MilestoneMenu = ({ project, milestone, onSelect, icon }) => {
       {has_filter && <Tag minimal style={{marginRight: '5px'}} icon="filter">{filter}</Tag>}
       {!!milestone.branch && <Tag minimal icon="git-branch" style={{marginRight: '5px'}}>{milestone.branch}</Tag>}
       {!!commit_id && <Tag minimal icon="git-commit" style={{marginRight: '5px'}}>{commit_id.slice(0, 8)}</Tag>}
-      {has_notes && <Tooltip position="right">
+      {has_notes && <Tooltip position="right" content={<pre>{notes}</pre>}>
         <Tag icon="more" style={{marginRight: '5px'}}/>
-        <pre>{notes}</pre>
       </Tooltip>}
     </>}
     onClick={() => !!onSelect && onSelect(milestone)}

@@ -86,12 +86,11 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
-  let metric_tag = <Tooltip>
+  let metric_tag = <Tooltip content={<span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>}>
     <CompoundTag style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}} minimal intent={!!metric_info.target ? intent : null} leftContent={metric_info.short_label}>
       {value_component}
       {compare_tag}
     </CompoundTag>
-    <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
   </Tooltip>;
 
   if (metric_info.key === 'is_failed') {
@@ -556,17 +555,15 @@ class MetricsSummary extends Component {
           return (
             <MetricRow key={idx}>
               <MetricTile>
-                <Tooltip>
+                <Tooltip content={<span>{m.scale * new_med}{m.suffix}</span>}>
                   <h3 className={Classes.HEADING}>
                     {metric_formatter(m.scale * new_med, m)}{m.suffix}
                     <span style={{ color: "#ccc" }}> median</span>
                   </h3>
-                    <span>{m.scale * new_med}{m.suffix}</span>
                 </Tooltip>
                 <br/>
-                <Tooltip>
+                <Tooltip content={<span>{m.label}</span>}>
                   <h5 className={Classes.HEADING}>{m.short_label}</h5>
-                  <span>{m.label}</span>
                 </Tooltip>
                 <br/>
                 {m.target !== undefined && <SuccessBar success_frac={new_pc_good} />}
@@ -575,19 +572,17 @@ class MetricsSummary extends Component {
               {!breakdown_by_tag && (
                 <>
                   {ref_values.length > 0 && <MetricTile>
-                    <Tooltip>
+                    <Tooltip content={<span>{m.scale * ref_med}{m.suffix}</span>}>
                       <h3 className={Classes.HEADING} style={{ color: color_ref }}>
                         <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
                       </h3>
-                      <span>{m.scale * ref_med}{m.suffix}</span>
                     </Tooltip>
                     <h5 className={Classes.HEADING}>
-                      <Tooltip>
+                      <Tooltip content={<span>{100 * delta_relative}</span>}>
                       <Tag intent={intent}>
                         {delta_relative > 0 ? "+" : ""}
                         {percent_formatter.format(100 * delta_relative)}%
                       </Tag>
-                      <span>{100 * delta_relative}</span>
                       </Tooltip>
                     </h5>
                     {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} />}

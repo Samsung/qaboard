@@ -54,12 +54,12 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
     quality = Math.max(Math.min(quality, 0.9), 0.08)
     return <td style={{ background: metric_ref && interpolateRdYlGn(quality) }}>
-      <Tooltip>
-        {delta === 0 ? "=" : <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>}
-        <ul>
+      <Tooltip content={<ul>
           <li><strong>New:</strong> {metric_new * metric.scale}{metric.suffix}</li>
           <li><strong>Reference:</strong> {metric_ref * metric.scale}{metric.suffix}</li>
-        </ul>
+        </ul>}
+      >
+        {delta === 0 ? "=" : <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>}
       </Tooltip>
     </td>
   } else {
@@ -90,9 +90,8 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
   const metric_for_display = is_numeric ? metric * metric_info.scale : metric
   return (
     <td style={{ background: metric_info.target !== undefined && is_numeric && color }}>
-      {is_numeric ? <Tooltip>
-       <span>{metric_ref === metric ? '=' : metric_formatter(metric_for_display, metric_info)}</span>
-       <span>{metric_for_display}{metric_info.suffix}</span>
+      {is_numeric ? <Tooltip content={<span>{metric_for_display}{metric_info.suffix}</span>}>
+        <span>{metric_ref === metric ? '=' : metric_formatter(metric_for_display, metric_info)}</span>
       </Tooltip> : <span><RunBadge badge={metric}/></span>}
     </td>
   );
@@ -192,9 +191,8 @@ const TableKpi = ({
             <th />
             {metrics_.map(m => (
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
-                <Tooltip>
+                <Tooltip content={<span>{m.label}</span>}>
                   <span>{m.short_label}</span>
-                  <span>{m.label}</span>
                 </Tooltip>
                 {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
                   [{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]

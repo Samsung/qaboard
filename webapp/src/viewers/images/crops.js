@@ -73,9 +73,9 @@ const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
   const tooltip_text = `Invalid coordinates for ${roi.label} ! ${JSON.stringify(roi)}`
   return <Tooltip
     intent={is_valid ? undefined : Intent.DANGER}
+    content={<p align="center">{tooltip_text}</p>}
   >
     {crop_image}
-    <p align="center">{tooltip_text}</p>
   </Tooltip>
 };
 
@@ -143,7 +143,7 @@ const CropSelection = ({ roiCoords, image_width, image_height }) => {
     const to_clipboard =
       `width: ${image_width}\nheight: ${image_height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(width)}, h: ${Math.round(height)}, label: ""}`;
     return (
-      <Tooltip hoverCloseDelay={1000}>
+      <Tooltip hoverCloseDelay={1000} content={<span>{to_clipboard}</span>}>
         <Button
           minimal="true"
           style={{ marginRight: '5px', marginLeft: '5px' }}
@@ -158,7 +158,6 @@ const CropSelection = ({ roiCoords, image_width, image_height }) => {
             size={IconSize.LARGE}
           />
         </Button>
-        <span>{to_clipboard}</span>
       </Tooltip>
     )
   }

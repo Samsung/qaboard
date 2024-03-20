@@ -341,7 +341,7 @@ class OutputTags extends React.Component {
       </Popover>
       {cde_shs.map(cde_sh => {
         const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
-        return <Tooltip>
+        return <Tooltip content="Open in WebCDE">
         <Button
             outlined={true}
             style={{margin: "5px"}}
@@ -384,8 +384,7 @@ class OutputTags extends React.Component {
                 });
               })
             }}
-          />
-          <span>Open in WebCDE</span>
+        />
         </Tooltip>}
       )}
       <MismatchTags mismatch={mismatch}/>

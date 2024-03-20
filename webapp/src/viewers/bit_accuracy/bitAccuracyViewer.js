@@ -142,7 +142,9 @@ const applyStyle = (has_reference, color_blind_friendly) => node => {
     let has_size = node.nodeData.st_size !== undefined && node.nodeData.st_size !== null
     let size_real = has_size ? node.nodeData.st_size.toLocaleString('fr-FR') : '?'
     let size_human = has_size ? humanFileSize(node.nodeData.st_size, true) : '?'
-    node.secondaryLabel = <Tooltip><span className={Classes.TEXT_MUTED}>{size_human}</span><span>{size_real} B</span></Tooltip>
+    node.secondaryLabel = <Tooltip content={<span>{size_real} B</span>}>
+      <span className={Classes.TEXT_MUTED}>{size_human}</span>
+    </Tooltip>
 }
 
 

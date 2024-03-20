@@ -171,13 +171,12 @@ class BatchStatusMessages extends React.Component {
         icon="info-sign"
         intent={Intent.SUCCESS}
         title={
-          <Tooltip>
+          <Tooltip content={<SimpleOutputList
+            outputs={outputs.filter(o => o.is_running)}
+          />}>
             <span>
               {batch.filtered.running_outputs} running
             </span>
-            <SimpleOutputList
-              outputs={outputs.filter(o => o.is_running)}
-            />
           </Tooltip>
         }
       />
@@ -188,14 +187,13 @@ class BatchStatusMessages extends React.Component {
         icon="info-sign"
         intent={Intent.WARNING}
         title={
-          <Tooltip>
+          <Tooltip content={<SimpleOutputList
+            outputs={outputs.filter(o => o.is_pending && !o.is_running)}
+            intent={Intent.WARNING}
+          />}>
             <span>
               {nb_pending} pending
             </span>
-            <SimpleOutputList
-              outputs={outputs.filter(o => o.is_pending && !o.is_running)}
-              intent={Intent.WARNING}
-            />
           </Tooltip>
         }
       />

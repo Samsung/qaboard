@@ -136,22 +136,20 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                 {type}({value.map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
             </code>
             {(data_on_wrong_pixel && !loading && !error) && <Icon style={{color: Colors.GRAY5}} title="move to refresh" icon="hand"></Icon>}
-            {error && <Tooltip>
+            {error && <Tooltip content={<p>{JSON.stringify(error?.message || error )}</p>}>
                 <Icon icon="warning-sign" intent="danger"/>
-                <p>{JSON.stringify(error?.message || error )}</p>
             </Tooltip>}
         </>}
         {!hide_diplay && <>
             <code style={margin}>
                 RGB-display({[r, g, b].map((v, idx) => <span key={idx}>{prefix}{v.toString(formatting[base].base)}</span>).reduce((acc, x) => acc === null ? [x] : [acc, ', ', x], null)})
             </code>
-            <Tooltip style={{marginLeft: '5px'}}>
+            <Tooltip style={{marginLeft: '5px'}} content={<ul>
+                <li>The <code>RGB-display</code> values are what's displayed on your screen at this pixel.</li>
+                <li>The {type} values are the "real" pixel values at the selected pixel location.</li>
+                <li>Click to toggle hex/decimal numbers</li>
+            </ul>}>
                 <Icon icon="info-sign" style={{color: Colors.GRAY5}}/>
-                <ul>
-                    <li>The <code>RGB-display</code> values are what's displayed on your screen at this pixel.</li>
-                    <li>The {type} values are the "real" pixel values at the selected pixel location.</li>
-                    <li>Click to toggle hex/decimal numbers</li>
-                </ul>
             </Tooltip>
         </>}
     </span>

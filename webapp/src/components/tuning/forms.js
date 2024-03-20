@@ -579,9 +579,8 @@ class TuningForm extends Component {
         />
       </FormGroup>} */}
 
-      {lsf_runner &&<Tooltip>
+      {lsf_runner &&<Tooltip content="Make sure to setup your shell environment correctly">
         <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
-        Make sure to setup your shell environment correctly
       </Tooltip>}
 
       {search_type === "optimize" && <>

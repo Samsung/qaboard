@@ -18,7 +18,7 @@ const IeDeprecationWarning = () => {
 				right: "15px",
 			}}
 			>
-				<Tooltip>
+				<Tooltip content="Please use a modern browser (eg Chrome/Firefox/Edge/Safari/...)">
 			        <Tag
 			        	icon="warning-sign"
 			        	intent={Intent.WARNING}
@@ -27,9 +27,6 @@ const IeDeprecationWarning = () => {
 			        >
 			        	This application does not fully support Internet Explorer.
 			        </Tag>
-                    <span>
-                    	Please use a modern browser (eg Chrome/Firefox/Edge/Safari/...)
-                    </span>
 				</Tooltip>
      </div>
 }

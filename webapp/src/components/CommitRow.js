@@ -144,7 +144,21 @@ class CommitResults extends React.Component {
           </Link>
         )}
         {tuning_batches_labels.length > 0 && (
-          <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000}>
+          <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000} content={<div>
+            {tuning_batches_labels.map(label => {
+                let batch = commit.batches[label];
+                let status = `${batch.valid_outputs}/${batch.valid_outputs+batch.pending_outputs+batch.failed_outputs} ✅`;
+                let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
+                return <Link
+                        key={label}
+                        to={`/${project}/commit/${commit.id}?batch=${label}`}
+                        onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: label}))}
+                       >
+                  <Button style={{margin: '5px'}}>{pretty_label(batch)} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
+                </Link>
+            })}
+            </div>}
+          >
             <Tag
               intent={Intent.SUCCESS}
               minimal
@@ -152,20 +166,6 @@ class CommitResults extends React.Component {
             >
               {tuning_batches_labels.length} other batch{tuning_batches_labels.length > 1 ? "es" : ""}
             </Tag>
-            <div>
-              {tuning_batches_labels.map(label => {
-                  let batch = commit.batches[label];
-                  let status = `${batch.valid_outputs}/${batch.valid_outputs+batch.pending_outputs+batch.failed_outputs} ✅`;
-                  let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
-                  return <Link
-                          key={label}
-                          to={`/${project}/commit/${commit.id}?batch=${label}`}
-                          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: label}))}
-                         >
-                    <Button style={{margin: '5px'}}>{pretty_label(batch)} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
-                  </Link>
-              })}
-            </div>
           </Tooltip>
         )}
         {ci_batch.valid_outputs === 0 && <Link
@@ -203,15 +203,15 @@ class CommitResults extends React.Component {
                 </strong>{" "}
                 avg {default_metric_info.short_label}
               </Tag>
-              {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip modifiers>
-                <Tag minimal round>...</Tag>
-                <ul className={Classes.LIST}>
+              {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip modifiers content={<ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
                     <li key={k}>
                       <strong>{k}:</strong> {formatter(v)}
                     </li>
                   ))}
-                </ul>
+                </ul>}
+              >
+                <Tag minimal round>...</Tag>
               </Tooltip>}
             </Fragment>}
       </Fragment>
@@ -289,13 +289,12 @@ class CommitRow extends React.Component {
             {commit_has_milestones && <Icon icon="star" style={{color: Colors.GOLD5}} />}
             <Message className={maybe_skeletton}>{has_data ? commit.message : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
             <div>
-              <Tooltip>
+              <Tooltip content="View Commit Diff">
                 <CommitShortId project={project} href={commit_url}>
                   {shortId(project, commit.id)}
                 </CommitShortId>
-                <span>View Commit Diff</span>
               </Tooltip>
-              <Tooltip>
+              <Tooltip content="Copy to clipboard">
                 <CopyToClipboard
                   text={commit.id}
                   onCopy={() => {
@@ -312,7 +311,6 @@ class CommitRow extends React.Component {
                     icon="duplicate"
                   />
                 </CopyToClipboard>
-                <span>Copy to clipboard</span>
               </Tooltip>
 
             <Popover

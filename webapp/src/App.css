@@ -9,16 +9,16 @@ body {
   /*font-family: sans-serif;*/
 }
 
-span.bp4-popover-target {
+span.bp5-popover-target {
   vertical-align: baseline !important;
 }
 
-.limit-overflow .bp4-transition-container {
+.limit-overflow .bp5-transition-container {
   max-height: 500px;
   overflow-y: scroll;
 }
 
-.bp4-card.output-card {
+.bp5-card.output-card {
   padding: 5px;
   margin-bottom: 15px;
 }

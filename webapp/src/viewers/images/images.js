@@ -614,23 +614,23 @@ class ImgViewer extends React.PureComponent {
     const switch_help_label = <span>Switch New/Reference with the keyboard shortcut <kbd>t</kbd>. Hide labels with <kbd>h</kbd></span>
     const image_new = <div style={flex} key="new">
       {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
-        {!hide_labels ? <Tooltip><Tag
+        {!hide_labels ? <Tooltip content={switch_help_label}><Tag
           interactive
           style={{backgroundColor: Colors.CERULEAN4}}
           rightIcon="exchange"
           onClick={this.switch_images}
-        >new</Tag>{switch_help_label}</Tooltip> : switch_label}
+        >new</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
     const image_ref = <div style={flex} key="ref">
       {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
-        {!hide_labels ? <Tooltip><Tag
+        {!hide_labels ? <Tooltip content={switch_help_label}><Tag
           interactive
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >{!has_same_data ? "reference" : 'reference (same-image)'}</Tag>{switch_help_label}</Tooltip> : switch_label}
+        >{!has_same_data ? "reference" : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>
@@ -675,14 +675,13 @@ class ImgViewer extends React.PureComponent {
         </div></div>
       </div>
       <br />
-      <Tooltip hoverCloseDelay={500}>
-        <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
-        <ul>
+      <Tooltip hoverCloseDelay={500} content={<ul>
           <li>The color difference is computed according to the paper "Measuring perceived color difference using YIQ NTSC transmission color space in mobile applications" by Y. Kotsarenko and F. Ramos</li>
           <li>The colorscale shows the color difference ~linearly until selected saturation threshold.</li>
           <li>Until 5% of the threshold, a greyed-out source image is shown</li>
           <li>Anti-aliased pixels are shown as yellow at most.</li>
-        </ul>
+      </ul>}>
+        <p><Icon icon="info-sign" style={{ color: Colors.GRAY2 }} /></p>
       </Tooltip>
     </div> : <></>
     //       {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
@@ -718,11 +717,8 @@ class ImgViewer extends React.PureComponent {
             current_roi={current_roi}
          />}
         <span>
-          {this.show_histogram && <Tooltip>
+          {this.show_histogram && <Tooltip content={<ul><li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li></ul>}>
             <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
-            <ul>
-              <li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li>
-            </ul>
           </Tooltip>}
           <Tooltips
             x={this.state.x}

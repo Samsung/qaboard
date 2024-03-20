@@ -226,7 +226,7 @@ let help = <>
     <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
   </ul>
 </>
-const bit_accuracy_help = <Tooltip><Tag icon='help' minimal round large>Help</Tag>{help}</Tooltip>;
+const bit_accuracy_help = <Tooltip content={help}><Tag icon='help' minimal round large>Help</Tag></Tooltip>;
 
 
 

@@ -605,11 +605,14 @@ class OutputCard extends React.Component {
 
     return <div style={container_style} className="output-card">
       <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={{...maybe_style_skeleton, paddingBottom: !viewable && "100px"}}>
-        {error.new && <Tooltip key="error-new"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag><span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} /></Tooltip>}
-        {error.reference && <Tooltip key="error-ref"><Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag><span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} /></Tooltip>}
-        {error.parse && <Tooltip key="error-parse">
+        {error.new && <Tooltip key="error-new" content={<span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} />}>
+          <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag>
+        </Tooltip>}
+        {error.reference && <Tooltip key="error-ref" content={<span dangerouslySetInnerHTML={{ __html: !!error.reference.response ? error.reference.response.data : error.reference }} />}>
+          <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag>
+        </Tooltip>}
+        {error.parse && <Tooltip key="error-parse" content={<ul>{error.parse.map(e => <li><strong>{e.path}:</strong> {e.message}</li>)}</ul>}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Parsing Error</Tag>
-          <ul>{error.parse.map(e => <li><strong>{e.path}:</strong> {e.message}</li>)}</ul>
         </Tooltip>}
 
         {!this.props.no_header && <OutputHeader

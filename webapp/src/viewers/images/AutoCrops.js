@@ -65,8 +65,7 @@ class AutoCrops extends React.Component {
           {diff_type_options.map(type => <option key={type.type} value={type.type} >{type.label ?? type.type}</option>)}
         </HTMLSelect>
         {this.state.error && <Tag intent={Intent.DANGER}>Error: {JSON.stringify(this.state.error)}</Tag>}
-        {false && <><Tooltip content=
-          {<ul>
+        {false && <><Tooltip content={<ul>
             <li>Threshold [%]</li>
             <li>hold 'alt' for minor step</li>
             <li>hold 'shift' for major step</li>

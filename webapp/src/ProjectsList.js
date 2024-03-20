@@ -144,7 +144,7 @@ class ProjectsList extends Component {
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>
-                    <Tooltip>
+                    <Tooltip content="Pin on top of the list.">
                       <Button
                         minimal
                         icon={<Icon
@@ -153,7 +153,6 @@ class ProjectsList extends Component {
                           style={{color: Colors.GOLD5}}
                         />}
                       />
-                      <span>Pin on top of the list.</span>
                     </Tooltip>
                     <a href={git.web_url} style={{textDecoration: "none"}}><Button icon="git-repo" minimal round text="Source" style={{color: 'rgb(85, 85, 85)'}}/></a>
                   </p>
