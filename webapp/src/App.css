@@ -9,22 +9,23 @@ body {
   /*font-family: sans-serif;*/
 }
 
-span.bp3-popover-wrapper {
+span.bp4-popover-wrapper {
   vertical-align: baseline !important;
 }
 
-.limit-overflow .bp3-transition-container {
+.limit-overflow .bp4-transition-container {
   max-height: 500px;
   overflow-y: scroll;
 }
 
-.fullscreen-enabled {
-  background: white;
-}
-
-.bp3-card.output-card {
+.bp4-card.output-card {
   padding: 5px;
   margin-bottom: 15px;
+}
+
+
+.fullscreen-enabled {
+  background: white;
 }
 
 @media only screen and (max-width: 1100px) {

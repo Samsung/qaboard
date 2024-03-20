@@ -59,7 +59,7 @@ const FullScreenableSlimCard = props => {
   const reportChange = useCallback((state, handle) => {
     props.updateFullscreen(state)
   }, [handle]);
-  return <SlimCard className={props.className} style={props.style}>
+  return <SlimCard compact className={props.className} style={props.style}>
     <div style={{position: "relative"}}>
       <Tag title="Enter Full Screen" style={{position: "absolute", right: "0px", top: "0px"}} icon="fullscreen" interactive minimal onClick={handle.enter}/>
     </div>
@@ -454,6 +454,11 @@ class OutputCard extends React.Component {
       ...(config?.outputs?.style || {}),
       ...(this.props.style || {}),
     }
+
+    // const has_filter = !!files_filter && files_filter.length > 0;
+    // if (has_filter) {
+    //   const matcher = match_query(files_filter)
+    // }
 
 
     var content;

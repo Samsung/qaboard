@@ -8,6 +8,7 @@ import {
   Icon,
   Tooltip,
   Toaster,
+  IconSize,
 } from "@blueprintjs/core";
 
 
@@ -155,7 +156,7 @@ const CropSelection = ({ roiCoords, image_width, image_height }) => {
           <Icon
             icon="clipboard"
             intent={Intent.PRIMARY}
-            iconSize={Icon.SIZE_LARGE}
+            size={IconSize.LARGE}
           />
         </Button>
         <span>{to_clipboard}</span>

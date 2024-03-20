@@ -577,7 +577,7 @@ class MetricsSummary extends Component {
                   {ref_values.length > 0 && <MetricTile>
                     <Tooltip>
                       <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" iconSize={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
+                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
                       </h3>
                       <span>{m.scale * ref_med}{m.suffix}</span>
                     </Tooltip>

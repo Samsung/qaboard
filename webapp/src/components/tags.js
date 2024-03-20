@@ -323,7 +323,6 @@ class OutputTags extends React.Component {
         <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
           <Icon
             title="Copy-to-Clipboard"
-            iconSize={Icon.SIZE_SMALL}
             icon="duplicate"
           />
         </span>
@@ -347,7 +346,7 @@ class OutputTags extends React.Component {
             outlined={true}
             style={{margin: "5px"}}
             disabled={this.state.waiting}
-            icon="send-to"
+            icon="open-application"
             text={cde_shs.length === 1 ? 'WebCDE' : cde_dir}
             onClick={() => {
               this.setState({waiting: true})

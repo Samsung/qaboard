@@ -84,7 +84,7 @@ class UserMenu extends React.Component {
   render() {
     return <>
         <MenuItem
-          text={<Icon icon="user"iconSize={Icon.SIZE_LARGE}/>}
+          text={<Icon icon="user" size={IconSize.LARGE}/>}
           popoverProps={{
             usePortal: true,
             // portalClassName: "limit-overflow",

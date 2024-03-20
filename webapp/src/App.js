@@ -17,10 +17,14 @@ import IeDeprecationWarning from './components/IeDeprecationWarning'
 
 import { fetchProjects, fetchProject } from './actions/projects'
 
-import "../node_modules/@blueprintjs/core/lib/css/blueprint.css";
-import "../node_modules/@blueprintjs/icons/lib/css/blueprint-icons.css";
-import "../node_modules/@blueprintjs/select/lib/css/blueprint-select.css";
-import "../node_modules/@blueprintjs/datetime/lib/css/blueprint-datetime.css";
+import "normalize.css";
+import "@blueprintjs/core/lib/css/blueprint.css";
+// include blueprint-icons.css for icon font support
+import "@blueprintjs/icons/lib/css/blueprint-icons.css";
+import "@blueprintjs/select/lib/css/blueprint-select.css";
+import "@blueprintjs/datetime/lib/css/blueprint-datetime.css";
+// import "@blueprintjs/datetime2/lib/css/blueprint-datetime2.css";
+
 import "./App.css";
 
 import { routes } from './routes'

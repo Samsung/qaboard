@@ -249,7 +249,7 @@ class AppNavbar extends Component {
                       }
               />
           </div>}
-          {this.props.is_loading && <div style={{marginLeft: '15px'}}><Spinner size={Spinner.SIZE_SMALL} /></div>}
+          {this.props.is_loading && <div style={{marginLeft: '15px'}}><Spinner size={16} /></div>}
         </NavbarGroup>
         <NavbarGroup align="right">
           {is_dashboard && <SelectBatchesNav

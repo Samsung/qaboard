@@ -309,7 +309,6 @@ class CommitRow extends React.Component {
                     style={{marginLeft: '4px', marginRight: '4px'}}
                     title="Copy hash to clipboard"
                     intent={Intent.PRIMARY}
-                    iconSize={Icon.SIZE_SMALL}
                     icon="duplicate"
                   />
                 </CopyToClipboard>
