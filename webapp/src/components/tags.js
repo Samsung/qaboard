@@ -79,7 +79,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
         {!is_object ? c :
                       Object.entries(c)
                       .filter(([k, v]) => !hidden_keys.includes(k))
-                      .map( ([k, v]) => <Tag round key={k} intent={intent} minimal>
+                      .map( ([k, v]) => <Tag round minimal={!inverted} key={k} intent={intent}>
                         <strong>{k}:</strong> {JSON.stringify(v)}
                       </Tag> )}
       </Tag>
@@ -121,12 +121,12 @@ class ExtraParametersTags extends React.Component {
 
 const MismatchTag = ({text, explanation}) => {
   return <div>
-    <Tooltip>
-    <Tag intent={Intent.WARNING} icon="not-equal-to" style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>{text}</Tag>
-      <div>
+    <Tooltip content={<div>
         <h3>Comparing to reference:</h3>
         <p>{explanation}</p>
-      </div>
+      </div>}
+    >
+      <Tag intent={Intent.WARNING} icon="not-equal-to" style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>{text}</Tag>
     </Tooltip>
   </div>
 }
