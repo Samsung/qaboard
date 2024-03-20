@@ -90,56 +90,58 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi}) => {
 
     const rois = selectable_rois[selected_rois_effective]
     const non_default_rois = rois.label !== no_rois.label
+    const popover_content = <Menu>
+        {Object.values(selectable_rois).filter(_ => _ !== null).map( rois => <MenuItem
+            icon={rois.label === selected_rois_effective ? "tick" : "blank"}
+            label={rois.label.includes("Auto") ? <Icon style={{color: Colors.GOLD4}} icon="intelligence"/> : undefined}
+            key={rois.label}
+            onClick={() => {
+                const index = 0
+                set_selected_roi_idx(index)
+                if (selected_rois_effective !== rois.label) {
+                    set_selected_rois(rois.label)
+                    const roi = selectable_rois[rois.label].rois[index]
+                    default_roi_type = rois.label
+                    if (roi) {
+                        fitTo(roi, viewer)
+                    } else {
+                        fitTo({label: "Full Image"}, viewer)
+                    }
+                } else {
+                    set_selected_rois("Full Image")
+                    fitTo({label: "Full Image"}, viewer)    
+                }
+            }}
+            text={rois.label}
+            shouldDismissPopover={false}
+            /> 
+        )}
+        <MenuItem
+            text={"Copy current ROI"}
+            icon="duplicate"
+            key="copy-paste-roi"
+            shouldDismissPopover={false}
+            onClick={() => {
+                const { x, y, w, h, width, height } = current_roi
+                const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}, label: ""}`;
+                copy(to_clipboard)
+                toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
+            }}
+        />
+    </Menu>
     return <><Popover
-            interactionKind="hover">
+                interactionKind="hover"
+                content={popover_content}
+              >
         <Tag
             minimal
             interactive
-            icon='area-of-interest'
+            icon='detection'
             intent={non_default_rois ? "primary" : undefined}
             style={{marginBottom: "5px", marginRight: "15px"}}
         >
             View {non_default_rois ? <strong>{selected_rois_effective}</strong> : <span>ROIs</span>}
         </Tag>
-        <Menu>
-            {Object.values(selectable_rois).filter(_ => _ !== null).map( rois => <MenuItem
-                  icon={rois.label === selected_rois_effective ? "tick" : "blank"}
-                  label={rois.label.includes("Auto") ? <Icon style={{color: Colors.GOLD4}} icon="clean"/> : undefined}
-                  key={rois.label}
-                  onClick={() => {
-                    const index = 0
-                    set_selected_roi_idx(index)
-                    if (selected_rois_effective !== rois.label) {
-                        set_selected_rois(rois.label)
-                        const roi = selectable_rois[rois.label].rois[index]
-                        default_roi_type = rois.label
-                        if (roi) {
-                            fitTo(roi, viewer)
-                        } else {
-                            fitTo({label: "Full Image"}, viewer)
-                        }
-                    } else {
-                        set_selected_rois("Full Image")
-                        fitTo({label: "Full Image"}, viewer)    
-                    }
-                  }}
-                  text={rois.label}
-                  shouldDismissPopover={false}
-                /> 
-            )}
-            <MenuItem
-                text={"Copy current ROI"}
-                icon="duplicate"
-                key="copy-paste-roi"
-                shouldDismissPopover={false}
-                onClick={() => {
-                    const { x, y, w, h, width, height } = current_roi
-                    const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}, label: ""}`;
-                    copy(to_clipboard)
-                    toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
-                }}
-            />
-        </Menu>
     </Popover>
     {rois.rois.length > 1 && <>
             <Tag minimal icon="chevron-left" interactive style={{marginBottom: "5px", marginRight: "5px"}}

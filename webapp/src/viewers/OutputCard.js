@@ -85,12 +85,34 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
   const input_over_time_url = `/${project}/history/${!!commit ? commit.branch : ''}${window.location.search}`
   // output.params.badges = [{text: "training", icon: "settings", href: "https://example.com"}]
   const run_path = has_label ? output.test_input_metadata.label : `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
+  const popover_content = <Menu>
+    {!!output.test_input_database && <>
+      <MenuDivider key={"Database"} title="Database" />
+      <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
+      <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy} />
+    </>}
+    {has_metadata && <>
+      <MenuDivider key={"Properties"} title="Properties" />
+      { has_label && <MenuItem text={output.test_input_path} icon="document" />}
+      <MenuItem key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
+        <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
+      </MenuItem>
+    </>}
+    <MenuDivider key={"Output-Info"} title="Output Info" />
+    {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} icon="stopwatch" />}
+    <MenuItem
+      key="created-date"
+      text={<span title={output.created_date}> {DateTime.fromISO(output.created_date, { zone: 'utc' }).toRelative()}</span>}
+      icon="calendar"
+    />
+    {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
+  </Menu>
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}   
       {tags_first && viewable && tags}
       {output.output_type !== "batch" && !viewable ?
-        <span>{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER}>
+        <span>{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
         <span>
           <Link
             to={input_over_time_url}
@@ -110,28 +132,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
             {run_path}
           </Link>
         </span>
-        <Menu>
-          {!!output.test_input_database && <>
-            <MenuDivider key={"Database"} title="Database" />
-            <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
-            <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy} />
-          </>}
-          {has_metadata && <>
-            <MenuDivider key={"Properties"} title="Properties" />
-            { has_label && <MenuItem text={output.test_input_path} icon="document" />}
-            <MenuItem key="metadata" text="Metadata" icon="info-sign"> {/*tag, info-sign, annotation, more*/}
-              <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
-            </MenuItem>
-          </>}
-          <MenuDivider key={"Output-Info"} title="Output Info" />
-          {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} icon="stopwatch" />}
-          <MenuItem
-            key="created-date"
-            text={<span title={output.created_date}> {DateTime.fromISO(output.created_date, { zone: 'utc' }).toRelative()}</span>}
-            icon="calendar"
-          />
-          {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
-        </Menu>
+
       </Popover>}
       {!tags_first && viewable && tags}
     </h5>

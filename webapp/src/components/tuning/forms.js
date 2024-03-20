@@ -450,20 +450,23 @@ class TuningForm extends Component {
         label="Batch of inputs+configurations:"
         intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
         helperText={<>
-          {tests.length > 0 && <Popover inheritDarkTheme portalClassName={Classes.DARK} position="right" hoverCloseDelay={300} interactionKind={"hover"}>
+          {tests.length > 0 && <Popover
+              inheritDarkTheme popoverClassName={Classes.DARK}
+              placement="right" hoverCloseDelay={300} interactionKind={"hover"}
+              content={<div style={{padding: '10px'}}>
+                <ul style={{maxWidth: "1200px", maxHeight: "800px", overflow: "auto"}} >
+                  {tests.map((t, idx) => <li key={idx} style={{marginBottom: '5px'}}>
+                    <span style={{marginRight: '5px'}}>{t.input_path}</span>
+                    {t.configurations.map(c =>
+                      <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px', marginBottom: '5px'}}>
+                        {typeof(c) === 'string' ? c : JSON.stringify(c)}
+                      </Tag>
+                    )}
+                </li>)}
+                </ul>
+              </div>}
+              >
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
-            <div style={{padding: '10px'}}>
-              <ul style={{maxWidth: "1200px", maxHeight: "800px", overflow: "auto"}} >
-                {tests.map((t, idx) => <li key={idx} style={{marginBottom: '5px'}}>
-              	  <span style={{marginRight: '5px'}}>{t.input_path}</span>
-              	  {t.configurations.map(c =>
-                    <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px', marginBottom: '5px'}}>
-                    	{typeof(c) === 'string' ? c : JSON.stringify(c)}
-                    </Tag>
-                  )}
-              </li>)}
-              </ul>
-            </div>
           </Popover>}
           <p style={{marginBottom: '5px'}}>To know your options, go to the "Tests" tab.</p>
           {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error.response?.data?.error ?? JSON.stringify(error)}</Tag></p>}

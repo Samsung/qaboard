@@ -275,12 +275,17 @@ class FlameGraphViewer extends React.PureComponent {
             {value: 'both', label: 'After & Before'},
           ]}
         />
-        <Popover hoverCloseDelay={500} interactionKind={"hover"} inheritDarkTheme portalClassName={Classes.DARK}>
-          <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
-          <div style={{ padding: '15px' }}>
+        <Popover
+          hoverCloseDelay={500}
+          interactionKind={"hover"}
+          inheritDarkTheme
+          popoverClassName={Classes.DARK}
+          content={<div style={{ padding: '15px' }}>
             <p>Read about <a rel="noopener noreferrer" href="http://www.brendangregg.com/flamegraphs.html"target="_blank">Flame Graphs</a></p>
             <p>And the <a rel="noopener noreferrer" href="http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html"target="_blank">Differential Flame Graphs</a> versions</p>
-          </div>
+          </div>}
+        >
+          <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
         </Popover>
         
         </div>

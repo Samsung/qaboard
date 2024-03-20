@@ -85,7 +85,6 @@ class UserMenu extends React.Component {
           text={<Icon icon="user" size={IconSize.LARGE}/>}
           popoverProps={{
             usePortal: true,
-            // portalClassName: "limit-overflow",
             hoverCloseDelay: 1000,
             transitionDuration: 800,
           }}

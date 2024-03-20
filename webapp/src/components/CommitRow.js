@@ -308,16 +308,18 @@ class CommitRow extends React.Component {
                   <Icon
                     style={{marginLeft: '4px', marginRight: '4px'}}
                     title="Copy hash to clipboard"
-                    intent={Intent.SUCCESS}
+                    intent={Intent.PRIMARY}
                     icon="duplicate"
                   />
                 </CopyToClipboard>
                 <span>Copy to clipboard</span>
               </Tooltip>
 
-            <Popover position="bottom" hoverCloseDelay={500} interactionKind={"hover"}>
-              <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
-              <Menu>
+            <Popover
+              placement="bottom"
+              hoverCloseDelay={500}
+              interactionKind={"hover"}
+              content={<Menu>
                 <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
                 <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
                 <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
@@ -368,8 +370,9 @@ class CommitRow extends React.Component {
                       });
                   }}
                 />}
-
-              </Menu>
+              </Menu>}
+            >
+              <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
             </Popover>
 
 

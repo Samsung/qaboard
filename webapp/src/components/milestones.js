@@ -217,7 +217,7 @@ class CommitMilestoneEditor extends React.Component {
     return <>
       <Popover
         content={popover_body}
-        position={Position.RIGHT}
+        placement="right"
         popoverClassName={Classes.POPOVER_CONTENT_SIZING}
       >
         <Tooltip content={type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
