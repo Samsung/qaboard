@@ -255,16 +255,6 @@ class AddRecordingsForm extends Component {
         <Tabs renderActiveTabPanelOnly id="Groups" onChange={this.handleTabChange} defaultSelectedTabId="usr">
           <Tab id="gr" title="Shared" panel={panel_shared} />
           <Tab id="usr" title={user_form_name} panel={panel_user} />
-          <Tabs.Expander />
-          <Tooltip content="Coming Soon!">
-            <MultiSelect
-              placeholder="Search tests..."
-              // itemRenderer={this.renderGroups}
-              items={[]}
-              // onItemSelect={this.handleGroupsMultiSelect}
-              tagRenderer={() => {}}
-            />
-          </Tooltip>
         </Tabs>
       </form>
     );
