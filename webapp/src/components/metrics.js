@@ -11,6 +11,7 @@ import {
   Callout,
   MenuItem,
   Colors,
+  CompoundTag,
   Tooltip,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
@@ -52,33 +53,17 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
 
 const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
   const value = metrics_new[metric_info.key]
+  const value_component = isNaN(value) ? <RunBadge badge={value}/> : <>{metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}</>
   let formatted_valued = (
     <span>
       {metric_info.short_label}:{" "}
       <strong>
-        {isNaN(value) ? <RunBadge badge={value}/> : metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}
+        {value_component}
       </strong>
     </span>
   );
-   
-  let intent =
-    (metrics_new[metric_info.key] > metric_info.target &&
-      metric_info.smaller_is_better) ||
-    (metrics_new[metric_info.key] < metric_info.target &&
-      !metric_info.smaller_is_better)
-      ? Intent.DANGER
-      : Intent.SUCCESS;
-  let metric_tag = <Tooltip>
-    <Tag style={{margin: '3px'}} minimal intent={!!metric_info.target ? intent : null}>
-      {formatted_valued}
-    </Tag>
-    <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
-  </Tooltip>;
 
-  if (metric_info.key === 'is_failed') {
-    metric_tag = <span/>
-  }
-
+  // compare tag
   if (metrics_ref !== undefined && metrics_ref[metric_info.key] && metrics_ref[metric_info.key] !== metrics_new[metric_info.key]) {
     let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
     let delta_relative = delta / metrics_ref[metric_info.key];
@@ -89,16 +74,31 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    var compare_tag = <Tag style={{margin: '3px'}} minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
+    var compare_tag = <Tag round minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
   } else {
     compare_tag = <span/>;
   }
-  return (
-    <>
-      {metric_tag}
+
+  let intent =
+    (metrics_new[metric_info.key] > metric_info.target &&
+      metric_info.smaller_is_better) ||
+    (metrics_new[metric_info.key] < metric_info.target &&
+      !metric_info.smaller_is_better)
+      ? Intent.DANGER
+      : Intent.SUCCESS;
+  let metric_tag = <Tooltip>
+    <CompoundTag style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}} minimal intent={!!metric_info.target ? intent : null} leftContent={metric_info.short_label}>
+      {value_component}
       {compare_tag}
-    </>
-  );
+    </CompoundTag>
+    <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
+  </Tooltip>;
+
+  if (metric_info.key === 'is_failed') {
+    metric_tag = <span/>
+  }
+
+  return metric_tag
 };
 
 
