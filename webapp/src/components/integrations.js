@@ -77,7 +77,7 @@ class IntegrationsMenus extends React.Component {
             [key(integration)]: {
               loading: true,
               triggered: true,
-              data: null,
+              data: undefined,
             },
           }
         });
@@ -146,7 +146,8 @@ class IntegrationsMenus extends React.Component {
               ...this.state.statuses,
               [key(integration)]: {
                 is_loaded: true, loading: false, error,
-                statusText: error.response?.statusText
+                statusText: error.response?.statusText,
+                data: error.response?.data,
               },
             }
           });
@@ -204,6 +205,8 @@ class IntegrationsMenus extends React.Component {
           //  console.log(integration.text, integration)
            const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
            if (gitlabCI) {
+            if (status?.triggered !== true)
+              return
             var req_url = '/api/v1/gitlab/job/';
             const git = project_data.data?.git || {};
             if (!git.web_url) {
@@ -228,6 +231,8 @@ class IntegrationsMenus extends React.Component {
               ...gitlabCI,
             }
           } else if (jenkins) {
+            if (status?.triggered !== true)
+              return
             req_url = '/api/v1/jenkins/build/';
             params = {
               ...status?.data, //.web_url, .url
@@ -260,6 +265,7 @@ class IntegrationsMenus extends React.Component {
                 });
               })
               .catch(error => {
+                const statusText = !!error.response ? error.response.statusText : "Network Error"
                 console.log("[update] Error:", error.response)
                 this.setState({
                   statuses: {
@@ -268,9 +274,9 @@ class IntegrationsMenus extends React.Component {
                       ...this.state.statuses[key(integration)],
                       is_loaded: true,
                       loading: false,
-                      error: !!ignore_failure ? null : error,
-                      statusText: !!error.response ? error.response.statusText : "Network Error",
-                      data: null
+                      error: (!!ignore_failure || statusText.includes("METHOD NOT ALLOWED")) ? null : error,
+                      statusText,
+                      data: error.response?.data,
                     },
                   }
                 });
@@ -278,10 +284,6 @@ class IntegrationsMenus extends React.Component {
         })
     }
 
-    // 1. get integrations a level above
-    // 2. pass integrations as props
-    // 3. if integration.sub, render nested <Integrations ...props integrations={integration.sub} /> insider the <MenuItem> xxxxxxx </MenuItem>
-    // 4. update docs
     render() {
         const { integrations, level=0 } = this.props;
         const eval_templates_recusively = make_eval_templates_recursively(this.props)
@@ -305,9 +307,8 @@ class IntegrationsMenus extends React.Component {
           let first_loading = !!status && (status.loading && !status.is_loaded);
           let trigger_loading = !!status && (status.loading && status.triggered);
           let has_error = !!status && !!status.error
-          let disabled = !integration.src && ( integration.disabled || first_loading || (has_error && !integration.allow_failed) || trigger_loading);
+          let disabled = !integration.src && (integration.disabled || first_loading || (has_error && !integration.allow_failed) || trigger_loading);
           // console.log(key(integration), integration, status, "first_loading", first_loading, "disabled", disabled, "trigger_loading", trigger_loading)
-
 
           // TODO: always show the JobTag if "status.data" has some info
           if (integration.gitlabCI || integration.jenkins) {
@@ -315,7 +316,7 @@ class IntegrationsMenus extends React.Component {
             let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
                                       <Tag round icon="cross" intent="danger"/>
                                     </Tooltip>
-                                  : <StatusTag status={status?.data}/>
+                                  : <StatusTag integration={integration} status={status}/>
             return <MenuItem
               key={idx}
               tagName='div'
@@ -330,7 +331,6 @@ class IntegrationsMenus extends React.Component {
             />
           }
 
-          let show_status = !!status && status.statusText
           const badge = integration.src && <img
             alt={integration.alt || key(integration)}
             src={encodeURI(`/api/v1/gitlab/proxy?url=${integration.src}`)}
@@ -338,8 +338,14 @@ class IntegrationsMenus extends React.Component {
           if (badge) {
             var right_label = integration.icon && <Icon icon={integration.icon}/>
           } else {
-            right_label = show_status ? `${!!integration.label ? integration.label : ''} [${status.statusText}]`
-                                      : integration.label;
+            if (integration.webhook) {
+              right_label = <StatusTag integration={integration} status={status}/>
+            } else {
+              right_label = !!integration.label ? integration.label : ''
+              if (has_error) {
+                right_label = <span>{right_label}<StatusTag integration={integration} status={status}/></span>
+              }
+            }
           }
           return <MenuItem
               key={idx}
@@ -419,17 +425,32 @@ const StatusTag = ({status}) => {
       return {icon: 'cog'}
     if (status === 'UNSTABLE')
       return {icon: 'cog', intent: 'warning'}
+    return {}
   }
-  const { data, allow_failure } = status;
-  return <Tooltip>
-    <a href={(data.url || data.web_url).replace("/api/json", "")} target="_blank"  rel="noopener noreferrer"><Tag
-      round
-      onClick={e => {e.stopPropagation()}}
-      minimal
-      interactive
-      {...make_props(data, allow_failure)} >
-    </Tag></a>
-    <span><Tag>{status}</Tag> Click to see more...</span>
+  console.log(status)
+  const { data={}, allow_failure, statusText, error } = status;
+  let tag_props = {...make_props(data.status, allow_failure)}
+  if (data.status === undefined && statusText) {
+    tag_props.intent = !!error ? Intent.DANGER : Intent.SUCCESS
+    tag_props.icon = !!error ? "cross" : "tick"
+  }
+  const tag = <Tag
+    round
+    onClick={e => {e.stopPropagation()}}
+    minimal
+    interactive
+    {...tag_props}
+    >
+      {!data.status && statusText}
+  </Tag>
+  const url = data.url ?? data.web_url
+  return <Tooltip content={JSON.stringify(data)}>
+    <>
+      {url && <a href={url.replace("/api/json", "")} target="_blank"  rel="noopener noreferrer">
+        {tag}
+      </a>}
+      {!url && tag}
+    </>
   </Tooltip>
 }
 

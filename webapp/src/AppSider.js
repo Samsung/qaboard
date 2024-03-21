@@ -17,7 +17,7 @@ import {
 } from "@blueprintjs/core";
 
 import { Avatar } from "./components/avatars";
-import { IntegrationsMenus } from "./components/integrations";
+import { IntegrationsMenus, default_gitlab_integrations } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
 
@@ -120,6 +120,8 @@ class ProjectSideCommitList extends React.Component {
   render() {
     const { project, project_data={}, commit={}, match, user } = this.props;
     let qatools_config = project_data.data?.qatools_config || {};
+    let integrations = qatools_config.integrations ?? [];
+
     let reference_branch = qatools_config.project?.reference_branch;
     const git = project_data.data?.git || {};
 
@@ -153,6 +155,7 @@ class ProjectSideCommitList extends React.Component {
         <MenuDivider />
         <IntegrationsMenus
           single_menu
+          integrations={integrations}
           project={project}
           project_data={project_data}
           branch={is_branch ? match.params.name : reference_branch}
@@ -205,16 +208,16 @@ class ProjectSideResults extends React.Component {
     git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
     let code_url = `${git.web_url}/${commit_code_sufffix}`
 
-    // we can only do tuning for projects whose database is outside the repo
-    // otherwise we would need to checkout the repo and manage access...
-    const commit_qatools_config = ((commit || {}).data || {}).qatools_config || {};
-    const project_qatools_config = (project_data.data || {}).qatools_config || {};
-    const qatools_config = commit_qatools_config || project_qatools_config || {};
+    const batch_qatools_config = new_batch?.data?.qatools_config ?? {};
+    const commit_qatools_config = commit?.data?.qatools_config ?? {};
+    const project_qatools_config = project_data.data?.qatools_config ?? {};
+    let integrations = batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
 
     const has_optim = new_batch?.data?.optimization === true;
     const active = view => this.props.selected_views.includes(view);
     return <>
       <IntegrationsMenus
+        integrations={integrations}
         project={project}
         project_data={project_data}
         commit={commit}
