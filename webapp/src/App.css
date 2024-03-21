@@ -13,7 +13,7 @@ span.bp5-popover-target {
   vertical-align: baseline !important;
 }
 
-.limit-overflow .bp5-transition-container {
+.limit-overflow .bp5-popover-transition-container {
   max-height: 500px;
   overflow-y: scroll;
 }
