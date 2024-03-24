@@ -76,8 +76,7 @@ You can use webhooks to trigger a variety of external tools:
 ```yaml
 integrations:
   - text: Jenkins Triggered Build
-    webhook:
-    - text: 'Windows',
+    - text: 'Windows'
       icon: build
       webhook:
       # all the options are sent straight to the python requests library. For reference:
