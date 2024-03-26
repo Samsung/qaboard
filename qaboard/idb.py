@@ -60,7 +60,7 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
       # while idb first parses the pixel data. Ideally we'd do the same
       # and save that hash as "md5_hash" in the manifest
       image_md5 = Md5HashCalculator.from_image(image_path)
-      batch_id = project / commit_id / run_context.obj["batch_label"]
+      batch_id = client.calculate_batch_id(str(project / commit_id / run_context.obj["batch_label"]))
       image = {
         "md5": image_md5,
         "metadata": {
