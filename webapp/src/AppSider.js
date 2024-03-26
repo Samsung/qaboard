@@ -120,7 +120,7 @@ class ProjectSideCommitList extends React.Component {
   render() {
     const { project, project_data={}, commit={}, match, user } = this.props;
     let qatools_config = project_data.data?.qatools_config || {};
-    let integrations = qatools_config.integrations ?? [];
+    let integrations = qatools_config.integrations ?? commit.data?.qatools_config.integrations ??[];
 
     let reference_branch = qatools_config.project?.reference_branch;
     const git = project_data.data?.git || {};
