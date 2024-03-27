@@ -253,7 +253,7 @@ class BitAccuracyViewer extends React.Component {
   }
 
 
-  handleNodeClick = (node, _nodePath, e) => {
+  handleNodeClick = (node, nodePath, e) => {
     const is_folder = node.childNodes !== undefined;
     if (is_folder) return;
 
@@ -263,8 +263,9 @@ class BitAccuracyViewer extends React.Component {
         forEachNode(this.state.tree.mixed, n => (n.isSelected = false));
         selected = []
     }
+    let tree_node = Tree.nodeFromPath(nodePath, this.state.tree.mixed)
     let isSelected = was_selected===null ? true : !was_selected;
-    node.isSelected = isSelected
+    tree_node.isSelected = isSelected
     if (isSelected) {
       selected = [...selected, node.id]
     } else {
@@ -273,20 +274,22 @@ class BitAccuracyViewer extends React.Component {
     this.setState({selected});
   };
 
-  handleNodeCollapse = node => {
-    node.isExpanded = false;
+  handleNodeCollapse = (node, nodePath) => {
+    let tree_node = Tree.nodeFromPath(nodePath, this.state.tree.mixed)
+    tree_node.isExpanded = false;
     // eslint-disable-next-line
     const { props , icon: _ } = node.icon
-    node.icon = <Icon {...props} icon='folder-close'/>
+    tree_node.icon = <Icon {...props} icon='folder-close'/>
     const opened = this.state.opened.filter(filename => filename !== node.id)
     this.setState({opened});
   };
 
-  handleNodeExpand = node => {
-    node.isExpanded = true;
+  handleNodeExpand = (node, nodePath) => {
+    let tree_node = Tree.nodeFromPath(nodePath, this.state.tree.mixed)
+    tree_node.isExpanded = true;
     // eslint-disable-next-line
     const { props , icon: _ } = node.icon
-    node.icon = <Icon {...props} icon='folder-open'/>
+    tree_node.icon = <Icon {...props} icon='folder-open'/>
     const opened = [...this.state.opened, node.id]
     this.setState({opened});
   };
