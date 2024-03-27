@@ -54,6 +54,7 @@ const openseadragon_config = {
 
   showNavigator: true,
   prefixUrl: "/openseadragon/",
+  showFullPageControl: false,
 
   crossOriginPolicy: 'Anonymous',
   ajaxWithCredentials: false,
