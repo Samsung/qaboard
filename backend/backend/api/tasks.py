@@ -28,7 +28,10 @@ def task_celery(id):
     assert statuses
     assert len(statuses.keys()) == 1
     hostname = list(statuses.keys())[0]
-    status, info = statuses[hostname][result.id]
+    if result.id in statuses[hostname]:
+        status, info = statuses[hostname][result.id]
+    else: # sometimes we get no data for some reason
+        status, info = {}, {}
     return {
         "hostname": hostname,
         "status": status,
