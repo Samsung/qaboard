@@ -11,6 +11,7 @@ import uuid
 import yaml
 import datetime
 import traceback
+from shlex import quote
 from pathlib import Path
 
 import click
@@ -212,7 +213,6 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     with redirect_std_streams(run_context.output_dir / 'log.txt', color=ctx.obj['color']):
       # Help reproduce qa runs with something copy-pastable in the logs
       if is_ci:
-        from shlex import quote
         click.secho(' '.join(['qa', *map(quote, sys.argv[1:])]), fg='cyan', bold=True)
       click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
       print_url(ctx)
@@ -602,8 +602,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         forwarded_args_cli = None
       else:
         if not on_windows:
-           # FIXME: we assume no single quotes...
-          forwarded_args_cli = ' '.join(f"'{a}'" for a in forwarded_args)
+          forwarded_args_cli = ' '.join(quote(a) for a in forwarded_args)
         else:
           from .compat import escaped_for_cli
           forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
@@ -613,8 +612,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       else:
         # We can't use --config, or "-c A -c B" until we ensure all clients updated a version supporting it
         if not on_windows:
-          configuration = input_configuration_str.replace("'", "'\"'\"'") # support single-quotes
-          configuration_cli =  f"--configuration '{configuration}'"
+          configuration = quote(input_configuration_str) # support single-quotes
+          configuration_cli =  f"--configuration {configuration}"
         else:
           from .compat import escaped_for_cli
           configuration_cli =  f'--configuration {escaped_for_cli(input_configuration_str)}'
@@ -623,8 +622,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         tuning_cli = None
       else:
         if not on_windows:
-          tuning_str = tuning_str.replace("'", "'\"'\"'") # support single-quotes
-          tuning_cli =  f"--tuning '{tuning_str}'"
+          tuning_str = quote(tuning_str)
+          tuning_cli =  f"--tuning {tuning_str}"
         else:
           from .compat import escaped_for_cli
           tuning_cli =  f'--tuning {escaped_for_cli(tuning_str)}'

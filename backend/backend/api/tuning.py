@@ -10,6 +10,7 @@ import getpass
 import datetime
 import itertools
 import subprocess
+from shlex import quote
 from pathlib import Path
 from typing import Dict, Any
 
@@ -301,7 +302,7 @@ def start_tuning(hexsha):
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
     else:
-        config_option = f"--tuning-search '{json.dumps(data['tuning_search'])}'"
+        config_option = f"--tuning-search {quote(json.dumps(data['tuning_search']))}"
 
     overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
     batch_command = " ".join([
