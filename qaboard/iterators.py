@@ -303,6 +303,10 @@ def deep_interpolate(value, replaced: str, to_value):
           return float(value)
         except:
           pass
+        try:
+          return json.loads(value)
+        except:
+          pass
       return value
   else:
     return value
