@@ -25,15 +25,13 @@ def task_celery(id):
         # TODO: result.abort() after some time?
     print(f"{result} {result.id} {result.status}")
     statuses = inspector.query_task(result.id)
-    assert statuses
-    assert len(statuses.keys()) == 1
-    hostname = list(statuses.keys())[0]
-    if result.id in statuses[hostname]:
-        status, info = statuses[hostname][result.id]
-    else: # sometimes we get no data for some reason
-        status, info = {}, {}
-    return {
-        "hostname": hostname,
-        "status": status,
-        **info,
-    }
+    for hostname, tasks_info in statuses.items():
+        if result.id not in tasks_info:
+            continue
+        status, info = tasks_info[result.id]
+        return {
+            "hostname": hostname,
+            "status": status,
+            **info,
+        }
+    return "Could not start task", 500
