@@ -62,10 +62,10 @@ def find_process(env_key, env_value) -> Optional[psutil.Process]:
 # from other applications that expect to ssh directly to those hosts
 @app.task(name='ssh_task', serializer='json')
 def ssh_task(id):
-    tries = 10
+    tries = 30
     ssh = None
     while tries:
-        ssh = find_process("ID", id)
+        ssh = find_process("WEBCDE_CONNECTION_ID", id)
         if ssh:
             break
         tries -= 1
