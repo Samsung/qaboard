@@ -55,7 +55,7 @@ deploy:qa:windows:
   only:
     - master
   script:
-    -   - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/UpdateQAOnAllWindowsNodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+    -   - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
 
 publish:PyPi:
   stage: publish
