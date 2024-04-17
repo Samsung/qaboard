@@ -136,9 +136,9 @@ class IntegrationsMenus extends React.Component {
             }
         })
         .catch(error => {
-          console.log(error.response)
+          console.log(error.response ?? error)
           toaster.show({
-            message: `Something went wrong: ${JSON.stringify(error.response)}`,
+            message: `Something went wrong: ${JSON.stringify(error.response ?? error)}`,
             intent: Intent.DANGER,
           });
           this.setState({
