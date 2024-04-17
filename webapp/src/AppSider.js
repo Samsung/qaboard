@@ -118,7 +118,7 @@ class ProjectSideCommitList extends React.Component {
   };
 
   render() {
-    const { project, project_data={}, commit={}, match, user } = this.props;
+    const { project, project_data={}, commit={}, ref_commit={}, match, user } = this.props;
     let qatools_config = project_data.data?.qatools_config || {};
     let integrations = qatools_config.integrations ?? commit.data?.qatools_config.integrations ??[];
 
@@ -160,6 +160,7 @@ class ProjectSideCommitList extends React.Component {
           project_data={project_data}
           branch={is_branch ? match.params.name : reference_branch}
           commit={commit}
+          ref_commit={ref_commit}
           user={user}
         />
         <MenuItem
@@ -198,7 +199,7 @@ class ProjectSideResults extends React.Component {
   } 
 
   render() {
-    const { project, project_data={}, commit, new_batch, ref_batch, user } = this.props;
+    const { project, project_data={}, commit, ref_commit, new_batch, ref_batch, user } = this.props;
     const git = project_data.data?.git || {};
     let project_repo = git.path_with_namespace || '';
     let subproject = project.slice(project_repo.length + 1);
@@ -221,6 +222,7 @@ class ProjectSideResults extends React.Component {
         project={project}
         project_data={project_data}
         commit={commit}
+        ref_commit={ref_commit}
         batch={new_batch}
         ref_batch={ref_batch?.label}
         filter={this.props.filter}
@@ -276,6 +278,7 @@ class AppSider extends React.Component {
         {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && 
           <ProjectSideCommitList
             commit={this.props.latest_commit}
+            ref_commit={this.props.ref_commit}
             match={this.props.match}
             history={this.props.history}
             project={this.props.project}
@@ -287,6 +290,7 @@ class AppSider extends React.Component {
           <ProjectSideResults
             new_batch={this.props.new_batch}
             commit={this.props.commit}
+            ref_commit={this.props.ref_commit}
             selected_views={this.props.selected_views}
             history={this.props.history}
             project={this.props.project}
@@ -317,7 +321,7 @@ const mapStateToProps = (state, ownProps) => {
   let project_data = projectDataSelector(state)
   let selected = selectedSelector(state)
   const { filter_batch_new: filter, filter_batch_ref: ref_filter, ref_project } = selected
-  let { new_commit: commit } = commitSelector(state)
+  let { new_commit: commit, ref_commit } = commitSelector(state)
   const latest_commit = latestCommitSelector(state);
   const qatools_config = (project_data.data || {}).qatools_config || {}
   let selected_views = selected.selected_views || [ ( qatools_config.outputs || {}).default_tab_details || 'summary']
@@ -340,7 +344,7 @@ const mapStateToProps = (state, ownProps) => {
   return {
     is_home,
     project,
-    commit,
+    commit, ref_commit,
     latest_commit,
     project_data,
     branches: state.projects.data[project].branches ||  [],

@@ -91,7 +91,7 @@ integrations:
 
 ## Dynamic integrations using "variables"
 You can use some special variables in your strings with some `${VARIABLE}` templating:
-- **Commit**: `commit.id`, `commit.branch`, `commit.branch_slug`... Also `branch`.
+- **Commit**: `commit.id`, `commit.branch`, `commit.branch_slug`... Also `branch` and `ref_commit.id`.
 - **Project**: `project` (full project name), `subproject` (project name relative to the root project), 
 - [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
 - **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
