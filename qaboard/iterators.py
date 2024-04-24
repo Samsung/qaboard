@@ -103,6 +103,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
         inputs.append(cased_path(input_path))
       for i in inputs:
         metadata = []
+        nb_inputs += 1
         if only or exclude:
           metadata = input_metadata(i, database, i.relative_to(database), qatools_config)
           if only and not match(metadata, only): continue
@@ -113,7 +114,6 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
           for k in metadata_keys:
             if k.startswith('_') or k == "input_path":
               del metadata[k]
-        nb_inputs += 1
         yield i, database
 
   #     if only:
