@@ -102,7 +102,10 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         inputs.append(cased_path(input_path))
       for i in inputs:
-        metadata = []
+        metadata = []\
+        # ideally the increment would be after filtering,
+        # but some projects rely on metadata() to limit the amount of tests they run based on the git diff
+        # for those, we don't want to QA_BATCH_FAIL_IF_EMPTY check to fail
         nb_inputs += 1
         if only or exclude:
           metadata = input_metadata(i, database, i.relative_to(database), qatools_config)
