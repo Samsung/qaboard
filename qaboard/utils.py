@@ -1,6 +1,7 @@
 """
 Misc utilities 
 """
+from functools import lru_cache
 import os
 import sys
 import json
@@ -111,10 +112,7 @@ class FailingEntrypoint:
     return {"is_failed": True}
 
 
-# FIXME: pass a path to the entrypoint, not a full config
 def entrypoint_module(config):
-  """Lazily returns the entrypoint module defined in a qaboard config"""
-  import importlib.util
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
     click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
@@ -122,6 +120,12 @@ def entrypoint_module(config):
     return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
+  return entrypoint_module_path(entrypoint)
+
+@lru_cache(maxsize=128)
+def entrypoint_module_path(entrypoint):
+  """Lazily returns the entrypoint module defined in a qaboard config"""
+  import importlib.util
   try:
       name = f'qaboard-entrypoint'
       # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
@@ -179,6 +183,8 @@ def input_metadata(absolute_input_path, database, input_path, config):
   #     metadata = {}
   else:
     metadata = {}
+  # update to metadata
+  metadata["input_path"] = str(absolute_input_path)
   return metadata
 
 

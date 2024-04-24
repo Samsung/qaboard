@@ -54,7 +54,7 @@ inputs-filtered-using-metadata:
     Binning: '1:*'    # wildcards are supported
     Bad pixels: False # as well as Booleans, numbers…
     Distance: '>1'    # also >=, =,==, <, <=
-
+    input_path: '*9296*' # if input path will match this string, you can try to match with the absolute input path
   exclude: # don't run on tests matching all the filters below
     Location: Outdoor
 ```

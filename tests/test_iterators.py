@@ -106,6 +106,18 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(match(metadata, {"Distance": 3}), False)
     self.assertEqual(match(metadata, {"Distance": 5}), True)
     self.assertEqual(match(metadata, {"Distance": ">=5"}), True)
+    # exclude 
+    metadata = {"_filter": 'tv_HP7_A40_8SUM_12M_DCG_DSG_RSS'}
+    self.assertEqual(match(metadata, {"_filter": '*8SUM*'}), True)
+    self.assertEqual(match(metadata, {"_filter": "hello"}), False)
+    self.assertEqual(match(metadata, {"Distance": "*hello*"}), False) 
+    # only 
+    metadata = {"_changed": True}
+    self.assertEqual(match(metadata, {"_changed": True}), True)
+    self.assertEqual(match(metadata, {"_changed": False}), False)
+    
+
+
 
   def test_iter_inputs(self):
     from qaboard.iterators import iter_inputs
