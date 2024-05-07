@@ -269,7 +269,7 @@ class ImgViewer extends React.PureComponent {
         let format = 'jpg';
         if (profile[1] !== undefined) {
           const { formats } = profile[1];
-          if (formats.includes('png')) {
+          if (formats === undefined || formats.includes('png')) {
             format = "png";
           } 
         }

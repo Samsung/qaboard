@@ -30,8 +30,7 @@ let default_roi_type = "Full Image"
 //       2. wen trigger find, find for all on view? (or force view) ?
 //     make diff faster
 
-const RoiViewer = ({output_new, output_ref, path, viewer, current_roi}) => {
-    let [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
+const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoaded}) => {
 
     // Sample ROIs for testing
     // output_new.test_input_metadata = {"roi": [
