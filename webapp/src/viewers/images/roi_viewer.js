@@ -3,11 +3,12 @@ import {
     Tag,
     Popover,
     Icon,
-    Button,
     Intent,
     MenuItem,
     Menu,
     Colors,
+    Spinner,
+    SpinnerSize,
 } from "@blueprintjs/core";
 import copy from 'copy-to-clipboard';
 
@@ -17,7 +18,7 @@ import AutoCrops from "./AutoCrops";
 import { toaster } from "../../toaster"
 const no_rois = {
     label: "Full Image",
-    icon: "media",
+    icon: "zoom-out",
     rois: [],
 }
 
@@ -66,7 +67,7 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi}) => {
         if (!!output_ref && !output_ref.deleted) {
             new_selectable_rois["Auto ROIs"] = {
                 label: "Auto ROIs",
-                icon: "delta",
+                icon: "intelligence",
                 rois: [],
             }
             // new_selectable_rois["Auto False Colors"] = {
@@ -143,6 +144,7 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi}) => {
             View {non_default_rois ? <strong>{selected_rois_effective}</strong> : <span>ROIs</span>}
         </Tag>
     </Popover>
+    {!fullyLoaded && <span style={{display: "inline-grid"}}><Spinner size={SpinnerSize.SMALL}/></span>}
     {rois.rois.length > 1 && <>
             <Tag minimal icon="chevron-left" interactive style={{marginBottom: "5px", marginRight: "5px"}}
                 onClick={() => {

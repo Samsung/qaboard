@@ -112,7 +112,8 @@ class ImgViewer extends React.PureComponent {
     // this.canvas_diff_ssim = React.createRef();
 
     this.state = {
-      ready: false,
+      ready: false, // viewer mounted
+      fullyLoaded: {}, // e.g. 'new': true
       cancel_source: CancelToken.source(),
       first_image: "new",
       width: Math.floor(parseFloat((this.props.style?.width ?? '390px').replace(/[^\d]+/, ''))),
@@ -298,6 +299,19 @@ class ImgViewer extends React.PureComponent {
           image_width_ref: res_ref?.data?.width,
           error: null,
         }, () => resolve())
+
+        viewer_new.world.addHandler('add-item', addItemEvent => {
+          var tiledImage = addItemEvent.item;
+          tiledImage.addHandler('fully-loaded-change', e => {
+              this.setState({ fullyLoaded: {...this.state.fullyLoaded, 'new': e.fullyLoaded} })
+          });
+        });
+        viewer_new.world.addHandler('add-item', addItemEvent => {
+          var tiledImage = addItemEvent.item;
+          tiledImage.addHandler('fully-loaded-change', e => {
+              this.setState({ fullyLoaded: {...this.state.fullyLoaded, 'ref': e.fullyLoaded} })
+          });
+        });
 
         // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
         // https://github.com/openseadragon/openseadragon/issues/1428
@@ -716,6 +730,7 @@ class ImgViewer extends React.PureComponent {
             path={path}
             viewer={this.viewer_new}
             current_roi={current_roi}
+            fullyLoaded={this.state.fullyLoaded.new && this.state.fullyLoaded.ref}
          />}
         <span>
           {this.show_histogram && <Tooltip content={<ul><li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li></ul>}>
