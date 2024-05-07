@@ -261,5 +261,5 @@ def output_dirs_for_input_part(input_path, database, config):
         if not database.is_absolute():
             input_dir = database / input_dir
         else:
-            input_dir = database.relative_to(database.root) / input_dir
+            input_dir = database.relative_to(database.anchor) / input_dir
     return input_dir
