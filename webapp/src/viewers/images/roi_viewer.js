@@ -31,6 +31,7 @@ let default_roi_type = "Full Image"
 //     make diff faster
 
 const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoaded}) => {
+    let [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
 
     // Sample ROIs for testing
     // output_new.test_input_metadata = {"roi": [
