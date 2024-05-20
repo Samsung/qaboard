@@ -254,13 +254,14 @@ class ImgViewer extends React.PureComponent {
     return new Promise((resolve, reject) => {
       const { viewer_new, viewer_ref } = this;
       const { path, output_new, output_ref } = this.props;
-
-      const has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path] !== undefined;
+      let { path_ref=this.props.path } = this.props
+ 
+      let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path_ref] !== undefined;
       this.setState({has_reference})
 
       let requests = [get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref)}/info.json`, { cancelToken: this.state.cancel_source.token }))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -338,7 +339,7 @@ class ImgViewer extends React.PureComponent {
               ...source_config,
               width: res_ref?.data?.width,
               height: res_ref?.data?.height,
-              "@id": iiif_url(output_ref.output_dir_url, path),
+              "@id": iiif_url(output_ref.output_dir_url, path_ref),
             },
             success: () => { },
           })
@@ -591,9 +592,10 @@ class ImgViewer extends React.PureComponent {
 
   render() {
     const { output_new, output_ref, diff, label, path, manifests } = this.props;
+    let { path_ref=this.props.path } = this.props
     const { first_image, width, image_height, image_width, error, hide_labels, has_reference } = this.state;
     
-    const has_same_data = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path])
+    const has_same_data = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref])
 
     const has_error = !!error && Object.keys(error).length > 0;
     const error_messages = !has_error ? <span/> : <>
@@ -634,7 +636,7 @@ class ImgViewer extends React.PureComponent {
           style={{backgroundColor: Colors.CERULEAN4}}
           rightIcon="exchange"
           onClick={this.switch_images}
-        >new</Tag></Tooltip> : switch_label}
+        >new {path !== path_ref && path}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
@@ -645,7 +647,7 @@ class ImgViewer extends React.PureComponent {
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >{!has_same_data ? "reference" : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
+        >{!has_same_data ? <span>reference {path !== path_ref && path_ref}</span> : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>
@@ -744,7 +746,7 @@ class ImgViewer extends React.PureComponent {
             color_new={this.state.color_new}
             color_ref={this.state.color_ref}
             image_url_new={`${this.props.output_new.output_dir_url}/${this.props.path}`}
-            image_url_ref={`${this.props.output_ref?.output_dir_url}/${this.props.path}`}
+            image_url_ref={`${this.props.output_ref?.output_dir_url}/${this.props.path_ref}`}
             has_reference={has_reference}
             first_image={first_image}
           />
