@@ -150,7 +150,7 @@ class PlotlyViewer extends PureComponent {
       </div>
 
     const { data, layouts, is_loaded, error } = this.state;
-    const { side_by_side } = this.props;
+    const { side_by_side=true } = this.props;
     const has_ref = output_ref !== undefined && output_ref !== null;
 
     if (!is_loaded) return <span/>;
@@ -191,9 +191,9 @@ class PlotlyViewer extends PureComponent {
       let layout_ = {
         xaxis: {},
         yaxis: {},
-        width:  !!data.ref ? (width_full / 2 - 40) : width_full,
         ...layouts['new'],
         ...this.props.layout,
+        width:  !!data.ref ? (width_full / 2 - 40) : width_full,
       };
       layout_.xaxis.automargin = true;
       layout_.yaxis.automargin = true;
