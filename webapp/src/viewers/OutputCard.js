@@ -534,7 +534,18 @@ class OutputCard extends React.Component {
             if (!new_available)
               return <span key={`${idx}-${path_idx}`}/>
             let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
-            const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[filename], this.state.manifests.manifests?.reference?.[filename])
+
+            // we changed the output format in HW_ALG from bmp to png in May 2024
+            // but we still want to compare results across branches - for some time at least.
+            let path_ref = path
+            if(path.endsWith('.png') && !ref_available) {
+              const path_ref_ = path.replace(/.png$/, '.bmp')
+              if (!!this.state.manifests.reference && !!this.state.manifests.reference[path_ref_]) {
+                ref_available = true
+                path_ref = path_ref_
+              }
+            }
+            const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[path], this.state.manifests.manifests?.reference?.[path_ref])
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
               {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
@@ -547,6 +558,7 @@ class OutputCard extends React.Component {
                 {...view}
                 {...controls}
                 path={path}
+                path_ref={path_ref}
                 style={{ ...style, ...view.style }}
                 fullscreen={this.state.fullscreen}
                 config={config}
