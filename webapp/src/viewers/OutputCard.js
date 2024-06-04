@@ -538,7 +538,7 @@ class OutputCard extends React.Component {
             // we changed the output format in HW_ALG from bmp to png in May 2024
             // but we still want to compare results across branches - for some time at least.
             let path_ref = path
-            if(path.endsWith('.png') && !ref_available) {
+            if(path !== undefined && path.endsWith('.png') && !ref_available) {
               const path_ref_ = path.replace(/.png$/, '.bmp')
               if (!!this.state.manifests.reference && !!this.state.manifests.reference[path_ref_]) {
                 ref_available = true
