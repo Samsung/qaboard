@@ -59,22 +59,17 @@ def update_gitlab_status(state, name, target_url, description, commit_id=commit_
   retry_delay = 3  # seconds
 
   for attempt in range(max_retries):
-      try:
-          r = requests.post(url, headers=gitlab_headers, params=params)
-          break
-      except Exception as e:
-          print(f"Attempt {attempt + 1} failed: {e}")
-          if attempt < max_retries - 1:  
-              time.sleep(retry_delay)  
-          else:
-              print(e)
-              print(url)
-  try:
-    r.raise_for_status()
-  except Exception as e:
-    print(e)
-    print(url)
-    print(r)
+    try:
+      r = requests.post(url, headers=gitlab_headers, params=params)
+      r.raise_for_status()
+      break
+    except Exception as e:
+      if attempt < max_retries - 1:
+        time.sleep(retry_delay)
+      else:
+        print(f"Attempt {attempt + 1} failed: {e}")
+        print(url)
+        print(r)
 
 
 def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
