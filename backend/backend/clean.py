@@ -3,7 +3,7 @@
 Remove old outputs and artifacts from storage.
 By default, the default reference branch, active commits and milestone are not deleted
 
-The default configuration is: 
+The default configuration is:
 ```yaml
 # qaboard.yaml
 storage:
@@ -34,8 +34,8 @@ Notes:
 import re
 import sys
 import json
+import glob
 import datetime
-import subprocess
 from pathlib import Path
 
 import click
@@ -142,6 +142,92 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
 
 
 @click.command()
+@click.option('--outputs-root', 'outputs_roots', multiple=True, help="Where to look for outputs")
+@click.option('--use-cache', is_flag=True, help="Cache protected commits from milestones")
+@click.option('--user', required=True, help="The user name to delete the quota for")
+def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
+    """
+    WARNING: don't run this unless you know what you are doing
+    """
+    from .git_utils import git_pull
+    cache_path = Path('cache.milestones.json')
+    if cache_path.exists() and use_cache:
+        secho("WARNING: Using CACHED MILESTONES commits", fg='yellow')
+        milestone_commits = set(json.loads(cache_path.read_text()))
+    else:
+        milestone_commits = set()
+        projects = (db_session
+                    .query(Project)
+                    .filter(Project.id.startswith('CDE-Users/HW_ALG'))
+                    .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
+        )
+        for project in projects:
+            print(project)
+            milestone_commits.update(set(project.milestone_commits))
+        with cache_path.open('w') as f:
+            json.dump(list(milestone_commits), f)
+
+    secho(f"Protecting {len(milestone_commits)} commits", fg='blue')
+    hwalg = db_session.query(Project).filter(Project.id == 'CDE-Users/HW_ALG').one()
+    git_pull(hwalg.repo)
+    if not outputs_roots:
+        outputs_roots = [
+            f"/algo/CIS/outputs/{user}/CDE-Users/HW_ALG",
+            f"/algo/PSP_2x/outputs/{user}/CDE-Users/HW_ALG",
+            f"/algo/KITT_ISP/outputs/{user}/CDE-Users/HW_ALG",
+        ]
+
+    outputs_roots = [glob.glob(outputs_root) for outputs_root in outputs_roots]
+    outputs_roots = [item for sublist in outputs_roots for item in sublist] # flatten list
+    for outputs_root in outputs_roots:
+        outputs_root = Path(outputs_root)
+        def iter_hashsha_dir():
+            for hash2 in outputs_root.iterdir():
+                if len(hash2.name) != 2:
+                    continue
+                for hash16 in hash2.iterdir():
+                    hexsha = hash2.name + hash16.name
+                    yield hexsha, hash16
+
+        for hexsha, output_dir in iter_hashsha_dir():
+            try:
+                commit = hwalg.repo.commit(hexsha)
+                hexsha = commit.hexsha
+            except: # force pushes, rebases... some commits won't be fetched
+                commit = None
+                print(f"commit {hexsha} doesn't exist in DB")
+            try:
+                created_datetime = commit.authored_datetime
+            except:
+                ctime = output_dir.stat().st_ctime
+                created_datetime = datetime.datetime.fromtimestamp(ctime).astimezone()
+
+            is_old = created_datetime < now.astimezone() - parse_time('3weeks')
+            if is_old and not any([c.startswith(hexsha) for c in milestone_commits]):
+                print('DELETE', output_dir, created_datetime)
+                ci_commit = CiCommit(
+                    hexsha=hexsha,
+                    project=hwalg,
+                )
+                try:
+                    nb_manifests_dir = 0
+                    for qatools_path in output_dir.rglob('manifests'):
+                        nb_manifests_dir += 1
+                        ci_commit.commit_dir_override = qatools_path.parent
+                        print(ci_commit.commit_dir_override)
+                        ci_commit.delete()
+                    if not nb_manifests_dir:
+                        ci_commit.commit_dir_override = output_dir
+                        print(ci_commit.commit_dir_override)
+                        ci_commit.delete()
+                except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
+                    # __pycache__ can be owned by a different user that the one that created the folder...
+                    print(e)
+                # return
+
+
+
+@click.command()
 @click.option('--project', 'project_ids', help="Regular expressions to match projects", multiple=True)
 @click.option('--before', help="Overwrites what's defined in the project config. 1month, 3days..")
 @click.option('--can-delete-reference-branch', is_flag=True, help="Allows deleting results on the reference branch (e.g. master/develop). The latest commit will be kept.")
@@ -186,7 +272,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                 not CiCommit.latest_output_datetime   and CiCommit.authored_datetime < old_treshold,
             ))
             .order_by(CiCommit.authored_datetime.desc())
-            
+
         )
         if not can_delete_reference_branch:
             commits = commits.filter(CiCommit.branch.notin_(project.protected_refs))
@@ -268,13 +354,13 @@ def parse_time(time_str):
     else:
         groupdict['days'] = float(groupdict['days'])
     if groupdict.get('weeks'):
-        groupdict['days'] = groupdict['days'] + 7 * float(groupdict['weeks']) 
+        groupdict['days'] = groupdict['days'] + 7 * float(groupdict['weeks'])
         del groupdict['weeks']
     if groupdict.get('months'):
-        groupdict['days'] = groupdict['days'] + 31 * float(groupdict['months']) 
+        groupdict['days'] = groupdict['days'] + 31 * float(groupdict['months'])
         del groupdict['months']
     if groupdict.get('years'):
-        groupdict['days'] = groupdict['days'] + 365 * float(groupdict['years']) 
+        groupdict['days'] = groupdict['days'] + 365 * float(groupdict['years'])
         del groupdict['years']
     time_params = {name: float(param) for name, param in groupdict.items() if param}
     return datetime.timedelta(**time_params)
