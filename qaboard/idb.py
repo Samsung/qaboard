@@ -66,7 +66,7 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
         "metadata": {
           "path": str(image_path),
           "raw_md5": raw_md5,
-          "raw_path": str(raw_path),
+          # "raw_path": str(raw_path), # the source image path (raw_path) should be taken from the idb image metadata (document) 
           "project": str(project.name),
           "commit": commit_id,
           "run_context": json.load((run_context.output_dir / 'run.json').open()),
@@ -75,19 +75,5 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
       if crop_str:
         image["metadata"]["crop"] = crop_str
       collection = "rgb_images"
-      try:
-        client.tag(collection_name=collection, batch_id=batch_id, images=[image])
-      except DuplicateMD5KeyError:
-        prev_image = client.read_image(md5=image_md5, collection_name=collection)
-        if not prev_image.get("paths"): # can be None
-          prev_paths = []
-        else:
-          prev_paths = prev_image["paths"]
-        paths = prev_paths.append(image["metadata"]["path"])
-        client.update(collection_name=collection, update_data=[{
-          "md5": image_md5,
-          "data": {
-            "paths": paths,
-            "path": image["metadata"]["path"],
-          },
-        }])
+      client.tag(collection_name=collection, batch_id=batch_id, images=[image], allow_duplicates=True)
+
