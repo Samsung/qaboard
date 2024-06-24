@@ -663,8 +663,21 @@ class ImgViewer extends React.PureComponent {
         tickformat: '.1%',
       }
     }
+    let data_histograms = []
+    if (this.show_histogram) {
+      if (this.histo_ref && !has_same_data) {
+        data_histograms.push(...this.histo_ref)
+      }
+      if (this.histo_new) {
+        data_histograms.push(...this.histo_new)
+      }  
+    }
     const hist_info = this.show_histogram ? <div style={flex}>
-      <Plot data={[...(this.histo_ref || []), ...(this.histo_new || [])]} layout={histo_layout} style={histogram_size_tight} />
+      <Plot
+        data={data_histograms}
+        layout={histo_layout}
+        style={histogram_size_tight}
+      />
     </div> : <></>
 
     const diff_info = !has_same_data && single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>

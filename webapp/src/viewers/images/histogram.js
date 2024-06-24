@@ -52,7 +52,7 @@ const histogram_traces = (viewer, rect, label) =>  {
     fill: 'tozeroy',
     x: Object.keys(y),
     y: y.map(e => e / total_pixels),
-    name: label,
+    name: `${rgb[label][idx].name} @${label}`,
     legendgroup: rgb[label][idx].legendgroup,
     // fillcolor: '#ab63fa',
     // line: {
