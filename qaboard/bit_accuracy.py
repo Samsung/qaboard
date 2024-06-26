@@ -478,6 +478,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           "rel_input_path": run_info["input_path"],
           "configurations": run_info["configurations"],
           "output_dir_suffix": output_dir,
+          "reference_label": reference_label,
           "reference_platform": reference_platform,
           "batch_label":ctx.obj["raw_batch_label"]
         })
