@@ -277,6 +277,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
     else:
       click.secho(f"ERROR: Could not find {manifest_name} in all runs", fg='red')
       bit_accurate = False
+      return bit_accurate
     run_identifier = f"{run_identifier}  @{manifest_name}"
 
     if missing_runs:
