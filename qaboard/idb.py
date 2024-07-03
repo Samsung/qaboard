@@ -69,7 +69,9 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
           # "raw_path": str(raw_path), # the source image path (raw_path) should be taken from the idb image metadata (document) 
           "project": str(project.name),
           "commit": commit_id,
-          "run_context": json.load((run_context.output_dir / 'run.json').open()),
+          "qaboard_run_id": run_context.id,
+          "batch_label": run_context.obj['raw_batch_label'],
+          "run_context": json.load((run_context.output_dir / 'run.json').open())
       }}
       crop_str = crop_run(cde_run_dir)
       if crop_str:
