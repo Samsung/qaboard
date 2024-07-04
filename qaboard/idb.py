@@ -70,7 +70,7 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
           "project": str(project.name),
           "commit": commit_id,
           "qaboard_run_id": run_context.id,
-          "batch_label": run_context.obj['raw_batch_label'],
+          "batch_label": run_context.obj['batch_label'],
           "run_context": json.load((run_context.output_dir / 'run.json').open())
       }}
       crop_str = crop_run(cde_run_dir)
