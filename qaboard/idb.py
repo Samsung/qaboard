@@ -66,7 +66,7 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
         "metadata": {
           "path": str(image_path),
           "raw_md5": raw_md5,
-          # "raw_path": str(raw_path), # the source image path (raw_path) should be taken from the idb image metadata (document) 
+          "raw_path": str(raw_path), # the source image path (raw_path) should be taken from the idb image metadata (document) 
           "project": str(project.name),
           "commit": commit_id,
           "qaboard_run_id": run_context.id,
