@@ -218,7 +218,7 @@ def iter_inputs(
         # Allow setting defaults for database/platform at the YAML level
         # But pipelines need their own special database, everything is hardcoded for them...
         for attr in ["platform", "database", "configurations", "configs"]:
-          if attr in new_batches:
+          if attr in new_batches and attr not in new_batches[new_batch]:
               try:
                 new_batches[new_batch][attr] = new_batches[attr]
               except: # people often have things that are not batches, maybe aliases reused elsewhere...
