@@ -210,11 +210,11 @@ def iter_inputs(
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
-      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups'):
+      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform'):
         continue
       is_batch = isinstance(new_batches[new_batch], dict) # vs e.g. aliases
       is_pipeline = is_batch and new_batches[new_batch].get("type") == "pipeline"
-      if is_batch and is_pipeline:
+      if is_batch and not is_pipeline:
         # Allow setting defaults for database/platform at the YAML level
         # But pipelines need their own special database, everything is hardcoded for them...
         for attr in ["platform", "database", "configurations", "configs"]:
