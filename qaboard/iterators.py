@@ -73,11 +73,12 @@ def match(value, value_filter) -> bool:
 
 
 def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
-  if not path:
-    path = "*"
-
-  maybe_parent = lambda path: path.parent if use_parent_folder else path
-  input_paths = list(database.glob(str(path))) # to support wildcards
+  if path:
+    input_paths = list(database.glob(str(path))) # to support wildcards
+  else:
+    # we want to match everything, including inputs starting at the level of the database
+    # that could be identified by nested naming conventions like "tv/tv_*"
+    input_paths = [*database.glob("*"), database]
   if not input_paths:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found for the batch "{path}"', fg='red', err=True)
@@ -93,6 +94,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     yield from ((i, database) for i in input_paths)
     return
 
+  maybe_parent = lambda path: path.parent if use_parent_folder else path
   nb_inputs = 0
   for glob in globs:
     for input_path in input_paths:
@@ -271,6 +273,9 @@ def iter_inputs(
       inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
       yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
     else:
+      if available_batches[batch] is None:
+        click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
+        click.secho(f"         If you want to run on all inputs consider using '{batch}: inputs:'.", fg='yellow', err=True)
       yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
 
 
