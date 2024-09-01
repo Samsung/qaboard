@@ -9,13 +9,37 @@
 #   data: ...CompId:  for any user with the CompId 'C123'/'C777'.
 #   data: ...GrdName: for any user with the GrdName 'Staff/Team Leader'.
 
-user_name:
-- user1
-- user2
-- john.doe
-email:
-- mr.nobody@samsung.com
-- user3@samsung.com
+
+projects:
+  LSC/Calibration:
+    user_name:
+    - user1
+    email:
+    - mr.nobody@samsung.com
+    data:
+      # LDAP
+    - OU=SIRC Users
+
+  CDE-Users/HW_ALG/CIS:
+    user_name:
+    - user2
+    - john.doe
+
+  CDE-Users/HW_ALG/PSP_2x/:
+    data:
+    - OU=SIRC Users
+
+
+login:
+  user_name:
+  - user1
+  - user2
+  - john.doe
+  - user3
+
+  email:
+  - mr.nobody@samsung.com
+  - user3@samsung.com
 
 data:
   http://schemas.company.com/2023/11/CompId:
