@@ -185,23 +185,41 @@ def update_user(user, info):
   return user
 
 
-def is_authorized_user(user_info: dict):
-  is_authorized = False
-  users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
+def is_authorized_user(user_info: dict, project=None):
 
+
+  if project:
+    if not users_restrict_config.get('projects'): 
+      return True
+    # check if project is projects
+    if not users_restrict_config['projects'].get(project):
+      # check if a father project exists
+
+
+      # Find all strings in list_of_strs that start with the same prefix as my_str
+      matching_strs = [s for s in users_restrict_config['projects'].keys() if project.startswith(s)]
+      # Get the longest string from the matching strings
+      if matching_strs:
+        project = max(matching_strs, key=len)
+      else:
+        # Project is public
+        return True
+
+  is_authorized = False
+  perms_data = users_restrict_config['projects'][project] if project else users_restrict_config['login']
   for key, value in user_info.items():
     if is_authorized: break
-    if key in users_restrict_config.keys():
+    if key in perms_data.keys():
       if isinstance(value, str):
-        is_authorized = value in users_restrict_config[key]
+        is_authorized = value in perms_data[key]
       elif isinstance(value, list):
-        is_authorized = any([v for v in value if v in users_restrict_config[key]])
+        is_authorized = any([v for v in value if v in perms_data[key]])
       elif isinstance(value, dict):
           for inner_key, inner_value in value.items():
             if is_authorized: break
-            if inner_key in users_restrict_config[key].keys():
-              print([v for v in inner_value if v in users_restrict_config[key][inner_key]])
-              is_authorized = any([v for v in inner_value if v in users_restrict_config[key][inner_key]])
+            if inner_key in perms_data[key].keys():
+              print([v for v in inner_value if v in perms_data[key][inner_key]])
+              is_authorized = any([v for v in inner_value if v in perms_data[key][inner_key]])
   return is_authorized
 
 
