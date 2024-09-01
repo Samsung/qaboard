@@ -45,7 +45,7 @@ import {
 	batchSelector,
 } from './selectors/projects'
 
-import PrivateContent from "./components/authentication/RequireAuth"
+import PrivateContent from "./components/authentication/PrivateContent"
 
 
 

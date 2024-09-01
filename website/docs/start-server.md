@@ -84,8 +84,8 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-| `GITLAB_AUTH`         | _none_  | Credentials used to forward private project avatars from Gitlab. The format is a JSON string looking like `{"hostname": {"user": "username", "password": "xxxxx", "type": "user"}}`. `type` is optionnal and can also be `ldap_user`. Asking for a password is not great but [the API is not sufficient](https://docs.gitlab.com/ce/api/#session-cookie)... You can use `"http": true` if needed. |
 third-party-tools#example-jenkins-integration-via-webhooks))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users                   |
+| `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
+| `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users (requires backend restart)                   |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
 | `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
