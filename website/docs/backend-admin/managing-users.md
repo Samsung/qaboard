@@ -33,8 +33,8 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users                   |
+| `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
+| `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users (requires backend restart)                   |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
 | `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
@@ -60,26 +60,122 @@ To allow only specific users to sign-in, set the environment variables:
 - `QABOARD_LOGIN_RESTRICTED=true`
 - `QABOARD_LOGIN_RESTRICTED_YAML=path/to/users_restrict.yml`
 
-The YAML file specifies multiple cases where users will be accepted. It can be based on the user name, email, or any parameter from the authentification provider (or `users` table in the database). Example:
+The YAML file specifies multiple cases where users will be accepted. It can be based on the user name, email, or any parameter from the authentification provider (or `users` table in the database).\
+Example:
 
 
 ```yml title="users_restrict.yml"
-# only users with one of those emails will be able to login
-email:
-- mr.nobody@samsung.com
-- user3@samsung.com
+login:
+  # only users with one of those emails will be able to login
+  email:
+  - mr.nobody@samsung.com
+  - user3@samsung.com
 
-# those users will also be allowed to login
-user_name:
-- john.doe
-- jane.doe
+  # those users will also be allowed to login
+  user_name:
+  - john.doe
+  - jane.doe
 
-# here we can use SAML attributes to restrict based on the rank, job position... 
-data:
-  http://sso.company.com/2023/11/CompId:
-  - C123
-  - C777
-  http://sso.company.com/2023/11/GrdName:
-  - Staff
-  - Team Leader
+  # here we can use SAML attributes to restrict based on the rank, job position... 
+  data:
+    http://sso.company.com/2023/11/CompId:
+    - C123
+    - C777
+    http://sso.company.com/2023/11/GrdName:
+    - Staff
+    - Team Leader
+```
+
+## Managing Projects
+If you need to restrict a project so that only specific users have access, you can configure this in the configuration file.\
+Example:
+```yml title="users_restrict.yml"
+# restricting a namespace
+my_projects:
+  # only users with one of those emails will be able to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
+  email:
+  - mr.nobody@samsung.com
+  - user3@samsung.com
+
+  # those users will also be allowed to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
+  user_name:
+  - john.doe
+  - jane.doe
+
+  # here we can use SAML attributes to restrict based on the rank, job position... 
+  data:
+    http://sso.company.com/2023/11/CompId:
+    - C123
+    - C777
+    http://sso.company.com/2023/11/GrdName:
+    - Staff
+    - Team Leader
+
+# restricting a project
+my_projects/proj1:
+  # only users with one of those emails will be able to access proj1
+  email:
+  - mr.nobody@samsung.com
+
+  # those users will also be allowed to access proj1
+  user_name:
+  - john.doe
+
+
+```
+If both a 'namespace' and a 'project' are set, the project will take priority.
+For example for the following "namespace/project", you can restrict the specific project to a certain group and restrict the namespace to a larger group.
+
+A full configuration file that has both 'login' and 'project' restrictions will look like this:
+```yml title="users_restrict.yml"
+login:
+  # only users with one of those emails will be able to login
+  email:
+  - mr.nobody@samsung.com
+  - user3@samsung.com
+
+  # those users will also be allowed to login
+  user_name:
+  - john.doe
+  - jane.doe
+
+  # here we can use SAML attributes to restrict based on the rank, job position... 
+  data:
+    http://sso.company.com/2023/11/CompId:
+    - C123
+    - C777
+    http://sso.company.com/2023/11/GrdName:
+    - Staff
+    - Team Leader
+
+# restricting a namespace
+my_projects:
+  # only users with one of those emails will be able to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
+  email:
+  - mr.nobody@samsung.com
+  - user3@samsung.com
+
+  # those users will also be allowed to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
+  user_name:
+  - john.doe
+  - jane.doe
+
+  # here we can use SAML attributes to restrict based on the rank, job position... 
+  data:
+    http://sso.company.com/2023/11/CompId:
+    - C123
+    - C777
+    http://sso.company.com/2023/11/GrdName:
+    - Staff
+    - Team Leader
+
+# restricting a project
+my_projects/proj1:
+  # only users with one of those emails will be able to access proj1
+  email:
+  - mr.nobody@samsung.com
+
+  # those users will also be allowed to access proj1
+  user_name:
+  - john.doe
 ```
