@@ -95,7 +95,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     return
 
   maybe_parent = lambda path: path.parent if use_parent_folder else path
-  nb_inputs = 0
+  seen_inputs = set()
   for glob in globs:
     for input_path in input_paths:
       input_path = cased_path(input_path)
@@ -103,12 +103,15 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         inputs.append(cased_path(input_path))
+
       for i in inputs:
+        if i in seen_inputs:
+          continue
         metadata = []
         # ideally the increment would be after filtering,
         # but some projects rely on metadata() to limit the amount of tests they run based on the git diff
         # for those, we don't want to QA_BATCH_FAIL_IF_EMPTY check to fail
-        nb_inputs += 1
+        seen_inputs.add(i)
         if only or exclude:
           metadata = input_metadata(i, database, i.relative_to(database), qatools_config)
           if only and not match(metadata, only): continue
@@ -135,7 +138,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   #       nb_inputs += 1
   #       yield input_path
 
-  if not nb_inputs:
+  if not seen_inputs:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
       raise ValueError 
