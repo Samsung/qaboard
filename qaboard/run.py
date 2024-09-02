@@ -1,7 +1,8 @@
 import json
+import copy
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Any
 
 import click
 
@@ -175,10 +176,14 @@ class RunContext():
 
 
     @property
-    def configs(self):
-        _extra_parameters = self.extra_parameters
+    def configs(self):        
+        _extra_parameters = copy.deepcopy(self.extra_parameters)
         if _extra_parameters:
-            return [*self.configurations, self.extra_parameters]
+            if "_configs" in _extra_parameters:
+                _extra_parameters_configs = _extra_parameters.pop("_configs")
+                return [*self.configurations, *_extra_parameters_configs, self.extra_parameters]
+            else:
+                return [*self.configurations, self.extra_parameters]
         else:
             return self.configurations
 

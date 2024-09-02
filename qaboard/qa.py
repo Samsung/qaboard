@@ -102,14 +102,13 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   #   deserialize_config = lambda configurations: return [maybe_json_loads(c) for c in configurations]
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
 
-  # when the tuning contains a field named "_configs", it will be added to the context.configs
+  # When the tuning contains a field named "_configs", it will be added to the context.configs
   # and not exposed as par of the regular .params mapping used for tuning. Otherwise there is no
   # way to do tuning when we want to tune "str" values
-  # --tuning '"hello"' --tuning '{"key": "value"}' --tuning '["world"]'
+  #   --tuning '"hello"' --tuning '{"key": "value"}' --tuning '["world"]'
   #   => {'_configs': ['hello', 'world'], 'key': 'value'}
-  # which would mean to try both hello/world config options, with key=value
-  # if the user would want [base,tuning] vs [base], he can try
-  #   --tuning '[["base", "tuning"], "base"]'
+  # If the user would want [base,tuning] vs [base], he can try the tuning search
+  #   _config: [["base", "tuning"], "base"]
   ctx.obj['extra_parameters'] = {}
   def process_tuning(params_str):
     params = json.loads(params_str)
