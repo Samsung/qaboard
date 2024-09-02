@@ -76,7 +76,7 @@ login:
   - john.doe
   - jane.doe
 
-  # here we can use SAML attributes to restrict based on the rank, job position... 
+  # here we can use SAML/LDAP attributes to restrict based on the rank, job position... 
   data:
     http://sso.company.com/2023/11/CompId:
     - C123
@@ -90,38 +90,37 @@ login:
 If you need to restrict a project so that only specific users have access, you can configure this in the configuration file.\
 Example:
 ```yml title="users_restrict.yml"
-# restricting a namespace
-my_projects:
-  # only users with one of those emails will be able to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
-  email:
-  - mr.nobody@samsung.com
-  - user3@samsung.com
+projects:
+  # restricting a namespace
+  my_namespace:
+    # only users with one of those emails will be able to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
+    email:
+    - mr.nobody@samsung.com
+    - user3@samsung.com
 
-  # those users will also be allowed to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
-  user_name:
-  - john.doe
-  - jane.doe
+    # those users will also be allowed to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
+    user_name:
+    - john.doe
+    - jane.doe
 
-  # here we can use SAML attributes to restrict based on the rank, job position... 
-  data:
-    http://sso.company.com/2023/11/CompId:
-    - C123
-    - C777
-    http://sso.company.com/2023/11/GrdName:
-    - Staff
-    - Team Leader
+    # here we can use SAML/LDAP attributes to restrict based on the rank, job position... 
+    data:
+      http://sso.company.com/2023/11/CompId:
+      - C123
+      - C777
+      http://sso.company.com/2023/11/GrdName:
+      - Staff
+      - Team Leader
 
-# restricting a project
-my_projects/proj1:
-  # only users with one of those emails will be able to access proj1
-  email:
-  - mr.nobody@samsung.com
+  # restricting a project
+  my_namespace/proj1:
+    # only users with one of those emails will be able to access proj1
+    email:
+    - mr.nobody@samsung.com
 
-  # those users will also be allowed to access proj1
-  user_name:
-  - john.doe
-
-
+    # those users will also be allowed to access proj1
+    user_name:
+    - john.doe
 ```
 If both a 'namespace' and a 'project' are set, the project will take priority.
 For example for the following "namespace/project", you can restrict the specific project to a certain group and restrict the namespace to a larger group.
@@ -139,7 +138,7 @@ login:
   - john.doe
   - jane.doe
 
-  # here we can use SAML attributes to restrict based on the rank, job position... 
+  # here we can use SAML/LDAP attributes to restrict based on the rank, job position... 
   data:
     http://sso.company.com/2023/11/CompId:
     - C123
@@ -148,34 +147,35 @@ login:
     - Staff
     - Team Leader
 
-# restricting a namespace
-my_projects:
-  # only users with one of those emails will be able to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
-  email:
-  - mr.nobody@samsung.com
-  - user3@samsung.com
+projects:
+  # restricting a namespace
+  my_namespace:
+    # only users with one of those emails will be able to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
+    email:
+    - mr.nobody@samsung.com
+    - user3@samsung.com
 
-  # those users will also be allowed to access projects that are under the namespace "my_projects", but not to "my_projects/proj1"
-  user_name:
-  - john.doe
-  - jane.doe
+    # those users will also be allowed to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
+    user_name:
+    - john.doe
+    - jane.doe
 
-  # here we can use SAML attributes to restrict based on the rank, job position... 
-  data:
-    http://sso.company.com/2023/11/CompId:
-    - C123
-    - C777
-    http://sso.company.com/2023/11/GrdName:
-    - Staff
-    - Team Leader
+    # here we can use SAML/LDAP attributes to restrict based on the rank, job position... 
+    data:
+      http://sso.company.com/2023/11/CompId:
+      - C123
+      - C777
+      http://sso.company.com/2023/11/GrdName:
+      - Staff
+      - Team Leader
 
-# restricting a project
-my_projects/proj1:
-  # only users with one of those emails will be able to access proj1
-  email:
-  - mr.nobody@samsung.com
+  # restricting a project
+  my_namespace/proj1:
+    # only users with one of those emails will be able to access proj1
+    email:
+    - mr.nobody@samsung.com
 
-  # those users will also be allowed to access proj1
-  user_name:
-  - john.doe
+    # those users will also be allowed to access proj1
+    user_name:
+    - john.doe
 ```
