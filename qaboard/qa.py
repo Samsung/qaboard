@@ -45,8 +45,8 @@ from .config import user, is_ci, on_windows
 @click.option('--platform', default=default_platform)
 @click.option('--configuration', '--config', '-c', 'configurations', multiple=True, help="Will be passed to the run function")
 @click.option('--label', '-l', default=default_batch_label, help="Gives tuning experiments a name.")
-@click.option('--tuning', default=None, help="Extra parameters for tuning (JSON)")
-@click.option('--tuning-filepath', type=PathType(), default=None, help="File with extra parameters for tuning")
+@click.option('--tuning', multiple=True, help="Extra parameters for tuning (as JSON).")
+@click.option('--tuning-filepath', type=PathType(), multiple=True, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
 @click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
 @click.option('--database', type=PathType(), help="Input database location")
@@ -101,19 +101,35 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # we should refactor the str configuration away completely, and do a much simpler parsing, like
   #   deserialize_config = lambda configurations: return [maybe_json_loads(c) for c in configurations]
   ctx.obj['configurations'] = deserialize_config(ctx.obj['configuration'])
+
+  # when the tuning contains a field named "_configs", it will be added to the context.configs
+  # and not exposed as par of the regular .params mapping used for tuning. Otherwise there is no
+  # way to do tuning when we want to tune "str" values
+  # --tuning '"hello"' --tuning '{"key": "value"}' --tuning '["world"]'
+  #   => {'_configs': ['hello', 'world'], 'key': 'value'}
+  # which would mean to try both hello/world config options, with key=value
+  # if the user would want [base,tuning] vs [base], he can try
+  #   --tuning '[["base", "tuning"], "base"]'
   ctx.obj['extra_parameters'] = {}
-  if tuning:
-    ctx.obj['extra_parameters'] = json.loads(tuning)
-  elif tuning_filepath:
-    ctx.obj['tuning_filepath'] = tuning_filepath
-    with tuning_filepath.open('r') as f:
-      if tuning_filepath.suffix == '.yaml':
-        ctx.obj['extra_parameters'] = yaml.load(f, Loader=yaml.SafeLoader)
-      elif tuning_filepath.suffix == '.cde':
-        from cde import Config
-        ctx.obj['extra_parameters'] = Config.loads(f.read()).asdict()
-      else:
-        ctx.obj['extra_parameters'] = json.load(f)
+  def process_tuning(params_str):
+    params = json.loads(params_str)
+    if isinstance(params, str):
+      if "_configs" not in ctx.obj['extra_parameters']:
+        ctx.obj['extra_parameters']["_configs"] = []
+      ctx.obj['extra_parameters']["_configs"].append(params)
+    elif isinstance(params, list):
+      if "_configs" not in ctx.obj['extra_parameters']:
+        ctx.obj['extra_parameters']["_configs"] = []
+      ctx.obj['extra_parameters']["_configs"].extend(params)
+    else:
+      from .utils import merge
+      merge(params, ctx.obj['extra_parameters'])
+
+  for tp in tuning_filepath:
+    process_tuning(tp.read_text())
+  for t in tuning:
+    process_tuning(t)
+
   # batch runs will override this since batches may have different configurations
   ctx.obj['batch_conf_dir'] = make_batch_conf_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configurations'], ctx.obj['extra_parameters'], share)
   ctx.obj['batch_dir'] = make_batch_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configurations'], ctx.obj['extra_parameters'], share)
@@ -551,7 +567,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           batch_conf_dir = outputs_commit / prefix_outputs_path
           if tuning_params:
               batch_conf_dir = batch_conf_dir / tuning_hash
-      from qaboard.conventions import slugify_hash, output_dirs_for_input_part
+      from qaboard.conventions import output_dirs_for_input_part
       run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
       if forwarded_args:
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
