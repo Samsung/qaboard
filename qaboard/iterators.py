@@ -364,7 +364,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       # A sequence of dicts signifies a sequence of grids to search,
       # useful to avoid exploring parameter combinations that make no sense or have no effect.
       if isinstance(batch_matrices, dict):
-        batch_matrices = [batch_matrix]
+        batch_matrices = [batch_matrices]
       for batch_matrix in batch_matrices:
         keys = batch_matrix.keys()
         values = batch_matrix.values()
