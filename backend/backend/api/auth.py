@@ -186,7 +186,24 @@ def update_user(user, info):
 
 
 def is_authorized_user(user_info: dict, project=None):
+  """
+  Check if the given user is authorized to access the server or to a specified project.
 
+  This function determines if a user is authorized by verifying their information 
+  and optionally checking their access rights to a particular project. If no
+  `user_info` is provided, the current user's information is retrieved and used.
+
+  Args:
+      user_info (dict): A dictionary containing information about the user.
+      project (optional): The project to check authorization for.
+                          If `None`, the function only checks general user authorization to the server.
+
+  Returns:
+      bool: True if the user is authorized to access the project (or authorized in general 
+            if no project is provided), False otherwise.
+  """
+  if not user_info:
+    user_info = get_current_user(to_jsonify=False)
 
   if project:
     if not users_restrict_config.get('projects'): 

@@ -17,7 +17,7 @@ from sqlalchemy.sql import label
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
 from ..utils import profiled
-from .auth import get_current_user, is_authorized_user
+from .auth import is_authorized_user
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
@@ -29,8 +29,7 @@ timezone = pytz.timezone("utc")
 def get_commits(branch=None):
   project_id = request.args['project']
 
-  user_info = get_current_user(to_jsonify=False)
-  if not is_authorized_user(user_info, project_id): 
+  if not is_authorized_user(None, project_id): 
     return f"Forbidden: You don't have permission to access this project", 403
 
   to_date_s = request.args.get('to', None)
@@ -119,8 +118,7 @@ def get_branches():
               .order_by(CiCommit.branch)
              )
 
-  user_info = get_current_user(to_jsonify=False)
-  if not is_authorized_user(user_info, project_id): 
+  if not is_authorized_user(None, project_id): 
     return f"Forbidden: You don't have permission to access this project", 403
   return jsonify([b[0] for b in branches.yield_per(1000)])
 
@@ -141,9 +139,8 @@ def get_projects():
               .order_by(asc(func.lower(Project.id)))
              )
   response = {}
-  user_info = get_current_user(to_jsonify=False)
   for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects.yield_per(1000):
-    if not is_authorized_user(user_info, project_id): 
+    if not is_authorized_user(None, project_id): 
       continue
 
     if "qatools_metrics" in data:
@@ -171,8 +168,7 @@ def get_project():
                .one()
               )
 
-  user_info = get_current_user(to_jsonify=False)
-  if not is_authorized_user(user_info, project_id): 
+  if not is_authorized_user(None, project_id): 
     return f"Forbidden: You don't have permission to access this project", 403
 
   return jsonify(project.data)
