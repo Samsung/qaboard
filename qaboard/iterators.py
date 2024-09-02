@@ -10,7 +10,7 @@ import fnmatch
 import traceback
 from copy import deepcopy
 from pathlib import Path
-from itertools import chain
+from itertools import chain, product
 from dataclasses import replace
 from typing import List, Union, Dict, Tuple, Iterator, cast
 
@@ -357,32 +357,43 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     if batch_database:
       run_context.database = batch_database
     if batch.get('matrix'):
-      from sklearn.model_selection import ParameterGrid
-      for matrix in ParameterGrid(batch['matrix']):
-        batch_ = deepcopy(batch)
-        for key in ['matrix', 'configuration', 'configurations', 'configs', 'platform']:
-          if key in batch:
-            del batch_[key]
-        matrix_run_context = deepcopy(run_context)
-        if 'platform' in matrix:
-          matrix_run_context.platform = matrix['platform']
-        matrix_config = None
-        for k in ['configuration', 'configurations', 'configs']:
-          if k in matrix:
-            matrix_config = matrix[k]
-        if matrix_config:
-          # if no config is specified in the batch, but the matrix defined some
-          # them we want to replace the default config, not append to it
-          run_context_uses_default_config = not any([k in batch for k in ['configs', 'configurations', 'configuration']])
-          if matrix_run_context.configurations and not run_context_uses_default_config:
-            matrix_run_context.configurations.append(matrix_config)
-          else:
-            matrix_run_context.configurations = matrix_config
-        for param, value in matrix.items():
-          if param in ['configuration', 'configurations', 'configs', 'platform']:
-            continue
-          matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
-        yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
+      # We used to rely on ParameterGrid
+      # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterGrid.html
+      # but imports are super slow, so we replaced with stdlib with the same API
+      batch_matrices = batch['matrix']
+      # A sequence of dicts signifies a sequence of grids to search,
+      # useful to avoid exploring parameter combinations that make no sense or have no effect.
+      if isinstance(batch_matrices, dict):
+        batch_matrices = [batch_matrix]
+      for batch_matrix in batch_matrices:
+        keys = batch_matrix.keys()
+        values = batch_matrix.values()
+        for combination in product(*values):
+          matrix = dict(zip(keys, combination))
+          batch_ = deepcopy(batch)
+          for key in ['matrix', 'configuration', 'configurations', 'configs', 'platform']:
+            if key in batch:
+              del batch_[key]
+          matrix_run_context = deepcopy(run_context)
+          if 'platform' in matrix:
+            matrix_run_context.platform = matrix['platform']
+          matrix_config = None
+          for k in ['configuration', 'configurations', 'configs']:
+            if k in matrix:
+              matrix_config = matrix[k]
+          if matrix_config:
+            # if no config is specified in the batch, but the matrix defined some
+            # them we want to replace the default config, not append to it
+            run_context_uses_default_config = not any([k in batch for k in ['configs', 'configurations', 'configuration']])
+            if matrix_run_context.configurations and not run_context_uses_default_config:
+              matrix_run_context.configurations.append(matrix_config)
+            else:
+              matrix_run_context.configurations = matrix_config
+          for param, value in matrix.items():
+            if param in ['configuration', 'configurations', 'configs', 'platform']:
+              continue
+            matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
+          yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
       return
 
     locations = batch.get('inputs', batch.get('tests'))
