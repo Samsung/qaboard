@@ -129,7 +129,7 @@ class TuningForm extends Component {
     this.state = {
       submitted: false,
       experiment_name: this.props.experiment_name || "",
-      platform: this.props.platform || "lsf",
+      platform: this.props.platform || "linux",
       overwrite: this.props.overwrite==='on' || true,
 
       selected_group: this.props.selected_group || "",

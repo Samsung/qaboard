@@ -179,12 +179,12 @@ def get_group():
     try:
         tests = list(
             iter_inputs(
-                [request.args["name"]], # batches
+                [request.args["name"]],  # batches
                 batches_paths,           # batches_files,
-                default_database,       # database
+                default_database,        # database
                 default_configurations,  # default_configuration
-                'lsf',                # platform
-                {"type": 'lsf'},        # default_job_configuration
+                'linux',                 # platform
+                {"type": 'lsf'},         # default_job_configuration
                 qatools_config,
                 default_inputs_settings=input_settings,
             )
