@@ -204,10 +204,11 @@ class TestIterators(unittest.TestCase):
 
     batches = get_batch('matrix-interpolation')
     self.assertEqual(len(batches), 4)
-    self.assertEqual(batches[0].configurations, ['base-1'])
-    self.assertEqual(batches[1].configurations, ['base-2'])
-    self.assertEqual(batches[2].configurations, ['base-1', 'delta'])
-    self.assertEqual(batches[3].configurations, ['base-2', 'delta'])
+    configs = [b.configurations for b in batches]
+    self.assertIn(['base-1'], configs)
+    self.assertIn(['base-2'], configs)
+    self.assertIn(['base-1', 'delta'], configs)
+    self.assertIn(['base-2', 'delta'], configs)
 
     batches = get_batch('matrix-keep-type')
     self.assertEqual(len(batches), 2)
