@@ -18,9 +18,6 @@ import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
-from cde.image.read import hex_attributes, read_imgprops
-
-
 
 def merge(src: Dict, dest: Dict) -> Dict:
     """Deep merge dicts"""
@@ -300,11 +297,13 @@ def _file_info(path : Path, compute_hashes=True):
         info['md5'] = md5_hex(path)
         image_meta = None
         if path.suffix == '.hex':
+          from cde.image.read import hex_attributes
           hex_attr = hex_attributes(path)
           hash_length = hex_attr.get('footer_start_pos')
           info['md5_data'] = md5_hex(path, hash_length)
           image_meta = hex_attr
         if path.suffix == '.raw':
+          from cde.image.read import read_imgprops
           image_meta = read_imgprops(path)
         if image_meta:
           for attr in checked_cde_attrs:

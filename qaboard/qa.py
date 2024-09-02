@@ -8,7 +8,6 @@ import sys
 import json
 import time
 import uuid
-import yaml
 import datetime
 import traceback
 from shlex import quote

@@ -44,8 +44,6 @@ import time
 from typing import List, Dict, Any
 
 from click import secho
-import requests
-from requests.adapters import HTTPAdapter, Retry
 
 from .base import BaseRunner
 from .job import Job
@@ -77,6 +75,7 @@ def get_jenkins_config():
 
 
 def trigger_run(task: str) -> Dict:
+    import requests
     jenkins_config = get_jenkins_config()
     data = {
         "build_url": jenkins_config["build_url"],
@@ -104,22 +103,27 @@ def trigger_run(task: str) -> Dict:
 
 
 
-# Adding callback function on each retry attempt using requests/urllib3
-# https://stackoverflow.com/questions/51188661/adding-callback-function-on-each-retry-attempt-using-requests-urllib3
-class CallbackRetry(Retry):
-    def __init__(self, *args, **kwargs):
-        self._callback = kwargs.pop('callback', None)
-        super(CallbackRetry, self).__init__(*args, **kwargs)
-    def new(self, **kw):
-        kw['callback'] = self._callback
-        return super(CallbackRetry, self).new(**kw)
-    def increment(self, method, url, *args, **kwargs):
-        if self._callback:
-          self._callback(url)
-        return super(CallbackRetry, self).increment(method, url, *args, **kwargs)
-
 
 def build_status(build_info):
+  import requests
+  from requests.adapters import HTTPAdapter, Retry
+
+  # Adding callback function on each retry attempt using requests/urllib3
+  # https://stackoverflow.com/questions/51188661/adding-callback-function-on-each-retry-attempt-using-requests-urllib3
+  class CallbackRetry(Retry):
+      def __init__(self, *args, **kwargs):
+          self._callback = kwargs.pop('callback', None)
+          super(CallbackRetry, self).__init__(*args, **kwargs)
+      def new(self, **kw):
+          kw['callback'] = self._callback
+          return super(CallbackRetry, self).new(**kw)
+      def increment(self, method, url, *args, **kwargs):
+          if self._callback:
+            self._callback(url)
+          return super(CallbackRetry, self).increment(method, url, *args, **kwargs)
+
+
+
   session = requests.Session()
   adapter = HTTPAdapter(
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.
@@ -171,6 +175,7 @@ def wait_for_build(build_info, should_print_log=True):
 
 
 def print_log(log_url):
+    import requests
     try:
         r = requests.get(log_url)
         result = r.text

@@ -10,7 +10,6 @@ from pathlib import Path
 from collections.abc import Iterable
 
 import click
-from joblib import Parallel, delayed
 
 from .api import NumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
@@ -59,8 +58,10 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
   print_url(ctx)
 
   from shutil import rmtree
-  from .api import aggregated_metrics
   from skopt.utils import dump
+  from joblib import Parallel, delayed
+  from .api import aggregated_metrics
+
   objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, checkpoint, ctx)
   previous_iterations = len(optimizer.yi)
   if not parallel_param_sampling:

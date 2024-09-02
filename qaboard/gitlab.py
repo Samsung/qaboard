@@ -1,8 +1,6 @@
 import os
-from pathlib import Path
 import time
 
-import requests
 import click
 
 from urllib.parse import quote
@@ -29,6 +27,7 @@ def check_gitlab_token():
 
 
 def ci_commit_data(commit_id):
+  import requests
   assert check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}"
   r = requests.get(url, headers=gitlab_headers)
@@ -36,6 +35,7 @@ def ci_commit_data(commit_id):
   return r.json()
 
 def ci_commit_statuses(commit_id, **kwargs):
+  import requests
   check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}/statuses"
   r = requests.get(url, headers=gitlab_headers, params=kwargs)
@@ -45,6 +45,7 @@ def ci_commit_statuses(commit_id, **kwargs):
 
 
 def update_gitlab_status(state, name, target_url, description, commit_id=commit_id):
+  import requests
   check_gitlab_token()
   url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
   params = {
