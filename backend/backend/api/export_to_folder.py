@@ -16,6 +16,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import label
 
 from qaboard.utils import copy
+from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, slugify_hash
@@ -194,7 +195,16 @@ def export_to_folder():
   # We save the links in a unique folder
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
   m = hashlib.md5(query_string.encode('utf-8')).hexdigest()
-  export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
+
+  if "export_dir" in request.args:
+    export_dir = Path(request.args['export_dir'])
+    export_dir = windows_to_linux_path(export_dir).resolve()
+    forbidden_dirs = ["/etc", "/bin", "/sbin", "/bin", "/lib", "/arch", "/proc", "/lib64", "/run", "/sys", "/usr/"]
+    for forbidden_dir in forbidden_dirs:
+      assert not export_dir.is_relative_to(forbidden_dir)
+  else:
+    export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
+
   prev_mask = os.umask(000)
   try:
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -383,7 +393,10 @@ def symlink_to(path_from, path_to):
         path_from.unlink()
     # print(f"LINK {path_from} -> {path_to}")
     # print("  ", path_from.owner())
-    os.link(str(path_to), str(path_from))
+    try:
+      os.link(str(path_to), str(path_from))
+    except:
+      os.symlink(str(path_to), str(path_from))
     # path_from.symlink_to(path_to)
   except Exception as e:
     print("symlink_to: ", e)

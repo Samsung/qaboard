@@ -21,7 +21,8 @@ class ExportPlugin extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      path: this.props.path || '*.bmp',
+      path: this.props.path || '*.png',
+      export_dir: null,
       edited: false,
       is_loading: false,
     }
@@ -30,7 +31,7 @@ class ExportPlugin extends React.Component {
   componentDidUpdate(prevProps) {
     if (!this.state.edited && prevProps.config !== this.props.config) {
       let visualizations = this.props.config?.outputs?.visualizations || []
-      let path = (visualizations[0] || {}).path || '*.bmp'
+      let path = (visualizations[0] || {}).path || '*.png'
       // for projects using dynamic outputs we should
       path = path.replace(/:[a-zA-Z0-9_]+/, '*')
       this.setState({path})
@@ -49,6 +50,8 @@ class ExportPlugin extends React.Component {
       batch_ref: this.props.selected_batch_ref,
       filter_new: this.props.filter_batch_new,
       filter_ref: this.props.filter_batch_ref,
+      export_dir: this.state.export_dir,
+      edit_export_dir: false,
     };
     get('/api/v1/export/', {params})
     .then(response => {
@@ -78,11 +81,15 @@ class ExportPlugin extends React.Component {
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup
         labelFor="pluging-copy"
-        helperText={<span>Files will be exported to a shared directory. You can use <a href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '**/*.jpg' ('**/' matches 0 or more)</span>}
+        helperText={<p>
+          Files will be exported to a shared directory {!this.state.edit_export_dir && <Button onClick={() => this.setState({edit_export_dir: true})} small outlined icon="edit">Edit where</Button>}<br/>
+          {this.state.edit_export_dir && <InputGroup onChange={e => this.setState({export_dir: e.target.value})} value={this.state.export_dir} placeholder={'/linux or \\windows path on the shared storage'} />}
+          You can use <a href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '**/*.jpg' ('**/' matches 0 or more)
+        </p>}
       >
         <ControlGroup>
            <Button disabled={this.state.is_loading} icon="download" onClick={this.export_to_directory}>Export</Button>
-           <InputGroup onChange={e => this.setState({path: e.target.value, edited: true})} value={this.state.path} placeholder={'*.bmp'} />
+           <InputGroup onChange={e => this.setState({path: e.target.value, edited: true})} value={this.state.path} placeholder={'*.png'} />
         </ControlGroup>
         {this.state.linux_export_dir && <div style={{marginTop: '10px'}}>
           <p><Tag>Windows</Tag> <code>{this.state.windows_export_dir}</code></p>
