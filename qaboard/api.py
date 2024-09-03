@@ -9,7 +9,6 @@ from functools import lru_cache
 from urllib.parse import quote, unquote
 from typing import Any, Dict, Optional, List
 
-import simplejson
 import click
 
 from .config import project, commit_id, is_ci, available_metrics
@@ -80,15 +79,6 @@ def print_url(ctx, status="starting"):
 
 
 
-class NumpyEncoder(simplejson.JSONEncoder):
-    """Special simplejson encoder for numpy types"""
-    def default(self, obj):
-        # we take care not to import numpy unless it's already loaded
-        if 'numpy' in str(type(obj)) and hasattr(obj, 'tolist'):
-          return obj.tolist()
-        else:
-          return simplejson.JSONEncoder.default(self, obj)
-
 
 def serialize_path(path):
   from .config import on_windows
@@ -158,7 +148,18 @@ def notify_qa_database(object_type='output', **kwargs):
     click.secho(str(data), fg='cyan', dim=True, err=True)
 
   try:
-    # we can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
+    # We can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
+    # The code is here to avoid slow imports at startup 
+    import simplejson
+    class NumpyEncoder(simplejson.JSONEncoder):
+        """Special simplejson encoder for numpy types"""
+        def default(self, obj):
+            # we take care not to import numpy unless it's already loaded
+            if 'numpy' in str(type(obj)) and hasattr(obj, 'tolist'):
+              return obj.tolist()
+            else:
+              return simplejson.JSONEncoder.default(self, obj)
+
     data = simplejson.dumps(data, ignore_nan=True, cls=NumpyEncoder)
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
     if 'QA_VERBOSE' in os.environ:
