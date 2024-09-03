@@ -11,7 +11,7 @@ from collections.abc import Iterable
 
 import click
 
-from .api import NumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
+from .api import makeNumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
@@ -239,7 +239,7 @@ def init_optimization(optim_config_file, checkpoint, ctx):
       f'--offline' if ctx.obj['offline'] else '',
       f'--platform "{ctx.obj["platform"]}"' if ctx.obj['platform'] != default_platform else '',
       f"--configuration '{ctx.obj['configuration']}'" if ctx.params.get('configurations') else '',
-      f"--tuning '{json.dumps(params, sort_keys=True, cls=NumpyEncoder)}'",
+      f"--tuning '{json.dumps(params, sort_keys=True, cls=makeNumpyEncoder())}'",
       'batch',
       ' '.join([f'--batches-file "{b}"' for b in ctx.obj["batches_files"]]),
       ' '.join([f'"{b}"' for b in ctx.obj["batches"]]),
