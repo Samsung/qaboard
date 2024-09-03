@@ -162,6 +162,7 @@ def notify_qa_database(object_type='output', **kwargs):
     click.secho(str(data), fg='cyan', dim=True, err=True)
 
   try:
+    import simplejson
     data = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
     r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
     if 'QA_VERBOSE' in os.environ:
