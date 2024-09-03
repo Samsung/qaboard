@@ -12,6 +12,7 @@ import {
   ControlGroup,
   InputGroup,
   Button,
+  Icon,
 } from "@blueprintjs/core";
 
 import { toaster } from "../toaster"
@@ -91,9 +92,10 @@ class ExportPlugin extends React.Component {
            <Button disabled={this.state.is_loading} icon="download" onClick={this.export_to_directory}>Export</Button>
            <InputGroup onChange={e => this.setState({path: e.target.value, edited: true})} value={this.state.path} placeholder={'*.png'} />
         </ControlGroup>
-        {this.state.linux_export_dir && <div style={{marginTop: '10px'}}>
+        {(this.state.linux_export_dir || true) && <div style={{marginTop: '10px'}}>
           <p><Tag>Windows</Tag> <code>{this.state.windows_export_dir}</code></p>
           <p><Tag>Linux</Tag> <code>{this.state.linux_export_dir}</code></p>
+          <Tag minimal intent="warning" icon="warning-sign">The files are links to the original files, not copies!</Tag>
         </div>}
       </FormGroup>
     </Callout>
