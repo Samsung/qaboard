@@ -5,8 +5,8 @@ To avoid introducing extra latency, we only check daily.
 FIMXE: users not connected to our internal network will pay a 1s timeout every time.
 """
 import os
-import datetime
 import json
+import datetime
 from pathlib import Path
 
 import click
@@ -20,8 +20,11 @@ def latest_qaboard_version():
   import re
   try:
     # we surely could do something more robust
-    r = requests.get('https://raw.githubusercontent.com/Samsung/qaboard/master/setup.py', timeout=1)
-  except:
+    r = requests.get('https://raw.githubusercontent.com/Samsung/qaboard/master/setup.py', verify=False, timeout=1)
+    r.raise_for_status()
+  except Exception as e:
+    click.secho(f'WARNING: Unable to find latest qaboard version', fg='yellow', bold=True, err=True)
+    click.secho(str(e), fg='yellow', err=True)
     return None
   for l in r.text.split('\n'):
     version = re.match('.*version="([0-9]+.[0-9]+.[0-9]+)".*', l)
@@ -63,7 +66,7 @@ def check_for_updates():
   # Check for a latest version at most daily
   now = datetime.datetime.now()
   seconds_since_last_check = (now - datetime.datetime.fromtimestamp(latest['when_checked'])).total_seconds() if latest else None
-  if not latest or  seconds_since_last_check > 3600 * 24:
+  if not latest or seconds_since_last_check > 3600 * 24:
     latest_version = latest_qaboard_version()
     if latest_version:
       with qaboard_latest_update.open('w') as f:
