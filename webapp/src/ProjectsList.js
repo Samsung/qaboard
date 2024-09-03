@@ -26,7 +26,7 @@ import {
 import { Container } from "./components/layout";
 import { Avatar } from "./components/avatars";
 import AuthButton from "./components/authentication/Auth"
-import PrivateContent from "./components/authentication/RequireAuth"
+import PrivateContent from "./components/authentication/PrivateContent"
 import {APP_LOGIN_REQUIRED} from "./components/authentication/constants";
 import { updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'

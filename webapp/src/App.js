@@ -28,7 +28,7 @@ import "@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
 import { routes } from './routes'
-import PrivateContent from "./components/authentication/RequireAuth"
+import PrivateContent from "./components/authentication/PrivateContent"
 import { APP_LOGIN_REQUIRED } from "./components/authentication/constants";
 import { sider_width } from './AppSider'
 

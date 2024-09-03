@@ -43,8 +43,10 @@ export const fetchCommit = ({project, id, branch, update_with_id, batch}) => {
           setTimeout(x => dispatch(fetchCommit({project, id: id_, branch, batch})), refresh_interval);
       })
       .catch(error => {
-        if (error.response)
-          dispatch(updateCommit(project, {id}, error.response.data.error ?? JSON.stringify(error)))
+        if (error.response) {
+          const err_msg = error.response.data ? error.response.status + ' ' + error.response.data : JSON.stringify(error)
+          dispatch(updateCommit(project, {id}, err_msg))
+        }
       });
   }
 }

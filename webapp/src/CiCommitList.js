@@ -110,8 +110,21 @@ class CiCommitList extends React.Component {
     </Section>;
 
     var list;
+    var error_msg = (error) => {
+      if (error.response) {
+        // The server responded with a status other than 2xx
+        return error.message + "\n" + error.response.data;  // e.g., "an error occurred 401"
+      } else if (error.request) {
+        // No response was received from the server
+        return "No response received from the server.";
+      } else {
+        // Other errors (e.g., in setting up the request)
+        return "Error: " + error.message;
+      }
+    }
+
     var warning_messages = <>
-      {error && <NonIdealState description={error.message} icon="error" />}
+      {error && <NonIdealState description={<pre>{error_msg(error)}</pre>} icon="error" />}
       {is_loading && !some_commits_loaded && <NonIdealState title="Loading" icon={<Spinner />} />}
       {is_loaded && !is_loading && !error && !some_commits_loaded &&
         <NonIdealState

@@ -17,7 +17,7 @@ from sqlalchemy.sql import label
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
 from ..utils import profiled
-
+from .auth import is_authorized_user
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
@@ -28,6 +28,9 @@ timezone = pytz.timezone("utc")
 @app.route("/api/v1/commits/<path:branch>")
 def get_commits(branch=None):
   project_id = request.args['project']
+
+  if not is_authorized_user(None, project_id): 
+    return f"Forbidden: You don't have permission to access this project", 403
 
   to_date_s = request.args.get('to', None)
   now_localized = timezone.localize(datetime.datetime.now())
@@ -103,6 +106,7 @@ def get_commits(branch=None):
   response.headers['Content-Type'] = 'application/json'
   return response
 
+
 @app.route("/api/v1/project/branches")
 def get_branches():
   """Returns a list of that project's branches"""
@@ -113,6 +117,9 @@ def get_branches():
               .distinct()
               .order_by(CiCommit.branch)
              )
+
+  if not is_authorized_user(None, project_id): 
+    return f"Forbidden: You don't have permission to access this project", 403
   return jsonify([b[0] for b in branches.yield_per(1000)])
 
 
@@ -133,6 +140,9 @@ def get_projects():
              )
   response = {}
   for project_id, data, latest_output_datetime, latest_commit_datetime, total_commits in projects.yield_per(1000):
+    if not is_authorized_user(None, project_id): 
+      continue
+
     if "qatools_metrics" in data:
       del data['qatools_metrics']
     if "qatools_config" in data:
@@ -147,6 +157,7 @@ def get_projects():
   response.headers['Content-Type'] = 'application/json'
   return response
 
+
 @app.route("/api/v1/project")
 def get_project():
   project_id = request.args['project']
@@ -156,6 +167,10 @@ def get_project():
                )
                .one()
               )
+
+  if not is_authorized_user(None, project_id): 
+    return f"Forbidden: You don't have permission to access this project", 403
+
   return jsonify(project.data)
 
 

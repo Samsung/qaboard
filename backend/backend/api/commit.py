@@ -9,6 +9,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
+from .auth import is_authorized_user
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 
 
@@ -44,6 +45,10 @@ def api_ci_commit(commit_id=None):
 
 
   project_id = request.args['project']
+
+  if not is_authorized_user(None, project_id):
+    return f"Forbidden: You don't have permission to access this project", 403
+
   if not commit_id:
     commit_id = request.args.get('commit', None)
     try:
