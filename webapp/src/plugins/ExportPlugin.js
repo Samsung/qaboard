@@ -117,7 +117,7 @@ class ExportPlugin extends React.Component {
             /> : " links "}
           in a shared directory. {!edit_export_dir && <Button onClick={() => this.setState({edit_export_dir: true})} small outlined icon="edit">Edit where</Button>}<br/>
           {edit_export_dir && <InputGroup onChange={e => this.setState({export_dir: e.target.value})} value={export_dir} placeholder={'/linux or \\windows path on the shared storage'} />}
-          You can use <a href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '**/*.jpg' ('**/' matches 0 or more)
+          You can use <a rel="noopener noreferrer" target="_blank" href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '**/*.jpg' ('**/' matches 0 or more)
         </p>}
       >
         <ControlGroup>
