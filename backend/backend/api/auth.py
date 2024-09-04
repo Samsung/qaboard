@@ -22,6 +22,8 @@ if is_login_restricted:
   users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
   with open(users_restrict_yaml, 'r') as f:
     users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
+else:
+  users_restrict_config = {}
 
 login_type = os.getenv("QABOARD_LOGIN_TYPE") # LOCAL/LDAP/SAML
 if login_type == "LDAP":
