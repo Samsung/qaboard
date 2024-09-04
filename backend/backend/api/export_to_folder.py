@@ -1,21 +1,19 @@
 """
 Implement the API used by the "Export to a shared directory" plugin.
 """
-import sys
 import os
 import re
 import json
+import shutil
 import hashlib
 from pathlib import Path
 from functools import lru_cache
 
 from requests.utils import quote
-from flask import request, jsonify, make_response
-from sqlalchemy import func, and_, asc, or_
+from flask import request, jsonify
+from flask_login import current_user
 from sqlalchemy.orm import joinedload
-from sqlalchemy.sql import label
 
-from qaboard.utils import copy
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
@@ -272,6 +270,7 @@ def export_to_folder():
   }
 
   glob = request.args.get('path', '*')
+  nb_files_exported = 0
   for output in new_outputs:
     output_ref = output_refs[output.id]
     if not output_ref:
@@ -326,18 +325,26 @@ def export_to_folder():
     label_new = get_labels(output, label_mappings)
     label_ref = get_labels(output_ref, label_mappings)
 
+    export_type = request.args.get('export_type', "link")
+    errors = []
     for output_path in output.output_dir.glob(glob):
-      output_path_rel = output_path.relative_to(output.output_dir)
-      copied_to_rel = copy_path_rel(output, output_path, label=label_new)
-      symlink_to(export_dir / copied_to_rel, output_path)
-      # copy(output_path, export_dir / copied_to_rel)
-      if output_ref and output_ref.id != output.id:
-        output_path_ref = output_ref.output_dir / output_path_rel
-        if output_path_ref.exists():
-          copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
-          symlink_to(export_dir / copied_to_rel, output_path_ref)
-          # copy(output_path, export_dir / copied_to_rel)
-
+      try:
+        output_path_rel = output_path.relative_to(output.output_dir)
+        copied_to_rel = copy_path_rel(output, output_path, label=label_new)
+        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=current_user)
+        # copy(output_path, export_dir / copied_to_rel)
+        if output_ref and output_ref.id != output.id:
+          output_path_ref = output_ref.output_dir / output_path_rel
+          if output_path_ref.exists():
+            copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
+            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=current_user)
+            nb_files_exported += 1
+            # copy(output_path, export_dir / copied_to_rel)
+        nb_files_exported += 1
+      except Exception as e:
+        error = f"WARNING: Error when trying to export {output_path.name}: {e}"
+        print(error)
+        errors.append(error)
 
   if label_mappings['configurations'] or label_mappings['extra_parameters']:
     with (export_dir / '0.mappings.json').open('w') as f:
@@ -381,25 +388,32 @@ def export_to_folder():
   	"export_dir": str(export_dir),
     "nb_outputs": len(new_outputs),
     "nb_outputs_ref": len(ref_outputs),
+    "nb_files_exported": nb_files_exported,
+    "errors": errors,
   })
 
 
 
 
 
-def symlink_to(path_from, path_to):
-  try:
-    if path_from.exists():
-        path_from.unlink()
-    # print(f"LINK {path_from} -> {path_to}")
-    # print("  ", path_from.owner())
+def export_to(path_from, path_to, type, user=None):
+  if path_from.exists():
+      path_from.unlink()
+  # print(f"LINK {path_from} -> {path_to} [{type}]")
+  # print("  ", path_from.owner())
+  if type == "link":
     try:
       os.link(str(path_to), str(path_from))
     except:
       os.symlink(str(path_to), str(path_from))
-    # path_from.symlink_to(path_to)
-  except Exception as e:
-    print("symlink_to: ", e)
+  elif type == "copy":
+    if not current_user.is_authenticated:
+      raise Exception("Need Login")
+    from backend.fs_utils import as_user
+    as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
+    # shutil.copyfile(str(path_to), str(path_from))
+  else: # "copy"
+    raise ValueError("Invalid type. Use 'link' or 'copy'.")
 
 
 def copy_path_rel(output, output_path, label):
