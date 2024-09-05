@@ -17,6 +17,7 @@ from sqlalchemy.orm import joinedload
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
+from backend.fs_utils import as_user, rmtree
 from ..models import Project, CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 
@@ -400,7 +401,10 @@ def export_to_folder():
 
 def export_to(path_from, path_to, type, user=None):
   if path_from.exists():
-    path_from.unlink()
+    try:
+      path_from.unlink()
+    except:
+      rmtree(path_from)
   # print(f"LINK {path_from} -> {path_to} [{type}]")
   # print("  ", path_from.owner())
   if type == "link":
@@ -411,7 +415,6 @@ def export_to(path_from, path_to, type, user=None):
   elif type == "copy":
     if not current_user.is_authenticated:
       raise Exception("Need Login")
-    from backend.fs_utils import as_user
     as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
     # shutil.copyfile(str(path_to), str(path_from))
   else: # "copy"
