@@ -226,6 +226,8 @@ def is_authorized_user(user_info: dict, project=None):
 
   is_authorized = False
   perms_data = users_restrict_config['projects'][project] if project else users_restrict_config.get('login', {})
+  if not perms_data:
+    return True
   for key, value in user_info.items():
     if is_authorized: break
     if key in perms_data.keys():
