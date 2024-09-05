@@ -347,8 +347,10 @@ def export_to_folder():
         errors.append(error)
 
   if label_mappings['configurations'] or label_mappings['extra_parameters']:
-    with (export_dir / '0.mappings.json').open('w') as f:
-      json.dump(label_mappings, f, indent=4, sort_keys=True)
+    mappings_path = export_dir / '0.mappings.json'
+    if not mappings_path.exists():
+      with mappings_path.open('w') as f:
+        json.dump(label_mappings, f, indent=4, sort_keys=True)
 
   params = {
     "batch": new_batch.label,
@@ -398,7 +400,7 @@ def export_to_folder():
 
 def export_to(path_from, path_to, type, user=None):
   if path_from.exists():
-      path_from.unlink()
+    path_from.unlink()
   # print(f"LINK {path_from} -> {path_to} [{type}]")
   # print("  ", path_from.owner())
   if type == "link":
