@@ -79,6 +79,36 @@ const make_viewer_id = () => {
 }
 
 
+const make_cross = () => {
+  const color = "rgba(255, 0, 0, 0.5)";  // Semi-transparent red
+  const crossElement = document.createElement("div");
+  crossElement.style.position = "absolute";
+  crossElement.style.width = "20px";
+  crossElement.style.height = "20px";
+  crossElement.style.pointerEvents = "none";
+
+  const horizontalLine = document.createElement("div");
+  horizontalLine.style.position = "absolute";
+  horizontalLine.style.width = "100%";
+  horizontalLine.style.height = "2px"; // Thickness
+  horizontalLine.style.backgroundColor = color
+  horizontalLine.style.top = "50%";  // Center the horizontal line
+  horizontalLine.style.transform = "translateY(-50%)";
+
+  const verticalLine = document.createElement("div");
+  verticalLine.style.position = "absolute";
+  verticalLine.style.height = "100%";
+  verticalLine.style.width = "2px"; // Thickness
+  verticalLine.style.backgroundColor = color
+  verticalLine.style.left = "50%";  // Center the vertical line
+  verticalLine.style.transform = "translateX(-50%)";
+
+  crossElement.appendChild(horizontalLine);
+  crossElement.appendChild(verticalLine);
+  return crossElement
+}
+
+
 function maintain_zoom() {
   // console.log("[maintain_zoom]")
   Object.values(synced_viewers).forEach(sync_group => {
@@ -140,13 +170,14 @@ class ImgViewer extends React.PureComponent {
     });
     this.Init().then(() => {
       this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
-      this.InitMouseTracker(this.props);
+      // this.InitMouseTracker(this.props);
       this.InitZoomSync();
+      this.InitMouseSync();
       this.InitFilters();
       this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
-    }).catch(error => { console.log("Init Error:", error) })
+    }).catch(error => { console.log("Init Error:", JSON.stringify(error)) })
   }
 
   InitZoomSync() {
@@ -222,6 +253,55 @@ class ImgViewer extends React.PureComponent {
       this.UnregisterZoomSync = null;
     }
 
+  }
+
+
+  InitMouseSync() {
+    // relies on InitZoomSync already being done
+    const { viewer_new, viewer_ref } = this;
+    const { image_width, image_height } = this.state;
+    const sync_key = `${this.props.output_new.test_input_path}-${(image_height/image_width).toFixed(3)}`;
+    try {
+      [viewer_new, viewer_ref]
+      .forEach(viewer => {
+        viewer.mouse_tracker = new OpenSeadragon.MouseTracker({
+          element: viewer.container,
+          // startDisabled: true,
+          moveHandler: event => {
+            // console.log("moveHandler")
+            const webPoint = event.position; // Mouse position in web coordinates (relative to the viewer1 DOM element)
+            const viewportPoint = viewer.viewport.pointFromPixel(webPoint);
+            synced_viewers[sync_key].viewers.forEach(synced_viewer => {
+              synced_viewer.clearOverlays()              
+              const element = make_cross()
+              synced_viewer.addOverlay({
+                element,
+                location: viewportPoint,
+                placement: OpenSeadragon.Placement.CENTER,
+                checkResize: false,
+              });    
+            })
+          }
+        })
+        viewer.addHandler('canvas-enter', (event) => {
+          console.log(viewer.mouse_tracker)
+          viewer.mouse_tracker.setTracking(true);
+          // console.log("istracking", viewer.mouse_tracker.isTracking())
+        });
+        console.log("defining canvas-exit")
+        viewer.addHandler('canvas-exit', (event) => {
+          // console.log("canvas-exit")
+          // TODO: Ideally we'd stop tracking but for some reason tracking won't ever restart (!?)
+          // viewer.mouse_tracker.setTracking(false);
+          synced_viewers[sync_key].viewers.forEach(synced_viewer => {
+            console.log("clearing overlays")
+            synced_viewer.clearOverlays();
+          })
+        });
+    })
+    } catch (error) {
+      console.error("ERROR: while setting up mouse move:", error);
+    }
   }
 
 
