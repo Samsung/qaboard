@@ -34,8 +34,8 @@ class ExportPlugin extends React.Component {
 
   componentDidUpdate(prevProps) {
     if (!this.state.edited && prevProps.config !== this.props.config) {
-      let visualizations = this.props.config?.outputs?.visualizations || []
-      let path = (visualizations[0] || {}).path || '*.png'
+      let visualizations = this.props.config?.outputs?.visualizations ?? []
+      let path = visualizations[0]?.path ?? '*.png';
       // for projects using dynamic outputs we should
       path = path.replace(/:[a-zA-Z0-9_]+/, '*')
       this.setState({path})
@@ -96,10 +96,17 @@ class ExportPlugin extends React.Component {
     } = this.state
     const batch_dir = (this.props.batch_dir_url ?? '').slice(2)
     const batch_output_fs = extract_drive_and_folder(linux_to_windows(batch_dir))
+
+    // **/**.png => Invalid pattern: '**' can only be an entire path component
+    const invalidPattern = /(?:^|\/)(\*\*(?!\/?$|\/))/;
+    const path_has_invalid_globs = invalidPattern.test(path) || path.startsWith("/")
+
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup
         labelFor="pluging-copy"
         helperText={<div>
+          {path_has_invalid_globs && path.startsWith('/') && <><Tag minimal intent="warning">File patterns must be relative.</Tag><br/></>}
+          {path_has_invalid_globs && !path.startsWith('/') && <><Tag minimal intent="warning"><code>**</code> must be entire path components: <code>/**/</code>.</Tag><br/></>}
           Files will be exported as
             {edit_export_dir ? <SegmentedControl
               style={{
@@ -152,12 +159,16 @@ class ExportPlugin extends React.Component {
         </div>}
       >
         <ControlGroup>
-           <Button disabled={is_loading} icon="download" onClick={this.export_to_directory}>Export</Button>
+           <Button
+             disabled={is_loading || path_has_invalid_globs}
+             icon="download"
+             onClick={this.export_to_directory}
+           >Export</Button>
            <InputGroup
              onChange={e => this.setState({path: e.target.value, edited: true})}
              value={path}
              placeholder={'*.png'}
-             intent={nb_files_exported === 0 ? "warning" : undefined}
+             intent={(path_has_invalid_globs || nb_files_exported === 0) ? "warning" : undefined}
            />
         </ControlGroup>
         {linux_export_dir && <div style={{marginTop: '10px'}}>
