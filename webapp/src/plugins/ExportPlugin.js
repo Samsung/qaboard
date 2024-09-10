@@ -54,7 +54,7 @@ class ExportPlugin extends React.Component {
       batch_ref: this.props.selected_batch_ref,
       filter_new: this.props.filter_batch_new,
       filter_ref: this.props.filter_batch_ref,
-      export_dir: this.state.export_dir,
+      export_dir: this.state.export_dir ?? undefined,
       export_type: this.state.export_type,
       edit_export_dir: false,
     };
