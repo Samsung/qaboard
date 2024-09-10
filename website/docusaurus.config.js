@@ -144,6 +144,10 @@ let config = {
         appId: 'Q9000IO3JM',
         apiKey: '7a265918a0d970f8f3f36e7fbb70f720',
         indexName: 'samsung_qaboard',
+        replaceSearchResultPathname: !is_for_webapp ? undefined : {
+          from: '/qaboard/docs/', // or as RegExp: /\/docs\//
+          to: '/',
+        },
       }
     }),
 };
