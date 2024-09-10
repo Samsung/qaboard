@@ -160,7 +160,7 @@ class ExportPlugin extends React.Component {
       >
         <ControlGroup>
            <Button
-             disabled={is_loading || path_has_invalid_globs}
+             disabled={is_loading || path_has_invalid_globs || path.length === 0}
              icon="download"
              onClick={this.export_to_directory}
            >Export</Button>
