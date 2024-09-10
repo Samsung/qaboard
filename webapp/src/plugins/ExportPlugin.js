@@ -132,7 +132,7 @@ class ExportPlugin extends React.Component {
                   title="Hardlinks, meaning the exported file is the original file available at a different path"
                   style={{"textDecoration": "underline wavy"}}
                   >links</strong><span> </span></>}
-          in a shared directory. {!edit_export_dir && <Button
+          {!export_dir && <span> in a shared directory</span>}. {!edit_export_dir && <Button
             onClick={() => this.setState({
               edit_export_dir: true,
               export_type: "copy",
