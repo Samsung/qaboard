@@ -54,10 +54,12 @@ class ExportPlugin extends React.Component {
       batch_ref: this.props.selected_batch_ref,
       filter_new: this.props.filter_batch_new,
       filter_ref: this.props.filter_batch_ref,
-      export_dir: this.state.export_dir ?? undefined,
       export_type: this.state.export_type,
       edit_export_dir: false,
     };
+    if (this.state.export_dir) {
+      params.export_dir = this.state.export_dir
+    }
     get('/api/v1/export/', {params})
     .then(response => {
       const windows_export_dir = linux_to_windows(response.data.export_dir);
