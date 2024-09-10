@@ -15,7 +15,7 @@ Outputs from commits that are either:
 
 Files "Exported" from QA-Board's UI are never deleted. You can do it yourself if needed. **TODO:** track them at least!
 
-:::caution
+:::warning
 QA-Board will set as a commit's branch the first it was seen on. If you merge with fast-forward rebased branches, then this information will not be what you expect. 
 :::
 
