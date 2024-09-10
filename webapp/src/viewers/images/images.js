@@ -170,7 +170,7 @@ class ImgViewer extends React.PureComponent {
     });
     this.Init().then(() => {
       this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
-      // this.InitMouseTracker(this.props);
+      this.InitMouseTracker(this.props);
       this.InitZoomSync();
       this.InitMouseSync();
       this.InitFilters();
