@@ -179,7 +179,6 @@ class CiCommitResults extends Component {
       history,
       available_tests_files,
     } = this.props;
-
     var warning_messages = <CommitWarningMessages
                             project={this.props.selected.new_project}
                             commit={new_commit}
@@ -429,6 +428,7 @@ class CiCommitResults extends Component {
                     selected_batch_ref={this.props.selected_batch_ref}
                     filter_batch_new={this.props.filter_batch_new}
                     filter_batch_ref={this.props.filter_batch_ref}
+                    batch_dir_url={new_batch.batch_dir_url}
                   />
                   <OutputCardsList
                     project={this.props.selected.new_project}
@@ -461,6 +461,7 @@ class CiCommitResults extends Component {
                     selected_batch_ref={this.props.selected_batch_ref}
                     filter_batch_new={this.props.filter_batch_new}
                     filter_batch_ref={this.props.filter_batch_ref}
+                    batch_dir_url={new_batch.batch_dir_url}
                   />
                   <OutputCardsList
                     type='bit_accuracy'

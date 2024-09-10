@@ -300,6 +300,26 @@ const linux_to_windows = path => {
 }
 
 
+const path_regex = /^(\\\\[^\\]+)(\\[^\\]+)/;
+const extract_drive_and_folder = path => {
+  // e.g. "\\netapp\folder\subfolder" => "\\netapp\folder"
+  //
+  // we currently assume windows-flavoured paths with backslashes 
+  // path = path.replace(/\//g, '\\');
+  const match = path.match(path_regex);
+  if (match) {
+    return match[1] + match[2];
+  }
+  return null
+}
+
+const are_on_same_filesystem = (path1, path2) => {
+  // path2 = path2.replace(/\//g, '\\');
+  const drive_folder_1 = extract_drive_and_folder(path1);
+  const drive_folder_2 = extract_drive_and_folder(path2);
+  return drive_folder_1 && drive_folder_2 && drive_folder_1 === drive_folder_2;
+}
+
 
 // Apply a function to all elements of a JS object (go into dict, array...)
 const recursively_apply = function(object, func) {
@@ -458,6 +478,7 @@ export {
   git_hostname,
   default_git_hostname,
   linux_to_windows,
+  are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,
   is_same_data,

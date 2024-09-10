@@ -2,7 +2,7 @@ import React from "react";
 import { get } from "axios";
 import copy from 'copy-to-clipboard';
 
-import { linux_to_windows } from '../utils'
+import { linux_to_windows, are_on_same_filesystem, extract_drive_and_folder } from '../utils'
 
 import {
   Intent,
@@ -12,7 +12,6 @@ import {
   ControlGroup,
   InputGroup,
   Button,
-  Icon,
   SegmentedControl,
 } from "@blueprintjs/core";
 
@@ -24,7 +23,7 @@ class ExportPlugin extends React.Component {
     super(props);
     this.state = {
       path: this.props.path || '*.png',
-      export_dir: null,
+      export_dir: "",
       export_type: "link", // "copy"
       edited: false,
       is_loading: false,
@@ -91,14 +90,16 @@ class ExportPlugin extends React.Component {
 
   render() {
     const {
-      path, export_dir, edit_export_dir, export_type,
+      path, export_dir, edit_export_dir, export_type, export_dir_is_same_fs,
       is_loading, errors, nb_files_exported, nb_outputs_exported,
       linux_export_dir, windows_export_dir
     } = this.state
+    const batch_dir = (this.props.batch_dir_url ?? '').slice(2)
+    const batch_output_fs = extract_drive_and_folder(linux_to_windows(batch_dir))
     return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
       <FormGroup
         labelFor="pluging-copy"
-        helperText={<p>
+        helperText={<div>
           Files will be exported as
             {edit_export_dir ? <SegmentedControl
               style={{
@@ -110,15 +111,45 @@ class ExportPlugin extends React.Component {
                 border: "1px solid rgba(28, 33, 39, 0.2)",
                 boxSizing: "border-box",
               }}
-              options={[{label: "link", value: "link"}, {label: "copy", value: "copy"}]}
+              title={export_dir_is_same_fs ? undefined : `(Hard) Links are only available when exporting to the same filesystem (${batch_output_fs}). We avoid symlinks since they are poorly supported on Windows.`}
+              options={[
+                {label: "link", value: "link", disabled: !export_dir_is_same_fs},
+                {label: "copy", value: "copy"},
+              ]}
               onValueChange={value => this.setState({export_type: value})}
-              value={export_type}
+              value={export_dir_is_same_fs ? export_type : "copy"}
               inline small outlined
-            /> : " links "}
-          in a shared directory. {!edit_export_dir && <Button onClick={() => this.setState({edit_export_dir: true})} small outlined icon="edit">Edit where</Button>}<br/>
-          {edit_export_dir && <InputGroup onChange={e => this.setState({export_dir: e.target.value})} value={export_dir} placeholder={'/linux or \\windows path on the shared storage'} />}
+            /> : <><span> </span><strong
+                  title="Hardlinks, meaning the exported file is the original file available at a different path"
+                  style={{"textDecoration": "underline wavy"}}
+                  >links</strong><span> </span></>}
+          in a shared directory. {!edit_export_dir && <Button
+            onClick={() => this.setState({
+              edit_export_dir: true,
+              export_type: "copy",
+            })}
+            small
+            outlined
+            icon="edit"
+          >Edit where</Button>}
+          <br/>
+          {edit_export_dir && <InputGroup
+            onChange={e => {
+              const new_export_dir = e.target.value
+              let export_dir_is_same_fs = are_on_same_filesystem(
+                linux_to_windows(new_export_dir),
+                batch_output_fs,
+              )
+              this.setState({
+                export_dir: new_export_dir,
+                export_dir_is_same_fs,
+              })}
+            }
+            value={export_dir}
+            placeholder={'/linux or \\windows path on the shared storage'}
+          />}
           You can use <a rel="noopener noreferrer" target="_blank" href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '**/*.jpg' ('**/' matches 0 or more)
-        </p>}
+        </div>}
       >
         <ControlGroup>
            <Button disabled={is_loading} icon="download" onClick={this.export_to_directory}>Export</Button>
@@ -127,7 +158,7 @@ class ExportPlugin extends React.Component {
              value={path}
              placeholder={'*.png'}
              intent={nb_files_exported === 0 ? "warning" : undefined}
-            />
+           />
         </ControlGroup>
         {linux_export_dir && <div style={{marginTop: '10px'}}>
           <p><Tag>Windows</Tag> <code>{windows_export_dir}</code></p>
