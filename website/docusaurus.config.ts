@@ -1,3 +1,6 @@
+import type {Config} from '@docusaurus/types';
+import type * as Preset from '@docusaurus/preset-classic';
+
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
@@ -18,7 +21,7 @@ const logo = {
 
 
 /** @type {import('@docusaurus/types').Config} */
-let config = {
+let config: Config = {
   title: 'QA-Board',
   tagline: "Algorithm engineering is hard enough.<br/>Don't waste time with logistics.",
   url: 'https://samsung.github.io',
@@ -33,9 +36,7 @@ let config = {
 
   presets: [
     [
-      'classic',
-      /** @type {import('@docusaurus/preset-classic').Options} */
-      ({
+      'classic', {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           // Please change this to your repo.
@@ -49,13 +50,11 @@ let config = {
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
-      }),
+      } satisfies Preset.Options,
     ],
   ],
 
-  themeConfig:
-    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
-    ({
+  themeConfig: {
       image: "img/share.jpg",
       hideableSidebar: true,
       navbar: {
@@ -149,7 +148,7 @@ let config = {
           to: '/',
         },
       }
-    }),
+    } satisfies Preset.ThemeConfig,
 };
 
 
