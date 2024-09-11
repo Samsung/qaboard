@@ -1,6 +1,4 @@
 // https://github.com/kamilkisiela/graphql-inspector/blob/2784988e06e38a36ebd82da02cb34a771387acfe/website/src/components/feature.js
-import React from 'react';
-
 import clsx from 'clsx';
 import styles from './feature.module.css';
 
