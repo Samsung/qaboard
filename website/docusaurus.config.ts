@@ -10,8 +10,7 @@ const is_for_webapp = process.env.QABOARD_DOCS_FOR_WEBAPP === "true"
 // console.log("publish_github_samsung_private", publish_github_samsung_private)
 // console.log("publish_github_samsung_public", publish_github_samsung_public)
 
-const lightCodeTheme = require('prism-react-renderer/themes/github');
-const darkCodeTheme = require('prism-react-renderer/themes/dracula');
+import {themes as prismThemes} from 'prism-react-renderer';
 
 const logo = {
   alt: 'QA-Board Logo',
@@ -56,7 +55,9 @@ let config: Config = {
 
   themeConfig: {
       image: "img/share.jpg",
-      hideableSidebar: true,
+      docs: {
+        sidebar: {hideable: true},
+      },
       navbar: {
         title: 'QA-Board',
         logo,
@@ -129,9 +130,9 @@ let config: Config = {
         copyright: "Made with ❤️ at Samsung. Apache 2.0 License. Built with Docusaurus.",
       },
       prism: {
-        additionalLanguages: ['nginx'],
-        theme: lightCodeTheme,
-        darkTheme: darkCodeTheme,
+        additionalLanguages: ['nginx', 'bash', 'python'],
+        theme: prismThemes.github,
+        darkTheme: prismThemes.dracula,
       },
       announcementBar: {
         id: 'supportus',
