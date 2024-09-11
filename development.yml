@@ -88,8 +88,12 @@ services:
     volumes:
     - ./website:/website
     environment:
+      # to access the server from outside the docker environment
       - HOST=0.0.0.0
       - DANGEROUSLY_DISABLE_HOST_CHECK=true
+      # with SIRC's filesystem that doesn't send update events
       - CHOKIDAR_USEPOLLING=true
+      # at SIRC to deal with broken proxies/certs
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     ports:
       - 6051:3000
