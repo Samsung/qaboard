@@ -11,6 +11,9 @@ import { login, logout } from '../../actions/users'
 import { toaster } from "./../../toaster"
 
 
+// we always check the auth when the app first starts
+let checked_auth_once = false
+
 class PrivateContent extends React.Component {
   constructor(props) {
     super(props);
@@ -36,8 +39,9 @@ class PrivateContent extends React.Component {
 
   componentDidMount() {
     const is_logged = this.props.user ? this.props.user.is_logged : undefined;
-    if (!is_logged) {
+    if (!is_logged || !checked_auth_once) {
       this.checkAuth()
+      checked_auth_once = true
     }
   }
 
