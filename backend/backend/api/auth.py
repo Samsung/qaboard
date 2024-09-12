@@ -2,10 +2,11 @@
 Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
+from datetime import timedelta
 
-import simplejson
 import yaml
 import ldap
+import simplejson
 from flask import request, jsonify, redirect, session
 from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -87,7 +88,7 @@ def auth_post():
     return jsonify({"error": user_info["error"]}), 403
 
   user = User.query.filter_by(user_name=username).one()
-  login_user(user)
+  login_user(user, remember=True, duration=timedelta(days=180))
   print(f"[auth] Login @{username}")
   return jsonify(user_info)
 
