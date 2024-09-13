@@ -80,17 +80,21 @@ const make_viewer_id = () => {
 
 
 const make_cross = () => {
-  const color = "rgba(255, 0, 0, 0.5)";  // Semi-transparent red
+  const color = "white"; // red is OKish too
+  const size = "20px"
+  const thickness = "2px"
+  // const color = "rgba(255, 0, 0, 0.5)";  // Semi-transparent red
   const crossElement = document.createElement("div");
+  crossElement.className = "viewer-cross"
   crossElement.style.position = "absolute";
-  crossElement.style.width = "20px";
-  crossElement.style.height = "20px";
+  crossElement.style.width = size;
+  crossElement.style.height = size;
   crossElement.style.pointerEvents = "none";
 
   const horizontalLine = document.createElement("div");
   horizontalLine.style.position = "absolute";
   horizontalLine.style.width = "100%";
-  horizontalLine.style.height = "2px"; // Thickness
+  horizontalLine.style.height = thickness;
   horizontalLine.style.backgroundColor = color
   horizontalLine.style.top = "50%";  // Center the horizontal line
   horizontalLine.style.transform = "translateY(-50%)";
@@ -98,7 +102,7 @@ const make_cross = () => {
   const verticalLine = document.createElement("div");
   verticalLine.style.position = "absolute";
   verticalLine.style.height = "100%";
-  verticalLine.style.width = "2px"; // Thickness
+  verticalLine.style.width = thickness;
   verticalLine.style.backgroundColor = color
   verticalLine.style.left = "50%";  // Center the vertical line
   verticalLine.style.transform = "translateX(-50%)";

@@ -23,6 +23,9 @@ span.bp5-popover-target {
   margin-bottom: 15px;
 }
 
+.viewer-cross {
+  mix-blend-mode: exclusion;
+}
 
 .fullscreen-enabled {
   background: white;
