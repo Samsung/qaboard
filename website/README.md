@@ -4,10 +4,16 @@ This website is built using [Docusaurus](https://docusaurus.io/), a modern stati
 ### Usage with docker
 To open a shell in the docker environment: 
 ```bash
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --entrypoint /bin/sh website
+# to just build:
+# docker compose -f docker-compose.yml -f development.yml -f sirc.yml build website
+docker compose -f docker-compose.yml -f development.yml -f sirc.yml run -p6051:3000 --entrypoint /bin/sh website
 ```
 
-Now you can do all the commands of the regular setup.
+Now you can do all the commands of the regular setup:
+
+```
+/website $ npm run docusaurus start -- --host 0.0.0.0 --no-open --poll
+```
 
 ### Installation
 To install:
