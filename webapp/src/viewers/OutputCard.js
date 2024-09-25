@@ -571,7 +571,7 @@ class OutputCard extends React.Component {
       })
 
       if (!viewable) {
-        content = <span/>
+        content = <span key="none-viewable"/>
       } else if (this.props.type === 'bit_accuracy') {
         content = <OutputViewer
           key="bit-accuracy"
@@ -591,7 +591,7 @@ class OutputCard extends React.Component {
       } else {
         content = <>
           <MetricsTags
-            key="content"
+            key="content-metrics-tags"
             selected_metrics={main_metrics}
             available_metrics={available_metrics}
             metrics_new={output_new.metrics ?? {}}
