@@ -102,6 +102,7 @@ def as_user(user, f, *args, **kwargs):
       # print("from child:", tf.name, Path(tf.name).read_bytes())
     except Exception as e:
       print(f"ERROR in child process: {e}")
+      pickle.dump(e, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
       traceback.print_exc(file=sys.stdout)
     finally:
       os._exit(0)

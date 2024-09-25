@@ -21,8 +21,11 @@ login_manager = LoginManager(app)
 is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICTED", False)) # True/False
 if is_login_restricted:
   users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
-  with open(users_restrict_yaml, 'r') as f:
-    users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
+  try:
+    with open(users_restrict_yaml, 'r') as f:
+      users_restrict_config = yaml.load(f, Loader=yaml.SafeLoader)
+  except:
+    users_restrict_config = {}
 else:
   users_restrict_config = {}
 
