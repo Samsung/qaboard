@@ -53,7 +53,7 @@ const OutputViewer = props_ => {
       else if (type === 'text/html')
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'flame/json')
-        viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
+        viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <span>No viewer is defined for type: {type}</span>;
