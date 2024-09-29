@@ -25,7 +25,9 @@ qa batch --batch first-batch --batch second-batch
 ```
 
 ## Setting a custom database
-You can set a default database for all the batches in define in each file:
+In QA-Board relative input paths are considered relative to a "database" folder (defaults to `/` unless changed in _qatools.yaml_).
+
+You can set a default database for all the batches in define in each YAML file:
 
 ```yaml
 database: /some/path
@@ -204,6 +206,35 @@ aliases:
 ```
 ```bash
 qa batch two-batches
+```
+
+## Dynamic groups of batches
+You can use [wildcards](https://docs.python.org/3/library/fnmatch.html):
+
+```yaml title="qa/batches.yaml"
+batch-1:
+   # ...
+
+batch-2:
+   # ...
+```
+
+```bash
+qa batch 'batch-*'
+#=> runs both batch-1 and batch-2
+```
+
+Aliases also understand wildcards:
+
+```
+aliases:
+  all:
+  - batch-*
+```
+
+```bash
+qa batch all
+#=> runs both batch-1 and batch-2
 ```
 
 ## YAML anchors and aliases

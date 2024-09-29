@@ -265,21 +265,33 @@ def iter_inputs(
     type=inputs_settings['type']
   )
 
+  def check_batch(batch):
+    if available_batches[batch] is None:
+      click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
+      click.secho(f"         If you want to run on all inputs consider using '{batch}: inputs:'.", fg='yellow', err=True)
+
   for batch in batches:
+    debug = True
     if debug: click.secho(f'batch: {batch}', dim=True, err=True)
 
-    # We can ask for two types of batches:
-    # 1. All inputs under a given folder in the database
-    if batch not in available_batches:
-      # Maybe we asked recordings from a location...
-      if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
-      inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
-      yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
-    else:
-      if available_batches[batch] is None:
-        click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
-        click.secho(f"         If you want to run on all inputs consider using '{batch}: inputs:'.", fg='yellow', err=True)
+    # 1. Batches can directly match specifications from YAML files
+    if batch in available_batches:
+      check_batch(batch)
       yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
+      return
+    
+    # 2. Batches can be specified using wildcards
+    matching_batches = [b for b in available_batches if fnmatch.fnmatch(b, batch)]
+    if matching_batches:
+      for b in matching_batches:
+        check_batch(b)
+        yield from iter_batch(available_batches[b], run_context, qatools_config, inputs_settings, debug)
+      return
+
+    # 3. Batch can be directly paths to inputs (semi-deprecated...) 
+    if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
+    inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
+    yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
 
 
 class SubscriptableDict:
