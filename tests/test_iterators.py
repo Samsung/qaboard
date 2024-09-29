@@ -177,6 +177,10 @@ class TestIterators(unittest.TestCase):
     batches = get_batch('my-alias')
     self.assertEqual(len(batches), 2)
 
+    # wildcard support
+    batches = get_batch('my-*')
+    self.assertEqual(len(batches), 2)
+
     batches = get_batch('expand-lists-to-work-well-with-aliases')
     self.assertEqual(batches[0].configurations, ['base', 'delta1', 'delta2'])
 
