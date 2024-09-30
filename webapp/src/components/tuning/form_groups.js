@@ -159,7 +159,7 @@ class AddRecordingsForm extends Component {
 
     const panel_user = <>
       <MonacoEditor
-        height={400}
+        height={"80vh"}
         language='yaml'
         options={editor_options}
         name="user_groups"
@@ -172,7 +172,7 @@ class AddRecordingsForm extends Component {
 
     const panel_shared = <>
       <MonacoEditor
-        height={400}
+        height={"80vh"}
         language='yaml'
         options={editor_options}
         name="groups"

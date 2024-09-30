@@ -1,9 +1,10 @@
 import React, { Component } from "react";
 import { connect } from 'react-redux'
-import { get, post } from "axios";
+import { post } from "axios";
 
 import { updateTuningForm } from "../../actions/tuning";
 import { fetchCommit } from "../../actions/commit";
+import { updateSelected } from "../../actions/selected";
 
 import MonacoEditor from 'react-monaco-editor';
 
@@ -468,7 +469,11 @@ class TuningForm extends Component {
               >
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
           </Popover>}
-          <p style={{marginBottom: '5px'}}>To know your options, go to the "Tests" tab.</p>
+          <p style={{marginBottom: '5px'}}>
+            (required) To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal rounded onClick={() => {
+              this.props.dispatch(updateSelected(this.props.project, { selected_views: 'groups' }))
+            }}>Available Tests</Tag>.
+            </p>
           {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error.response?.data?.error ?? JSON.stringify(error)}</Tag></p>}
           {this.state.selected_group_info_loading && <Icon icon="time"/>}
         </>}
@@ -479,7 +484,7 @@ class TuningForm extends Component {
           className={Classes.INPUT}
           intent={Intent.PRIMARY}
           style={{ width: "300px" }}
-          placeholder="Loop_closure_set"
+          placeholder="my-batch, batch-*"
           onChange={this.updateSelectedGroup}
           value={selected_group}
           type="text"
@@ -524,7 +529,7 @@ class TuningForm extends Component {
 
       <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={this.updateSearchTab}  defaultSelectedTabId="search-manual">
         <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
-        <Tab id="search-optimize" title={<>Automated tuning <Tag intent="primary">Try Me!</Tag></>} panel={panel_auto} />
+        <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
       </Tabs>
 
       <FormGroup
