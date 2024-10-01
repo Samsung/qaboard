@@ -175,7 +175,7 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(len(batches), 1)
 
     batches = get_batch('my-alias')
-    self.assertEqual(len(batches), 2)
+    self.assertEqual(len(batches), 3)
 
     # wildcard support
     batches = get_batch('my-*')
@@ -310,6 +310,7 @@ expand-lists-to-work-well-with-aliases:
 aliases:
   my-alias:
   - my-batch
+  - using-a-custom-configuration
 
 matrix-configurations:
   inputs:
