@@ -73,7 +73,7 @@ def match(value, value_filter) -> bool:
 
 
 def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
-  if path:
+  if path and path != "*":
     input_paths = list(database.glob(str(path))) # to support wildcards
   else:
     # we want to match everything, including inputs starting at the level of the database
