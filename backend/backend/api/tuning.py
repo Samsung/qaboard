@@ -175,7 +175,7 @@ def get_group():
     default_configuration = get_default_configuration(input_settings)
     default_configurations = deserialize_config(default_configuration)
     default_database = get_default_database(input_settings)
-    # print('group', request.args["name"], batches_paths)
+    print('group', request.args["name"], batches_paths)
     try:
         tests = list(
             iter_inputs(

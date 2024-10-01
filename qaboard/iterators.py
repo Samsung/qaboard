@@ -271,14 +271,13 @@ def iter_inputs(
       click.secho(f"         If you want to run on all inputs consider using '{batch}: inputs:'.", fg='yellow', err=True)
 
   for batch in batches:
-    debug = True
     if debug: click.secho(f'batch: {batch}', dim=True, err=True)
 
     # 1. Batches can directly match specifications from YAML files
     if batch in available_batches:
       check_batch(batch)
       yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
-      return
+      continue
     
     # 2. Batches can be specified using wildcards
     matching_batches = [b for b in available_batches if fnmatch.fnmatch(b, batch)]
@@ -286,7 +285,7 @@ def iter_inputs(
       for b in matching_batches:
         check_batch(b)
         yield from iter_batch(available_batches[b], run_context, qatools_config, inputs_settings, debug)
-      return
+      continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
     if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
