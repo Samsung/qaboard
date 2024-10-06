@@ -110,7 +110,7 @@ import plotly.graph_objects as go
 fig = go.Figure(data=go.Bar(y=[2, 3, 1]))
 with open('graph.plotly.json', 'w') as f:
   spec = fig.to_json() # '{"layout": {...}, "data": [{...}, {...}, ...]}'
-  f.write()
+  f.write(spec)
 ```
 
 ### Text Viewer
