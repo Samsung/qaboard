@@ -494,7 +494,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     batches = [single_batch]
 
   print_url(ctx)
-  existing_outputs = get_outputs(ctx.obj)
+  # if the commit does not exist or there are network errors it will return empty data
+  existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   if 'QA_BATCH_COMMAND_ID' in os.environ:
     # some projects have run() trigger further "qa batch" commands, notably in "pipelines"

@@ -196,14 +196,13 @@ def get_output(output_id):
     r.raise_for_status()
     return r.json()
   except:
-    click.secho(f'WARNING: Failed to contact the QA-Board. (GET Output {output_id})', fg='yellow', bold=True, err=True)
+    click.secho(f'WARNING: Failed to contact the QA-Board server. (GET Output {output_id})', fg='yellow', bold=True, err=True)
     try:
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
     except:
       pass
 
-# We used to use a cache but now we want to check run statuses before/after the batch
-# @lru_cache()
+
 def batch_info(reference, batch, is_branch=False, project=project, metrics: Optional[List[str]]=None, ignore_errors=False):
   """Get data about a batch of outputs in the database"""
   import requests
@@ -219,6 +218,7 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
   url = f'{api_prefix}/commit/{commit_id}'
   r = requests.get(url, params=params)
   try:
+    r.raise_for_status()
     data = r.json()
   except Exception as e:
     if ignore_errors:
@@ -234,7 +234,7 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
   return batches[batch]
 
 
-def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
+def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Dict[int, Any]:
   if not qa_context:
     return {}
   should_notify_qa_database = (is_ci or qa_context['share']) and not (qa_context['dryrun'] or qa_context['offline'])
@@ -246,7 +246,7 @@ def get_outputs(qa_context: Optional[Dict[str, Any]]) -> Dict[int, Any]:
       batch=qa_context['batch_label'],
       # we don't need any metric when calling this function from "qa batch", just the output dirs / configs 
       metrics=["none-required"],
-      ignore_errors=True, # if the commit does not exist let's just return empty data
+      ignore_errors=ignore_errors,
     )['outputs']
   except:
     return {}

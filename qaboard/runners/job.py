@@ -1,6 +1,8 @@
 # https://stackoverflow.com/a/33533514/5993501
 from __future__ import annotations
 
+import sys
+import time
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Callable
@@ -80,8 +82,14 @@ class JobGroup():
     # return any(job.is_failed(verbose=True) for job in self.jobs)
 
     # Note: We get all outputs in the batch, some not started in this command...
-    finished_outputs = get_outputs(qa_context)
+    finished_outputs = get_outputs(qa_context, ignore_errors=False)
     if not finished_outputs:
+      if '--offline' not in sys.argv:
+        sync_time = 30
+        click.secho(f'[WARNING] Since we could not access the status of the runs via the QA-Board server', fg='yellow', bold=True, err=True)
+        click.secho(f'          We will fall back to looking at output folders directly.', fg='yellow', err=True)
+        click.secho(f'          Due to filesystem sync it might not always work well, so we sleeping for {sync_time}s.', fg='yellow', err=True)
+        time.sleep(sync_time)
       # If we don't have jobs, either we were offline or something aweful happenned
       return any(job.run_context.is_failed(verbose=True) for job in self.jobs)
 
