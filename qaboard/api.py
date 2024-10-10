@@ -87,7 +87,7 @@ def serialize_path(path):
   if on_windows:
     try:
       value = windows_to_linux_path(path)
-    except:
+    except Exception:
       pass
     # The server expects to receive paths that are linux-style
     if issubclass(type(value), Path):
@@ -170,7 +170,7 @@ def notify_qa_database(object_type='output', **kwargs):
     r.raise_for_status()
     try:
       return r.json()
-    except:
+    except Exception:
       click.secho(f"WARNING: Can't understand the server response: {r.text}", fg='yellow', err=True)
   except Exception as e:
     click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
@@ -184,7 +184,7 @@ def notify_qa_database(object_type='output', **kwargs):
       click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
       # click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
-    except:
+    except Exception:
       pass
 
 
@@ -195,11 +195,11 @@ def get_output(output_id):
     r = requests.get(url, headers={'Content-Type': 'application/json'})
     r.raise_for_status()
     return r.json()
-  except:
+  except Exception:
     click.secho(f'WARNING: Failed to contact the QA-Board server. (GET Output {output_id})', fg='yellow', bold=True, err=True)
     try:
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
-    except:
+    except Exception:
       pass
 
 
@@ -248,7 +248,7 @@ def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Di
       metrics=["none-required"],
       ignore_errors=ignore_errors,
     )['outputs']
-  except:
+  except Exception:
     return {}
 
 

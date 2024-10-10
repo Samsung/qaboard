@@ -29,7 +29,7 @@ def qa_init(ctx):
     from importlib import resources
     with resources.path('qa', '') as qatools_dir:
       pass
-  except:
+  except Exception:
       import pkg_resources
       qatools_dir = Path(pkg_resources.resource_filename('qaboard', ''))
 
@@ -50,7 +50,7 @@ def qa_init(ctx):
   # We try to tweak the sample configuration much as possible
   try:
     subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
-  except:
+  except Exception:
     click.secho('Warning: Could not find a git repository', fg='yellow')
     exit(0)
 
@@ -80,7 +80,7 @@ def qa_init(ctx):
       p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
       head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
       reference_branch = head_info[0].split(':')[1]
-    except:
+    except Exception:
       click.secho('Warning: Could not find the remote HEAD, using master as reference branch', fg='yellow')
       reference_branch = 'master'
     print(f"reference_branch: {reference_branch}")
@@ -94,5 +94,5 @@ def qa_init(ctx):
     with config.open('w') as f:
       if not ctx.obj['dryrun']:
         f.write(config_content)
-  except:
+  except Exception:
     click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')

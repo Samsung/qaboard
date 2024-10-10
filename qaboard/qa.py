@@ -171,7 +171,7 @@ def get(ctx, input_path, output_path, variable):
   try:
     run_context = RunContext.from_click_run_context(ctx, config)
     locals().update(run_context.asdict())
-  except:
+  except Exception:
     pass
 
   if variable in locals():
@@ -285,13 +285,13 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     if not skip:
       try:
         entrypoint_postprocess = entrypoint_module(config).postprocess
-      except:
+      except Exception:
         metrics = runtime_metrics
       else: 
         metrics = entrypoint_postprocess(runtime_metrics, run_context)
     else:
       metrics = runtime_metrics 
-  except:
+  except Exception:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
     # TODO: we should provide a default postprocess function, that reads metrics.json and returns {**previous, **runtime_metrics}
@@ -802,7 +802,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       with manifest_path.open() as f:
         try:
           manifest = json.load(f)
-        except: 
+        except Exception: 
           manifest = {}
     else:
       manifest = {} 

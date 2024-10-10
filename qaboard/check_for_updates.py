@@ -54,10 +54,10 @@ def check_for_updates():
     try:
       with qaboard_latest_update.open() as f:
         latest = json.load(f)
-    except: # eg CI starts multiple `qa` runs, and corruption from concurrent writes on an NFS drive...
+    except Exception: # eg CI starts multiple `qa` runs, and corruption from concurrent writes on an NFS drive...
       try:
         qaboard_latest_update.unlink()
-      except:
+      except Exception:
         pass
       latest = None
   else:

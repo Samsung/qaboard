@@ -176,7 +176,7 @@ class LsfRunner(BaseRunner):
       try:
         out.check_returncode()
         break
-      except:
+      except Exception:
         secho(out.stdout, err=True)
         secho(out.stderr, err=True)
         print(f"Failed to send job to LSF ({attempt+1}). Retry... ")

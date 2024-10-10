@@ -226,7 +226,7 @@ def iter_inputs(
           if attr in new_batches and attr not in new_batches[new_batch]:
               try:
                 new_batches[new_batch][attr] = new_batches[attr]
-              except: # people often have things that are not batches, maybe aliases reused elsewhere...
+              except Exception: # people often have things that are not batches, maybe aliases reused elsewhere...
                 pass
       allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
       if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
@@ -321,20 +321,20 @@ def deep_interpolate(value, replaced: str, to_value):
             full_match = True
           try:
             value = value.replace(match_str, match_str[1:].format(**obj))
-          except: # we don't care if some format strings don't match our object
+          except Exception: # we don't care if some format strings don't match our object
             pass
       if full_match:
         try:
           return int(value)
-        except:
+        except Exception:
           pass
         try:
           return float(value)
-        except:
+        except Exception:
           pass
         try:
           return json.loads(value)
-        except:
+        except Exception:
           pass
       return value
   else:

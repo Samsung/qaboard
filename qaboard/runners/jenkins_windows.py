@@ -91,7 +91,7 @@ def trigger_run(task: str) -> Dict:
         if r.json().get('error'):
             r.json()
             raise ValueError
-    except:
+    except Exception:
         secho(str(r.headers), fg='red', dim=True)
         secho(r.text, fg='red')
         secho(f"[ERROR] Could not start the Jenkins job running on Windows {task}", fg='red', bold=True)
@@ -145,7 +145,7 @@ def build_status(build_info):
       if r.json().get('error'):
           print(r.json())
           raise ValueError
-  except:
+  except Exception:
       secho(str(r.headers), fg='red', dim=True)
       secho(r.text, fg='red')
       secho("[ERROR] The Jenkins job failed", fg='red', bold=True)
@@ -181,7 +181,7 @@ def print_log(log_url):
         result = r.text
         secho(f"JENKINS LOG:", fg='blue', bold=True)
         print(result)
-    except:
+    except Exception:
         secho(f"[WARNING] Could not retrieve jenkins job log!", fg='yellow')
 
 
@@ -198,7 +198,7 @@ class JenkinsWindowsRunner(BaseRunner):
     self.run_context.output_dir.mkdir(exist_ok=True, parents=True)
     try: # can't be done reliably at SIRC
       self.run_context.output_dir.chmod(0o777)
-    except:
+    except Exception:
       pass
 
     # Can't use commands with more than 256 characters, so we use a script to save space

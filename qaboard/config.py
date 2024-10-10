@@ -199,7 +199,7 @@ def mkdir(path: Path):
     try:
       path.mkdir(parents=True)
       click.secho(f'Created: {path}', fg='blue', err=True)
-    except:
+    except Exception:
       config_has_error = True
       if not ignore_config_errors:
         click.secho(f'ERROR: The storage path does not exist: "{path}".', fg='red', err=True)
@@ -394,7 +394,7 @@ def get_default_database(inputs_settings):
     database_spec = inputs_settings.get('database', {})
   try:
     database = location_from_spec(database_spec, {"project": project, "subproject": subproject})
-  except:
+  except Exception:
     database = Path("/")
   if not database:
     database = "."

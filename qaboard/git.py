@@ -109,7 +109,7 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
           hexsha, ref = line.strip().split(maxsplit=1)
           if ref == f"refs/heads/{commit_branch}":
             return commit_branch, hexsha
-        except:
+        except Exception:
             pass
   return commit_branch, commit_branch
 
@@ -127,7 +127,7 @@ class _Repo(object):
     import git
     try:
       self.repo = git.Repo(str(self.repo_root))
-    except:
+    except Exception:
       self.repo = None
   def __getattribute__(self, name):
     # print(f'_Repo.__getattribute__ {name}')

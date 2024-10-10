@@ -368,7 +368,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
         commit_dirs = [d for d in commit_dirs if (d / batch_suffixes).exists()]
         try:
           assert commit_dirs
-        except:
+        except Exception:
           click.secho(f"ERROR: Missing run: {run_context.rel_input_path}", fg='red')
           click.secho(f"       nothing at {commit_dir_ / batch_conf_dir / run_context.rel_input_path}", fg='red')
           missing_runs += 1
@@ -489,7 +489,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         if batch_conf_dir.is_absolute():
           try:
             batch_conf_dir = batch_conf_dir.relative_to(Path().resolve())
-          except:
+          except Exception:
             print("TODO: fix this...")
             pass
         output_directory = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)

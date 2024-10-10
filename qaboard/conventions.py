@@ -22,7 +22,7 @@ def location_from_spec(spec: Union[str, Dict, os.PathLike], interpolation_vars: 
     mount_flavor = 'windows' if os.name == 'nt' else 'linux'
     try:
       location = spec[mount_flavor] if mount_flavor in spec else spec["path"]
-    except:
+    except Exception:
       raise ValueError(f"Expected a key named {mount_flavor} or path in {spec}.")
   else:
     location = spec
@@ -131,7 +131,7 @@ def deserialize_config(configuration: str) -> List:
       try:
         configurations.append(json.loads(configuration_part))
         configuration_part = ''
-      except:
+      except Exception:
         # It's not perfect: we should deal with quoting...
         # For now let's say using "{" or "}" is discouraged as part of config strings
         # Again, the better fix is not to do this ":"-separated serialization in the first place
@@ -215,7 +215,7 @@ def get_commit_dirs(commit, repo_root: Optional[Path]=None) -> Path:
     else:
       try:
         commit_id = git_show(format='%H', reference=commit)
-      except:
+      except Exception:
         if repo_root is None:
           raise ValueError("Not enough information about the commit to know where to store its data.")
         # if we run within an artifact directory, we're not in a git repo, so "git show" will fail.

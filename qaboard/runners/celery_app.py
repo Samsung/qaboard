@@ -53,7 +53,7 @@ def find_process(env_key, env_value) -> Optional[psutil.Process]:
               if p.environ().get(env_key) == env_value:
                 print(f"{p.name()}", ' '.join(p.cmdline()))
                 return p
-        except:
+        except Exception:
             pass
     return None
 

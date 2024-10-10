@@ -166,7 +166,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
           try:
             click.secho(f'Creating plots', fg='blue')
             make_plots(results, optim_dir)
-          except:
+          except Exception:
             pass
         else:
           # We remove the results to make sure we don't waste disk space
@@ -414,7 +414,7 @@ def batch_objective(project, commit_id, batch_label, config_objective):
       else:
         try:
           losses.append(loss(output['metrics'][metric], metric_target) )
-        except:
+        except Exception:
           click.secho(f'Could not find {metric}', fg='red')        
           click.secho(output['output_dir_url'][2:], fg='red')
     if not losses:
