@@ -120,7 +120,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
         if metadata:
           metadata_keys = list(metadata.keys())
           for k in metadata_keys:
-            if k.startswith('_') or k == "input_path":
+            if k.startswith('_') or k == "input_path" or k == "rel_input_path":
               del metadata[k]
         yield i, database
 
