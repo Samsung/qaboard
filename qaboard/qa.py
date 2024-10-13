@@ -668,8 +668,9 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           forwarded_args_cli if forwarded_args_cli else None,
       ]
       command = ' '.join([arg for arg in args if arg is not None])
-      click.secho(command, fg='cyan', err=True)
-      click.secho(f"   {run_context.output_dir if run_context.output_dir.is_absolute else run_context.output_dir.relative_to(subproject)}", fg='blue', err=True)
+      if "QA_BATCH_QUIET" not in os.environ:
+        click.secho(command, fg='cyan', err=True)
+        click.secho(f"   {run_context.output_dir if run_context.output_dir.is_absolute else run_context.output_dir.relative_to(subproject)}", fg='blue', err=True)
       if 'QA_TESTING' in os.environ:
         # we want to make sure we test the current code
         command = re.sub('^qa', 'python -m qaboard', command) 
