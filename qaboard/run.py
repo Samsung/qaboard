@@ -153,7 +153,7 @@ class RunContext():
         run_context = RunContext(
             input_path=input_path_absolute,
             database=database,
-            input_metadata=input_metadata,
+            input_metadata=metadata,
             configurations=ctx.obj["configurations"],
             extra_parameters=extra_parameters,
             platform=ctx.obj["platform"],
