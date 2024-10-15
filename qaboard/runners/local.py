@@ -41,6 +41,7 @@ class LocalRunner(BaseRunner):
       Parallel(
         n_jobs=job_options.get('concurrency'),
         verbose=int(os.environ.get('QA_BATCH_VERBOSE', 0)),
+        timeout=float(os.environ['QA_BATCH_TIMEOUT']) if 'QA_BATCH_TIMEOUT' in os.environ else None,        
       )(delayed(lambda j: j.start(cwd=cwd))(j) for j in jobs)
       os.chdir(cwd)
 
