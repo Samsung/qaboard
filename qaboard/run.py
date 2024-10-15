@@ -146,10 +146,14 @@ class RunContext():
             extra_parameters["forwarded_args"] = ctx.params["forwarded_args"]
         extra_parameters.update(ctx.obj["extra_parameters"])
         ctx.obj["extra_parameters"] = extra_parameters
+        if "/tv/" not in str(input_path):
+            metadata = input_metadata(input_path_absolute, database, input_path, config)
+        else:
+            metadata = {}
         run_context = RunContext(
             input_path=input_path_absolute,
             database=database,
-            input_metadata=input_metadata(input_path_absolute, database, input_path, config),
+            input_metadata=input_metadata,
             configurations=ctx.obj["configurations"],
             extra_parameters=extra_parameters,
             platform=ctx.obj["platform"],
