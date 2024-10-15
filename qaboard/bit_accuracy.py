@@ -337,6 +337,11 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     Checks the bit accuracy of the results in the current output directory
     versus the latest commit on origin/develop.
     """
+    # Some projects run costly metadata logic only at the batch level
+    # to skip runs. They rely on this to identify metadata calls at the run-level
+    # behaviour needs to match for bit-accuracy checks 
+    os.environ['QA_BATCH']= 'true'
+
     commit_dir = outputs_commit if (is_ci or ctx.obj['share']) else Path()
     click.secho(f'Current directory  : {commit_dir}', fg='cyan', bold=True, err=True)
     all_bit_accurate = True
@@ -432,6 +437,11 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     from .api import qaboard_url
     from .conventions import get_commit_dirs
     from .git import latest_commit, git_parents
+
+    # Some projects run costly metadata logic only at the batch level
+    # to skip runs. They rely on this to identify metadata calls at the run-level
+    # behaviour needs to match for bit-accuracy checks 
+    os.environ['QA_BATCH']= 'true'
 
     if not is_in_git_repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
