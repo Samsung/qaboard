@@ -2,6 +2,7 @@
 Utilities related to CI database: fetching results, saving results... 
 """
 import os
+import sys
 import json
 from pathlib import Path
 from copy import deepcopy
@@ -60,22 +61,27 @@ def dir_to_url(path: Path) -> str:
 
 
 def print_url(ctx, status="starting"):
-  if not ctx.obj['offline'] and not os.environ.get('QA_BATCH'):
-    batch_label = ctx.obj["batch_label"]
-    commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
-    if is_ci or ctx.obj['share']:
-      if status == "starting":
-        click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
-      elif status == "failure":
-        click.echo(
-          click.style("[FAILED] Read the full logs at: ", bold=True, fg='red') +
-          click.style(
-            f"{commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs",
-            fg='red',
-            underline=True,
-            bold=True,
-          ),
-        err=True)
+  if ctx.obj['offline']:
+    return
+  if os.environ.get('QA_BATCH'):
+    return
+  if '--list' in sys.argv:
+    return
+  batch_label = ctx.obj["batch_label"]
+  commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+  if is_ci or ctx.obj['share']:
+    if status == "starting":
+      click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
+    elif status == "failure":
+      click.echo(
+        click.style("[FAILED] Read the full logs at: ", bold=True, fg='red') +
+        click.style(
+          f"{commit_url}{'?' if batch_label == 'default' else '&'}selected_views=logs",
+          fg='red',
+          underline=True,
+          bold=True,
+        ),
+      err=True)
 
 
 

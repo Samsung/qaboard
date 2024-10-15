@@ -1,4 +1,4 @@
-FROM node:lts as dev
+FROM node:20 as dev
 WORKDIR /app
 
 ENV PROXY_HOST=webproxy \
