@@ -71,7 +71,7 @@ def filter_outputs(query, outputs):
     return outputs
 
   query = query.strip().lower().replace('"', '')
-  query = re.sub(r'[=:] +', ':', query)
+  query = re.sub(r'(=+|: +)', ':', query)
 
   tokens = query = query.split()
   negative_tokens = [t[1:] for t in tokens if t.startswith('-')]
