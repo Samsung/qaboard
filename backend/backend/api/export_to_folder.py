@@ -272,6 +272,7 @@ def export_to_folder():
 
   glob = request.args.get('path', '*')
   nb_files_exported = 0
+  errors = []
   for output in new_outputs:
     output_ref = output_refs[output.id]
     if not output_ref:
@@ -327,7 +328,6 @@ def export_to_folder():
     label_ref = get_labels(output_ref, label_mappings)
 
     export_type = request.args.get('export_type', "link")
-    errors = []
     for output_path in output.output_dir.glob(glob):
       try:
         output_path_rel = output_path.relative_to(output.output_dir)
