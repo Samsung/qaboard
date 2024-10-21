@@ -677,7 +677,12 @@ class ImgViewer extends React.PureComponent {
   render() {
     const { output_new, output_ref, diff, label, path, manifests } = this.props;
     let { path_ref=this.props.path } = this.props
-    const { first_image, width, image_height, image_width, error, hide_labels, has_reference } = this.state;
+    const {
+      first_image,
+      width,
+      image_height, image_width, image_height_ref, image_width_ref,
+      error, hide_labels, has_reference
+    } = this.state;
     
     const has_same_data = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref])
 
@@ -713,6 +718,11 @@ class ImgViewer extends React.PureComponent {
 
     const switch_label = <Tag interactive rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     const switch_help_label = <span>Switch New/Reference with the keyboard shortcut <kbd>t</kbd>. Hide labels with <kbd>h</kbd></span>
+
+    const are_different_sizes = has_reference && (image_width !== image_width_ref || image_height !== image_height_ref)    
+    image_height_ref
+    image_width_ref
+
     const image_new = <div style={flex} key="new">
       {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
         {!hide_labels ? <Tooltip content={switch_help_label}><Tag
@@ -720,7 +730,7 @@ class ImgViewer extends React.PureComponent {
           style={{backgroundColor: Colors.CERULEAN4}}
           rightIcon="exchange"
           onClick={this.switch_images}
-        >new {path !== path_ref && path}</Tag></Tooltip> : switch_label}
+        >new {path !== path_ref && path} {are_different_sizes && <code>{image_width}x{image_height}</code>}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
@@ -731,7 +741,7 @@ class ImgViewer extends React.PureComponent {
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >{!has_same_data ? <span>reference {path !== path_ref && path_ref}</span> : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
+        >{!has_same_data ? <span>reference {path !== path_ref && path_ref} {are_different_sizes && <code>{image_width_ref}x{image_height_ref}</code>}</span> : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>
