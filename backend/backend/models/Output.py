@@ -269,7 +269,13 @@ class Output(Base):
       command,
     ])
     if not self.output_dir.exists():
-      self.output_dir.mkdir(parents=True)
+      prev_mask = os.umask(000)
+      try:
+        self.output_dir.mkdir(parents=True)
+      except Exception as e:
+        os.umask(prev_mask)
+        raise e
+    os.umask(prev_mask)
     logs_path = self.output_dir / 'log.txt'
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:

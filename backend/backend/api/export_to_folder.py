@@ -208,6 +208,7 @@ def export_to_folder():
   try:
     export_dir.mkdir(parents=True, exist_ok=True)
   except Exception as e:
+    os.umask(prev_mask)
     return json.dumps({"error": f"ERROR: when creating '{export_dir}': {e}"}), 403
   os.umask(prev_mask)
 
