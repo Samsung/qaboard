@@ -190,7 +190,7 @@ class OutputLog extends React.Component {
           : <div>
               {has_failure_lsf && <a target="_blank" href={(this.state.log_url ?? '').replace("log.txt", "log.lsf.txt")}>
                 <Tag interactive intent="danger">
-                  Likely an LSF Failure! Click to check why
+                  Killed by LSF! Click to check why
               </Tag></a>}
               <pre
                 // ref={this.log_ref}
