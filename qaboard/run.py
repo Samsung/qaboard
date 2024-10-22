@@ -152,7 +152,7 @@ class RunContext():
                 metadata_keys = list(metadata.keys())
                 for k in metadata_keys:
                     if k.startswith('_') or k == "input_path" or k == "rel_input_path":
-                    del metadata[k]
+                        del metadata[k]
         else:
             metadata = {}
         run_context = RunContext(
