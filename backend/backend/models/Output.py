@@ -275,7 +275,7 @@ class Output(Base):
       except Exception as e:
         os.umask(prev_mask)
         raise e
-    os.umask(prev_mask)
+      os.umask(prev_mask)
     logs_path = self.output_dir / 'log.txt'
     script_path = self.output_dir / 'redo.sh'
     with script_path.open('w') as f:
