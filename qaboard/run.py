@@ -148,6 +148,11 @@ class RunContext():
         ctx.obj["extra_parameters"] = extra_parameters
         if "/tv/" not in str(input_path):
             metadata = input_metadata(input_path_absolute, database, input_path, config)
+            if metadata:
+            metadata_keys = list(metadata.keys())
+            for k in metadata_keys:
+                if k.startswith('_') or k == "input_path" or k == "rel_input_path":
+                del metadata[k]
         else:
             metadata = {}
         run_context = RunContext(
