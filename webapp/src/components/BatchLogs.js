@@ -11,6 +11,7 @@ import {
   Callout,
   Button,
   NonIdealState,
+  Tag,
 } from "@blueprintjs/core";
 
 import { StatusTag, style_skeleton } from './tags'
@@ -89,7 +90,8 @@ class OutputLog extends React.Component {
     // console.log(`[logs] fetch ${output.test_input_path}`)
     // console.log(`       => ${output.output_dir_url}/${log_file || 'log.txt'}`)
 
-    get(`${output.output_dir_url}/${log_file || 'log.txt'}`)
+    const log_url = `${output.output_dir_url}/${log_file ?? 'log.txt'}`
+    get(log_url)
       .then(response => {
         var logs = response.data;
         logs = logs.replaceAll("<?", "??") // avoid issues wih tqdm prints being stripped
@@ -124,12 +126,13 @@ class OutputLog extends React.Component {
           is_loaded: true,
           // logs,
           logs_html_safe,
+          log_url,
           error: null,
         });
       })
       .catch(error => {
         console.log(error)
-        this.setState({ is_loaded: true, error });
+        this.setState({ log_url, is_loaded: true, error });
       });
   }
 
@@ -160,6 +163,7 @@ class OutputLog extends React.Component {
     const header_prefix = <>
       {show_button}{button_text==="Hide" && <Button onClick={this.scrollBottom} icon="double-chevron-down"></Button>} {output.output_type !== "batch" && <StatusTag output={output}/>}
     </>
+    const has_failure_lsf = output.is_failed && (logs_html_safe ?? "").slice(-1000).includes("Aborted!")
     return (
       <div>
         {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
@@ -184,12 +188,16 @@ class OutputLog extends React.Component {
               }
             />
           : <div>
+              {has_failure_lsf && <a target="_blank" href={(this.state.log_url ?? '').replace("log.txt", "log.lsf.txt")}>
+                <Tag interactive intent="danger">
+                  Likely an LSF Failure! Click to check why
+              </Tag></a>}
               <pre
                 // ref={this.log_ref}
                 ref={this.onRefChange}
                 className={Classes.CODE_BLOCK}
                 dangerouslySetInnerHTML={{
-                  __html: logs_html_safe || ""
+                  __html: logs_html_safe ?? ""
                 }}
                 style={{
                   maxHeight: '500px',
