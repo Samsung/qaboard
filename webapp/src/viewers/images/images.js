@@ -398,6 +398,19 @@ class ImgViewer extends React.PureComponent {
           });
         });
 
+        viewer_new.addHandler('tile-load-failed', ({tile, message}) => {
+          this.setState({ error: {
+            message: `Could not load at least one part of the image (${tile}): ${message}`,
+          }})
+        });
+        if (has_reference) {
+          viewer_ref.addHandler('tile-load-failed', ({tile, message}) => {
+            this.setState({ error: {
+              message: `Could not load at least one part of the image (${tile}): ${message}`,
+            }})
+          });
+        }
+
         // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
