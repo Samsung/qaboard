@@ -288,11 +288,9 @@ class ImgViewer extends React.PureComponent {
           }
         })
         viewer.addHandler('canvas-enter', (event) => {
-          console.log(viewer.mouse_tracker)
           viewer.mouse_tracker.setTracking(true);
           // console.log("istracking", viewer.mouse_tracker.isTracking())
         });
-        console.log("defining canvas-exit")
         viewer.addHandler('canvas-exit', (event) => {
           // console.log("canvas-exit")
           // TODO: Ideally we'd stop tracking but for some reason tracking won't ever restart (!?)
