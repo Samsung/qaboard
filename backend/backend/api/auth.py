@@ -179,7 +179,6 @@ def load_user(user_id):
 
 @login_manager.request_loader
 def load_user_from_request(request):
-  print("load_user_from_request")
   auth_header = request.headers.get('Authorization')
   if auth_header and auth_header.startswith("Bearer "):
     token_str = auth_header.replace("Bearer ", "")
@@ -193,7 +192,6 @@ def load_user_from_request(request):
     user = User.query.get(token.user_id)
     if user:
         login_user(user)
-        print(f"user:  {user}")
         return user
   return None
 
