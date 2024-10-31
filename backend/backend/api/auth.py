@@ -14,7 +14,7 @@ from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
 from backend import app, db_session
-from ..models import User
+from ..models import User, Token
 
 
 login_manager = LoginManager(app)
@@ -57,8 +57,27 @@ elif login_type == "SAML":
   # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
 
 
+# FIXME: Today User.data is a bunch of LDAP info stuffed directly.
+#        Needs to be namespaced under "ldap". 
 
-# @app.route('/api/v1/user/signup/', methods=['POST'])
+
+@app.route('/api/v1/user/token/', methods=['POST'])
+def create_token():
+  if not current_user.is_authenticated:
+    return f"Not logged-in", 403
+  # user = User.query.filter_by(user_name='sircdevops').one()
+  # login_user(user, remember=False, duration=timedelta(days=180))
+  token = Token(current_user)
+  db_session.add(token)
+  db_session.commit()
+  return jsonify({
+    "token": token.token,
+    "created_at": token.created_at.isoformat(),
+    "expires_at": token.expires_at.isoformat() if token.expires_at else None,
+  })
+
+
+@app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
   if os.environ.get("QABOARD_DISABLE_SIGNUP") == "True":
     return f"Signup disabled", 403
@@ -74,11 +93,13 @@ def signup():
   except Exception as e:
     print(f"[signup] Error when creating new user with {request.form}: {e}")
     return f"{e}", 403
-  return jsonify({"id": user.id,
-                "email": user.email,
-                "user_name": user.user_name,
-                "full_name": user.full_name,
-                "login_type": user.login_type})
+  return jsonify({
+    "id": user.id,
+    "email": user.email,
+    "user_name": user.user_name,
+    "full_name": user.full_name,
+    "login_type": user.login_type,
+  })
 
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
@@ -138,8 +159,10 @@ def get_current_user(to_jsonify=True):
         "login_type": current_user.login_type,
       })
 
-  if to_jsonify: return jsonify(info)
-  else: return info
+  if to_jsonify:
+    return jsonify(info)
+  else:
+    return info
 
 
 @app.route('/api/v1/user/logout/', methods=['POST'])
@@ -152,6 +175,28 @@ def logout():
 @login_manager.user_loader
 def load_user(user_id):
   return User.query.get(user_id)
+
+
+@login_manager.request_loader
+def load_user_from_request(request):
+  print("load_user_from_request")
+  auth_header = request.headers.get('Authorization')
+  if auth_header and auth_header.startswith("Bearer "):
+    token_str = auth_header.replace("Bearer ", "")
+  else:
+    token_str = request.args.get('token')
+  if not token_str:
+    return None
+
+  token = Token.query.filter_by(token=token_str).first()
+  if token and token.is_valid():
+    user = User.query.get(token.user_id)
+    if user:
+        login_user(user)
+        print(f"user:  {user}")
+        return user
+  return None
+
 
 def create_user(info):
   if not info["user_name"]:
@@ -167,7 +212,7 @@ def create_user(info):
     data=info["data"],
     # TODO: use a slower hash, currently the default is pbkdf2:sha256
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
-    password= generate_password_hash(info["password"]) if "password" in info else None,
+    password=generate_password_hash(info["password"]) if "password" in info else None,
   )
   db_session.add(user)
   db_session.commit()
