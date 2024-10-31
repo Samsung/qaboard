@@ -84,4 +84,8 @@ class Token(Base):
 
     def is_valid(self):
         """Check if token is valid (not expired and not revoked)."""
-        return not self.revoked and datetime.datetime.utcnow() < self.expires_at
+        if self.revoked:
+          return False
+        if self.expires_at and datetime.datetime.utcnow() < self.expires_at:
+          return False
+        return True
