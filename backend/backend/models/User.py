@@ -76,7 +76,7 @@ class Token(Base):
         self.user_id = user.id
         self.token = self.generate_token()
         if duration_days:
-          self.expires_at = datetime.utcnow() + timedelta(days=duration_days)
+          self.expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=duration_days)
 
     def generate_token(self):
         """Generate a secure random token."""
@@ -84,4 +84,4 @@ class Token(Base):
 
     def is_valid(self):
         """Check if token is valid (not expired and not revoked)."""
-        return not self.revoked and datetime.utcnow() < self.expires_at
+        return not self.revoked and datetime.datetime.utcnow() < self.expires_at
