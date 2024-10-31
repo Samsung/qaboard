@@ -60,6 +60,8 @@ elif login_type == "SAML":
 
 # @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
+  if os.environ.get("QABOARD_DISABLE_SIGNUP") == "True":
+    return f"Signup disabled", 403
   try:
     user = create_user({
       "email": request.form.get('email'),

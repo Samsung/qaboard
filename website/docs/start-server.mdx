@@ -85,6 +85,7 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 third-party-tools#example-jenkins-integration-via-webhooks))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
+| `QABOARD_DISABLE_SIGNUP`   | _false_  | Set to `True` to disallow local users from signing up                   |
 | `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users (requires backend restart)                   |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
@@ -103,7 +104,7 @@ third-party-tools#example-jenkins-integration-via-webhooks))               |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
 | `UWSGI_PROCESSS`       | 1       | default: 1g                                          |
-| `SENTRY_DSN`           | _none_  | monitor crashes with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
+| `SENTRY_DSN`           | _none_  | monitor crashes in the backend with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
 | `SENTRY_SAMPLE_RATE`           | 0.2  | sample for perf monitoring |
 
 

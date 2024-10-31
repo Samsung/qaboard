@@ -102,6 +102,7 @@ It could work as before with:
 
 ```python "qa/main.py"
 import json
+import subprocess
 
 def run(context):
     config_path = context.output_dir / "config.json" 
@@ -115,6 +116,7 @@ def run(context):
         "--output", str(context.output_dir),
         '--configuration', str(config_path),
     ]
+    subprocess.run(command)
 ```
 
 ## "Magic" configurations
