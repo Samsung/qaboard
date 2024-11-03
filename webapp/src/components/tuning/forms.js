@@ -407,15 +407,15 @@ class TuningForm extends Component {
       />
     </>
 
-    const available_platforms = config.inputs?.platforms || []
-
+    const available_platforms = config.inputs?.platforms ?? []
+    const cannot_tune_on_branch = project.startsWith('CDE-Users/HW_ALG') && !((this.props.commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop"
+      
     return <>
       {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
-      <p>Otherwise, your runs may be killed if they take too long.</p>
+        <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
+        <p>Otherwise, your runs may be killed if they take too long.</p>
       </Callout>}
-      {project.startsWith('CDE-Users/HW_ALG') && !((this.props.commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop" && 
-      <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+      {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
         <p>For tuning to work, your branch name (<code>{this.props.commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
         <p>A workaround is calling from Windows/Linux:</p>
         <pre>
@@ -424,9 +424,8 @@ class TuningForm extends Component {
           <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
           <div>qa save-artifacts</div>
         </pre>
-      </Callout> ||
-      !!message && 
-      <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+      </Callout>}
+      {!!message && <Callout intent={Intent.DANGER} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
         <span dangerouslySetInnerHTML={{__html: message}}></span>
       </Callout>}
       <FormGroup

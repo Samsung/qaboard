@@ -74,23 +74,22 @@ def groups():
             )
 
 
-def get_commit_batches_paths(project, commit_id):
+def get_commit_batches_paths(commit):
   batches_paths = []
-  try:
-    ci_commit = CiCommit.query.filter(
-        CiCommit.project_id == project.id, CiCommit.hexsha.startswith(commit_id)
-    ).one()
-    commit_config = ci_commit.data.get('qatools_config', {})
-    commit_group_files = batches_files(commit_config, None, Path(project.id), Path(project.id_relative), ci_commit.repo_artifacts_dir)
-    print(commit_group_files, file=sys.stderr)
-
-    # custom groups have priority over the commit's groups
-    for group_file in commit_group_files:
-      if (ci_commit.repo_artifacts_dir / group_file).exists():
-        batches_paths.insert(0, ci_commit.repo_artifacts_dir / group_file)
-    return batches_paths
-  except NoResultFound:
-    return []
+  commit_config = ci_commit.data.get('qatools_config', {})
+  commit_group_files = batches_files(
+    commit_config,
+    None,
+    Path(project.id),
+    Path(project.id_relative),
+    ci_commit.repo_artifacts_dir,
+  )
+  print(commit_group_files, file=sys.stderr)
+  # custom groups have priority over the commit's groups
+  for group_file in commit_group_files:
+    if (ci_commit.repo_artifacts_dir / group_file).exists():
+      batches_paths.insert(0, ci_commit.repo_artifacts_dir / group_file)
+  return batches_paths
 
 
 @app.route("/api/v1/tests/group", methods=["POST"])
@@ -108,12 +107,9 @@ def get_group():
 
     message = None
     batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+
     commit_id = request.args.get("commit")
     if commit_id:
-      commit_batches_paths = get_commit_batches_paths(project, commit_id)
-      if not commit_batches_paths:
-        message = "<p>Could not load the <code>inputs.batches</code> files defined in <em>qaboard.yaml</em>.</p><p>For tuning to work, <code>qa save-artifacts</code> needs to be called.</p>"
-      batches_paths = [*commit_batches_paths, *batches_paths]
       try:
           ci_commit = CiCommit.query.filter(
               CiCommit.project_id == project_id,
@@ -122,6 +118,38 @@ def get_group():
       except NoResultFound:
           return jsonify("Sorry, the commit id was not found"), 404
       qatools_config = ci_commit.data.get("qatools_config", {})
+
+      if not ci_commit.repo_artifacts_dir.exists():
+        message = f"""
+          <p>The artifacts folder does not exist.
+            <br/><code>{ci_commit.repo_artifacts_dir}</code>
+          </p>
+          <p>For tuning to work, you can manually call</p>
+          <pre>
+          git checkout {commit_id}
+          # build whatever is needed
+          qa save-artifacts
+          </pre>
+          <p>Normally it is done by the CI, but maybe you only worked on this commit locally, or something deleted the folder...</p>
+        """
+      else:
+        commit_batches_paths = get_commit_batches_paths(ci_commit)
+        if not commit_batches_paths:
+            message = f"""
+            <p>Could not load the <code>inputs.batches</code> files defined in <em>qaboard.yaml</em>.
+              <br/><code>{ci_commit.repo_artifacts_dir}</code>
+            </p>
+
+            <p>For tuning to work, you can manually call</p>
+            <pre>
+            git checkout {commit_id}
+            # build whatever is needed
+            qa save-artifacts
+            </pre>
+
+            <p>Normally it is done by the CI, but maybe you only worked on this commit locally, or something deleted the folder...</p>
+        """
+        batches_paths = [*commit_batches_paths, *batches_paths]
     else:
       qatools_config = project.data.get("qatools_config", {})
 
@@ -133,7 +161,7 @@ def get_group():
         with qatools_config['project']['entrypoint'].open() as f:
             entrypoint_source = f.read()
         has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
-    # prpject fallback?
+    # project fallback?
     if has_custom_iter_inputs:
         cwd = ci_commit.artifacts_dir
         parent_including_cwd = [*list(reversed(list(cwd.parents))), cwd]
@@ -229,13 +257,12 @@ def start_tuning(hexsha):
     if ci_commit.deleted:
         # Now that we updated the last_output_datetime, it won't be deleted again until a little while
         return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
- 
     try:
         groups = list(data["groups"])
     except Exception as e:
         return jsonify(str(e)), 400
 
-    commit_batches_paths = get_commit_batches_paths(ci_commit.project, hexsha)
+    commit_batches_paths = get_commit_batches_paths(ci_commit)
     batches_paths = [get_groups_path(project_id, name=group) for group in groups]
     batches_paths = [*commit_batches_paths, *batches_paths]
     merged_batches : Dict[str, Any] = {}
