@@ -74,7 +74,7 @@ def groups():
             )
 
 
-def get_commit_batches_paths(commit):
+def get_commit_batches_paths(ci_commit):
   batches_paths = []
   commit_config = ci_commit.data.get('qatools_config', {})
   commit_group_files = batches_files(
