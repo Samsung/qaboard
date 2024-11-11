@@ -81,10 +81,15 @@ COPY setup.py fastentrypoints.py  ./
 RUN pip install poetry
 # required to build python-scipy from source, since we use python3.11
 # and they are not available pre-built yet...
-RUN apt-get install -y gfortran pkg-config libopenblas-dev liblapack-dev
-# required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
+
+# https://github.com/xmlsec/python-xmlsec/issues/320
+ENV UWSGI_PROFILE_OVERRIDE="xml=no"
+
 RUN apt-get update -qq && \
-    apt-get install -y libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+    apt-get install -y \
+    gfortran pkg-config libopenblas-dev liblapack-dev \
+    # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
+    libxml2-dev libxmlsec1-dev libxmlsec1-openssl
 
 WORKDIR /qaboard/backend
 COPY backend/pyproject.toml backend/poetry.lock ./
