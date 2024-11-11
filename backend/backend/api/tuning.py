@@ -80,8 +80,8 @@ def get_commit_batches_paths(ci_commit):
   commit_group_files = batches_files(
     commit_config,
     None,
-    Path(project.id),
-    Path(project.id_relative),
+    Path(ci_commit.project.id),
+    Path(ci_commit.project.id_relative),
     ci_commit.repo_artifacts_dir,
   )
   print(commit_group_files, file=sys.stderr)
