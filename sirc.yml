@@ -90,6 +90,7 @@ services:
     - QABOARD_DATA_GIT_DIR=/algo/ws/ispq/qaboard_prod_data_git
     - QA_RUNNERS_LSF_BRIDGE=ssh ispq@ispq-vdi 'bsub_su {user} -I {bsub_command}'
     - QABOARD_LOGIN_TYPE=LDAP
+    - QABOARD_DISABLE_SIGNUP=True
     - QABOARD_LOGIN_RESTRICTED=True
     - QABOARD_LOGIN_RESTRICTED_YAML=/etc/ldap/users_restrict.yml
     - QABOARD_LDAP_USER_BASE=REDACTED_LDAP_BASE
@@ -106,12 +107,13 @@ services:
     volumes:
     - ./services/backend/passwd:/etc/passwd
     - ./services/backend/ldap:/etc/ldap
+    # /opt/dockermounts should not be necessary anymore
     - /opt/dockermounts/home:/home
     - /opt/dockermounts/raid:/raid
     - /opt/dockermounts/stage:/stage
     - /opt/dockermounts/home:/raid/users
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
-    - /stage/qa_data:/stage/qa_data
+    # - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /stage/algo_archive:/stage/algo_archive
     # - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
@@ -121,6 +123,7 @@ services:
     - /algo:/algo:shared
     - /data:/data:shared
     - /net:/net:shared
+    - /algo/ws:/algo/ws:shared
     # we use a shared location to avoid using ~10G of local storage
     # but root can't write to it, so it's painful..
     # - /algo/ws/ispq/qaboard_data/_data:/var/qaboard
