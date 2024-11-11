@@ -19,8 +19,8 @@ if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
     import urllib3
     urllib3.disable_warnings()
     class InsecureHttpTransport(sentry_sdk.transport.HttpTransport):
-        def _get_pool_options(self, ca_certs):
-            options = super()._get_pool_options(ca_certs)
+        def _get_pool_options(self):
+            options = super()._get_pool_options()
             options["cert_reqs"] = "CERT_NONE" # Ignore SSL Errors
             return options
 
