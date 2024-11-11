@@ -21,6 +21,24 @@ from backend.fs_utils import as_user, rmtree
 from ..models import Project, CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 
+
+
+def levenshtein_opt(s1, s2):
+  s1, s2 = strip_common(s1, s2)
+  return levenshtein(s1, s2)
+
+def strip_common(str1, str2):
+    prefix = os.path.commonprefix([str1, str2])
+    str1_no_prefix = str1[len(prefix):]
+    str2_no_prefix = str2[len(prefix):]
+    # Find the common suffix by reversing the strings
+    common_suffix_length = len(os.path.commonprefix([str1_no_prefix[::-1], str2_no_prefix[::-1]]))
+    if common_suffix_length > 0:
+        str1_no_prefix = str1_no_prefix[:-common_suffix_length] if common_suffix_length < len(str1_no_prefix) else ''
+        str2_no_prefix = str2_no_prefix[:-common_suffix_length] if common_suffix_length < len(str2_no_prefix) else ''
+    return str1_no_prefix, str2_no_prefix
+
+
 # https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
 @lru_cache(maxsize=4096)
 def levenshtein(s1, s2):
@@ -128,8 +146,8 @@ def matching_output(output_reference, outputs):
   def match_key(output):
     return (
       1 - int(output.test_input.abs_path == output_reference.test_input.abs_path or output.test_input.path == output_reference.test_input.path), 
-      levenshtein(to_json(output.configurations), to_json(output_reference.configurations)), 
-      levenshtein(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
+      levenshtein_opt(to_json(output.configurations), to_json(output_reference.configurations)), 
+      levenshtein_opt(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
       output.platform == output_reference.platform,
     )
   valid_outputs.sort(key=match_key)
