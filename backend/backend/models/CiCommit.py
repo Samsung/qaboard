@@ -328,7 +328,7 @@ class CiCommit(Base):
       ci_commit.data = {}
     return ci_commit
 
-  def to_dict(self, with_aggregation=None, with_batches=None, with_outputs=False):
+  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False):
     users_db = get_users_per_name("")
     committer_avatar_url = ''
     if users_db and self.committer_name:
@@ -374,7 +374,7 @@ class CiCommit(Base):
         'commit_dir_url': artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
         'repo_commit_dir_url': repo_artifacts_url, # idem
         'batches': {
-          b.label: b.to_dict(with_outputs=with_outputs, with_aggregation=with_aggregation)
+          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation)
           for b in self.batches
           if not with_batches or b.label in with_batches
         },

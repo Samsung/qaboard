@@ -12,11 +12,12 @@ from sqlalchemy import ForeignKey, Integer, String, DateTime, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
+from sqlalchemy import func, case
 
 from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
-from backend.models import Base
+from backend.models import Base, Output
 
 
 
@@ -60,28 +61,24 @@ class Batch(Base):
       return self.ci_commit.outputs_dir / batch_folder_name(self.label)
 
 
-  def to_dict(self, with_outputs=False, with_aggregation=None):
+  def to_dict(self, session, with_outputs=False, with_aggregation=None):
+    # TODO: limit outputs? avoid loading all?
     metrics_to_aggregate  = with_aggregation if with_aggregation else {}
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
       outputs = {}
-    valid_outputs = 0
-    pending_outputs = 0
-    running_outputs = 0
-    failed_outputs = 0
-    deleted_outputs = 0
-    for o in self.outputs:
-      if not o.is_failed and not o.is_pending:
-        valid_outputs += 1
-      if o.is_pending:
-        pending_outputs += 1
-      if o.is_running:
-        running_outputs += 1
-      if o.is_failed:
-        failed_outputs += 1
-      if o.deleted:
-        deleted_outputs += 1
+    result = (
+        session.query(
+            func.sum(case((~Output.is_failed & ~Output.is_pending, 1), else_=0)).label('valid_outputs'),
+            func.sum(case((Output.is_pending, 1), else_=0)).label('pending_outputs'),
+            func.sum(case((Output.is_running, 1), else_=0)).label('running_outputs'),
+            func.sum(case((Output.is_failed, 1), else_=0)).label('failed_outputs'),
+            func.sum(case((Output.deleted, 1), else_=0)).label('deleted_outputs')
+        )
+        .filter(Output.batch_id == self.id)
+        .one()
+    )
     return {
         'id': self.id,
         'commit_id': self.ci_commit.hexsha,
@@ -89,13 +86,12 @@ class Batch(Base):
         'created_date': self.created_date.isoformat(),
         'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
         'batch_dir_url': dir_to_url(self.batch_dir),
-
-        'aggregated_metrics': aggregated_metrics(self.outputs, metrics_to_aggregate),
-        'valid_outputs': valid_outputs,
-        'pending_outputs': pending_outputs,
-        'running_outputs': running_outputs,
-        'failed_outputs': failed_outputs,
-        'deleted_outputs': deleted_outputs,
+        'aggregated_metrics': {}, # aggregated_metrics(self.outputs, metrics_to_aggregate),
+        'valid_outputs': result.valid_outputs or 0,
+        'pending_outputs': result.pending_outputs or 0,
+        'running_outputs': result.running_outputs or 0,
+        'failed_outputs': result.failed_outputs or 0,
+        'deleted_outputs': result.deleted_outputs or 0,
         **outputs,
     }
 

@@ -124,7 +124,7 @@ def api_ci_commit(commit_id=None):
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches
   with_aggregation = json.loads(request.args.get('metrics', '{}'))
-  response = make_response(ujson.dumps(ci_commit.to_dict(with_aggregation, with_batches=with_batches, with_outputs=True)))
+  response = make_response(ujson.dumps(ci_commit.to_dict(db_session, with_aggregation, with_batches=with_batches, with_outputs=True)))
   response.headers['Content-Type'] = 'application/json'
   return response
 

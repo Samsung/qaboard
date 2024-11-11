@@ -81,7 +81,7 @@ def get_commits(branch=None):
 
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  if not branch and project_id.startswith("CDE-Users/HW_ALG"): # too many results to be fast...
+  if project_id.startswith("CDE-Users/HW_ALG") or project_id.startswith("aqua/"): # too many results to be fast...
     metrics_to_aggregate = {}
 
   with_batches = None
@@ -98,6 +98,7 @@ def get_commits(branch=None):
     if not c.batches:
       continue
     serializable_commits.append(c.to_dict(
+      db_session,
       with_aggregation=metrics_to_aggregate,
       with_batches=with_batches,
       with_outputs=with_outputs
