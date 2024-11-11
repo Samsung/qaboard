@@ -44,8 +44,10 @@ requests = "*"
 celery = "*"
 sentry-sdk = {extras = ["flask"], version = "*"}
 python3-saml = "*"
+polyleven = "^0.8"
+rich = "^13.9.4"
+simplejson = "^3.19.3"
 
-# Makes incremental docker builds easier
 [tool.poetry.extras]
 qaboard = ["qaboard"]
 

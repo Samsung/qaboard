@@ -13,6 +13,8 @@ from requests.utils import quote
 from flask import request, jsonify
 from flask_login import current_user
 from sqlalchemy.orm import joinedload
+from polyleven import levenshtein as polyleven_levenshtein
+
 
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
@@ -22,7 +24,7 @@ from ..models import Project, CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 
 
-
+@lru_cache(maxsize=1024)
 def levenshtein_opt(s1, s2):
   s1, s2 = strip_common(s1, s2)
   return levenshtein(s1, s2)
@@ -42,10 +44,14 @@ def strip_common(str1, str2):
 # https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
 @lru_cache(maxsize=4096)
 def levenshtein(s1, s2):
+    if s1 == s2:
+      return 0
     if s1 == "{}" and s2 == "{}":
       return 0
     if s1 == "[]" and s2 == "[]":
       return 0
+    return polyleven_levenshtein(s1, s2)
+
     if len(s1) < len(s2):
         return levenshtein(s2, s1)
     # len(s1) >= len(s2)
@@ -136,7 +142,7 @@ def matching_output(output_reference, outputs):
     # the string edit distance scales quadratically
     # we tried to mitigate it
     # print(json_str)
-    json_str = re.sub("(workspace|[{}\", '/.\-_]|config|raw|bmp)", "", json_str)
+    json_str = re.sub("(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
     # print(json_str)
     return json_str
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
