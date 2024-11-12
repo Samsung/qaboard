@@ -478,7 +478,7 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
