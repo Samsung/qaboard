@@ -113,7 +113,7 @@ services:
     - /opt/dockermounts/stage:/stage
     - /opt/dockermounts/home:/raid/users
     - /opt/dockermounts/stage/algo_data:/stage/algo_data
-    # - /stage/qa_data:/stage/qa_data
+    - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /stage/algo_archive:/stage/algo_archive
     # - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
