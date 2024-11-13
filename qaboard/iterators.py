@@ -215,7 +215,7 @@ def iter_inputs(
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
-      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform'):
+      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix'):
         continue
       is_batch = isinstance(new_batches[new_batch], dict) # vs e.g. aliases
       is_pipeline = is_batch and new_batches[new_batch].get("type") == "pipeline"
