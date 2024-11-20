@@ -237,6 +237,10 @@ def export_to_folder():
       return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
     os.umask(prev_mask)
 
+  is_export_dir_writable = os.access(export_dir, os.W_OK)
+  if not is_export_dir_writable:
+    return json.dumps({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
+
   output_refs = {}
   for output in new_outputs:
     output_refs[output.id] = matching_output(output, ref_outputs)
