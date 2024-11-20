@@ -228,13 +228,14 @@ def export_to_folder():
   else:
     export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
 
-  prev_mask = os.umask(000)
-  try:
-    export_dir.mkdir(parents=True, exist_ok=True)
-  except Exception as e:
+  if not export_dir.exists():
+    prev_mask = os.umask(000)
+    try:
+      export_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+      os.umask(prev_mask)
+      return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
     os.umask(prev_mask)
-    return json.dumps({"error": f"ERROR: when creating '{export_dir}': {e}"}), 403
-  os.umask(prev_mask)
 
   output_refs = {}
   for output in new_outputs:

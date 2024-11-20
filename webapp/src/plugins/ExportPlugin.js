@@ -79,9 +79,10 @@ class ExportPlugin extends React.Component {
 
     })
     .catch(error => {
+        const error_str = error?.response?.data?.error ?? JSON.stringify(error)
         this.setState({
           is_loading: false,
-          errors: [JSON.stringify(error)],
+          errors: [error_str],
         })
         toaster.show({
           message: error?.response?.data?.error ?? `Error: ${JSON.stringify(error)}`,
