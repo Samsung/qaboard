@@ -36,6 +36,9 @@ def crud_output(output_id):
     if 'data' in data:
       output.data = {**output.data,  **data['data']}
       flag_modified(output, "data")
+    if 'batch' in data:
+      output.data["batch"] = data["batch"]
+      flag_modified(output, "data")
     if 'metrics' in data:
       output.metrics = {**output.metrics,  **data['metrics']}
       flag_modified(output, "metrics")
@@ -157,6 +160,8 @@ def new_output_webhook():
   output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
+  if 'batch' in data:
+    output.data["batch"] = data["batch"]
   if output.deleted:
     output.deleted = False
 

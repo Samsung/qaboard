@@ -182,9 +182,9 @@ def notify_qa_database(object_type='output', **kwargs):
     click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
     click.secho(url, fg='yellow', err=True)
     data = json.loads(data)
-    del data['qaboard_config']
-    del data['qaboard_metrics']
-    del data['inputs_settings']
+    for k in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']:
+      if k in data:
+        del data[k]
     click.secho(str(data), fg='yellow', err=True)
     try:
       click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)

@@ -111,7 +111,8 @@ def filter_outputs(query, outputs):
     input_metadata = json.dumps(input_metadata, separators=(',', ':'))
     failed = 'fail crash' if output.is_failed else ''
     pending = 'pending running' if output.is_pending else ''
-    searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {input_metadata} {failed} {pending}".replace('"', '').lower()
+    batch = output.data.get("batch") or ''
+    searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {batch} {input_metadata} {failed} {pending}".replace('"', '').lower()
     # print(searched)
     # not using output.test_input_tags.join() like in the JS
     if any([re.search(t, searched) for t in negative_tokens]):

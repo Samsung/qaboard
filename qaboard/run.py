@@ -14,7 +14,7 @@ from .utils import merge, input_metadata
 class RunContext():
     """
     All the information describing a single `qa run`.
-    It will be passed to the user's run(context) function. 
+    It will be passed to the user's run(context) function.
     """
     type: str
     input_path: Path             # absolute path to the input
@@ -24,6 +24,8 @@ class RunContext():
 
     configurations: List[Any]   # list of "configurations", meaning is user-defined 
     extra_parameters: Dict[str, Any] = field(default_factory=dict)  # used for tuning
+
+    batch: Optional[str] = None # the name of the --batch it comes from
 
     input_metadata: Dict = field(default_factory=dict)
     click_context: Optional[click.Context] = None
@@ -85,7 +87,7 @@ class RunContext():
             if not self.output_dir.exists():
               click.secho(f'[ERROR] Failed run! The ouput directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
             else:
-              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it get a change to update QA-Board', fg='red', err=True)
+              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a change to update QA-Board', fg='red', err=True)
           return True
 
     @staticmethod
@@ -217,6 +219,7 @@ class RunContext():
             return _obj
         else:
             return {
+                "batch": self.batch,
                 **self.asdict(),
                 "rel_input_path": self.rel_input_path,
                 # the API expects it to be relative for now... let's fix this when possible

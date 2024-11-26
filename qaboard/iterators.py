@@ -276,15 +276,19 @@ def iter_inputs(
     # 1. Batches can directly match specifications from YAML files
     if batch in available_batches:
       check_batch(batch)
-      yield from iter_batch(available_batches[batch], run_context, qatools_config, inputs_settings, debug)
+      batch_run_context = deepcopy(run_context)
+      batch_run_context.batch = new_batch
+      yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug)
       continue
     
     # 2. Batches can be specified using wildcards
     matching_batches = [b for b in available_batches if fnmatch.fnmatch(b, batch)]
     if matching_batches:
       for b in matching_batches:
+        batch_run_context = deepcopy(run_context)
+        batch_run_context.batch = new_batch
         check_batch(b)
-        yield from iter_batch(available_batches[b], run_context, qatools_config, inputs_settings, debug)
+        yield from iter_batch(available_batches[b], batch_run_context, qatools_config, inputs_settings, debug)
       continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
