@@ -81,10 +81,10 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     input_paths = [*database.glob("*"), database]
   if not input_paths:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found for the batch "{path}"', fg='red', err=True)
-      raise ValueError 
+      click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
+      exit(1)
     else:
-      click.secho(f'WARNING: No inputs found for the batch "{path}"', fg='yellow', err=True)
+      click.secho(f'WARNING: No inputs found for the batch "{path}" under {database}', fg='yellow', err=True)
       if 'QABOARD_TUNING' in os.environ and not database.is_absolute():
         click.secho('         You look for your input inside the project directory, but we cannot find them...', fg='red', err=True)
         click.secho('         Make sure that (1) your inputs are declared as artifacts, and (2) you called `qa save-artifacts`.', fg='red', err=True)
