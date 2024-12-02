@@ -185,7 +185,7 @@ const TableKpi = ({
   return (
     <Section>
       {input}
-      <HTMLTable condensed compact>
+      <HTMLTable compact>
         <thead>
           <tr>
             <th />

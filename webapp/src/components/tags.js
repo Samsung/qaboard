@@ -67,22 +67,27 @@ const hidden_keys = ["badges", "roi", "auto_rois"]
 const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, toplevel=true}) => {
     // Some configuration key names are used and shown by viewers - we don't display them here...
     const tags = configurations.map((c, idx) => {
-      const is_object = typeof (c) !== 'string';
-      return <Tag
-        intent={intent}
-        round
-        minimal={!inverted}
-        interactive
-        key={idx}
-        style={{ marginRight: '5px', marginBottom: '3px' }}
-      >
-        {!is_object ? c :
-                      Object.entries(c)
-                      .filter(([k, v]) => !hidden_keys.includes(k))
-                      .map( ([k, v]) => <Tag round minimal={!inverted} key={k} intent={intent}>
-                        <strong>{k}:</strong> {JSON.stringify(v)}
-                      </Tag> )}
-      </Tag>
+      const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: '400' }
+      if (typeof (c) === 'string') {
+        return <Tag
+          intent={intent}
+          round
+          minimal={!inverted}
+          interactive
+          key={idx}
+          style={wrapper_style}
+        >{c}</Tag>
+      } else {
+        return <span style={wrapper_style} key={idx}>
+          {Object.entries(c)
+                 .filter(([k, v]) => !hidden_keys.includes(k))
+                 .map( ([k, v]) =>
+                   <Tag round minimal={!inverted} key={k} intent={intent}>
+                     <strong>{k}:</strong> {JSON.stringify(v)}
+                   </Tag>
+                 )}
+          </span>
+      }
     })
 
     if (!toplevel)

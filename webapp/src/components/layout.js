@@ -21,6 +21,11 @@ const Container = styled.div`
   @media (min-width: 1300px) {
     width: 1270px;
   }
+  @media (min-width: 1500px) {
+    width: auto;
+    margin-right: 6%;
+    margin-left: 6%;
+  }
 `;
 
 const Section = styled.div`

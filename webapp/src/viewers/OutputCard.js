@@ -84,13 +84,23 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
 
   const input_over_time_url = `/${project}/history/${!!commit ? commit.branch : ''}${window.location.search}`
   // output.params.badges = [{text: "training", icon: "settings", href: "https://example.com"}]
-  const run_path = has_label ? output.test_input_metadata.label : `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
+  let run_path = `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
+  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") {
+    run_path = <span>{output.data.batch} <span class={Classes.TEXT_MUTED}>(pipeline)</span></span>
+  }
+  if (has_label) {
+    run_path = output.test_input_metadata.label
+  }
   const popover_content = <Menu>
     {!!output.data?.batch && <MenuItem key="batch" text={output.data.batch} icon="group-objects" onClick={on_copy} />}
     {!!output.test_input_database && <>
       <MenuDivider key={"Database"} title="Database" />
       <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
       <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy} />
+    </>}
+    {!!output.test_input_path && <>
+      <MenuDivider key={"Input path"} title="Input path" />
+      <MenuItem key="input-linux" text={output.test_input_path} icon="duplicate" onClick={on_copy} />
     </>}
     {has_metadata && <>
       <MenuDivider key={"Properties"} title="Properties" />

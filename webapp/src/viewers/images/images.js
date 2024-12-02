@@ -741,7 +741,7 @@ class ImgViewer extends React.PureComponent {
           style={{backgroundColor: Colors.CERULEAN4}}
           rightIcon="exchange"
           onClick={this.switch_images}
-        >new {path !== path_ref && path} {are_different_sizes && <code>{image_width}x{image_height}</code>}</Tag></Tooltip> : switch_label}
+        >new {path !== path_ref && path} <code>{image_width}x{image_height}</code></Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>

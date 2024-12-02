@@ -79,12 +79,22 @@ class CommitWarningMessages extends React.Component {
 
 const SimpleOutputList = ({outputs, intent}) => {
   return <ul className={Classes.LIST}>
-    {outputs.map(o =>
-      <li key={o.id}>
-        <strong style={{paddingRight: '5px'}}>{o.test_input_path}</strong>
+    {outputs.map(o => {
+      const has_metadata = !!o.test_input_metadata && (Object.keys(o.test_input_metadata).length > 0)
+      const has_label = has_metadata && !!o.test_input_metadata.label
+      let run_path = `${o.test_input_database === '/' ? '/' : ''}${o.test_input_path}`
+      if (o.output_type === "pipeline" || o.test_input_path === "PIPELINE") {
+        run_path = <span>{o.data.batch} <span class={Classes.TEXT_MUTED}>(pipeline)</span></span>
+      }
+      if (has_label) {
+        run_path = o.test_input_metadata.label
+      }
+      return <li key={o.id}>
+        <strong style={{paddingRight: '5px'}}>{run_path}</strong>
         <ConfigurationsTags intent={intent} configurations={o.configurations}/>
         <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
       </li>
+      }
     )}
   </ul>
 }
