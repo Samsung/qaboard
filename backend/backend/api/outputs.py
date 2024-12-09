@@ -34,6 +34,8 @@ def crud_output(output_id):
     if 'is_failed' in data:
       output.is_failed = data['is_failed']
     if 'data' in data:
+      if not output.data:
+        output.data = {}
       output.data.update(data['data'])
       flag_modified(output, "data")
     if data.get('batch'):
@@ -157,6 +159,8 @@ def new_output_webhook():
   output.output_type = data.get('input_type', '')
 
   if "data" in data: # e.g. storage, job_options, batch name
+    if not output.data:
+      output.data = {}
     output.data.update(data['data'])
     flag_modified(output, "data")
   output.data["user"] = data['user']
