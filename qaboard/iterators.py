@@ -277,7 +277,7 @@ def iter_inputs(
     if batch in available_batches:
       check_batch(batch)
       batch_run_context = deepcopy(run_context)
-      batch_run_context.batch = new_batch
+      batch_run_context.batch = batch
       yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug)
       continue
     

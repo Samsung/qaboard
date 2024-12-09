@@ -219,8 +219,8 @@ class RunContext():
             return _obj
         else:
             return {
-                "batch": self.batch,
                 **self.asdict(),
+                "batch": self.batch,
                 "rel_input_path": self.rel_input_path,
                 # the API expects it to be relative for now... let's fix this when possible
                 "input_path": self.rel_input_path,
