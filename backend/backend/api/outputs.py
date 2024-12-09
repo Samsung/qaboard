@@ -36,7 +36,7 @@ def crud_output(output_id):
     if 'data' in data:
       output.data = {**output.data,  **data['data']}
       flag_modified(output, "data")
-    if 'batch' in data:
+    if data.get('batch'):
       output.data["batch"] = data["batch"]
       flag_modified(output, "data")
     if 'metrics' in data:
