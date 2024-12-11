@@ -257,7 +257,7 @@ class CommitNavbar extends React.Component {
           helperText={type === 'new' ? <Tooltip content={<ul>
               <li>You can use negative filters: <code>-2X5</code></li>
               <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
-              <li>You can filter outputs by all their properties: path, configuration, platform, tags or tuning parameters (key:value).</li>
+              <li>You can filter runs by all their properties: path, batch, parameters (key:value), metadata, platform...</li>
             </ul>}
           >
             <><BatchTags batch={batch.filtered}/> <Icon style={{marginLeft: '5px', color: Colors.GRAY2}} icon="help"/></>
