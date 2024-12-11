@@ -92,7 +92,10 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
     run_path = output.test_input_metadata.label
   }
   const popover_content = <Menu>
-    {!!output.data?.batch && <MenuItem key="batch" text={output.data.batch} icon="group-objects" onClick={on_copy} />}
+    {!!output.data?.batch && <>
+      <MenuDivider key={"Batch"} title="Batch" />
+      <MenuItem key="batch" text={output.data.batch} icon="group-objects" onClick={on_copy} />
+    </>}
     {!!output.test_input_database && <>
       <MenuDivider key={"Database"} title="Database" />
       <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
