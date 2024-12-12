@@ -12,7 +12,7 @@ import {
 
 import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
-import { metric_formatter, percent_formatter } from "./metrics"
+import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
 
 
 
@@ -125,7 +125,7 @@ const TableCompare = ({
             <th />
             {metrics_.map(m => (
               <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 rgba(16, 22, 26, 0.15)"}}>
-                {m.short_label} {m.suffix.length > 0 && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
+                <MetricHeader condensed {...m}/> {m.suffix.length > 0 && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
               </th>
             ))}
           </tr>
@@ -191,9 +191,7 @@ const TableKpi = ({
             <th />
             {metrics_.map(m => (
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
-                <Tooltip content={<span>{m.label}</span>}>
-                  <span>{m.short_label}</span>
-                </Tooltip>
+                <MetricHeader condensed {...m}/>
                 {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
                   [{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]
                 </span>}

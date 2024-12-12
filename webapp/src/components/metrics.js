@@ -51,17 +51,18 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
+const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false}) => {
+    return <Tooltip content={<span><strong>{label}</strong> {description}</span>}>
+          {condensed ? short_label: label}{show_suffix && `${label}${!!suffix ? ` [${suffix}]` : ''}`}
+    </Tooltip>
+}
+
 const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
   const value = metrics_new[metric_info.key]
-  const value_component = isNaN(value) ? <RunBadge badge={value}/> : <>{metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}</>
-  let formatted_valued = (
-    <span>
-      {metric_info.short_label}:{" "}
-      <strong>
-        {value_component}
-      </strong>
-    </span>
-  );
+  const value_tooltip = <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
+  const value_component = isNaN(value) ? <RunBadge badge={value}/> : <Tooltip content={value_tooltip}>
+    {metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}
+  </Tooltip>
 
   // compare tag
   if (metrics_ref !== undefined && metrics_ref[metric_info.key] && metrics_ref[metric_info.key] !== metrics_new[metric_info.key]) {
@@ -86,12 +87,17 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
-  let metric_tag = <Tooltip content={<span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>}>
-    <CompoundTag style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}} minimal intent={!!metric_info.target ? intent : null} leftContent={metric_info.short_label}>
+  let metric_tag = <>
+    <CompoundTag
+        style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
+        minimal
+        intent={!!metric_info.target ? intent : null}
+        leftContent={<MetricHeader condensed {...metric_info}/>}
+    >
       {value_component}
       {compare_tag}
     </CompoundTag>
-  </Tooltip>;
+  </>;
 
   if (metric_info.key === 'is_failed') {
     metric_tag = <span/>
@@ -401,7 +407,7 @@ class MetricsSummary extends Component {
         icon={this.isMetricSelected(metric) ? "tick" : "blank"}
         key={metric.key}
         label={metric.key}
-        text={`${metric.label} [${metric.suffix}]`}
+        text={<MetricHeader {...metric} show_suffix/>}
         onClick={handleClick}
         shouldDismissPopover={false}
       />
@@ -621,6 +627,7 @@ export {
   MetricsSummary,
   MetricTag,
   MetricsTags,
+  MetricHeader,
   metric_formatter,
   percent_formatter,
 };

@@ -17,7 +17,7 @@ import { MultiSelect } from "@blueprintjs/select";
 import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
-import { MetricsSummary } from "./components/metrics";
+import { MetricsSummary, MetricHeader } from "./components/metrics";
 import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
 import { TableCompare, TableKpi } from "./components/tables";
@@ -88,7 +88,7 @@ class CiCommitResults extends Component {
         icon={this.isMetricSelected(metric) ? "tick" : "blank"}
         key={metric.key}
         label={metric.key}
-        text={`${metric.label}${!!metric.suffix ? ` [${metric.suffix}]` : ''}`}
+        text={<MetricHeader {...metric} show_suffix />}
         onClick={handleClick}
         shouldDismissPopover={false}
       />
@@ -197,7 +197,7 @@ class CiCommitResults extends Component {
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
-        tagRenderer={m => m.label}
+        tagRenderer={m => <MetricHeader {...m}/>}
         tagInputProps={{
           onRemove: this.handleTagRemove,
           rightElement: clearButton
@@ -350,7 +350,7 @@ class CiCommitResults extends Component {
                 ? <NonIdealState
                     icon="heatmap"
                     title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
-                    description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
+                    description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.</p>}
                   />
                 : <Section>
                   <h2 className={Classes.HEADING}>Tuning Experiments</h2>
@@ -487,7 +487,7 @@ class CiCommitResults extends Component {
                     selected_metrics={selected_metrics.map(m => m.key)}
                     batch={new_batch}
                     input={metricTableSelect}
-                   />
+                    />
                 </Card>
                </Section>}
 
