@@ -3,6 +3,7 @@ available_metrics:
   # loss:
   #   label: My Loss Function  # defaults to the key
   #   short_label: Loss        # defaults to the label
+  #   description: The was computed with.... # optional
   #   smaller_is_better: true  # default
   #   target: 0.01             # optionnal
   #   # used for display
@@ -12,6 +13,7 @@ available_metrics:
   is_failed:
     label: Crashed
     short_label: Crashed
+    description: This run crashed.
     scale: 100
     suffix: "%"
     target: 0
