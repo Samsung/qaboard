@@ -229,7 +229,7 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
   except Exception as e:
     if ignore_errors:
       return {}
-    click.secho(r.text, fg='red')
+    click.secho(r.text, fg='red', err=True)
     click.secho(f'[ERROR]: Failed to get info from QA-Board. ({url} | {params})', fg='red', bold=True, err=True)
     raise e
   if 'batches' not in data:
