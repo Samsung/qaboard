@@ -135,7 +135,7 @@ const SyncedVideos = ({
     }
     if (syncInterval.current) {
       cancelAnimationFrame(syncInterval.current)
-      setTimeout(syncInterval.current, 100)
+      setTimeout(syncReferenceVideo, 100)
     }
   };
 
