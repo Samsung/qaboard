@@ -126,15 +126,16 @@ const SyncedVideos = ({
   };
 
   const handlePauseRef = () => {
-    if (syncInterval.current) {
-      cancelAnimationFrame(syncInterval.current)
-    }
     if (viewer_new_ref.current) {
       viewer_new_ref.current.pause();
     }
     if (viewer_reference_ref.current) {
       viewer_reference_ref.current.pause();
       syncReferenceVideo();
+    }
+    if (syncInterval.current) {
+      cancelAnimationFrame(syncInterval.current)
+      setTimeout(syncInterval.current, 100)
     }
   };
 
