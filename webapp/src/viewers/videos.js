@@ -19,6 +19,10 @@ const SyncedVideos = ({
   const viewer_reference_ref = useRef(null);
   const [show_reference, setShowReference] = useState(false);
 
+  const syncInterval = useRef(null);
+  const frameRate = 30; // Adjust this based on your video's frame rate
+  const frameDuration = 1 / frameRate;
+
   const [currentTimeNew, setCurrentTimeNew] = useState(0);
   const [currentTimeRef, setCurrentTimeRef] = useState(0);
 
@@ -47,10 +51,10 @@ const SyncedVideos = ({
 
       viewer_reference_ref.current.addEventListener('play', handlePlayRef);
       viewer_reference_ref.current.addEventListener('pause', handlePauseRef);
-      viewer_reference_ref.current.addEventListener('timeupdate', syncReferenceVideo);
-      viewer_reference_ref.current.addEventListener('seeked', syncReferenceVideoTwice);
-      viewer_reference_ref.current.addEventListener('seeking', syncReferenceVideoTwice);
-      viewer_reference_ref.current.addEventListener('waiting', syncReferenceVideoTwice);
+      // viewer_reference_ref.current.addEventListener('timeupdate', syncReferenceVideo);
+      // viewer_reference_ref.current.addEventListener('seeked', syncReferenceVideoTwice);
+      // viewer_reference_ref.current.addEventListener('seeking', syncReferenceVideoTwice);
+      // viewer_reference_ref.current.addEventListener('waiting', syncReferenceVideoTwice);
     }
     // cleanup on unmount
     return () => {
@@ -97,6 +101,9 @@ const SyncedVideos = ({
         viewer_new_ref.current.removeEventListener('seeking', syncReferenceVideoTwice);
         viewer_new_ref.current.removeEventListener('waiting', syncReferenceVideoTwice);
       }
+      if (syncInterval.current) {
+        cancelAnimationFrame(syncInterval.current);
+      }
     };
   }, []);
 
@@ -120,7 +127,7 @@ const SyncedVideos = ({
       })
     }
     if (viewer_reference_ref.current) {
-      syncReferenceVideoTwice()
+      syncInterval.current = requestAnimationFrame(syncVideos);
       let play_promise_ref = viewer_reference_ref.current.play();
       play_promise_ref.then(_ => {
         console.log("play started (ref)")
@@ -128,10 +135,13 @@ const SyncedVideos = ({
       .catch(error => {
         console.log("Error when playing (ref)", error)
       })
-    }  
+    }
   };
 
   const handlePauseRef = () => {
+    if (syncInterval.current) {
+      cancelAnimationFrame(syncInterval.current)
+    }
     if (viewer_new_ref.current) {
       viewer_new_ref.current.pause();
     }
@@ -141,20 +151,23 @@ const SyncedVideos = ({
     }
   };
 
+  const syncVideos = () => {
+    syncReferenceVideo()
+    syncInterval.current = requestAnimationFrame(syncVideos)
+  }
+
   const syncReferenceVideo = () => {
     if (is_ready_video_reference) {
-      viewer_reference_ref.current.currentTime = viewer_new_ref.current.currentTime;
+      const time_difference = Math.abs(viewer_reference_ref.current.currentTime - viewer_new_ref.current.currentTime);
+      if (time_difference > frameDuration) {
+        viewer_reference_ref.current.currentTime = viewer_new_ref.current.currentTime;
+      }
+      // If one is paused, pause the other
+      // if (video1.paused !== video2.paused) {
+      //   if (video1.paused) video2.pause();
+      //   else video2.play();
+      // }
     }
-  };
-
-  const syncReferenceVideoTwice = () => {
-      syncReferenceVideo()
-      setTimeout(() => {
-        syncReferenceVideo();
-      }, 100);
-      setTimeout(() => {
-        syncReferenceVideo();
-      }, 200);
   };
 
   const width = parseFloat(((style?.width ?? '390px').replace(/[^\d]+/, '')))
