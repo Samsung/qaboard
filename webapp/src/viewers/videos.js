@@ -67,9 +67,9 @@ const SyncedVideos = ({
         viewer_reference_ref.current.removeEventListener('play', handlePlayRef);
         viewer_reference_ref.current.removeEventListener('pause', handlePauseRef);
         viewer_reference_ref.current.removeEventListener('timeupdate', syncReferenceVideo);
-        viewer_reference_ref.current.removeEventListener('seeked', syncReferenceVideoTwice);
-        viewer_reference_ref.current.removeEventListener('seeking', syncReferenceVideoTwice);
-        viewer_reference_ref.current.removeEventListener('waiting', syncReferenceVideoTwice);
+        // viewer_reference_ref.current.removeEventListener('seeked', syncReferenceVideoTwice);
+        // viewer_reference_ref.current.removeEventListener('seeking', syncReferenceVideoTwice);
+        // viewer_reference_ref.current.removeEventListener('waiting', syncReferenceVideoTwice);
       }
     };
   }, [show_reference])
@@ -88,9 +88,9 @@ const SyncedVideos = ({
       viewer_new_ref.current.addEventListener('play', handlePlayRef);
       viewer_new_ref.current.addEventListener('pause', handlePauseRef);
       viewer_new_ref.current.addEventListener('timeupdate', syncReferenceVideo);
-      viewer_new_ref.current.addEventListener('seeked', syncReferenceVideoTwice);
-      viewer_new_ref.current.addEventListener('seeking', syncReferenceVideoTwice);
-      viewer_new_ref.current.addEventListener('waiting', syncReferenceVideoTwice);
+      // viewer_new_ref.current.addEventListener('seeked', syncReferenceVideoTwice);
+      // viewer_new_ref.current.addEventListener('seeking', syncReferenceVideoTwice);
+      // viewer_new_ref.current.addEventListener('waiting', syncReferenceVideoTwice);
     }
     // cleanup on unmount
     return () => {
@@ -101,9 +101,9 @@ const SyncedVideos = ({
         viewer_new_ref.current.removeEventListener('play', handlePlayRef);
         viewer_new_ref.current.removeEventListener('pause', handlePauseRef);
         viewer_new_ref.current.removeEventListener('timeupdate', syncReferenceVideo);
-        viewer_new_ref.current.removeEventListener('seeked', syncReferenceVideoTwice);
-        viewer_new_ref.current.removeEventListener('seeking', syncReferenceVideoTwice);
-        viewer_new_ref.current.removeEventListener('waiting', syncReferenceVideoTwice);
+        // viewer_new_ref.current.removeEventListener('seeked', syncReferenceVideoTwice);
+        // viewer_new_ref.current.removeEventListener('seeking', syncReferenceVideoTwice);
+        // viewer_new_ref.current.removeEventListener('waiting', syncReferenceVideoTwice);
       }
       if (syncInterval.current) {
         cancelAnimationFrame(syncInterval.current);
