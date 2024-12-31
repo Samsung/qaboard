@@ -107,7 +107,7 @@ const SyncedVideos = ({
     if (viewer_new_ref.current) {
       let play_promise_new = viewer_new_ref.current.play();
       play_promise_new.then(_ => {
-        console.log("play started (new)")
+        // console.log("play started (new)")
       })
       .catch(error => {
         console.log("Error when playing (new)", error)
@@ -117,11 +117,13 @@ const SyncedVideos = ({
       syncInterval.current = requestAnimationFrame(syncVideos);
       let play_promise_ref = viewer_reference_ref.current.play();
       play_promise_ref.then(_ => {
-        console.log("play started (ref)")
+        // console.log("play started (ref)")
       })
       .catch(error => {
         console.log("Error when playing (ref)", error)
       })
+    } else {
+      console.log("SKIPPED SYNC")
     }
   };
 
@@ -147,7 +149,9 @@ const SyncedVideos = ({
   const syncReferenceVideo = () => {
     if (is_ready_video_reference && viewer_reference_ref.current && viewer_new_ref.current) {
       const time_difference = Math.abs(viewer_reference_ref.current.currentTime - viewer_new_ref.current.currentTime);
+      // console.log(time_difference, frameDuration)
       if (time_difference > frameDuration) {
+        console.log("SYNC ", time_difference)
         viewer_reference_ref.current.currentTime = viewer_new_ref.current.currentTime;
       }
       // If one is paused, pause the other
@@ -185,7 +189,10 @@ const SyncedVideos = ({
           <div>
             <Tag intent="warning">
               {!hasSameData ? 'reference' : 'reference (same-video)'}
-              <code>@{currentTimeRef}s</code>
+              {Math.abs(currentTimeNew-currentTimeRef) > frameDuration!==0 && <code>
+                {currentTimeNew - currentTimeRef > 0 ? " -" : " +"}
+                {(Math.abs(currentTimeNew-currentTimeRef)*1000).toPrecision(3)}ms
+              </code>}
             </Tag>
           </div>
           {!hasSameData && (
