@@ -42,7 +42,9 @@ const SyncedVideos = ({
 
   useEffect(() => {
     const handleTimeUpdate = () => {
-      setCurrentTimeRef(viewer_reference_ref.current.currentTime);
+      if (viewer_reference_ref.current) {
+        setCurrentTimeRef(viewer_reference_ref.current.currentTime);
+      }
     };
 
     if (viewer_reference_ref.current) { // normally should be always true
@@ -75,7 +77,9 @@ const SyncedVideos = ({
  
   useEffect(() => {
     const handleTimeUpdate = () => {
-      setCurrentTimeNew(viewer_new_ref.current.currentTime);
+      if (viewer_new_ref.current) {
+        setCurrentTimeNew(viewer_new_ref.current.currentTime);
+      }
     };
     if (viewer_new_ref.current) { // always true since unconditionnaly rendered
       viewer_new_ref.current.addEventListener("timeupdate", handleTimeUpdate);
@@ -157,7 +161,7 @@ const SyncedVideos = ({
   }
 
   const syncReferenceVideo = () => {
-    if (is_ready_video_reference) {
+    if (is_ready_video_reference && viewer_reference_ref.current && viewer_new_ref.current) {
       const time_difference = Math.abs(viewer_reference_ref.current.currentTime - viewer_new_ref.current.currentTime);
       if (time_difference > frameDuration) {
         viewer_reference_ref.current.currentTime = viewer_new_ref.current.currentTime;
