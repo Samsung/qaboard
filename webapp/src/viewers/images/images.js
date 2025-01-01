@@ -191,7 +191,7 @@ class ImgViewer extends React.PureComponent {
     // console.log("[InitZoomSync]")
     // Implemement synced zoom
     // https://codepen.io/iangilman/pen/BWKKxQ
-    const { viewer_new, viewer_ref } = this;
+    const { viewer_new, viewer_ref, canvas_diff } = this;
     const { image_width, image_height } = this.state;
     // const sync_key = `${this.props.output_new.test_input_path}-${image_height}x${image_width}`;
     const sync_key = `${this.props.output_new.test_input_path}-${(image_height/image_width).toFixed(3)}`;
@@ -201,6 +201,7 @@ class ImgViewer extends React.PureComponent {
       // console.log("init synced viewers", sync_key)
       synced_viewers[sync_key] = {
         viewers: [viewer_new, viewer_ref],
+        diff_canvases: [canvas_diff],
         // all the viewers are syncronized to
         zoom: null,
         center: null,
@@ -284,6 +285,15 @@ class ImgViewer extends React.PureComponent {
                 placement: OpenSeadragon.Placement.CENTER,
                 checkResize: false,
               });    
+            })
+            synced_viewers[sync_key].diff_canvases.forEach(synced_canvas => {
+              const imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
+              const imageSize = viewer.world.getItemAt(0).getContentSize();
+              const normalizedPosition = {
+                x: imagePoint.x / imageSize.x,
+                y: imagePoint.y / imageSize.y,
+              };
+              addOverlayToCanvas(synced_canvas.current, normalizedPosition);  
             })
           }
         })
@@ -805,9 +815,15 @@ class ImgViewer extends React.PureComponent {
         </MultiSlider>
       </div>
       <div style={single_image_size}>
-        <div><div>
+        <div>
+          <div class="canvas-container" style={{"position": "relative", "display": "inline-block"}}>
           <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
-        </div></div>
+            <div
+              class="canvas-overlays-container"
+              style={{position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none"}}
+            ></div>
+          </div>
+        </div>
       </div>
       <br />
       <Tooltip hoverCloseDelay={500} content={<ul>
@@ -916,5 +932,17 @@ class ImgViewer extends React.PureComponent {
 
 }
 
+
+function addOverlayToCanvas(canvas, position) {
+  const canvasContainer = canvas.parentElement;
+  const overlaysContainer = canvasContainer.querySelector('.canvas-overlays-container');
+  overlaysContainer.innerHTML = ''; // Clear previous overlays if needed
+  const cross = make_cross(); // Use your existing `make_cross` function
+  cross.style.position = 'absolute';
+  cross.style.transform = 'translate(-50%, -50%)';
+  cross.style.left = `${position.x * canvas.offsetWidth}px`;
+  cross.style.top = `${position.y * canvas.offsetHeight}px`;
+  overlaysContainer.appendChild(cross);
+}
 
 export default ImgViewer;
