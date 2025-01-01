@@ -256,7 +256,7 @@ class ImgViewer extends React.PureComponent {
         synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(
           v => v.id !== viewer_new.id && v.id !== viewer_ref.id
         )
-        synced_viewers[sync_key].viewers = synced_viewers[sync_key].diff_canvases.filter(
+        synced_viewers[sync_key].diff_canvases = synced_viewers[sync_key].diff_canvases.filter(
           c => c !== canvas_diff
         )
       }
