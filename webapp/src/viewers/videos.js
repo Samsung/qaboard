@@ -26,11 +26,6 @@ const SyncedVideos = ({
   const [currentTimeNew, setCurrentTimeNew] = useState(0);
   const [currentTimeRef, setCurrentTimeRef] = useState(0);
 
-
-  // we cannot "play" videos that are not ready
-  const [is_ready_video_new, setNewVideoReady] = useState(false);
-  const [is_ready_video_reference, setRefVideoReady] = useState(false);
-
   const meta_new = manifests?.new?.[path]
   const meta_reference = manifests?.reference?.[path]
   const hasSameData = is_same_data(path, meta_new, meta_reference);
@@ -48,8 +43,6 @@ const SyncedVideos = ({
     };
     if (viewer_reference_ref.current) { // normally should be always true
       viewer_reference_ref.current.addEventListener("timeupdate", handleTimeUpdate);
-      viewer_reference_ref.current.addEventListener('canplay', handleCanPlayRef);
-
       viewer_reference_ref.current.addEventListener('play', handlePlayRef);
       viewer_reference_ref.current.addEventListener('pause', handlePauseRef);
     }
@@ -57,8 +50,6 @@ const SyncedVideos = ({
     return () => {
       if (viewer_reference_ref.current) { // normally should be always true
         viewer_reference_ref.current.removeEventListener("timeupdate", handleTimeUpdate);
-        viewer_reference_ref.current.removeEventListener('canplay', handleCanPlayRef);
-
         viewer_reference_ref.current.removeEventListener('play', handlePlayRef);
         viewer_reference_ref.current.removeEventListener('pause', handlePauseRef);
       }
@@ -74,7 +65,6 @@ const SyncedVideos = ({
     };
     if (viewer_new_ref.current) { // always true since unconditionnaly rendered
       viewer_new_ref.current.addEventListener("timeupdate", handleTimeUpdate);
-      viewer_new_ref.current.addEventListener('canplay', handleCanPlayNew);
 
       viewer_new_ref.current.addEventListener('play', handlePlayRef);
       viewer_new_ref.current.addEventListener('pause', handlePauseRef);
@@ -83,8 +73,6 @@ const SyncedVideos = ({
     return () => {
       if (viewer_new_ref.current) {
         viewer_new_ref.current.removeEventListener("timeupdate", handleTimeUpdate);
-        viewer_new_ref.current.removeEventListener('canplay', handleCanPlayNew);
-
         viewer_new_ref.current.removeEventListener('play', handlePlayRef);
         viewer_new_ref.current.removeEventListener('pause', handlePauseRef);
       }
@@ -93,15 +81,6 @@ const SyncedVideos = ({
       }
     };
   }, []);
-
-
-  // TODO: do we have to split in 2 functions for each ?
-  const handleCanPlayRef = () => {
-    setRefVideoReady(true);
-  };
-  const handleCanPlayNew = () => {
-    setNewVideoReady(true);
-  };
 
   const handlePlayRef = () => {
     if (viewer_new_ref.current) {
@@ -147,17 +126,16 @@ const SyncedVideos = ({
   }
 
   const syncReferenceVideo = () => {
-    if (is_ready_video_reference && viewer_reference_ref.current && viewer_new_ref.current) {
+    if (viewer_reference_ref.current && viewer_new_ref.current && viewer_reference_ref.current.readyState >= 1) {
       const time_difference = Math.abs(viewer_reference_ref.current.currentTime - viewer_new_ref.current.currentTime);
-      // console.log(time_difference, frameDuration)
       if (time_difference > frameDuration) {
         console.log("SYNC ", time_difference)
         viewer_reference_ref.current.currentTime = viewer_new_ref.current.currentTime;
       }
       // If one is paused, pause the other
-      // if (video1.paused !== video2.paused) {
-      //   if (video1.paused) video2.pause();
-      //   else video2.play();
+      // if (viewer_new_ref.current.paused !== viewer_reference_ref.current.paused) {
+      //   if (viewer_new_ref.current.paused) viewer_reference_ref.current.pause();
+      //   else viewer_reference_ref.current.play();
       // }
     }
   };
