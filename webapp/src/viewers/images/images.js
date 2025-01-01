@@ -215,6 +215,8 @@ class ImgViewer extends React.PureComponent {
         synced_viewers[sync_key].viewers.push(viewer_new)
       if (synced_viewers[sync_key].viewers.every(v => v.id !== viewer_ref.id))
         synced_viewers[sync_key].viewers.push(viewer_ref)
+      if (synced_viewers[sync_key].diff_canvases.every(c => c !== canvas_diff))
+        synced_viewers[sync_key].diff_canvases.push(canvas_diff)
     }
 
 
@@ -254,6 +256,9 @@ class ImgViewer extends React.PureComponent {
         synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(
           v => v.id !== viewer_new.id && v.id !== viewer_ref.id
         )
+        synced_viewers[sync_key].viewers = synced_viewers[sync_key].diff_canvases.filter(
+          c => c !== canvas_diff
+        )
       }
       this.UnregisterZoomSync = null;
     }
@@ -287,16 +292,7 @@ class ImgViewer extends React.PureComponent {
               });    
             })
             synced_viewers[sync_key].diff_canvases.forEach(synced_canvas => {
-              // const imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
-              // const imageSize = viewer.world.getItemAt(0).getContentSize();
-              // console.log("imageSize", imageSize)
-              // console.log("imagePoint", imagePoint)
-              // const normalizedPosition = {
-              //   x: imagePoint.x / imageSize.x,
-              //   y: imagePoint.y / imageSize.y,
-              // };
-              // console.log("normalizedPosition", normalizedPosition)
-              // console.log("webPoint", webPoint)
+              if (synced_canvas.current)
               addOverlayToCanvas(synced_canvas.current, webPoint);
             })
           }
