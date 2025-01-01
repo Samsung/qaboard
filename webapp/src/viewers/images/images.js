@@ -287,13 +287,17 @@ class ImgViewer extends React.PureComponent {
               });    
             })
             synced_viewers[sync_key].diff_canvases.forEach(synced_canvas => {
-              const imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
-              const imageSize = viewer.world.getItemAt(0).getContentSize();
-              const normalizedPosition = {
-                x: imagePoint.x / imageSize.x,
-                y: imagePoint.y / imageSize.y,
-              };
-              addOverlayToCanvas(synced_canvas.current, normalizedPosition);  
+              // const imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
+              // const imageSize = viewer.world.getItemAt(0).getContentSize();
+              // console.log("imageSize", imageSize)
+              // console.log("imagePoint", imagePoint)
+              // const normalizedPosition = {
+              //   x: imagePoint.x / imageSize.x,
+              //   y: imagePoint.y / imageSize.y,
+              // };
+              // console.log("normalizedPosition", normalizedPosition)
+              // console.log("webPoint", webPoint)
+              addOverlayToCanvas(synced_canvas.current, webPoint);
             })
           }
         })
@@ -940,8 +944,8 @@ function addOverlayToCanvas(canvas, position) {
   const cross = make_cross(); // Use your existing `make_cross` function
   cross.style.position = 'absolute';
   cross.style.transform = 'translate(-50%, -50%)';
-  cross.style.left = `${position.x * canvas.offsetWidth}px`;
-  cross.style.top = `${position.y * canvas.offsetHeight}px`;
+  cross.style.left = `${position.x}px`;
+  cross.style.top = `${position.y}px`;
   overlaysContainer.appendChild(cross);
 }
 
