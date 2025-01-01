@@ -306,8 +306,11 @@ class ImgViewer extends React.PureComponent {
           // TODO: Ideally we'd stop tracking but for some reason tracking won't ever restart (!?)
           // viewer.mouse_tracker.setTracking(false);
           synced_viewers[sync_key].viewers.forEach(synced_viewer => {
-            console.log("clearing overlays")
             synced_viewer.clearOverlays();
+          })
+          synced_viewers[sync_key].diff_canvases.forEach(synced_canvas => {
+            if (synced_canvas.current)
+              clearOverlay(synced_canvas.current);
           })
         });
     })
@@ -933,6 +936,11 @@ class ImgViewer extends React.PureComponent {
 }
 
 
+function clearOverlay(canvas) {
+  const canvasContainer = canvas.parentElement;
+  const overlaysContainer = canvasContainer.querySelector('.canvas-overlays-container');
+  overlaysContainer.innerHTML = '';
+}
 function addOverlayToCanvas(canvas, position) {
   const canvasContainer = canvas.parentElement;
   const overlaysContainer = canvasContainer.querySelector('.canvas-overlays-container');
