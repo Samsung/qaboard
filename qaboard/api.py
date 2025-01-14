@@ -47,8 +47,6 @@ qaboard_url = "https://qa" # At SIRC we cannot access 80/443 reliably so we use 
 headers = {'Content-Type': 'application/json'}
 if "QA_TOKEN" in os.environ:
   headers["Authorization"] = f"Bearer {os.environ['QA_TOKEN']}"
-else:
-
 
 def url_to_dir(url: str) -> Path:
   from .compat import linux_to_windows
