@@ -44,6 +44,10 @@ api_prefix = f"{api_protocol}://{api_host}:{api_port}/api/v1"
 
 qaboard_url = "https://qa" # At SIRC we cannot access 80/443 reliably so we use 5000 for the API
 
+headers = {'Content-Type': 'application/json'}
+if "QA_TOKEN" in os.environ:
+  headers["Authorization"] = f"Bearer {os.environ['QA_TOKEN']}"
+else:
 
 
 def url_to_dir(url: str) -> Path:
@@ -170,7 +174,7 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     import simplejson
     data = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
-    r = requests.post(url, data=data, headers={'Content-Type': 'application/json'})
+    r = requests.post(url, data=data, headers=headers)
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     r.raise_for_status()
@@ -198,7 +202,7 @@ def get_output(output_id):
   import requests
   url = f"{api_prefix}/output/{output_id}/"
   try:
-    r = requests.get(url, headers={'Content-Type': 'application/json'})
+    r = requests.get(url, headers=headers)
     r.raise_for_status()
     return r.json()
   except Exception:
@@ -222,7 +226,7 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
     params["branch"] = reference
   commit_id = reference if not is_branch else ''
   url = f'{api_prefix}/commit/{commit_id}'
-  r = requests.get(url, params=params)
+  r = requests.get(url, params=params, headers=headers)
   try:
     r.raise_for_status()
     data = r.json()
