@@ -28,6 +28,8 @@ services:
     - 3005:3000
     volumes:
     - metabase-data:/metabase-data
+    - /raid/tools:/raid/tools
+    - /home/ispq:/home/ispq
     depends_on:
     - metabase-db
     # https://www.metabase.com/docs/latest/operations-guide/environment-variables.html
@@ -68,3 +70,25 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+
+  backup:
+    image: postgres:16
+    # sircdevops
+    user: 111778:10
+    depends_on:
+      - metabase-db
+    volumes:
+      - /raid/tools/devops/metabase/backups:/backups
+    environment:
+      POSTGRES_DB: metabase
+      POSTGRES_USER: metabase
+      POSTGRES_PASSWORD: metabase
+      POSTGRES_HOST: metabase-db
+      BACKUP_DAYS: 7  # Keep only the last 7 backups
+    entrypoint: >
+      /bin/sh -c "
+      while true; do
+        PGPASSWORD=$$POSTGRES_PASSWORD pg_dump -h metabase-db -U $$POSTGRES_USER -d $$POSTGRES_DB -F c -f /backups/metabase-$(date +%Y-%m-%d).dump && echo 'Backup OK!';
+        find /backups -type f -name 'metabase-*.dump' -mtime +$$BACKUP_DAYS -delete;
+        sleep 86400;
+      done"
