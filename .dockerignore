@@ -1,7 +1,9 @@
 services/
+!/services/GlobalSign.crt
+
 build/
 dist/
-website/
+.cache/
 
 data*
 data/
@@ -10,6 +12,7 @@ data/
 */__pycache__/
 .git/
 */node_modules/
+*/.npm/
 */build/
 
 .dockerignore
