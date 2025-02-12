@@ -239,9 +239,12 @@ services:
     - "${PGADMIN_PORT:-5050}:80"
 
 
-# TODO: add redis to use celery?
-#  redis:
-#    image: "redis:alpine"
+  redis:
+    image: redis:7
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
 
 # Matamo:
 # - Add a service like in ~/matamo?
