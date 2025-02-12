@@ -42,7 +42,7 @@ volumes:
   data: {}              # git clones (and custom batches.yaml for now...)
   db: {} # to be removed
   db-16: {}
-redis_data: {}
+  redis_data: {}
   rabbitmq-data: {}
   # cache_cantaloupe: {}  # cache for the iiif image server
   pgadmin: {}
@@ -79,7 +79,7 @@ services:
     command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
     depends_on:
       - db
-- redis
+      - redis
     expose:
     - "3000"
     volumes:
