@@ -47,6 +47,7 @@ python3-saml = "*"
 polyleven = "^0.8"
 rich = "^13.9.4"
 simplejson = "^3.19.3"
+redis = "^5.2.1"
 
 [tool.poetry.extras]
 qaboard = ["qaboard"]

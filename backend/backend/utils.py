@@ -7,6 +7,8 @@ import datetime
 import requests
 from pathlib import Path
 
+from .hybrid_cache import hybrid_cache
+
 
 # Until we get a proper database, we need to cache things a bit
 def cache(minutes=1440, func_skip_cache=None):
@@ -30,7 +32,7 @@ def cache(minutes=1440, func_skip_cache=None):
   return cache_ttl_decorator
 
 
-@cache(minutes=600)
+@hybrid_cache(ttl=12*60*60) # 12h
 def get_users_per_name(search_filter):
   """Retrievies users from Gitlab"""
   if 'GITLAB_ACCESS_TOKEN' not in os.environ:
@@ -44,12 +46,16 @@ def get_users_per_name(search_filter):
   page = 1
   users_on_page = {}
   while page==1 or users_on_page:
-    r = requests.get(f'{gitlab_api}/users/?{search_filter}',
-                     headers=headers,
-                     params={'per_page':1000, 'page': page},
-                     proxies={}
-                    )
+    url = f'{gitlab_api}/users/?{search_filter}'
+    print(f"GET {url}", page)
+    r = requests.get(
+      url,
+      headers=headers,
+      params={'per_page':1000, 'page': page},
+      proxies={}
+    )
     users_on_page = r.json()
+    print(f"{len(users_on_page)} users")
     for u in users_on_page:
       # need gitlab admin rights
       if 'email' in u:
