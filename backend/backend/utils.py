@@ -84,6 +84,7 @@ def get_users_per_name(search_filter):
   return users_db
 
 
+users_per_name = get_users_per_name("")
 
 # Wrapp function calls in profiled(my_call()) to profile code
 import cProfile, pstats, io

@@ -21,7 +21,7 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
-from ..utils import get_users_per_name
+from ..utils import users_per_name
 from ..fs_utils import rm_empty_parents, rmtree
 from ..git_utils import find_branch
 
@@ -329,19 +329,18 @@ class CiCommit(Base):
     return ci_commit
 
   def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False):
-    users_db = get_users_per_name("")
     committer_avatar_url = ''
-    if users_db and self.committer_name:
+    if users_per_name and self.committer_name:
       name = self.committer_name.lower()
       user = None
-      if name in users_db:
-        user = users_db[name]
-      elif name.replace('.', '') in users_db:
-        user = users_db[name.replace('.', '')]
-      elif name.replace(' ', '') in users_db:
-        user = users_db[name.replace(' ', '')]
-      elif name.replace(' ', '.') in users_db:
-        user = users_db[name.replace(' ', '.')]
+      if name in users_per_name:
+        user = users_per_name[name]
+      elif name.replace('.', '') in users_per_name:
+        user = users_per_name[name.replace('.', '')]
+      elif name.replace(' ', '') in users_per_name:
+        user = users_per_name[name.replace(' ', '')]
+      elif name.replace(' ', '.') in users_per_name:
+        user = users_per_name[name.replace(' ', '.')]
       if not user:
         name_hash = md5(name.encode('utf8')).hexdigest()
         committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
