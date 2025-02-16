@@ -77,8 +77,9 @@ engine.dispose()
 def warm_cache():
     """Warm up cache when a worker starts."""
     print("Warming cache in worker")
-    from backend.utils import users_per_name
-    print(f"Loaded info about {len(users_per_name)} users")
+    from backend.utils import get_users_per_name
+    users = get_users_per_name("")
+    print(f"Loaded info about {len(users)} users")
 
 
 try:

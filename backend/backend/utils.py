@@ -64,7 +64,6 @@ def get_users_per_name(search_filter):
 
 
 
-users_per_name = get_users_per_name("")
 
 
 def gravatar_url(name):
@@ -74,6 +73,7 @@ def gravatar_url(name):
 
 @cache
 def get_avatar_url(name):
+  users_per_name = get_users_per_name("")
   if not users_per_name or not name:
     return ''
 
