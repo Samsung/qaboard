@@ -246,7 +246,21 @@ class CommitNavbar extends React.Component {
             <CommitBranchButton commit={commit} onClick={this.selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
             <DoneAtTag dispatch={this.props.dispatch} project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
-            {!!commit && !!commit.error && <Tooltip content={<span>{commit.error}</span>}><Tag intent={Intent.DANGER} icon="error" style={{ marginRight: '8px' }}>Error</Tag></Tooltip>}
+            {!!commit && !!commit.error && <Tooltip content={
+              <span>
+                <code>{commit.error.response?.data?.error ?? JSON.stringify(commit.error)}</code>
+                <br></br>
+                {JSON.stringify(commit.error).startsWith('"40') && <strong>Check the commit is correct? Or the runs belong to a different project?</strong>}
+                {JSON.stringify(commit.error).startsWith('"50') && <strong>This is a system error, contact QA-Board admins.</strong>}
+              </span>
+            } targetProps={{style: {alignSelf: "center"}}}>
+              <Tag
+                intent={Intent.DANGER}
+                icon="error"
+                style={{ marginRight: '5px', marginLeft: '5px' }}>
+                  Error
+              </Tag>
+            </Tooltip>}
           </div>
         </FormGroup>
       </NavbarGroup>
