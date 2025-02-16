@@ -73,3 +73,17 @@ Base.metadata.create_all(engine)
 # https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
 # https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
 engine.dispose()
+
+def warm_cache():
+    """Warm up cache when a worker starts."""
+    print("Warming cache in worker")
+    from backend.utils import users_per_name
+    print(f"Loaded info about {len(users_per_name)} users")
+
+
+try:
+  import uwsgi
+  uwsgi.post_fork_hook = warm_cache
+except:
+  pass
+

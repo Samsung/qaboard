@@ -21,7 +21,7 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
-from ..utils import users_per_name
+from ..utils import get_avatar_url
 from ..fs_utils import rm_empty_parents, rmtree
 from ..git_utils import find_branch
 
@@ -329,28 +329,6 @@ class CiCommit(Base):
     return ci_commit
 
   def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False):
-    committer_avatar_url = ''
-    if users_per_name and self.committer_name:
-      name = self.committer_name.lower()
-      user = None
-      if name in users_per_name:
-        user = users_per_name[name]
-      elif name.replace('.', '') in users_per_name:
-        user = users_per_name[name.replace('.', '')]
-      elif name.replace(' ', '') in users_per_name:
-        user = users_per_name[name.replace(' ', '')]
-      elif name.replace(' ', '.') in users_per_name:
-        user = users_per_name[name.replace(' ', '.')]
-      if not user:
-        name_hash = md5(name.encode('utf8')).hexdigest()
-        committer_avatar_url = f'http://gravatar.com/avatar/{name_hash}'
-      else:
-        committer_avatar_url = user['avatar_url']
-        if "gravatar" in committer_avatar_url and 'username' in user:
-          # only SIRC users have avatars...
-          identities = user.get('identities', [])
-          if all(['ou=guests' not in i['extern_uid'] for i in identities]):
-            committer_avatar_url = f"https://dag.sirc.co.il:8081/{user['username']}.jpg"
     repo_artifacts_url = self.repo_artifacts_url
     artifacts_url = self.artifacts_url
     out = {
@@ -361,7 +339,7 @@ class CiCommit(Base):
         # 'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,
         'committer_name': self.committer_name,
-        'committer_avatar_url': committer_avatar_url,
+        'committer_avatar_url': get_avatar_url(self.committer_name),
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,

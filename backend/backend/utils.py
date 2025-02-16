@@ -5,31 +5,10 @@ import os
 import yaml
 import datetime
 import requests
+from functools import cache
 from pathlib import Path
 
 from .hybrid_cache import hybrid_cache
-
-
-# Until we get a proper database, we need to cache things a bit
-def cache(minutes=1440, func_skip_cache=None):
-  """Cache function decorator with
-  - minutes: time-to-live until the cache is expired. (default: 1day)
-  - func_skip_cache: called on args[0], decides if we should skip the cache.
-  """
-  def cache_ttl_decorator(f):
-    _cache = {}
-    _last_accesses = {}
-    def func_wrapper(*args, **kwargs):
-      missing = args[0] not in _cache
-      now = datetime.datetime.now()
-      expired = missing or now - _last_accesses[args[0]] > datetime.timedelta(minutes=minutes)
-      skipped = (func_skip_cache is not None) and func_skip_cache(args[0])
-      if skipped or missing or expired:
-        _last_accesses[args[0]] = now
-        _cache[args[0]] = f(*args, **kwargs)
-      return _cache[args[0]]
-    return func_wrapper
-  return cache_ttl_decorator
 
 
 @hybrid_cache(ttl=12*60*60) # 12h
@@ -84,7 +63,42 @@ def get_users_per_name(search_filter):
   return users_db
 
 
+
 users_per_name = get_users_per_name("")
+
+
+def gravatar_url(name):
+  name_hash = md5(name.encode('utf8')).hexdigest()
+  return f'http://gravatar.com/avatar/{name_hash}'
+
+
+@cache
+def get_avatar_url(name):
+  if not users_per_name or not name:
+    return ''
+
+  name = name.lower()
+
+  # try to get info from gitlab (TODO: it's really ugly)
+  user = None
+  if name in users_per_name:
+    user = users_per_name[name]
+  elif name.replace('.', '') in users_per_name:
+    user = users_per_name[name.replace('.', '')]
+  elif name.replace(' ', '') in users_per_name:
+    user = users_per_name[name.replace(' ', '')]
+  elif name.replace(' ', '.') in users_per_name:
+    user = users_per_name[name.replace(' ', '.')]
+
+  if user:
+    if "gravatar" in user['avatar_url'] and 'username' in user:
+      # only SIRC users have avatars...
+      identities = user.get('identities', [])
+      if all(['ou=guests' not in i['extern_uid'] for i in identities]):
+        return f"https://dag.sirc.co.il:8081/{user['username']}.jpg"
+    return user['avatar_url']
+  else:
+    return gravatar_url(name)
 
 # Wrapp function calls in profiled(my_call()) to profile code
 import cProfile, pstats, io
