@@ -5,7 +5,6 @@ import re
 import json
 import fnmatch
 import subprocess
-from hashlib import md5
 from pathlib import Path
 
 from requests.utils import quote
