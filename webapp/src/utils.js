@@ -14,7 +14,7 @@ const { median: mathjs_median, format } = create({
 
 import {  } from "mathjs/number";
 
-import { levenshtein } from "./levenshtein";
+import { memoized_levenshtein } from "./levenshtein";
 
 
 const calendarStrings = {
@@ -83,14 +83,19 @@ const matching_output = ({ output, batch }) => {
   // console.log(batch.filtered.outputs.map(id => batch.outputs[id]))
   // const t0 = performance.now();
 
+  const best_dist_configurations = Infinity
   let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
     .filter(o => !o.is_pending)
     .filter(o => o.input_path === output.input_path || o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
     // We prefer to compare an ouput versus a similar one
     .map(o => {
       o.dist_input_path = 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path)
-      o.dist_configurations = levenshtein(o.configurations_str ?? '', output.configurations_str ?? '')
-      o.dist_extra_parameters = levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
+      // TODO:
+      // 1. Implement short-circuiting to stop calculating once a certain threshold is reached, especially when comparing against many candidates and only needing the top match.
+      //    need to add a threshold parameter, and stop if exceeded...
+      // 2. Memoization since many configs will be the same
+      o.dist_configurations = memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? '', {threshold: best_dist_configurations})
+      o.dist_extra_parameters = memoized_levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
       return o;
     })
     // .sort((a, b) => match_score(a) - match_score(b));

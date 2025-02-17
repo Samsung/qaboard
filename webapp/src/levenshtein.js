@@ -1,5 +1,10 @@
 // https://www.npmjs.com/package/js-levenshtein
 // https://github.com/hiddentao/fast-levenshtein
+import QuickLRU from "quick-lru"
+import levenshtein from "js-levenshtein"
+
+
+const cache = new QuickLRU({maxSize: 8*1024})
 
 var collator;
 try {
@@ -14,7 +19,7 @@ var prevRow = [],
 /**
  * Based on the algorithm at http://en.wikipedia.org/wiki/Levenshtein_distance.
  */
-const levenshtein = function(str1, str2, options) {
+const own_levenshtein = function(str1, str2, options) {
     /**
      * Calculate levenshtein distance of the two strings.
      *
@@ -114,10 +119,28 @@ const levenshtein = function(str1, str2, options) {
 }
 
 
+const shorten = string => {
+    return string.replace(/(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)/, "")
+}
+
+const memoized_levenshtein = (str1, str2) => {
+    const key = str1.length < str2.length ? `${str1}${str2}` : `${str2}${str1}`
+    if (cache.has(key)) {
+        return cache.get(key)
+    } else {
+        const result = levenshtein(shorten(str1), shorten(str2))
+        cache.set(key, result)
+        return result
+    }
+}
+
+
+
+
 const levenshtein_objects = function(obj1, obj2) {
     return levenshtein(
         JSON.stringify(obj1),
         JSON.stringify(obj2)
     );
 }
-export { levenshtein, levenshtein_objects };
+export { memoized_levenshtein };
