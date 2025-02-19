@@ -630,7 +630,15 @@ class OutputCard extends React.Component {
     // console.log(this.state.manifests)
 
     return <div style={container_style} className="output-card">
-      <FullScreenableSlimCard updateFullscreen={this.updateFullscreen} className="output-card" style={{...maybe_style_skeleton, paddingBottom: !viewable && "100px"}}>
+      <FullScreenableSlimCard
+        updateFullscreen={this.updateFullscreen}
+        className="output-card"
+        style={{
+          ...maybe_style_skeleton,
+          paddingBottom: !viewable && "100px",
+          minHeight: "400px",
+        }}
+      >
         {error.new && <Tooltip key="error-new" content={<span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} />}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag>
         </Tooltip>}
