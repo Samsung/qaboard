@@ -158,6 +158,8 @@ def new_output_webhook():
                                         )
   output.output_type = data.get('input_type', '')
 
+  if not output.data:
+    output.data = {}
   if "data" in data: # e.g. storage, job_options, batch name
     if not output.data:
       output.data = {}
