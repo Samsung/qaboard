@@ -765,7 +765,7 @@ class ImgViewer extends React.PureComponent {
           rightIcon="exchange"
           title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >{!has_same_data ? <span>reference {path !== path_ref && path_ref} {are_different_sizes && <code>{image_width_ref}x{image_height_ref}</code>}</span> : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
+        >{!has_same_data ? <span>reference {path !== path_ref && path_ref} <code>{image_width_ref}x{image_height_ref}</code></span> : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>
@@ -819,10 +819,10 @@ class ImgViewer extends React.PureComponent {
       </div>
       <div style={single_image_size}>
         <div>
-          <div class="canvas-container" style={{"position": "relative", "display": "inline-block"}}>
+          <div className="canvas-container" style={{"position": "relative", "display": "inline-block"}}>
           <canvas hidden={!diff || !has_reference} ref={this.canvas_diff} />
             <div
-              class="canvas-overlays-container"
+              className="canvas-overlays-container"
               style={{position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none"}}
             ></div>
           </div>
