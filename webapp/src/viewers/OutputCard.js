@@ -636,7 +636,7 @@ class OutputCard extends React.Component {
         style={{
           ...maybe_style_skeleton,
           paddingBottom: !viewable && "100px",
-          minHeight: "400px",
+          minHeight: this.props.type !== 'bit_accuracy' && "400px",
         }}
       >
         {error.new && <Tooltip key="error-new" content={<span dangerouslySetInnerHTML={{ __html: !!error.new.response ? error.new.response.data : error.new }} />}>

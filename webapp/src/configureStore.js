@@ -1,7 +1,7 @@
 // https://redux.js.org/recipes/configuringyourstore
 import { createStore, applyMiddleware } from 'redux'
 import { compose } from 'redux'
-import thunkMiddleware from 'redux-thunk'
+import { thunk } from 'redux-thunk'
 
 // https://github.com/rt2zz/redux-persist
 import { persistStore, persistReducer } from 'redux-persist'
@@ -45,7 +45,7 @@ export default function configureStore(preloadedState) {
   let is_production = process.env.NODE_ENV === 'production'
   // let is_production = false
 
-  let middlewares = is_production ? [thunkMiddleware] : [loggerMiddleware, thunkMiddleware]
+  let middlewares = is_production ? [thunk] : [loggerMiddleware, thunk]
   let middlewareEnhancer = applyMiddleware(...middlewares)
   let enhancers = is_production ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
   let composedEnhancers = is_production ? compose(...enhancers, sentryReduxEnhancer) : composeWithDevTools(...enhancers)

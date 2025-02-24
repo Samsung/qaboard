@@ -346,7 +346,7 @@ class OutputTags extends React.Component {
       </Popover>
       {cde_shs.map(cde_sh => {
         const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
-        return <Tooltip content="Open in WebCDE">
+        return <Tooltip key={cde_sh} content="Open in WebCDE">
         <Button
             outlined={true}
             style={{margin: "5px"}}

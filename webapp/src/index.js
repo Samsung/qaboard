@@ -3,7 +3,7 @@ import 'react-app-polyfill/stable';
 import './polyfills'; // other polyfills
 
 import React from "react";
-import { render } from "react-dom";
+import {createRoot} from 'react-dom/client';
 
 import App from "./App";
 import * as serviceWorker from './serviceWorker';
@@ -23,10 +23,12 @@ import { BrowserTracing } from "@sentry/tracing";
 
 const { store, persistor } = configureStore(default_store)
 
-const renderApp = () => render(
-	<App store={store} persistor={persistor} />,
-	document.getElementById("root")
-);
+
+
+const renderApp = () => {
+  const root = createRoot(document.getElementById('root'));
+  root.render(<App store={store} persistor={persistor} />);  
+};
 
 
 if (process.env.NODE_ENV === 'production' && (process.env.REACT_APP_POSTHOG_TOKEN ?? '' !== '')) {
