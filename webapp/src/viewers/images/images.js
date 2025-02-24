@@ -939,18 +939,24 @@ class ImgViewer extends React.PureComponent {
 function clearOverlay(canvas) {
   const canvasContainer = canvas.parentElement;
   const overlaysContainer = canvasContainer.querySelector('.canvas-overlays-container');
+  if (overlaysContainer) {
   overlaysContainer.innerHTML = '';
+  }
 }
 function addOverlayToCanvas(canvas, position) {
   const canvasContainer = canvas.parentElement;
   const overlaysContainer = canvasContainer.querySelector('.canvas-overlays-container');
+  if (overlaysContainer) {
   overlaysContainer.innerHTML = ''; // Clear previous overlays if needed
+  }
   const cross = make_cross(); // Use your existing `make_cross` function
   cross.style.position = 'absolute';
   cross.style.transform = 'translate(-50%, -50%)';
   cross.style.left = `${position.x}px`;
   cross.style.top = `${position.y}px`;
+  if (overlaysContainer) {
   overlaysContainer.appendChild(cross);
+  }
 }
 
 export default ImgViewer;
