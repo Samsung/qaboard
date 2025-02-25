@@ -469,7 +469,7 @@ class TuningForm extends Component {
             <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
           </Popover>}
           <p style={{marginBottom: '5px'}}>
-            To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal rounded onClick={() => {
+            To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => {
               this.props.dispatch(updateSelected(this.props.project, { selected_views: 'groups' }))
             }}>Available Tests</Tag>.
             </p>

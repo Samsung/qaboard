@@ -119,7 +119,7 @@ const TableCompare = ({
   return (
     <Section>
       {input}
-      <HTMLTable small>
+      <HTMLTable compact>
         <thead>
           <tr>
             <th />

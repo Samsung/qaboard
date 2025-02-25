@@ -53,7 +53,10 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
 
 const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false}) => {
     return <Tooltip content={<span><strong>{label}</strong> {description}</span>}>
-          {condensed ? short_label: label}{show_suffix && `${label}${!!suffix ? ` [${suffix}]` : ''}`}
+          <>
+            {condensed ? short_label: label}
+            {show_suffix && `${label}${!!suffix ? ` [${suffix}]` : ''}`}
+          </>
     </Tooltip>
 }
 
