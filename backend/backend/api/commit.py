@@ -98,7 +98,7 @@ def api_ci_commit(commit_id=None):
       except Exception as e:
         # if the user provided what looks like a commit ID, we want to fail fast
         # otherwise the code below is super slow
-        if re.match(r'^[0-9a-fA-F]{40}$', commit_id)
+        if re.match(r'^[0-9a-fA-F]{40}$', commit_id):
           return jsonify({'error': f'Sorry, we could not find any data on commit ID {commit_id} in project {project_id}.'}), 404
 
         try:
