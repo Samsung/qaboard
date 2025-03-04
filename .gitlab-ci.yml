@@ -55,6 +55,7 @@ deploy:qa:windows:
   stage: deploy
   only:
     - master
+  before_script: [] # Overrides the global before_script since it changes LD_LIBRARY_PATH which causes curl to fail
   script:
     -   - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
 
