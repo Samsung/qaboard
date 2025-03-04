@@ -66,13 +66,6 @@ CORS(app)
 
 Base.metadata.create_all(engine)
 
-# Avoids errors
-#   > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) lost synchronization with server: got message type " "
-# https://docs.sqlalchemy.org/en/13/core/pooling.html#pooling-multiprocessing
-# https://stackoverflow.com/questions/43648075/uwsgi-flask-sqlalchemy-intermittent-postgresql-errors-with-warning-there-is-al
-# https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
-# https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
-engine.dispose()
 
 def warm_cache():
     """Warm up cache when a worker starts."""
@@ -80,7 +73,14 @@ def warm_cache():
     from backend.utils import get_users_per_name
     users = get_users_per_name("")
     print(f"Loaded info about {len(users)} users")
-
+    # https://chatgpt.com/share/67c6e90f-f8b8-8000-953b-b164371166c9
+    # Avoids errors
+    #   > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) lost synchronization with server: got message type " "
+    # https://docs.sqlalchemy.org/en/13/core/pooling.html#pooling-multiprocessing
+    # https://stackoverflow.com/questions/43648075/uwsgi-flask-sqlalchemy-intermittent-postgresql-errors-with-warning-there-is-al
+    # https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
+    # https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
+    engine.dispose()
 
 try:
   import uwsgi
