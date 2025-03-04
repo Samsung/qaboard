@@ -29,8 +29,8 @@ engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}
 engine = create_engine(
 	engine_url,
 	echo=db_echo,
-	pool_size=100,
-	max_overflow=10,
+	pool_size=10,
+	max_overflow=5,
 	json_deserializer=ujson.loads,
 	json_serializer=ujson.dumps,
 )
