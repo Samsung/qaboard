@@ -149,7 +149,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                 <li>The {type} values are the "real" pixel values at the selected pixel location.</li>
                 <li>Click to toggle hex/decimal numbers</li>
             </ul>}>
-                <Icon icon="info-sign" style={{color: Colors.GRAY5}}/>
+                <Icon icon="info-sign" style={{color: Colors.GRAY5, marginLeft: "5px"}}/>
             </Tooltip>
         </>}
     </span>

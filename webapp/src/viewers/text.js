@@ -154,7 +154,7 @@ class GenericTextViewer extends React.Component {
     const editor = (!no_reference || this.props.always_show_diff)
       ? <MonacoDiffEditor
           readonly
-          ref="monaco"
+          ref={monaco => this.monaco = monaco}
           width={width}
           height={height}
           language={this.props.language || language(filename)}
@@ -168,7 +168,7 @@ class GenericTextViewer extends React.Component {
         />
       : <MonacoEditor
           readonly
-          ref="monaco"
+          ref={monaco => this.monaco = monaco}
           width={width}
           height={height}
           language={this.props.language || language(filename)}

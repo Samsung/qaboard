@@ -1,5 +1,6 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
+import html2canvas from "html2canvas";
 
 // https://mathjs.org/docs/custom_bundling.html
 import {
@@ -464,6 +465,38 @@ const is_same_data = (path, meta_1, meta_2) => {
 }
 
 
+const copyElementToClipboard = async (element: HTMLElement) => {
+  if (!element) return;
+
+  try {
+    const canvas = await html2canvas(element, { useCORS: true });
+
+    // Convert to Blob
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        if (navigator.clipboard && window.ClipboardItem) {
+          // Clipboard API is available
+          const item = new ClipboardItem({ "image/png": blob });
+          await navigator.clipboard.write([item]);
+          // alert("Screenshot copied to clipboard!");
+        } else {
+          // Fallback: Offer download
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = "screenshot.png";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          // alert("Your browser does not support clipboard copy. Image downloaded instead.");
+        }
+      }
+    }, "image/png");
+  } catch (error) {
+    console.error("Failed to copy screenshot:", error);
+  }
+};
+
+
 export {
   average,
   median,
@@ -487,4 +520,5 @@ export {
   make_eval_templates_recursively,
   metrics_fill_defaults,
   is_same_data,
+  copyElementToClipboard,
 };

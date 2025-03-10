@@ -9,6 +9,8 @@ import {
   Tooltip,
   Popover,
   MultiSlider,
+  Menu,
+  MenuItem,
 } from "@blueprintjs/core";
 import Plot from 'react-plotly.js';
 import pixelmatch from './pixelmatch';
@@ -24,8 +26,9 @@ import { iiif_url } from "./utils";
 import { RoiViewer } from './roi_viewer'
 
 import { unregister_filter_sync } from "./filters"
+import { toaster } from "../../toaster"
 
-import { is_same_data } from "../../utils"
+import { is_same_data, copyElementToClipboard } from "../../utils"
 var OpenSeadragon = require('openseadragon')
 require('./selection')
 require('./rgb')
@@ -862,7 +865,29 @@ class ImgViewer extends React.PureComponent {
     return <div style={{dispay: "inline"}}>
       {error_messages}
       {!has_error && <>
-        {this.state.ready &&
+        {this.state.ready && <>
+        <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
+          <Menu>
+              <MenuItem
+                  text="Copy new"
+                  minimal
+                  onClick={() => {
+                    copyElementToClipboard(this.viewer_new.canvas)
+                    toaster.show({message: "Copied new image to the clipboard", intent: Intent.SUCCESS});
+                  }}
+              />
+              {has_reference && <MenuItem
+                  text="Copy reference"
+                  minimal
+                  onClick={() => {
+                    copyElementToClipboard(this.viewer_ref.canvas)
+                    toaster.show({message: "Copied ref image to the clipboard", intent: Intent.SUCCESS});
+                  }}
+              />}
+          </Menu>
+          }>
+              <Tag minimal icon="duplicate" style={{ marginRight: "10px" }}/>
+          </Popover>
           <RoiViewer
             output_new={output_new}
             output_ref={!has_same_data ? output_ref : undefined}
@@ -870,7 +895,8 @@ class ImgViewer extends React.PureComponent {
             viewer={this.viewer_new}
             current_roi={current_roi}
             fullyLoaded={this.state.fullyLoaded.new && this.state.fullyLoaded.ref}
-         />}
+         />
+        </>}
         <span>
           {this.show_histogram && <Tooltip content={<ul><li>Histograms (RGB+Y) are computed on the rendered low-resolution image.</li></ul>}>
             <Icon icon="info-sign" style={{ color: Colors.GRAY2 }} />
