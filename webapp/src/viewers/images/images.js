@@ -884,6 +884,14 @@ class ImgViewer extends React.PureComponent {
                     toaster.show({message: "Copied ref image to the clipboard", intent: Intent.SUCCESS});
                   }}
               />}
+              {has_reference && diff && <MenuItem
+                  text="Copy diff"
+                  minimal
+                  onClick={() => {
+                    copyElementToClipboard(this.canvas_diff.current)
+                    toaster.show({message: "Copied diff image to the clipboard", intent: Intent.SUCCESS});
+                  }}
+              />}
           </Menu>
           }>
               <Tag minimal icon="duplicate" style={{ marginRight: "10px" }}/>
