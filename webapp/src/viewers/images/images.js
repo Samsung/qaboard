@@ -866,7 +866,7 @@ class ImgViewer extends React.PureComponent {
       {error_messages}
       {!has_error && <>
         {this.state.ready && <>
-        <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
+        <Popover placement="top" hoverCloseDelay={200} interactionKind={"hover"} content={
           <Menu>
               <MenuItem
                   text="Copy new"
