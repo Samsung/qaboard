@@ -30,7 +30,9 @@ COPY package.json package-lock.json ./
 # we used this config until npm started to say it's not valid (?)
 # RUN npm config set fetch-retries 10\
 #     npm config set fetch-timeout 10000# In the past we had ulimit issues and "ulimit -n 2000 &&"
-RUN npm ci || npm ci || npm ci
+# too many peer deps issues
+# RUN npm ci || npm ci || npm ci
+RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
 
 COPY . ./
 ARG REACT_APP_QABOARD_DOCS_ROOT="https://samsung.github.io/qaboard/"
