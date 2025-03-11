@@ -169,7 +169,7 @@ class ProjectSideCommitList extends React.Component {
           popoverProps={{
             usePortal: true,
             portalClassName: "limit-overflow",
-            hoverCloseDelay: 8000,
+            hoverCloseDelay: 2000,
             transitionDuration: 800,
           }}
         >
