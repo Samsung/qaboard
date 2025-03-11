@@ -55,6 +55,8 @@ const openseadragon_config = {
   imageSmoothingEnabled: false,
   smoothTileEdgesMinZoom: 1000000,
 
+  controlsFadeDelay: 0,
+  controlsFadeLength: 200,
   showNavigator: true,
   prefixUrl: "/openseadragon/",
   showFullPageControl: false,
