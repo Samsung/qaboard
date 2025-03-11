@@ -871,27 +871,36 @@ class ImgViewer extends React.PureComponent {
         <Popover placement="top" hoverCloseDelay={200} interactionKind={"hover"} content={
           <Menu>
               <MenuItem
-                  text="Copy new"
+                  text="Copy new image to the clipboard"
                   minimal
                   onClick={() => {
-                    copyElementToClipboard(this.viewer_new.canvas)
-                    toaster.show({message: "Copied new image to the clipboard", intent: Intent.SUCCESS});
+                    copyElementToClipboard(
+                      this.viewer_new.canvas,
+                      "new image",
+                      message=>toaster.show({message, intent: Intent.SUCCESS})
+                    )
                   }}
               />
               {has_reference && <MenuItem
-                  text="Copy reference"
+                  text="Copy reference image to the clipboard"
                   minimal
                   onClick={() => {
-                    copyElementToClipboard(this.viewer_ref.canvas)
-                    toaster.show({message: "Copied ref image to the clipboard", intent: Intent.SUCCESS});
+                    copyElementToClipboard(
+                      this.viewer_new.canvas,
+                      "ref image",
+                      message=>toaster.show({message, intent: Intent.SUCCESS})
+                    )
                   }}
               />}
               {has_reference && diff && <MenuItem
-                  text="Copy diff"
+                  text="Copy diff image to the clipboard"
                   minimal
                   onClick={() => {
-                    copyElementToClipboard(this.canvas_diff.current)
-                    toaster.show({message: "Copied diff image to the clipboard", intent: Intent.SUCCESS});
+                    copyElementToClipboard(
+                      this.viewer_new.canvas,
+                      "diff image",
+                      message=>toaster.show({message, intent: Intent.SUCCESS})
+                    )
                   }}
               />}
           </Menu>

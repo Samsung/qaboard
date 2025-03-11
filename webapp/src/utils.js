@@ -465,9 +465,8 @@ const is_same_data = (path, meta_1, meta_2) => {
 }
 
 
-const copyElementToClipboard = async (element: HTMLElement) => {
+const copyElementToClipboard = async (element, name, message_renderer) => {
   if (!element) return;
-
   try {
     const canvas = await html2canvas(element, { useCORS: true });
 
@@ -478,21 +477,21 @@ const copyElementToClipboard = async (element: HTMLElement) => {
           // Clipboard API is available
           const item = new ClipboardItem({ "image/png": blob });
           await navigator.clipboard.write([item]);
-          // alert("Screenshot copied to clipboard!");
+          message_renderer(`Copied ${name} to the clipboard.`);
         } else {
           // Fallback: Offer download
           const link = document.createElement("a");
           link.href = URL.createObjectURL(blob);
-          link.download = "screenshot.png";
+          link.download = `${name.replace(" ", "-")}.png`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          // alert("Your browser does not support clipboard copy. Image downloaded instead.");
+          message_renderer(`Your browser does not support clipboard copy. Downloading instead.`);
         }
       }
     }, "image/png");
   } catch (error) {
-    console.error("Failed to copy screenshot:", error);
+    message_renderer(`Failed to copy: ${error}`);
   }
 };
 
