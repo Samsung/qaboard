@@ -59,7 +59,7 @@
     "react-full-screen": "^1.1.1",
     "react-intersection-observer": "^8.34.0",
     "react-loadable": "^5.5.0",
-    "react-monaco-editor": "^0.48.0",
+    "react-monaco-editor": "^0.58.0",
     "react-plotly.js": "^2.6.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^5.3.4",
