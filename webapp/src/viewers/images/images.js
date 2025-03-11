@@ -852,12 +852,18 @@ class ImgViewer extends React.PureComponent {
       width: this.viewer_new?.source?.width,
       height: this.viewer_new?.source?.height,
     } 
-    if (!!this.viewer_new && !!this.viewer_new.viewport) {
+    if (!!this.viewer_new && !!this.viewer_new.viewport && this.viewer_new.world.getItemCount() > 0) {
       var viewportBounds = this.viewer_new.viewport.getBounds();
       let top_left = viewportBounds.getTopLeft()
       let bottom_right = viewportBounds.getBottomRight()
-      top_left = this.viewer_new.viewport.viewportToImageCoordinates(top_left.x, top_left.y)
-      bottom_right = this.viewer_new.viewport.viewportToImageCoordinates(bottom_right.x, bottom_right.y)
+      const tiledImage = this.viewer_new.world.getItemAt(this.viewer_new.world.getItemCount() - 1);
+      console.log("this.viewer_new", this.viewer_new.world)
+      console.log("tiledImage", tiledImage)
+      top_left = tiledImage.viewportToImageCoordinates(top_left.x, top_left.y);
+      bottom_right = tiledImage.viewportToImageCoordinates(top_left.x, top_left.y);
+      // Below is "not accurate with multi-images"
+      // top_left = this.viewer_new.viewport.viewportToImageCoordinates(top_left.x, top_left.y)
+      // bottom_right = this.viewer_new.viewport.viewportToImageCoordinates(top_left.x, top_left.y)
       current_roi.x = top_left.x
       current_roi.y = top_left.y
       current_roi.w = bottom_right.x - top_left.x
