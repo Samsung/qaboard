@@ -9,12 +9,7 @@
       "@types/react": "^18",
       "react": "^18",
       "react-dom": "^18"
-    },
-    "monaco-editor-webpack-plugin": {
-      "@types/react": "^18",
-      "react": "^18",
-      "react-dom": "^18"
-    },
+    }
   },
   "dependencies": {
     "@blueprintjs/core": "^5.17.5",
