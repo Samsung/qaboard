@@ -7,6 +7,7 @@
   "dependencies": {
     "@blueprintjs/core": "^5.17.5",
     "@blueprintjs/datetime": "^5.3.29",
+    "@blueprintjs/datetime2": "^2.3.29",
     "@blueprintjs/icons": "^5.19.1",
     "@blueprintjs/select": "^5.3.17",
     "@sentry/react": "^7.93.0",

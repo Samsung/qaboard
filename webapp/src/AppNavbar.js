@@ -4,7 +4,7 @@ import { withRouter } from "react-router";
 import styled from "styled-components";
 
 import { Suggest } from "@blueprintjs/select";
-import { DateRangeInput } from "@blueprintjs/datetime";
+import { DateRangeInput3 } from "@blueprintjs/datetime2";
 import {
   Classes,
   Intent,
@@ -207,7 +207,7 @@ class AppNavbar extends Component {
     return (
       <StyledNavbar>
         <NavbarGroup style={{marginLeft: '20px'}}>
-          {!is_commit && <DateRangeInput
+          {!is_commit && <DateRangeInput3
           	endInputProps={date_input_props}
           	startInputProps={date_input_props}
             value={date_range}
@@ -216,7 +216,7 @@ class AppNavbar extends Component {
             formatDate={date =>
               date == null ? "" : date.toLocaleDateString()
             }
-            parseDate={str => new Date(Date.parse(str))}
+            parseDate={str => new Date(str)}
             onChange={new_date_range => {
               if (new_date_range[0] === null && new_date_range[1] === null)
                 return

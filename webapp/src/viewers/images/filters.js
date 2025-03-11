@@ -159,12 +159,13 @@ OpenSeadragon.ImagefilterTools = function (options) {
 
     OpenSeadragon.extend(true, this.navImages, this.viewer.navImages);
     var prefix = this.prefixUrl || this.viewer.prefixUrl || '';
-    var useGroup = this.viewer.buttonGroup && this.viewer.buttonGroup.buttons;
+    // var useGroup = this.viewer.buttonGroup && this.viewer.buttonGroup.buttons;
     if (this.showControl) {
         this.toggleButton = new OpenSeadragon.Button({
             element: this.toggleButton ? OpenSeadragon.getElement(this.toggleButton) : null,
             clickTimeThreshold: this.viewer.clickTimeThreshold,
             clickDistThreshold: this.viewer.clickDistThreshold,
+            fadeLength: 200,
             tooltip: 'Image Tools',
             srcRest: prefix + this.navImages.imagetools.REST,
             srcGroup: prefix + this.navImages.imagetools.GROUP,
@@ -172,10 +173,11 @@ OpenSeadragon.ImagefilterTools = function (options) {
             srcDown: prefix + this.navImages.imagetools.DOWN,
             onRelease: this.openTools.bind(this)
         });
-        if (useGroup) {
-            this.viewer.buttonGroup.buttons.push(this.toggleButton);
-            this.viewer.buttonGroup.element.appendChild(this.toggleButton.element);
-        }
+        this.viewer.buttonGroup.addButton(this.toggleButton)
+        // if (useGroup) {
+            // this.viewer.buttonGroup.buttons.push(this.toggleButton);
+            // this.viewer.buttonGroup.element.appendChild(this.toggleButton.element);
+        // }
         if (this.toggleButton.imgDown) {
             this.buttonActiveImg = this.toggleButton.imgDown.cloneNode(true);
             this.toggleButton.element.appendChild(this.buttonActiveImg);
