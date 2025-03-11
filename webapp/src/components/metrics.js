@@ -404,13 +404,18 @@ class MetricsSummary extends Component {
     if (!modifiers.matchesPredicate) {
       return null;
     }
+    const { key, ...rest } = metric; 
     return (
       <MenuItem
         active={modifiers.active}
         icon={this.isMetricSelected(metric) ? "tick" : "blank"}
         key={metric.key}
         label={metric.key}
-        text={<MetricHeader {...metric} show_suffix/>}
+        text={<MetricHeader
+          key={key}
+          {...rest}
+          show_suffix
+        />}
         onClick={handleClick}
         shouldDismissPopover={false}
       />
