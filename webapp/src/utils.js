@@ -467,6 +467,10 @@ const is_same_data = (path, meta_1, meta_2) => {
 
 const copyElementToClipboard = async (element, name, message_renderer) => {
   if (!element) return;
+  if (!document.hasFocus()) {
+    alert("Please click on the page and try again.");
+    return;
+  }
   try {
     const canvas = await html2canvas(element, { useCORS: true });
 

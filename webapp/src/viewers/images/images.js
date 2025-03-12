@@ -909,7 +909,19 @@ class ImgViewer extends React.PureComponent {
               />}
           </Menu>
           }>
-              <Tag minimal icon="duplicate" style={{ marginRight: "10px" }}/>
+              <Tag
+                interactive
+                minimal
+                icon="duplicate"
+                style={{ marginRight: "10px" }}
+                onClick={() => {
+                  copyElementToClipboard(
+                    this.viewer_new.canvas,
+                    "new image",
+                    message=>toaster.show({message, intent: Intent.SUCCESS})
+                  )
+                }}
+              >Copy</Tag>
           </Popover>
           <RoiViewer
             output_new={output_new}
