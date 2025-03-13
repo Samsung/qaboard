@@ -493,7 +493,7 @@ class ImgViewer extends React.PureComponent {
 
     let updated_diff = prevProps.diff !== this.props.diff;
     if (updated_diff) {
-      this.InitDiff(this.props);
+      this.InitDiff();
     }
   }
 
@@ -516,7 +516,7 @@ class ImgViewer extends React.PureComponent {
     // console.log(data_new)
 
     var canvas_diff_element = this.canvas_diff.current;
-    if (!!canvas_diff_element) {
+    if (canvas_diff_element) {
       canvas_diff_element.style.cssText = viewer_new.drawer.canvas.style.cssText
       canvas_diff_element.width = width
       canvas_diff_element.height = height
@@ -539,7 +539,7 @@ class ImgViewer extends React.PureComponent {
   }
 
 
-  InitDiff(props) {
+  InitDiff = () => {
     const { viewer_new, viewer_ref } = this;
     // Implemement perceptual differences
     /*
@@ -578,10 +578,22 @@ class ImgViewer extends React.PureComponent {
     */
 
     const { diff } = this.props;
-    if (diff && this.canvas_diff.current) {
-      const redirectEvent = eventType => {
+    if (diff) {
+      viewer_new.addOnceHandler('update-viewport', this.update_diff, {}, 3);
+      viewer_ref.addOnceHandler('update-viewport', this.update_diff, {}, 3);
+      viewer_new.addHandler('animation-finish', this.update_diff);
+      this.update_diff()
+
         const canvas_el = this.canvas_diff.current;
+      if (canvas_el) {
+        // console.log("redirecting events of", canvas_el)
+        canvas_el.addEventListener('click', () => {console.log("click")})
+        canvas_el.onClick = () => {console.log("onClick")}
+        canvas_el.onclick = () => {console.log("onclick")}
+        const redirectEvent = eventType => {
+          // return
         canvas_el.addEventListener(eventType, function (event) {
+            console.log("event@", eventType)
           // we cannot re-dispatch the event twice, we must copy it
           var new_event = new event.constructor(event.type, event)
           if (eventType.match(/(mouse|pointer)/)) {
@@ -617,11 +629,7 @@ class ImgViewer extends React.PureComponent {
       redirectEvent('pointerover');
       redirectEvent('pointerout');
       redirectEvent('pointerup');
-
-      viewer_new.addOnceHandler('update-viewport', this.update_diff, {}, 3);
-      viewer_ref.addOnceHandler('update-viewport', this.update_diff, {}, 3);
-      viewer_new.addHandler('animation-finish', this.update_diff);
-      this.update_diff()
+      }
     }
   }
 

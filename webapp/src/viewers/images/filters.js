@@ -173,11 +173,10 @@ OpenSeadragon.ImagefilterTools = function (options) {
             srcDown: prefix + this.navImages.imagetools.DOWN,
             onRelease: this.openTools.bind(this)
         });
-        this.viewer.buttonGroup.addButton(this.toggleButton)
-        // if (useGroup) {
-            // this.viewer.buttonGroup.buttons.push(this.toggleButton);
-            // this.viewer.buttonGroup.element.appendChild(this.toggleButton.element);
-        // }
+        // in openseadragon v6
+        // this.viewer.buttonGroup.addButton(this.toggleButton)
+        this.viewer.buttonGroup.buttons.push(this.toggleButton);
+        this.viewer.buttonGroup.element.appendChild(this.toggleButton.element);
         if (this.toggleButton.imgDown) {
             this.buttonActiveImg = this.toggleButton.imgDown.cloneNode(true);
             this.toggleButton.element.appendChild(this.buttonActiveImg);
