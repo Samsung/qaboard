@@ -90,12 +90,13 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
       !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
+  const { key, ...metric_info_rest } = metric_info;
   let metric_tag = <>
     <CompoundTag
         style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
         minimal
         intent={!!metric_info.target ? intent : null}
-        leftContent={<MetricHeader condensed {...metric_info}/>}
+        leftContent={<MetricHeader key={key} condensed {...metric_info_rest}/>}
     >
       {value_component}
       {compare_tag}
