@@ -901,7 +901,7 @@ class ImgViewer extends React.PureComponent {
                   minimal
                   onClick={() => {
                     copyElementToClipboard(
-                      this.viewer_new.canvas,
+                      this.canvas_diff.current,
                       "diff image",
                       message=>toaster.show({message, intent: Intent.SUCCESS})
                     )
