@@ -100,6 +100,11 @@ services:
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
     - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
+    logging:
+      driver: "fluentd"
+      options:
+        tag: ollama
+        fluentd-address: "0.0.0.0:24224"
 
   frontend:
     image: "arthurflam/qaboard:frontend"
