@@ -103,7 +103,7 @@ services:
     logging:
       driver: "fluentd"
       options:
-        tag: ollama
+        tag: qaboard.backend
         fluentd-address: "0.0.0.0:24224"
 
   frontend:
