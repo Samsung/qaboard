@@ -245,7 +245,7 @@ services:
     command: redis-server --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
-
+  
 # Matamo:
 # - Add a service like in ~/matamo?
 # - in the frontend, check for MATAMO_URL being defined
