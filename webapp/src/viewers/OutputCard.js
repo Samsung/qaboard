@@ -126,8 +126,8 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
       {prefix}   
       {tags_first && viewable && tags}
       {output.output_type !== "batch" && !viewable ?
-        <span>{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
-        <span>
+        <span key="batch-info">{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
+        <span key="batch-info">
           <Link
             to={input_over_time_url}
             onClick={() => {
@@ -262,10 +262,6 @@ class OutputCard extends React.Component {
             this.fetchData(label, update_manifest=true)
         });
     }).map(f => f()))
-      // now we loaded and parsed all the data
-      .then(() => {
-        this.updateOptions()
-      })
   }
 
 
@@ -309,6 +305,9 @@ class OutputCard extends React.Component {
           }
         }, () => this.fetchData('reference'))
       }
+    }
+    if (prevState.manifests.new !== this.state.manifests.new) {
+      this.updateOptions()
     }
   }
 
