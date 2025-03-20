@@ -64,7 +64,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
   const value = metrics_new[metric_info.key]
   const value_tooltip = <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
   const value_component = isNaN(value) ? <RunBadge badge={value}/> : <Tooltip content={value_tooltip}>
-    {metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}
+    <>{metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}</>
   </Tooltip>
 
   // compare tag

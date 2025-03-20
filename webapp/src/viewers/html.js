@@ -70,10 +70,9 @@ class HtmlViewer extends PureComponent {
                       if (label==='new' && !!response)
                         this.setState({error: response.data})
                     });
-    }).map(f=>f()) )
+    }).map(f=>f()))
     // now we loaded and parsed all the data
-    .then( () => this.setState({is_loaded: true}) )
-
+    .finally( () => this.setState({is_loaded: true}) )
   }
 
 
@@ -81,7 +80,7 @@ class HtmlViewer extends PureComponent {
     const { output_ref, style } = this.props;
     const { data, is_loaded, error } = this.state;
 
-    if (!is_loaded) return <span/>;
+    if (!is_loaded) return <span>loading</span>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
     // https://developer.mozilla.org/fr/docs/Web/HTML/Element/iframe
@@ -90,7 +89,7 @@ class HtmlViewer extends PureComponent {
     // <iframe width={width} srcDoc={data.new || ""} style={{borderWidth: '0px'}} Ssandbox="" /> 
     return <>
       {has_reference && <h3>New</h3>}
-      <div style={{width}} dangerouslySetInnerHTML={{__html: data.new || ""}} /> 
+      <div style={{width}} dangerouslySetInnerHTML={{__html: data.new ?? ""}} /> 
       {has_reference && <>
         <h3>Reference</h3>
         <div style={{width}} dangerouslySetInnerHTML={{__html: data.reference || ""}} />

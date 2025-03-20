@@ -108,7 +108,7 @@ class PlotlyViewer extends PureComponent {
                     });
     }).map(f=>f()) )
     // now we loaded and parsed all the data
-    .then( () => this.setState({is_loaded: true}) )
+    .finally( () => this.setState({is_loaded: true}) )
   }
 
 
