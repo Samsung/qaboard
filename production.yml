@@ -81,7 +81,7 @@ services:
     - ./services/db/backup:/etc/periodic/daily/backup:ro
     - /home/ispq/qaboard_data_prod/database_backups:/backups
   
-    fluentd:
+  fluentd:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
     build:
       context: services/fluentd
