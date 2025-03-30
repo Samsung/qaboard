@@ -67,6 +67,11 @@ services:
       - POSTGRES_USER=qaboard
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=qaboard
+    logging:
+      driver: "fluentd"
+      options:
+        tag: qaboard.db
+        fluentd-address: "0.0.0.0:24224"
 
   backend:
     image: "arthurflam/qaboard:backend"
@@ -100,6 +105,11 @@ services:
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
     - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
+    logging:
+      driver: "fluentd"
+      options:
+        tag: qaboard.backend
+        fluentd-address: "0.0.0.0:24224"
 
   frontend:
     image: "arthurflam/qaboard:frontend"
@@ -117,6 +127,7 @@ services:
     environment:
     - REACT_APP_QABOARD_HOST=http://localhost:5151
 
+
   # Message broker used by the celery task scheduler
   # https://hub.docker.com/_/rabbitmq
   rabbitmq:
@@ -128,6 +139,7 @@ services:
     ports:
     - ${QABOARD_PORT_RABBITMQ:-5672}:5672
     - ${QABOARD_PORT_RABBITMQ_MNGT:-15672}:15672
+
 
   # https://flower.readthedocs.io/en/latest/config.html#options
   flower:  
@@ -245,7 +257,12 @@ services:
     command: redis-server --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
-
+    logging:
+      driver: "fluentd"
+      options:
+        tag: qaboard.redis
+        fluentd-address: "0.0.0.0:24224"
+  
 # Matamo:
 # - Add a service like in ~/matamo?
 # - in the frontend, check for MATAMO_URL being defined
