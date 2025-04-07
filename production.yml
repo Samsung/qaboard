@@ -83,6 +83,7 @@ services:
   
   fluentd:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
+    restart: always
     build:
       context: services/fluentd
       dockerfile: fluentd.Dockerfile
