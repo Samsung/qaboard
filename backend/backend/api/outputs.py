@@ -120,8 +120,14 @@ def new_output_webhook():
   except Exception as e:
     return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']}). {e}"}), 404
 
-  ci_commit.project.latest_output_datetime = datetime.datetime.utcnow()
-  ci_commit.latest_output_datetime = datetime.datetime.utcnow()
+  # update the last_output times, with a crude debouncing to avoid
+  # keeping locks on the tables too long
+  now = datetime.datetime.utcnow()
+  threshold = datetime.timedelta(seconds=5)
+  if not ci_commit.project.latest_output_datetime or now - ci_commit.project.latest_output_datetime > threshold:
+      ci_commit.project.latest_output_datetime = now
+  if not ci_commit.latest_output_datetime or now - ci_commit.latest_output_datetime > threshold:
+      ci_commit.latest_output_datetime = now
 
   # We make sure the Test on which we ran exists in the database 
   test_input_path = data.get('rel_input_path', data.get('input_path'))
