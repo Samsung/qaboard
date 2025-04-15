@@ -366,9 +366,11 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
   ###### SIRC-specific ########################################################
   try:
+    from sentry_sdk import capture_exception
     from .idb import update_idb
     update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
   except Exception as e:
+    capture_exception(e)
     print(f"WARNING: idb raised {e}")
 
   if os.name == "nt" and not run_context.obj.get('dryrun') and (run_context.obj.get('share') or is_ci):
@@ -561,6 +563,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
             tuning_params,
             ctx.obj['share']
           )
+          # print("batch_conf_dir", batch_conf_dir)
       else:
           # FIXME: not 100% correct if there is tuning.. but who uses this flag anyway?
           #        worse case batch and outputs will be in slightly different folders... 
@@ -568,6 +571,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           if tuning_params:
               batch_conf_dir = batch_conf_dir / tuning_hash
       from qaboard.conventions import output_dirs_for_input_part
+      # print("batch_conf_dir", batch_conf_dir)
       run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
       if forwarded_args:
         run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
