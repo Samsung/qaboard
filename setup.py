@@ -54,6 +54,7 @@ setup(
     'scikit-learn',
     'scikit-optimize',
     # Only at SIRC
+    'sentry-sdk',
     'cde @ git+ssh://git@gitlab-srv/cde/cde-python',
   ],
 
