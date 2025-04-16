@@ -505,6 +505,7 @@ local_config = config.get('runners', {}).get('local', {})
 @click.pass_context
 def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
+  from .runners import runners
   if not batches_files:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
     click.secho(f'Consider adding to qaboard.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
@@ -573,6 +574,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
   jobs = JobGroup(job_options=default_runner_options)
 
+  total_runs = 0
   inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], default_runner_options, config, ctx.obj['inputs_settings'])
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
@@ -672,7 +674,6 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           tuning_cli =  f'--tuning {escaped_for_cli(tuning_str)}'
 
 
-      from .runners import runners
       platform_cli =None
       Runner = runners[run_context.job_options['type']]
       if getattr(Runner, "platform", default_platform) != default_platform:
@@ -710,6 +711,10 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       job = Job(run_context)
 
       if should_notify_qa_database and not is_pending:
+        total_runs += 1
+        if total_runs > 1_000 and not os.environ.get("QA_BATCH_ALLOW_MANY_RUNS"):
+          raise ValueError("Sorry you are sending too many runs at once. Consider using --offline or get an approval.")
+          exit(1)
         # TODO: accumulate and send all at once to avoid 100s of requests?
         db_output = notify_qa_database(**{
           **ctx.obj,
