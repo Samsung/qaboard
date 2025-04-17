@@ -345,6 +345,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     outputs_manifest = save_outputs_manifest(run_context.output_dir, config=config)
     output_data['storage'] = total_storage(outputs_manifest)
   except Exception as e:
+    outputs_manifest = {}
     click.secho(f'WARNING: When writing the output manifest:', fg="yellow", bold=True, err=True)
     click.secho(str(e), fg="yellow", err=True)
   if 'params' in metrics:
