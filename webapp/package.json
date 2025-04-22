@@ -24,7 +24,7 @@
     "d3-selection": "^3.0.0",
     "dom4": "^2.1.5",
     "glslify": "^7.1.1",
-    "http-proxy-middleware": "^2.0.1",
+    "http-proxy-middleware": "^2.0.9",
     "intersection-observer": "^0.12.0",
     "js-md5": "^0.7.3",
     "localforage": "^1.9.0",
