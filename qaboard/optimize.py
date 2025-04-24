@@ -50,7 +50,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
   batch_dir_for = lambda label: batch_dir(outputs_commit, label, save_with_ci=True)
   optim_dir = batch_dir_for(ctx.obj['batch_label'])
   optim_dir.mkdir(parents=True, exist_ok=True)
-  os.environ["QA_OPTIM_DIR"] = optim_dir
+  os.environ["QA_OPTIM_DIR"] = str(optim_dir)
 
   ctx.obj['batches'] = batches
   ctx.obj['batches_files'] = batches_files
