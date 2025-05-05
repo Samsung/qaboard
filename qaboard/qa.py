@@ -369,7 +369,8 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   try:
     from sentry_sdk import capture_exception
     from .idb import update_idb
-    update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
+    if input_files:
+      update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
   except Exception as e:
     import random
     backlog_dir = Path("/home/ispq/idb_backlog")

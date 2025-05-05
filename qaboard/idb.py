@@ -21,10 +21,8 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
   if run_context.input_path.is_file():
     raw_path = run_context.input_path
     raw_info = input_files[manifest_path_str(run_context.input_path)]
-  elif input_files:
-    raw_path, raw_info = [i for i in input_files.items()][0]
   else:
-    raw_path, raw_info = "", {"md5": None}
+    raw_path, raw_info = [i for i in input_files.items()][0]
 
   raw_md5 = raw_info["md5"]
 
