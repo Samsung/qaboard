@@ -460,7 +460,10 @@ const is_same_data = (path, meta_1, meta_2) => {
     return checked_cde_attrs.filter(attr => meta_1[attr] !== undefined && meta_2[attr] !== undefined)
                             .every(attr => meta_1[attr] === meta_2[attr])
   } else {
-    return meta_1.md5 === meta_2.md5
+    // for images we ignore metadata, and only look at a hash of pixel values
+    return meta_1.md5_data && meta_2.md5_data
+    ? meta_1.md5_data === meta_2.md5_data
+    : meta_1.md5 === meta_2.md5;
   }
 }
 
