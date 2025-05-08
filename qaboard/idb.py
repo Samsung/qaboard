@@ -23,6 +23,7 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
     raw_info = input_files[manifest_path_str(run_context.input_path)]
   else:
     raw_path, raw_info = [i for i in input_files.items()][0]
+
   raw_md5 = raw_info["md5"]
 
   # we need to make some assumptions to extra CDE info, like assuming
