@@ -87,7 +87,7 @@ RUN apt-get update -qq && \
     # for scipy if python is very recent
     gfortran pkg-config libopenblas-dev liblapack-dev \
     # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
-    libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+    libxml2-dev libxmlsec1-dev libxmlsec1-openssl libz-dev
 
 # https://github.com/xmlsec/python-xmlsec/issues/320
 ENV UWSGI_PROFILE_OVERRIDE="xml=no"
@@ -120,13 +120,17 @@ RUN --mount=type=ssh \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
     uv sync \
+    # we ran into issues making sure we really build uwsgi
+    # from source to use the UWSGI_PROFILE_OVERRIDE set above
     --refresh-package uwsgi \
     --no-binary-package uwsgi \
     --locked \
     --no-install-project \
     --no-install-package qaboard && \
-    # needs a build...
+    # we even tried to build here...
     uv add uwsgi --refresh-package uwsgi --no-binary-package uwsgi
+# and ended up runing this manually
+# UWSGI_PROFILE_OVERRIDE=xml=expat uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall
 
 # FIXME: should not be needed: why don't we use the system python?
 ENV PATH="/qaboard/backend/.venv/bin:$PATH"

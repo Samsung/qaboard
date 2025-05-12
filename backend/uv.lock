@@ -54,6 +54,7 @@ dependencies = [
     { name = "flask-cors" },
     { name = "flask-login" },
     { name = "gitpython" },
+    { name = "lxml" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "polyleven" },
@@ -74,6 +75,7 @@ dependencies = [
     { name = "ujson" },
     { name = "uwsgi" },
     { name = "uwsgitop" },
+    { name = "xmlsec" },
 ]
 
 [package.dev-dependencies]
@@ -91,6 +93,7 @@ requires-dist = [
     { name = "flask-cors" },
     { name = "flask-login" },
     { name = "gitpython" },
+    { name = "lxml", specifier = ">=5.4.0" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "polyleven" },
@@ -111,6 +114,7 @@ requires-dist = [
     { name = "ujson" },
     { name = "uwsgi" },
     { name = "uwsgitop" },
+    { name = "xmlsec", specifier = ">=1.3.15" },
 ]
 
 [package.metadata.requires-dev]
