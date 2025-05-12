@@ -26,6 +26,7 @@ services:
     - ./qaboard:/usr/local/lib/python3.11/site-packages/qaboard
     - ./backend:/qaboard/backend
     - ./setup.py:/qaboard/setup.py
+    - ${SSH_AUTH_SOCK}:/ssh-agent
     environment:
     # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
@@ -35,6 +36,7 @@ services:
     # Connect to the production database
     - QABOARD_DB_HOST=qa
     # Start a flask debug server instead of the full uwsgi
+    - SSH_AUTH_SOCK=/ssh-agent
     working_dir: /qaboard/backend
     # With what's just below, everything works except being able to delete files owned by other users
     # We wish we could do this, then remove sudo from the dockerfile, and use this command...

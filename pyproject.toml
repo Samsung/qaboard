@@ -1,0 +1,63 @@
+
+[project]
+name = "qaboard"
+version = "1.0.3"
+description = "Visualize and compare algorithm results. Optimize parameters. Share results and track progress."
+readme = "README.md"
+authors = [
+    {name = "Arthur Flam", email = "arthur.flam@samsung.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Quality Assurance",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
+    "click>=7.0",
+    "joblib",
+    "pyyaml",
+    "requests",
+    "rich",
+    "scikit-learn",
+    "scikit-optimize",
+    "sentry-sdk",
+    "simplejson",
+]
+license = {text = "Apache-2.0"}
+
+[project.urls]
+Homepage = "https://github.com/Samsung/qaboard"
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "green",
+    "mypy",
+    "types-PyYAML",
+    "types-requests",
+    "types-setuptools",
+    "types-simplejson",
+]
+
+[project.scripts]
+qa = "qaboard.qa:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["qaboard/**/*", "README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["qaboard"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

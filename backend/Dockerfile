@@ -108,21 +108,26 @@ ENV UV_SYSTEM_PYTHON=1 \
 
 # Make it possible to resolve dependencies of the CLI package
 WORKDIR /qaboard
-COPY README.md fastentrypoints.py MANIFEST.in setup.py ./
+COPY pyproject.toml README.md ./
 
 # Including internal dependencies
 RUN --mount=type=ssh ssh -T -o StrictHostKeyChecking=no git@gitlab-srv
 
+WORKDIR /qaboard/backend
 # Install all dependencies
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
     uv sync \
+    --refresh-package uwsgi \
+    --no-binary-package uwsgi \
     # FIXME: should be required! need to update uv.lock
     # --locked \
     --no-install-project \
-    --no-install-package qaboard
+    --no-install-package qaboard && \
+    # needs a build...
+    uv add uwsgi --refresh-package uwsgi --no-binary-package uwsgi
 
 # FIXME: should not be needed: why don't we use the system python?
 ENV PATH="/qaboard/backend/.venv/bin:$PATH"

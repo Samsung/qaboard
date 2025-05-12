@@ -1,3 +1,10 @@
+certs/
+saml/*.json
+passwd*
+*.bkp
+.config/configstore/
+*.patch
+.npm/
 migration/
 .npm/
 cache.*.json
