@@ -122,8 +122,7 @@ RUN --mount=type=ssh \
     uv sync \
     --refresh-package uwsgi \
     --no-binary-package uwsgi \
-    # FIXME: should be required! need to update uv.lock
-    # --locked \
+    --locked \
     --no-install-project \
     --no-install-package qaboard && \
     # needs a build...
@@ -147,10 +146,7 @@ WORKDIR /qaboard/backend
 # with a shared cache across builds
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
-    uv sync \
-    # FIXME: should be required! need to update uv.lock
-    # --locked
-    && echo OK
+    uv sync --locked
 
 
 ENV QA_NO_CHECK_FOR_UPDATES=1
