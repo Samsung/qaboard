@@ -207,6 +207,7 @@ class AutoCrops extends React.Component {
     let roi = {
       r,
       color,
+      diff,
       x: x,
       y: y,
       w: r,

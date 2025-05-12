@@ -64,7 +64,11 @@ const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
   >
     <div><img src={src} alt={roi.label} height={height} width={height} /></div>
     <div>{!is_valid && <span style={{color: "red"}}>invalid</span>}{roi.label}</div>
-    {roi.color && <Icon icon="full-circle" style={{color: roi.color.formatHex()}}></Icon>}
+    {roi.color && <Icon
+      icon="full-circle"
+      style={{color: roi.color.formatHex()}}
+      title={roi.diff}
+    ></Icon>}
   </AnchorButton>
 
   if (is_valid) {
