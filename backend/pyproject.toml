@@ -1,62 +1,58 @@
-# https://python-poetry.org/docs/basic-usage/
-# At SIRC, to deal with SSL issues:
-#          1. add verify=False to e.g.
-#             grep -R 'session.get' ~/anaconda3/envs/python3.8/lib/python3.8/site-packages/poetry
-#          2. add to grep -R -e '--no-deps' ~/anaconda3/envs/python3.8/lib/python3.8/site-packages/poetry
-#             args.extend(['--trusted-host', 'pypi.python.org', '--trusted-host', 'pypi.org', '--trusted-host', 'files.pythonhosted.org'])
-
-[tool.poetry]
+[project]
 name = "backend"
-# name = "qaboard" # used to be backend, poetry issues..
 version = "1.0.1"
 description = "Backend for QA-Board"
-authors = ["Arthur Flam <arthur.flam@samsung.com>"]
-license="Apache-2.0"
+authors = [{ name = "Arthur Flam", email = "arthur.flam@samsung.com" }]
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+    "gitpython",
+    "click",
+    "flask",
+    "flask_cors",
+    "flask_login",
+    "python-ldap",
+    "sqlalchemy",
+    "sqlalchemy_utils",
+    "alembic",
+    "psycopg2",
+    "ujson",
+    "pandas",
+    "numpy",
+    "scikit-image",
+    "uwsgi",
+    "uwsgitop",
+    "scikit-optimize",
+    "psutil",
+    "certifi",
+    "requests",
+    "celery",
+    "sentry-sdk[flask]",
+    "python3-saml",
+    "polyleven",
+    "rich",
+    "simplejson",
+    "redis",
+    "qaboard @ file:///qaboard/",
+]
 
-[tool.poetry.urls]
-repository="https://github.com/Samsung/qaboard"
-homepage="https://samsung.github.io/qaboard"
+# uv sync --extra qaboard
+# [project.optional-dependencies]
+# qaboard = ["qaboard"]
 
-[tool.poetry.dependencies]
-python = "3.11.*"
-gitpython = "*"         # manipulate git repositories
-click = "*"             # build CLI tools easily
-flask = "*"             # HTTP server
-flask_cors = "*"        # (not used?)
 
-flask_login = "*"       # Authentication Flows
-python-ldap = "*"       # Authentication with LDAP
-sqlalchemy = "*"        # ORM
-sqlalchemy_utils = "*"
-alembic = "*"      # Schema migrations
-psycopg2 = "*"     # postgresql driver
-ujson = "*"        # fast json lib
-pandas = "*"       # stats
-numpy = "*" # (needed by pandas - just we ensure python3.8 compat)
-scikit-image = "*" # image processing for auto-regions of interest
-uwsgi = "*"        # server
-uwsgitop = "*"     # top for uwsgi
-qaboard = { path = "..", optional = true } #, develop = true }
-scikit-optimize = "*" # needed for auto-tuning, it's specified in qaboard, normally it should be enough but..
-psutil = "*"
-certifi = "*"
-requests = "*"
-celery = "*"
-sentry-sdk = {extras = ["flask"], version = "*"}
-python3-saml = "*"
-polyleven = "^0.8"
-rich = "^13.9.4"
-simplejson = "^3.19.3"
-redis = "^5.2.1"
+[project.urls]
+repository = "https://github.com/Samsung/qaboard"
+homepage = "https://samsung.github.io/qaboard"
 
-[tool.poetry.extras]
-qaboard = ["qaboard"]
+[tool.uv]
+package = true
 
-[tool.poetry.dev-dependencies]
-pytest = "*"
+[project.scripts]
+qaboard_clean = "backend.clean:clean"
+qaboard_clean_untracked_hwalg_artifacts = "backend.clean:clean_untracked_hwalg_artifacts"
+qaboard_clean_untracked_hwalg_outputs = "backend.clean:clean_untracked_hwalg_outputs"
+qaboard_init_database = "backend.scripts.init_database:init_database"
 
-[tool.poetry.scripts]
-qaboard_clean = 'backend.clean:clean'
-qaboard_clean_untracked_hwalg_artifacts = 'backend.clean:clean_untracked_hwalg_artifacts'
-qaboard_clean_untracked_hwalg_outputs = 'backend.clean:clean_untracked_hwalg_outputs'
-qaboard_init_database = 'backend.scripts.init_database:init_database'
+[dependency-groups]
+dev = ["pytest"]

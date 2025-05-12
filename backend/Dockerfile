@@ -1,5 +1,6 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-FROM python:3.11-slim-bullseye
+FROM python:3.12-slim-bookworm
+
 LABEL maintainer="arthurf.flam@samsung.com"
 
 # SIRC proxy configuration [debian/ubuntu]
@@ -24,12 +25,15 @@ RUN apt-get update -qq && \
     wget http://itweb/downloads/sirc-ca.crt -P /usr/local/share/ca-certificates/ && \
     update-ca-certificates
 
+
     # Keeps Python from generating .pyc files for 1-time use in the container's unionFS
 ENV PYTHONDONTWRITEBYTECODE=1 \
     # Turns off buffering for easier container logging
     PYTHONUNBUFFERED=1 \
     # Tracebacks on segfaults
-    PYTHONFAULTHANDLER=1
+    PYTHONFAULTHANDLER=1 \
+    # Avoid issues with SSL misconfigured at SIRC
+    PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 
 # Install git, up-to-date.
@@ -51,6 +55,14 @@ RUN echo start && \
     apt-get update -qq && apt-get install -y git && \
     git config --global http.proxy $PROXY
 
+# [SIRC] We ran into strange host-key verification issues when downloading packages via poetry
+RUN git config --global http.sslVerify false && \
+    # gc tends to take time in our big repos and the locks slow everything down
+    # causing uwsgi to spawn more workers and eat RAM
+    git config --global gc.auto 0 && \
+    # We manage git repos in various directories...
+    git config --system --add safe.directory '*' && \
+    git config --global --add safe.directory '*'
 
 RUN apt-get update -qq && \
     apt-get install -y \
@@ -69,91 +81,74 @@ RUN apt-get update -qq && \
     # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
     libpcre3 libpcre3-dev
 
-# we want /qaboard to "look" like a package for poetry not to fail 
-WORKDIR /qaboard
-COPY setup.py fastentrypoints.py  ./
-
-# We use the approch described in
-#   https://pythonspeed.com/articles/pipenv-docker/
-# There are other ways to do it, maybe faster
-#   https://github.com/python-poetry/poetry/issues/1301
-#   https://github.com/python-poetry/poetry/issues/856
-RUN pip install poetry
-# required to build python-scipy from source, since we use python3.11
-# and they are not available pre-built yet...
-
-# https://github.com/xmlsec/python-xmlsec/issues/320
-ENV UWSGI_PROFILE_OVERRIDE="xml=no"
-
+# Required to build some projects from source
 RUN apt-get update -qq && \
     apt-get install -y \
+    # for scipy if python is very recent
     gfortran pkg-config libopenblas-dev liblapack-dev \
     # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
     libxml2-dev libxmlsec1-dev libxmlsec1-openssl
 
-WORKDIR /qaboard/backend
-COPY backend/pyproject.toml backend/poetry.lock ./
-# Inside the docker container we don't care about isolating virtual environment
-# otherwise we end of with a random (but stable) virtual env name, and it makes
-# changing PATH to use the installed executable challenging.
-# There are other approaches
-# https://github.com/python-poetry/poetry/issues/1579
-# https://github.com/python-poetry/poetry/issues/214 
-RUN poetry config virtualenvs.create false
-# [SIRC] We ran into strange host-key verification issues when downloading packages via poetry
-RUN git config --global http.sslVerify false && \
-    # gc tends to take time in our big repos and the locks slow everything down
-    # causing uwsgi to spawn more workers and eat RAM
-    git config --global gc.auto 0
-# https://github.com/jelmer/dulwich/issues/698
-# https://github.com/jelmer/dulwich/issues/879
-# https://github.com/jelmer/dulwich/issues/1025
-RUN poetry install -vvv --no-root
-ENV QA_NO_CHECK_FOR_UPDATES=1
+# https://github.com/xmlsec/python-xmlsec/issues/320
+ENV UWSGI_PROFILE_OVERRIDE="xml=no"
 
-# Copy-in everything else:
-COPY backend ./
 
+# References:
+# https://docs.astral.sh/uv/guides/integration/docker/
+# https://hynek.me/articles/docker-uv/
+COPY --from=ghcr.io/astral-sh/uv:0.7.3 /uv /uvx /bin/
+    # Already isolated environment
+ENV UV_SYSTEM_PYTHON=1 \
+    # Silence uv complaining about not being able to use hard links
+    UV_LINK_MODE=copy \
+    # Faster application startups
+    UV_COMPILE_BYTECODE=1 \
+    # Prevent uv from accidentally downloading isolated Python builds
+    UV_PYTHON_DOWNLOADS=never
+
+# Make it possible to resolve dependencies of the CLI package
 WORKDIR /qaboard
-COPY README.md MANIFEST.in ./
+COPY README.md fastentrypoints.py MANIFEST.in setup.py ./
+
+# Including internal dependencies
+RUN --mount=type=ssh ssh -T -o StrictHostKeyChecking=no git@gitlab-srv
+
+# Install all dependencies
+RUN --mount=type=ssh \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
+    --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
+    uv sync \
+    # FIXME: should be required! need to update uv.lock
+    # --locked \
+    --no-install-project \
+    --no-install-package qaboard
+
+# FIXME: should not be needed: why don't we use the system python?
+ENV PATH="/qaboard/backend/.venv/bin:$PATH"
+
+# Backend
+WORKDIR /qaboard/backend
+ADD backend .
+# CLI package
 WORKDIR /qaboard/qaboard
 COPY qaboard/ ./
 WORKDIR /qaboard/tests
 COPY tests/ ./
 
-WORKDIR /qaboard
-# We want to install "qaboard", but copying it ahead of time invalidates the build cache
-# this solution still has us install the pinned-deps of "qaboard" each time...
-# I guess we should bury our pride and list qaboard's deps as deps of the backend,
-# this way the install below would not install any 3rd parties :| 
-WORKDIR /qaboard/backend
-COPY backend/wait-for-it.sh backend/init.sh backend/uwsgi.ini ./
-
-# SIRC-only, installs cde-python, used to read hex/raw images for the auto-ROI feature
-# It's annoying to use ssh from docker-compose, and our network doesn't help - better vendor cde-python...
-# This patch prints the repo paths when cloning with ssh, so that we get more info! (-vvv doens't help) 
-# COPY third_party/cde-python /qaboard/third_party/cde-python
-# RUN sed -i 's/if not cls\.is_using_legacy_client\(\)/if (print(url, file=open("\/dev\/stdout", "w"))) or not cls.is_using_legacy_client/g' /usr/local/lib/python3.11/site-packages/poetry/vcs/git/backend.py && \
-#     grep is_using_legacy_client /usr/local/lib/python3.11/site-packages/poetry/vcs/git/backend.py
-# RUN sed -i 's~cde @ git+ssh://git@gitlab-srv/cde/cde-python~cde @ file://localhost/qaboard/third_party/cde-python#egg=cde~' ../setup.py && \
-#     sed -i 's~url = "ssh://git@gitlab-srv/cde/cde-python"~path = "/qaboard/third_party/cde-python/"~' poetry.lock && \
-#     sed -i 's~git = "ssh://git@gitlab-srv/cde/cde-python"~path = "/qaboard/third_party/cde-python/"~' poetry.lock && \
-#     sed -i 's~type = "git"~type = "path"~' poetry.lock && \
-#     grep cde-python ../setup.py && grep -C3 cde-python poetry.lock
-RUN --mount=type=ssh ssh -T -o StrictHostKeyChecking=no git@gitlab-srv && \
-    poetry install -vvv --extras qaboard
-RUN git config --system --add safe.directory '*' && \
-    git config --global --add safe.directory '*'
-
-# RUN pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org /cde-python
-# https://pythonspeed.com/articles/build-secrets-docker-compose/
-# https://github.com/docker/compose/pull/7296
-# https://github.com/docker/compose/pull/6865
-# https://github.com/docker/compose/issues/6358
-
 
 WORKDIR /qaboard/backend
-CMD ["/qaboard/backend/init.sh"]
+# Sync the project, asserting the lockfile is up to date
+# with a shared cache across builds
+RUN --mount=type=ssh \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv sync \
+    # FIXME: should be required! need to update uv.lock
+    # --locked
+    && echo OK
+
+
+ENV QA_NO_CHECK_FOR_UPDATES=1
 
 # Where we keep a cache of application data (e.g. git clones)
 VOLUME /var/qaboard
@@ -161,15 +156,5 @@ VOLUME /var/qaboard
 # we can run as a non-root user during dev and clone without issues
 RUN mkdir -p /var/qaboard/git && chmod -R 777 /var/qaboard/git
 
-
-# TODO:
-#   Projects can define their own iter_inputs() function to find inputs
-#   The use case it to connect to databases. However, at this stage the function is executed
-#   directly by the server. Not only is it unsecure (on our network let's say it's allright...),
-#   but it introduces a strong coupling between dependencies needed by projects and the server.
-#   Solutions could be:
-#   - [x] Short term, make those users call in a subprocess *their* python with dependencies, and read from STDOUT.
-#         we could read their projects's .envrc
-#   - [ ] Middle term, execute those functions in a docker container used by users to define their environment
-#   - [ ] The above makes things *slow* (?). What do we do? A sort of iter_input server?
-#         Limit the logic/connections available to users? 
+WORKDIR /qaboard/backend
+CMD ["/qaboard/backend/init.sh"]
