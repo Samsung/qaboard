@@ -1,5 +1,5 @@
 # QA-Board Backend
-QA-Board's backend built as a [flask](https://flask.pocoo.org) application. It exposes an HTTP API used to read/write all the metadata on QA-Board's runs.
+QA-Board's backend built as a [flask](https://flask.pocoo.org) application, with packages managed by `uv`. It exposes an HTTP API used to read/write all the metadata on QA-Board's runs.
 
 ## How to start a development backend
 1. First get the code:
@@ -67,13 +67,12 @@ It's useful to connect to `pgadmin` on the URL `<qaboard>/pgadmin4` (user/pass i
 
 
 ## Adding or upgrading packages, migrations...
-Start a shell in the container to access `poetry` or `alembic`:  
+Start a shell in the container to access `uv` or `alembic`:  
 ```bash
 # you'd run something like this
 docker compose -f docker-compose.yml -f development.yml -f sirc.yml build backend
 su $USER
-poetry check
-poetry update
+uv sync
 # ..
 cd backend
 alembic --help

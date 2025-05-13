@@ -55,7 +55,7 @@ RUN echo start && \
     apt-get update -qq && apt-get install -y git && \
     git config --global http.proxy $PROXY
 
-# [SIRC] We ran into strange host-key verification issues when downloading packages via poetry
+# [SIRC] We ran into strange host-key verification issues when downloading packages
 RUN git config --global http.sslVerify false && \
     # gc tends to take time in our big repos and the locks slow everything down
     # causing uwsgi to spawn more workers and eat RAM
