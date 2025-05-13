@@ -7,6 +7,13 @@ Inspired by https://stackoverflow.com/a/24324577/5993501
 import sys
 import qaboard
 
+import warnings
+warnings.warn(
+    "The 'qatools' package is deprecated. Please use 'qaboard' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 modules = [
     # user only ever used config... 
     'qaboard',

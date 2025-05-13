@@ -57,7 +57,8 @@ build-backend = "hatchling.build"
 include = ["qaboard/**/*", "README.md"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["qaboard"]
+packages = ["qaboard", "qatools"]
+
 
 [tool.hatch.metadata]
 allow-direct-references = true
