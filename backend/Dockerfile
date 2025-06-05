@@ -7,9 +7,9 @@ LABEL maintainer="arthurf.flam@samsung.com"
 # Copied from http://gitlab-srv/docker/drun/snippets/11/edit
 # if you still run into network issues, try building the image on a different server :_)
 ENV PROXY_HOST=webproxy.transchip.com \
-        PROXY_PORT=8080 \
-        PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
+    PROXY_PORT=8080 \
+    PROXY_PROTOCOL=http
+ENV PROXY=${PROXY_PROTOCOL}://${PROXY_HOST}:${PROXY_PORT}
 RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
     echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
     echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
