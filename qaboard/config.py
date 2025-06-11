@@ -24,7 +24,7 @@ config_has_error = False
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
 # When the code is imported we care less about warnings...
-ignore_config_errors = ignore_config_errors or not sys.argv[0].endswith('qa')
+ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')
 
 def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
     """Returns the parsed content and paths of qaboard.yaml files that should be loaded for a (sub)project at the `path`.
