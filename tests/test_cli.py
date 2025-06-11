@@ -45,7 +45,7 @@ class TestQaCli(unittest.TestCase):
     def qa_(*argv):
       import qaboard
       qaboard = reload(qaboard)
-      runner = CliRunner(mix_stderr=False)
+      runner = CliRunner()
       result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
       if result.exception:
         print("EXCEPTION: ", result.exception)
