@@ -356,7 +356,13 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     if 'platform' in batch:
       run_context.platform = batch['platform']
     runner = run_context.job_options.get('type', 'local')
-    if batch.get(runner):
+    if "runner" in batch:
+      run_context.job_options = {
+        "type": runner,
+        **run_context.job_options,
+      }
+      runner = batch["runner"]
+    if runner in batch:
       run_context.job_options = {**run_context.job_options, **batch[runner]}
 
     if 'type' in batch:
