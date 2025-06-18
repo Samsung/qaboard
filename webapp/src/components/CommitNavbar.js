@@ -195,7 +195,7 @@ class CommitNavbar extends React.Component {
     let has_selected_batch = !!commit && !!commit.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
     return <>
       <NavbarGroup style={{marginLeft: '20px'}}>
-        <FormGroup style={{ marginTop: '45px' }}>
+        <FormGroup style={{marginBottom: '0px'}}>
           <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
             <span style={{ display: 'flex' }}>
               <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{type}</Tag>
@@ -264,10 +264,10 @@ class CommitNavbar extends React.Component {
           </div>
         </FormGroup>
       </NavbarGroup>
-      <NavbarGroup align="right">
+      <NavbarGroup align="right" style={{height: "auto"}}>
         <FormGroup
-          style={{marginTop: '36px'}}
           labelFor={`filter-${type}-input`}
+          style={{ marginBottom: '0px', marginRight: '10px' }}
           helperText={type === 'new' ? <Tooltip content={<ul>
               <li>You can use negative filters: <code>-2X5</code></li>
               <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>

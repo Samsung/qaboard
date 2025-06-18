@@ -74,17 +74,20 @@ const StyledNavbar = styled(Navbar)`
    /*overflow-y: auto !important;*/
 `
 
+const navbar_height = 75;
 const StyledNavbarNew = styled(Navbar)`
    position: fixed !important;
    padding-left: ${sider_width} !important;
-   height: 75px !important;
+   height: ${navbar_height}px !important;
    top: 0 !important;
+   align-content: center;
 `
 const StyledNavbarRef = styled(Navbar)`
    position: fixed !important;
    padding-left: ${sider_width} !important;
-   height: 75px !important;
-   top: 75px !important;
+   height: ${navbar_height}px !important;
+   top: ${navbar_height}x !important;
+   align-content: center;
 `
 
 
