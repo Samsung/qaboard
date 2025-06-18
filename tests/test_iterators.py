@@ -305,6 +305,60 @@ class TestIterators(unittest.TestCase):
     # Should get queue setting from input type configuration
     self.assertEqual(batches[0].job_options['queue'], 'test_queue')
 
+  def test_cli_runner_overrides_precedence(self):
+    """Test that CLI flags have highest precedence over input type and batch settings"""
+    from qaboard.iterators import iter_inputs
+    with Path('iter.batches.yaml').open('w') as f:
+      f.write(sample_batches_yaml)
+    
+    database = root_dir / Path("qaboard/sample_project/cli_tests")
+    
+    # Test CLI overrides with input type that specifies different queue
+    batches = list(iter_inputs(
+      ['test-vector-batch-lsf'],
+      [Path('iter.batches.yaml')],
+      default_database=database,
+      default_configurations=[],
+      default_platform='linux',
+      default_job_configuration={"type": "local"},  # base config
+      qatools_config={
+        "project": {"entrypoint": root_dir / "qaboard/sample_project/qa/main.py"},
+        "inputs": {
+          "types": {
+            "test-vector": {
+              "globs": "*.txt",
+              "database": {"linux": database, "windows": database},
+              "runners": {
+                "default": "local",
+                "lsf": {
+                  "queue": "input_type_queue",  # input type setting
+                  "priority": 5
+                }
+              }
+            }
+          },
+          "globs": '*.txt',
+          "database": {"linux": database, "windows": database},
+        }
+      },
+      default_inputs_settings=None,
+      cli_runner_overrides={  # CLI overrides should have highest priority
+        "type": "lsf",
+        "queue": "cli_queue",
+        "max_memory": 8000
+      }
+    ))
+    
+    self.assertEqual(len(batches), 1)
+    # Should use LSF runner from CLI override
+    self.assertEqual(batches[0].job_options['type'], 'lsf')
+    # CLI queue should override input type queue
+    self.assertEqual(batches[0].job_options['queue'], 'cli_queue')
+    # Should get priority from input type (not overridden by CLI)
+    self.assertEqual(batches[0].job_options['priority'], 5)
+    # Should get max_memory from CLI
+    self.assertEqual(batches[0].job_options['max_memory'], 8000)
+
 
 
 sample_batches_yaml = """

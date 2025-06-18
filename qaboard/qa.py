@@ -554,6 +554,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   # Separate base configuration from CLI overrides
   base_runner_options = {
     "command_id": command_id,
+    "type": default_runner,
   }
   cli_runner_overrides = {
     "type": runner,  # CLI --runner flag should have highest priority
