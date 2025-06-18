@@ -86,7 +86,7 @@ const StyledNavbarRef = styled(Navbar)`
    position: fixed !important;
    padding-left: ${sider_width} !important;
    height: ${navbar_height}px !important;
-   top: ${navbar_height}x !important;
+   top: ${navbar_height}px !important;
    align-content: center;
 `
 
