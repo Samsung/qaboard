@@ -225,6 +225,86 @@ class TestIterators(unittest.TestCase):
     batches = get_batch('matrix-interpolate-2')
     self.assertEqual(len(batches), 4)
 
+  def test_input_type_runner_settings(self):
+    """Test that input types can specify runner settings"""
+    from qaboard.iterators import iter_inputs
+    with Path('iter.batches.yaml').open('w') as f:
+      f.write(sample_batches_yaml)
+    
+    database = root_dir / Path("qaboard/sample_project/cli_tests")
+    
+    # Test batch with explicit input type that has runner settings
+    batches = list(iter_inputs(
+      ['test-vector-batch'],
+      [Path('iter.batches.yaml')],
+      default_database=database,
+      default_configurations=[],
+      default_platform='linux',
+      default_job_configuration={"type": "local"},
+      qatools_config={
+        "project": {"entrypoint": root_dir / "qaboard/sample_project/qa/main.py"},
+        "inputs": {
+          "types": {
+            "test-vector": {
+              "globs": "*.txt",
+              "database": {"linux": database, "windows": database},
+              "runners": {
+                "default": "local",
+                "lsf": {
+                  "queue": "test_queue"
+                }
+              }
+            }
+          },
+          "globs": '*.txt',
+          "database": {"linux": database, "windows": database},
+        }
+      },
+      default_inputs_settings=None,
+    ))
+    
+    self.assertEqual(len(batches), 1)
+    # Should inherit runner settings from input type
+    self.assertEqual(batches[0].job_options['type'], 'local')
+    # LSF queue should not be applied since we're using local runner
+    self.assertNotIn('queue', batches[0].job_options)
+
+    # Test batch with LSF runner specified that gets config from input type
+    batches = list(iter_inputs(
+      ['test-vector-batch-lsf'],
+      [Path('iter.batches.yaml')],
+      default_database=database,
+      default_configurations=[],
+      default_platform='linux',
+      default_job_configuration={"type": "local"},
+      qatools_config={
+        "project": {"entrypoint": root_dir / "qaboard/sample_project/qa/main.py"},
+        "inputs": {
+          "types": {
+            "test-vector": {
+              "globs": "*.txt",
+              "database": {"linux": database, "windows": database},
+              "runners": {
+                "default": "local",
+                "lsf": {
+                  "queue": "test_queue"
+                }
+              }
+            }
+          },
+          "globs": '*.txt',
+          "database": {"linux": database, "windows": database},
+        }
+      },
+      default_inputs_settings=None,
+    ))
+    
+    self.assertEqual(len(batches), 1)
+    # Should use LSF runner as specified in batch
+    self.assertEqual(batches[0].job_options['type'], 'lsf')
+    # Should get queue setting from input type configuration
+    self.assertEqual(batches[0].job_options['queue'], 'test_queue')
+
 
 
 sample_batches_yaml = """
@@ -390,6 +470,17 @@ matrix-interpolate-2:
     - base
     - param-v${matrix.param}
     - version: v${matrix.version[major]}
+
+test-vector-batch:
+  type: test-vector
+  inputs:
+  - a.txt
+
+test-vector-batch-lsf:
+  type: test-vector
+  runner: lsf
+  inputs:
+  - a.txt
 
 """
 sample_batches_yaml = sample_batches_yaml.replace("qaboard/sample_project", str(root_dir / Path("qaboard/sample_project")))
