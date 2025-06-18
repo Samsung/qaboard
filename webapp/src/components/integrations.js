@@ -116,7 +116,7 @@ class IntegrationsMenus extends React.Component {
         .then(response => {
             console.log(response)
             toaster.show({
-              message: `Trigger sent! [${response.status} ${response.statusText}]`,
+              message: `Webhook sent! [${response.status} ${response.statusText}]`,
               intent: Intent.SUCCESS,
             });
             this.setState({

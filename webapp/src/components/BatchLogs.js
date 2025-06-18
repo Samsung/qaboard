@@ -234,8 +234,8 @@ class BatchLogs extends React.Component {
       configurations: [],
     }
 
-    let commands = Object.values(batch.data?.commands || {});
-    const some_tuning_commands = batch.data?.optimization || commands.some(c => !c.job_url)
+    let commands = Object.values(batch.data?.commands ?? {});
+    const some_tuning_commands = batch.data?.optimization ?? commands.some(c => !c.job_url)
 
     const title = pretty_label(batch)
     return <>

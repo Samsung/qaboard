@@ -25,9 +25,10 @@ services:
     - ./qaboard:/qaboard/qaboard
     - ./qaboard:/usr/local/lib/python3.11/site-packages/qaboard
     - ./backend:/qaboard/backend
-    - ./setup.py:/qaboard/setup.py
-    - ${SSH_AUTH_SOCK}:/ssh-agent
+    - ./pyproject.toml:/qaboard/pyproject.toml
+    - ${SSH_AUTH_SOCK:-NOT_DEFINED___SSH_AUTH_SOCK}:/ssh-agent
     environment:
+    - PYTHONNOUSERSITE=1
     # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
     - FLASK_APP=backend
