@@ -122,6 +122,18 @@ inputs:
         windows: F://movies
 ```
 
+You can have runner setttings per type:
+```yaml title="qaboard.yaml"
+  # qaboard.yaml
+  inputs:
+    types:
+      image:
+        runners:
+          default: local          # Default for this input type
+          lsf:
+            queue: my_queue
+```
+
 You can choose what type each batch is: 
 
 ```yaml {6} title="qa/batches.yaml"

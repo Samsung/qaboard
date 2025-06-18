@@ -186,6 +186,7 @@ def iter_inputs(
   default_job_configuration,
   qatools_config,
   default_inputs_settings=None,
+  cli_runner_overrides=None,
   debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False),
 ):
   """
@@ -293,7 +294,7 @@ def iter_inputs(
       check_batch(batch)
       batch_run_context = deepcopy(run_context)
       batch_run_context.batch = batch
-      yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug)
+      yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
       continue
     
     # 2. Batches can be specified using wildcards
@@ -303,7 +304,7 @@ def iter_inputs(
         batch_run_context = deepcopy(run_context)
         batch_run_context.batch = b
         check_batch(b)
-        yield from iter_batch(available_batches[b], batch_run_context, qatools_config, inputs_settings, debug)
+        yield from iter_batch(available_batches[b], batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
       continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
@@ -360,7 +361,7 @@ def deep_interpolate(value, replaced: str, to_value):
     return value
 
 
-def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug):
+def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
     # Happens often when there is an orphan "my-batch:" in in the yaml file
     if batch is None:
       return
@@ -412,9 +413,13 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         if runner in input_type_runners and isinstance(input_type_runners[runner], dict):
           run_context.job_options = {**run_context.job_options, **input_type_runners[runner]}
     
-    # Apply batch-level runner configuration (highest precedence)
+    # Apply batch-level runner configuration
     if runner in batch and isinstance(batch[runner], dict):
       run_context.job_options = {**run_context.job_options, **batch[runner]}
+
+    # Apply CLI overrides (highest precedence)
+    if cli_runner_overrides:
+      run_context.job_options = {**run_context.job_options, **cli_runner_overrides}
 
     inputs_settings.update(batch)
 
@@ -458,7 +463,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
             if param in ['configuration', 'configurations', 'configs', 'platform']:
               continue
             matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
-          yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
+          yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug, cli_runner_overrides)
       return
 
     locations = batch.get('inputs', batch.get('tests'))

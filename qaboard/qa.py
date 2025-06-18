@@ -550,34 +550,55 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
-  default_runner_options = {
-    "type": runner,
+  
+  # Separate base configuration from CLI overrides
+  base_runner_options = {
     "command_id": command_id,
   }
+  cli_runner_overrides = {
+    "type": runner,  # CLI --runner flag should have highest priority
+  }
+  
+  # Collect CLI overrides (only non-None values that were explicitly provided)
   # Each runner should add what it cares about...
   # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
   # TODO: It would be nice to generate the CLI help depending on the runner that's chosen, then we could use
   if runner == 'lsf':
-    default_runner_options.update({
+    # Add non-None LSF CLI overrides
+    if lsf_queue is not None:
+      cli_runner_overrides["queue"] = lsf_queue
+    if lsf_fast_queue is not None:
+      cli_runner_overrides["fast_queue"] = lsf_fast_queue
+    if lsf_priority is not None:
+      cli_runner_overrides['priority'] = lsf_priority
+    if lsf_max_threads is not None and lsf_max_threads != 0:
+      cli_runner_overrides["max_threads"] = lsf_max_threads
+    if lsf_max_memory is not None and lsf_max_memory != 0:
+      cli_runner_overrides["max_memory"] = lsf_max_memory
+    if lsf_resources is not None:
+      cli_runner_overrides['resources'] = lsf_resources
+    if lsf_options is not None:
+      cli_runner_overrides['options'] = lsf_options
+    
+    # These are always set for LSF
+    cli_runner_overrides.update({
       "project": lsf_config.get('project', str(project) if project else "qaboard"),
-      "queue": lsf_queue,
-      "fast_queue": lsf_fast_queue,
-      'priority': lsf_priority,
-      "max_threads": lsf_max_threads,
-      "max_memory": lsf_max_memory,
-      'resources': lsf_resources,
-      'options': lsf_options,
       "user": ctx.obj['user'],
     })
-  if runner == "local":
-    default_runner_options["concurrency"] = local_concurrency
+    
+  if runner == "local" and local_concurrency is not None:
+    cli_runner_overrides["concurrency"] = local_concurrency
+    
   if runner == 'local' or runner == 'celery':
-    default_runner_options["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
+    cli_runner_overrides["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
+
+  # For backward compatibility, combine for JobGroup
+  default_runner_options = {**base_runner_options, **cli_runner_overrides}
 
   jobs = JobGroup(job_options=default_runner_options)
 
   total_runs = 0
-  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], default_runner_options, config, ctx.obj['inputs_settings'])
+  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], base_runner_options, config, ctx.obj['inputs_settings'], cli_runner_overrides=cli_runner_overrides)
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
     for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
