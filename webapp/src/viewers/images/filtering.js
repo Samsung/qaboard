@@ -481,5 +481,18 @@ OpenSeadragon.Filters = {
             context.putImageData(imgData, 0, 0);
             callback();
         };
+    },
+    SHARPEN: function(strength) {
+        if (strength < 0 || strength > 10) {
+            throw new Error('Sharpen strength must be between 0 and 10.');
+        }
+        var centerValue = 1 + (strength * 8);
+        var edgeValue = -strength;
+        var kernel = [
+            edgeValue, edgeValue, edgeValue,
+            edgeValue, centerValue, edgeValue,
+            edgeValue, edgeValue, edgeValue
+        ];
+        return OpenSeadragon.Filters.CONVOLUTION(kernel);
     }
 };

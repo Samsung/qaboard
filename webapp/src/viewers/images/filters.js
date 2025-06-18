@@ -46,6 +46,7 @@ const default_filters = [
         max: 255,
         value: 0,
         defaultValue: 0,
+        description: 'Adjusts the overall brightness of the image by adding/subtracting a constant value to all pixels',
         make_processor: (viewer, value) => {
             // if (this.callback !== null) {
             //     this.callback(value);
@@ -62,6 +63,7 @@ const default_filters = [
         value: 1,
         defaultValue: 1,
         step: 0.1,
+        description: 'Adjusts image contrast by multiplying pixel values. Values >1 increase contrast, <1 decrease it',
         make_processor: (viewer, value) => {
             // if (this.callback !== null) {
             //     this.callback(value);
@@ -78,6 +80,7 @@ const default_filters = [
         value: 1,
         defaultValue: 1,
         step: 0.05,
+        description: 'Applies gamma correction to adjust mid-tone brightness. Values >1 darken, <1 brighten mid-tones',
         make_processor: (viewer, value) => {
             // if (this.callback !== null) {
             //     this.callback(value);
@@ -86,6 +89,22 @@ const default_filters = [
         },
         sync: true,
         // callback: null,
+    },
+    {
+        name: 'Sharpen',
+        min: 0,
+        max: 2,
+        value: 0,
+        defaultValue: 0,
+        step: 0.1,
+        description: 'Applies unsharp masking to enhance edge definition. Uses a 3x3 convolution kernel to emphasize edges',
+        make_processor: (viewer, value) => {
+            if (value === 0) {
+                return function(context, callback) { callback(); };
+            }
+            return OpenSeadragon.Filters.SHARPEN(value);
+        },
+        sync: true,
     }
 ]
 
@@ -211,14 +230,19 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 popup.className = `${this.popUpClass}`;
             } else {
                 popup.style.display = 'none';
-                popup.style.textAlign = 'center';
                 popup.style.position = 'absolute';
-                popup.style.border = '1px solid black';
-                popup.style.backgroundColor = 'white';
-                popup.style.width = width + 'px';
-                popup.style.height = height + 'px';
-                popup.style.top = popupTop + 'px';
+                popup.style.top = '10%';
                 popup.style.left = popupLeft + 'px';
+                popup.style.width = width + 'px';
+                popup.style.minHeight = 'auto';
+                popup.style.padding = '16px';
+                popup.style.backgroundColor = '#ffffff';
+                popup.style.border = '1px solid #d1d5da';
+                popup.style.borderRadius = '8px';
+                popup.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.15)';
+                popup.style.zIndex = '1000';
+                popup.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                popup.style.fontSize = '14px';
             }
 
             //add to controlls, needed for fullscreen
@@ -227,6 +251,57 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
 
             //add range input for all filters
             synced_filters[this.sync_key].filters.map(filter => {
+                // Create a container for each filter
+                var filterContainer = document.createElement('div');
+                filterContainer.style.marginBottom = '8px';
+                filterContainer.style.display = 'flex';
+                filterContainer.style.flexDirection = 'column';
+                filterContainer.style.gap = '6px';
+                filterContainer.style.padding = '12px';
+                filterContainer.style.borderRadius = '4px';
+                filterContainer.style.transition = 'all 0.2s ease';
+                filterContainer.id = `osd-filter-container-${filter.name}-${this.viewer.id}`;
+
+                // Set initial background based on whether filter is at default value
+                var isDefault = Math.abs(filter.value - filter.defaultValue) < 0.001;
+                filterContainer.style.backgroundColor = isDefault ? '#f8f9fa' : '#fff3cd';
+                filterContainer.style.border = isDefault ? '1px solid #e9ecef' : '1px solid #ffeaa7';
+
+                // Create label with value display
+                var labelContainer = document.createElement('div');
+                labelContainer.style.display = 'flex';
+                labelContainer.style.justifyContent = 'space-between';
+                labelContainer.style.alignItems = 'center';
+                labelContainer.style.marginBottom = '6px';
+
+                var label = document.createElement('label');
+                label.innerHTML = filter.name;
+                label.style.fontSize = '12px';
+                label.style.fontWeight = '600';
+                label.style.color = isDefault ? '#495057' : '#856404';
+                label.style.margin = '0';
+                label.style.cursor = 'help';
+                label.title = filter.description;
+
+                var valueDisplay = document.createElement('span');
+                valueDisplay.innerHTML = (filter.value || 0).toFixed(filter.step < 1 ? 2 : 0);
+                valueDisplay.style.fontSize = '11px';
+                valueDisplay.style.color = isDefault ? '#6c757d' : '#856404';
+                valueDisplay.style.fontFamily = 'monospace';
+                valueDisplay.style.fontWeight = '500';
+                valueDisplay.id = `osd-filter-value-${filter.name}-${this.viewer.id}`;
+
+                labelContainer.appendChild(label);
+                labelContainer.appendChild(valueDisplay);
+
+                // Create slider container with default indicator
+                var sliderContainer = document.createElement('div');
+                sliderContainer.style.position = 'relative';
+                sliderContainer.style.display = 'flex';
+                sliderContainer.style.alignItems = 'center';
+                sliderContainer.style.gap = '8px';
+
+                // Create range input
                 var filterElement = document.createElement('input');
                 filterElement.type = 'range';
                 filterElement.min = filter.min;
@@ -234,28 +309,71 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 filterElement.step = filter.step || 1;
                 filterElement.value = filter.value || 0;
                 filterElement.id = `osd-filter-${filter.name}-${this.viewer.id}`;
+                filterElement.style.width = '100%';
+                filterElement.style.margin = '0';
+                filterElement.style.accentColor = isDefault ? '#6c757d' : '#fd7e14';
+                filterElement.title = filter.description;
+
+                // Create default value indicator
+                var defaultIndicator = document.createElement('div');
+                defaultIndicator.style.position = 'absolute';
+                defaultIndicator.style.top = '50%';
+                defaultIndicator.style.transform = 'translateY(-50%)';
+                defaultIndicator.style.width = '2px';
+                defaultIndicator.style.height = '16px';
+                defaultIndicator.style.backgroundColor = '#ac2f33';
+                defaultIndicator.style.pointerEvents = 'none';
+                defaultIndicator.style.zIndex = '1';
+                
+                // Calculate position of default value on slider
+                var range = filter.max - filter.min;
+                var defaultPosition = ((filter.defaultValue - filter.min) / range) * 100;
+                defaultIndicator.style.left = `calc(${defaultPosition}% - 1px)`;
+                defaultIndicator.title = `Default: ${filter.defaultValue}`;
 
                 // add event handlers to slider
                 this.onRangeChange(filterElement, filter);
-                // add to tools popup with label
-                var label = document.createElement('label');
-                label.innerHTML = filter.name;
-                // label.style.margin = '0';
 
-                popup.appendChild(label);
-                popup.appendChild(filterElement);
+                sliderContainer.appendChild(filterElement);
+                sliderContainer.appendChild(defaultIndicator);
+
+                filterContainer.appendChild(labelContainer);
+                filterContainer.appendChild(sliderContainer);
+                popup.appendChild(filterContainer);
             });
 
             // Add Reset button
+            var resetButtonContainer = document.createElement('div');
+            resetButtonContainer.style.marginTop = '20px';
+            resetButtonContainer.style.paddingTop = '16px';
+            resetButtonContainer.style.borderTop = '1px solid #e1e5e9';
+            
             var resetButton = document.createElement('button');
             resetButton.className = Classes.BUTTON;
-            resetButton.innerHTML = 'Reset';
-            resetButton.style.margin = '5px';
-            // resetButton.style.display = 'block';
+            resetButton.innerHTML = '↻ Reset All';
+            resetButton.style.width = '100%';
+            resetButton.style.margin = '0';
+            resetButton.style.fontSize = '12px';
+            resetButton.style.fontWeight = '500';
+            resetButton.title = 'Reset all filters to their default values';
+            resetButton.id = `osd-reset-button-${this.viewer.id}`;
+            
+            // Set initial disabled state
+            var allDefault = synced_filters[this.sync_key].filters.every(f => 
+                Math.abs(f.value - f.defaultValue) < 0.001
+            );
+            resetButton.disabled = allDefault;
+            if (allDefault) {
+                resetButton.style.opacity = '0.5';
+                resetButton.style.cursor = 'not-allowed';
+            }
+            
             resetButton.addEventListener('click', () => {
                 this.resetFilters();
             }, { passive: true });
-            popup.appendChild(resetButton);
+            
+            resetButtonContainer.appendChild(resetButton);
+            popup.appendChild(resetButtonContainer);
         }
         return popup
     },
@@ -277,22 +395,86 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
      * Resets filters by setting range inputs to default value
      */
     resetFilters: function () {
+        const updateFilterIntent = (filter, viewerId) => {
+            const filterContainer = OpenSeadragon.getElement(`osd-filter-container-${filter.name}-${viewerId}`);
+            const filterInput = OpenSeadragon.getElement(`osd-filter-${filter.name}-${viewerId}`);
+            const valueDisplay = OpenSeadragon.getElement(`osd-filter-value-${filter.name}-${viewerId}`);
+            const label = filterContainer?.querySelector('label');
+            
+            if (filterContainer && filterInput && valueDisplay && label) {
+                const isDefault = Math.abs(filter.value - filter.defaultValue) < 0.001;
+                
+                filterContainer.style.backgroundColor = isDefault ? '#f8f9fa' : '#fff3cd';
+                filterContainer.style.border = isDefault ? '1px solid #e9ecef' : '1px solid #ffeaa7';
+                filterInput.style.accentColor = isDefault ? '#6c757d' : '#fd7e14';
+                label.style.color = isDefault ? '#495057' : '#856404';
+                valueDisplay.style.color = isDefault ? '#6c757d' : '#856404';
+            }
+        };
+
+        const updateResetButtonState = (viewerId) => {
+            const resetButton = OpenSeadragon.getElement(`osd-reset-button-${viewerId}`);
+            if (resetButton) {
+                const allDefault = synced_filters[this.sync_key].filters.every(f => 
+                    Math.abs(f.value - f.defaultValue) < 0.001
+                );
+                resetButton.disabled = allDefault;
+                resetButton.style.opacity = allDefault ? '0.5' : '1';
+                resetButton.style.cursor = allDefault ? 'not-allowed' : 'pointer';
+            }
+        };
+
         const { filters, viewers } = synced_filters[this.sync_key];
         synced_filters[this.sync_key].leading = 'reset'
         filters.map(filter => {
             filter.value = filter.defaultValue;
             viewers.map(viewer => {
               const filterInput = OpenSeadragon.getElement(`osd-filter-${filter.name}-${viewer.id}`);
+              const valueDisplay = OpenSeadragon.getElement(`osd-filter-value-${filter.name}-${viewer.id}`);
               if (filterInput)
-                filterInput.value = filter.value
+                filterInput.value = filter.value;
+              if (valueDisplay)
+                valueDisplay.innerHTML = filter.value.toFixed(filter.step < 1 ? 2 : 0);
+              updateFilterIntent(filter, viewer.id);
             })
             // console.log(`[reset] ${filter.name} => ${filter.value}`)
         });
+        // Update reset button state for all viewers
+        viewers.forEach(viewer => updateResetButtonState(viewer.id));
         this.updateFilters(this.sync_key);
         synced_filters[this.sync_key].leading = null;
     },
 
     onRangeChange: function (input_element, filter) {
+        const updateFilterIntent = (filter, viewerId) => {
+            const filterContainer = OpenSeadragon.getElement(`osd-filter-container-${filter.name}-${viewerId}`);
+            const filterInput = OpenSeadragon.getElement(`osd-filter-${filter.name}-${viewerId}`);
+            const valueDisplay = OpenSeadragon.getElement(`osd-filter-value-${filter.name}-${viewerId}`);
+            const label = filterContainer?.querySelector('label');
+            
+            if (filterContainer && filterInput && valueDisplay && label) {
+                const isDefault = Math.abs(filter.value - filter.defaultValue) < 0.001;
+                
+                filterContainer.style.backgroundColor = isDefault ? '#f8f9fa' : '#fff3cd';
+                filterContainer.style.border = isDefault ? '1px solid #e9ecef' : '1px solid #ffeaa7';
+                filterInput.style.accentColor = isDefault ? '#6c757d' : '#fd7e14';
+                label.style.color = isDefault ? '#495057' : '#856404';
+                valueDisplay.style.color = isDefault ? '#6c757d' : '#856404';
+            }
+        };
+
+        const updateResetButtonState = (viewerId) => {
+            const resetButton = OpenSeadragon.getElement(`osd-reset-button-${viewerId}`);
+            if (resetButton) {
+                const allDefault = synced_filters[this.sync_key].filters.every(f => 
+                    Math.abs(f.value - f.defaultValue) < 0.001
+                );
+                resetButton.disabled = allDefault;
+                resetButton.style.opacity = allDefault ? '0.5' : '1';
+                resetButton.style.cursor = allDefault ? 'not-allowed' : 'pointer';
+            }
+        };
+
         const update = sync_key => {
             const { filters, viewers, leading } = synced_filters[sync_key];
             if (!!leading && (leading !== this.viewer.id))
@@ -302,8 +484,13 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             // console.log(`[set] ${filter.name} => ${filter.value}`)
             viewers.map(viewer => {
                 const filterInput = OpenSeadragon.getElement(`osd-filter-${filter.name}-${viewer.id}`);
+                const valueDisplay = OpenSeadragon.getElement(`osd-filter-value-${filter.name}-${viewer.id}`);
                 if (filterInput)
                     filterInput.value = filter.value;
+                if (valueDisplay)
+                    valueDisplay.innerHTML = filter.value.toFixed(filter.step < 1 ? 2 : 0);
+                updateFilterIntent(filter, viewer.id);
+                updateResetButtonState(viewer.id);
             })
             this.updateFilters(sync_key);
             synced_filters[sync_key].leading = null;
