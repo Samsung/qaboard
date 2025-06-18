@@ -46,6 +46,7 @@ import {
 } from './selectors/projects'
 
 import PrivateContent from "./components/authentication/PrivateContent"
+import FloatingControlsPanel from "./components/FloatingControlsPanel";
 
 
 
@@ -245,51 +246,8 @@ class CiCommitResults extends Component {
     </>
 
     let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
-    // // display: flex
-    // flex-wrap: wrap;
-    // justify-content: space-between;
-    // align-items: baseline;
     const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
     const has_tuning = tuned_params.length > 0
-    const all_controls = <>
-      <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline'}}>
-        {show_viewer_controls && controls}
-      </div>
-      <Tabs>
-          <Tabs.Expander />
-          <HTMLSelect
-            defaultValue={this.props.sort_by}
-            onChange={this.update('sort_by')}
-          >
-            <option value="test_input_path">Sort by Name</option>
-            <option value="id">Sort by ID</option>
-            <option value="data.storage">Sort by Storage</option>
-            {has_tuning && <option style={{fontWeight: 'bold'}} disabled>Tuning</option>}
-            {tuned_params
-              .map(
-              param =>
-                <option key={param} value={param}>
-                  Sort by {param} ({new_batch.extra_parameters[param].size})
-                </option>
-            )}
-            <option disabled style={{fontWeight: 'bold'}}>Metrics</option>
-            {[...new_batch.used_metrics].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(
-              m => (
-                <option key={m.key} value={m.key}>
-                  Sort by {m.label}
-                </option>
-              )
-            )}
-          </HTMLSelect>
-          <HTMLSelect
-            defaultValue="descending"
-            onChange={this.update('sort_order')}
-          >
-            <option value={-1}>descending</option>
-            <option value={1}>ascending</option>
-          </HTMLSelect>
-      </Tabs>
-    </>
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
     return (
       <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
@@ -369,7 +327,6 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('table-compare') && <Section>
                 <Card>
-                    {all_controls}
                     <h2 className={Classes.HEADING}>Improvement report</h2>
                     <TableCompare
                       new_batch={new_batch}
@@ -383,7 +340,6 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('table-kpi') && <Section>
                 <Card>
-                   {all_controls}
                     <h2 className={Classes.HEADING}>Quality report</h2>
                     <TableKpi
                       new_batch={new_batch}
@@ -396,7 +352,6 @@ class CiCommitResults extends Component {
                </Section>}
 
               {selected_views.includes('logs') && <Section>
-                  {all_controls}
                   <h2 className={Classes.HEADING}>Logs</h2>
                   <BatchLogs
                     project={this.props.selected.new_project}
@@ -416,7 +371,6 @@ class CiCommitResults extends Component {
                      description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
                    />
                  : <Section>
-                 {all_controls}
                   <h2 className={Classes.HEADING}>Visualizations</h2>
                   <ExportPlugin
                     project={this.props.selected.new_project}
@@ -444,7 +398,6 @@ class CiCommitResults extends Component {
               </Section>)}
 
               {selected_views.includes('bit-accuracy') && <Section>
-                 {all_controls}
                   <h2 className={Classes.HEADING}>Output Files</h2>
                   <p className={Classes.TEXT_MUTED}>Total Storage: {humanFileSize(
                     (new_batch?.filtered?.outputs ?? [])
@@ -493,6 +446,27 @@ class CiCommitResults extends Component {
 
             </>
           )}
+
+        {/* Floating Controls Panel */}
+        {(!!new_commit) && (
+          <FloatingControlsPanel
+            controls={this.state.controls}
+            visualizations={visualizations}
+            controls_extra={controls_extra}
+            selected_views={selected_views}
+            selected_metrics={selected_metrics}
+            new_batch={new_batch}
+            available_metrics={available_metrics}
+            metricTableSelect={metricTableSelect}
+            sort_by={this.props.sort_by}
+            sort_order={this.props.sort_order}
+            onToggle={this.toggle}
+            onToggleShow={this.toggle_show}
+            onUpdate={this.update}
+            has_tuning={has_tuning}
+            tuned_params={tuned_params}
+          />
+        )}
       </Container>
     );
   }
