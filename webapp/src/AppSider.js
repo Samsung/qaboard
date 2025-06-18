@@ -3,6 +3,7 @@ import { connect } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
+import axios from "axios";
 
 import {
   Classes,
@@ -32,6 +33,8 @@ import {
 import { updateSelected } from "./actions/selected";
 import { fetchCommit } from "./actions/commit";
 import { git_hostname, default_git_hostname, project_avatar_style } from "./utils"
+import { make_eval_templates_recursively } from "./utils"
+import { toaster } from "./toaster"
 
 export const sider_width = '166px';
 
@@ -162,6 +165,10 @@ class ProjectSideCommitList extends React.Component {
           commit={commit}
           ref_commit={ref_commit}
           user={user}
+          integrationStatuses={this.props.integrationStatuses}
+          triggerIntegration={this.props.triggerIntegration}
+          startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
+          stopUpdateIntegrationStatuses={this.props.stopUpdateIntegrationStatuses}
         />
         <MenuItem
           text="Milestones"
@@ -213,6 +220,24 @@ class ProjectSideResults extends React.Component {
     const commit_qatools_config = commit?.data?.qatools_config ?? {};
     const project_qatools_config = project_data.data?.qatools_config ?? {};
     let integrations = batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
+    // integrations = integrations.slice(20)
+    // integrations = [
+    //   {
+    //     id: "XXXXX",
+    //     text: "TEST ${user.user_name} ${batch} | ${batch} | ${ref_batch} | ${ref_commit.id} | | ${filter} | ${ref_filter} | ${ref_project}",
+    //     webhook: {method: "GET", url: "https://qa/s/xxxx"}
+    //   },
+    //   {
+    //     text: "level 1",
+    //     sub: [{text: "level 2"}]
+    //   },
+    //   // {
+    //   //   icon: "circle",
+    //   //   text: "TEST outside",
+    //   //   href: "https://qa/s/xxxx",
+    //   //   in_menu: false,
+    //   // },
+    // ]
 
     const has_optim = new_batch?.data?.optimization === true;
     const active = view => this.props.selected_views.includes(view);
@@ -229,6 +254,10 @@ class ProjectSideResults extends React.Component {
         ref_filter={this.props.ref_filter}
         ref_project={this.props.ref_project}
         user={user}
+        integrationStatuses={this.props.integrationStatuses}
+        triggerIntegration={this.props.triggerIntegration}
+        startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
+        stopUpdateIntegrationStatuses={this.props.stopUpdateIntegrationStatuses}
       />
       <MenuDivider vertical="true" style={{marginBottom: '10px', marginTop: '1px'}}/>
 
@@ -259,7 +288,253 @@ class ProjectSideResults extends React.Component {
 
 
 class AppSider extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      integrationStatuses: {}
+    }
+  }
+
+  componentDidMount() {
+    // Not necessary to rush fetching the statuses (?)
+    // this.startUpdateIntegrationStatuses(60 * 1000)
+  }
+
+  componentWillUnmount() {
+    this.stopUpdateIntegrationStatuses()
+  }
+
+  // Integration status management methods
+  key = integration => (integration.id || integration.text || integration.name || integration.alt)
+
+  stopUpdateIntegrationStatuses = () => {
+    clearInterval(this.state.intervalId);
+  }
+
+  startUpdateIntegrationStatuses = interval => {
+    this.stopUpdateIntegrationStatuses();
+    this.updateIntegrationStatuses();
+    this.setState({
+      intervalId: setInterval(this.updateIntegrationStatuses, interval || 10 * 1000),
+    })
+  }
+
+  triggerIntegration = integration => e => {
+    const { project, project_data={}, commit={} } = this.props;
+    const { webhook, gitlabCI, jenkins } = integration;
+    if (!webhook && !gitlabCI && !jenkins) {
+      return
+    }
+    this.setState({
+      integrationStatuses: {
+        ...this.state.integrationStatuses,
+        [this.key(integration)]: {
+          loading: true,
+          triggered: true,
+          data: undefined,
+        },
+      }
+    });
+    if (webhook) {
+      var url = '/api/v1/webhook/proxy/';
+      var params = webhook;
+    } else if (jenkins) {
+      url = '/api/v1/jenkins/build/trigger/';
+      params = jenkins
+    } else if (gitlabCI) {
+      url = '/api/v1/gitlab/job/play/';
+      const git = project_data.data?.git || {};
+      const project_git_hostname = git_hostname(project_data.data?.qatools_config) ?? default_git_hostname
+      git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
+      if (!git.web_url) {
+        this.setState({
+          integrationStatuses: {
+            ...this.state.integrationStatuses,
+            [this.key(integration)]: {
+              is_loaded: true, loading: false,
+              error: "Can't find gitlab host",
+              statusText: 'ERROR',
+            },
+          }
+        });
+        return;
+      }
+      params = {
+        gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
+        project_id: project,
+        commit_id: commit.id,
+        ...gitlabCI,
+      }
+    }
+    axios.post(url, params)
+    .then(response => {
+        console.log(response)
+        toaster.show({
+          message: `Webhook sent! [${response.status} ${response.statusText}]`,
+          intent: Intent.SUCCESS,
+        });
+        this.setState({
+          integrationStatuses: {
+            ...this.state.integrationStatuses,
+            [this.key(integration)]: {
+              is_loaded: true,
+              loading: false,
+              error: null,
+              statusText: response.statusText,
+              data: response.data,
+            },
+          }
+        });
+        if (!!response.data?.url && response.data?.open) {
+          window.open(response.data.url, '_blank').focus();
+        }
+    })
+    .catch(error => {
+      console.log(error.response ?? error)
+      toaster.show({
+        message: `Something went wrong: ${JSON.stringify(error.response ?? error)}`,
+        intent: Intent.DANGER,
+      });
+      this.setState({
+        integrationStatuses: {
+          ...this.state.integrationStatuses,
+          [this.key(integration)]: {
+            is_loaded: true, loading: false, error,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+          },
+        }
+      });
+    });
+  }
+
+  updateIntegrationStatuses = () => {
+    const { project, project_data={}, commit={} } = this.props;
+    // Get all integrations from both contexts
+    const commitList_integrations = project_data.data?.qatools_config?.integrations ?? commit.data?.qatools_config?.integrations ?? [];
+    const results_integrations = (() => {
+      const batch_qatools_config = this.props.new_batch?.data?.qatools_config ?? {};
+      const commit_qatools_config = commit?.data?.qatools_config ?? {};
+      const project_qatools_config = project_data.data?.qatools_config ?? {};
+      return batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
+    })();
+    
+    const all_integrations = [...commitList_integrations, ...results_integrations];
+    const eval_templates_recusively = make_eval_templates_recursively(this.props)
+    
+    all_integrations.filter(i => 
+      (i.href !== undefined && i.href !== "" && i.src === undefined)
+      || i.gitlabCI
+      || i.jenkins
+    ).forEach(integration => {
+      try {
+        integration = eval_templates_recusively(integration)
+      } catch {
+        return;
+      }
+      if (!integration) {
+        return;
+      }
+      const status = this.state.integrationStatuses[this.key(integration)] || {};
+      if (status.loading)
+        return
+      if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
+        return
+      this.setState({
+        integrationStatuses: {
+          ...this.state.integrationStatuses,
+          [this.key(integration)]: {
+            ...this.state.integrationStatuses[this.key(integration)],
+            loading: true,
+          },
+        }
+      });
+      const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
+      if (gitlabCI) {
+       if (status?.triggered !== true)
+         return
+       var req_url = '/api/v1/gitlab/job/';
+       const git = project_data.data?.git || {};
+       if (!git.web_url) {
+         this.setState({
+           integrationStatuses: {
+             ...this.state.integrationStatuses,
+             [this.key(integration)]: {
+               is_loaded: true,
+               loading: false,
+               error: "Can't find gitlab host",
+               statusText: 'ERROR',
+             },
+           }
+         });
+         return;
+       }
+       var params = {
+         gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
+         project_id: project,
+         commit_id: commit.id,
+         job_id: status.data?.id,
+         ...gitlabCI,
+       }
+     } else if (jenkins) {
+       if (status?.triggered !== true)
+         return
+       req_url = '/api/v1/jenkins/build/';
+       params = {
+         ...status?.data, //.web_url, .url
+       }
+     } else { // webhook
+       req_url = '/api/v1/webhook/proxy/';
+       params = {
+         method: 'HEAD',
+         url: integration.href.startsWith('/') ? `${window.location.origin}${integration.href}`: integration.href,
+         ...request
+       };
+     }
+     axios.post(req_url, params)
+       .then(response => {
+           this.setState({
+             integrationStatuses: {
+               ...this.state.integrationStatuses,
+               [this.key(integration)]: {
+                 ...this.state.integrationStatuses[this.key(integration)],
+                 is_loaded: true,
+                 loading: false,
+                 error: null,
+                 statusText: null,
+                 data: response.data,
+               },
+             }
+           });
+         })
+         .catch(error => {
+           const statusText = !!error.response ? error.response.statusText : "Network Error"
+           console.log("[update] Error:", error.response)
+           this.setState({
+             integrationStatuses: {
+               ...this.state.integrationStatuses,
+               [this.key(integration)]: {
+                 ...this.state.integrationStatuses[this.key(integration)],
+                 is_loaded: true,
+                 loading: false,
+                 error: (!!ignore_failure || statusText.includes("METHOD NOT ALLOWED")) ? null : error,
+                 statusText,
+                 data: error.response?.data,
+               },
+             }
+           });
+         });
+   })
+  }
+
   render() {
+    const integrationProps = {
+      integrationStatuses: this.state.integrationStatuses,
+      triggerIntegration: this.triggerIntegration,
+      startUpdateIntegrationStatuses: this.startUpdateIntegrationStatuses,
+      stopUpdateIntegrationStatuses: this.stopUpdateIntegrationStatuses,
+    };
+
     return <Sider className={`${Classes.DARK} ${Classes.NAVBAR}`} style={{padding: '0px!important', overflowX: 'hidden', overflowY: 'auto'}}>
       <ul className={Classes.LARGE} style={{'listStyle': 'none', padding: '0px'}}>
         <Navbar.Heading style={{paddingLeft: '15px', display: 'flex', 'justifyContent': 'space-around'}}>
@@ -285,6 +560,7 @@ class AppSider extends React.Component {
             project_data={this.props.project_data}
             dispatch={this.props.dispatch}
             user={this.props.user}
+            {...integrationProps}
           />}
         {window.location.pathname.includes('/commit/')  &&
           <ProjectSideResults
@@ -301,6 +577,7 @@ class AppSider extends React.Component {
             filter={this.props.filter}
             ref_filter={this.props.ref_filter}
             ref_project={this.props.ref_project}
+            {...integrationProps}
           />}
       </ul>
     </Sider>
