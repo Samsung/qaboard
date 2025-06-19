@@ -1,10 +1,11 @@
 import qs from "qs";
-
-
+import { getSyncPreferences } from "../utils/dynamicOptions";
 
 const controls_defaults = qatools_config => {
   let state_controls = {
     show: {},
+    dynamic_options: {},
+    dynamic_options_sync: getSyncPreferences(),
   };
   if (!!qatools_config && !!qatools_config.outputs) {
     let controls = qatools_config.outputs.controls || [];

@@ -10,13 +10,16 @@ import {
   Card,
   Divider,
   InputGroup,
+  Slider,
+  Tag,
+  Tooltip,
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
 
 const PanelContainer = styled.div`
   position: fixed;
   right: ${props => props.isExpanded ? 0 : -300}px;
-  top: 60%;
+  top: 65%;
   transform: translateY(-50%);
   width: 320px;
   max-height: 80vh;
@@ -43,7 +46,7 @@ const PanelContainer = styled.div`
 const ToggleButton = styled(Button)`
   position: fixed;
   right: ${props => props.isExpanded ? 320 : 0}px;
-  top: 60%;
+  top: 65%;
   transform: translateY(-50%);
   border-radius: 4px 0 0 4px;
   height: 64px;
@@ -135,6 +138,11 @@ const FloatingControlsPanel = ({
   onUpdate,
   has_tuning,
   tuned_params,
+  dynamic_options = {},
+  onUpdateDynamicOption = () => {},
+  onToggleDynamicOptionSync = () => {},
+  visualization_stats = { total_visualizations: 0, disabled_visualizations: 0, missing_files_count: 0 },
+  visualizations_with_files = new Set(),
 }) => {
   // Get initial panel state from localStorage, default to open
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -144,11 +152,13 @@ const FloatingControlsPanel = ({
   
   const [expandedSections, setExpandedSections] = useState({
     visualizations: true,
+    dynamic_options: true,
     sorting: true,
     metrics: false,
   });
   
   const [visualizationFilter, setVisualizationFilter] = useState("");
+  const [dynamicOptionsFilter, setDynamicOptionsFilter] = useState("");
 
   // Save panel state to localStorage when it changes
   useEffect(() => {
@@ -164,6 +174,34 @@ const FloatingControlsPanel = ({
 
   const show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy');
   const maybe_diff = visualizations.some(v => is_image(v));
+
+  // Helper function to check if a visualization is currently enabled
+  const isVisualizationEnabled = (view) => {
+    // A visualization is enabled if:
+    // 1. It's not default_hidden AND user hasn't explicitly disabled it, OR
+    // 2. User has explicitly enabled it (regardless of default_hidden)
+    return (!view.default_hidden && controls.show?.[view.name] !== false) || 
+           (controls.show?.[view.name] === true);
+  };
+
+  // Calculate visualization stats
+  const totalVisualizations = visualizations.length;
+  const enabledVisualizations = visualizations.filter(isVisualizationEnabled);
+  const hiddenVisualizations = totalVisualizations - enabledVisualizations.length;
+  
+  // Calculate how many visualizations have files available
+  const visualizationsWithFiles = visualizations.filter(view => {
+    const viewName = view.name || view.path;
+    return visualizations_with_files.has(viewName);
+  }).length;
+  
+  const availableDynamicOptions = Object.entries(dynamic_options || {}).filter(([name, option]) => {
+    return option.views?.some(viewName => {
+      const view = visualizations.find(v => v.name === viewName);
+      if (!view) return false;
+      return isVisualizationEnabled(view);
+    });
+  });
 
   // Build visualization controls
   const visualizationControls = [];
@@ -186,10 +224,14 @@ const FloatingControlsPanel = ({
   // Add view toggle controls with filtering
   if (!selected_views.includes('bit-accuracy')) {
     visualizations.forEach((view, idx) => {
-      if (!view.default_hidden ||
-          controls.show === undefined || controls.show === null ||
-          controls.show[view.name] === undefined || controls.show[view.name] === null)
-        return;
+      // Only show visualizations that have files available
+      const viewName = view.name || view.path;
+      if (visualizations_with_files.size > 0 && !visualizations_with_files.has(viewName)) {
+        return; // Skip visualizations with no available files
+      }
+      
+      // Show toggles for all visualizations with files
+      // This allows users to hide/show any visualization, regardless of default state
       
       const label = view.label || view.name || view.path;
       if (visualizationFilter && !label.toLowerCase().includes(visualizationFilter.toLowerCase()))
@@ -198,7 +240,7 @@ const FloatingControlsPanel = ({
       visualizationControls.push(
         <StyledSwitch
           key={idx}
-          checked={controls.show[view.name]}
+          checked={isVisualizationEnabled(view)}
           onChange={onToggleShow(view.name)}
           label={label}
         />
@@ -242,6 +284,36 @@ const FloatingControlsPanel = ({
             Controls
           </SectionTitle>
 
+          {/* Enhanced Stats display - moved here for better visibility */}
+          {(hiddenVisualizations > 0 || totalVisualizations > 0 || visualizations_with_files.size > 0) && (
+            <div style={{ 
+              fontSize: 11, 
+              color: '#5c7080', 
+              marginBottom: 16, 
+              padding: 8, 
+              backgroundColor: '#f5f8fa', 
+              borderRadius: 3,
+              border: '1px solid #e1e8ed'
+            }}>
+              {visualizations_with_files.size > 0 && (
+                <div>📁 {visualizationsWithFiles}/{totalVisualizations} visualizations have files</div>
+              )}
+              {visualizationsWithFiles > 0 && (
+                <div style={{ marginTop: 2 }}>
+                  📊 {enabledVisualizations.filter(view => {
+                    const viewName = view.name || view.path;
+                    return visualizations_with_files.has(viewName);
+                  }).length}/{visualizationsWithFiles} available visualizations enabled
+                </div>
+              )}
+              {availableDynamicOptions.length > 0 && (
+                <div style={{ marginTop: 2 }}>
+                  🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Visualizations Section */}
           {show_viewer_controls && visualizationControls.length > 0 && (
             <>
@@ -274,6 +346,127 @@ const FloatingControlsPanel = ({
                         No visualizations match "{visualizationFilter}"
                       </div>
                     )
+                  )}
+                </SectionContent>
+              </Collapse>
+            </>
+          )}
+
+          {/* Dynamic Options Section */}
+          {dynamic_options && Object.keys(dynamic_options || {}).length > 0 && (
+            <>
+              <SectionHeader onClick={() => toggleSection('dynamic_options')}>
+                <Button
+                  icon={expandedSections.dynamic_options ? "chevron-down" : "chevron-right"}
+                  minimal
+                  small
+                  style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
+                />
+                <SectionLabel>Dynamic Options</SectionLabel>
+              </SectionHeader>
+              <Collapse isOpen={expandedSections.dynamic_options}>
+                <SectionContent>
+                  {Object.keys(dynamic_options).length > 3 && (
+                    <ControlGroup>
+                      <InputGroup
+                        leftIcon="search"
+                        placeholder="Filter options..."
+                        value={dynamicOptionsFilter}
+                        onChange={(e) => setDynamicOptionsFilter(e.target.value)}
+                        small
+                        style={{ marginBottom: 12 }}
+                      />
+                    </ControlGroup>
+                  )}
+                  {Object.entries(dynamic_options)
+                    .filter(([name, option]) => {
+                      // Filter by search text
+                      if (dynamicOptionsFilter && !name.toLowerCase().includes(dynamicOptionsFilter.toLowerCase())) {
+                        return false;
+                      }
+                      
+                      // Hide options for visualizations that are not displayed
+                      const isForDisplayedVisualization = option.views?.some(viewName => {
+                        const view = visualizations.find(v => v.name === viewName);
+                        if (!view) return false;
+                        return isVisualizationEnabled(view);
+                      });
+                      
+                      // If no views are specified, show the option anyway (fallback)
+                      return isForDisplayedVisualization || !option.views || option.views.length === 0;
+                    })
+                    .map(([name, option]) => {
+                      const isSync = controls.dynamic_options_sync?.[name] || false;
+                      const selectedValue = controls.dynamic_options?.[name]?.[0];
+                      
+                      if (!selectedValue || !option.values || option.values.length === 0) {
+                        return null;
+                      }
+
+                      const compatibilityInfo = option.compatible_outputs 
+                        ? `${option.compatible_outputs.length} output${option.compatible_outputs.length !== 1 ? 's' : ''}` 
+                        : 'all outputs';
+
+                      return (
+                        <ControlGroup key={name}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                            <ControlLabel style={{ marginBottom: 0, marginRight: 8, flex: 1 }}>
+                              {name}
+                            </ControlLabel>
+                            <Tooltip content={isSync ? "Synced across all outputs" : "Local to each output"}>
+                              <Button
+                                icon={isSync ? "link" : "unlink"}
+                                minimal
+                                small
+                                intent={isSync ? Intent.SUCCESS : Intent.NONE}
+                                onClick={() => onToggleDynamicOptionSync(name)}
+                                style={{ minHeight: 20, minWidth: 20 }}
+                              />
+                            </Tooltip>
+                          </div>
+                          <div style={{ fontSize: 10, color: '#5c7080', marginBottom: 4 }}>
+                            Available in {compatibilityInfo}
+                          </div>
+                          {option.type === 'slider' ? (
+                            <Slider
+                              value={parseFloat(selectedValue)}
+                              min={option.min}
+                              max={option.max}
+                              onChange={(value) => {
+                                const rawValue = option.toRaw?.[value] || value;
+                                onUpdateDynamicOption(name, rawValue);
+                              }}
+                              labelStepSize={Math.pow(10, Math.floor(Math.log10(option.max - option.min)))}
+                              showTrackFill
+                              disabled={!isSync}
+                            />
+                          ) : (
+                            <HTMLSelect
+                              value={selectedValue}
+                              onChange={(e) => onUpdateDynamicOption(name, e.target.value)}
+                              fill
+                              small
+                              disabled={!isSync}
+                            >
+                              {option.values.map(value => (
+                                <option key={value} value={value}>{value}</option>
+                              ))}
+                            </HTMLSelect>
+                          )}
+                        </ControlGroup>
+                      );
+                    })}
+                  {Object.keys(dynamic_options).length === 0 && (
+                    <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                      No dynamic options found
+                    </div>
+                  )}
+                  {dynamicOptionsFilter && Object.entries(dynamic_options).filter(([name]) => 
+                    name.toLowerCase().includes(dynamicOptionsFilter.toLowerCase())
+                  ).length === 0 && (
+                    <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                      No options match "{dynamicOptionsFilter}"
+                    </div>
                   )}
                 </SectionContent>
               </Collapse>

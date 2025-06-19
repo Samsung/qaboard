@@ -36,6 +36,13 @@ import { is_image } from "./viewers/images/utils"
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { match_query } from "./utils";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
+import { 
+  parseVisualizationOptions, 
+  mergeCompatibleOptions, 
+  setSyncPreferences,
+  generateViewPaths
+} from "./utils/dynamicOptions";
+import { matchPath } from 'react-router';
 
 import {
 	projectSelector,
@@ -56,6 +63,14 @@ class CiCommitResults extends Component {
     // we initialize optionnal controls with their defaults
     this.state = {
       controls: controls_defaults(this.props.config),
+      global_dynamic_options: {},
+      registered_outputs: new Set(),
+      visualizations_with_files: new Set(), // Track which visualizations have files available
+      visualization_stats: {
+        total_visualizations: 0,
+        disabled_visualizations: 0,
+        missing_files_count: 0,
+      },
     };
   }
 
@@ -68,11 +83,23 @@ class CiCommitResults extends Component {
   }
 
   toggle_show = name => () => {
+    const currentValue = this.state.controls.show?.[name];
+    let newValue;
+    
+    // Handle three-state toggle: undefined -> true -> false -> true -> ...
+    if (currentValue === undefined) {
+      newValue = true;  // Enable explicitly
+    } else if (currentValue === true) {
+      newValue = false; // Disable explicitly  
+    } else {
+      newValue = true;  // Re-enable
+    }
+    
     const controls = {
         ...this.state.controls,
         show: {
           ...this.state.controls.show,          
-          [name]: !this.state.controls.show[name],
+          [name]: newValue,
         }
     }
     this.setState({controls}, updateQueryUrl(this.props.history, controls));
@@ -127,6 +154,149 @@ class CiCommitResults extends Component {
     }
   };
 
+  // Check which visualizations have files available in a manifest
+  checkVisualizationsWithFiles = (manifest) => {
+    const config = this.props.config || {};
+    const outputs = config.outputs || {};
+    const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])];
+    const manifestPaths = Object.keys(manifest || {});
+    
+    const visualizationsWithFiles = new Set();
+    
+    views.forEach(view => {
+      if (!view.path) return;
+      
+      // For simple paths (no patterns), check direct existence
+      if (!view.path.includes(':') && !view.path.includes('(')) {
+        if (manifestPaths.includes(view.path)) {
+          visualizationsWithFiles.add(view.name || view.path);
+        }
+        return;
+      }
+      
+      // For pattern paths, use the same logic as options parsing
+      const hasMatchingFile = manifestPaths.some(path => {
+        try {
+          const match = matchPath(path, { path: view.path });
+          return match !== null && match !== undefined;
+        } catch (error) {
+          return false;
+        }
+      });
+      
+      if (hasMatchingFile) {
+        visualizationsWithFiles.add(view.name || view.path);
+      }
+    });
+    
+    return visualizationsWithFiles;
+  };
+
+  // Dynamic options management with performance optimization
+  registerOutputOptions = (outputId, outputOptions, manifest) => {
+    // Skip if already registered with same options (performance optimization)
+    if (this.state.registered_outputs.has(outputId)) {
+      // Still update visualizations_with_files if we have a new manifest
+      if (manifest) {
+        const newVisualizationsWithFiles = this.checkVisualizationsWithFiles(manifest);
+        if (newVisualizationsWithFiles.size > 0) {
+          this.setState(prevState => ({
+            visualizations_with_files: new Set([
+              ...prevState.visualizations_with_files,
+              ...newVisualizationsWithFiles
+            ])
+          }));
+        }
+      }
+      return;
+    }
+    
+    this.setState(prevState => {
+      const newRegisteredOutputs = new Set(prevState.registered_outputs);
+      newRegisteredOutputs.add(outputId);
+      
+      // Check which visualizations have files in this manifest
+      const newVisualizationsWithFiles = manifest ? this.checkVisualizationsWithFiles(manifest) : new Set();
+      const updatedVisualizationsWithFiles = new Set([
+        ...prevState.visualizations_with_files,
+        ...newVisualizationsWithFiles
+      ]);
+      
+      // Store this output's options for future merging
+      const outputOptionsStore = {
+        ...prevState.global_dynamic_options,
+        [outputId]: outputOptions
+      };
+      
+      // Always recompute for first 50 outputs to ensure options appear quickly
+      // Then only recompute periodically for performance
+      const shouldRecompute = newRegisteredOutputs.size <= 50 || newRegisteredOutputs.size % 20 === 0;
+      
+      let mergedOptions = prevState.global_dynamic_options;
+      
+      if (shouldRecompute) {
+        // Collect all output options for merging  
+        const allOutputOptions = Array.from(newRegisteredOutputs).map(id => ({
+          output_id: id,
+          ...outputOptionsStore[id] || {}
+        }));
+        
+        mergedOptions = mergeCompatibleOptions(allOutputOptions);
+      }
+      
+      // Initialize synced options with defaults if not already set
+      const updatedControls = { ...prevState.controls };
+      Object.entries(mergedOptions).forEach(([name, option]) => {
+        if (!updatedControls.dynamic_options[name]) {
+          updatedControls.dynamic_options[name] = [option.defaultValue];
+        }
+        // Default new options to synced unless explicitly set otherwise
+        if (updatedControls.dynamic_options_sync[name] === undefined) {
+          updatedControls.dynamic_options_sync[name] = true;
+        }
+      });
+      
+      return {
+        registered_outputs: newRegisteredOutputs,
+        global_dynamic_options: mergedOptions,
+        controls: updatedControls,
+        visualizations_with_files: updatedVisualizationsWithFiles
+      };
+    });
+  };
+
+  updateDynamicOption = (name, value) => {
+    const controls = {
+      ...this.state.controls,
+      dynamic_options: {
+        ...this.state.controls.dynamic_options,
+        [name]: [value]
+      }
+    };
+    this.setState({ controls }, () => updateQueryUrl(this.props.history, controls));
+  };
+
+  toggleDynamicOptionSync = (name) => {
+    const newSyncState = !this.state.controls.dynamic_options_sync[name];
+    const updatedSync = {
+      ...this.state.controls.dynamic_options_sync,
+      [name]: newSyncState
+    };
+    
+    setSyncPreferences(updatedSync);
+    
+    const controls = {
+      ...this.state.controls,
+      dynamic_options_sync: updatedSync
+    };
+    
+    this.setState({ controls }, () => updateQueryUrl(this.props.history, controls));
+  };
+
+  updateVisualizationStats = (stats) => {
+    this.setState({ visualization_stats: stats });
+  };
+
   fetchCommits() {
     const { project, new_project, ref_project, new_commit_id, ref_commit_id, dispatch } = this.props
     dispatch(fetchCommit({project: new_project, id: new_commit_id, update_with_id: {project, commit: "new_commit_id"}}))
@@ -151,8 +321,28 @@ class CiCommitResults extends Component {
     const old_outputs = config_prev?.outputs;
 
     if (new_outputs !== old_outputs ) {
-      let controls = controls_defaults(config_curr)
-      this.setState({controls});
+      let newControls = controls_defaults(config_curr);
+      // Preserve existing dynamic options and sync preferences when config changes
+      newControls.dynamic_options = this.state.controls.dynamic_options || {};
+      newControls.dynamic_options_sync = this.state.controls.dynamic_options_sync || {};
+      
+      // Only reset registrations if the actual visualization config has meaningfully changed
+      // This prevents unnecessary flashing when just switching tabs within the same project
+      const prevVisualizationsConfig = JSON.stringify(old_outputs?.visualizations || []);
+      const currVisualizationsConfig = JSON.stringify(new_outputs?.visualizations || []);
+      
+      if (prevVisualizationsConfig !== currVisualizationsConfig) {
+        // True config change - reset and re-discover
+        this.setState({
+          controls: newControls,
+          registered_outputs: new Set(),
+          global_dynamic_options: {},
+          visualizations_with_files: new Set(),
+        });
+      } else {
+        // Just update controls without resetting registrations
+        this.setState({ controls: newControls });
+      }
     }
   }
 
@@ -394,6 +584,7 @@ class CiCommitResults extends Component {
                     controls={this.state.controls}
                     history={history}
                     dispatch={dispatch}
+                    onRegisterOutputOptions={this.registerOutputOptions}
                   />
               </Section>)}
 
@@ -427,6 +618,7 @@ class CiCommitResults extends Component {
                     controls={this.state.controls}
                     history={history}
                     dispatch={dispatch}
+                    onRegisterOutputOptions={this.registerOutputOptions}
                   />
                </Section>}
 
@@ -465,6 +657,11 @@ class CiCommitResults extends Component {
             onUpdate={this.update}
             has_tuning={has_tuning}
             tuned_params={tuned_params}
+            dynamic_options={this.state.global_dynamic_options}
+            onUpdateDynamicOption={this.updateDynamicOption}
+            onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
+            visualization_stats={this.state.visualization_stats}
+            visualizations_with_files={this.state.visualizations_with_files}
           />
         )}
       </Container>
