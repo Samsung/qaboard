@@ -187,9 +187,9 @@ export const generateViewPaths = (view, selectedOptions, manifests) => {
     );
     
     if (missingOptions) {
-      // Fall back to showing all matching paths from manifest instead of empty
+      // For single display, fall back to first matching path only
       const manifestPaths = Object.keys(manifests.new || {});
-      return manifestPaths.filter(path => {
+      const matchingPaths = manifestPaths.filter(path => {
         try {
           const match = matchPath(path, { path: view.path });
           return match !== null && match !== undefined;
@@ -197,6 +197,8 @@ export const generateViewPaths = (view, selectedOptions, manifests) => {
           return false;
         }
       });
+      // Return only first match for single display
+      return matchingPaths.length > 0 ? [matchingPaths[0]] : [];
     }
     
     const optionsSelected = relevantOptions.map(option => [

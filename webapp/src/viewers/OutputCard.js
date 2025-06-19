@@ -533,8 +533,16 @@ class OutputCard extends React.Component {
                       minimal
                       small
                       onClick={() => this.props.onToggleDynamicOptionSync(name)}
-                      style={{ minHeight: 20, minWidth: 20 }}
-                    />
+                      style={{ 
+                        minHeight: '16px', 
+                        minWidth: '16px',
+                        padding: '2px',
+                        opacity: 0.6,
+                        transition: 'opacity 0.2s ease-out'
+                      }}
+                    >
+                      unsynced
+                    </Button>
                   </Tooltip>
                 )}
               </div>
@@ -589,19 +597,102 @@ class OutputCard extends React.Component {
             }
             const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[path], this.state.manifests.manifests?.reference?.[path_ref])
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
-              {(paths.length > 1 || Object.keys(effectiveOptions).length > 0) && (
-                <div style={{ 
-                  fontSize: '12px', 
-                  color: '#5c7080', 
-                  marginBottom: '8px', 
-                  paddingBottom: '4px',
-                  borderBottom: '1px solid #e1e8ed',
-                  fontFamily: 'monospace',
-                  backgroundColor: '#f5f8fa',
-                  padding: '4px 8px',
-                  borderRadius: '3px'
-                }}>
-                  {path}
+              {(paths.length > 1 || (() => {
+                // Only show header if there are synced options relevant to this view
+                const { options: viewOptions } = parseVisualizationOptions([view]);
+                const relevantOptionNames = Object.values(viewOptions)
+                  .filter(option => option.views.includes(view.name))
+                  .map(option => option.name);
+                return Object.entries(effectiveOptions).some(([optionName]) => {
+                  const isSync = controls?.dynamic_options_sync?.[optionName];
+                  const isRelevant = relevantOptionNames.includes(optionName);
+                  return isSync && isRelevant;
+                });
+              })()) && (
+                <div 
+                  className="path-header"
+                  style={{ 
+                    fontSize: '12px', 
+                    color: '#5c7080', 
+                    marginBottom: '8px', 
+                    paddingBottom: '4px',
+                    borderBottom: '1px solid #e1e8ed',
+                    fontFamily: 'monospace',
+                    backgroundColor: '#f5f8fa',
+                    padding: '4px 8px',
+                    borderRadius: '3px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s ease-out'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e8f4f8';
+                    e.currentTarget.style.borderColor = '#bfccd6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f5f8fa';
+                    e.currentTarget.style.borderColor = '#e1e8ed';
+                  }}
+                >
+                  <span style={{ flex: 1, marginRight: '8px' }}>{path}</span>
+                  {Object.keys(effectiveOptions).length > 0 && (() => {
+                    // Get options that are relevant to this specific view
+                    const { options: viewOptions } = parseVisualizationOptions([view]);
+                    const relevantOptionNames = Object.values(viewOptions)
+                      .filter(option => option.views.includes(view.name))
+                      .map(option => option.name);
+                    
+                    // Filter to only synced options that are relevant to this view
+                    const relevantSyncedOptions = Object.entries(effectiveOptions)
+                      .filter(([optionName, value]) => {
+                        const isSync = controls?.dynamic_options_sync?.[optionName];
+                        const isRelevant = relevantOptionNames.includes(optionName);
+                        return isSync && isRelevant;
+                      });
+                    
+                    if (relevantSyncedOptions.length === 0) return null;
+                    
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {relevantSyncedOptions.map(([optionName, value]) => (
+                          <Tooltip 
+                            key={optionName}
+                            content={`Unsync "${optionName}" to control locally per output`}
+                            position="top"
+                          >
+                            <Button
+                              icon="unlink"
+                              minimal
+                              small
+                              onClick={() => this.props.onToggleDynamicOptionSync && this.props.onToggleDynamicOptionSync(optionName)}
+                              style={{ 
+                                minHeight: '16px', 
+                                minWidth: '16px',
+                                padding: '2px',
+                                opacity: 0.6,
+                                transition: 'opacity 0.2s ease-out'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.opacity = '1';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.opacity = '0.6';
+                              }}
+                            />
+                          </Tooltip>
+                        ))}
+                        <span style={{ 
+                          fontSize: '10px', 
+                          color: '#106ba3', 
+                          fontWeight: '500',
+                          marginLeft: '4px'
+                        }}>
+                          synced
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}

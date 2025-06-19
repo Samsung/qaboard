@@ -26,10 +26,18 @@ const PanelContainer = styled.div`
   max-height: 80vh;
   overflow-y: auto;
   z-index: 1000;
-  transition: right 0.3s ease-in-out;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   scrollbar-width: thin;
   scrollbar-color: rgba(0,0,0,0.2) transparent;
+
+  /* Subtle hover effect when collapsed */
+  ${props => !props.isExpanded && `
+    &:hover {
+      right: -295px;
+      box-shadow: 0 6px 25px rgba(0,0,0,0.2);
+    }
+  `}
 
   .bp4-html-select select {
     font-size: 12px;
@@ -53,18 +61,71 @@ const ToggleButton = styled(Button)`
   height: 64px;
   width: 40px;
   z-index: 1001;
-  transition: right 0.3s ease-in-out;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
   background-color: #394b59 !important;
   color: white !important;
   border: none !important;
   box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  overflow: hidden;
+
+  /* Subtle pulse animation to hint at interactivity */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+    transform: translateX(-100%);
+    transition: transform 2s ease-in-out;
+  }
+
+  /* Animate the shimmer effect periodically when collapsed */
+  ${props => !props.isExpanded && `
+    animation: subtlePulse 4s ease-in-out infinite;
+    
+    &::before {
+      animation: shimmer 4s ease-in-out infinite;
+    }
+  `}
 
   &:hover {
     background-color: #293742 !important;
+    width: ${props => props.isExpanded ? '40px' : '48px'};
+    height: ${props => props.isExpanded ? '64px' : '72px'};
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    right: ${props => props.isExpanded ? '320px' : '-4px'};
+    
+    /* Scale up the icon slightly */
+    .bp4-icon {
+      transform: scale(1.1);
+      transition: transform 0.2s ease-out;
+    }
   }
 
   &:focus {
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.3) !important;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.4) !important;
+  }
+
+  .bp4-icon {
+    transition: transform 0.2s ease-out;
+  }
+
+  @keyframes subtlePulse {
+    0%, 100% { 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15); 
+    }
+    50% { 
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1); 
+    }
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(-100%); }
+    51% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
   }
 `;
 
@@ -144,6 +205,7 @@ const FloatingControlsPanel = ({
   onToggleDynamicOptionSync = () => {},
   visualization_stats = { total_visualizations: 0, disabled_visualizations: 0, missing_files_count: 0 },
   visualizations_with_files = new Set(),
+  expandPanel = false,
 }) => {
   // Get initial panel state from localStorage, default to open
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -165,6 +227,17 @@ const FloatingControlsPanel = ({
   useEffect(() => {
     localStorage.setItem('controls-panel-expanded', JSON.stringify(isExpanded));
   }, [isExpanded]);
+
+  // Expand panel when requested from parent
+  useEffect(() => {
+    if (expandPanel) {
+      setIsExpanded(true);
+      setExpandedSections(prev => ({
+        ...prev,
+        dynamic_options: true
+      }));
+    }
+  }, [expandPanel]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -269,6 +342,22 @@ const FloatingControlsPanel = ({
 
   return (
     <>
+      {/* Invisible hover detection zone when collapsed */}
+      {!isExpanded && (
+        <div
+          style={{
+            position: 'fixed',
+            right: -10,
+            top: '60%',
+            transform: 'translateY(-50%)',
+            width: 20,
+            height: 120,
+            zIndex: 999,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+      
       {/* Toggle button */}
       <ToggleButton
         isExpanded={isExpanded}
@@ -406,31 +495,35 @@ const FloatingControlsPanel = ({
                         return null;
                       }
 
-                      const compatibilityInfo = option.compatible_outputs 
-                        ? `${option.compatible_outputs.length} output${option.compatible_outputs.length !== 1 ? 's' : ''}` 
-                        : 'all outputs';
-
                       return (
                         <ControlGroup key={name}>
                           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                             <ControlLabel style={{ marginBottom: 0, marginRight: 8, flex: 1 }}>
                               {name}
                             </ControlLabel>
-                            <Tooltip content={isSync ? "Synced across all outputs" : "Local to each output"}>
-                              <Button
-                                icon={isSync ? "link" : "unlink"}
-                                minimal
-                                small
-                                intent={isSync ? Intent.SUCCESS : Intent.NONE}
-                                onClick={() => onToggleDynamicOptionSync(name)}
-                                style={{ minHeight: 20, minWidth: 20 }}
-                              />
-                            </Tooltip>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Tooltip content={isSync ? "Click to unsync (make local to each output)" : "Click to sync across all outputs"}>
+                                <Button
+                                  icon="link"
+                                  minimal
+                                  small
+                                  intent={isSync ? Intent.SUCCESS : Intent.NONE}
+                                  onClick={() => onToggleDynamicOptionSync(name)}
+                                  style={{ minHeight: 20, minWidth: 20 }}
+                                />
+                              </Tooltip>
+                              <span style={{ 
+                                fontSize: '10px', 
+                                color: isSync ? '#0d8050' : '#5c7080',
+                                fontWeight: '500'
+                              }}>
+                                {isSync ? 'synced' : 'per-output'}
+                              </span>
+                            </div>
                           </div>
                           <div style={{ fontSize: 10, color: '#5c7080', marginBottom: 4 }}>
-                            Available in {compatibilityInfo}
                             {option.paths && option.paths.length > 0 && (
-                              <div style={{ marginTop: 2, fontStyle: 'italic' }}>
+                              <div style={{ fontStyle: 'italic' }}>
                                 Paths: {option.paths.slice(0, 3).join(', ')}
                                 {option.paths.length > 3 && ` +${option.paths.length - 3} more`}
                               </div>
