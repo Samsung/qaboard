@@ -253,7 +253,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             synced_filters[this.sync_key].filters.map(filter => {
                 // Create a container for each filter
                 var filterContainer = document.createElement('div');
-                filterContainer.style.marginBottom = '8px';
+                // filterContainer.style.marginBottom = '8px';
                 filterContainer.style.display = 'flex';
                 filterContainer.style.flexDirection = 'column';
                 filterContainer.style.gap = '6px';
