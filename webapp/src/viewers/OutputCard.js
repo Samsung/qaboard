@@ -18,6 +18,7 @@ import {
   Slider,
   HTMLSelect,
   Tooltip,
+  Button,
   Popover,
   Menu,
   MenuItem,
@@ -398,6 +399,7 @@ class OutputCard extends React.Component {
     this.setState({
       is_options_registered: true,
       is_loaded: true,
+      local_options: configuredOptions,
     });
   }
 
@@ -409,7 +411,12 @@ class OutputCard extends React.Component {
     
     Object.entries(this.state.local_options).forEach(([name, option]) => {
       if (!syncPrefs[name]) {
-        localOptions[name] = option;
+        // Ensure local options have a selected value (default if not set)
+        const selectedValue = option.selected || [option.defaultValue];
+        localOptions[name] = {
+          ...option,
+          selected: selectedValue
+        };
       }
     });
     
@@ -509,32 +516,52 @@ class OutputCard extends React.Component {
           const selectedValue = option.selected?.[0];
           if (!selectedValue) return <span key={option_idx} />;
           
-          if (option.type === 'slider') {
-            let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
-            return <div key={option_idx} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
-              <Slider
-                key={option_idx}
-                initialValue={parseFloat(selectedValue)}
-                value={parseFloat(selectedValue)}
-                min={option.min}
-                max={option.max}
-                onChange={this.setSelectedOption(name)}
-                labelStepSize={labelStepSize}
-                showTrackFill
-              />
-            </div>
-          } else {
-            return <div key={option_idx} title={option_label}>
-              {option.values.length > 0 && 
-                <HTMLSelect 
-                  disabled={option.values.length===1} 
-                  options={option.values} 
-                  value={selectedValue} 
-                  onChange={this.setSelectedOption(name)} 
+          return (
+            <div key={option_idx} style={{ 
+              marginBottom: '8px', 
+              padding: '8px', 
+              backgroundColor: '#f5f8fa', 
+              borderRadius: '3px', 
+              border: '1px solid #e1e8ed' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
+                {this.props.onToggleDynamicOptionSync && (
+                  <Tooltip content="Make this option synced across all outputs">
+                    <Button
+                      icon="link"
+                      minimal
+                      small
+                      onClick={() => this.props.onToggleDynamicOptionSync(name)}
+                      style={{ minHeight: 20, minWidth: 20 }}
+                    />
+                  </Tooltip>
+                )}
+              </div>
+              {option.type === 'slider' ? (
+                <Slider
+                  initialValue={parseFloat(selectedValue)}
+                  value={parseFloat(selectedValue)}
+                  min={option.min}
+                  max={option.max}
+                  onChange={this.setSelectedOption(name)}
+                  labelStepSize={Math.pow(10, Math.floor(Math.log10(option.max - option.min)))}
+                  showTrackFill
                 />
-              }
+              ) : (
+                option.values.length > 0 && (
+                  <HTMLSelect 
+                    disabled={option.values.length===1} 
+                    options={option.values} 
+                    value={selectedValue} 
+                    onChange={this.setSelectedOption(name)} 
+                    fill
+                    small
+                  />
+                )
+              )}
             </div>
-          }
+          );
         });
 
         // Generate paths using both synced and local options
@@ -562,7 +589,21 @@ class OutputCard extends React.Component {
             }
             const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[path], this.state.manifests.manifests?.reference?.[path_ref])
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
-              {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
+              {(paths.length > 1 || Object.keys(effectiveOptions).length > 0) && (
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: '#5c7080', 
+                  marginBottom: '8px', 
+                  paddingBottom: '4px',
+                  borderBottom: '1px solid #e1e8ed',
+                  fontFamily: 'monospace',
+                  backgroundColor: '#f5f8fa',
+                  padding: '4px 8px',
+                  borderRadius: '3px'
+                }}>
+                  {path}
+                </div>
+              )}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
               <OutputViewer
                 key={`${idx}-${path_idx}`}

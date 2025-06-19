@@ -15,6 +15,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
+import DynamicOptionControl from "./DynamicOptionControl";
 
 const PanelContainer = styled.div`
   position: fixed;
@@ -205,7 +206,9 @@ const FloatingControlsPanel = ({
 
   // Build visualization controls
   const visualizationControls = [];
-  
+
+  console.log("dynamic_options", dynamic_options)
+
   // Add image diff control if applicable
   if (maybe_diff) {
     visualizationControls.push(
@@ -426,33 +429,22 @@ const FloatingControlsPanel = ({
                           </div>
                           <div style={{ fontSize: 10, color: '#5c7080', marginBottom: 4 }}>
                             Available in {compatibilityInfo}
+                            {option.paths && option.paths.length > 0 && (
+                              <div style={{ marginTop: 2, fontStyle: 'italic' }}>
+                                Paths: {option.paths.slice(0, 3).join(', ')}
+                                {option.paths.length > 3 && ` +${option.paths.length - 3} more`}
+                              </div>
+                            )}
                           </div>
-                          {option.type === 'slider' ? (
-                            <Slider
-                              value={parseFloat(selectedValue)}
-                              min={option.min}
-                              max={option.max}
-                              onChange={(value) => {
-                                const rawValue = option.toRaw?.[value] || value;
-                                onUpdateDynamicOption(name, rawValue);
-                              }}
-                              labelStepSize={Math.pow(10, Math.floor(Math.log10(option.max - option.min)))}
-                              showTrackFill
-                              disabled={!isSync}
-                            />
-                          ) : (
-                            <HTMLSelect
-                              value={selectedValue}
-                              onChange={(e) => onUpdateDynamicOption(name, e.target.value)}
-                              fill
-                              small
-                              disabled={!isSync}
-                            >
-                              {option.values.map(value => (
-                                <option key={value} value={value}>{value}</option>
-                              ))}
-                            </HTMLSelect>
-                          )}
+                          <DynamicOptionControl
+                            name={name}
+                            option={option}
+                            selectedValue={selectedValue}
+                            onChange={(value) => onUpdateDynamicOption(name, value)}
+                            disabled={!isSync}
+                            small={true}
+                            showLabel={false}
+                          />
                         </ControlGroup>
                       );
                     })}

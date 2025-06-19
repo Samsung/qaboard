@@ -71,6 +71,7 @@ class CiCommitResults extends Component {
         disabled_visualizations: 0,
         missing_files_count: 0,
       },
+      expandFloatingPanel: false,
     };
   }
 
@@ -290,7 +291,21 @@ class CiCommitResults extends Component {
       dynamic_options_sync: updatedSync
     };
     
-    this.setState({ controls }, () => updateQueryUrl(this.props.history, controls));
+    // If we're syncing (not unsyncing), expand the floating panel
+    const expandPanel = newSyncState === true;
+    
+    this.setState({ 
+      controls, 
+      expandFloatingPanel: expandPanel 
+    }, () => {
+      updateQueryUrl(this.props.history, controls);
+      // Reset the expand trigger after a short delay
+      if (expandPanel) {
+        setTimeout(() => {
+          this.setState({ expandFloatingPanel: false });
+        }, 100);
+      }
+    });
   };
 
   updateVisualizationStats = (stats) => {
@@ -585,6 +600,7 @@ class CiCommitResults extends Component {
                     history={history}
                     dispatch={dispatch}
                     onRegisterOutputOptions={this.registerOutputOptions}
+                    onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
                   />
               </Section>)}
 
@@ -619,6 +635,7 @@ class CiCommitResults extends Component {
                     history={history}
                     dispatch={dispatch}
                     onRegisterOutputOptions={this.registerOutputOptions}
+                    onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
                   />
                </Section>}
 
@@ -662,6 +679,7 @@ class CiCommitResults extends Component {
             onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
             visualization_stats={this.state.visualization_stats}
             visualizations_with_files={this.state.visualizations_with_files}
+            expandPanel={this.state.expandFloatingPanel}
           />
         )}
       </Container>
