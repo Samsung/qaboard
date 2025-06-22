@@ -48,8 +48,6 @@ const UserMenuTrigger = styled.div`
 `;
 
 const UserDropdownMenu = styled.div`
-  min-width: 220px;
-  max-width: 280px;
   background: ${colors.surface};
   border: ${borders.width.thin} solid ${colors.border};
   border-radius: ${borders.radius.md};

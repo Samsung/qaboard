@@ -67,7 +67,7 @@ const SiderHeader = styled.div`
 `;
 
 const SiderSection = styled.div`
-    padding: ${spacing.contentPadding} ${spacing.md};
+    padding: ${spacing.contentPadding} ${spacing.xs} ${spacing.contentPadding} ${spacing.md};
     
     &:not(:last-child) {
         border-bottom: ${borders.width.thin} solid ${colors.borderLight};
@@ -288,15 +288,16 @@ const Sider = styled.div`
     overflow-y: auto;
     
     /* Responsive design */
-    ${breakpoints.up('laptop')} {
-        width: ${sidebar.width.default};
-        min-width: ${sidebar.width.default};
-    }
+    // cannot be enabled until we make sure we still export the correct sidebar_width
+    // ${breakpoints.up('laptop')} {
+    //     width: ${sidebar.width.default};
+    //     min-width: ${sidebar.width.default};
+    // }
     
-    ${breakpoints.up('wide')} {
-        width: ${sidebar.width.wide};
-        max-width: ${sidebar.width.wide};
-    }
+    // ${breakpoints.up('wide')} {
+    //     width: ${sidebar.width.wide};
+    //     max-width: ${sidebar.width.wide};
+    // }
     
     /* Link styling */
     a {
