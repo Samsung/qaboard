@@ -147,7 +147,7 @@ const EnhancedMenuItem = styled.div`
                 content: '' !important;
                 position: absolute !important;
                 left: -${spacing.contentPadding} !important;
-                top: 0 !important;
+                top: -2px !important;
                 bottom: 0 !important;
                 width: 3px !important;
                 height: 100% !important;
@@ -363,7 +363,7 @@ const Sider = styled.div`
                 display: block !important;
                 position: absolute !important;
                 left: 0 !important;
-                top: 0 !important;
+                top: -2px !important;
                 bottom: 0 !important;
                 width: 3px !important;
                 height: 100% !important;

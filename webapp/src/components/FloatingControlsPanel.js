@@ -403,11 +403,17 @@ const FloatingControlsPanel = ({
                   🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
                 </div>
               )}
+              {visualizationsWithFiles == 0 && (
+                  <div style={{ marginTop: 2 }}>
+                    🔲 No visualizations available
+                  </div>
+                )
+              }
             </div>
           )}
 
           {/* Visualizations Section */}
-          {show_viewer_controls && visualizationControls.length > 0 && (
+          {show_viewer_controls && visualizationsWithFiles > 0 && (
             <>
               <SectionHeader onClick={() => toggleSection('visualizations')}>
                 <Button
@@ -445,7 +451,7 @@ const FloatingControlsPanel = ({
           )}
 
           {/* Dynamic Options Section */}
-          {dynamic_options && Object.keys(dynamic_options || {}).length > 0 && (
+          {dynamic_options && availableDynamicOptions.length > 0 && (
             <>
               <SectionHeader onClick={() => toggleSection('dynamic_options')}>
                 <Button
