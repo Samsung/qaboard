@@ -11,7 +11,7 @@ import localForage from "localforage";
 
 import * as Sentry from "@sentry/react";
 
-import { composeWithDevTools } from 'redux-devtools-extension'
+import { composeWithDevTools } from 'redux-devtools-extension/developmentOnly'
 import loggerMiddleware from './middleware/logger'
 import monitorReducersEnhancer from './enhancers/monitorReducers'
 
@@ -48,7 +48,7 @@ export default function configureStore(preloadedState) {
   let middlewares = is_production ? [thunk] : [loggerMiddleware, thunk]
   let middlewareEnhancer = applyMiddleware(...middlewares)
   let enhancers = is_production ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
-  let composedEnhancers = is_production ? compose(...enhancers, sentryReduxEnhancer) : composeWithDevTools(...enhancers)
+  let composedEnhancers = (is_production || !window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__) ? compose(...enhancers, sentryReduxEnhancer) : composeWithDevTools(...enhancers)
 
   const persistedReducer = persistReducer(persistConfig, rootReducer)
   const store = createStore(persistedReducer, preloadedState, composedEnhancers)

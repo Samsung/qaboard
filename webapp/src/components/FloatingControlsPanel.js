@@ -25,7 +25,7 @@ const PanelContainer = styled.div`
   width: 320px;
   max-height: 80vh;
   overflow-y: auto;
-  z-index: 1000;
+  z-index: 19;
   transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   scrollbar-width: thin;
@@ -39,15 +39,15 @@ const PanelContainer = styled.div`
     }
   `}
 
-  .bp4-html-select select {
+  .bp5-html-select select {
     font-size: 12px;
   }
 
-  .bp4-control {
+  .bp5-control {
     font-size: 12px;
   }
 
-  .bp4-control .bp4-control-indicator {
+  .bp5-control .bp5-control-indicator {
     margin-right: 8px;
   }
 `;
@@ -98,7 +98,7 @@ const ToggleButton = styled(Button)`
     right: ${props => props.isExpanded ? '320px' : '-4px'};
     
     /* Scale up the icon slightly */
-    .bp4-icon {
+    .bp5-icon {
       transform: scale(1.1);
       transition: transform 0.2s ease-out;
     }
@@ -108,7 +108,7 @@ const ToggleButton = styled(Button)`
     box-shadow: 0 0 0 2px rgba(255,255,255,0.4) !important;
   }
 
-  .bp4-icon {
+  .bp5-icon {
     transition: transform 0.2s ease-out;
   }
 
@@ -352,7 +352,7 @@ const FloatingControlsPanel = ({
             transform: 'translateY(-50%)',
             width: 20,
             height: 120,
-            zIndex: 999,
+            zIndex: 19,
             pointerEvents: 'none',
           }}
         />
