@@ -39,7 +39,6 @@ class LsfPriority:
 class LsfOptions():
   project: Optional[str] = None
   queue: Optional[str] = None
-  fast_queue: Optional[str] = None
   priority: int = LsfPriority.NORMAL
   max_threads: int = 0
   max_memory: int = 0 #in MB
@@ -100,11 +99,6 @@ class LsfRunner(BaseRunner):
     """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
     """
-    ## we give up on fast queue, since it causes issues when users set a custom queue in their
-    # batches.yaml and it doens't get picked up during tuning. Also too difficult to explain, too many surprises,
-    # for a limited benefit
-    # fast_queue = self.options.fast_queue if self.options.fast_queue else self.options.queue
-    # queue = self.options.queue if blocking else fast_queue
     queue = self.options.queue
 
     # In our cluster, we have filessytem sync issues, and LSF does't print live logs.
