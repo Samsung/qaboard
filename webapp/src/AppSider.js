@@ -9,7 +9,6 @@ import { colors, spacing, typography, borders, shadows, transitions, breakpoints
 
 import {
   Classes,
-  Divider,
   Intent,
   MenuItem,
   MenuDivider,
@@ -46,7 +45,7 @@ const SiderHeader = styled.div`
     border-bottom: ${borders.width.thin} solid ${colors.border};
     background: ${colors.surface};
     
-    .bp4-navbar-heading {
+    .bp5-navbar-heading {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -68,7 +67,7 @@ const SiderHeader = styled.div`
 `;
 
 const SiderSection = styled.div`
-    padding: ${spacing.contentPadding} ${spacing.md};
+    padding: ${spacing.contentPadding} ${spacing.xs} ${spacing.contentPadding} ${spacing.md};
     
     &:not(:last-child) {
         border-bottom: ${borders.width.thin} solid ${colors.borderLight};
@@ -91,9 +90,9 @@ const SiderSection = styled.div`
 const ProjectAvatar = styled.div`
     display: flex;
     align-items: center;
-    gap: ${spacing.md};
-    padding: ${spacing.md} 0;
-    margin-bottom: ${spacing.xl};
+    gap: ${spacing.xs};
+    padding: ${spacing.xs} 0;
+    margin-bottom: 0px;
     font-weight: ${typography.medium};
     font-size: ${typography.base};
     color: ${colors.textPrimary};
@@ -112,11 +111,11 @@ const ProjectAvatar = styled.div`
 
 const EnhancedMenuItem = styled.div`
     /* Higher specificity to override Blueprint styles */
-    .bp4-menu-item,
-    .bp4-menu-item.bp4-menu-item {
+    .bp5-menu-item,
+    .bp5-menu-item.bp5-menu-item {
         border-radius: ${borders.radius.md} !important;
         margin-bottom: ${spacing.xs} !important;
-        padding: ${spacing.md} ${spacing.lg} !important;
+        padding: ${spacing.xs} ${spacing.md} !important;
         transition: all ${transitions.hover} !important;
         position: relative !important;
         border: none !important;
@@ -133,19 +132,22 @@ const EnhancedMenuItem = styled.div`
         }
         
         /* Active state - more specific selectors */
-        &.bp4-intent-primary,
+        &.bp5-intent-primary,
         &[aria-selected="true"],
-        &.bp4-active,
+        &.bp5-active,
         &[active="true"] {
             background: ${colors.active} !important;
             color: ${colors.primary} !important;
             font-weight: ${typography.medium} !important;
-            
+        }
+        &[aria-selected="true"],
+        &.bp5-active,
+        &[active="true"] {
             &::before {
                 content: '' !important;
                 position: absolute !important;
                 left: -${spacing.contentPadding} !important;
-                top: 0 !important;
+                top: -2px !important;
                 bottom: 0 !important;
                 width: 3px !important;
                 height: 100% !important;
@@ -155,28 +157,28 @@ const EnhancedMenuItem = styled.div`
         }
         
         /* Icon styling */
-        .bp4-icon {
+        .bp5-icon {
             margin-right: ${spacing.md} !important;
             opacity: 0.8 !important;
             color: inherit !important;
             transition: all ${transitions.hover} !important;
         }
         
-        &:hover .bp4-icon {
+        &:hover .bp5-icon {
             opacity: 1 !important;
             transform: scale(1.1) !important;
         }
         
         /* Label styling */
-        .bp4-menu-item-label {
+        .bp5-menu-item-label {
             opacity: 0.7 !important;
             color: inherit !important;
         }
     }
     
     /* Also target direct MenuItem children */
-    > .bp4-menu-item,
-    .bp4-menu-item-content {
+    > .bp5-menu-item,
+    .bp5-menu-item-content {
         color: inherit !important;
     }
 `;
@@ -234,7 +236,7 @@ const StatusBadge = styled.span`
     
     @keyframes pulse {
         0%, 100% { opacity: 1; }
-        50% { opacity: 0.6; }
+        50% { opacity: 0.8; }
     }
 `;
 
@@ -286,15 +288,16 @@ const Sider = styled.div`
     overflow-y: auto;
     
     /* Responsive design */
-    ${breakpoints.up('laptop')} {
-        width: ${sidebar.width.default};
-        min-width: ${sidebar.width.default};
-    }
+    // cannot be enabled until we make sure we still export the correct sidebar_width
+    // ${breakpoints.up('laptop')} {
+    //     width: ${sidebar.width.default};
+    //     min-width: ${sidebar.width.default};
+    // }
     
-    ${breakpoints.up('wide')} {
-        width: ${sidebar.width.wide};
-        max-width: ${sidebar.width.wide};
-    }
+    // ${breakpoints.up('wide')} {
+    //     width: ${sidebar.width.wide};
+    //     max-width: ${sidebar.width.wide};
+    // }
     
     /* Link styling */
     a {
@@ -316,7 +319,7 @@ const Sider = styled.div`
     }
     
     /* Global overrides for Blueprint menu items */
-    .bp4-menu-item {
+    .bp5-menu-item {
         color: ${colors.textSecondary} !important;
         background: transparent !important;
         border-radius: ${borders.radius.md} !important;
@@ -348,8 +351,8 @@ const Sider = styled.div`
             transform: translateX(2px);
         }
         
-        &.bp4-intent-primary,
-        &.bp4-active {
+        &.bp5-intent-primary,
+        &.bp5-active {
             background-color: ${colors.active} !important;
             color: ${colors.primary} !important;
             font-weight: ${typography.medium} !important;
@@ -360,7 +363,7 @@ const Sider = styled.div`
                 display: block !important;
                 position: absolute !important;
                 left: 0 !important;
-                top: 0 !important;
+                top: -2px !important;
                 bottom: 0 !important;
                 width: 3px !important;
                 height: 100% !important;
@@ -370,19 +373,19 @@ const Sider = styled.div`
             }
         }
         
-        .bp4-icon {
+        .bp5-icon {
             color: inherit !important;
             opacity: 0.8;
             transition: all ${transitions.hover};
             margin-right: ${spacing.md} !important;
         }
         
-        &:hover .bp4-icon {
+        &:hover .bp5-icon {
             opacity: 1;
             transform: scale(1.05);
         }
         
-        .bp4-menu-item-label {
+        .bp5-menu-item-label {
             color: inherit !important;
             opacity: 0.7;
         }
@@ -500,7 +503,7 @@ class ProjectSideCommitList extends React.Component {
       {!is_committer && <>
         <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
         <MenuItem href={`/${project}/history/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
-        <MenuDivider />
+        <SectionDivider />
         <IntegrationsMenus
           single_menu
           integrations={integrations}
@@ -899,7 +902,7 @@ class AppSider extends React.Component {
       <Sider className={`${Classes.DARK}`}>
         {/* Header Section */}
         <SiderHeader>
-          <Navbar.Heading className="bp4-navbar-heading">
+          <Navbar.Heading className="bp5-navbar-heading">
             <Link to="/">
               <strong>QA-Board</strong>
             </Link>

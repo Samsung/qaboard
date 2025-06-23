@@ -223,7 +223,7 @@ class IntegrationsMenus extends React.Component {
           {integrations_outside_menu.map(render_integration)}
           {level === 0 && <MenuItem
             icon="send-to"
-            text="Actions & Links"
+            text="Integrations"
             popoverProps={{
               usePortal: true,
               hoverCloseDelay: 2000,
