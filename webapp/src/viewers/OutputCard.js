@@ -18,6 +18,7 @@ import {
   Slider,
   HTMLSelect,
   Tooltip,
+  Button,
   Popover,
   Menu,
   MenuItem,
@@ -35,6 +36,13 @@ import { updateSelected } from "../actions/selected";
 import { linux_to_windows, is_same_data } from '../utils'
 import { is_image } from "./images/utils"
 import { toaster } from "../toaster"
+import { 
+  parseVisualizationOptions, 
+  calculateOptionValues, 
+  configureOption, 
+  generateViewPaths,
+  isOptionCompatible 
+} from "../utils/dynamicOptions"
 
 
 // ES2018.....
@@ -183,8 +191,8 @@ class OutputCard extends React.Component {
         new: CancelToken.source(),
         reference: CancelToken.source(),
       },
-      options: {
-      }
+      local_options: {},
+      is_options_registered: false
     }
   }
 
@@ -307,151 +315,138 @@ class OutputCard extends React.Component {
       }
     }
     if (prevState.manifests.new !== this.state.manifests.new) {
-      this.updateOptions()
+      this.registerOptions()
     }
   }
 
   setSelectedOption = name => e => {
+    // For local options only (non-synced options)
     let selected = !!e.target ? e.target.value : e;
-    // console.log(typeof(selected), selected)
-    if (this.state.options[name].type === 'slider') {
-      selected = this.state.options[name].to_raw[selected]
+    const localOptions = this.getLocalOptions();
+    if (localOptions[name]?.type === 'slider') {
+      selected = localOptions[name].to_raw[selected]
     }
     this.setState({
-      options: {
-        ...this.state.options,
+      local_options: {
+        ...this.state.local_options,
         [name]: {
-          ...this.state.options[name],
+          ...this.state.local_options[name],
           selected: [selected],
         }
       }
     })
   }
 
-  updateOptions() {
+  registerOptions() {
     if (this.state.manifests.new === undefined || this.state.manifests.new === null) {
-      this.setState({
-        is_loaded: true,
-      })
+      this.setState({ is_loaded: true })
       return;
     }
 
-    const outputs = this.props.config.outputs || {}
-    const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])]; // we allow both for some leeway with half updated projects
-    var options = {}
-    let parse_errors = []
-    views.forEach((view, idx) => {
-      if (view.path === undefined) return
-      // FIXME: be glob-friendly? view.path.replace(/[^\.]\*/g, '(.*)')
-      let view_options
-      try {
-        view_options = parse(view.path)
-      } catch (error) {
-        parse_errors.push({path: view.path, message:error.message})
-        return
-      }
-      view_options.forEach(token => {
-        // console.log(token)
-        if (token.name === undefined) // static part
-          return
-        if (Number.isInteger(token.name)) {
-          // We don't sync option selection for unnamed groups,
-          // and need to give each a unique name
-          token.unnamed_group = token.name
-          token.name = `${idx}-${token.name}`
-        }
-        if (options[token.name] === undefined)
-          options[token.name] = { views: [], paths: [] }
-        options[token.name] = { ...options[token.name], ...token }
-        options[token.name].views.push(view.name)
-        options[token.name].paths.push(view.path)
-      })
-    })
+    if (this.state.is_options_registered) {
+      this.setState({ is_loaded: true })
+      return;
+    }
+    
+    if (!this.props.onRegisterOutputOptions) {
+      // Fallback to old behavior when prop is not provided
+      this.setState({ is_loaded: true })
+      return;
+    }
 
-    if (parse_errors.length > 0) {
-      this.setState((previous_state, props) => ({
+    // Make sure manifest has content before registering
+    const manifestPaths = Object.keys(this.state.manifests.new);
+    if (manifestPaths.length === 0) {
+      this.setState({ is_loaded: true })
+      return;
+    }
+
+    const outputId = this.props.output_new.id;
+    const outputs = this.props.config.outputs || {}
+    const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])];
+    
+    const { options, parseErrors } = parseVisualizationOptions(views);
+    
+    if (parseErrors.length > 0) {
+      this.setState((previous_state) => ({
         error: {
           ...previous_state.error,
-          "parse": parse_errors,
+          "parse": parseErrors,
         }
       }))
     } else if (!!this.state.error?.parse) {
-      this.setState((previous_state, props) => ({
+      this.setState((previous_state) => ({
         error: {
           ...previous_state.error,
           "parse": undefined,
         }
       }))
     }
-    const selected = {}
-    const paths = Object.keys(this.state.manifests.new)
-    // TODO: Ideally, as we iterate over options, we should select values
-    // and filter the remaining `paths` according to those choices
-    // this way we're sure to get possible values.
-    // Likewise, when users select options, we should update the list of available options
-    // But at the same time, doing this can hide options values...
-    // At least for init we could make a valid selection.
-    // http://qa:3000/CIS_ISP_Algorithms/motiondetection/commit/e4b8ad883dc07
+
+    // Calculate values and configure options for this output
+    const configuredOptions = {};
+    
     Object.entries(options).forEach(([name, option]) => {
-      // console.log(name, option)
-      option.values = new Set()
-      paths.forEach(path => {
-        option.paths.forEach(option_path => {
-          // first we check if we have a match, without any selection
-          const match = matchPath(path, { path: option_path }) // they do their own caching
-          if (match === null || match === undefined) return;
-          // console.log('>', path, match)
-
-          // Then something like...
-          // const matches_with_selection = !!compilePath(option_path)(selected)
-          //    ? do we need to provide default values for all groups? if yes things are more complicated...
-          //    -> we can use only the named capture groups since we don't sync the others
-          //       this way we also don't need to worry about the origin token names...
-          let name_ = option.unnamed_group !== undefined ? option.unnamed_group : name;
-          option.values.add(match.params[name_])          
-        })
-      })
-      option.values = Array.from(option.values.values()).sort( (a, b) => a.localeCompare(b) )
-  
-      let selected_value = undefined
-      const has_different_values = option.values.length > 1
-      const all_is_integer = has_different_values && option.values.length > 0 && option.values.every(v => Number.isInteger(Number(v)))
-      const all_numbers = all_is_integer && option.values.every(v => !isNaN(parseFloat(v)))
-      if (all_is_integer) {
-        option.to_raw = {}
-        option.min = Infinity
-        option.max = -Infinity
-        option.numeric_values = new Set()
-        option.values.forEach(v => {
-          const v_num = parseFloat(v);
-          if (v_num < option.min) option.min = v_num;
-          if (v_num > option.max) option.max = v_num;
-          option.to_raw[v_num] = v
-          option.numeric_values.add(v_num)
-        })
-        selected_value = option.to_raw[option.max]
-
-        const range = [...Array(option.max - option.min + 1).keys()].map(v => v + option.min);
-        const sequential = range.every(idx => option.numeric_values.has(idx))
-        if(sequential)
-          option.type = 'slider'
-      } else {
-        selected_value = option.values[all_numbers ? option.values.length-1 : 0]
+      const values = calculateOptionValues(option, manifestPaths);
+      if (values.length > 0) {
+        configuredOptions[name] = configureOption(option, values);
       }
-      let current_option = this.state.options?.[option.name] ?? {}
-      const is_without_previous_value = current_option.selected == null  
-      if (is_without_previous_value) {
-        selected[option.name] = [selected_value]
-        option.selected = [selected_value]
-      } else {
-        selected[option.name] = current_option.selected
-        option.selected = current_option.selected
-      }
-    })
+    });
+
+    // Register with parent component for syncing
+    this.props.onRegisterOutputOptions(outputId, configuredOptions, this.state.manifests.new);
+    
     this.setState({
-      options,
+      is_options_registered: true,
       is_loaded: true,
-    })
+      local_options: configuredOptions,
+    });
+  }
+
+  getLocalOptions() {
+    // Get options that are not synced - these are managed locally
+    const { controls } = this.props;
+    const syncPrefs = controls?.dynamic_options_sync || {};
+    const localOptions = {};
+    
+    Object.entries(this.state.local_options).forEach(([name, option]) => {
+      if (!syncPrefs[name]) {
+        // Ensure local options have a selected value (default if not set)
+        const selectedValue = option.selected || [option.defaultValue];
+        localOptions[name] = {
+          ...option,
+          selected: selectedValue
+        };
+      }
+    });
+    
+    return localOptions;
+  }
+
+  getEffectiveOptions() {
+    // Combine synced global options with local options
+    const { controls } = this.props;
+    const globalOptions = controls?.dynamic_options || {};
+    const syncPrefs = controls?.dynamic_options_sync || {};
+    const localOptions = this.getLocalOptions();
+    
+    const effectiveOptions = {};
+    
+    // Add synced options
+    Object.entries(globalOptions).forEach(([name, value]) => {
+      if (syncPrefs[name] && Array.isArray(value) && value.length > 0) {
+        effectiveOptions[name] = value;
+      }
+    });
+    
+    // Add local options
+    Object.entries(localOptions).forEach(([name, option]) => {
+      if (option.selected && option.selected.length > 0) {
+        effectiveOptions[name] = option.selected;
+      }
+    });
+    
+    return effectiveOptions;
   }
 
 
@@ -483,61 +478,103 @@ class OutputCard extends React.Component {
       // we display the input for each option before the first visualization that uses it
       let already_shown_options = {}
 
-      var controls = this.props.controls || {};
-      var views = config.outputs?.visualizations || [];
+      var controls = this.props.controls ?? {};
+      var views = config.outputs?.visualizations ?? [];
       let viewers = !viewable ? null : views.map((view, idx) => {
-        let hidden = view.default_hidden === true && !(!!controls.show && controls.show[view.name] === true)
+        // Use same logic as FloatingControlsPanel for consistency
+        const isEnabled = (!view.default_hidden && controls.show?.[view.name] !== false) || 
+                         (controls.show?.[view.name] === true);
+        let hidden = !isEnabled;
+        console.log(`Rendering view ${view.name} - hidden: ${hidden}`)
         if (hidden)
           return <span key={idx} />
 
-        const view_options = Object.values(this.state.options).filter(option => option.views.includes(view.name))
-        if (view_options.some(o => o.selected ===  undefined || o.selected[0] === undefined || o.selected[0] === null))
-          return <span key={idx} />
+        // Get effective options (synced + local) for this view
+        const effectiveOptions = this.getEffectiveOptions();
+        
+        // For now, we only show local options inline (non-synced options)
+        // Synced options are controlled from the floating panel
+        const localOptions = this.getLocalOptions();
+        const { controls: globalControls } = this.props;
+        const syncPrefs = globalControls?.dynamic_options_sync || {};
+        
+        // Filter for options relevant to this view that are not synced
+        const viewLocalOptions = Object.entries(localOptions).filter(([name, option]) => {
+          return !syncPrefs[name] && option.views && option.views.includes(view.name);
+        });
 
-        const new_options = view_options.filter(({name}) => already_shown_options[name] === undefined)
-        new_options.forEach(option => already_shown_options[option.name] = option)
-        const options = new_options.map( (option, idx) => {
+        const new_options = viewLocalOptions.filter(([name]) => already_shown_options[name] === undefined);
+        new_options.forEach(([name, option]) => already_shown_options[name] = option);
+        
+        const options = new_options.map(([name, option], idx) => {
           let option_idx = `option-${idx}`;
-          const option_label = isNaN(option.name) ? option.name : option.pattern
-          if (option.views.every(name => (views.find(v => v.name === name) || {}).default_hidden === true && !(!!controls.show && controls.show[name] === true)))
+          const option_label = isNaN(name) ? name : option.pattern;
+          
+          if (option.views.every(viewName => (views.find(v => v.name === viewName) || {}).default_hidden === true && !(!!controls.show && controls.show[viewName] === true)))
             return <span key={option_idx} />
        
-          if (option.type === 'slider') {
-            // let labelStepSize = (option.max - option.min) / 10
-            // console.log(option)
-            let labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)))
-            return <div key={option_idx} title={option_label} style={{ marginLeft: '5px', marginRight: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
-              <Slider
-                key={option_idx}
-                initialValue={parseFloat(option.selected[0])}
-                value={parseFloat(option.selected[0])}
-                min={option.min}
-                max={option.max}
-                onChange={this.setSelectedOption(option.name)}
-                labelStepSize={labelStepSize}
-                showTrackFill
-              />
+          const selectedValue = option.selected?.[0];
+          if (!selectedValue) return <span key={option_idx} />;
+          
+          return (
+            <div key={option_idx} style={{ 
+              marginBottom: '8px', 
+              padding: '8px', 
+              backgroundColor: '#f5f8fa', 
+              borderRadius: '3px', 
+              border: '1px solid #e1e8ed' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
+                {this.props.onToggleDynamicOptionSync && (
+                  <Tooltip content="Make this option synced across all outputs">
+                    <Button
+                      icon="link"
+                      minimal
+                      small
+                      onClick={() => this.props.onToggleDynamicOptionSync(name)}
+                      style={{ 
+                        minHeight: '16px', 
+                        minWidth: '16px',
+                        padding: '2px',
+                        opacity: 0.6,
+                        transition: 'opacity 0.2s ease-out'
+                      }}
+                    >
+                      unsynced
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
+              {option.type === 'slider' ? (
+                <Slider
+                  initialValue={parseFloat(selectedValue)}
+                  value={parseFloat(selectedValue)}
+                  min={option.min}
+                  max={option.max}
+                  onChange={this.setSelectedOption(name)}
+                  labelStepSize={Math.pow(10, Math.floor(Math.log10(option.max - option.min)))}
+                  showTrackFill
+                />
+              ) : (
+                option.values.length > 0 && (
+                  <HTMLSelect 
+                    disabled={option.values.length===1} 
+                    options={option.values} 
+                    value={selectedValue} 
+                    onChange={this.setSelectedOption(name)} 
+                    fill
+                    small
+                  />
+                )
+              )}
             </div>
-          } else {
-            return <div key={option_idx} title={option_label}>{option.values.length > 0 && <HTMLSelect disabled={option.values.length===1} options={option.values} value={option.selected[0]} onChange={this.setSelectedOption(option.name)} />}</div>
-          }
-        })
+          );
+        });
 
-        if (!(view.display === 'viewer') && view_options.length > 0) {
-          if (view.display === undefined || view.display === 'single') {
-            const view_options_selected = view_options.map(o => [o.unnamed_group !== undefined ? o.unnamed_group : o.name, o.selected[0]])
-            // path used to be urlencoded, changed in https://github.com/pillarjs/path-to-regexp/releases/tag/v5.0.0
-            // can be opted-in via   { encode: encodeURIComponent } https://github.com/pillarjs/path-to-regexp#compile-reverse-path-to-regexp
-            var paths = [compilePath(view.path)(Object.fromEntries(view_options_selected))] // .map(p => decodeURIComponent(p)) // not needed anymore
-            // Note: before we had a path with / and other characters, and now it's url encoded
-          } else if (view.display === 'all') {
-            paths = Object.keys(this.state.manifests.new).filter(path => matchPath(path, { path: view.path }))
-          }
-        } else {
-          // some viewers are tightly coupled to a project and don't define a "path"
-          let necessary_files_exist = view.path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[view.path]);
-          paths = necessary_files_exist ? [view.path] : []
-        }
+        // Generate paths using both synced and local options
+        var paths = generateViewPaths(view, effectiveOptions, this.state.manifests);
+        console.log(`Rendering view ${view.name} - paths: ${JSON.stringify(paths)}`)
 
         let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
         show_ref_if_available = show_ref_if_available || is_image(view)
@@ -560,7 +597,104 @@ class OutputCard extends React.Component {
             }
             const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[path], this.state.manifests.manifests?.reference?.[path_ref])
             return <div key={`${idx}-${path_idx}`} id={`${idx}-${path_idx}`}>
-              {paths.length > 1 && <h3 style={{ marginBottom: '0px' }}>{path}</h3>}
+              {(paths.length > 1 || (() => {
+                // Only show header if there are synced options relevant to this view
+                const { options: viewOptions } = parseVisualizationOptions([view]);
+                const relevantOptionNames = Object.values(viewOptions)
+                  .filter(option => option.views.includes(view.name))
+                  .map(option => option.name);
+                return Object.entries(effectiveOptions).some(([optionName]) => {
+                  const isSync = controls?.dynamic_options_sync?.[optionName];
+                  const isRelevant = relevantOptionNames.includes(optionName);
+                  return isSync && isRelevant;
+                });
+              })()) && (
+                <div 
+                  className="path-header"
+                  style={{ 
+                    fontSize: '12px', 
+                    color: '#5c7080', 
+                    marginBottom: '8px', 
+                    paddingBottom: '4px',
+                    borderBottom: '1px solid #e1e8ed',
+                    fontFamily: 'monospace',
+                    backgroundColor: '#f5f8fa',
+                    padding: '4px 8px',
+                    borderRadius: '3px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s ease-out'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e8f4f8';
+                    e.currentTarget.style.borderColor = '#bfccd6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f5f8fa';
+                    e.currentTarget.style.borderColor = '#e1e8ed';
+                  }}
+                >
+                  <span style={{ flex: 1, marginRight: '8px' }}>{path}</span>
+                  {Object.keys(effectiveOptions).length > 0 && (() => {
+                    // Get options that are relevant to this specific view
+                    const { options: viewOptions } = parseVisualizationOptions([view]);
+                    const relevantOptionNames = Object.values(viewOptions)
+                      .filter(option => option.views.includes(view.name))
+                      .map(option => option.name);
+                    
+                    // Filter to only synced options that are relevant to this view
+                    const relevantSyncedOptions = Object.entries(effectiveOptions)
+                      .filter(([optionName, value]) => {
+                        const isSync = controls?.dynamic_options_sync?.[optionName];
+                        const isRelevant = relevantOptionNames.includes(optionName);
+                        return isSync && isRelevant;
+                      });
+                    
+                    if (relevantSyncedOptions.length === 0) return null;
+                    
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {relevantSyncedOptions.map(([optionName, value]) => (
+                          <Tooltip 
+                            key={optionName}
+                            content={`Unsync "${optionName}" to control locally per output`}
+                            position="top"
+                          >
+                            <Button
+                              icon="unlink"
+                              minimal
+                              small
+                              onClick={() => this.props.onToggleDynamicOptionSync && this.props.onToggleDynamicOptionSync(optionName)}
+                              style={{ 
+                                minHeight: '16px', 
+                                minWidth: '16px',
+                                padding: '2px',
+                                opacity: 0.6,
+                                transition: 'opacity 0.2s ease-out'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.opacity = '1';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.opacity = '0.6';
+                              }}
+                            />
+                          </Tooltip>
+                        ))}
+                        <span style={{ 
+                          fontSize: '10px', 
+                          color: '#106ba3', 
+                          fontWeight: '500',
+                          marginLeft: '4px'
+                        }}>
+                          synced
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
               <OutputViewer
                 key={`${idx}-${path_idx}`}
@@ -666,7 +800,13 @@ class OutputCard extends React.Component {
         {output_new.deleted && <Tag key="new-deleted" intent={Intent.DANGER}>Deleted</Tag>}
         {output_ref && output_ref.deleted && <Tag key="ref-deleted" intent={Intent.WARNING}>Reference deleted</Tag>}
 
-        {!viewable && <InView key="unviewable" threshold={0.1} margin='100%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+        {!viewable && <InView
+          key="unviewable"
+          threshold={0.1}
+          margin='100%'
+          /*triggerOnce*/
+          onChange={inView => this.becameViewable(inView)}
+        >
           <span key="viewable"></span>
         </InView>}
         {(is_loaded || has_output_new) && content}

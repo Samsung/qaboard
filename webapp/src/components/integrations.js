@@ -1,5 +1,4 @@
 import React from "react";
-import axios from "axios";
 
 import {
     Icon,
@@ -8,11 +7,10 @@ import {
     MenuDivider,
     Tag,
     Tooltip,
+    InputGroup,
 } from "@blueprintjs/core";
 
 import { make_eval_templates_recursively } from '../utils';
-import { git_hostname, default_git_hostname } from "../utils"
-import { toaster } from "../toaster"
 
   
 // TODO:
@@ -61,232 +59,86 @@ class IntegrationsMenus extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-          statuses: {}
+            searchQuery: ''
+        };
+    }
+
+    handleSearchChange = (e) => {
+        this.setState({ searchQuery: e.target.value });
+    }
+
+    filterIntegrations = (integrations, searchQuery) => {
+        if (!searchQuery.trim()) {
+            return integrations;
         }
-      }
-    
-    trigger = integration => e => {
-        const { project, project_data={}, commit={} } = this.props;
-        const { webhook, gitlabCI, jenkins } = integration;
-        if (!webhook && !gitlabCI && !jenkins) {
-          return
-        }
-        this.setState({
-          statuses: {
-            ...this.state.statuses,
-            [key(integration)]: {
-              loading: true,
-              triggered: true,
-              data: undefined,
-            },
-          }
-        });
-        if (webhook) {
-          var url = '/api/v1/webhook/proxy/';
-          var params = webhook;
-        } else if (jenkins) {
-          url = '/api/v1/jenkins/build/trigger/';
-          params = jenkins
-        } else if (gitlabCI) {
-          url = '/api/v1/gitlab/job/play/';
-          const git = project_data.data?.git || {};
-          const project_git_hostname = git_hostname(project_data.data?.qatools_config) ?? default_git_hostname
-          git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-          if (!git.web_url) {
-            this.setState({
-              statuses: {
-                ...this.state.statuses,
-                [key(integration)]: {
-                  is_loaded: true, loading: false,
-                  error: "Can't find gitlab host",
-                  statusText: 'ERROR',
-                },
-              }
-            });
-            return;
-          }
-          params = {
-            gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
-            project_id: project,
-            commit_id: commit.id,
-            ...gitlabCI,
-          }
-        }
-        axios.post(url, params)
-        .then(response => {
-            console.log(response)
-            toaster.show({
-              message: `Trigger sent! [${response.status} ${response.statusText}]`,
-              intent: Intent.SUCCESS,
-            });
-            this.setState({
-              statuses: {
-                ...this.state.statuses,
-                [key(integration)]: {
-                  is_loaded: true,
-                  loading: false,
-                  error: null,
-                  statusText: response.statusText,
-                  data: response.data,
-                },
-              }
-            });
-            if (!!response.data?.url && response.data?.open) {
-              window.open(response.data.url, '_blank').focus();
-            }
-        })
-        .catch(error => {
-          console.log(error.response ?? error)
-          toaster.show({
-            message: `Something went wrong: ${JSON.stringify(error.response ?? error)}`,
-            intent: Intent.DANGER,
-          });
-          this.setState({
-            statuses: {
-              ...this.state.statuses,
-              [key(integration)]: {
-                is_loaded: true, loading: false, error,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-              },
-            }
-          });
-        });
-    }
-    
-    stopUpdateIntegrationStatuses = () => {
-      clearInterval(this.state.intervalId);
-    }
-    startUpdateIntegrationStatuses = interval => {
-      this.stopUpdateIntegrationStatuses();
-      this.updateIntegrationStatuses();
-      this.setState({
-        intervalId: setInterval(this.updateIntegrationStatuses, interval || 10 * 1000),
-      })
-    }
-    componentDidMount = function() {
-      // Not necessary to rush fetching the statuses (?)
-      // this.startUpdateIntegrationStatuses(60 * 1000)
-    }
-    componentWillUnmount = function() {
-      this.stopUpdateIntegrationStatuses()
-    }
- 
-    updateIntegrationStatuses = () => {
-        const { integrations=[], project_data={}, commit={} } = this.props;
-        const eval_templates_recusively = make_eval_templates_recursively(this.props)
-        integrations.filter(i => 
-          (i.href !== undefined && i.href !== "" && i.src === undefined)
-          || i.gitlabCI
-          || i.jenkins
-        ).forEach(integration => {
-          try {
-            integration = eval_templates_recusively(integration)
-          } catch {
-            return;
-          }
-          if (!integration) {
-            return;
-          }
-          const status = this.state.statuses[key(integration)] || {};
-          if (status.loading)
-            return
-          if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
-            return
-          this.setState({
-            statuses: {
-              ...this.state.statuses,
-              [key(integration)]: {
-                ...this.state.statuses[key(integration)],
-                loading: true,
-              },
-            }
-          });
-          //  console.log(integration.text, integration)
-           const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
-           if (gitlabCI) {
-            if (status?.triggered !== true)
-              return
-            var req_url = '/api/v1/gitlab/job/';
-            const git = project_data.data?.git || {};
-            if (!git.web_url) {
-              this.setState({
-                statuses: {
-                  ...this.state.statuses,
-                  [key(integration)]: {
-                    is_loaded: true,
-                    loading: false,
-                    error: "Can't find gitlab host",
-                    statusText: 'ERROR',
-                  },
+        
+        const query = searchQuery.toLowerCase();
+        
+        const filterRecursively = (items) => {
+            const filtered = [];
+            let currentSection = [];
+            let currentDivider = null;
+            
+            for (const integration of items) {
+                if (integration.divider) {
+                    // If we have a previous section with matches, add the divider and items
+                    if (currentSection.length > 0) {
+                        if (currentDivider) {
+                            filtered.push(currentDivider);
+                        }
+                        filtered.push(...currentSection);
+                    }
+                    // Start new section
+                    currentDivider = integration;
+                    currentSection = [];
+                } else {
+                    const searchableText = [
+                        integration.text,
+                        integration.name,
+                        integration.label,
+                        integration.alt,
+                        integration.id
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    
+                    const matchesSearch = searchableText.includes(query);
+                    
+                    // Check if any sub-items match
+                    let hasMatchingSubItems = false;
+                    let filteredSubItems = [];
+                    if (integration.sub && integration.sub.length > 0) {
+                        filteredSubItems = filterRecursively(integration.sub);
+                        hasMatchingSubItems = filteredSubItems.length > 0;
+                    }
+                    
+                    // Include this integration if it matches or has matching sub-items
+                    if (matchesSearch || hasMatchingSubItems) {
+                        const filteredIntegration = { ...integration };
+                        if (filteredSubItems.length > 0) {
+                            filteredIntegration.sub = filteredSubItems;
+                        }
+                        currentSection.push(filteredIntegration);
+                    }
                 }
-              });
-              return;
             }
-            var params = {
-              gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
-              project_id: this.props.project,
-              commit_id: commit.id,
-              job_id: status.data?.id,
-              ...gitlabCI,
+            
+            // Handle the last section
+            if (currentSection.length > 0) {
+                if (currentDivider) {
+                    filtered.push(currentDivider);
+                }
+                filtered.push(...currentSection);
             }
-          } else if (jenkins) {
-            if (status?.triggered !== true)
-              return
-            req_url = '/api/v1/jenkins/build/';
-            params = {
-              ...status?.data, //.web_url, .url
-            }
-            // console.log(this.state.statuses[key(integration)])
-          } else { // webhook
-            req_url = '/api/v1/webhook/proxy/';
-            params = {
-              method: 'HEAD',
-              url: integration.href.startsWith('/') ? `${window.location.origin}${integration.href}`: integration.href,
-              ...request
-            };
-          }
-          // console.log(req_url, params)
-          axios.post(req_url, params)
-            .then(response => {
-                // console.log("[update]", response)
-                this.setState({
-                  statuses: {
-                    ...this.state.statuses,
-                    [key(integration)]: {
-                      ...this.state.statuses[key(integration)],
-                      is_loaded: true,
-                      loading: false,
-                      error: null,
-                      statusText: null,
-                      data: response.data,
-                    },
-                  }
-                });
-              })
-              .catch(error => {
-                const statusText = !!error.response ? error.response.statusText : "Network Error"
-                console.log("[update] Error:", error.response)
-                this.setState({
-                  statuses: {
-                    ...this.state.statuses,
-                    [key(integration)]: {
-                      ...this.state.statuses[key(integration)],
-                      is_loaded: true,
-                      loading: false,
-                      error: (!!ignore_failure || statusText.includes("METHOD NOT ALLOWED")) ? null : error,
-                      statusText,
-                      data: error.response?.data,
-                    },
-                  }
-                });
-              });
-        })
+            
+            return filtered;
+        };
+        
+        return filterRecursively(integrations);
     }
 
     render() {
-        const { integrations, level=0 } = this.props;
+        const { integrations, level=0, integrationStatuses={}, triggerIntegration, startUpdateIntegrationStatuses, stopUpdateIntegrationStatuses } = this.props;
         const eval_templates_recusively = make_eval_templates_recursively(this.props)
+        const { searchQuery } = this.state;
 
         const render_integration = (integration, idx) => {
           try {
@@ -303,7 +155,7 @@ class IntegrationsMenus extends React.Component {
           if (integration.divider) {
             return <MenuDivider key={idx} {...integration}/>
           }
-          let status = this.state.statuses[key(integration)];
+          let status = integrationStatuses[key(integration)];
           let first_loading = !!status && (status.loading && !status.is_loaded);
           let trigger_loading = !!status && (status.loading && status.triggered);
           let has_error = !!status && !!status.error
@@ -326,7 +178,7 @@ class IntegrationsMenus extends React.Component {
               gitlabCI={undefined}
               jenkins={undefined}
               label={label}
-              onClick={this.trigger(integration)}
+              onClick={triggerIntegration(integration)}
               disabled={disabled}
             />
           }
@@ -355,7 +207,7 @@ class IntegrationsMenus extends React.Component {
               icon={badge || integration.icon}
               label={right_label}
               target={!!integration.href ? "_blank" : undefined}
-              onClick={!!!integration.href ? this.trigger(integration) : undefined}
+              onClick={!!!integration.href ? triggerIntegration(integration) : undefined}
             >
               {integration.sub && <IntegrationsMenus {...this.props} integrations={integration.sub} level={level+1} />}
           </MenuItem>
@@ -363,6 +215,10 @@ class IntegrationsMenus extends React.Component {
 
         const integrations_in_menu = integrations.filter(i => i?.in_menu !== false);
         const integrations_outside_menu = integrations.filter(i => i?.in_menu === false || level > 0);
+        
+        // Apply search filtering only to top-level menu items
+        const filtered_integrations_in_menu = level === 0 ? this.filterIntegrations(integrations_in_menu, searchQuery) : integrations_in_menu;
+
         return <>
           {integrations_outside_menu.map(render_integration)}
           {level === 0 && <MenuItem
@@ -370,13 +226,54 @@ class IntegrationsMenus extends React.Component {
             text="Actions & Links"
             popoverProps={{
               usePortal: true,
-              hoverCloseDelay: 1000,
+              hoverCloseDelay: 2000,
               transitionDuration: 1000,
-              onOpening: () => {this.startUpdateIntegrationStatuses(5000)},
-              onClosed: this.stopUpdateIntegrationStatuses,
+              onOpening: () => {startUpdateIntegrationStatuses && startUpdateIntegrationStatuses(5000)},
+              onClosed: stopUpdateIntegrationStatuses,
+              // Prevent closing when interacting with search input
+              interactionKind: "hover",
+              hasBackdrop: false,
+              canEscapeKeyClose: true,
+              enforceFocus: false,
+              autoFocus: false,
             }}
           >
-            {integrations_in_menu.map(render_integration)}
+            {integrations_in_menu.length > 5 && (
+              <div 
+                style={{ 
+                  padding: '8px', 
+                  borderBottom: '1px solid #ccc', 
+                  marginBottom: '4px',
+                  position: 'sticky',
+                  top: 0,
+                  backgroundColor: '#30404d',
+                  zIndex: 1000
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <InputGroup
+                  leftIcon="search"
+                  placeholder="Search integrations..."
+                  value={searchQuery}
+                  onChange={this.handleSearchChange}
+                  small
+                  fill
+                  onFocus={(e) => e.stopPropagation()}
+                  onBlur={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
+            <div style={{ minHeight: searchQuery ? '200px' : 'auto' }}>
+              {filtered_integrations_in_menu.map(render_integration)}
+              {filtered_integrations_in_menu.length === 0 && searchQuery && (
+                <MenuItem 
+                  icon="search" 
+                  text={`No integrations found for "${searchQuery}"`}
+                  disabled
+                />
+              )}
+            </div>
             {integrations_in_menu.length === 0 && <>
                 <MenuDivider />
                 <MenuItem

@@ -468,6 +468,7 @@ def wait(ctx, output_id):
 
 
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
+
 runners_config = config.get('runners', {})
 if 'default' in runners_config:
   default_runner = runners_config['default']
@@ -479,6 +480,18 @@ if 'lsf' in config:
 if default_runner ==  'lsf' and os.name=='nt':
   default_runner = 'local'
 local_config = config.get('runners', {}).get('local', {})
+
+default_lsf_queue = lsf_config.get('queue')
+default_lsf_max_threads = lsf_config.get('max_threads', 0)
+default_lsf_max_memory = lsf_config.get('max_memory', lsf_config.get('memory', 0))
+default_lsf_resources = lsf_config.get('resources', None)
+default_lsf_priority = lsf_config.get('priority')
+default_lsf_options = lsf_config.get('options')
+
+default_local_concurrency = os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency'))
+default_local_timeout = float(os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)))
+default_action_on_existing = config.get('outputs', {}).get('action_on_existing', "run")
+default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
@@ -491,21 +504,20 @@ local_config = config.get('runners', {}).get('local', {})
 @click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
 @click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
-@click.option('--local-concurrency', default=os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency')), type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
-@click.option('--local-timeout', default=os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout')), type=int, help="Timeout for local runs")
-@click.option('--lsf-max-threads', default=lsf_config.get('max_threads', 0), type=int, help="restrict number of lsf threads to use. 0=no restriction")
-@click.option('--lsf-max-memory', default=lsf_config.get('max_memory', lsf_config.get('memory', 0)), help="restrict memory (MB) to use. 0=no restriction")
-@click.option('--lsf-queue', default=lsf_config.get('queue'), help="LSF queue (-q)")
-@click.option('--lsf-fast-queue', default=lsf_config.get('fast_queue', lsf_config.get('queue')), help="Fast LSF queue, for interactive jobs")
-@click.option('--lsf-resources', default=lsf_config.get('resources', None), help="LSF resources restrictions (-R)")
-@click.option('--lsf-priority', default=lsf_config.get('priority'), type=int, help="LSF priority (-sp)")
-@click.option('--lsf-options', default=lsf_config.get('options'), help="Other LSF options (as 1 string, like '-W 24:00') that bsub can understand. Will be added after all other CLI flags.")
-@click.option('--action-on-existing', default=config.get('outputs', {}).get('action_on_existing', "run"), help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
-@click.option('--action-on-pending', default=config.get('outputs', {}).get('action_on_pending', "wait"), help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
+@click.option('--local-concurrency', default=default_local_concurrency, type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
+@click.option('--local-timeout', default=default_local_timeout, type=int, help="Timeout for local runs")
+@click.option('--lsf-max-threads', default=default_lsf_max_threads, type=int, help="restrict number of lsf threads to use. 0=no restriction")
+@click.option('--lsf-max-memory', default=default_lsf_max_memory, help="restrict memory (MB) to use. 0=no restriction")
+@click.option('--lsf-queue', default=default_lsf_queue, help="LSF queue (-q)")
+@click.option('--lsf-resources', default=default_lsf_resources, help="LSF resources restrictions (-R)")
+@click.option('--lsf-priority', default=default_lsf_priority, type=int, help="LSF priority (-sp)")
+@click.option('--lsf-options', default=default_lsf_options, help="Other LSF options (as 1 string, like '-W 24:00') that bsub can understand. Will be added after all other CLI flags.")
+@click.option('--action-on-existing', default=default_action_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
+@click.option('--action-on-pending', default=default_action_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_fast_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
   if not batches_files:
@@ -550,34 +562,72 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
-  default_runner_options = {
-    "type": runner,
+  
+  # Separate base configuration from CLI overrides
+  base_runner_options = {
     "command_id": command_id,
+    "type": default_runner,
   }
+  cli_runner_overrides = {
+    "type": runner,  # CLI --runner flag should have highest priority
+  }
+  
+  # Collect CLI overrides (only non-None values that were explicitly provided)
   # Each runner should add what it cares about...
   # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
   # TODO: It would be nice to generate the CLI help depending on the runner that's chosen, then we could use
   if runner == 'lsf':
-    default_runner_options.update({
+    if lsf_queue != default_lsf_queue:
+      cli_runner_overrides["queue"] = lsf_queue
+    else:
+      base_runner_options["queue"] = lsf_queue
+    if lsf_priority != default_lsf_priority:
+      cli_runner_overrides['priority'] = lsf_priority
+    else:
+      base_runner_options['priority'] = lsf_priority
+    if lsf_max_threads != default_lsf_max_threads:
+      cli_runner_overrides["max_threads"] = lsf_max_threads
+    else:
+      base_runner_options["max_threads"] = lsf_max_threads
+    if lsf_max_memory != default_lsf_max_memory:
+      cli_runner_overrides["max_memory"] = lsf_max_memory
+    else:
+      base_runner_options["max_memory"] = lsf_max_memory
+    if lsf_resources != default_lsf_resources:
+      cli_runner_overrides['resources'] = lsf_resources
+    else:
+      base_runner_options['resources'] = lsf_resources
+    if lsf_options != default_lsf_options:
+      cli_runner_overrides['options'] = lsf_options
+    else:
+      base_runner_options['options'] = lsf_options
+
+    # These are always set for LSF
+    cli_runner_overrides.update({
       "project": lsf_config.get('project', str(project) if project else "qaboard"),
-      "queue": lsf_queue,
-      "fast_queue": lsf_fast_queue,
-      'priority': lsf_priority,
-      "max_threads": lsf_max_threads,
-      "max_memory": lsf_max_memory,
-      'resources': lsf_resources,
-      'options': lsf_options,
       "user": ctx.obj['user'],
     })
+    
   if runner == "local":
-    default_runner_options["concurrency"] = local_concurrency
+    if local_concurrency != default_local_concurrency:
+      cli_runner_overrides["concurrency"] = local_concurrency
+    else:
+      base_runner_options['concurrency'] = local_concurrency
+    if local_timeout != default_local_timeout:
+      cli_runner_overrides["timeout"] = local_timeout
+    else:
+      base_runner_options['timeout'] = local_timeout
+
   if runner == 'local' or runner == 'celery':
-    default_runner_options["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
+    cli_runner_overrides["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
+
+  # For backward compatibility, combine for JobGroup
+  default_runner_options = {**base_runner_options, **cli_runner_overrides}
 
   jobs = JobGroup(job_options=default_runner_options)
 
   total_runs = 0
-  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], default_runner_options, config, ctx.obj['inputs_settings'])
+  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], base_runner_options, config, ctx.obj['inputs_settings'], cli_runner_overrides=cli_runner_overrides)
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
     for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):

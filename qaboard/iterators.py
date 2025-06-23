@@ -186,6 +186,7 @@ def iter_inputs(
   default_job_configuration,
   qatools_config,
   default_inputs_settings=None,
+  cli_runner_overrides=None,
   debug=os.environ.get('QA_DEBUG_ITER_INPUTS', False),
 ):
   """
@@ -256,12 +257,27 @@ def iter_inputs(
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
   else:
     inputs_settings = deepcopy(default_inputs_settings)
+
+  # Apply runner settings from default input type configuration
+  updated_job_configuration = deepcopy(default_job_configuration)
+  input_type_runners = inputs_settings.get('runners', {})
+  if input_type_runners:
+    # Apply default runner if specified in input type
+    if 'default' in input_type_runners:
+      default_runner_for_type = input_type_runners['default']
+      updated_job_configuration["type"] = default_runner_for_type
+    
+    # Apply specific runner configuration from input type
+    current_runner = updated_job_configuration.get('type', 'local')
+    if current_runner in input_type_runners and isinstance(input_type_runners[current_runner], dict):
+      updated_job_configuration = {**updated_job_configuration, **input_type_runners[current_runner]}
+
   run_context = RunContext(
     input_path=Path(),
     database=default_database,
     configurations=default_configurations,
     platform=default_platform,
-    job_options=default_job_configuration,
+    job_options=updated_job_configuration,
     type=inputs_settings['type']
   )
 
@@ -278,7 +294,7 @@ def iter_inputs(
       check_batch(batch)
       batch_run_context = deepcopy(run_context)
       batch_run_context.batch = batch
-      yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug)
+      yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
       continue
     
     # 2. Batches can be specified using wildcards
@@ -288,7 +304,7 @@ def iter_inputs(
         batch_run_context = deepcopy(run_context)
         batch_run_context.batch = b
         check_batch(b)
-        yield from iter_batch(available_batches[b], batch_run_context, qatools_config, inputs_settings, debug)
+        yield from iter_batch(available_batches[b], batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
       continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
@@ -345,7 +361,7 @@ def deep_interpolate(value, replaced: str, to_value):
     return value
 
 
-def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug):
+def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
     # Happens often when there is an orphan "my-batch:" in in the yaml file
     if batch is None:
       return
@@ -356,16 +372,55 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     if 'platform' in batch:
       run_context.platform = batch['platform']
     runner = run_context.job_options.get('type', 'local')
-    if batch.get(runner):
-      run_context.job_options = {**run_context.job_options, **batch[runner]}
 
+    # First, apply input type runner settings
     if 'type' in batch:
       run_context.type = batch['type']
       inputs_settings = get_settings(batch['type'], qatools_config)
       from .config import get_default_database
       run_context.database = get_default_database(inputs_settings)
+      
+      # Merge runner settings from input type configuration
+      input_type_runners = inputs_settings.get('runners', {})
+      if input_type_runners:
+        # Apply default runner if specified in input type
+        if 'default' in input_type_runners:
+          default_runner_for_type = input_type_runners['default']
+          run_context.job_options = {
+            **run_context.job_options,
+            "type": default_runner_for_type,
+          }
+          runner = default_runner_for_type
+        
+        # Apply specific runner configuration from input type for the current runner
+        current_runner = run_context.job_options.get('type', runner)
+        if current_runner in input_type_runners and isinstance(input_type_runners[current_runner], dict):
+          run_context.job_options = {**run_context.job_options, **input_type_runners[current_runner]}
     else:
       inputs_settings = deepcopy(default_inputs_settings)
+
+    # Then, apply batch-level runner overrides (these take precedence)
+    if "runner" in batch:
+      runner = batch["runner"]
+      run_context.job_options = {
+        **run_context.job_options,
+        "type": runner,
+      }
+      
+      # Apply runner-specific config from input type if available
+      if 'type' in batch:
+        input_type_runners = inputs_settings.get('runners', {})
+        if runner in input_type_runners and isinstance(input_type_runners[runner], dict):
+          run_context.job_options = {**run_context.job_options, **input_type_runners[runner]}
+    
+    # Apply batch-level runner configuration
+    if runner in batch and isinstance(batch[runner], dict):
+      run_context.job_options = {**run_context.job_options, **batch[runner]}
+
+    # Apply CLI overrides (highest precedence)
+    if cli_runner_overrides:
+      run_context.job_options = {**run_context.job_options, **cli_runner_overrides}
+
     inputs_settings.update(batch)
 
     batch_database = location_from_spec(batch.get('database', run_context.database))
@@ -408,7 +463,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
             if param in ['configuration', 'configurations', 'configs', 'platform']:
               continue
             matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
-          yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
+          yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug, cli_runner_overrides)
       return
 
     locations = batch.get('inputs', batch.get('tests'))

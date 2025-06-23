@@ -36,6 +36,13 @@ import { is_image } from "./viewers/images/utils"
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { match_query } from "./utils";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
+import { 
+  parseVisualizationOptions, 
+  mergeCompatibleOptions, 
+  setSyncPreferences,
+  generateViewPaths
+} from "./utils/dynamicOptions";
+import { matchPath } from 'react-router';
 
 import {
 	projectSelector,
@@ -46,6 +53,7 @@ import {
 } from './selectors/projects'
 
 import PrivateContent from "./components/authentication/PrivateContent"
+import FloatingControlsPanel from "./components/FloatingControlsPanel";
 
 
 
@@ -55,6 +63,15 @@ class CiCommitResults extends Component {
     // we initialize optionnal controls with their defaults
     this.state = {
       controls: controls_defaults(this.props.config),
+      global_dynamic_options: {},
+      registered_outputs: new Set(),
+      visualizations_with_files: new Set(), // Track which visualizations have files available
+      visualization_stats: {
+        total_visualizations: 0,
+        disabled_visualizations: 0,
+        missing_files_count: 0,
+      },
+      expandFloatingPanel: false,
     };
   }
 
@@ -67,11 +84,23 @@ class CiCommitResults extends Component {
   }
 
   toggle_show = name => () => {
+    const currentValue = this.state.controls.show?.[name];
+    let newValue;
+    
+    // Handle three-state toggle: undefined -> true -> false -> true -> ...
+    if (currentValue === undefined) {
+      newValue = true;  // Enable explicitly
+    } else if (currentValue === true) {
+      newValue = false; // Disable explicitly  
+    } else {
+      newValue = true;  // Re-enable
+    }
+    
     const controls = {
         ...this.state.controls,
         show: {
           ...this.state.controls.show,          
-          [name]: !this.state.controls.show[name],
+          [name]: newValue,
         }
     }
     this.setState({controls}, updateQueryUrl(this.props.history, controls));
@@ -126,6 +155,163 @@ class CiCommitResults extends Component {
     }
   };
 
+  // Check which visualizations have files available in a manifest
+  checkVisualizationsWithFiles = (manifest) => {
+    const config = this.props.config || {};
+    const outputs = config.outputs || {};
+    const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])];
+    const manifestPaths = Object.keys(manifest || {});
+    
+    const visualizationsWithFiles = new Set();
+    
+    views.forEach(view => {
+      if (!view.path) return;
+      
+      // For simple paths (no patterns), check direct existence
+      if (!view.path.includes(':') && !view.path.includes('(')) {
+        if (manifestPaths.includes(view.path)) {
+          visualizationsWithFiles.add(view.name || view.path);
+        }
+        return;
+      }
+      
+      // For pattern paths, use the same logic as options parsing
+      const hasMatchingFile = manifestPaths.some(path => {
+        try {
+          const match = matchPath(path, { path: view.path });
+          return match !== null && match !== undefined;
+        } catch (error) {
+          return false;
+        }
+      });
+      
+      if (hasMatchingFile) {
+        visualizationsWithFiles.add(view.name || view.path);
+      }
+    });
+    
+    return visualizationsWithFiles;
+  };
+
+  // Dynamic options management with performance optimization
+  registerOutputOptions = (outputId, outputOptions, manifest) => {
+    // Skip if already registered with same options (performance optimization)
+    if (this.state.registered_outputs.has(outputId)) {
+      // Still update visualizations_with_files if we have a new manifest
+      if (manifest) {
+        const newVisualizationsWithFiles = this.checkVisualizationsWithFiles(manifest);
+        if (newVisualizationsWithFiles.size > 0) {
+          this.setState(prevState => ({
+            visualizations_with_files: new Set([
+              ...prevState.visualizations_with_files,
+              ...newVisualizationsWithFiles
+            ])
+          }));
+        }
+      }
+      return;
+    }
+    
+    this.setState(prevState => {
+      const newRegisteredOutputs = new Set(prevState.registered_outputs);
+      newRegisteredOutputs.add(outputId);
+      
+      // Check which visualizations have files in this manifest
+      const newVisualizationsWithFiles = manifest ? this.checkVisualizationsWithFiles(manifest) : new Set();
+      const updatedVisualizationsWithFiles = new Set([
+        ...prevState.visualizations_with_files,
+        ...newVisualizationsWithFiles
+      ]);
+      
+      // Store this output's options for future merging
+      const outputOptionsStore = {
+        ...prevState.global_dynamic_options,
+        [outputId]: outputOptions
+      };
+      
+      // Always recompute for first 50 outputs to ensure options appear quickly
+      // Then only recompute periodically for performance
+      const shouldRecompute = newRegisteredOutputs.size <= 50 || newRegisteredOutputs.size % 20 === 0;
+      
+      let mergedOptions = prevState.global_dynamic_options;
+      
+      if (shouldRecompute) {
+        // Collect all output options for merging  
+        const allOutputOptions = Array.from(newRegisteredOutputs).map(id => ({
+          output_id: id,
+          ...outputOptionsStore[id] || {}
+        }));
+        
+        mergedOptions = mergeCompatibleOptions(allOutputOptions);
+      }
+      
+      // Initialize synced options with defaults if not already set
+      const updatedControls = { ...prevState.controls };
+      Object.entries(mergedOptions).forEach(([name, option]) => {
+        if (!updatedControls.dynamic_options[name]) {
+          updatedControls.dynamic_options[name] = [option.defaultValue];
+        }
+        // Default new options to synced unless explicitly set otherwise
+        if (updatedControls.dynamic_options_sync[name] === undefined) {
+          updatedControls.dynamic_options_sync[name] = true;
+        }
+      });
+      
+      return {
+        registered_outputs: newRegisteredOutputs,
+        global_dynamic_options: mergedOptions,
+        controls: updatedControls,
+        visualizations_with_files: updatedVisualizationsWithFiles
+      };
+    });
+  };
+
+  updateDynamicOption = (name, value) => {
+    const controls = {
+      ...this.state.controls,
+      dynamic_options: {
+        ...this.state.controls.dynamic_options,
+        [name]: [value]
+      }
+    };
+    this.setState({ controls }, () => updateQueryUrl(this.props.history, controls));
+  };
+
+  toggleDynamicOptionSync = (name) => {
+    const newSyncState = !this.state.controls.dynamic_options_sync[name];
+    const updatedSync = {
+      ...this.state.controls.dynamic_options_sync,
+      [name]: newSyncState
+    };
+    
+    setSyncPreferences(updatedSync);
+    
+    const controls = {
+      ...this.state.controls,
+      dynamic_options_sync: updatedSync
+    };
+    
+    // If we're syncing (not unsyncing), expand the floating panel
+    const expandPanel = newSyncState === true;
+    
+    this.setState({ 
+      controls, 
+      expandFloatingPanel: expandPanel 
+    }, () => {
+      updateQueryUrl(this.props.history, controls);
+      // Reset the expand trigger after a short delay
+      if (expandPanel) {
+        setTimeout(() => {
+          this.setState({ expandFloatingPanel: false });
+        }, 100);
+      }
+    });
+  };
+
+  updateVisualizationStats = (stats) => {
+    this.setState({ visualization_stats: stats });
+  };
+
   fetchCommits() {
     const { project, new_project, ref_project, new_commit_id, ref_commit_id, dispatch } = this.props
     dispatch(fetchCommit({project: new_project, id: new_commit_id, update_with_id: {project, commit: "new_commit_id"}}))
@@ -150,8 +336,28 @@ class CiCommitResults extends Component {
     const old_outputs = config_prev?.outputs;
 
     if (new_outputs !== old_outputs ) {
-      let controls = controls_defaults(config_curr)
-      this.setState({controls});
+      let newControls = controls_defaults(config_curr);
+      // Preserve existing dynamic options and sync preferences when config changes
+      newControls.dynamic_options = this.state.controls.dynamic_options || {};
+      newControls.dynamic_options_sync = this.state.controls.dynamic_options_sync || {};
+      
+      // Only reset registrations if the actual visualization config has meaningfully changed
+      // This prevents unnecessary flashing when just switching tabs within the same project
+      const prevVisualizationsConfig = JSON.stringify(old_outputs?.visualizations || []);
+      const currVisualizationsConfig = JSON.stringify(new_outputs?.visualizations || []);
+      
+      if (prevVisualizationsConfig !== currVisualizationsConfig) {
+        // True config change - reset and re-discover
+        this.setState({
+          controls: newControls,
+          registered_outputs: new Set(),
+          global_dynamic_options: {},
+          visualizations_with_files: new Set(),
+        });
+      } else {
+        // Just update controls without resetting registrations
+        this.setState({ controls: newControls });
+      }
     }
   }
 
@@ -245,51 +451,8 @@ class CiCommitResults extends Component {
     </>
 
     let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
-    // // display: flex
-    // flex-wrap: wrap;
-    // justify-content: space-between;
-    // align-items: baseline;
     const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
     const has_tuning = tuned_params.length > 0
-    const all_controls = <>
-      <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline'}}>
-        {show_viewer_controls && controls}
-      </div>
-      <Tabs>
-          <Tabs.Expander />
-          <HTMLSelect
-            defaultValue={this.props.sort_by}
-            onChange={this.update('sort_by')}
-          >
-            <option value="test_input_path">Sort by Name</option>
-            <option value="id">Sort by ID</option>
-            <option value="data.storage">Sort by Storage</option>
-            {has_tuning && <option style={{fontWeight: 'bold'}} disabled>Tuning</option>}
-            {tuned_params
-              .map(
-              param =>
-                <option key={param} value={param}>
-                  Sort by {param} ({new_batch.extra_parameters[param].size})
-                </option>
-            )}
-            <option disabled style={{fontWeight: 'bold'}}>Metrics</option>
-            {[...new_batch.used_metrics].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(
-              m => (
-                <option key={m.key} value={m.key}>
-                  Sort by {m.label}
-                </option>
-              )
-            )}
-          </HTMLSelect>
-          <HTMLSelect
-            defaultValue="descending"
-            onChange={this.update('sort_order')}
-          >
-            <option value={-1}>descending</option>
-            <option value={1}>ascending</option>
-          </HTMLSelect>
-      </Tabs>
-    </>
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
     return (
       <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
@@ -369,7 +532,6 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('table-compare') && <Section>
                 <Card>
-                    {all_controls}
                     <h2 className={Classes.HEADING}>Improvement report</h2>
                     <TableCompare
                       new_batch={new_batch}
@@ -383,7 +545,6 @@ class CiCommitResults extends Component {
 
               {selected_views.includes('table-kpi') && <Section>
                 <Card>
-                   {all_controls}
                     <h2 className={Classes.HEADING}>Quality report</h2>
                     <TableKpi
                       new_batch={new_batch}
@@ -396,7 +557,6 @@ class CiCommitResults extends Component {
                </Section>}
 
               {selected_views.includes('logs') && <Section>
-                  {all_controls}
                   <h2 className={Classes.HEADING}>Logs</h2>
                   <BatchLogs
                     project={this.props.selected.new_project}
@@ -416,7 +576,6 @@ class CiCommitResults extends Component {
                      description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
                    />
                  : <Section>
-                 {all_controls}
                   <h2 className={Classes.HEADING}>Visualizations</h2>
                   <ExportPlugin
                     project={this.props.selected.new_project}
@@ -440,11 +599,12 @@ class CiCommitResults extends Component {
                     controls={this.state.controls}
                     history={history}
                     dispatch={dispatch}
+                    onRegisterOutputOptions={this.registerOutputOptions}
+                    onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
                   />
               </Section>)}
 
               {selected_views.includes('bit-accuracy') && <Section>
-                 {all_controls}
                   <h2 className={Classes.HEADING}>Output Files</h2>
                   <p className={Classes.TEXT_MUTED}>Total Storage: {humanFileSize(
                     (new_batch?.filtered?.outputs ?? [])
@@ -474,6 +634,8 @@ class CiCommitResults extends Component {
                     controls={this.state.controls}
                     history={history}
                     dispatch={dispatch}
+                    onRegisterOutputOptions={this.registerOutputOptions}
+                    onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
                   />
                </Section>}
 
@@ -493,6 +655,33 @@ class CiCommitResults extends Component {
 
             </>
           )}
+
+        {/* Floating Controls Panel */}
+        {(!!new_commit) && (
+          <FloatingControlsPanel
+            controls={this.state.controls}
+            visualizations={visualizations}
+            controls_extra={controls_extra}
+            selected_views={selected_views}
+            selected_metrics={selected_metrics}
+            new_batch={new_batch}
+            available_metrics={available_metrics}
+            metricTableSelect={metricTableSelect}
+            sort_by={this.props.sort_by}
+            sort_order={this.props.sort_order}
+            onToggle={this.toggle}
+            onToggleShow={this.toggle_show}
+            onUpdate={this.update}
+            has_tuning={has_tuning}
+            tuned_params={tuned_params}
+            dynamic_options={this.state.global_dynamic_options}
+            onUpdateDynamicOption={this.updateDynamicOption}
+            onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
+            visualization_stats={this.state.visualization_stats}
+            visualizations_with_files={this.state.visualizations_with_files}
+            expandPanel={this.state.expandFloatingPanel}
+          />
+        )}
       </Container>
     );
   }

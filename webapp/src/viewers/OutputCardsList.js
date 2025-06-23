@@ -44,6 +44,8 @@ class OutputCardsList extends React.Component {
       expand_all,
       color_blind_friendly,
       select_debug,
+      onRegisterOutputOptions: this.props.onRegisterOutputOptions,
+      onToggleDynamicOptionSync: this.props.onToggleDynamicOptionSync,
     }
     const outputs = (new_batch?.filtered?.outputs || [])
                     .map( id => [id, new_batch.outputs[id]])

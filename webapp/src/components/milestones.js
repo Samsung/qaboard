@@ -29,7 +29,7 @@ import { match_query } from "../utils";
 import { toaster } from "../toaster"
 
 
-const milestone_key = (project, commit, batch) => `${project}/${commit.id}/${batch?.label ?? 'default'}`
+const milestone_key = (project, commit, batch) => `${project}/${commit?.id}/${batch?.label ?? 'default'}`
 const has_milestones = ({commit, project, project_data, batch}) => {
   if (commit === undefined || commit == null)
     return false
