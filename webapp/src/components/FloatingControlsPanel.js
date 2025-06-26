@@ -405,7 +405,7 @@ const FloatingControlsPanel = ({
               )}
               {visualizationsWithFiles == 0 && (
                   <div style={{ marginTop: 2 }}>
-                    🔲 No visualizations available
+                    🛇 No visualizations available
                   </div>
                 )
               }
@@ -619,7 +619,7 @@ const FloatingControlsPanel = ({
           </Collapse>
 
           {/* Metrics Section */}
-          {selected_metrics.length > 0 && (
+          {new_batch.used_metrics.size > 0 && (
             <>
               <SectionHeader onClick={() => toggleSection('metrics')}>
                 <Button
@@ -628,7 +628,7 @@ const FloatingControlsPanel = ({
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
                 />
-                <SectionLabel>Metrics ({selected_metrics.length})</SectionLabel>
+                <SectionLabel>Metrics ({new_batch.used_metrics.size})</SectionLabel>
               </SectionHeader>
               <Collapse isOpen={expandedSections.metrics}>
                 <SectionContent>

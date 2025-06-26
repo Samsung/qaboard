@@ -509,7 +509,7 @@ class MetricsSummary extends Component {
           </Callout>
         )}
         <MultiSelect
-          items={Object.values(this.state.available_metrics)}
+          items={Object.values(this.state.available_metrics).filter(m => this.props.new_batch.used_metrics.has(m.key))}
           itemPredicate={this.filterMetric}
           itemRenderer={this.renderMetric}
           onItemSelect={this.handleMetricSelect}
@@ -519,7 +519,7 @@ class MetricsSummary extends Component {
             rightElement: clearButton
           }}
           noResults={noMetrics}
-          selectedItems={selected_metrics}
+          selectedItems={selected_metrics.filter(m => this.props.new_batch.used_metrics.has(m.key))}
           popoverProps={Classes.MINIMAL}
         />
         <br/>

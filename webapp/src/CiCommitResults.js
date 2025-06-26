@@ -409,7 +409,7 @@ class CiCommitResults extends Component {
           rightElement: clearButton
         }}
         noResults={noMetrics}
-        selectedItems={selected_metrics}
+        selectedItems={selected_metrics.filter(m => new_batch.used_metrics.has(m.key))}
         popoverProps={Classes.MINIMAL}
       />
     );
