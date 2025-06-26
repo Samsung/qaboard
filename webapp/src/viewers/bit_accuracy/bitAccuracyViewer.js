@@ -1,6 +1,6 @@
 import React from "react";
 
-import { Tree, Classes, Colors, Tag, Icon, Tooltip } from "@blueprintjs/core";
+import { Tree, Classes, Colors, Tag, Icon, Tooltip, Popover, Menu, MenuItem } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 import { match_query, is_same_data } from "../../utils"
@@ -74,7 +74,7 @@ const icon_style = {
   marginRight: '10px',
 }
 
-const applyStyle = (has_reference, color_blind_friendly) => node => {
+const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref) => node => {
     const { match, missing_from_reference, missing_from_new} = node.nodeData;
     const is_folder = node.childNodes !== undefined;
 
@@ -142,9 +142,74 @@ const applyStyle = (has_reference, color_blind_friendly) => node => {
     let has_size = node.nodeData.st_size !== undefined && node.nodeData.st_size !== null
     let size_real = has_size ? node.nodeData.st_size.toLocaleString('fr-FR') : '?'
     let size_human = has_size ? humanFileSize(node.nodeData.st_size, true) : '?'
-    node.secondaryLabel = <Tooltip content={<span>{size_real} B</span>}>
-      <span className={Classes.TEXT_MUTED}>{size_human}</span>
-    </Tooltip>
+    
+    // Create download menu for files - only show available files
+    const downloadMenu = (
+      <Menu>
+        {output_new && !missing_from_new && (
+          <MenuItem
+            icon="download"
+            text="Download (New)"
+            onClick={() => {
+              const downloadUrl = `${output_new.output_dir_url}/${node.id}`;
+              window.open(downloadUrl, '_blank');
+            }}
+          />
+        )}
+        {output_ref && !missing_from_reference && (
+          <MenuItem
+            icon="download"
+            text="Download (Reference)"
+            onClick={() => {
+              const downloadUrl = `${output_ref.output_dir_url}/${node.id}`;
+              window.open(downloadUrl, '_blank');
+            }}
+          />
+        )}
+        {has_size && (
+          <>
+            <MenuItem disabled text={`Size: ${size_human} (${size_real} B)`} />
+          </>
+        )}
+      </Menu>
+    );
+
+    // Check if any download options are available
+    const hasDownloadOptions = (output_new && !missing_from_new) || (output_ref && !missing_from_reference);
+    
+    const sizeLabel = (
+      <span 
+        className={Classes.TEXT_MUTED} 
+        style={{ 
+          cursor: hasDownloadOptions ? 'pointer' : 'default',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
+        }}
+      >
+        {size_human}
+        {hasDownloadOptions && (
+          <Icon 
+            icon="download" 
+            size={10}
+            style={{ 
+              opacity: 0.6
+            }}
+          />
+        )}
+      </span>
+    );
+
+    node.secondaryLabel = hasDownloadOptions ? (
+      <Popover
+        content={downloadMenu}
+        placement="right"
+        interactionKind="hover"
+        hoverCloseDelay={200}
+      >
+        {sizeLabel}
+      </Popover>
+    ) : sizeLabel;
 }
 
 
@@ -250,7 +315,7 @@ class BitAccuracyViewer extends React.Component {
     tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
 
     const has_ref = tree_ref !== null && tree_ref !== undefined
-    forEachNode(tree_compared, applyStyle(has_ref, has_ref && props.color_blind_friendly))
+    forEachNode(tree_compared, applyStyle(has_ref, has_ref && props.color_blind_friendly, props.output_new, props.output_ref))
     forEachNode(tree_compared, node => {if ((this.state?.opened || []).includes(node.id)) {node.isExpanded = true}} )
 
     if (props.expand_all !== undefined && !!props.expand_all) {
