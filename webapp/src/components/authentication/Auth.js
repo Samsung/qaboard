@@ -138,6 +138,16 @@ const UserInfo = styled.div`
 
 // Hide Blueprint's default submenu caret since we have our own
 const UserMenuItemWrapper = styled.div`
+  /* Hide the list marker bullet from the submenu li element */
+  li.bp5-submenu {
+    list-style: none !important;
+  }
+  
+  /* Hide the submenu icon completely */
+  .bp5-submenu-icon {
+    display: none !important;
+  }
+  
   .user-menu-trigger {
     /* Hide Blueprint's default submenu caret */
     &::after {
