@@ -9,7 +9,7 @@ LABEL maintainer="arthurf.flam@samsung.com"
 ENV PROXY_HOST=webproxy.transchip.com \
     PROXY_PORT=8080 \
     PROXY_PROTOCOL=http
-ENV PROXY=${PROXY_PROTOCOL}://${PROXY_HOST}:${PROXY_PORT}
+ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
 RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
     echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
     echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
@@ -124,12 +124,25 @@ RUN --mount=type=ssh \
     # from source to use the UWSGI_PROFILE_OVERRIDE set above
     --refresh-package uwsgi \
     --no-binary-package uwsgi \
-    --locked \
+    #FIXME: when we fix the xml bugs and issues then we can uncomment --locked
+    # --locked \
     --no-install-project \
     --no-install-package qaboard && \
     # we even tried to build here...
     uv add uwsgi --refresh-package uwsgi --no-binary-package uwsgi
 # and ended up runing this manually
+RUN --mount=type=ssh \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
+    --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
+uv add lxml xmlsec uwsgi \
+    --no-binary-package uwsgi \
+    --no-binary-package lxml \
+    --no-binary-package xmlsec \
+    --refresh-package lxml \
+    --refresh-package xmlsec \
+    --refresh-package uwsgi \
+    --no-cache --reinstall
 # UWSGI_PROFILE_OVERRIDE=xml=expat uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall
 
 # FIXME: should not be needed: why don't we use the system python?
@@ -150,7 +163,9 @@ WORKDIR /qaboard/backend
 # with a shared cache across builds
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    uv sync
+    #FIXME: when we fix the xml bugs and issues then we can uncomment --locked
+    # --locked  
 
 
 ENV QA_NO_CHECK_FOR_UPDATES=1
