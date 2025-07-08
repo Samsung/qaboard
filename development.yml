@@ -8,6 +8,9 @@ services:
   db:
     logging:
       driver: none
+  redis:
+    logging:
+      driver: none
   # cantaloupe:
   #   logging:
   #     driver: none
@@ -54,9 +57,8 @@ services:
       "
     ports:
     - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
-    #   logging:
-    #     driver: none
-
+    logging:
+      driver: json-file
 
   frontend:
     build:
@@ -85,7 +87,9 @@ services:
     depends_on:
     - proxy
     - backend
-
+    logging:
+      driver: json-file
+  
   website:
     command: yarn start
     volumes:
