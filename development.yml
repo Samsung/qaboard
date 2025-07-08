@@ -49,8 +49,8 @@ services:
     # But non-root users don't gain capabilities...
     command: >
       bash -c "
-      echo 'arthurf ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-      && su arthurf -c 'flask run --host 0.0.0.0 --with-threads --port 5152'
+      echo 'idanm ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+      && su idanm -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152'
       "
     ports:
     - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
