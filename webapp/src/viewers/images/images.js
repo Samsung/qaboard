@@ -898,7 +898,7 @@ class ImgViewer extends React.PureComponent {
                   minimal
                   onClick={() => {
                     copyElementToClipboard(
-                      this.viewer_new.canvas,
+                      this.viewer_ref.canvas,
                       "ref image",
                       message=>toaster.show({message, intent: Intent.SUCCESS})
                     )
