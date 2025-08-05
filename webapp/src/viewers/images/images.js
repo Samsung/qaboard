@@ -866,7 +866,7 @@ class ImgViewer extends React.PureComponent {
       let bottom_right = viewportBounds.getBottomRight()
       const tiledImage = this.viewer_new.world.getItemAt(this.viewer_new.world.getItemCount() - 1);
       top_left = tiledImage.viewportToImageCoordinates(top_left.x, top_left.y);
-      bottom_right = tiledImage.viewportToImageCoordinates(top_left.x, top_left.y);
+      bottom_right = tiledImage.viewportToImageCoordinates(bottom_right.x, bottom_right.y);
       // Below is "not accurate with multi-images"
       // top_left = this.viewer_new.viewport.viewportToImageCoordinates(top_left.x, top_left.y)
       // bottom_right = this.viewer_new.viewport.viewportToImageCoordinates(top_left.x, top_left.y)
