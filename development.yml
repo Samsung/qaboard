@@ -50,10 +50,14 @@ services:
     #   - SETUID
     #   - SETGID
     # But non-root users don't gain capabilities...
+    # uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall
+    # flask run --with-threads --host 0.0.0.0 --port 5152
     command: >
       bash -c "
       echo '${USER} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
       && su ${USER} -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152'
+      echo 'WARNING: the first time users might need to call manually'
+      echo 'uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall'
       "
     ports:
     - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
