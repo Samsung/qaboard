@@ -64,6 +64,7 @@ class CiCommitResults extends Component {
     this.state = {
       controls: controls_defaults(this.props.config),
       global_dynamic_options: {},
+      output_options_store: {}, // Store individual output options for re-registration
       registered_outputs: new Set(),
       visualizations_with_files: new Set(), // Track which visualizations have files available
       visualization_stats: {
@@ -72,6 +73,12 @@ class CiCommitResults extends Component {
         missing_files_count: 0,
       },
       expandFloatingPanel: false,
+      registration_info: {
+        total_outputs: 0,
+        registered_outputs: 0,
+        is_throttled: false,
+        last_recompute_at: 0,
+      },
     };
   }
 
@@ -225,13 +232,14 @@ class CiCommitResults extends Component {
       
       // Store this output's options for future merging
       const outputOptionsStore = {
-        ...prevState.global_dynamic_options,
+        ...prevState.output_options_store,
         [outputId]: outputOptions
       };
       
       // Always recompute for first 50 outputs to ensure options appear quickly
       // Then only recompute periodically for performance
       const shouldRecompute = newRegisteredOutputs.size <= 50 || newRegisteredOutputs.size % 20 === 0;
+      const isThrottled = newRegisteredOutputs.size > 50 && newRegisteredOutputs.size % 20 !== 0;
       
       let mergedOptions = prevState.global_dynamic_options;
       
@@ -260,8 +268,15 @@ class CiCommitResults extends Component {
       return {
         registered_outputs: newRegisteredOutputs,
         global_dynamic_options: mergedOptions,
+        output_options_store: outputOptionsStore,
         controls: updatedControls,
-        visualizations_with_files: updatedVisualizationsWithFiles
+        visualizations_with_files: updatedVisualizationsWithFiles,
+        registration_info: {
+          total_outputs: this.props.new_batch?.filtered?.outputs?.length || 0,
+          registered_outputs: newRegisteredOutputs.size,
+          is_throttled: isThrottled,
+          last_recompute_at: shouldRecompute ? newRegisteredOutputs.size : prevState.registration_info.last_recompute_at,
+        }
       };
     });
   };
@@ -308,6 +323,38 @@ class CiCommitResults extends Component {
     });
   };
 
+  forceReregisterAllOptions = () => {
+    // Force recomputation of all dynamic options by collecting all stored options
+    const allOutputOptions = Array.from(this.state.registered_outputs).map(id => ({
+      output_id: id,
+      ...this.state.output_options_store[id] || {}
+    }));
+    
+    const mergedOptions = mergeCompatibleOptions(allOutputOptions);
+    
+    // Update controls with the merged options
+    const updatedControls = { ...this.state.controls };
+    Object.entries(mergedOptions).forEach(([name, option]) => {
+      if (!updatedControls.dynamic_options[name]) {
+        updatedControls.dynamic_options[name] = [option.defaultValue];
+      }
+      // Preserve existing sync preferences
+      if (updatedControls.dynamic_options_sync[name] === undefined) {
+        updatedControls.dynamic_options_sync[name] = true;
+      }
+    });
+    
+    this.setState({
+      global_dynamic_options: mergedOptions,
+      controls: updatedControls,
+      registration_info: {
+        ...this.state.registration_info,
+        is_throttled: false,
+        last_recompute_at: this.state.registered_outputs.size,
+      }
+    }, () => updateQueryUrl(this.props.history, updatedControls));
+  };
+
   updateVisualizationStats = (stats) => {
     this.setState({ visualization_stats: stats });
   };
@@ -352,6 +399,7 @@ class CiCommitResults extends Component {
           controls: newControls,
           registered_outputs: new Set(),
           global_dynamic_options: {},
+          output_options_store: {},
           visualizations_with_files: new Set(),
         });
       } else {
@@ -680,6 +728,8 @@ class CiCommitResults extends Component {
             visualization_stats={this.state.visualization_stats}
             visualizations_with_files={this.state.visualizations_with_files}
             expandPanel={this.state.expandFloatingPanel}
+            registration_info={this.state.registration_info}
+            onForceReregisterAllOptions={this.forceReregisterAllOptions}
           />
         )}
       </Container>

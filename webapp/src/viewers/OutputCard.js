@@ -315,7 +315,10 @@ class OutputCard extends React.Component {
       }
     }
     if (prevState.manifests.new !== this.state.manifests.new) {
-      this.registerOptions()
+      // Reset registration flag to allow re-registration when manifest changes
+      this.setState({ is_options_registered: false }, () => {
+        this.registerOptions()
+      })
     }
   }
 
@@ -354,16 +357,23 @@ class OutputCard extends React.Component {
       return;
     }
 
-    // Make sure manifest has content before registering
+    // Check if manifest has content and is relevant for visualizations
     const manifestPaths = Object.keys(this.state.manifests.new);
-    if (manifestPaths.length === 0) {
-      this.setState({ is_loaded: true })
-      return;
-    }
-
     const outputId = this.props.output_new.id;
     const outputs = this.props.config.outputs || {}
     const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])];
+    
+    if (manifestPaths.length === 0) {
+      // If manifest is empty, check if we expect files for configured visualizations
+      const hasVisualizationsWithPaths = views.some(view => view.path);
+      if (hasVisualizationsWithPaths) {
+        // We expect files but manifest is empty - might still be loading
+        // Register with empty options for now, will re-register when manifest updates
+        this.props.onRegisterOutputOptions(outputId, {}, this.state.manifests.new);
+      }
+      this.setState({ is_loaded: true, is_options_registered: true })
+      return;
+    }
     
     const { options, parseErrors } = parseVisualizationOptions(views);
     
@@ -386,21 +396,42 @@ class OutputCard extends React.Component {
     // Calculate values and configure options for this output
     const configuredOptions = {};
     
-    Object.entries(options).forEach(([name, option]) => {
-      const values = calculateOptionValues(option, manifestPaths);
-      if (values.length > 0) {
-        configuredOptions[name] = configureOption(option, values);
-      }
-    });
+    try {
+      Object.entries(options).forEach(([name, option]) => {
+        try {
+          const values = calculateOptionValues(option, manifestPaths);
+          if (values.length > 0) {
+            configuredOptions[name] = configureOption(option, values);
+          }
+        } catch (error) {
+          console.warn(`Failed to configure option ${name}:`, error);
+          // Continue with other options instead of failing completely
+        }
+      });
 
-    // Register with parent component for syncing
-    this.props.onRegisterOutputOptions(outputId, configuredOptions, this.state.manifests.new);
-    
-    this.setState({
-      is_options_registered: true,
-      is_loaded: true,
-      local_options: configuredOptions,
-    });
+      // Register with parent component for syncing
+      if (this.props.onRegisterOutputOptions) {
+        this.props.onRegisterOutputOptions(outputId, configuredOptions, this.state.manifests.new);
+      }
+      
+      this.setState({
+        is_options_registered: true,
+        is_loaded: true,
+        local_options: configuredOptions,
+      });
+    } catch (error) {
+      console.error('Failed to register options for output:', outputId, error);
+      // Still mark as loaded to prevent infinite retry, but flag the error
+      this.setState({
+        is_options_registered: true,
+        is_loaded: true,
+        local_options: {},
+        error: {
+          ...this.state.error,
+          "registration": `Option registration failed: ${error.message}`,
+        }
+      });
+    }
   }
 
   getLocalOptions() {
@@ -574,7 +605,6 @@ class OutputCard extends React.Component {
 
         // Generate paths using both synced and local options
         var paths = generateViewPaths(view, effectiveOptions, this.state.manifests);
-        console.log(`Rendering view ${view.name} - paths: ${JSON.stringify(paths)}`)
 
         let show_ref_if_available = controls.show_reference === undefined || controls.show_reference
         show_ref_if_available = show_ref_if_available || is_image(view)
@@ -780,6 +810,9 @@ class OutputCard extends React.Component {
         </Tooltip>}
         {error.parse && <Tooltip key="error-parse" content={<ul>{error.parse.map(e => <li><strong>{e.path}:</strong> {e.message}</li>)}</ul>}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Parsing Error</Tag>
+        </Tooltip>}
+        {error.registration && <Tooltip key="error-registration" content={<span>{error.registration}</span>}>
+          <Tag style={{ margin: '5px' }} intent={Intent.WARNING}>Registration Error</Tag>
         </Tooltip>}
 
         {!this.props.no_header && <OutputHeader

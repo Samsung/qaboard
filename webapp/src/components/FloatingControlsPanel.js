@@ -206,6 +206,8 @@ const FloatingControlsPanel = ({
   visualization_stats = { total_visualizations: 0, disabled_visualizations: 0, missing_files_count: 0 },
   visualizations_with_files = new Set(),
   expandPanel = false,
+  registration_info = { total_outputs: 0, registered_outputs: 0, is_throttled: false, last_recompute_at: 0 },
+  onForceReregisterAllOptions = () => {},
 }) => {
   // Get initial panel state from localStorage, default to open
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -409,6 +411,26 @@ const FloatingControlsPanel = ({
                   </div>
                 )
               }
+              {registration_info.is_throttled && registration_info.total_outputs > 0 && (
+                <div style={{ marginTop: 2 }}>
+                  📝 {registration_info.registered_outputs}/{registration_info.total_outputs} outputs registered
+                  {registration_info.is_throttled && (
+                    <span style={{ color: '#d9822b' }}> (throttled)</span>
+                  )}
+                </div>
+              )}
+              {registration_info.is_throttled && (
+                <div style={{ marginTop: 4 }}>
+                  <Button
+                    icon="refresh"
+                    small
+                    onClick={onForceReregisterAllOptions}
+                    style={{ fontSize: '11px' }}
+                  >
+                    Refresh Options
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 

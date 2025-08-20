@@ -167,7 +167,7 @@ const SyncedVideos = ({
           <div>
             <Tag intent="warning">
               {!hasSameData ? 'reference' : 'reference (same-video)'}
-              {Math.abs(currentTimeNew-currentTimeRef) > frameDuration!==0 && <code>
+              {Math.abs(currentTimeNew-currentTimeRef) > frameDuration && <code>
                 {currentTimeNew - currentTimeRef > 0 ? " -" : " +"}
                 {(Math.abs(currentTimeNew-currentTimeRef)*1000).toPrecision(3)}ms
               </code>}

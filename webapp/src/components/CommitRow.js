@@ -68,7 +68,6 @@ const has_outputs_in_batch = label => commit => {
 class CommitResults extends React.Component {
   render() {
     const { project, project_data={}, commit, dispatch, default_batch="default" } = this.props;
-
     let incomplete_data = commit.message === undefined || commit.message === null;
     if (incomplete_data)
       return <span></span>
@@ -81,8 +80,11 @@ class CommitResults extends React.Component {
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label, batch]) => label )
     let valid_outputs_not_in_default_batch = (!has_outputs_in_batch(default_batch)(commit) && batches_with_results.length>0)
+    // console.log("batches_with_results", batches_with_results)
+    // console.log("valid_outputs_not_in_default_batch", valid_outputs_not_in_default_batch)
     let ci_batch_label = valid_outputs_not_in_default_batch ? batches_with_results[0] : default_batch
     let ci_batch =  commit.batches[ci_batch_label];
+    // console.log("ci_batch", ci_batch)
 
     if (
       ci_batch === undefined ||
@@ -113,9 +115,10 @@ class CommitResults extends React.Component {
     const formatter = v => format(v, {precision: 3})
     let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
 
-    const { available_metrics={}, default_metric } = (project_data.data || {}).qatools_metrics || {};
-    const default_metric_info = available_metrics[default_metric] || {};
-
+    const { available_metrics={}, default_metric } = project_data.data?.qatools_metrics || {};
+    // const default_metric_info = available_metrics[default_metric] || {};
+    const default_metric_info = available_metrics['WB_Err_HSV'] || {};
+    
     let status_messages = (
       <Fragment>
         {ci_batch.pending_outputs - ci_batch.running_outputs > 0 && (
@@ -177,7 +180,7 @@ class CommitResults extends React.Component {
             No results
           </Button>
         </Link>}
-        {ci_batch.valid_outputs > 0 && ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== undefined  &&
+        {ci_batch.valid_outputs > 0 &&
             <Fragment>
               {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== ci_batch.aggregated_metrics[`${default_metric_info.key}_average`] && <Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
@@ -191,7 +194,7 @@ class CommitResults extends React.Component {
                 </strong>{" "}
                 median{" "}
               </Tag>}
-              <Tag style={{ marginRight: "4px" }} minimal>
+              {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== undefined && <Tag style={{ marginRight: "4px" }} minimal>
                 <strong>
                   {formatter(
                     default_metric_info.scale *
@@ -202,7 +205,7 @@ class CommitResults extends React.Component {
                   {default_metric_info.suffix}
                 </strong>{" "}
                 avg {default_metric_info.short_label}
-              </Tag>
+              </Tag>}
               {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip modifiers content={<ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
                     <li key={k}>
@@ -346,7 +349,7 @@ class CommitRow extends React.Component {
                   }}
                 />
                 {is_subproject && <MenuItem
-                  text="Delete All Runs (in all subprojects!)"
+                  text="Delete All Runs (in all other projects for this commit!)"
                   icon="trash"
                   intent={Intent.DANGER}
                   disabled={this.state.waiting || commit_has_milestones}
