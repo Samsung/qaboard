@@ -1,8 +1,9 @@
 import React from "react";
 import {
   Colors,
-  HTMLSelect,
-  MenuItem
+  MenuItem,
+  Button,
+  NonIdealState
 } from "@blueprintjs/core";
 import {
   Select,
@@ -10,8 +11,9 @@ import {
 
 
 import { pretty_label } from '../../utils'
+import { has_milestones } from '../milestones'
 
-const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearchable = true, searchThreshold = 0 }) => {
+const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, project_data }) => {
   if (!commit || !commit.batches)
     return <span/>
 
@@ -29,6 +31,12 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearc
         let outputs = Object.values(batchData.outputs || {})
         outputs = outputs.filter(o => o.output_type !== "optim_iteration")
         const title = pretty_label(batchData)
+        
+        // Check if this batch is a milestone
+        const batch_obj = { label };
+        const is_milestone = has_milestones({ commit, project, project_data, batch: batch_obj });
+        const milestone_prefix = is_milestone ? "⭐ " : "";
+        
         let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
         let nb_failed = outputs.filter(o => o.is_failed).length;
         let nb_running = outputs.filter(o => o.is_running).length;
@@ -57,6 +65,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearc
         return {
           label,
           title,
+          title_with_milestone: milestone_prefix + title,
           status,
           failures,
           running,
@@ -67,7 +76,8 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearc
           nb_failed,
           nb_running,
           total: outputs.length,
-          batchData
+          batchData,
+          is_milestone
         };
       });
   };
@@ -90,7 +100,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearc
           <div style={{ lineHeight: '1.3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontWeight: 500 }}>
-                {batchItem.title}
+                {batchItem.title_with_milestone}
               </div>
               <div style={{ fontSize: '12px', color: Colors.GRAY1, marginTop: '2px' }}>
                 {batchItem.status} {batchItem.failures}{batchItem.running}{batchItem.optimization}
@@ -124,58 +134,21 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearc
   let selected_batch_missing = !Object.keys(commit.batches).includes(batch.label)
   let style = selected_batch_missing ? {color: Colors.RED2} : {}
 
-  // Use searchable Select based on configuration
-  const usesSearchableSelect = alwaysUseSearchable || batchItems.length > searchThreshold;
-
-  if (!usesSearchableSelect) {
-    // Original HTMLSelect for backwards compatibility with small batch counts
-    const batches_to_options = batches =>
-      Object.entries(batches)
-      .sort( ([label1, _1], [label2, _2]) => {
-        if (label1 === 'default')
-          return -1;
-        if (label2 === 'default')
-          return 1;
-        return label1.localeCompare(label2);
-      })
-      .map(([label, batch]) => {
-        let outputs = Object.values(batch.outputs || {})
-        outputs = outputs.filter(o => o.output_type !== "optim_iteration")
-        const title = pretty_label(batch)
-        let nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
-        let status = `${nb_success}/${outputs.length} ✅`;
-        let nb_failed = outputs.filter(o => o.is_failed).length;
-        let nb_running = outputs.filter(o => o.is_running).length;
-        let failures = nb_failed > 0 ? `${nb_failed}❌` : "";
-        let running = nb_running > 0 ? `${nb_running}🏃` : "";
-        return  <option key={label} value={label}>
-           {title} &nbsp;•&nbsp; {status} &nbsp;{failures}{running}{batch.data.optimization && `${batch.data.iteration} 🔁`}
-         </option>
-      });
-      
-    return (
-        <HTMLSelect
-          minimal
-          disabled={!has_tuning_batches}
-          id="batch-select-new"
-          value={batch.label}
-          title={batch.label}
-          onChange={onChange}
-          style={{maxWidth: '360px', ...style}}
-        >
-          {selected_batch_missing && <option value={batch.label} key={batch.label}>{pretty_label(batch)} (no results)</option>}
-          {batches_to_options(commit.batches)}
-        </HTMLSelect>
-    );
-  }
-
   return (
     <Select
       items={batchItems}
       itemRenderer={renderBatch}
       itemPredicate={filterBatch}
       onItemSelect={handleBatchSelect}
+      activeItem={selectedItem}
       filterable={true}
+      noResults={
+        <NonIdealState
+          icon="search"
+          title="No batches found"
+          description="Try adjusting your search terms or check if batches are available."
+        />
+      }
       popoverProps={{ 
         minimal: true,
         modifiers: { 
@@ -185,48 +158,37 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, alwaysUseSearc
         }
       }}
       disabled={!has_tuning_batches}
-      style={{maxWidth: '360px', marginLeft: '5px', ...style}}
     >
-      <div 
-        style={{ 
-          border: '1px solid #ccc',
-          borderRadius: '3px',
-          padding: '5px 10px',
-          cursor: has_tuning_batches ? 'pointer' : 'not-allowed',
-          backgroundColor: has_tuning_batches ? 'white' : '#f5f5f5',
-          minWidth: '200px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          lineHeight: '1.3'
-        }}
+      <Button
+        rightIcon="double-caret-vertical"
+        disabled={!has_tuning_batches}
+        style={{maxWidth: '360px', marginLeft: '5px', ...style}}
       >
-        <div style={{ flex: 1 }}>
-          {selectedItem ? (
-            <div>
-              <div style={{ fontWeight: 500 }}>
-                {selectedItem.title}
-                {selected_batch_missing && " (no results)"}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', lineHeight: '1.3', width: '100%' }}>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            {selectedItem ? (
+              <div>
+                <div style={{ fontWeight: 500 }}>
+                  {selectedItem.title_with_milestone}
+                  {selected_batch_missing && " (no results)"}
+                </div>
+                <div style={{ fontSize: '12px', color: Colors.GRAY1, marginTop: '2px' }}>
+                  {selectedItem.status} {selectedItem.failures}{selectedItem.running}{selectedItem.optimization}
+                </div>
               </div>
-              <div style={{ fontSize: '12px', color: Colors.GRAY1, marginTop: '2px' }}>
-                {selectedItem.status} {selectedItem.failures}{selectedItem.running}{selectedItem.optimization}
+            ) : (
+              <div style={{ color: Colors.RED2 }}>
+                {pretty_label(batch)} (no results)
               </div>
-            </div>
-          ) : (
-            <div style={{ color: Colors.RED2 }}>
-              {pretty_label(batch)} (no results)
+            )}
+          </div>
+          {selectedItem && selectedItem.username && (
+            <div style={{ fontSize: '11px', color: Colors.GRAY3, fontStyle: 'italic', marginRight: '8px' }}>
+              {selectedItem.username}
             </div>
           )}
         </div>
-        {selectedItem && selectedItem.username && (
-          <div style={{ fontSize: '11px', color: Colors.GRAY3, fontStyle: 'italic', marginRight: '8px' }}>
-            {selectedItem.username}
-          </div>
-        )}
-        <div style={{ color: Colors.GRAY1 }}>
-          ▼
-        </div>
-      </div>
+      </Button>
     </Select>
   );
 };

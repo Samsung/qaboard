@@ -258,6 +258,8 @@ class AppNavbar extends Component {
           {is_dashboard && <SelectBatchesNav
             commit={new_commit}
             batch={new_batch}
+            project={project}
+            project_data={project_data}
             onChange={this.update_selected_batches}
             hide_counts
           />}

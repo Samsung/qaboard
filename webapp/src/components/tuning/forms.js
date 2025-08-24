@@ -38,6 +38,178 @@ const editor_options = {
   seedSearchStringFromSelection: true,
 };
 
+const transformCDERegisters = (text) => {
+  // Transform CDE register format to QA-Board format
+  // Remove sim|, hal|, def| prefixes and replace =X with : [X]
+  // block.a=1000
+  // # => "block.a": [1000],
+  // block.hal|b="sdfggf"
+  // # => "block.b": ["sdfggf"],
+  // block.def|a=5
+  // # => "block.a": [5]
+  // CMixer_Gains_0.hal|channels_gain=[0 0 0 0 0 0 0 0 ]
+  // #=> [[[0, 0, 0, 0, 0, 0, 0, 0, ]]]
+  // CMixer_Gains_0.hal|channels_gain=[1 2 3 4
+  //                               0 0 0 0 ]
+  // #=> [ [[1, 2, 3, 4], [0, 0, 0, 0]] ]
+  const lines = text.split('\n');
+  const transformedLines = [];
+  let i = 0;
+  
+  while (i < lines.length) {
+    const line = lines[i];
+    
+    // Skip empty lines and comments
+    if (!line.trim() || line.trim().startsWith('//') || line.trim().startsWith('#')) {
+      transformedLines.push(line);
+      i++;
+      continue;
+    }
+    
+    // Transform lines with CDE format (with or without sim|/hal|/def| prefixes)
+    if (line.includes('=')) {
+      let transformedLine = line.replace(/\.(sim|hal|def)\|/g, '.'); // Remove .sim|, .hal|, .def|
+      
+      const equalIndex = transformedLine.indexOf('=');
+      if (equalIndex > -1) {
+        const key = transformedLine.substring(0, equalIndex).trim();
+        let value = transformedLine.substring(equalIndex + 1).trim();
+        
+        // Check if this is an array/matrix (single-line or multiline)
+        if (value.startsWith('[')) {
+          // Handle single-line arrays like [18 22 32 46 67 97 99]
+          if (value.trim().endsWith(']')) {
+            const matrixValue = parseMatrixToJSON(value);
+            
+            // Determine if this is the last CDE entry
+            const remainingLines = lines.slice(i + 1);
+            const isLastEntry = remainingLines.every(l => !l.trim() || l.trim().startsWith('//') || l.trim().startsWith('#') || 
+              !l.includes('='));
+            const comma = isLastEntry ? '' : ',';
+            
+            transformedLines.push(`"${key}": [${matrixValue}]${comma}`);
+            i++;
+            continue;
+          }
+          
+          // Handle multiline matrices (starts with [ but doesn't end with ])
+          if (!value.trim().endsWith(']')) {
+            // Collect all lines until we find the closing bracket
+            let matrixLines = [value];
+            let j = i + 1;
+            let foundClosing = false;
+            
+            while (j < lines.length && !foundClosing) {
+              const nextLine = lines[j].trim();
+              matrixLines.push(nextLine);
+              if (nextLine.endsWith(']')) {
+                foundClosing = true;
+              }
+              j++;
+            }
+            
+            if (foundClosing) {
+              // Parse the matrix content - preserve newlines for proper row separation
+              const matrixContent = matrixLines.join('\n').trim();
+              // Convert matrix format: [0 0 0 0\n0 0 0 0] -> [[0,0,0,0],[0,0,0,0]]
+              const matrixValue = parseMatrixToJSON(matrixContent);
+              
+              // Determine if this is the last CDE entry
+              const remainingLines = lines.slice(j);
+              const isLastEntry = remainingLines.every(l => !l.trim() || l.trim().startsWith('//') || l.trim().startsWith('#') || 
+                !l.includes('='));
+              const comma = isLastEntry ? '' : ',';
+              
+              transformedLines.push(`"${key}": [${matrixValue}]${comma}`);
+              i = j; // Skip the processed matrix lines
+              continue;
+            }
+          }
+        }
+        
+        // Handle regular single-line values
+        const quotedKey = `"${key}"`;
+        let formattedValue;
+        
+        if (value.startsWith('"') && value.endsWith('"')) {
+          formattedValue = `[${value}]`;
+        } else if (!isNaN(value) && !isNaN(parseFloat(value))) {
+          formattedValue = `[${value}]`;
+        } else {
+          formattedValue = `["${value}"]`;
+        }
+        
+        // Check if this is the last CDE entry
+        const remainingLines = lines.slice(i + 1);
+        const isLastEntry = remainingLines.every(l => !l.trim() || l.trim().startsWith('//') || l.trim().startsWith('#') || 
+          !l.includes('='));
+        const comma = isLastEntry ? '' : ',';
+        
+        transformedLines.push(`${quotedKey}: ${formattedValue}${comma}`);
+      } else {
+        transformedLines.push(line);
+      }
+    } else {
+      transformedLines.push(line);
+    }
+    i++;
+  }
+  
+  return transformedLines.join('\n');
+};
+
+const parseMatrixToJSON = (matrixStr) => {
+  // Remove outer brackets and split by lines/rows
+  const content = matrixStr.substring(1, matrixStr.length - 1).trim();
+  const rows = content.split(/\s*\n\s*/).map(row => row.trim()).filter(row => row.length > 0);
+  
+  if (rows.length === 1) {
+    // Single row - return as 2D array with one row for consistency
+    const values = rows[0].split(/\s+/).map(val => {
+      const num = parseFloat(val);
+      return isNaN(num) ? `"${val}"` : num;
+    });
+    return `[[${values.join(', ')}]]`;
+  } else {
+    // Multiple rows - return as 2D array
+    const jsonRows = rows.map(row => {
+      // Split by whitespace and convert to numbers
+      const values = row.split(/\s+/).map(val => {
+        const num = parseFloat(val);
+        return isNaN(num) ? `"${val}"` : num;
+      });
+      return `[${values.join(', ')}]`;
+    });
+    
+    return `[${jsonRows.join(', ')}]`;
+  }
+};
+
+const calculateActualRange = (originalRange, insertedText) => {
+  // Calculate the actual range occupied by the inserted text
+  const lines = insertedText.split('\n');
+  const numNewlines = lines.length - 1;
+  
+  if (numNewlines === 0) {
+    // Single line: extend column by text length
+    return {
+      startLineNumber: originalRange.startLineNumber,
+      startColumn: originalRange.startColumn,
+      endLineNumber: originalRange.endLineNumber,
+      endColumn: originalRange.startColumn + insertedText.length
+    };
+  } else {
+    // Multi-line: calculate end position based on last line
+    const lastLine = lines[lines.length - 1];
+    return {
+      startLineNumber: originalRange.startLineNumber,
+      startColumn: originalRange.startColumn,
+      endLineNumber: originalRange.startLineNumber + numNewlines,
+      endColumn: lastLine.length + 1
+    };
+  }
+};
+
 
 const wrap_values_in_array = object => {
   let output = {};
@@ -240,6 +412,56 @@ class TuningForm extends Component {
     this.props.dispatch(updateTuningForm(this.props.project, {parameter_search: new_parameter_search}))
   };
 
+  onEditorDidMount = (editor, monaco) => {
+    // Store reference for cleanup
+    this.editor = editor;
+    this.isTransforming = false;
+    
+    // Listen for content changes that might be paste operations
+    editor.onDidChangeModelContent((e) => {
+      // Avoid infinite loops from our own transformations
+      if (this.isTransforming) {
+        return;
+      }
+      
+      // Look at the actual changes to detect paste
+      const changes = e.changes;
+      if (changes.length > 0) {
+        const change = changes[0];
+        const addedText = change.text;
+        console.log('change:', change);
+
+        // Check if the added text looks like CDE register format and is significant enough to be a paste
+        if (addedText.length > 5 && addedText.includes('=')) {
+          const transformedText = transformCDERegisters(addedText);
+          console.log('transformedText:', transformedText);
+          
+          // Only transform if it's different from the original
+          if (transformedText !== addedText) {
+            this.isTransforming = true;
+            
+            // Calculate the actual range occupied by the pasted text
+            const actualRange = calculateActualRange(change.range, addedText);
+            console.log('change.range', change.range, 'actualRange', actualRange);
+            
+            // Replace the pasted content with the transformed version
+            const success = editor.executeEdits('paste-transform', [{
+              range: actualRange,
+              text: transformedText
+            }]);
+            
+            console.log('Transformed CDE register format to QA-Board format', success);
+            
+            // Reset the flag after a short delay
+            setTimeout(() => {
+              this.isTransforming = false;
+            }, 100);
+          }
+        }
+      }
+    });
+  };
+
   updateParameterSearchAuto = new_parameter_search => {
     this.setState({ parameter_search_auto: new_parameter_search });
     this.props.dispatch(updateTuningForm(this.props.project, {parameter_search_auto: new_parameter_search}))
@@ -383,13 +605,13 @@ class TuningForm extends Component {
         )}
       </FormGroup>
       <MonacoEditor
-        readonly
         height={250}
         language={language || 'json'}
         value={this.state.parameter_search || ''}
         options={editor_options}
         name="editor-tuning-set"
         onChange={this.updateParameterSearch}
+        editorDidMount={this.onEditorDidMount}
       />
       {this.state.search_type !== "optimize" && <Callout intent={time_intent} >{total_runs} total runs {total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.)'} </Callout>}
     </>
