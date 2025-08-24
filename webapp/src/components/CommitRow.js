@@ -80,11 +80,8 @@ class CommitResults extends React.Component {
                                .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label, batch]) => label )
     let valid_outputs_not_in_default_batch = (!has_outputs_in_batch(default_batch)(commit) && batches_with_results.length>0)
-    // console.log("batches_with_results", batches_with_results)
-    // console.log("valid_outputs_not_in_default_batch", valid_outputs_not_in_default_batch)
     let ci_batch_label = valid_outputs_not_in_default_batch ? batches_with_results[0] : default_batch
     let ci_batch =  commit.batches[ci_batch_label];
-    // console.log("ci_batch", ci_batch)
 
     if (
       ci_batch === undefined ||
@@ -116,8 +113,8 @@ class CommitResults extends React.Component {
     let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
 
     const { available_metrics={}, default_metric } = project_data.data?.qatools_metrics || {};
-    // const default_metric_info = available_metrics[default_metric] || {};
-    const default_metric_info = available_metrics['WB_Err_HSV'] || {};
+    const default_metric_info = available_metrics[default_metric] || {};
+    // const default_metric_info = available_metrics['WB_Err_HSV'] || {};
     
     let status_messages = (
       <Fragment>
