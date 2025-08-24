@@ -217,6 +217,7 @@ class CommitNavbar extends React.Component {
               commit={commit}
               batch={batch}
               filter={selected[`filter_batch_${type}`]}
+              type={type}
               dispatch={dispatch}
             />
             <div style={{ flex: '0 1 auto', alignSelf: 'center' }}>
@@ -289,6 +290,8 @@ class CommitNavbar extends React.Component {
         <SelectBatchesNav
           commit={commit}
           batch={batch}
+          project={project}
+          project_data={project_data}
           onChange={update(`selected_batch_${type}`)}
           hide_counts
         />

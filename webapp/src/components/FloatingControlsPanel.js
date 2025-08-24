@@ -282,8 +282,6 @@ const FloatingControlsPanel = ({
   // Build visualization controls
   const visualizationControls = [];
 
-  console.log("dynamic_options", dynamic_options)
-
   // Add image diff control if applicable
   if (maybe_diff) {
     visualizationControls.push(
