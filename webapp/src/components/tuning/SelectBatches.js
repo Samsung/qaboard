@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Colors,
   MenuItem,
@@ -14,9 +14,6 @@ import { pretty_label } from '../../utils'
 import { has_milestones } from '../milestones'
 
 const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, project_data }) => {
-  if (!commit || !commit.batches)
-    return <span/>
-
   // Prepare batch data for Select component
   const prepareBatchData = (batches) => {
     return Object.entries(batches)
@@ -82,8 +79,26 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, proje
       });
   };
 
-  const batchItems = prepareBatchData(commit.batches);
-  const selectedItem = batchItems.find(item => item.label === batch.label);
+  // Memoize batchItems to prevent recreation and infinite loops
+  const batchItems = useMemo(() => prepareBatchData(commit?.batches ?? {}), [commit?.batches ?? {}]);
+  
+  // Memoize selectedBatch calculation
+  const selectedBatch = useMemo(() => 
+    batchItems.find(item => item.label === batch.label), 
+    [batchItems, batch.label]
+  );
+  
+  // State for keyboard navigation - remembers the last keyboard-selected batch
+  const [keyboardActiveBatch, setKeyboardActiveBatch] = useState(selectedBatch);
+  
+  // Update keyboard active batch when selected batch changes
+  useEffect(() => {
+    // console.log(`Keyboard navigation: ${keyboardActiveBatch?.label} -> ${selectedBatch?.label}`);
+    if (selectedBatch && keyboardActiveBatch?.label !== selectedBatch.label) {
+      // console.log(`Selected batch: ${selectedBatch?.label}`);
+      setKeyboardActiveBatch(selectedBatch);
+    }
+  }, [selectedBatch]);
   
   // Custom item renderer for rich display
   const renderBatch = (batchItem, { handleClick, modifiers }) => {
@@ -91,11 +106,15 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, proje
       return null;
     }
     
+    // Show selected batch with primary intent
+    const isSelected = selectedBatch && batchItem.label === selectedBatch.label;
+    
     return (
       <MenuItem
         key={batchItem.label}
         onClick={handleClick}
         active={modifiers.active}
+        intent={isSelected ? "primary" : undefined}
         text={
           <div style={{ lineHeight: '1.3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
@@ -130,6 +149,9 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, proje
     onChange(mockEvent);
   };
 
+  if (!commit || !commit.batches)
+    return <span/>
+
   let has_tuning_batches = Object.values(commit.batches).length >= 1;
   let selected_batch_missing = !Object.keys(commit.batches).includes(batch.label)
   let style = selected_batch_missing ? {color: Colors.RED2} : {}
@@ -140,7 +162,16 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, proje
       itemRenderer={renderBatch}
       itemPredicate={filterBatch}
       onItemSelect={handleBatchSelect}
-      activeItem={selectedItem}
+      // activeItem={keyboardActiveBatch}
+      onActiveItemChange={item => {
+        if (!item?.label) {
+          return
+        }
+        // Guard against setting the same item to prevent loops
+        if (item?.label !== keyboardActiveBatch?.label) {
+          setKeyboardActiveBatch(batchItems[item.label]);
+        }
+      }}
       filterable={true}
       noResults={
         <NonIdealState
@@ -166,14 +197,14 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, proje
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', lineHeight: '1.3', width: '100%' }}>
           <div style={{ flex: 1, textAlign: 'left' }}>
-            {selectedItem ? (
+            {selectedBatch ? (
               <div>
                 <div style={{ fontWeight: 500 }}>
-                  {selectedItem.title_with_milestone}
+                  {selectedBatch.title_with_milestone}
                   {selected_batch_missing && " (no results)"}
                 </div>
                 <div style={{ fontSize: '12px', color: Colors.GRAY1, marginTop: '2px' }}>
-                  {selectedItem.status} {selectedItem.failures}{selectedItem.running}{selectedItem.optimization}
+                  {selectedBatch.status} {selectedBatch.failures}{selectedBatch.running}{selectedBatch.optimization}
                 </div>
               </div>
             ) : (
@@ -182,9 +213,9 @@ const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, proje
               </div>
             )}
           </div>
-          {selectedItem && selectedItem.username && (
+          {selectedBatch && selectedBatch.username && (
             <div style={{ fontSize: '11px', color: Colors.GRAY3, fontStyle: 'italic', marginRight: '8px' }}>
-              {selectedItem.username}
+              {selectedBatch.username}
             </div>
           )}
         </div>

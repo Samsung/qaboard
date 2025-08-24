@@ -94,7 +94,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, dispatch, man
   // output.params.badges = [{text: "training", icon: "settings", href: "https://example.com"}]
   let run_path = `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
   if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") {
-    run_path = <span>{output.data.batch} <span class={Classes.TEXT_MUTED}>(pipeline)</span></span>
+    run_path = <span>{output.data.batch} <span className={Classes.TEXT_MUTED}>(pipeline)</span></span>
   }
   if (has_label) {
     run_path = output.test_input_metadata.label
