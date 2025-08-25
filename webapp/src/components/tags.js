@@ -2,7 +2,6 @@ import React from "react";
 import axios from "axios";
 
 import copy from 'copy-to-clipboard';
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Classes,
   Colors,
@@ -22,9 +21,11 @@ import { linux_to_windows } from '../utils'
 import { toaster } from "../toaster"
 
 
-const on_copy = text => {
+const on_copy = (text, format = 'config') => {
+  const message = format === 'tuning' ? 'Tuning format copied' : 'Config copied';
   toaster.show({
-    message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
+    message: message,
+    intent: Intent.SUCCESS
   });
 }
 
@@ -64,12 +65,35 @@ class PlatformTag extends React.Component {
 
 const hidden_keys = ["badges", "roi", "auto_rois"]
 
+// Helper function to convert configuration to tuning format
+const convertToTuningFormat = (configurations) => {
+  const merged = {};
+  
+  configurations.forEach(config => {
+    if (typeof config === 'object' && config !== null) {
+      Object.entries(config)
+        .filter(([k, v]) => !hidden_keys.includes(k))
+        .forEach(([key, value]) => {
+          // Handle numeric vectors/arrays specially
+          if (Array.isArray(value) && value.every(item => typeof item === 'number')) {
+            merged[key] = [[[value]]];
+          } else {
+            merged[key] = [value];
+          }
+        });
+    }
+  });
+  
+  return Object.keys(merged).length > 0 ? JSON.stringify(merged, null, 2) : null;
+};
+
 const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, toplevel=true}) => {
     // Some configuration key names are used and shown by viewers - we don't display them here...
     const tags = configurations.map((c, idx) => {
       const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: '400' }
+      
       if (typeof (c) === 'string') {
-        return <Tag
+        const stringTag = <Tag
           intent={intent}
           round
           minimal={!inverted}
@@ -77,25 +101,117 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
           key={idx}
           style={wrapper_style}
         >{c}</Tag>
+        
+        if (!toplevel) return stringTag;
+        
+        return <Popover
+          key={idx}
+          placement="bottom"
+          hoverCloseDelay={200}
+          interactionKind={"hover"}
+          content={
+            <Menu>
+              <MenuItem
+                icon="duplicate"
+                text="Copy this item"
+                onClick={() => {
+                  copy(c);
+                  on_copy(c);
+                }}
+              />
+              <MenuItem
+                icon="duplicate"
+                text="Copy full configuration"
+                onClick={() => {
+                  const pretty_json = JSON.stringify(configurations, null, 2);
+                  copy(pretty_json);
+                  on_copy(pretty_json);
+                }}
+              />
+              {convertToTuningFormat(configurations) && <MenuItem
+                icon="duplicate"
+                text="Copy full config in tuning format"
+                onClick={() => {
+                  const tuning_format = convertToTuningFormat(configurations);
+                  copy(tuning_format);
+                  on_copy(tuning_format, 'tuning');
+                }}
+              />}
+            </Menu>
+          }
+        >
+          {stringTag}
+        </Popover>
       } else {
-        return <span style={wrapper_style} key={idx}>
+        const objectTags = <span style={wrapper_style} key={idx}>
           {Object.entries(c)
                  .filter(([k, v]) => !hidden_keys.includes(k))
-                 .map( ([k, v]) =>
-                   <Tag round minimal={!inverted} key={k} intent={intent}>
+                 .map( ([k, v]) => {
+                   const tag = <Tag round interactive minimal={!inverted} key={k} intent={intent}>
                      <strong>{k}:</strong> {JSON.stringify(v)}
                    </Tag>
-                 )}
+                   
+                   if (!toplevel) return tag;
+                   
+                   return <Popover
+                     key={k}
+                     placement="bottom"
+                     hoverCloseDelay={200}
+                     interactionKind={"hover"}
+                     content={
+                       <Menu>
+                         <MenuItem
+                           icon="duplicate"
+                           text={<span>Copy <em>{`${k}`}</em></span>}
+                           onClick={() => {
+                             const item_text = `${k}: ${JSON.stringify(v)}`;
+                             copy(item_text);
+                             on_copy(item_text);
+                           }}
+                         />
+                         <MenuItem
+                           icon="duplicate"
+                           text="Copy as JSON"
+                           onClick={() => {
+                             const object_json = JSON.stringify(c, null, 2);
+                             copy(object_json);
+                             on_copy(object_json);
+                           }}
+                         />
+                         <MenuItem
+                           icon="duplicate"
+                           text="Copy full configuration"
+                           onClick={() => {
+                             const pretty_json = JSON.stringify(configurations, null, 2);
+                             copy(pretty_json);
+                             on_copy(pretty_json);
+                           }}
+                         />
+                         {convertToTuningFormat(configurations) && <MenuItem
+                           icon="duplicate"
+                           text="Copy full configuration in tuning format"
+                           onClick={() => {
+                             const tuning_format = convertToTuningFormat(configurations);
+                             copy(tuning_format);
+                             on_copy(tuning_format, 'tuning');
+                           }}
+                         />}
+                       </Menu>
+                     }
+                   >
+                     {tag}
+                   </Popover>
+                 })}
           </span>
+          
+        return objectTags;
       }
     })
 
     if (!toplevel)
       return tags
-    const pretty_json = JSON.stringify(configurations, null, 2);
-    return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}>
-      <span>{tags}</span>
-    </CopyToClipboard>
+      
+    return <span>{tags}</span>
 }
 
 
