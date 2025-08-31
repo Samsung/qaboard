@@ -1,6 +1,6 @@
 import React from "react";
 import axios from "axios";
-
+import { CopyToClipboard } from "react-copy-to-clipboard";
 import copy from 'copy-to-clipboard';
 import {
   Classes,
