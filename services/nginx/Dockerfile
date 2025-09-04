@@ -22,6 +22,12 @@ ENV HTTP_PROXY=$PROXY \
 RUN addgroup --system --gid 101 nginx \
     && adduser --system --disabled-login --ingroup nginx --no-create-home --home /nonexistent --gecos "nginx user" --shell /bin/false --uid 101 nginx
 
+ENV DEBIAN_FRONTEND=noninteractive
+# Use the Debian Archive since Buster is EOL
+RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.debian.org|http://archive.debian.org|g' /etc/apt/sources.list && \
+    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
+
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 # https://wiki.debian.org/Nginx
 # https://packages.debian.org/fr/sid/nginx-full
