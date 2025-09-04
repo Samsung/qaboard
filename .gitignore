@@ -28,6 +28,8 @@ sub.batches.yaml
 *.svg
 *.gif
 
+# ssh-agent files to build container images
+ssh-agent.pid
 
 # recommended by docusaurus
 # generated files
