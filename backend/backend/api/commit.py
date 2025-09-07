@@ -5,7 +5,7 @@ from gitdb.exc import BadName
 import ujson
 from flask import request, jsonify, make_response
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -66,27 +66,27 @@ def api_ci_commit(commit_id=None):
       ci_commit = (db_session
                    .query(CiCommit)
                    .options(
-                     joinedload(CiCommit.batches).
-                     joinedload(Batch.outputs)
+                     selectinload(CiCommit.batches).
+                     selectinload(Batch.outputs)
                     )
                    .filter(
                      CiCommit.project_id==project_id,
                      CiCommit.hexsha.startswith(commit_id),
                    )
-                   .all()
+                   .first()
                   )
       # fixme: some commits appear twice, one with a short hash...
       # http://alginfra1:6001/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/2861963a2216816252660bfdd2d9f459ae80b547?reference=ae720d287&batch=default&filter=01_S5KRM1_Nona_12BIT_OUTD02_6576x4992_EIT1.40ms_AGx1_DGx1.ra&selected_views=bit_accuracy
       # for commit in ci_commit:
       #   print(commit, commit.hexsha)
-      ci_commit = ci_commit[0]
+      # ci_commit = ci_commit[0]
     except (NoResultFound, IndexError):
       try:
         ci_commit = (db_session
                     .query(CiCommit)
                     .options(
-                      joinedload(CiCommit.batches).
-                      joinedload(Batch.outputs)
+                      selectinload(CiCommit.batches).
+                      selectinload(Batch.outputs)
                       )
                     .filter(
                       CiCommit.project_id==project_id,
