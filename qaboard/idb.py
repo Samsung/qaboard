@@ -35,7 +35,17 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
   ]
 
   def crop_run(run_dir: str) -> Optional[str]:
-    cde_sh = (run_context.output_dir / f"{run_dir}cde.sh").read_text()
+    cde_sh_path = run_context.output_dir / f"{run_dir}cde.sh"
+    try:
+        with open(cde_sh_path, 'r') as f:
+            cde_sh = f.read()
+    except FileNotFoundError:
+        print(f"Warning: cde.sh file not found at {cde_sh_path}. Skipping crop extraction.")
+        return None
+    except Exception as e:
+        print(f"Error reading cde.sh at {cde_sh_path}: {e}. Skipping crop extraction.")
+        return None
+      
     crops = {}
     crop_name = None
     for arg in shlex.split(cde_sh):
@@ -57,11 +67,14 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
         continue
 
       image_path = run_context.output_dir / output_image
-      # the md5 computed by QA-Board (outputs_manifest[output_image]["md5"]) is based on the whole-file
-      # while idb first parses the pixel data. Ideally we'd do the same
-      # and save that hash as "md5_hash" in the manifest
+      
+      # Handle 0-sized files
+      if not image_path.exists() or image_path.stat().st_size == 0:
+          print(f"Warning: Image file {image_path} does not exist or is empty. Skipping.")
+          continue
+
       image_md5 = Md5HashCalculator.from_image(image_path)
-    
+
       image = {
         "md5": image_md5,
         "metadata": {
