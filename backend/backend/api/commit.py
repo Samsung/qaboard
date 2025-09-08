@@ -75,13 +75,15 @@ def api_ci_commit(commit_id=None):
                    )
                    .first()
                   )
+      assert ci_commit
       # fixme: some commits appear twice, one with a short hash...
       # http://alginfra1:6001/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/2861963a2216816252660bfdd2d9f459ae80b547?reference=ae720d287&batch=default&filter=01_S5KRM1_Nona_12BIT_OUTD02_6576x4992_EIT1.40ms_AGx1_DGx1.ra&selected_views=bit_accuracy
       # for commit in ci_commit:
       #   print(commit, commit.hexsha)
       # ci_commit = ci_commit[0]
-    except (NoResultFound, IndexError):
+    except (NoResultFound, AssertionError) as e:
       try:
+      # Check if the user provided a branch name instead of a commit ID
         ci_commit = (db_session
                     .query(CiCommit)
                     .options(
@@ -122,7 +124,7 @@ def api_ci_commit(commit_id=None):
         except:
           return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
     except BadName:
-      return jsonify({f'error': f'Sorry, we could not understand the commid ID {commit_id} for project {project_id}.'}), 404
+      return jsonify({f'error': f'Sorry, we could not understand the commit ID {commit_id} for project {project_id}.'}), 404
     except Exception as e:
       raise(e)
       return jsonify({'error': 'Sorry, the request failed.'}), 500
