@@ -366,44 +366,34 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
 
   ###### SIRC-specific ########################################################
-  def has_output_files(output_dir):
-    """Checks if the output directory exists and contains image files."""
-    if not os.path.isdir(str(output_dir)):
-        return False
-
-    image_extensions = (".bmp", ".png")
-    output_files = [f for f in os.listdir(str(output_dir)) if f.lower().endswith(image_extensions)]
-    return bool(output_files)  # Return True if the list is not empty
-  
   try:
     from sentry_sdk import capture_exception
     from .idb import update_idb
     update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
-  except Exception as e:    
-    if has_output_files(str(run_context.output_dir)): # Only save pickle file if run succesfully created output
-      import random
-      backlog_dir = Path("/home/ispq/idb_backlog")
-      hex_string = ''.join(random.choices('0123456789abcdef', k=8))
-      task_path = backlog_dir / f"{hex_string}.pickle"
-      json.dump(
-        {
-          "id": run_context.id,
-          "input_path": str(run_context.input_path),
-          "output_dir": str(run_context.output_dir),
-          "batch_label": run_context.obj['batch_label'],
-          "project": str(project.name),
-          "commit_id": commit_id,
-          "input_files": input_files,
-          "outputs_manifest": outputs_manifest,
-        },
-        task_path.open("w")
-      )
-      ### Then to tackle the backlog...
-      # for task in backlog_dir.glob("*.pickle"):
-      #   args = pickle.load(task.open())
-      #   from qaboard.idb import idb_update
-      #   idb_update(*args)
-      #   task.unlink() # delete the file
+  except Exception as e:
+    import random
+    backlog_dir = Path("/home/ispq/idb_backlog")
+    hex_string = ''.join(random.choices('0123456789abcdef', k=8))
+    task_path = backlog_dir / f"{hex_string}.pickle"
+    json.dump(
+      {
+        "id": run_context.id,
+        "input_path": str(run_context.input_path),
+        "output_dir": str(run_context.output_dir),
+        "batch_label": run_context.obj['batch_label'],
+        "project": str(project.name),
+        "commit_id": commit_id,
+        "input_files": input_files,
+        "outputs_manifest": outputs_manifest,
+      },
+      task_path.open("w")
+    )
+    ### Then to tackle the backlog...
+    # for task in backlog_dir.glob("*.pickle"):
+    #   args = pickle.load(task.open())
+    #   from qaboard.idb import idb_update
+    #   idb_update(*args)
+    #   task.unlink() # delete the file
     capture_exception(e)
     print(f"WARNING: idb raised {e}")
 
