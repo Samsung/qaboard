@@ -62,3 +62,6 @@ packages = ["qaboard", "qatools"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.uv.pip]
+no-binary = ["uwsgi", "lxml", "xmlsec"]
