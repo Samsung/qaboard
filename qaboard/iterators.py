@@ -294,7 +294,7 @@ def iter_inputs(
       check_batch(batch)
       batch_run_context = deepcopy(run_context)
       batch_run_context.batch = batch
-      yield from iter_batch(available_batches[batch], batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
+      yield from iter_batch(parse_batch(batch, available_batches[batch]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
       continue
     
     # 2. Batches can be specified using wildcards
@@ -304,7 +304,7 @@ def iter_inputs(
         batch_run_context = deepcopy(run_context)
         batch_run_context.batch = b
         check_batch(b)
-        yield from iter_batch(available_batches[b], batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
+        yield from iter_batch(parse_batch(b, available_batches[b]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
       continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
@@ -331,7 +331,7 @@ def deep_interpolate(value, replaced: str, to_value):
       return to_value
     else:
       obj = {replaced: SubscriptableDict(to_value) if isinstance(to_value, dict) else to_value}
-      wrapped_replaced = "(\${" + replaced + r"([^}]*)})"
+      wrapped_replaced = r"(\${" + replaced + r"([^}]*)})"
       matches = re.findall(wrapped_replaced, value)
       full_match = False
       if matches:
@@ -360,9 +360,20 @@ def deep_interpolate(value, replaced: str, to_value):
   else:
     return value
 
+def parse_batch(batch_name, batch):
+  """Returns an empty batch if there is an issue with the batch's content"""
+  # Happens often when there is an orphan "my-batch:" in in the yaml file
+  if batch is None:
+    click.secho(f'WARNING: Empty definition for the batch {batch_name}', fg='yellow', err=True)
+    return None
+  if not isinstance(batch, dict):
+    click.secho(f'ERROR: The batch {batch_name} has the wrong type.', fg='red', bold=True, err=True)
+    click.secho(f'         Got {type(batch)} expected a dict with keys inputs/configuration/database...', fg='red', err=True) 
+    exit(1)
+  return batch
+
 
 def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
-    # Happens often when there is an orphan "my-batch:" in in the yaml file
     if batch is None:
       return
 
