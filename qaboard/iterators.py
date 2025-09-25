@@ -368,7 +368,7 @@ def parse_batch(batch_name, batch):
     return None
   if not isinstance(batch, dict):
     click.secho(f'ERROR: The batch {batch_name} has the wrong type.', fg='red', bold=True, err=True)
-    click.secho(f'         Got {type(batch)} expected a dict with keys inputs/configuration/database...', fg='red', err=True) 
+    click.secho(f'       Got {type(batch)} expected a dict with keys inputs/configuration/database...', fg='red', err=True) 
     exit(1)
   return batch
 
