@@ -494,7 +494,9 @@ default_action_on_existing = config.get('outputs', {}).get('action_on_existing',
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
+    allow_interspersed_args=False,
 ))
+@click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
@@ -515,9 +517,8 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--action-on-existing', default=default_action_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
 @click.option('--action-on-pending', default=default_action_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
-@click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, forwarded_args):
+def batch(ctx, batch_names, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
   if not batches_files:
@@ -525,6 +526,21 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     click.secho(f'Consider adding to qaboard.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
     click.secho(f'Where batches.yaml is formatted like in http://qa-docs/docs/batches-running-on-multiple-inputs', fg='red', err=True)
     return
+
+  filtered_batch_names = []
+  forwarded_args = []
+  for i, arg in enumerate(batch_names):
+    if arg == "--": # explicit separator → everything after is forwarded args
+      forwarded_args = batch_names[i + 1 :]
+      break
+    # Implicit separator → everything from here is forwarded args
+    # We do this for backward compat mostly... not sure batch names should start with "-"!
+    elif arg.startswith("-"):
+      forwarded_args = batch_names[i:]
+      break
+    else:
+      filtered_batch_names.append(arg)
+  batches = list(filtered_batch_names) + list(batches)
 
   if not batches:
     if not len(forwarded_args):

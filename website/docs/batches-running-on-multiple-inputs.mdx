@@ -21,7 +21,7 @@ qa batch my-batch
 #=> qa run --input A.jpg
 #=> qa run --input B.jpg
 
-qa batch --batch first-batch --batch second-batch
+qa batch first-batch second-batch
 ```
 
 ## Setting a custom database
@@ -296,8 +296,8 @@ hdr:
 no-hdr:
   <<: *HDR-disabled
   <<: *inputs_hdr
-# qa --batch-label hdr    batch hdr
-# qa --batch-label no-hdr batch no-hdr
+# qa --label hdr    batch hdr
+# qa --label no-hdr batch no-hdr
 
 # Maybe on nightly runs you want to run lots of inputs
 lots-of-hdr-inputs:
