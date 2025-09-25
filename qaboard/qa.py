@@ -494,9 +494,8 @@ default_action_on_existing = config.get('outputs', {}).get('action_on_existing',
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
-    allow_interspersed_args=False,
+    allow_interspersed_args=True,
 ))
-@click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
@@ -517,8 +516,9 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--action-on-existing', default=default_action_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
 @click.option('--action-on-pending', default=default_action_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
+@click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batch_names, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
   if not batches_files:
@@ -543,12 +543,9 @@ def batch(ctx, batch_names, batches, batches_files, tuning_search_dict, tuning_s
   batches = list(filtered_batch_names) + list(batches)
 
   if not batches:
-    if not len(forwarded_args):
-        click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
-        click.secho(f'Use either `qa batch BATCH`, or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
-        exit(1)
-    single_batch, *forwarded_args = forwarded_args
-    batches = [single_batch]
+    click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
+    click.secho(f'Use either `qa batch BATCH`, `qa batch BATCH_1 BATCH_2` or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
+    exit(1)
 
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
