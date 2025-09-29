@@ -38,6 +38,12 @@ dependencies = [
     "xmlsec>=1.3.15",
 ]
 
+[tool.uv]
+package = true
+
+[tool.uv.pip]
+no-binary = ["uwsgi", "lxml", "xmlsec"]
+
 # uv sync --extra qaboard
 # [project.optional-dependencies]
 # qaboard = ["qaboard"]
@@ -47,8 +53,6 @@ dependencies = [
 repository = "https://github.com/Samsung/qaboard"
 homepage = "https://samsung.github.io/qaboard"
 
-[tool.uv]
-package = true
 
 [project.scripts]
 qaboard_clean = "backend.clean:clean"
