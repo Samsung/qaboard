@@ -10,9 +10,12 @@ import simplejson
 from flask import request, jsonify, redirect, session
 from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from onelogin.saml2.auth import OneLogin_Saml2_Auth
-from onelogin.saml2.utils import OneLogin_Saml2_Utils
-
+try:
+  # FIXME: Unfortunately we run often into libxml mismatch version issues
+  from onelogin.saml2.auth import OneLogin_Saml2_Auth
+  from onelogin.saml2.utils import OneLogin_Saml2_Utils
+except Exception as e:
+  print(f"WARNING: Could not import onelogin.saml2: {e}")
 from backend import app, db_session
 from ..models import User, Token
 
