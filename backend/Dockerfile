@@ -1,5 +1,5 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-FROM python:3.12-slim-bookworm
+FROM python:3.13-slim-trixie
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -36,24 +36,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 
-# Install git, up-to-date.
-# The application manages a cache of all projects' repos, so it's useful.
-# If we ran into scale issues, we could look into a service like Gitlab's gitaly.
-# Note: if we didn't have proxy issues we would just
-#       add-apt-repository -y ppa:git-core/ppa
-RUN apt-get update -qq && \
-    apt-get install -y gpg
-    # This should work but doesn't because of proxy issues
-    # apt-get install -y software-properties-common && \
-    # add-apt-repository ppa:git-core/ppa && \
-RUN echo start && \
-    echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
-    echo "deb-src http://ppa.launchpad.net/git-core/ppa/ubuntu trusty main" >> /etc/apt/sources.list && \
-    # this should work but gpg seems to not be found
-    # gpg --batch --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy=$HTTP_PROXY --recv-keys A1715D88E1DF1F24 && \
-    apt-key adv --keyserver-options http-proxy=$HTTP_PROXY --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A1715D88E1DF1F24 && \
-    apt-get update -qq && apt-get install -y git && \
-    git config --global http.proxy $PROXY
+# Git: debian ships a recent enough version without requiring an alternative PPA
+RUN apt-get install -y git && git config --global http.proxy $PROXY
 
 # [SIRC] We ran into strange host-key verification issues when downloading packages
 RUN git config --global http.sslVerify false && \
@@ -76,10 +60,13 @@ RUN apt-get update -qq && \
     # procps is a set of command line and full-screen utilities that
     # provide information out of the pseudo-filesystem.
     # https://github.com/warmchang/procps
-    procps \
-    # If we want uwsgi's routing support
+    procps
+    # If we want uwsgi's routing support we need libpcre
     # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
-    libpcre3 libpcre3-dev
+    # we used to have libpcre3 but it is not shipped as part of recent debian 
+    # https://launchpad.net/ubuntu/+source/uwsgi/+changelog
+    # and this breaks at link-time
+    # libpcre2-dev
 
 # Required to build some projects from source
 RUN apt-get update -qq && \
@@ -96,7 +83,7 @@ ENV UWSGI_PROFILE_OVERRIDE="xml=no"
 # References:
 # https://docs.astral.sh/uv/guides/integration/docker/
 # https://hynek.me/articles/docker-uv/
-COPY --from=ghcr.io/astral-sh/uv:0.7.3 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /uvx /bin/
     # Already isolated environment
 ENV UV_SYSTEM_PYTHON=1 \
     # Silence uv complaining about not being able to use hard links
@@ -122,8 +109,8 @@ RUN --mount=type=ssh \
     uv sync \
     # we ran into issues making sure we really build uwsgi
     # from source to use the UWSGI_PROFILE_OVERRIDE set above
-    --refresh-package uwsgi \
-    --no-binary-package uwsgi \
+    # --refresh-package uwsgi \
+    # --no-binary-package uwsgi \
     #FIXME: when we fix the xml bugs and issues then we can uncomment --locked
     # --locked \
     --no-install-project \
