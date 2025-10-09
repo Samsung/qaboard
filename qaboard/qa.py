@@ -494,7 +494,7 @@ default_action_on_existing = config.get('outputs', {}).get('action_on_existing',
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
-    allow_interspersed_args=True,
+    allow_interspersed_args=False,
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
