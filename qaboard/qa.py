@@ -199,6 +199,10 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     """
     Runs over a given input/recording/test and computes various success metrics and outputs.
     """
+    ctx.params["forwarded_args"] = [
+      *ctx.params["forwarded_args"],
+      *ctx.obj.get("forwarded_args", []),
+    ]
     run_context = RunContext.from_click_run_context(ctx, config)
 
     if run_context.output_dir.exists():
@@ -416,6 +420,10 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
   """Run only the post-processing, assuming results already exist."""
+  ctx.params["forwarded_args"] = [
+    *ctx.params["forwarded_args"],
+    *ctx.obj.get("forwarded_args", []),
+  ]
   run_context = RunContext.from_click_run_context(ctx, config)
   with redirect_std_streams(run_context.output_dir / 'log.txt', color=ctx.obj['color']):
     click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
