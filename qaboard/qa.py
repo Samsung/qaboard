@@ -61,7 +61,8 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
 
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
-  ctx.obj = {}
+  if not ctx.obj:
+    ctx.obj = {}
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   noop_command = 'init' in sys.argv
@@ -494,7 +495,7 @@ default_action_on_existing = config.get('outputs', {}).get('action_on_existing',
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
     ignore_unknown_options=True,
-    allow_interspersed_args=False,
+    allow_interspersed_args=True,
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
@@ -528,7 +529,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     return
 
   filtered_batch_names = []
-  forwarded_args = []
+  forwarded_args = ctx.obj.get("forwarded_args", []) 
   for i, arg in enumerate(batch_names):
     if arg == "--": # explicit separator → everything after is forwarded args
       forwarded_args = batch_names[i + 1 :]
@@ -759,6 +760,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           'run' if should_run else action_on_existing,
           f'--input "{run_context.rel_input_path}"',
           f'--output "{run_context.output_dir}"' if prefix_outputs_path else None,
+          # we can't use "--" here directly since we want to allow "qa batch mybatch --some-flag-for-qa-run-like --save-manifests-in-database"
+          # we would need to be a little bit accurate in how we handle this...
           forwarded_args_cli if forwarded_args_cli else None,
       ]
       command = ' '.join([arg for arg in args if arg is not None])
@@ -966,6 +969,20 @@ def init(ctx):
   qa_init(ctx)
 
 
+
+# We want to allow both
+# 1. Late "--list" args like "qa batch my-batch --list", which requires allow_interspersed_args=True
+# 2. "--" to specifcy args to be forwarded in "qa batch", which would require allow_interspersed_args=False
+# So the only good way to solve it is to handle -- before click even runs...
+def split_dashdash():
+  if '--' in sys.argv:
+      idx = sys.argv.index('--')
+      pre = sys.argv[:idx]
+      post = sys.argv[idx + 1:]
+      sys.argv = pre  # Click will see only "before"
+      return post
+  return []
+
 def main():
   if os.environ.get("CI"):
     import urllib3
@@ -985,7 +1002,11 @@ def main():
     )
   from .compat import ensure_cli_backward_compatibility
   ensure_cli_backward_compatibility()
-  qa(obj={}, auto_envvar_prefix='QA')
+  forwarded_args = split_dashdash()
+  qa(
+    obj={"forwarded_args": forwarded_args},
+    auto_envvar_prefix='QA',
+  )
 
 if __name__ == '__main__':
   main()
