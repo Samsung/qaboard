@@ -104,9 +104,11 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         inputs.append(cased_path(input_path))
 
-      # this provides backward compatibility with flows were a tool based on regexes was used.
+
+      # This provides backward compatibility with flows were a tool based on regexes was used.
       if "QA_BATCH_FILTER_INPUT_REGEX" in os.environ:
         regex = os.environ["QA_BATCH_FILTER_INPUT_REGEX"]
+        regex = regex.lstrip("^") # not sure it is always what we want but helps with the legacy workflow
         inputs = [i for i in inputs if re.search(regex, i.as_posix())]
 
       for i in inputs:
