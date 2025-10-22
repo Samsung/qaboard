@@ -54,6 +54,9 @@ class AddRecordingsForm extends Component {
     Object.entries(this.state.files).forEach( ([key, value]) => {
       this.getGroups(value)
     }));
+    
+    // Add event listener for CTRL-S
+    document.addEventListener('keydown', this.handleKeyDown);
   }
  
   getGroups(name) {
@@ -112,6 +115,26 @@ class AddRecordingsForm extends Component {
   
   editorWillMount(monaco) {
   }
+
+  componentWillUnmount() {
+    document.removeEventListener('keydown', this.handleKeyDown);
+  }
+
+  handleKeyDown = (e) => {
+    // Check if CTRL-S (or CMD-S on Mac) was pressed
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault(); // Prevent browser's save dialog
+      
+      // Get the currently selected group name
+      const { files, selectedTabId } = this.state;
+      let groupName = files[selectedTabId];
+      
+      // Only submit if we have a valid group name and there are dirty changes
+      if (groupName && this.state.dirty[groupName]) {
+        this.onSubmit(groupName, e);
+      }
+    }
+  };
 
   // TODO: add serach feature of other users yamls (read-only)
   // renderGroups = (group, { modifiers, handleClick }) => {
