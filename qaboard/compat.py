@@ -4,8 +4,10 @@ Deprecation warnings, backward compatibility, Windows compatibility
 import re
 import os
 import sys
-import click
+import shlex
 from pathlib import Path
+
+import click
 
 
 def ensure_cli_backward_compatibility():
@@ -151,12 +153,12 @@ def fix_linux_permissions(path: Path):
     # It helps as ACLs prevent network path from being used as keys with the builtin ssh
     git_ssh_path = r"C:\Program Files\Git\usr\bin\ssh.exe"
     if os.name == 'nt' and os.path.exists(git_ssh_path):
-        ssh_cmd = f'"{git_ssh_path}"'
+        ssh_cmd = git_ssh_path
     else:
         ssh_cmd = "ssh"
     
     user = getuser()
-    ssh = f"{ssh_cmd} -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
+    ssh = f"{shlex.quote(ssh_cmd)} -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
     hostname = f"{user}-vdi" if user != "sircdevops" else "qa"
     def windowsize(path):
        return windows_to_linux_path(path).as_posix()
