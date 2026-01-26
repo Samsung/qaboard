@@ -120,3 +120,51 @@ deploy:production:
   only:
   - master
   when: manual
+  needs:
+    - smoke-test:dev
+
+
+deploy:dev:
+  stage: deploy
+  variables:
+    DOCKER_HOST: "ssh://alginfra1"
+    CI_ENVIRONMENT_SLUG: ""
+  script:
+    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 docker compose -f docker-compose.yml -f development.yml -f sirc.yml build --no-cache
+    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 docker compose -f docker-compose.yml -f development.yml -f sirc.yml up --force-recreate --no-deps -d
+  environment:
+    name: development
+    url: http://alginfra1:7159
+  only:
+    - master
+  when: on_success
+
+
+smoke-test:dev:
+  stage: smoke-test
+  script:
+    - echo "Waiting for backend to be ready (will retry if needed)..."
+    - sleep 20
+    - echo "Testing backend /api/v1/projects endpoint..."
+    - curl -f --connect-timeout 10 --max-time 30 --retry 10 --retry-delay 10 --retry-all-errors http://alginfra1:7159/api/v1/projects
+    - echo "✅ Smoke tests passed! Backend is healthy and connected to database."
+  only:
+    - master
+  when: on_success
+  needs:
+    - deploy:dev
+
+
+cleanup:dev:
+  stage: cleanup
+  variables:
+    DOCKER_HOST: "ssh://alginfra1"
+  script:
+    - echo "Cleaning up CI deployment containers..."
+    - source ./.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml -f sirc.yml down
+    - echo "✅ Cleanup complete - alginfra1 is clean"
+  only:
+    - master
+  when: always  # Always cleanup, even if tests fail
+  needs:
+    - smoke-test:dev
