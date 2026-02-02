@@ -214,8 +214,16 @@ class GenericTextViewer extends React.Component {
     this.setState({ shown_left })
   }
   keyboard = ev => {
-    if (ev.target.nodeName === 'INPUT')
+    if (ev.target.nodeName === 'INPUT' || 
+        ev.target.nodeName === 'TEXTAREA' ||
+        ev.target.isContentEditable) {
       return;
+    }
+    
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+      return;
+    }
+    
     switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "t":
         this.switch()
