@@ -16,7 +16,7 @@ services:
       driver: none
   proxy:
     ports:
-    - 5001:5001
+    - ${QABOARD_DEV_PROXY_PORT_5001:-5001}:5001
 
   backend:
     volumes:
