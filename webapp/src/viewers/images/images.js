@@ -988,10 +988,18 @@ class ImgViewer extends React.PureComponent {
     // document.activeElement.blur();
     this.setState({ first_image }, () => window.scrollTo(x, y))
   }
-
+ 
   keyboard = ev => {
-    if (ev.target.nodeName === 'INPUT')
+    if (ev.target.nodeName === 'INPUT' || 
+        ev.target.nodeName === 'TEXTAREA' ||
+        ev.target.isContentEditable) {
       return;
+    }
+    
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+      return;
+    }
+    
     switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
       case "t":
         this.switch_images()
