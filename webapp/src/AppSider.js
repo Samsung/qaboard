@@ -534,7 +534,7 @@ class ProjectSideCommitList extends React.Component {
           <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
         </MenuItem>
         {user?.is_logged && <MenuItem
-          href={`/metabase/dashboard/38?username=${user.user_name}&project=${project}`}
+          href={`/metabase/dashboard/154-manage-and-delete-storage?username=${user.user_name}&project=${project}`}
           rel="noopener noreferrer" target="_blank"
           icon="database"
           text="Quota"
