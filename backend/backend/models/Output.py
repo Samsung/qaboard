@@ -64,6 +64,10 @@ class Output(Base):
     # https://sqlalche.me/e/14/f405
     Index('idx_outputs_data_user', text("(data->>'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
+    Index('idx_outputs_batch_user_storage', 
+          "batch_id", 
+          text("(data->>'user')"),
+          postgresql_where=text("NOT deleted AND (data->>'storage') IS NOT NULL")),
     # we can't create an btree index on everything because JSON values can be big
     # https://github.com/doorkeeper-gem/doorkeeper/wiki/How-to-fix-PostgreSQL-error-on-index-row-size
     # https://dba.stackexchange.com/questions/162820/values-larger-than-1-3-of-a-buffer-page-cannot-be-indexed
