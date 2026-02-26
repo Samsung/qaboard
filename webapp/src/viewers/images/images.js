@@ -65,6 +65,52 @@ const openseadragon_config = {
 var synced_viewers = {}
 
 
+// Viewport-aware syncing: only sync viewers near the viewport to avoid
+// animating and requesting tiles for all 50+ viewers on a page at once.
+const visible_viewer_ids = new Set();
+const observed_components = new WeakMap(); // DOM element -> ImgViewer instance
+
+function onVisibilityChange(entries) {
+  entries.forEach(entry => {
+    const component = observed_components.get(entry.target);
+    if (!component) return;
+
+    const ids = [component.viewer_new?.id, component.viewer_ref?.id].filter(Boolean);
+    if (entry.isIntersecting) {
+      ids.forEach(id => visible_viewer_ids.add(id));
+      catchUpSyncState(component);
+    } else {
+      ids.forEach(id => visible_viewer_ids.delete(id));
+    }
+  });
+}
+
+// 200px margin so viewers just outside the viewport are pre-synced
+const visibility_observer = typeof IntersectionObserver !== 'undefined'
+  ? new IntersectionObserver(onVisibilityChange, { rootMargin: '200px' })
+  : null;
+
+function isViewerVisible(viewer_id) {
+  if (!visibility_observer) return true; // fallback: sync all
+  return visible_viewer_ids.has(viewer_id);
+}
+
+// When a viewer scrolls into view, snap it to the current sync group state
+function catchUpSyncState(component) {
+  const sync_key = component._sync_key;
+  if (!sync_key || !synced_viewers[sync_key]) return;
+  const sync_group = synced_viewers[sync_key];
+  if (sync_group.zoom == null || sync_group.center == null) return;
+
+  [component.viewer_new, component.viewer_ref].forEach(v => {
+    if (!v?.viewport) return;
+    try {
+      v.viewport.zoomTo(sync_group.zoom, null, true);
+      v.viewport.panTo(sync_group.center, true);
+    } catch(e) {}
+  });
+}
+
 
 // we create unique ids to identify openseadragon viewers as outputs change
 // it's handy for smooth transitions, eg with videos, or when the list of viewers is updated/filtered
@@ -83,14 +129,15 @@ function maintain_zoom() {
       return;
     sync_group.leading = "resize";
     try { // we should try to find how to identify when an image is not loaed...
-      sync_group.viewers.forEach(v => {
+      const visible = sync_group.viewers.filter(v => isViewerVisible(v.id));
+      visible.forEach(v => {
         const size = new OpenSeadragon.Point(v.container.clientWidth ?? 1, v.container.clientHeight ?? 1);
         v.viewport.resize(size, true);
         v.viewport.zoomTo(sync_group.zoom, null, true);
         v.viewport.panTo(sync_group.center, true);
       })
       sync_group.leading = null;
-      sync_group.viewers.forEach(v => v.forceRedraw())
+      visible.forEach(v => v.forceRedraw())
     } catch { }
   })
 }
@@ -106,6 +153,7 @@ class ImgViewer extends React.PureComponent {
 
     this.show_histogram = false;
     this.canvas_diff = React.createRef();
+    this.wrapperRef = React.createRef();
     // this.canvas_diff_ssim = React.createRef();
 
     this.state = {
@@ -134,6 +182,11 @@ class ImgViewer extends React.PureComponent {
       ...openseadragon_config,
       ...this.viewer_ref,
     });
+    // Start observing visibility for viewport-aware syncing
+    if (visibility_observer && this.wrapperRef.current) {
+      observed_components.set(this.wrapperRef.current, this);
+      visibility_observer.observe(this.wrapperRef.current);
+    }
     this.Init().then(() => {
       this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
       this.InitMouseTracker(this.props);
@@ -155,6 +208,7 @@ class ImgViewer extends React.PureComponent {
     const { viewer_new, viewer_ref } = this;
     const { image_width, image_height } = this.state;
     const sync_key = `${this.props.output_new.test_input_path}-${image_height}x${image_width}`;
+    this._sync_key = sync_key;
     // console.log("sync_key", sync_key)
 
     if (synced_viewers[sync_key] === undefined) {
@@ -191,8 +245,8 @@ class ImgViewer extends React.PureComponent {
         return
       synced_viewers[sync_key].leading = viewer.id;
       synced_viewers[sync_key].viewers.filter(v => v.id !== viewer.id).forEach(v => {
-        // console.log(`  follow for ${v.id} (${v.source.height}:${v.source.width})`)
-        // console.log(v.source.width)
+        // Only sync viewers that are near the viewport
+        if (!isViewerVisible(v.id)) return;
         v.viewport.zoomTo(synced_viewers[sync_key].zoom);
         v.viewport.panTo(synced_viewers[sync_key].center);
       })
@@ -221,6 +275,14 @@ class ImgViewer extends React.PureComponent {
 
 
   componentWillUnmount() {
+    // Stop observing visibility
+    if (visibility_observer && this.wrapperRef.current) {
+      visibility_observer.unobserve(this.wrapperRef.current);
+      observed_components.delete(this.wrapperRef.current);
+    }
+    visible_viewer_ids.delete(this.viewer_new?.id);
+    visible_viewer_ids.delete(this.viewer_ref?.id);
+
     if (!!this.state.cancel_source.token)
       this.state.cancel_source.cancel();
     if (!!this.UnregisterZoomSync)
@@ -230,13 +292,13 @@ class ImgViewer extends React.PureComponent {
 
     if (!!this.viewer_new) {
       unregister_filter_sync(this.viewer_new)
-      // this.viewer_new.imageLoader.clear()  
+      // this.viewer_new.imageLoader.clear()
       // this.viewer_new.destroy();
       // this.viewer_new = null;
     }
     if (!!this.viewer_ref) {
       unregister_filter_sync(this.viewer_ref)
-      // this.viewer_new.imageLoader.clear()  
+      // this.viewer_new.imageLoader.clear()
       // this.viewer_ref.destroy();
       // this.viewer_ref = null;
     }
@@ -685,7 +747,7 @@ class ImgViewer extends React.PureComponent {
     //       {/* <canvas hidden={!diff || !has_reference} ref={this.canvas_diff_ssim} /> */}
 
     // const empty_image = <canvas key="empty-image" {...single_image_size} />
-    return <>
+    return <div ref={this.wrapperRef}>
       {error_messages}
       {!has_error && <>
         {this.state.ready &&
@@ -732,7 +794,7 @@ class ImgViewer extends React.PureComponent {
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center"}} hidden={has_error}>
         {hist_info}
       </div>
-    </>
+    </div>
   }
 
   switch_images = e => {
