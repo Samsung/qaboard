@@ -1,0 +1,12 @@
+[project]
+name = "qaboard-site-sirc"
+version = "1.0.0"
+description = "QABoard site defaults for Samsung SIRC"
+requires-python = ">=3.7"
+
+[project.entry-points."qaboard.site"]
+sirc = "qaboard_site_sirc:defaults"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
