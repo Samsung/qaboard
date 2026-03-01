@@ -15,6 +15,7 @@ from .utils import merge, getenvs
 from .git import git_head, git_show
 from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files
 from .iterators import flatten
+from .site_config import site_config
 
 
 # In case the qaboard.yaml configuration has errors, we don't want to exit directly.
@@ -430,7 +431,9 @@ if metrics_file:
 
 # We want to allow any user to use the Gitlab API, stay backward compatible
 # ...and remove the credentials from the repo
-default_secrets_path = os.environ.get('QA_SECRETS', '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml')
+# TODO: remove hardcoded SIRC fallback path once all SIRC users install qaboard[sirc]
+_default_secrets = '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml'
+default_secrets_path = site_config('QA_SECRETS', _default_secrets)
 secrets_path = Path(config.get('secrets', default_secrets_path))
 if secrets_path.exists():
   with secrets_path.open() as f:
