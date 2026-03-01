@@ -1,0 +1,30 @@
+# DSK (Device Solution Korea) compose overlay
+# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/dsk.yml up
+
+services:
+  backend:
+    environment:
+      - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-SAML}
+      - QABOARD_TUNING_RUNNER=celery
+      - QABOARD_DEFAULT_USER=qaboard
+      - QABOARD_HOST=${QABOARD_HOST:-12.36.168.155}
+      - QABOARD_PROTOCOL=http
+      - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:5672//
+      - QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}
+
+  frontend:
+    environment:
+      - REACT_APP_QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-SAML}
+      - REACT_APP_QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-}
+
+  proxy:
+    volumes:
+      - ./deployments/nginx/dsk.conf:/etc/nginx/conf.d/dsk.conf:ro
+
+  cron-backup-db:
+    environment:
+      - AS_USER_NAME=qaboard
+      - AS_USER_UID=1001
+      - AS_USER_GID=1001
+    volumes:
+      - /var/qaboard/data/backups:/backup
