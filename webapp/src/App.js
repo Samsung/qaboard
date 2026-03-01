@@ -16,6 +16,7 @@ import ErrorPage from "./components/ErrorPage";
 import IeDeprecationWarning from './components/IeDeprecationWarning'
 
 import { fetchProjects, fetchProject } from './actions/projects'
+import { fetchSiteConfig } from './actions/config'
 
 import "normalize.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
@@ -45,6 +46,7 @@ class App extends React.Component {
   }
 
   componentDidMount() {
+    this.props.store.dispatch(fetchSiteConfig())
     this.props.store.dispatch(fetchProjects())
     const state = this.props.store.getState()
     if (state.selected.project !== null)

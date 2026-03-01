@@ -12,6 +12,7 @@ import {
   default_selected,
 } from "../defaults"
 import { loggedReducer } from './users'
+import { siteConfig } from './siteConfig'
 
 import { metrics_fill_defaults } from "../utils"
 
@@ -169,6 +170,7 @@ const rootReducer = combineReducers({
   selected,
   tuning,
   user: loggedReducer,
+  siteConfig,
 })
 
 
