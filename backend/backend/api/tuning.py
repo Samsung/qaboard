@@ -6,7 +6,6 @@ import os
 import sys
 import json
 import uuid
-import getpass
 import datetime
 import itertools
 import subprocess
@@ -226,6 +225,106 @@ def get_group():
         return jsonify({"tests": [], "error": str(e)})
 
 
+def _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data):
+    """Generate the qa_batch.sh script (shared across all runners)."""
+    parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
+    envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
+
+    default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
+    outputs_dir_prefix = str(ci_commit.outputs_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/')
+
+    use_openstf = data.get("android_device", "").lower() == "openstf"
+
+    script = "".join([
+        "#!/bin/bash\n",
+        'export LC_ALL=en_US.utf8;\n',
+        'export LANG=en_US.utf8;\n\n',
+        'export MPLBACKEND=agg;\n',
+        ('\n'.join(envrcs) + '\n') if envrcs else "",
+        "set -xe\n\n",
+        f'cd "{working_directory}";\n\n',
+        f"export RESERVED_ANDROID_DEVICE='{data.get('android_device', '')}';\n" if not use_openstf else "",
+        f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
+        f"\nexport CI=true;\n",
+        f"\nexport GIT_COMMIT='{ci_commit.hexsha}';\n",
+        f"export QABOARD_TUNING=true;\n\n",
+        f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}';\n\n",
+        f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.outputs_dir}';\n\n",
+        f"export QA_BATCH_COMMAND_ID='{command_id}';\n\n",
+        f"{batch_command};\n\n",
+    ])
+    return script
+
+
+def _dispatch_local(qa_batch_path, batch_dir):
+    """Run batch script locally via subprocess."""
+    cmd = ['bash', '-c', f'bash "{qa_batch_path}" &>> "{batch_dir}/log.txt"']
+    print(cmd)
+    out = subprocess.run(cmd, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    out.check_returncode()
+
+
+def _dispatch_celery(qa_batch_path, batch_dir):
+    """Run batch script via celery worker. Injects broker URL into script."""
+    broker_url = os.environ.get('CELERY_BROKER_URL', 'pyamqp://guest:guest@qaboard:5672//')
+    qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
+    qaboard_protocol = os.environ.get('QABOARD_PROTOCOL', 'http')
+
+    celery_env = "".join([
+        f"export QABOARD_PROTOCOL={qaboard_protocol}\n",
+        f"export QABOARD_HOST={qaboard_host}\n",
+        f"export CELERY_BROKER_URL={broker_url}\n",
+        f"export no_proxy={qaboard_host},proxy,rabbitmq,qaboard\n",
+    ])
+    with qa_batch_path.open("r") as f:
+        content = f.read()
+    content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
+    with qa_batch_path.open("w") as f:
+        f.write(content)
+
+    cmd = ['bash', '-c', f'bash "{qa_batch_path}" &>> "{batch_dir}/log.txt"']
+    print(cmd)
+    out = subprocess.run(cmd, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    out.check_returncode()
+
+
+def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
+    """Run batch script via LSF job submission (SSH + bsub)."""
+    qatools_config = ci_commit.project.data.get("qatools_config", {})
+    lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
+    default_queue = lsf_config.get('queue', 'default')
+    queue = lsf_config.get('long_queue', 'alg_long_q') if do_optimize else default_queue
+
+    start_script = "\n".join([
+        "#!/bin/bash",
+        "set -xe",
+        "",
+        f'mkdir -p "{batch_dir}"',
+        f'bsub_su "{user}" -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
+        f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
+    ])
+    print(start_script)
+
+    start_path = batch_dir / "start.sh"
+    with start_path.open("w") as f:
+        f.write(start_script)
+
+    lsf_bridge = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
+    if lsf_bridge:
+        cmd = lsf_bridge.replace('{command}', f'bash "{start_path}"')
+    else:
+        cmd = " ".join([
+            "LC_ALL=en_US.utf8 LANG=en_US.utf8",
+            "ssh", "-q", "-tt",
+            "-o StrictHostKeyChecking=no",
+            os.environ.get('QA_LSF_SSH_TARGET', 'localhost'),
+            f'\'bash "{start_path}"\'',
+        ])
+    print(cmd)
+    out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    out.check_returncode()
+
+
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
 def start_tuning(hexsha):
     """
@@ -300,7 +399,8 @@ def start_tuning(hexsha):
     batch_dir = batch.batch_dir
     # FIXME: if the output directory includes "{user}", we will use the current user (qaboard)
     # but it's likely better to use the user that requested the tuning
-    batch_dir = Path(str(batch_dir).replace('/outputs/ispq/', f'/outputs/{user}/'))
+    default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
+    batch_dir = Path(str(batch_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/'))
     if not batch.batch_dir_override:
         batch.batch_dir_override = str(batch_dir)
         db_session.add(batch)
@@ -345,103 +445,21 @@ def start_tuning(hexsha):
     ])
     print(batch_command)
 
-    # To avoid issues with quoting, we write a script to run the batch,
-    # and execute it with bsub/LSF
-    # We could also play with heredocs-within-heredocs, but it is painful, and this way we get logs
-    # openstf is our Android device farm
-    use_openstf = data["android_device"].lower() == "openstf"
-    parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
-    envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
-
-    outputs_dir_prefix = str(ci_commit.outputs_dir).replace('/outputs/ispq/', f'/outputs/{user}/')
-    qa_batch_script = "".join(
-        [
-            "#!/bin/bash\n",
-            # qa uses click, which hates non-utf8 locales
-            'export LC_ALL=en_US.utf8;\n',
-            'export LANG=en_US.utf8;\n\n',
-
-            # we avoid DISPLAY issues with matplotlib, since we're headless here
-            'export MPLBACKEND=agg;\n',
-
-            # Load all .envrc files relevant for the (sub)project
-            ('\n'.join(envrcs) + '\n') if envrcs else "",
-
-            "set -xe\n\n",
-            f'cd "{working_directory}";\n\n',
-
-            # Those options are specific to android
-            f"export RESERVED_ANDROID_DEVICE='{data['android_device']}';\n" if not use_openstf else "",
-            f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
-
-            # Make sure QA-Board doesn't complain about not being in a git repository and knows where to save results
-            f"\nexport CI=true;\n",
-            f"\nexport GIT_COMMIT='{ci_commit.hexsha}';\n",
-            f"export QABOARD_TUNING=true;\n\n",
-            f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}';\n\n",
-            # backward compatibility
-            f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.outputs_dir}';\n\n",
-            f"export QA_BATCH_COMMAND_ID='{command_id}';\n\n",
-            f"{batch_command};\n\n",
-        ]
-    )
+    qa_batch_script = _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data)
     print(qa_batch_script)
-    qa_batch_path = batch_dir / f"qa_batch.sh"
+    qa_batch_path = batch_dir / "qa_batch.sh"
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    qatools_config = ci_commit.project.data["qatools_config"]
-    lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
-    queue = "alg_long_q" if do_optimize else lsf_config['queue']
-    #     - QA_RUNNERS_LSF_BRIDGE='LC_ALL=en_US.utf8 LANG=en_US.utf8 ssh -q -tt -i /home/arthurf/.ssh/ispq.id_rsa ispq@ispq-vdi bsub_su {user} -I {bsub_command}'
-    # print("QA_RUNNERS_LSF_BRIDGE", os.environ['QA_RUNNERS_LSF_BRIDGE'])
-    start_script = "\n".join(
-        [
-            "#!/bin/bash",
-            "set -xe",
-            "",
-            f'mkdir -p "{batch_dir}"',
-            # highest priority for manual runs
-            f'bsub_su "{user}" -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
-            f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
-        ]
-    )
-    print(start_script)
-
-
-    start_path = batch_dir / f"start.sh"
-    with start_path.open("w") as f:
-        f.write(start_script)
-
-    # Wraps and execute the script that starts the batch
-    current_user = getpass.getuser()
-    if True: # current_user != 'ispq':
-        # We need to be ispq on its VDI in order to have access to bsub_su
-        cmd = " ".join(
-            [
-                # there is only C.utf8 on our container, but it is not available on LSF
-                "LC_ALL=en_US.utf8 LANG=en_US.utf8",
-                "ssh",
-                # quiet to avoid the welcome banner
-                "-q",
-                # ask, and force a TTY, otherwise bsub->su will complain
-                "-tt",
-                # make sure we OK the server key during the first-connection
-                "-o StrictHostKeyChecking=no",
-                # ispq is the only user that can use bsub_su, an alias for sudo -i -u {0} {1:}.
-                # "-i /some/id_rsa",
-                "ispq@ispq-vdi",
-                f'\'bash "{start_path}"\'',
-            ]
-        )
-    else:
-        # but bsub_su is not in the container! :|
-        cmd = f"bash '{start_path}'"
-    print(cmd)
-
+    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
     try:
-        out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        out.check_returncode()
-    except:
-        return jsonify({"error": (batch.batch_dir/'log.txt').read_text(), "cmd": str(cmd)}), 500
-    return jsonify({"cmd": str(cmd), "stdout": str(out.stdout)})
+        if runner == 'lsf':
+            _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize)
+        elif runner == 'celery':
+            _dispatch_celery(qa_batch_path, batch_dir)
+        else:
+            _dispatch_local(qa_batch_path, batch_dir)
+    except Exception:
+        error_log = (batch_dir / 'log.txt').read_text() if (batch_dir / 'log.txt').exists() else "Failed to start batch"
+        return jsonify({"error": error_log, "cmd": runner}), 500
+    return jsonify({"cmd": runner, "stdout": "OK"})
