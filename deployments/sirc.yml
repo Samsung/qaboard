@@ -40,12 +40,12 @@ services:
     - QABOARD_DISABLE_SIGNUP=True
     - QABOARD_LOGIN_RESTRICTED=True
     - QABOARD_LOGIN_RESTRICTED_YAML=/etc/ldap/users_restrict.yml
-    - QABOARD_LDAP_USER_BASE=REDACTED_LDAP_BASE
-    - QABOARD_LDAP_BIND_DN=cn=Ldap Query,ou=IT,ou=SIRC Users,REDACTED_LDAP_BASE
-    - QABOARD_LDAP_PASSWORD=REDACTED_LDAP_PASSWORD
-    - QABOARD_LDAP_HOST=REDACTED_LDAP_HOST
+    - QABOARD_LDAP_USER_BASE=${QABOARD_LDAP_USER_BASE}
+    - QABOARD_LDAP_BIND_DN=${QABOARD_LDAP_BIND_DN}
+    - QABOARD_LDAP_PASSWORD=${QABOARD_LDAP_PASSWORD}
+    - QABOARD_LDAP_HOST=${QABOARD_LDAP_HOST}
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
-    - SENTRY_DSN=https://REDACTED_SENTRY_KEY@sentry.transchip.com/5
+    - SENTRY_DSN=${SENTRY_DSN:-}
     - QABOARD_TUNING_RUNNER=lsf
     - QABOARD_DEFAULT_USER=ispq
     - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
@@ -123,13 +123,13 @@ services:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
     build:
       args:
-        REACT_APP_SENTRY_DSN: https://REDACTED_SENTRY_FE_KEY@sentry.transchip.com/2
+        REACT_APP_SENTRY_DSN: ${REACT_APP_SENTRY_DSN:-}
         REACT_APP_QABOARD_LOGIN_TYPE: "LDAP"
-        SENTRY_ORG: sentry
-        SENTRY_PROJECT: qaboard-frontend
-        SENTRY_AUTH_TOKEN: REDACTED_SENTRY_AUTH_TOKEN
-        REACT_APP_POSTHOG_HOST: https://posthog.transchip.com
-        REACT_APP_POSTHOG_TOKEN: REDACTED_POSTHOG_TOKEN
+        SENTRY_ORG: ${SENTRY_ORG:-sentry}
+        SENTRY_PROJECT: ${SENTRY_PROJECT:-qaboard-frontend}
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+        REACT_APP_POSTHOG_HOST: ${REACT_APP_POSTHOG_HOST:-}
+        REACT_APP_POSTHOG_TOKEN: ${REACT_APP_POSTHOG_TOKEN:-}
 
   website:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"
