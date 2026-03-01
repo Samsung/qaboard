@@ -1,4 +1,5 @@
 import React from "react";
+import { useSelector } from "react-redux";
 import copy from 'copy-to-clipboard';
 
 import {
@@ -46,7 +47,8 @@ const output_rois = output => {
 
 
 const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
-  const url_prefix = iiif_url(output.output_dir_url, path)
+  const imageServers = useSelector(state => state.siteConfig?.image_servers);
+  const url_prefix = iiif_url(output.output_dir_url, path, imageServers)
   const x = roi.x * viewer.source.width  / (roi.image_width  ?? viewer.source.width)
   const y = roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height)
   const w = roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width)

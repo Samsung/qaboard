@@ -1,4 +1,5 @@
 import React from "react";
+import { connect } from "react-redux";
 import { get, CancelToken, isCancel } from "axios"
 import {
   Classes,
@@ -359,9 +360,10 @@ class ImgViewer extends React.PureComponent {
       let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path_ref] !== undefined;
       this.setState({has_reference})
 
-      let requests = [get(`${iiif_url(output_new.output_dir_url, path)}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      const { imageServers } = this.props;
+      let requests = [get(`${iiif_url(output_new.output_dir_url, path, imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token })]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token }))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -431,7 +433,7 @@ class ImgViewer extends React.PureComponent {
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
         viewer_new.addTiledImage({
-          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path) },
+          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, imageServers) },
           success: () => {
             // To avoid leaking tile sources, we should remove the previous tile
             // however, it causes a blink-to-white transition... so until we find a fix...
@@ -452,7 +454,7 @@ class ImgViewer extends React.PureComponent {
               ...source_config,
               width: res_ref?.data?.width,
               height: res_ref?.data?.height,
-              "@id": iiif_url(output_ref.output_dir_url, path_ref),
+              "@id": iiif_url(output_ref.output_dir_url, path_ref, imageServers),
             },
             success: () => { },
           })
@@ -1028,4 +1030,8 @@ function addOverlayToCanvas(canvas, position) {
   }
 }
 
-export default ImgViewer;
+const mapStateToProps = state => ({
+  imageServers: state.siteConfig?.image_servers,
+});
+
+export default connect(mapStateToProps)(ImgViewer);
