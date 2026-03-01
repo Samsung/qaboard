@@ -1,0 +1,38 @@
+"""
+Site-specific configuration via Python entry points.
+
+Priority order (highest wins):
+1. Environment variables
+2. Installed site package defaults (e.g. qaboard-site-sirc)
+3. Hardcoded open-source defaults
+
+Install a site package to auto-configure:
+    pip install qaboard[sirc]    # SIRC defaults
+    pip install qaboard[dsk]     # DSK defaults
+"""
+import os
+from importlib.metadata import entry_points
+
+
+def _load_site_defaults():
+    """Discover and load site defaults from installed entry points."""
+    defaults = {}
+    try:
+        eps = entry_points(group="qaboard.site")
+        for ep in eps:
+            site_module = ep.load()
+            if isinstance(site_module, dict):
+                defaults.update(site_module)
+            elif hasattr(site_module, 'defaults'):
+                defaults.update(site_module.defaults)
+    except Exception:
+        pass
+    return defaults
+
+
+_site_defaults = _load_site_defaults()
+
+
+def site_config(key, default=None):
+    """Get a config value: ENV > site package > default."""
+    return os.getenv(key, _site_defaults.get(key, default))

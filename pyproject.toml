@@ -45,6 +45,8 @@ dev = [
     "types-setuptools",
     "types-simplejson",
 ]
+sirc = ["qaboard-site-sirc"]
+dsk = ["qaboard-site-dsk"]
 
 [project.scripts]
 qa = "qaboard.qa:main"
