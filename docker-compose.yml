@@ -9,23 +9,14 @@ version: "3.5"
 # Development:
 #   # Mounts the local code for easy debugging with reloading
 #   docker compose -f docker-compose.yml -f development.yml up
-# At SIRC
-#                  -f sirc.yml   # volumes..
-# Push:
-#   docker compose -f docker-compose.yml build
-#   docker compose -f docker-compose.yml push
-
-# Worth a read:
-# https://medium.com/softonic-eng/docker-compose-from-development-to-production-88000124a57c
-# https://runnable.com/docker/advanced-docker-compose-configuration
-
+# Site-specific overlay:
+#   docker compose -f docker-compose.yml -f production.yml -f deployments/mysite.yml up -d
 
 # Container names will be prefixed with "qaboard-"
 
 # Usage:
-# - The application is served on port 8000
-# - Your responsability to setup another reverse proxy on top for SSL
-# - Just allow large bodies (TODO example with own ssl / cert-acme-bot-letsencrypt) 
+# - The application is served on port 5151 by default
+# - Your responsibility to setup another reverse proxy on top for SSL
 
 # General docker compose usage:
 #   docker compose up                    # start the whole stack
@@ -40,11 +31,11 @@ version: "3.5"
 
 volumes:
   data: {}              # git clones (and custom batches.yaml for now...)
-  db: {} # to be removed
+  db: {}
   db-16: {}
   redis_data: {}
   rabbitmq-data: {}
-  # cache_cantaloupe: {}  # cache for the iiif image server
+  cache_cantaloupe: {}  # cache for the iiif image server
   pgadmin: {}
   # all builds still available for smooth upgrades
   frontend_builds: {}
@@ -61,22 +52,14 @@ services:
     volumes:
       - db:/var/lib/postgresql/data
       - ./services/db:/opt
-      # - db-config:/etc/postgresql
-      # - db-log:/var/log/postgresql
     environment:
       - POSTGRES_USER=qaboard
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=qaboard
-    logging:
-      driver: "fluentd"
-      options:
-        tag: qaboard.db
-        fluentd-address: "0.0.0.0:24224"
 
   backend:
     image: "arthurflam/qaboard:backend"
     build:
-      # cache_from: ["arthurflam/qaboard:backend"]
       context: .
       dockerfile: backend/Dockerfile
       ssh: [default]
@@ -89,7 +72,6 @@ services:
     - "3000"
     volumes:
     - data:/var/qaboard
-    - /mnt/qaboard:/mnt/qaboard
     environment:
     - SECRET_KEY
     - UWSGI_PROCESSES=2
@@ -98,23 +80,15 @@ services:
     - QABOARD_DB_PORT
     - REDIS_HOST=redis
     - REDIS_PORT=6379
-    - JENKINS_AUTH
-    - GITLAB_AUTH
     - GITLAB_ACCESS_TOKEN
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
     - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
-    logging:
-      driver: "fluentd"
-      options:
-        tag: qaboard.backend
-        fluentd-address: "0.0.0.0:24224"
 
   frontend:
     image: "arthurflam/qaboard:frontend"
     build:
-      # cache_from: ["arthurflam/qaboard:frontend"]
       context: webapp
       shm_size: 6gb
       args:
@@ -142,7 +116,7 @@ services:
 
 
   # https://flower.readthedocs.io/en/latest/config.html#options
-  flower:  
+  flower:
     build:
       context: .
       dockerfile: services/flower.Dockerfile
@@ -153,14 +127,13 @@ services:
       - FLOWER_URL_PREFIX=flower
     command: celery -A qaboard.runners.celery_app flower
     ports:
-      - "8888:8888"  
-    depends_on: 
+      - "8888:8888"
+    depends_on:
         - rabbitmq
 
   website:
     image: "arthurflam/qaboard:website"
     build:
-      # cache_from: ["arthurflam/qaboard:website"]
       context: website
       shm_size: 4gb
       # by default we assume you run the QA-Board on localhost, but will want to change this
@@ -172,20 +145,10 @@ services:
 
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
-  # FIXME: We're missing a webDAV module for dav_ext_methods... in the past we used nginx-extras on debian
-  #   - https://askubuntu.com/questions/553937/what-is-the-difference-between-the-core-full-extras-and-light-packages-for-ngi
-  #   - https://github.com/nginxinc/docker-nginx/issues/14
-  #   It's not a heavily used feature though, and in case of urgent need there is
-  #   build:
-  #     context: .
-  #     dockerfile: services/nginx/Dockerfile
   proxy:
-    # we used to simply use nginx:latest
     image: docker.pkg.github.com/samsung/qaboard/proxy
     build:
       context: services/nginx
-    # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
-    # TODO: template locations blocks for the mount, or find something... maybe include an optionnal file in the config?
     command: /bin/bash -c "rm -rf /etc/nginx && cp -r /tmp/etc/nginx /etc && envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec ${NGINX_BIN-nginx} -g 'daemon off;'"
     environment:
     - NGINX_USER=nginx
@@ -197,46 +160,33 @@ services:
     - website_builds:/docs:ro
     depends_on:
     - backend
-    # - cantaloupe
+    - cantaloupe
     - flower
 
   # IIIF image server to serve images as tiles
-  # cantaloupe:
-  #   image: "arthurflam/qaboard:cantaloupe"
-  #   build:
-  #     # cache_from: ["arthurflam/qaboard:cantaloupe"]
-  #     context: ./services/cantaloupe
-  #   expose:
-  #   - "8182"
-  #   volumes:
-  #   - cache_cantaloupe:/var/cache/cantaloupe
-  #   # INSECURE/FIXME: obviously it's not a great default, let's change it!
-  #   - /:/repository
-  #   - /srv/cantaloupe
-  #   # FIXME: change max memory with env variable
-  #   environment:
-  #     CANTALOUPE_MEM_START: 1g
-  #     CANTALOUPE_MEM_MAX: 2g
-  #   command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.jar'
-
-
-  # cron jobs
-  # https://github.com/getsentry/onpremise/blob/master/docker-compose.yml#L126-L133
-  # https://github.com/getsentry/onpremise/blob/master/cron/Dockerfile
-  # https://github.com/getsentry/onpremise/blob/master/cron/entrypoint.sh 
+  cantaloupe:
+    image: "arthurflam/qaboard:cantaloupe"
+    build:
+      context: ./services/cantaloupe
+    expose:
+    - "8182"
+    volumes:
+    - cache_cantaloupe:/var/cache/cantaloupe
+    - /:/repository
+    - /srv/cantaloupe
+    environment:
+      CANTALOUPE_MEM_START: 1g
+      CANTALOUPE_MEM_MAX: 2g
+    command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$${CANTALOUPE_MEM_START} -Xmx$${CANTALOUPE_MEM_MAX} -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.jar'
 
 
   # For convenience, we also bundle pgadmin
   # Login at localhost:5050, and use "password" as password
   # Note: pgadmin ships with utilities at e.g. /usr/local/pgsql-12
-  # More more configuration options, e.g. reverse proxying with nginx:
+  # More configuration options, e.g. reverse proxying with nginx:
   # https://www.pgadmin.org/docs/pgadmin4/development/container_deployment.html
   pgadmin:
     image: dpage/pgadmin4
-    # was required to run a migration...
-    #  docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d pgadmin && docker attach qaboard_prod_pgadmin_1
-    # tty: true
-    # stdin_open: true
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}
@@ -257,12 +207,3 @@ services:
     command: redis-server --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
-    logging:
-      driver: "fluentd"
-      options:
-        tag: qaboard.redis
-        fluentd-address: "0.0.0.0:24224"
-  
-# Matamo:
-# - Add a service like in ~/matamo?
-# - in the frontend, check for MATAMO_URL being defined

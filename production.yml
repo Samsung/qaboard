@@ -7,8 +7,7 @@ services:
   db:
     shm_size: 1g
     restart: always
-    # On-prem, it can be helpul to expose the database and use various analytics products
-    # At Samsung we use Metabase to show a detailed dashboard of the storage used.
+    # On-prem, it can be helpful to expose the database and use various analytics products
     # ports:
     # - 5432:5432
   pgadmin:
@@ -34,21 +33,17 @@ services:
     - UWSGI_CHEAPER_RSS_LIMIT_SOFT=17179869184 #16GB
     - UWSGI_CHEAPER_RSS_LIMIT_HARD=
     - UWSGI_STATS=true
-    # leave an unbound port open, useful for debugging 
+    # leave an unbound port open, useful for debugging
     ports:
     - ${QABOARD_PORT_DEBUG:-5152}:3001
-    # SIRC backward compat # commented-out, we'll see if something breaks
-    # - "5000:5000"
-    # - "5002:5002"
-    # - "5003:8080"
     # https://github.com/compose-spec/compose-spec/blob/master/spec.md#sysctls
     sysctls:
     - net.core.somaxconn=1024
 
   proxy:
     restart: always
-  # cantaloupe:
-  #   restart: always
+  cantaloupe:
+    restart: always
   rabbitmq:
     restart: always
   flower:
@@ -56,7 +51,7 @@ services:
 
   # Adapted from https://devopsheaven.com/cron/docker/alpine/linux/2017/10/30/run-cron-docker-alpine.html
   # To trigger a backup manually call: docker compose -f docker-compose.yml -f production.yml up -d cron-backup-db
-  # docker compose run /etc/periodic/daily/backup
+  # docker compose run cron-backup-db /etc/periodic/daily/backup
   cron-backup-db:
     image: postgres:12-alpine
     restart: always
@@ -68,31 +63,16 @@ services:
       PGDATABASE: qaboard
       PGUSER: qaboard
       PGPASSWORD: password
-      # when using NFS you often don't want to run as root
-      AS_USER_NAME: ispq
-      AS_USER_GROUP: uucp
-      AS_USER_UID: "1411"
-      AS_USER_GID: "10"
+      # Uncomment and set to run backups as a specific user (useful with NFS)
+      # AS_USER_NAME: qaboard
+      # AS_USER_GROUP: qaboard
+      # AS_USER_UID: "1000"
+      # AS_USER_GID: "1000"
     # https://busybox.net/downloads/BusyBox.html
     # -f: foreground
     # -d: log to stderr, 0 is the most verbose, default 8
     command: crond -f -d 0
     volumes:
     - ./services/db/backup:/etc/periodic/daily/backup:ro
-    - /home/ispq/qaboard_data_prod/database_backups:/backups
-  
-  fluentd:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
-    restart: always
-    build:
-      context: services/fluentd
-      dockerfile: fluentd.Dockerfile
-    container_name: fluentd
-    ports:
-      - "24224:24224"
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./services/fluentd/fluentd.conf:/fluentd/etc/fluentd.conf
-    environment:
-      - ELASTIC_HOST=jenkins-test.transchip.com
-      - FLUENTD_CONF=fluentd.conf
+    # Set the backup destination in your site overlay, e.g.:
+    # - /path/to/backups:/backups

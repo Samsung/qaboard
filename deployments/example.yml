@@ -1,0 +1,40 @@
+# Example site overlay for QABoard
+# Copy this file and customize for your deployment.
+#
+# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/mysite.yml up
+
+services:
+  backend:
+    environment:
+      # Authentication: LOCAL (default), LDAP, or SAML
+      # - QABOARD_LOGIN_TYPE=LDAP
+      # - QABOARD_LDAP_HOST=ldap.example.com
+      # - QABOARD_LDAP_USER_BASE=dc=example,dc=com
+
+      # Tuning job dispatch: local (default), celery, or lsf
+      # - QABOARD_TUNING_RUNNER=lsf
+      # - QA_RUNNERS_LSF_BRIDGE=ssh user@lsf-host 'bsub_su {user} -I {bsub_command}'
+
+      # Image servers (JSON map of file extensions to IIIF endpoints)
+      # - QABOARD_IMAGE_SERVERS={"default": "/iiif"}
+
+      # Observability (set to enable)
+      # - SENTRY_DSN=https://...@sentry.example.com/1
+
+      # Output path user (for multi-user environments)
+      # - QABOARD_DEFAULT_USER=qaboard
+      []
+
+  # Uncomment to customize frontend:
+  # frontend:
+  #   environment:
+  #     - REACT_APP_QABOARD_LOGIN_TYPE=LDAP
+
+  # Add custom nginx config:
+  # proxy:
+  #   volumes:
+  #     - ./deployments/nginx/mysite.conf:/etc/nginx/conf.d/mysite.conf:ro
+
+  # Disable cantaloupe if using a different image server:
+  # cantaloupe:
+  #   profiles: [disabled]
