@@ -19,7 +19,6 @@ classifiers = [
 ]
 requires-python = ">=3.7"
 dependencies = [
-    "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
     "click>=7.0",
     "joblib",
     "pyyaml",
@@ -45,7 +44,7 @@ dev = [
     "types-setuptools",
     "types-simplejson",
 ]
-sirc = ["qaboard-site-sirc"]
+sirc = ["qaboard-site-sirc", "cde @ git+ssh://git@gitlab-srv/cde/cde-python"]
 dsk = ["qaboard-site-dsk"]
 
 [project.scripts]
